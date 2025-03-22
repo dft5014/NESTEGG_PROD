@@ -8,11 +8,9 @@ from typing import List, Dict, Any, Optional, Tuple
 from datetime import datetime, timedelta
 
 # Import the data source interface
-from .data_source_interface import MarketDataSource
-
-# Import specific data sources
-from .yahoo_finance_client import YahooFinanceClient
-from .polygon_client import PolygonClient
+from backend.api_clients.data_source_interface import MarketDataSource
+from backend.api_clients.yahoo_finance_client import YahooFinanceClient
+from backend.api_clients.polygon_client import PolygonClient
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)

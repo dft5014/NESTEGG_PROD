@@ -12,9 +12,9 @@ from typing import List, Dict, Any, Optional, Set
 from dotenv import load_dotenv
 
 # Import our modules
-from .api_clients.market_data_manager import MarketDataManager
-from .utils.common import record_system_event, update_system_event
-from redis_cache import FastCache
+from backend.api_clients.market_data_manager import MarketDataManager
+from backend.utils.common import record_system_event, update_system_event
+from backend.utils.redis_cache import FastCache
 
 # Load environment variables
 load_dotenv()

@@ -7,3 +7,8 @@ python-dotenv==1.0.0
 httpx==0.23.3
 pyjwt==2.6.0
 bcrypt==4.0.1
+yfinance==0.2.3
+redis==4.6.0
+aiohttp==3.8.4
+pandas==2.0.3
+pytz==2023.3

@@ -12,8 +12,8 @@ from datetime import datetime, timedelta
 from typing import List, Dict, Any, Optional
 from dotenv import load_dotenv
 
-from utils.common import record_system_event, update_system_event
-from redis_cache import cache_result, FastCache
+from backend.utils.common import record_system_event, update_system_event
+from backend.utils.redis_cache import cache_result, FastCache
 
 # Load environment variables
 load_dotenv()

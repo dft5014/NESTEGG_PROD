@@ -16,12 +16,19 @@ from sqlalchemy.sql import select
 from typing import Optional, List
 import json
 import math
-from .services.price_updater_v2 import PriceUpdaterV2
-from .services.data_consistency_monitor import DataConsistencyMonitor
-from .services.portfolio_calculator import PortfolioCalculator
-from .services.price_updater import smart_market_update
-from .utils.common import record_system_event, update_system_event
-from .api_clients.market_data_manager import MarketDataManager
+from backend.services.price_updater_v2 import PriceUpdaterV2
+from backend.services.data_consistency_monitor import DataConsistencyMonitor
+from backend.services.portfolio_calculator import PortfolioCalculator
+from backend.utils.common import record_system_event, update_system_event
+from backend.api_clients.market_data_manager import MarketDataManager
+import sys
+import os
+from pathlib import Path
+# Add the project root directory to Python path
+BASE_DIR = Path(__file__).resolve().parent
+if str(BASE_DIR) not in sys.path:
+    sys.path.append(str(BASE_DIR))
+
 
 # Load environment variables
 load_dotenv()
@@ -88,7 +95,10 @@ app = FastAPI(title="NestEgg API", description="Investment portfolio tracking AP
 # Enable CORS (Allow Frontend to Connect)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Allow all origins (change this in production)
+    allow_origins=[
+        "https://nestegg-frontend.vercel.app",  # Vercel production
+        "http://localhost:3000",                # Local development
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

@@ -9,7 +9,7 @@ from typing import List, Dict, Any, Optional
 import pytz
 from datetime import datetime, timedelta
 
-from .data_source_interface import MarketDataSource
+from backend.api_clients.data_source_interface import MarketDataSource
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)

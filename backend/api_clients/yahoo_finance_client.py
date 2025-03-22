@@ -12,7 +12,7 @@ from datetime import datetime, timedelta
 import pytz
 import yfinance as yf
 
-from .data_source_interface import MarketDataSource
+from backend.api_clients.data_source_interface import MarketDataSource
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
