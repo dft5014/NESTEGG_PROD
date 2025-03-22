@@ -1,0 +1,810 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Default Light Mode */
+:root {
+  --background: #f9fafb;
+  --foreground: #1f2937;
+  --primary: #2563eb;
+  --primary-hover: #1d4ed8;
+  --text-dark-blue: #1e3a8a;
+  --border-color: #e5e7eb;
+  --card-bg: #ffffff;
+  --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
+}
+
+/* Dark Mode */
+[data-theme="dark"] {
+  --background: #111827;
+  --foreground: #d1d5db;
+  --primary: #60a5fa;
+  --primary-hover: #2563eb;
+  --text-dark-blue: #93c5fd;
+  --border-color: #4b5563;
+  --card-bg: #1f2a44;
+  --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -2px rgba(0, 0, 0, 0.2);
+}
+
+body {
+  color: var(--foreground);
+  background: var(--background);
+  font-family: 'Inter', Arial, Helvetica, sans-serif;
+  transition: background 0.3s ease, color 0.3s ease;
+}
+
+/* Portfolio Container */
+.portfolio-container {
+  @apply min-h-screen p-8 max-w-7xl mx-auto;
+}
+
+/* Header */
+.portfolio-header {
+  @apply text-center mb-10;
+}
+
+.portfolio-title {
+  @apply text-4xl font-extrabold tracking-tight;
+  color: var(--text-dark-blue);
+}
+
+.portfolio-subtitle {
+  @apply mt-2 text-lg;
+  color: var(--foreground);
+  opacity: 0.8;
+}
+
+/* Dashboard */
+.portfolio-dashboard {
+  @apply grid grid-cols-1 md:grid-cols-3 gap-6 mb-10;
+}
+
+.dashboard-card {
+  @apply p-6 rounded-xl shadow-md transition-transform hover:scale-105;
+  background: linear-gradient(to bottom right, var(--card-bg), rgba(229, 231, 235, 0.3)); /* Lighter gradient */
+  border: 1px solid var(--border-color);
+}
+
+[data-theme="dark"] .dashboard-card {
+  background: linear-gradient(to bottom right, var(--card-bg), rgba(75, 85, 99, 0.3));
+}
+
+.net-worth .dashboard-label { color: #2563eb; }
+.performance-today .dashboard-label { color: #16a34a; }
+.performance-year .dashboard-label { color: #9333ea; }
+
+.dashboard-label {
+  @apply text-lg font-semibold;
+}
+
+.dashboard-value {
+  @apply text-2xl font-bold mt-2;
+  color: var(--foreground);
+}
+
+/* Timeframe Selector */
+.portfolio-timeframe {
+  @apply flex flex-wrap justify-center gap-2 mb-10;
+}
+
+.time-btn {
+  @apply px-4 py-2 rounded-full font-medium text-sm transition-all;
+  background: var(--border-color);
+  color: var(--foreground);
+}
+
+.time-btn:hover {
+  background: var(--primary-hover);
+  color: white;
+  box-shadow: 0 0 10px rgba(37, 99, 235, 0.5);
+}
+
+.time-btn-active {
+  background: var(--primary);
+  color: white;
+}
+
+/* Chart */
+.portfolio-chart {
+  @apply p-6 rounded-xl shadow-md mb-10 relative;
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
+  max-width: 800px;
+  height: 300px; /* Reduced for cleaner fit */
+  margin-left: auto;
+  margin-right: auto;
+  overflow: hidden;
+}
+
+/* Accounts Section */
+.portfolio-accounts {
+  @apply p-6 rounded-xl shadow-md;
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
+}
+
+.accounts-header {
+  @apply flex justify-between items-center mb-6;
+}
+
+.accounts-title {
+  @apply text-2xl font-bold;
+  color: var(--text-dark-blue);
+}
+
+.add-account-btn {
+  @apply px-5 py-2 rounded-full font-semibold text-white transition-all;
+  background: var(--primary);
+}
+
+.add-account-btn:hover {
+  background: var(--primary-hover);
+  @apply scale-105;
+  box-shadow: 0 0 10px rgba(37, 99, 235, 0.5);
+}
+
+.accounts-table {
+  @apply w-full;
+}
+
+.table-header {
+  @apply p-4 text-left font-semibold text-gray-600;
+  background: var(--border-color);
+}
+
+.table-row {
+  @apply border-t transition-transform duration-200;
+}
+
+.table-row:hover {
+  @apply scale-105;
+  background: rgba(0, 0, 0, 0.03);
+}
+
+[data-theme="dark"] .table-row:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.table-cell {
+  @apply p-4;
+}
+
+.actions-cell {
+  @apply flex gap-2 justify-end;
+}
+
+.action-btn {
+  @apply p-2 rounded-full text-lg transition-all;
+  background: var(--border-color);
+  color: var(--foreground);
+}
+
+.action-btn:hover {
+  @apply scale-110;
+}
+
+.edit-btn:hover {
+  background: #f97316;
+  color: white;
+}
+
+.add-position-btn:hover {
+  background: #16a34a;
+  color: white;
+}
+
+.accounts-empty {
+  @apply py-8 text-lg text-center;
+  color: var(--foreground);
+  opacity: 0.7;
+}
+
+/* Modal */
+.modal-overlay {
+  @apply fixed inset-0 flex justify-center items-center;
+  background: rgba(0, 0, 0, 0.6);
+  animation: fadeIn 0.3s ease;
+  z-index: 50;
+}
+
+/* Higher z-index for action modals */
+.modal-overlay-action {
+  z-index: 60;
+}
+
+.modal-content {
+  @apply p-6 rounded-xl shadow-md;
+  width: 55%; /* Takes up 80% of the screen width */
+  max-width: 1200px; /* But never gets wider than 1200px */
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
+  animation: slideUp 0.3s ease;
+}
+
+.modal-title {
+  @apply text-2xl font-bold mb-4;
+  color: var(--text-dark-blue);
+}
+
+.modal-form {
+  @apply space-y-4;
+}
+
+.modal-input {
+  @apply w-full p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition;
+  background: var(--background);
+  color: var(--foreground);
+  border-color: var(--border-color);
+}
+
+.modal-buttons {
+  @apply flex justify-end gap-3;
+}
+
+.position-btn {
+  @apply px-5 py-2 rounded-lg font-semibold text-white transition-all;
+  background: var(--primary);
+}
+
+.position-btn:hover {
+  background: var(--primary-hover);
+  @apply scale-105;
+  box-shadow: 0 0 10px rgba(37, 99, 235, 0.5);
+}
+
+.modal-submit {
+  @apply px-5 py-2 rounded-lg font-semibold text-white transition-all;
+  background: #16a34a;
+}
+
+.modal-submit:hover {
+  background: #15803d;
+  @apply scale-105;
+  box-shadow: 0 0 10px rgba(22, 163, 74, 0.5);
+}
+
+.modal-cancel {
+  @apply px-5 py-2 rounded-lg font-semibold text-white transition-all;
+  background: #ef4444;
+}
+
+.modal-cancel:hover {
+  background: #dc2626;
+  @apply scale-105;
+  box-shadow: 0 0 10px rgba(239, 68, 68, 0.5);
+}
+
+.modal-message {
+  @apply mt-4 text-center font-medium;
+}
+
+.modal-success {
+  color: #16a34a;
+}
+
+.modal-error {
+  color: #ef4444;
+}
+
+/* Loading */
+.portfolio-loading {
+  @apply text-center mt-20 text-lg;
+  color: var(--foreground);
+  opacity: 0.7;
+}
+
+/* Animations */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slideUp {
+  from { transform: translateY(20px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+/* Existing Auth Styles (unchanged) */
+.auth-container { @apply flex items-center justify-center h-screen; }
+.auth-box { @apply p-8 shadow-lg rounded-lg w-96; background: var(--background); border: 1px solid var(--border-color); }
+.auth-title { @apply text-3xl font-bold text-center mb-6; color: var(--text-dark-blue); }
+.auth-label { @apply block font-medium mb-2; color: var(--foreground); }
+.auth-input { @apply w-full p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500; background: var(--background); color: var(--foreground); border-color: var(--border-color); }
+.auth-input::placeholder { color: var(--text-dark-blue); }
+.auth-button { @apply w-full font-bold py-3 rounded-lg transition; background: var(--primary); color: white; }
+.auth-button:hover { background: var(--primary-hover); }
+.auth-footer { @apply text-center mt-4; }
+.auth-link { color: var(--text-dark-blue); @apply hover:underline; }
+
+/* Drill-Down Account Styles */
+.account-details-container {
+  @apply bg-white rounded-lg mb-4 overflow-hidden;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  transition: all 0.3s ease;
+}
+
+.account-row {
+  @apply flex justify-between items-center p-4 cursor-pointer;
+  transition: background-color 0.2s ease;
+}
+
+.account-row:hover {
+  background-color: rgba(37, 99, 235, 0.05);
+}
+
+.account-info {
+  @apply flex flex-col;
+}
+
+.account-name {
+  @apply font-semibold text-lg;
+  color: var(--text-dark-blue);
+}
+
+.account-balance {
+  @apply text-sm text-gray-600;
+}
+
+.account-expand-icon {
+  @apply text-gray-500;
+}
+
+.securities-list {
+  @apply p-4 bg-gray-50;
+  border-top: 1px solid var(--border-color);
+}
+
+.securities-table {
+  @apply w-full;
+}
+
+.securities-table thead {
+  @apply bg-gray-100;
+}
+
+.securities-table th {
+  @apply p-2 text-left font-semibold text-gray-700;
+}
+
+.security-row {
+  @apply hover:bg-gray-100 transition-colors;
+}
+
+.security-row td {
+  @apply p-2 border-b;
+}
+
+/* Dark mode adjustments */
+[data-theme="dark"] .account-details-container {
+  @apply bg-gray-800;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+}
+
+[data-theme="dark"] .account-row:hover {
+  background-color: rgba(96, 165, 250, 0.1);
+}
+
+[data-theme="dark"] .securities-list {
+  @apply bg-gray-900;
+}
+
+[data-theme="dark"] .securities-table thead {
+  @apply bg-gray-700;
+}
+
+[data-theme="dark"] .securities-table th {
+  @apply text-gray-200;
+}
+
+[data-theme="dark"] .security-row:hover {
+  @apply bg-gray-700;
+}
+/* Egg Mascot Styles - Add to your globals.css */
+
+.egg-mascot-container {
+  position: fixed;
+  top: 70px;
+  right: 20px;
+  z-index: 1000;
+  width: 60px;
+  height: 80px;
+  pointer-events: none; /* So it doesn't interfere with clicks */
+}
+
+.egg-mascot {
+  width: 100%;
+  height: 100%;
+  transform-origin: center bottom;
+}
+
+/* Idle bouncing animation */
+.idle-bounce {
+  animation: bounce 2s ease-in-out infinite;
+}
+
+@keyframes bounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
+}
+
+/* Cartwheel animation */
+.do-cartwheel {
+  animation: cartwheel 1.5s ease-in-out;
+}
+
+@keyframes cartwheel {
+  0% { transform: rotate(0deg); }
+  25% { transform: rotate(90deg) scale(0.9); }
+  50% { transform: rotate(180deg) scale(0.8); }
+  75% { transform: rotate(270deg) scale(0.9); }
+  100% { transform: rotate(360deg); }
+}
+
+/* Eye animations for blinking */
+.eye {
+  animation: blink 3s infinite;
+}
+
+@keyframes blink {
+  0%, 95%, 100% { transform: scaleY(1); }
+  97% { transform: scaleY(0.1); }
+}
+
+/* Arm swing animations for idle state */
+.left-arm, .right-arm {
+  animation: swing 2s ease-in-out infinite alternate;
+  transform-origin: center top;
+}
+
+.right-arm {
+  animation-delay: 0.5s;
+}
+
+@keyframes swing {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(10deg); }
+}
+
+/* Mouth changes during cartwheel */
+.do-cartwheel .mouth {
+  animation: mouthChange 1.5s ease-in-out;
+}
+
+@keyframes mouthChange {
+  0%, 100% { d: path('M22 52 Q30 60 38 52'); }
+  50% { d: path('M22 52 Q30 48 38 52'); } /* Surprised mouth */
+}
+
+/* Add Position Modal Styles */
+.security-option-btn {
+  @apply flex flex-col items-center justify-center p-6 text-white rounded-lg transition-all shadow-md hover:shadow-lg;
+}
+
+.security-option-btn:hover {
+  @apply transform scale-105;
+}
+
+.security-option-icon {
+  @apply mb-2 w-8 h-8;
+}
+
+.security-option-label {
+  @apply font-medium;
+}
+
+/* Security type specific colors */
+.security-us {
+  @apply bg-blue-500 hover:bg-blue-600;
+}
+
+.security-crypto {
+  @apply bg-purple-500 hover:bg-purple-600;
+}
+
+.security-metals {
+  @apply bg-yellow-500 hover:bg-yellow-600;
+}
+
+.security-manual {
+  @apply bg-green-500 hover:bg-green-600;
+}
+
+/* Modal header styles */
+.modal-header {
+  @apply bg-blue-600 p-4;
+}
+
+.modal-header-title {
+  @apply text-white font-semibold text-xl;
+}
+
+/* Cancel button style */
+.modal-cancel-btn {
+  @apply w-full py-3 px-4 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-all font-medium flex justify-center items-center;
+}
+
+/* Portfolio Summary Styles */
+.portfolio-summary {
+  @apply bg-white rounded-xl shadow-md overflow-hidden transition-all;
+}
+
+.portfolio-summary:hover {
+  @apply shadow-lg;
+}
+
+.summary-header {
+  @apply p-5 border-b border-gray-100 flex justify-between items-center;
+}
+
+.summary-title {
+  @apply text-xl font-bold text-gray-800;
+}
+
+.summary-body {
+  @apply p-5;
+}
+
+.summary-section {
+  @apply rounded-xl overflow-hidden;
+}
+
+.summary-section-header {
+  @apply bg-gray-50 p-3 border-b border-gray-100;
+}
+
+.summary-section-title {
+  @apply text-lg font-semibold text-gray-700;
+}
+
+.summary-section-body {
+  @apply p-3;
+}
+
+.summary-table {
+  @apply w-full;
+}
+
+.summary-table th {
+  @apply text-left py-2 px-2 text-sm font-medium text-gray-500;
+}
+
+.summary-table td {
+  @apply py-3 px-2 border-t border-gray-100;
+}
+
+.ticker-cell {
+  @apply font-medium flex items-center;
+}
+
+.ticker-icon {
+  @apply w-6 h-6 rounded-full bg-blue-100 text-blue-800 flex items-center justify-center text-xs font-bold mr-2;
+}
+
+.value-cell {
+  @apply text-right font-medium;
+}
+
+.percent-cell {
+  @apply text-right;
+}
+
+.gain-loss-cell {
+  @apply text-right;
+}
+
+.gain-loss-value {
+  @apply flex flex-col items-end;
+}
+
+.gain-loss-percent {
+  @apply font-medium;
+}
+
+.gain-loss-amount {
+  @apply text-xs opacity-80;
+}
+
+.gain-positive {
+  @apply text-green-600;
+}
+
+.gain-negative {
+  @apply text-red-600;
+}
+
+.gain-neutral {
+  @apply text-gray-500;
+}
+
+.overview-list {
+  @apply space-y-3;
+}
+
+.overview-item {
+  @apply flex justify-between items-center py-1;
+}
+
+.overview-label {
+  @apply text-gray-600;
+}
+
+.overview-value {
+  @apply font-medium;
+}
+
+.gain-loss-grid {
+  @apply grid grid-cols-2 gap-3 mt-4;
+}
+
+.gain-loss-card {
+  @apply bg-gray-50 rounded-lg p-4 transition-all hover:bg-gray-100;
+}
+
+.gain-loss-period {
+  @apply text-sm text-gray-500 mb-1;
+}
+
+.gain-loss-percentage {
+  @apply text-xl font-bold;
+}
+
+.gain-loss-dollar {
+  @apply text-sm;
+}
+
+/* Institution Suggestion Styles */
+.institution-suggestion {
+  @apply p-2 hover:bg-gray-100 cursor-pointer flex items-center border-b border-gray-200;
+}
+
+.institution-suggestion:last-child {
+  @apply border-b-0;
+}
+
+.institution-logo {
+  @apply w-8 h-8 object-contain mr-3 rounded;
+}
+
+.suggestion-container {
+  @apply absolute left-0 right-0 bg-white border border-gray-300 mt-1 max-h-60 overflow-y-auto rounded-md shadow-lg z-10;
+}
+
+.institution-name {
+  @apply font-medium;
+}
+
+/* Institution logo in table */
+.institution-cell {
+  @apply flex items-center;
+}
+
+.institution-logo {
+  @apply w-6 h-6 object-contain mr-2 rounded;
+}
+
+.institution-placeholder {
+  @apply w-6 h-6 rounded-full bg-gray-200 flex items-center justify-center mr-2 text-xs font-medium;
+}
+
+/* Account and position detail modals */
+.account-modal-header, .position-modal-header {
+  @apply bg-gradient-to-r rounded-t-xl text-white p-6;
+}
+
+.account-modal-header {
+  @apply from-blue-600 to-indigo-700;
+}
+
+.position-modal-header {
+  @apply from-indigo-600 to-purple-700;
+}
+
+.modal-stat-card {
+  @apply bg-white bg-opacity-20 p-3 rounded-lg;
+}
+
+.modal-stat-label {
+  @apply text-sm opacity-80;
+}
+
+.modal-stat-value {
+  @apply text-xl font-semibold;
+}
+
+.modal-body {
+  @apply bg-white p-6 overflow-y-auto flex-grow rounded-b-xl;
+}
+
+.leaderboard-table {
+  @apply min-w-full divide-y divide-gray-200;
+}
+
+.leaderboard-header {
+  @apply bg-gray-50;
+}
+
+.leaderboard-header th {
+  @apply px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider;
+}
+
+.leaderboard-body {
+  @apply bg-white divide-y divide-gray-200;
+}
+
+.leaderboard-row {
+  @apply hover:bg-gray-50 cursor-pointer;
+}
+
+.leaderboard-row td {
+  @apply px-4 py-4 whitespace-nowrap;
+}
+
+.gain-positive {
+  @apply text-green-600;
+}
+
+.gain-negative {
+  @apply text-red-600;
+}
+
+/* Modal responsive adjustments */
+@media (max-width: 768px) {
+  .modal-content {
+    @apply w-full h-full max-w-none rounded-none;
+    margin: 0;
+  }
+  
+  .account-modal-header, .position-modal-header {
+    @apply rounded-t-none;
+  }
+}
+
+/* Add these to your globals.css if needed */
+
+.data-summary-container {
+  @apply min-h-screen p-6;
+}
+
+.data-summary-header {
+  @apply mb-8;
+}
+
+.data-summary-title {
+  @apply text-3xl font-bold text-blue-800 mb-2;
+}
+
+.data-summary-subtitle {
+  @apply text-gray-600;
+}
+
+/* Add this to your existing CSS */
+.table-fixed {
+  width: 100%;
+  table-layout: fixed;
+}
+
+.sticky-header thead {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background-color: theme('colors.gray.50');
+}
+
+.overflow-x-scrollable {
+  overflow-x: auto;
+  max-width: 100%;
+}
+
+/* Add this to your globals.css */
+.sticky-column {
+  position: sticky;
+  background-color: white;
+  z-index: 10;
+}
+
+.sticky-header {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  background-color: theme('colors.gray.50');
+}
