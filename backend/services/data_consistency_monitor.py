@@ -11,6 +11,8 @@ import databases
 from datetime import datetime, timedelta
 from typing import Dict, List, Any, Optional, Set
 from dotenv import load_dotenv
+from backend.utils.common import record_system_event, update_system_event
+
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -57,7 +59,8 @@ class DataConsistencyMonitor:
             logger.info("Starting data consistency check")
             
             # Record the start of this operation in system_events
-            event_id = await self._record_system_event(
+            event_id = await record_system_event(
+                self.database,  # Pass the database connection
                 "data_consistency_check", 
                 "started", 
                 {}
@@ -98,7 +101,8 @@ class DataConsistencyMonitor:
             results["duration_seconds"] = (end_time - start_time).total_seconds()
             
             # Update system event
-            await self._update_system_event(
+            await update_system_event(
+                self.database,  # Pass the database connection
                 event_id,
                 "completed",
                 {
@@ -115,8 +119,9 @@ class DataConsistencyMonitor:
             logger.error(f"Error in data consistency check: {str(e)}")
             
             # Update system event with failure
-            if 'event_id' in locals():
-                await self._update_system_event(
+            if 'event_id' in locals() and event_id:
+                await update_system_event(
+                    self.database,
                     event_id,
                     "failed",
                     {"error": str(e)},
@@ -417,8 +422,8 @@ class DataConsistencyMonitor:
             start_time = datetime.now()
             logger.info("Starting automatic fix of common data issues")
             
-            # Record the start of this operation
-            event_id = await self._record_system_event(
+            event_id = await record_system_event(
+                self.database,
                 "data_consistency_fix", 
                 "started", 
                 {}
@@ -449,7 +454,8 @@ class DataConsistencyMonitor:
             results["duration_seconds"] = (end_time - start_time).total_seconds()
             
             # Update system event
-            await self._update_system_event(
+            await update_system_event(
+                self.database,
                 event_id,
                 "completed",
                 {
@@ -466,8 +472,9 @@ class DataConsistencyMonitor:
             logger.error(f"Error in fixing data consistency issues: {str(e)}")
             
             # Update system event with failure
-            if 'event_id' in locals():
-                await self._update_system_event(
+            if 'event_id' in locals() and event_id:
+                await update_system_event(
+                    self.database,
                     event_id,
                     "failed",
                     {"error": str(e)},
