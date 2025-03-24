@@ -1,44 +1,44 @@
-import os
-import uuid
-import jwt
-import databases
-import sqlalchemy
-import bcrypt
+# Standard library imports
+import json
 import logging
-from fastapi import FastAPI, Depends, HTTPException, status
-from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
-from fastapi.middleware.cors import CORSMiddleware
+import math
+import os
+import sys
+import time
+import uuid
 from datetime import datetime, timedelta
-from pydantic import BaseModel, validator
+from pathlib import Path
+from typing import Optional, List
+
+# Third-party imports
+import bcrypt
+import databases
+import jwt
+import sqlalchemy
 from dotenv import load_dotenv
+from fastapi import FastAPI, Depends, HTTPException, status
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
+from pydantic import BaseModel, validator
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.sql import select
-from typing import Optional, List
-import json
-import math
-from backend.services.price_updater_v2 import PriceUpdaterV2
-from backend.services.data_consistency_monitor import DataConsistencyMonitor
-from backend.services.portfolio_calculator import PortfolioCalculator
-from backend.utils.common import record_system_event, update_system_event
-from backend.api_clients.market_data_manager import MarketDataManager
-import sys
-import os
-from pathlib import Path
+
+# Load environment variables first
+env_path = Path(__file__).resolve().parent / ".env"
+load_dotenv(dotenv_path=env_path)
+
 # Add the project root directory to Python path
 BASE_DIR = Path(__file__).resolve().parent
 if str(BASE_DIR) not in sys.path:
     sys.path.append(str(BASE_DIR))
 
-
-# Load environment variables
-load_dotenv()
-
-# Get DATABASE_URL from environment
-DATABASE_URL = os.getenv("DATABASE_URL")
-
-# Ensure DATABASE_URL is set
-if not DATABASE_URL:
-    raise ValueError("❌ DATABASE_URL is not set in the environment!")
+# Local application imports
+from backend.services.price_updater_v2 import PriceUpdaterV2
+from backend.services.data_consistency_monitor import DataConsistencyMonitor
+from backend.services.portfolio_calculator import PortfolioCalculator
+from backend.utils.common import record_system_event, update_system_event
+from backend.api_clients.market_data_manager import MarketDataManager
 
 # Initialize Database Connection
 database = databases.Database(DATABASE_URL)
