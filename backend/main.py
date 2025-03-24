@@ -100,10 +100,7 @@ app = FastAPI(title="NestEgg API", description="Investment portfolio tracking AP
 # Enable CORS (Allow Frontend to Connect)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "https://nestegg-frontend.vercel.app",  # Vercel production
-        "http://localhost:3000",                # Local development
-    ],
+    allow_origins=["*"],  # For development only - restrict this in production
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
