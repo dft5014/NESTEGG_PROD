@@ -1,6 +1,7 @@
 // pages/login.js
 import { useState } from 'react';
 import { useRouter } from 'next/router';
+import { API_BASE_URL } from '@/utils/api';
 
 const Login = () => {
     const [email, setEmail] = useState('');
@@ -15,35 +16,32 @@ const Login = () => {
       console.log("🚀 Attempting login...");
   
       try {
-          const response = await fetch('http://127.0.0.1:8000/token', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-              body: new URLSearchParams({ username: email, password }),
-          });
-  
-          console.log("🔍 Login response status:", response.status);
-  
-          if (response.ok) {
-              const data = await response.json();
-              console.log("✅ Login successful. Received token:", data.access_token);
-  
-              // Store the new token
-              localStorage.setItem('token', data.access_token);
-              router.replace('/portfolio');  // Redirect to portfolio
-  
-          } else {
-              const errorMsg = await response.text();
-              console.log("❌ Login failed:", errorMsg);
-              alert('Invalid credentials. Please try again.');
-          }
-      } catch (error) {
-          console.error('🔥 Login request failed:', error);
-          alert('Login failed. Please check your connection.');
-      }
+        const response = await fetch(`${API_BASE_URL}/token`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: new URLSearchParams({ username: email, password }),
+        });
+
+        console.log("🔍 Login response status:", response.status);
+
+        if (response.ok) {
+            const data = await response.json();
+            console.log("✅ Login successful. Received token:", data.access_token);
+
+            // Store the new token
+            localStorage.setItem('token', data.access_token);
+            router.replace('/portfolio');  // Redirect to portfolio
+
+        } else {
+            const errorMsg = await response.text();
+            console.log("❌ Login failed:", errorMsg);
+            alert('Invalid credentials. Please try again.');
+        }
+    } catch (error) {
+        console.error('🔥 Login request failed:', error);
+        alert('Login failed. Please check your connection.');
+    }
   };
-  
-  
-  ;
 
     return (
         <div className="auth-container">

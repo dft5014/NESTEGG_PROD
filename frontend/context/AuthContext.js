@@ -1,5 +1,7 @@
 import { createContext, useState, useEffect } from "react";
 import { useRouter } from "next/router";
+import { API_BASE_URL, fetchWithAuth } from '@/utils/api';
+
 
 export const AuthContext = createContext();
 
@@ -7,7 +9,6 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const router = useRouter();
-  const API_BASE_URL = "http://127.0.0.1:8000";
 
   useEffect(() => {
     // Check if user is authenticated on initial load
@@ -17,9 +18,7 @@ export const AuthProvider = ({ children }) => {
       
       if (token) {
         try {
-          const response = await fetch(`${API_BASE_URL}/user`, {
-            headers: { Authorization: `Bearer ${token}` },
-          });
+          const response = await fetchWithAuth('/user');
           
           if (response.ok) {
             const userData = await response.json();

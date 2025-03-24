@@ -2,30 +2,20 @@
 import React, { useState, useEffect } from 'react';
 import { RefreshCw, Server, Database, AlertCircle, CheckCircle, Clock, Activity, X } from 'lucide-react';
 import SkeletonLoader from './SkeletonLoader';
+import { fetchWithAuth } from '@/utils/api';
 
 const SystemStatusDashboard = () => {
   const [systemStatus, setSystemStatus] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [lastUpdated, setLastUpdated] = useState(null);
-  const apiBaseUrl = "http://127.0.0.1:8000";
 
   const fetchSystemStatus = async () => {
     setLoading(true);
     setError(null);
     
     try {
-      const token = localStorage.getItem("token");
-      if (!token) {
-        setError("Authentication required");
-        setLoading(false);
-        return;
-      }
-      
-      // Fetch system health status
-      const healthResponse = await fetch(`${apiBaseUrl}/admin/health`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      const healthResponse = await fetchWithAuth(`/admin/health`);
       
       if (!healthResponse.ok) {
         throw new Error(`Failed to fetch system health: ${healthResponse.status}`);
@@ -34,9 +24,7 @@ const SystemStatusDashboard = () => {
       const healthData = await healthResponse.json();
       
       // Fetch recent system events for additional status context
-      const eventsResponse = await fetch(`${apiBaseUrl}/system/events?limit=5`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      const eventsResponse = await fetchWithAuth(`/system/events?limit=5`);
       
       let eventsData = { events: [] };
       if (eventsResponse.ok) {

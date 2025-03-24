@@ -9,6 +9,7 @@ import ErrorMessage from '@/components/ErrorMessage';
 import SystemStatusDashboard from '@/components/SystemStatusDashboard';
 import SystemEvents from '@/components/SystemEvents';
 import { useEggMascot } from '@/context/EggMascotContext';
+import { API_BASE_URL, fetchWithAuth } from '@/utils/api';
 
 
 
@@ -65,24 +66,16 @@ export default function Portfolio() {
   const [isProcessingBulk, setIsProcessingBulk] = useState(false);
   const [bulkUploadStep, setBulkUploadStep] = useState(1);
   const [totalCost, setTotalCost] = useState(0);
-  const [apiBaseUrl, setApiBaseUrl] = useState("http://127.0.0.1:8000");
+
 
   // Fetch user data and accounts on component mount
   useEffect(() => {
     const fetchUserData = async () => {
-      const token = localStorage.getItem("token");
 
-      if (!token) {
-        console.log("⚠️ No token found, redirecting to login...");
-        router.push("/login");
-        return;
-      }
 
       try {
         console.log("🔍 Fetching user data...");
-        const response = await fetch(`${apiBaseUrl}/user`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
+        const response = await fetchWithAuth('/user');
 
         if (response.ok) {
           const userData = await response.json();
@@ -160,14 +153,8 @@ const calculateAccountCostBasis = (accountId) => {
 
 // Fetch portfolio summary
 const fetchPortfolioSummary = async () => {
-  const token = localStorage.getItem("token");
-  
-  if (!token) return;
-  
   try {
-    const response = await fetch(`${apiBaseUrl}/portfolio/summary`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
+    const response = await fetchWithAuth('/portfolio/summary');
     
     if (response.ok) {
       const data = await response.json();
@@ -404,18 +391,9 @@ const popularBrokerages = [
 
 const updateMarketPrices = async () => {
   setLoading(true);
-  const token = localStorage.getItem("token");
-  
-  if (!token) {
-    setError("You must be logged in to update prices");
-    setLoading(false);
-    return;
-  }
-  
   try {
-    const response = await fetch(`${apiBaseUrl}/market/update-prices-v2`, {
-      method: "POST",
-      headers: { Authorization: `Bearer ${token}` }
+    const response = await fetchWithAuth('/market/update-prices-v2', {
+      method: "POST"
     });
     
     if (response.ok) {
@@ -474,18 +452,9 @@ const getParsedBulkData = () => {
 // This should be inside your Portfolio component but outside the return statement
 const triggerPortfolioCalculation = async () => {
   setLoading(true);
-  const token = localStorage.getItem("token");
-  
-  if (!token) {
-    alert("You must be logged in to update portfolio calculations");
-    setLoading(false);
-    return;
-  }
-  
   try {
-    const response = await fetch(`${apiBaseUrl}/portfolios/calculate/user`, {
-      method: "POST",
-      headers: { Authorization: `Bearer ${token}` }
+    const response = await fetchWithAuth('/portfolios/calculate/user', {
+      method: "POST"
     });
     
     if (response.ok) {
@@ -507,20 +476,10 @@ const triggerPortfolioCalculation = async () => {
 };
 
 const fetchAccounts = async () => {
-  const token = localStorage.getItem("token");
-
-  if (!token) {
-    setError("Authentication required. Please log in to continue.");
-    setLoading(false);
-    return;
-  }
-
   try {
     setLoading(true);
-    setError(null); // Reset error state
-    const response = await fetch(`${apiBaseUrl}/accounts`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
+    setError(null);
+    const response = await fetchWithAuth('/accounts');
 
     if (!response.ok) {
       const errorText = await response.text();
@@ -567,14 +526,8 @@ const getInstitutionLogo = (institutionName) => {
 
   // Fetch positions for an account
 const fetchPositions = async (accountId) => {
-  const token = localStorage.getItem("token");
-  
-  if (!token) return;
-  
   try {
-    const response = await fetch(`${apiBaseUrl}/positions/${accountId}`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
+    const response = await fetchWithAuth(`/positions/${accountId}`);
     
     if (!response.ok) {
       console.error(`Failed to fetch positions for account ${accountId}`);
@@ -610,21 +563,8 @@ const handleTestSearch = async () => {
   setTestError(null);
   
   try {
-    const token = localStorage.getItem("token");
-    if (!token) {
-      setTestError("Authentication required");
-      setTestLoading(false);
-      return;
-    }
-    
-    console.log(`Running test search for: "${testQuery}"`);
-    
-    const response = await fetch(`${apiBaseUrl}/securities/search?query=${encodeURIComponent(testQuery)}`, {
-      headers: { 
-        "Authorization": `Bearer ${token}`,
-        "Content-Type": "application/json"
-      }
-    });
+
+    const response = await fetchWithAuth(`/securities/search?query=${encodeURIComponent(testQuery)}`);
     
     if (!response.ok) {
       const errorText = await response.text();
@@ -651,25 +591,10 @@ const searchSecurities = async (query) => {
   }
   
   try {
-    const token = localStorage.getItem("token");
-    if (!token) {
-      console.error("Authentication token missing");
-      return [];
-    }
-    
     console.log(`Searching securities with query: "${query}"`);
     
-    // Add debugging request information
-    const requestUrl = `${apiBaseUrl}/securities/search?query=${encodeURIComponent(query)}`;
-    console.log(`Request URL: ${requestUrl}`);
-    
-    const response = await fetch(requestUrl, {
-      headers: { 
-        "Authorization": `Bearer ${token}`,
-        "Content-Type": "application/json"
-      }
-    });
-    
+    const response = await fetchWithAuth(`/securities/search?query=${encodeURIComponent(query)}`);
+        
     // Enhanced error handling
     if (!response.ok) {
       const errorText = await response.text();
@@ -729,8 +654,6 @@ const handleInstitutionInput = (value) => {
 // Handle adding a new account
 const handleAddAccount = async (e) => {
   e.preventDefault();
-  const token = localStorage.getItem("token");
-
   if (!accountName.trim()) {
     setFormMessage("Account name is required");
     return;
@@ -742,19 +665,15 @@ const handleAddAccount = async (e) => {
   }
 
   try {
-    const response = await fetch(`${apiBaseUrl}/accounts`, {
+    const response = await fetchWithAuth('/accounts', {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
       body: JSON.stringify({
         account_name: accountName,
         institution: institution || "",
         type: accountType || "",
-        account_category: accountCategory, // Add this field
+        account_category: accountCategory,
         balance: parseFloat(balance) || 0
-      }),
+      })
     });
 
     if (response.ok) {
@@ -784,7 +703,6 @@ const handleAddAccount = async (e) => {
 // Handle editing an existing account
 const handleEditAccount = async (e) => {
   e.preventDefault();
-  const token = localStorage.getItem("token");
 
   if (!editAccount.account_name.trim()) {
     setFormMessage("Account name is required");
@@ -792,12 +710,8 @@ const handleEditAccount = async (e) => {
   }
 
   try {
-    const response = await fetch(`${apiBaseUrl}/accounts/${editAccount.id}`, {
+    const response = await fetchWithAuth(`/accounts/${editAccount.id}`, {
       method: "PUT",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
       body: JSON.stringify({
         account_name: editAccount.account_name,
         institution: editAccount.institution || "",
@@ -829,18 +743,10 @@ const runSecuritiesTest = async () => {
   console.group("Securities Search Diagnostic");
   
   try {
-    // Test basic endpoint access
-    const token = localStorage.getItem("token");
-    console.log("Token available:", !!token);
-    
+
     // First test regular securities endpoint
     console.log("Testing main securities endpoint...");
-    const secResponse = await fetch(`${apiBaseUrl}/securities`, {
-      headers: { 
-        "Authorization": `Bearer ${token}`,
-        "Content-Type": "application/json"
-      }
-    });
+    const secResponse = await fetchWithAuth('/securities');
     
     console.log("Main endpoint status:", secResponse.status);
     const secData = await secResponse.json();
@@ -851,15 +757,10 @@ const runSecuritiesTest = async () => {
     
     for (const query of testQueries) {
       console.log(`Testing search for "${query}"...`);
-      const searchUrl = `${apiBaseUrl}/securities/search?query=${encodeURIComponent(query)}`;
+      const searchUrl = `${API_BASE_URL}/securities/search?query=${encodeURIComponent(query)}`;
       console.log("Request URL:", searchUrl);
       
-      const searchResponse = await fetch(searchUrl, {
-        headers: { 
-          "Authorization": `Bearer ${token}`,
-          "Content-Type": "application/json"
-        }
-      });
+      const searchResponse = await fetchWithAuth(`/securities/search?query=${encodeURIComponent(query)}`);
       
       console.log(`Search status for "${query}":`, searchResponse.status);
       const searchData = await searchResponse.json();
@@ -882,15 +783,10 @@ const runSecuritiesTest = async () => {
     if (!confirm("Are you sure you want to delete this account and all its positions?")) {
       return;
     }
-    
-    const token = localStorage.getItem("token");
-    
+   
     try {
-      const response = await fetch(`${apiBaseUrl}/accounts/${accountId}`, {
-        method: "DELETE",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
+      const response = await fetchWithAuth(`/accounts/${accountId}`, {
+        method: "DELETE"
       });
       
       if (response.ok) {
@@ -936,17 +832,8 @@ const debugSearchProcess = async (query) => {
   console.group(`Securities Search Debug: "${query}"`);
   
   try {
-    const token = localStorage.getItem("token");
-    console.log("Token available:", !!token);
-    
-    console.log("Requesting:", `${apiBaseUrl}/securities/search?query=${encodeURIComponent(query)}`);
-    
-    const response = await fetch(`${apiBaseUrl}/securities/search?query=${encodeURIComponent(query)}`, {
-      headers: { 
-        "Authorization": `Bearer ${token}`,
-        "Content-Type": "application/json"
-      }
-    });
+    const response = await fetchWithAuth(`/securities/search?query=${encodeURIComponent(query)}`);
+
     
     console.log("Response status:", response.status);
     console.log("Response headers:", Object.fromEntries([...response.headers]));
@@ -999,20 +886,11 @@ const handleSecuritySearch = async (value) => {
       return;
     }
   
-    const token = localStorage.getItem("token");
-    if (!token) {
-      setFormMessage("User not authenticated");
-      return;
-    }
   
     setFormMessage("Adding position...");
     try {
-      const response = await fetch(`${apiBaseUrl}/positions/${selectedAccount}`, {
+      const response = await fetchWithAuth(`/positions/${selectedAccount}`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
         body: JSON.stringify({
           ticker: securitySearch.toUpperCase(),
           shares: parseFloat(securityShares),
@@ -1062,7 +940,6 @@ const handleBulkUpload = async () => {
   
   setIsProcessingBulk(true);
   setFormMessage("");
-  const token = localStorage.getItem("token");
   
   // Handle Excel-style paste with various possible delimiters
   // Split by newlines first
@@ -1117,12 +994,8 @@ const handleBulkUpload = async () => {
           }
         }
         
-        const response = await fetch(`${apiBaseUrl}/positions/${selectedBulkAccount.id}`, {
+        const response = await fetchWithAuth(`/positions/${selectedBulkAccount.id}`, {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
           body: JSON.stringify({
             ticker: ticker.toUpperCase(),
             shares: parseFloat(shares),
@@ -1178,15 +1051,9 @@ const handleBulkUpload = async () => {
       return;
     }
     
-    const token = localStorage.getItem("token");
-    
     try {
-      const response = await fetch(`${apiBaseUrl}/positions/${editPosition.id}`, {
+      const response = await fetchWithAuth(`/positions/${editPosition.id}`, {
         method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
         body: JSON.stringify({
           ticker: editPosition.ticker,
           shares: parseFloat(editPosition.shares),
@@ -1245,14 +1112,9 @@ const handleBulkUpload = async () => {
   const confirmDeletePosition = async () => {
     if (!deletePositionId) return;
     
-    const token = localStorage.getItem("token");
-    
     try {
-      const response = await fetch(`${apiBaseUrl}/positions/${deletePositionId}`, {
-        method: "DELETE",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
+      const response = await fetchWithAuth(`/positions/${deletePositionId}`, {
+        method: "DELETE"
       });
       
       if (response.ok) {

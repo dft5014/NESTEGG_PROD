@@ -2,6 +2,8 @@
 import { useState } from 'react';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
+import { API_BASE_URL } from '@/utils/api';
+
 
 const Signup = () => {
     const [email, setEmail] = useState('');
@@ -24,7 +26,7 @@ const Signup = () => {
         }
       
         try {
-            const response = await fetch("http://127.0.0.1:8000/signup", {
+            const response = await fetch(`${API_BASE_URL}/signup`, {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",

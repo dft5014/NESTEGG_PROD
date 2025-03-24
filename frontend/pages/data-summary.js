@@ -21,6 +21,7 @@ import SkeletonLoader from '@/components/SkeletonLoader';
 import { DataSummarySkeleton } from '@/components/skeletons/DataSummarySkeleton';
 import { SecurityDetailSkeleton } from '@/components/skeletons/PortfolioSkeleton';
 import ErrorMessage from '@/components/ErrorMessage';
+import { fetchWithAuth } from '@/utils/api';
 
 export default function DataSummary() {
   const router = useRouter();
@@ -38,7 +39,6 @@ export default function DataSummary() {
   const [detailsLoading, setDetailsLoading] = useState(false);
   const [securityDetails, setSecurityDetails] = useState(null);
   const [historicalData, setHistoricalData] = useState([]);
-  const apiBaseUrl = "http://127.0.0.1:8000";
 
   // Fetch securities function
   const fetchSecurities = async () => {
@@ -46,21 +46,9 @@ export default function DataSummary() {
     setError(null);
     
     try {
-      const token = localStorage.getItem("token");
-      
-      if (!token) {
-        setError("Authentication required. Please log in to continue.");
-        setTimeout(() => router.push("/login"), 2000);
-        return;
-      }
-      
-      const response = await fetch(`${apiBaseUrl}/securities`, {
-        method: 'GET',
-        headers: { 
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
+      setLoading(true);
+      setError(null); // Reset error state
+      const response = await fetchWithAuth('/securities');
   
       if (!response.ok) {
         const errorText = await response.text();
@@ -90,20 +78,7 @@ export default function DataSummary() {
     setDetailsLoading(true);
     
     try {
-      const token = localStorage.getItem("token");
-      
-      if (!token) {
-        router.push("/login");
-        return;
-      }
-      
-      const response = await fetch(`${apiBaseUrl}/securities/${ticker}/details`, {
-        method: 'GET',
-        headers: { 
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
+      const response = await fetchWithAuth(`/securities/${ticker}/details`);
   
       if (!response.ok) {
         const errorText = await response.text();
@@ -135,20 +110,7 @@ export default function DataSummary() {
   // Fetch historical price data for chart
   const fetchHistoricalData = async (ticker) => {
     try {
-      const token = localStorage.getItem("token");
-      
-      if (!token) {
-        router.push("/login");
-        return;
-      }
-      
-      const response = await fetch(`${apiBaseUrl}/securities/${ticker}/history`, {
-        method: 'GET',
-        headers: { 
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
+      const response = await fetchWithAuth(`/securities/${ticker}/history`);
   
       if (!response.ok) {
         throw new Error("Failed to fetch historical data");

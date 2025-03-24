@@ -1,21 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import { RefreshCcw, CheckCircle, XCircle, Clock, AlertCircle } from 'lucide-react';
+import { API_BASE_URL, fetchWithAuth } from '@/utils/api';
+
 
 const SystemEvents = () => {
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const apiBaseUrl = "http://127.0.0.1:8000";
 
   const fetchEvents = async () => {
     setLoading(true);
     try {
-      const token = localStorage.getItem("token");
-      if (!token) return;
-
-      const response = await fetch(`${apiBaseUrl}/system/events?limit=5`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      const response = await fetchWithAuth(`/system/events?limit=5`);
 
       if (!response.ok) {
         throw new Error("Failed to fetch system events");

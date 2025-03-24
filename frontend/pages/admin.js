@@ -42,6 +42,8 @@ import {
   Workflow,
   Share2
 } from 'lucide-react';
+import { fetchWithAuth } from '@/utils/api';
+
 
 export default function Admin() {
   const { user } = useContext(AuthContext);
@@ -64,7 +66,6 @@ export default function Admin() {
   const [searchQuery, setSearchQuery] = useState("");
   const [sortKey, setSortKey] = useState("group");
   const [sortDirection, setSortDirection] = useState("asc");
-  const apiBaseUrl = "http://127.0.0.1:8000";
 
   // Function to sort endpoints
   const sortEndpoints = (endpoints, key, direction) => {
@@ -732,11 +733,9 @@ export default function Admin() {
         return;
       }
       
-      console.log('Fetching from:', `${apiBaseUrl}/admin/tables`);
+      console.log('Fetching admin tables');
       
-      const response = await fetch(`${apiBaseUrl}/admin/tables`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const response = await fetchWithAuth('/admin/tables');
       
       console.log('Response status:', response.status);
       
@@ -924,9 +923,7 @@ export default function Admin() {
         return;
       }
       
-      const response = await fetch(`${apiBaseUrl}/admin/health`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const response = await fetchWithAuth('/admin/health');
       
       if (response.ok) {
         const data = await response.json();
