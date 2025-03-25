@@ -97,10 +97,17 @@ metadata.create_all(engine)
 # Initialize FastAPI App
 app = FastAPI(title="NestEgg API", description="Investment portfolio tracking API")
 
+# List of allowed origins
+allowed_origins = [
+    "https://nestegg-prod.vercel.app",  # Your production Vercel app
+    "http://localhost:3000",            # React's default local development port
+    "http://127.0.0.1:3000",            # Alternative localhost address
+]
+
 # Enable CORS (Allow Frontend to Connect)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # For development only - restrict this in production
+    allow_origins=allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
