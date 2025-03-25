@@ -815,9 +815,7 @@ export default function Admin() {
           return;
       }
       
-      const response = await fetch(`${apiBaseUrl}${endpoint}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const response = await fetchWithAuth(endpoint);
       
       if (response.ok) {
         const data = await response.json();
@@ -1404,9 +1402,8 @@ export default function Admin() {
                       try {
                         setLoading(true);
                         const token = localStorage.getItem("token");
-                        const response = await fetch(`${apiBaseUrl}/admin/generate-test-data`, {
-                          method: "POST",
-                          headers: { Authorization: `Bearer ${token}` }
+                        const response = await fetchWithAuth('/admin/generate-test-data', {
+                          method: "POST"
                         });
                         if (response.ok) {
                           const result = await response.json();
