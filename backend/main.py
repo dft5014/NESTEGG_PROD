@@ -99,7 +99,8 @@ app = FastAPI(title="NestEgg API", description="Investment portfolio tracking AP
 
 # List of allowed origins
 allowed_origins = [
-    "https://nestegg-prod.vercel.app",  # Your production Vercel app
+    "https://nestegg-prod-dihp4pwlw-dft5014s-projects.vercel.app",  # Actual deployed domain
+    "https://nestegg-prod.vercel.app",  # Optional if you want to allow your production domain root
     "http://localhost:3000",            # React's default local development port
     "http://127.0.0.1:3000",            # Alternative localhost address
 ]
