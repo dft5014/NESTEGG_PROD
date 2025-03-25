@@ -154,17 +154,10 @@ export default function DataSummary() {
     setError(null);
     
     try {
-      const token = localStorage.getItem("token");
+
       
-      if (!token) {
-        setError("Authentication required. Please log in to continue.");
-        setTimeout(() => router.push("/login"), 2000);
-        return;
-      }
-      
-      const response = await fetch(`${apiBaseUrl}/market/update-prices`, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${token}` },
+      const response = await fetchWithAuth('/market/update-prices', {
+        method: "POST"
       });
       
       if (!response.ok) {
@@ -190,20 +183,10 @@ export default function DataSummary() {
     setRefreshing(true);
     
     try {
-      const token = localStorage.getItem("token");
+
       
-      if (!token) {
-        setError("Authentication required. Please log in to continue.");
-        setTimeout(() => router.push("/login"), 2000);
-        return;
-      }
-      
-      const response = await fetch(`${apiBaseUrl}/securities/${ticker}/update`, {
+      const response = await fetchWithAuth(`/securities/${ticker}/update`, {
         method: "POST",
-        headers: { 
-          "Authorization": `Bearer ${token}`,
-          "Content-Type": "application/json" 
-        },
         body: JSON.stringify({ update_type: updateType })
       });
       
@@ -243,20 +226,9 @@ export default function DataSummary() {
     setRefreshing(true);
     
     try {
-      const token = localStorage.getItem("token");
-      
-      if (!token) {
-        setError("Authentication required. Please log in to continue.");
-        setTimeout(() => router.push("/login"), 2000);
-        return;
-      }
-      
-      const response = await fetch(`${apiBaseUrl}/securities`, {
+
+      const response = await fetchWithAuth('/securities', {
         method: "POST",
-        headers: { 
-          "Authorization": `Bearer ${token}`,
-          "Content-Type": "application/json" 
-        },
         body: JSON.stringify({ ticker: newSecurity.ticker.toUpperCase() })
       });
       
