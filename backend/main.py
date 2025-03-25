@@ -46,7 +46,11 @@ from backend.utils.common import record_system_event, update_system_event
 from backend.api_clients.market_data_manager import MarketDataManager
 
 # Initialize Database Connection
-database = databases.Database(DATABASE_URL)
+database = databases.Database(
+    DATABASE_URL,
+    statement_cache_size=0  # Disable statement caching for PgBouncer compatibility
+)
+
 metadata = sqlalchemy.MetaData()
 
 # Set up logger

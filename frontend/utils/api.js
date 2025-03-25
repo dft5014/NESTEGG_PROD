@@ -12,6 +12,7 @@ export const fetchWithAuth = async (endpoint, options = {}) => {
   
   return fetch(`${API_BASE_URL}${endpoint}`, {
     ...options,
-    headers
+    headers,
+    mode: 'cors'  // Explicitly set CORS mode
   });
 };
