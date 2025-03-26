@@ -1668,108 +1668,111 @@ async def get_table_details(table_name: str, limit: int = 10, current_user: dict
             detail=f"Failed to fetch table details: {str(e)}"
         )
 
-# Add this to main.py or create a new endpoint specifically for testing
-@app.get("/debug/test-yfinance")
-async def test_yfinance():
+@app.get("/debug/test-yahoo-direct")
+async def test_yahoo_direct():
     """
-    Simple test endpoint to check if yfinance is working in this environment
+    Direct HTTP request test to check if Yahoo Finance APIs are accessible
     """
-    import yfinance as yf
     import requests
+    import time
+    import json
     
     results = {
-        "status": "running test",
-        "environment": {},
-        "test_results": {}
+        "status": "running direct test",
+        "tests": {}
     }
     
-    # Log environment info
-    import platform
-    import sys
-    results["environment"] = {
-        "python_version": sys.version,
-        "platform": platform.platform(),
-        "ip_info": None
+    # Several endpoints to test different aspects of Yahoo connectivity
+    test_urls = {
+        "yahoo_finance_quote": "https://query1.finance.yahoo.com/v8/finance/chart/AAPL?interval=1d",
+        "yahoo_finance_search": "https://query1.finance.yahoo.com/v1/finance/search?q=AAPL",
+        "yahoo_main": "https://finance.yahoo.com/quote/AAPL",
+        "google": "https://www.google.com",  # Control test
     }
     
-    # Try to get external IP (to check if Render can access external services)
-    try:
-        ip_response = requests.get("https://api.ipify.org?format=json", timeout=5)
-        if ip_response.status_code == 200:
-            results["environment"]["ip_info"] = ip_response.json()
-    except Exception as e:
-        results["environment"]["ip_info_error"] = str(e)
+    # Use a browser-like user agent
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+        'Accept-Language': 'en-US,en;q=0.5',
+        'Connection': 'keep-alive',
+        'Upgrade-Insecure-Requests': '1',
+        'Cache-Control': 'max-age=0'
+    }
     
-    # Test with a few well-known tickers
-    test_tickers = ["AAPL", "MSFT", "GOOG", "MKTX", "SPY"]
-    
-    for ticker in test_tickers:
+    for name, url in test_urls.items():
         try:
-            results["test_results"][ticker] = {
+            results["tests"][name] = {
+                "url": url,
                 "status": "attempting"
             }
             
-            # Create a custom session with browser-like user agent
-            session = requests.Session()
-            session.headers.update({
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+            start_time = time.time()
+            response = requests.get(url, headers=headers, timeout=10)
+            elapsed = time.time() - start_time
+            
+            results["tests"][name].update({
+                "status_code": response.status_code,
+                "elapsed_seconds": round(elapsed, 2),
+                "response_size": len(response.content),
+                "headers": dict(response.headers),
             })
             
-            # Try to get ticker info
-            ticker_obj = yf.Ticker(ticker, session=session)
-            info = ticker_obj.info
-            
-            # Check if we got meaningful data
-            if info and len(info) > 1:
-                results["test_results"][ticker].update({
-                    "status": "success",
-                    "data_keys": list(info.keys())[:5],  # First 5 keys
-                    "current_price": info.get("currentPrice"),
-                    "company_name": info.get("shortName") or info.get("longName"),
-                    "data_points": len(info)
-                })
-            else:
-                results["test_results"][ticker].update({
-                    "status": "empty_response",
-                    "data": info
-                })
-            
-            # Try to get history (separate try block)
-            try:
-                history = ticker_obj.history(period="1d")
-                
-                if not history.empty:
-                    results["test_results"][ticker].update({
-                        "history_status": "success",
-                        "history_rows": len(history),
-                        "history_columns": list(history.columns) if hasattr(history, "columns") else None,
-                        "latest_price": float(history['Close'].iloc[-1]) if 'Close' in history.columns and len(history) > 0 else None
-                    })
-                else:
-                    results["test_results"][ticker].update({
-                        "history_status": "empty_history"
-                    })
-            except Exception as hist_error:
-                results["test_results"][ticker].update({
-                    "history_status": "error",
-                    "history_error": str(hist_error)
-                })
+            # For APIs that return JSON, include a sample
+            if "application/json" in response.headers.get("Content-Type", ""):
+                try:
+                    json_data = response.json()
+                    # Just provide a snippet to avoid large responses
+                    if isinstance(json_data, dict):
+                        results["tests"][name]["json_keys"] = list(json_data.keys())
+                    elif isinstance(json_data, list) and len(json_data) > 0:
+                        results["tests"][name]["json_sample"] = "Array with " + str(len(json_data)) + " items"
+                except:
+                    results["tests"][name]["json_parse_error"] = True
             
         except Exception as e:
-            results["test_results"][ticker].update({
-                "status": "error", 
+            results["tests"][name].update({
+                "status": "error",
                 "error": str(e),
                 "error_type": type(e).__name__
             })
     
-    # Add yfinance version info
+    # Test if manual parsing might work better than YFinance
     try:
-        results["yfinance_version"] = yf.__version__
-    except:
-        results["yfinance_version"] = "unknown"
+        manual_result = requests.get("https://finance.yahoo.com/quote/AAPL", headers=headers, timeout=10)
+        if manual_result.status_code == 200:
+            # Look for the price in the HTML (very crude but effective test)
+            html = manual_result.text
+            import re
+            
+            # Try to find the current price in the HTML
+            price_pattern = r'data-reactid="\d+">(\d+\.\d+)</span>'
+            price_match = re.search(price_pattern, html)
+            
+            if price_match:
+                results["manual_parsing"] = {
+                    "success": True,
+                    "found_price_pattern": True,
+                    "price": price_match.group(1)
+                }
+            else:
+                results["manual_parsing"] = {
+                    "success": True,
+                    "found_price_pattern": False,
+                    "html_sample": html[:500] + "..." # Just a sample
+                }
+        else:
+            results["manual_parsing"] = {
+                "success": False,
+                "status_code": manual_result.status_code
+            }
+    except Exception as e:
+        results["manual_parsing"] = {
+            "success": False,
+            "error": str(e)
+        }
     
     return results
-
 
 # Add data consistency endpoints
 @app.get("/admin/data-consistency/check")
