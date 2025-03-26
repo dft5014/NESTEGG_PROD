@@ -12,3 +12,6 @@ redis==4.6.0
 aiohttp==3.8.4
 pandas==2.0.3
 pytz==2023.3
+yahoo-fin==0.8.9.1
+yahooquery==2.3.3
+

@@ -1669,6 +1669,184 @@ async def get_table_details(table_name: str, limit: int = 10, current_user: dict
         )
 
 
+@app.get("/debug/direct-yahoo-test")
+async def test_direct_yahoo():
+    """
+    Test the DirectYahooFinanceClient standalone
+    """
+    from backend.api_clients.direct_yahoo_client import DirectYahooFinanceClient
+    import time
+    
+    results = {
+        "timestamp": datetime.utcnow().isoformat(),
+        "tests": {}
+    }
+    
+    # Initialize the client
+    client = DirectYahooFinanceClient()
+    
+    # Test tickers to check
+    test_tickers = ["AAPL", "MSFT", "GOOG", "MKTX", "SPY"]
+    
+    # Test 1: Current Price for individual tickers
+    for ticker in test_tickers:
+        test_id = f"current_price_{ticker}"
+        results["tests"][test_id] = {"status": "running"}
+        
+        try:
+            start_time = time.time()
+            price_data = await client.get_current_price(ticker)
+            elapsed = time.time() - start_time
+            
+            if price_data:
+                results["tests"][test_id].update({
+                    "status": "success",
+                    "elapsed_seconds": round(elapsed, 2),
+                    "price": price_data.get("price"),
+                    "day_open": price_data.get("day_open"),
+                    "day_high": price_data.get("day_high"),
+                    "day_low": price_data.get("day_low"),
+                    "volume": price_data.get("volume"),
+                    "timestamp": price_data.get("price_timestamp_str")
+                })
+            else:
+                results["tests"][test_id].update({
+                    "status": "no_data",
+                    "elapsed_seconds": round(elapsed, 2)
+                })
+        except Exception as e:
+            results["tests"][test_id].update({
+                "status": "error",
+                "error": str(e),
+                "error_type": type(e).__name__
+            })
+    
+    # Test 2: Batch Prices
+    test_id = "batch_prices"
+    results["tests"][test_id] = {"status": "running"}
+    
+    try:
+        start_time = time.time()
+        batch_data = await client.get_batch_prices(test_tickers)
+        elapsed = time.time() - start_time
+        
+        results["tests"][test_id].update({
+            "status": "success",
+            "elapsed_seconds": round(elapsed, 2),
+            "tickers_returned": list(batch_data.keys()),
+            "count": len(batch_data)
+        })
+        
+        # Include sample data from one ticker if available
+        if "AAPL" in batch_data:
+            results["tests"][test_id]["sample_data"] = {
+                "price": batch_data["AAPL"].get("price"),
+                "timestamp": batch_data["AAPL"].get("price_timestamp_str")
+            }
+    except Exception as e:
+        results["tests"][test_id].update({
+            "status": "error",
+            "error": str(e),
+            "error_type": type(e).__name__
+        })
+    
+    # Test 3: Company Metrics
+    test_id = "company_metrics"
+    results["tests"][test_id] = {"status": "running"}
+    
+    try:
+        start_time = time.time()
+        metrics = await client.get_company_metrics("AAPL")
+        elapsed = time.time() - start_time
+        
+        if metrics and not metrics.get("not_found"):
+            results["tests"][test_id].update({
+                "status": "success",
+                "elapsed_seconds": round(elapsed, 2),
+                "company_name": metrics.get("company_name"),
+                "sector": metrics.get("sector"),
+                "pe_ratio": metrics.get("pe_ratio"),
+                "metric_keys_count": len(metrics)
+            })
+        else:
+            results["tests"][test_id].update({
+                "status": "no_data",
+                "elapsed_seconds": round(elapsed, 2)
+            })
+    except Exception as e:
+        results["tests"][test_id].update({
+            "status": "error",
+            "error": str(e),
+            "error_type": type(e).__name__
+        })
+    
+    # Test 4: Historical Prices
+    test_id = "historical_prices"
+    results["tests"][test_id] = {"status": "running"}
+    
+    try:
+        start_time = time.time()
+        end_date = datetime.now()
+        start_date = end_date - timedelta(days=30)
+        
+        history = await client.get_historical_prices("AAPL", start_date, end_date)
+        elapsed = time.time() - start_time
+        
+        results["tests"][test_id].update({
+            "status": "success",
+            "elapsed_seconds": round(elapsed, 2),
+            "data_points": len(history),
+            "date_range": {
+                "start": start_date.strftime("%Y-%m-%d"),
+                "end": end_date.strftime("%Y-%m-%d")
+            }
+        })
+        
+        # Include the first and last data point if available
+        if history:
+            results["tests"][test_id]["first_point"] = {
+                "date": history[0].get("date").strftime("%Y-%m-%d") if history[0].get("date") else None,
+                "close": history[0].get("close_price")
+            }
+            results["tests"][test_id]["last_point"] = {
+                "date": history[-1].get("date").strftime("%Y-%m-%d") if history[-1].get("date") else None,
+                "close": history[-1].get("close_price")
+            }
+    except Exception as e:
+        results["tests"][test_id].update({
+            "status": "error",
+            "error": str(e),
+            "error_type": type(e).__name__
+        })
+    
+    # Test 5: Batch Historical Prices
+    test_id = "batch_historical"
+    results["tests"][test_id] = {"status": "running"}
+    
+    try:
+        start_time = time.time()
+        end_date = datetime.now()
+        start_date = end_date - timedelta(days=7)  # Just 7 days to keep it quick
+        
+        batch_history = await client.get_batch_historical_prices(["AAPL", "MSFT"], start_date, end_date)
+        elapsed = time.time() - start_time
+        
+        results["tests"][test_id].update({
+            "status": "success",
+            "elapsed_seconds": round(elapsed, 2),
+            "tickers_returned": list(batch_history.keys()),
+            "data_points": {ticker: len(data) for ticker, data in batch_history.items()}
+        })
+    except Exception as e:
+        results["tests"][test_id].update({
+            "status": "error",
+            "error": str(e),
+            "error_type": type(e).__name__
+        })
+    
+    return results
+
+
 @app.get("/debug/yfinance-tests")
 async def yfinance_detailed_tests():
     """
