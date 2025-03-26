@@ -1847,6 +1847,506 @@ async def test_direct_yahoo():
     return results
 
 
+@app.get("/debug/yahooquery-test")
+async def test_yahooquery():
+    """
+    Test the YahooQueryClient standalone
+    """
+    from backend.api_clients.yahooquery_client import YahooQueryClient
+    import time
+    import pandas as pd
+    
+    results = {
+        "timestamp": datetime.utcnow().isoformat(),
+        "tests": {}
+    }
+    
+    # Initialize the client
+    client = YahooQueryClient()
+    
+    # Test tickers to check
+    test_tickers = ["AAPL", "MSFT", "GOOG", "MKTX", "SPY"]
+    
+    # Test 1: Current Price for individual tickers
+    for ticker in test_tickers:
+        test_id = f"current_price_{ticker}"
+        results["tests"][test_id] = {"status": "running"}
+        
+        try:
+            start_time = time.time()
+            price_data = await client.get_current_price(ticker)
+            elapsed = time.time() - start_time
+            
+            if price_data:
+                results["tests"][test_id].update({
+                    "status": "success",
+                    "elapsed_seconds": round(elapsed, 2),
+                    "price": price_data.get("price"),
+                    "day_open": price_data.get("day_open"),
+                    "day_high": price_data.get("day_high"),
+                    "day_low": price_data.get("day_low"),
+                    "volume": price_data.get("volume"),
+                    "timestamp": price_data.get("price_timestamp_str")
+                })
+            else:
+                results["tests"][test_id].update({
+                    "status": "no_data",
+                    "elapsed_seconds": round(elapsed, 2)
+                })
+        except Exception as e:
+            results["tests"][test_id].update({
+                "status": "error",
+                "error": str(e),
+                "error_type": type(e).__name__
+            })
+    
+    # Test 2: Batch Prices
+    test_id = "batch_prices"
+    results["tests"][test_id] = {"status": "running"}
+    
+    try:
+        start_time = time.time()
+        batch_data = await client.get_batch_prices(test_tickers)
+        elapsed = time.time() - start_time
+        
+        results["tests"][test_id].update({
+            "status": "success",
+            "elapsed_seconds": round(elapsed, 2),
+            "tickers_returned": list(batch_data.keys()),
+            "count": len(batch_data)
+        })
+        
+        # Include sample data from one ticker if available
+        if "AAPL" in batch_data:
+            results["tests"][test_id]["sample_data"] = {
+                "price": batch_data["AAPL"].get("price"),
+                "timestamp": batch_data["AAPL"].get("price_timestamp_str")
+            }
+    except Exception as e:
+        results["tests"][test_id].update({
+            "status": "error",
+            "error": str(e),
+            "error_type": type(e).__name__
+        })
+    
+    # Test 3: Company Metrics
+    test_id = "company_metrics"
+    results["tests"][test_id] = {"status": "running"}
+    
+    try:
+        start_time = time.time()
+        metrics = await client.get_company_metrics("AAPL")
+        elapsed = time.time() - start_time
+        
+        if metrics and not metrics.get("not_found"):
+            results["tests"][test_id].update({
+                "status": "success",
+                "elapsed_seconds": round(elapsed, 2),
+                "company_name": metrics.get("company_name"),
+                "sector": metrics.get("sector"),
+                "pe_ratio": metrics.get("pe_ratio"),
+                "metric_keys_count": len(metrics)
+            })
+        else:
+            results["tests"][test_id].update({
+                "status": "no_data",
+                "elapsed_seconds": round(elapsed, 2)
+            })
+    except Exception as e:
+        results["tests"][test_id].update({
+            "status": "error",
+            "error": str(e),
+            "error_type": type(e).__name__
+        })
+    
+    # Test 4: Historical Prices
+    test_id = "historical_prices"
+    results["tests"][test_id] = {"status": "running"}
+    
+    try:
+        start_time = time.time()
+        end_date = datetime.now()
+        start_date = end_date - timedelta(days=30)
+        
+        history = await client.get_historical_prices("AAPL", start_date, end_date)
+        elapsed = time.time() - start_time
+        
+        results["tests"][test_id].update({
+            "status": "success",
+            "elapsed_seconds": round(elapsed, 2),
+            "data_points": len(history),
+            "date_range": {
+                "start": start_date.strftime("%Y-%m-%d"),
+                "end": end_date.strftime("%Y-%m-%d")
+            }
+        })
+        
+        # Include the first and last data point if available
+        if history:
+            results["tests"][test_id]["first_point"] = {
+                "date": history[0].get("date").strftime("%Y-%m-%d") if history[0].get("date") else None,
+                "close": history[0].get("close_price")
+            }
+            results["tests"][test_id]["last_point"] = {
+                "date": history[-1].get("date").strftime("%Y-%m-%d") if history[-1].get("date") else None,
+                "close": history[-1].get("close_price")
+            }
+    except Exception as e:
+        results["tests"][test_id].update({
+            "status": "error",
+            "error": str(e),
+            "error_type": type(e).__name__
+        })
+    
+    # Test 5: Batch Historical Prices
+    test_id = "batch_historical"
+    results["tests"][test_id] = {"status": "running"}
+    
+    try:
+        start_time = time.time()
+        end_date = datetime.now()
+        start_date = end_date - timedelta(days=7)  # Just 7 days to keep it quick
+        
+        batch_history = await client.get_batch_historical_prices(["AAPL", "MSFT"], start_date, end_date)
+        elapsed = time.time() - start_time
+        
+        results["tests"][test_id].update({
+            "status": "success",
+            "elapsed_seconds": round(elapsed, 2),
+            "tickers_returned": list(batch_history.keys()),
+            "data_points": {ticker: len(data) for ticker, data in batch_history.items()}
+        })
+    except Exception as e:
+        results["tests"][test_id].update({
+            "status": "error",
+            "error": str(e),
+            "error_type": type(e).__name__
+        })
+    
+    return results
+
+
+@app.get("/debug/yahoo-client-performance-test")
+async def test_yahoo_clients_performance():
+    """
+    Comprehensive performance test comparing all Yahoo Finance client implementations
+    across different data retrieval methods.
+    """
+    from backend.api_clients.yahoo_finance_client import YahooFinanceClient
+    from backend.api_clients.direct_yahoo_client import DirectYahooFinanceClient
+    from backend.api_clients.yahooquery_client import YahooQueryClient
+    import time
+    
+    # Initialize clients
+    yf_client = YahooFinanceClient()
+    direct_client = DirectYahooFinanceClient()
+    yq_client = YahooQueryClient()
+    
+    clients = {
+        "yfinance": yf_client,
+        "direct_yahoo": direct_client, 
+        "yahooquery": yq_client
+    }
+    
+    test_tickers = ["AAPL", "MSFT", "GOOG", "AMZN", "META"]
+    batch_tickers = test_tickers.copy()
+    single_ticker = "AAPL"
+    
+    results = {
+        "timestamp": datetime.utcnow().isoformat(),
+        "test_configuration": {
+            "test_tickers": test_tickers,
+            "single_ticker": single_ticker,
+            "batch_tickers": batch_tickers,
+            "historical_days": 30
+        },
+        "results_by_method": {},
+        "results_by_client": {client: {} for client in clients.keys()},
+        "overall_winner": None,
+        "method_winners": {}
+    }
+    
+    # Test 1: Get Current Price (Single Ticker)
+    method = "get_current_price"
+    results["results_by_method"][method] = {}
+    
+    for client_name, client in clients.items():
+        try:
+            start_time = time.time()
+            price_data = await client.get_current_price(single_ticker)
+            elapsed = time.time() - start_time
+            
+            success = price_data is not None
+            price_value = price_data.get("price") if price_data else None
+            
+            results["results_by_method"][method][client_name] = {
+                "status": "success" if success else "no_data",
+                "elapsed_seconds": round(elapsed, 4),
+                "price": price_value
+            }
+            
+            # Also record in client-specific results
+            results["results_by_client"][client_name][method] = {
+                "status": "success" if success else "no_data",
+                "elapsed_seconds": round(elapsed, 4)
+            }
+        except Exception as e:
+            results["results_by_method"][method][client_name] = {
+                "status": "error",
+                "error": str(e),
+                "error_type": type(e).__name__
+            }
+            
+            results["results_by_client"][client_name][method] = {
+                "status": "error",
+                "elapsed_seconds": None
+            }
+    
+    # Test 2: Get Batch Prices
+    method = "get_batch_prices"
+    results["results_by_method"][method] = {}
+    
+    for client_name, client in clients.items():
+        try:
+            start_time = time.time()
+            batch_data = await client.get_batch_prices(batch_tickers)
+            elapsed = time.time() - start_time
+            
+            tickers_returned = list(batch_data.keys()) if batch_data else []
+            success_count = len(tickers_returned)
+            
+            results["results_by_method"][method][client_name] = {
+                "status": "success" if success_count > 0 else "no_data",
+                "elapsed_seconds": round(elapsed, 4),
+                "tickers_returned": tickers_returned,
+                "count": success_count,
+                "pct_success": round((success_count / len(batch_tickers)) * 100, 1) if batch_tickers else 0
+            }
+            
+            # Also record in client-specific results
+            results["results_by_client"][client_name][method] = {
+                "status": "success" if success_count > 0 else "no_data",
+                "elapsed_seconds": round(elapsed, 4),
+                "count": success_count
+            }
+        except Exception as e:
+            results["results_by_method"][method][client_name] = {
+                "status": "error",
+                "error": str(e),
+                "error_type": type(e).__name__
+            }
+            
+            results["results_by_client"][client_name][method] = {
+                "status": "error",
+                "elapsed_seconds": None
+            }
+    
+    # Test 3: Get Company Metrics
+    method = "get_company_metrics"
+    results["results_by_method"][method] = {}
+    
+    for client_name, client in clients.items():
+        try:
+            start_time = time.time()
+            metrics = await client.get_company_metrics(single_ticker)
+            elapsed = time.time() - start_time
+            
+            success = metrics is not None and not metrics.get("not_found", False)
+            fields_count = len(metrics) if metrics else 0
+            
+            results["results_by_method"][method][client_name] = {
+                "status": "success" if success else "no_data",
+                "elapsed_seconds": round(elapsed, 4),
+                "fields_count": fields_count,
+                "sample_fields": list(metrics.keys())[:5] if metrics else []
+            }
+            
+            # Also record in client-specific results
+            results["results_by_client"][client_name][method] = {
+                "status": "success" if success else "no_data",
+                "elapsed_seconds": round(elapsed, 4),
+                "fields_count": fields_count
+            }
+        except Exception as e:
+            results["results_by_method"][method][client_name] = {
+                "status": "error",
+                "error": str(e),
+                "error_type": type(e).__name__
+            }
+            
+            results["results_by_client"][client_name][method] = {
+                "status": "error",
+                "elapsed_seconds": None
+            }
+    
+    # Test 4: Get Historical Prices
+    method = "get_historical_prices"
+    results["results_by_method"][method] = {}
+    
+    end_date = datetime.now()
+    start_date = end_date - timedelta(days=30)
+    
+    for client_name, client in clients.items():
+        try:
+            start_time = time.time()
+            history = await client.get_historical_prices(single_ticker, start_date, end_date)
+            elapsed = time.time() - start_time
+            
+            data_points = len(history) if history else 0
+            
+            results["results_by_method"][method][client_name] = {
+                "status": "success" if data_points > 0 else "no_data",
+                "elapsed_seconds": round(elapsed, 4),
+                "data_points": data_points,
+                "date_range": {
+                    "start": start_date.strftime("%Y-%m-%d"),
+                    "end": end_date.strftime("%Y-%m-%d")
+                }
+            }
+            
+            # Also record in client-specific results
+            results["results_by_client"][client_name][method] = {
+                "status": "success" if data_points > 0 else "no_data",
+                "elapsed_seconds": round(elapsed, 4),
+                "data_points": data_points
+            }
+        except Exception as e:
+            results["results_by_method"][method][client_name] = {
+                "status": "error",
+                "error": str(e),
+                "error_type": type(e).__name__
+            }
+            
+            results["results_by_client"][client_name][method] = {
+                "status": "error",
+                "elapsed_seconds": None
+            }
+    
+    # Test 5: Get Batch Historical Prices
+    method = "get_batch_historical_prices"
+    results["results_by_method"][method] = {}
+    
+    batch_historical_tickers = batch_tickers[:2]  # Limit to first 2 tickers to save time
+    end_date = datetime.now()
+    start_date = end_date - timedelta(days=7)  # Just 7 days to keep it quick
+    
+    for client_name, client in clients.items():
+        try:
+            start_time = time.time()
+            batch_history = await client.get_batch_historical_prices(batch_historical_tickers, start_date, end_date)
+            elapsed = time.time() - start_time
+            
+            tickers_returned = list(batch_history.keys()) if batch_history else []
+            success_count = len(tickers_returned)
+            
+            total_data_points = sum(len(data) for data in batch_history.values()) if batch_history else 0
+            
+            results["results_by_method"][method][client_name] = {
+                "status": "success" if success_count > 0 else "no_data",
+                "elapsed_seconds": round(elapsed, 4),
+                "tickers_returned": tickers_returned,
+                "count": success_count,
+                "total_data_points": total_data_points,
+                "pct_success": round((success_count / len(batch_historical_tickers)) * 100, 1) if batch_historical_tickers else 0
+            }
+            
+            # Also record in client-specific results
+            results["results_by_client"][client_name][method] = {
+                "status": "success" if success_count > 0 else "no_data",
+                "elapsed_seconds": round(elapsed, 4),
+                "count": success_count,
+                "total_data_points": total_data_points
+            }
+        except Exception as e:
+            results["results_by_method"][method][client_name] = {
+                "status": "error",
+                "error": str(e),
+                "error_type": type(e).__name__
+            }
+            
+            results["results_by_client"][client_name][method] = {
+                "status": "error",
+                "elapsed_seconds": None
+            }
+    
+    # Find winners for each method
+    for method, method_results in results["results_by_method"].items():
+        # Filter only successful results
+        successful_clients = {
+            client: data for client, data in method_results.items() 
+            if data.get("status") == "success"
+        }
+        
+        if successful_clients:
+            # Sort by elapsed time
+            sorted_clients = sorted(
+                successful_clients.items(), 
+                key=lambda x: x[1].get("elapsed_seconds", float('inf'))
+            )
+            
+            # Record winner
+            winner = sorted_clients[0][0]
+            winner_time = sorted_clients[0][1].get("elapsed_seconds")
+            
+            results["method_winners"][method] = {
+                "winner": winner,
+                "elapsed_seconds": winner_time
+            }
+            
+            # Add ranking
+            results["results_by_method"][method]["ranking"] = [
+                {"client": client, "elapsed_seconds": data.get("elapsed_seconds")}
+                for client, data in sorted_clients
+            ]
+    
+    # Calculate overall winner
+    client_scores = {client: 0 for client in clients.keys()}
+    
+    for method, winner_info in results["method_winners"].items():
+        client_scores[winner_info["winner"]] += 1
+    
+    max_score = max(client_scores.values()) if client_scores else 0
+    best_clients = [client for client, score in client_scores.items() if score == max_score]
+    
+    results["overall_winner"] = {
+        "clients": best_clients,
+        "methods_won": {client: client_scores[client] for client in best_clients}
+    }
+    
+    # Create a summary
+    results["summary"] = {
+        "by_method": {},
+        "by_client": {}
+    }
+    
+    for method, method_results in results["results_by_method"].items():
+        if "ranking" in method_results:
+            ranking = method_results["ranking"]
+            results["summary"]["by_method"][method] = {
+                "winner": ranking[0]["client"],
+                "winner_time": ranking[0]["elapsed_seconds"],
+                "all_times": {r["client"]: r["elapsed_seconds"] for r in ranking}
+            }
+    
+    for client_name, client_results in results["results_by_client"].items():
+        success_methods = {
+            method: data for method, data in client_results.items() 
+            if data.get("status") == "success"
+        }
+        
+        avg_time = (
+            sum(data.get("elapsed_seconds", 0) for data in success_methods.values()) / 
+            len(success_methods)
+        ) if success_methods else 0
+        
+        results["summary"]["by_client"][client_name] = {
+            "successful_methods": len(success_methods),
+            "average_time": round(avg_time, 4),
+            "methods_won": client_scores.get(client_name, 0)
+        }
+    
+    return results    
+
 @app.get("/debug/yfinance-tests")
 async def yfinance_detailed_tests():
     """

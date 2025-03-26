@@ -175,11 +175,11 @@ class DirectYahooFinanceClient(MarketDataSource):
             try:
                 logger.info(f"Fetching company info for {ticker} from direct Yahoo API (attempt {attempt+1}/{retries})")
                 
-                # URL for Yahoo Finance quote API
-                url = f"https://query1.finance.yahoo.com/v7/finance/quote?symbols={ticker}"
+                # Try a different endpoint that might be more reliable
+                url = f"https://query2.finance.yahoo.com/v10/finance/quoteSummary/{ticker}?modules=summaryProfile,summaryDetail,defaultKeyStatistics,assetProfile,price"
                 
                 # Make the request
-                response = self.session.get(url, timeout=10)
+                response = self.session.get(url, timeout=15)  # Increased timeout
                 
                 # Check if successful
                 if response.status_code != 200:
@@ -192,62 +192,80 @@ class DirectYahooFinanceClient(MarketDataSource):
                 # Parse the JSON response
                 data = response.json()
                 
-                # Extract quote data
-                if "quoteResponse" in data and "result" in data["quoteResponse"]:
-                    quotes = data["quoteResponse"]["result"]
+                # Log the raw response to debug
+                logger.info(f"Raw response for {ticker}: {str(data)[:500]}...")
+                
+                # Extract quote data - different path for this endpoint
+                if "quoteSummary" in data and "result" in data["quoteSummary"] and data["quoteSummary"]["result"]:
+                    result = data["quoteSummary"]["result"][0]
                     
-                    if not quotes:
-                        logger.warning(f"No quote data found for {ticker}")
-                        if attempt < retries - 1:
-                            await asyncio.sleep(delay * (2 ** attempt))
-                            continue
-                        return {"not_found": True, "source": self.source_name}
-                    
-                    # Get the first result
-                    quote = quotes[0]
-                    
-                    # Map Yahoo fields to our metrics format
+                    # Initialize metrics dictionary
                     metrics = {
                         "ticker": ticker,
-                        "company_name": quote.get("shortName") or quote.get("longName"),
-                        "sector": quote.get("sector", ""),
-                        "industry": quote.get("industry", ""),
-                        "source": self.source_name,
-                        
-                        # Price and market data
-                        "current_price": quote.get("regularMarketPrice"),
-                        "previous_close": quote.get("regularMarketPreviousClose"),
-                        "market_cap": quote.get("marketCap"),
-                        "day_open": quote.get("regularMarketOpen"),
-                        "day_low": quote.get("regularMarketDayLow"),
-                        "day_high": quote.get("regularMarketDayHigh"),
-                        "volume": quote.get("regularMarketVolume"),
-                        "average_volume": quote.get("averageDailyVolume3Month"),
-                        
-                        # Financial metrics
-                        "pe_ratio": quote.get("trailingPE"),
-                        "forward_pe": quote.get("forwardPE"),
-                        "beta": quote.get("beta"),
-                        "fifty_two_week_low": quote.get("fiftyTwoWeekLow"),
-                        "fifty_two_week_high": quote.get("fiftyTwoWeekHigh"),
-                        "dividend_rate": quote.get("dividendRate"),
-                        "dividend_yield": quote.get("dividendYield"),
-                        "eps": quote.get("trailingEps"),
-                        "forward_eps": quote.get("forwardEps"),
-                        "fifty_two_week_range": f"{quote.get('fiftyTwoWeekLow', 0)}-{quote.get('fiftyTwoWeekHigh', 0)}",
-                        "target_high_price": quote.get("targetHighPrice"),
-                        "target_low_price": quote.get("targetLowPrice"),
-                        "target_mean_price": quote.get("targetMeanPrice"),
-                        "target_median_price": quote.get("targetMedianPrice"),
-                        "bid_price": quote.get("bid"),
-                        "ask_price": quote.get("ask"),
+                        "source": self.source_name
                     }
+                    
+                    # Extract data from summaryProfile module
+                    if "summaryProfile" in result:
+                        profile = result["summaryProfile"]
+                        metrics.update({
+                            "company_name": profile.get("shortName") or profile.get("longName"),
+                            "sector": profile.get("sector", ""),
+                            "industry": profile.get("industry", "")
+                        })
+                    
+                    # Extract data from price module
+                    if "price" in result:
+                        price_data = result["price"]
+                        metrics.update({
+                            "current_price": self._extract_raw_value(price_data, "regularMarketPrice"),
+                            "previous_close": self._extract_raw_value(price_data, "regularMarketPreviousClose"),
+                            "day_open": self._extract_raw_value(price_data, "regularMarketOpen"),
+                            "day_high": self._extract_raw_value(price_data, "regularMarketDayHigh"),
+                            "day_low": self._extract_raw_value(price_data, "regularMarketDayLow"),
+                            "volume": self._extract_raw_value(price_data, "regularMarketVolume"),
+                        })
+                    
+                    # Extract data from summaryDetail module
+                    if "summaryDetail" in result:
+                        details = result["summaryDetail"]
+                        metrics.update({
+                            "fifty_two_week_low": self._extract_raw_value(details, "fiftyTwoWeekLow"),
+                            "fifty_two_week_high": self._extract_raw_value(details, "fiftyTwoWeekHigh"),
+                            "average_volume": self._extract_raw_value(details, "averageVolume"),
+                            "dividend_rate": self._extract_raw_value(details, "dividendRate"),
+                            "dividend_yield": self._extract_raw_value(details, "dividendYield"),
+                            "pe_ratio": self._extract_raw_value(details, "trailingPE"),
+                            "forward_pe": self._extract_raw_value(details, "forwardPE"),
+                            "market_cap": self._extract_raw_value(details, "marketCap"),
+                        })
+                    
+                    # Extract data from defaultKeyStatistics module
+                    if "defaultKeyStatistics" in result:
+                        stats = result["defaultKeyStatistics"]
+                        metrics.update({
+                            "beta": self._extract_raw_value(stats, "beta"),
+                            "eps": self._extract_raw_value(stats, "trailingEps"),
+                            "forward_eps": self._extract_raw_value(stats, "forwardEps"),
+                        })
+                    
+                    # Calculate fifty_two_week_range
+                    if metrics.get("fifty_two_week_low") is not None and metrics.get("fifty_two_week_high") is not None:
+                        metrics["fifty_two_week_range"] = f"{metrics['fifty_two_week_low']}-{metrics['fifty_two_week_high']}"
                     
                     # Filter out None values
                     metrics = {k: v for k, v in metrics.items() if v is not None}
                     
-                    logger.info(f"Metrics for {ticker}: {metrics}")
-                    return metrics
+                    # Check if we got meaningful data
+                    if len(metrics) > 3:  # More than just the basics (ticker, source, etc.)
+                        logger.info(f"Metrics for {ticker}: {metrics}")
+                        return metrics
+                    else:
+                        logger.warning(f"Insufficient data for {ticker}")
+                        if attempt < retries - 1:
+                            await asyncio.sleep(delay * (2 ** attempt))
+                            continue
+                        return {"not_found": True, "source": self.source_name}
                 else:
                     logger.warning(f"Invalid response format for {ticker} info")
                     if attempt < retries - 1:
@@ -262,6 +280,16 @@ class DirectYahooFinanceClient(MarketDataSource):
                 else:
                     logger.error(f"All retries exhausted for {ticker} metrics")
                     return {"not_found": True, "source": self.source_name, "error": str(e)}
+        
+        def _extract_raw_value(self, data_dict: Dict, key: str) -> Any:
+            """Helper method to extract raw values from nested Yahoo Finance response structures"""
+            if key in data_dict:
+                item = data_dict[key]
+                # Yahoo often wraps values in objects with 'raw' as the actual value
+                if isinstance(item, dict) and 'raw' in item:
+                    return item['raw']
+                return item
+            return None
     
     async def get_historical_prices(self, ticker: str, start_date: datetime, end_date: Optional[datetime] = None) -> List[Dict[str, Any]]:
         """
