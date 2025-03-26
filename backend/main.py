@@ -1668,6 +1668,276 @@ async def get_table_details(table_name: str, limit: int = 10, current_user: dict
             detail=f"Failed to fetch table details: {str(e)}"
         )
 
+
+@app.get("/debug/yfinance-tests")
+async def yfinance_detailed_tests():
+    """
+    Comprehensive tests for yfinance to diagnose issues in Render
+    """
+    import yfinance as yf
+    import requests
+    import time
+    import json
+    import traceback
+    from datetime import datetime
+    import socket
+    import uuid
+    
+    results = {
+        "timestamp": datetime.utcnow().isoformat(),
+        "yfinance_version": yf.__version__,
+        "tests": {},
+        "environment": {
+            "hostname": socket.gethostname()
+        }
+    }
+    
+    # Check our IP address to determine if we're being rate-limited
+    try:
+        ip_response = requests.get("https://api.ipify.org?format=json", timeout=5)
+        if ip_response.status_code == 200:
+            results["environment"]["ip_address"] = ip_response.json().get("ip")
+    except Exception as e:
+        results["environment"]["ip_error"] = str(e)
+    
+    # 1. BASIC DOWNLOAD TEST WITH MKTX
+    test_id = "basic_download_mktx"
+    results["tests"][test_id] = {"status": "running"}
+    
+    try:
+        # Add a unique identifier to potentially bypass caching
+        unique_id = str(uuid.uuid4())[:8]
+        results["tests"][test_id]["unique_id"] = unique_id
+        
+        # Direct download to see raw response
+        start_time = time.time()
+        data = yf.download("MKTX", period="1d")
+        elapsed = time.time() - start_time
+        
+        results["tests"][test_id].update({
+            "status": "completed",
+            "elapsed_seconds": round(elapsed, 2),
+            "data_empty": data.empty if hasattr(data, "empty") else True,
+            "data_shape": str(data.shape) if hasattr(data, "shape") else "No shape attribute"
+        })
+        
+        # Add sample of data if available
+        if hasattr(data, "to_dict") and not data.empty:
+            try:
+                sample = data.iloc[-1].to_dict()
+                results["tests"][test_id]["data_sample"] = sample
+            except:
+                results["tests"][test_id]["data_sample"] = "Could not convert to dict"
+    except Exception as e:
+        results["tests"][test_id].update({
+            "status": "error",
+            "error": str(e),
+            "traceback": traceback.format_exc()
+        })
+    
+    # 2. INFO TEST FOR MKTX
+    test_id = "info_test_mktx"
+    results["tests"][test_id] = {"status": "running"}
+    
+    try:
+        start_time = time.time()
+        ticker = yf.Ticker("MKTX")
+        info = ticker.info
+        elapsed = time.time() - start_time
+        
+        results["tests"][test_id].update({
+            "status": "completed", 
+            "elapsed_seconds": round(elapsed, 2),
+            "info_keys": list(info.keys()) if info else [],
+            "info_length": len(info) if info else 0
+        })
+        
+        # Include a few key fields if available
+        if info:
+            important_fields = ["symbol", "shortName", "currentPrice", "regularMarketPrice"]
+            sample_data = {field: info.get(field) for field in important_fields if field in info}
+            results["tests"][test_id]["sample_data"] = sample_data
+    except Exception as e:
+        results["tests"][test_id].update({
+            "status": "error",
+            "error": str(e),
+            "traceback": traceback.format_exc()
+        })
+    
+    # 3. TRY WITH CUSTOM USER AGENT
+    test_id = "custom_user_agent_test"
+    results["tests"][test_id] = {"status": "running"}
+    
+    try:
+        # Create a custom session with browser-like user agent
+        session = requests.Session()
+        session.headers.update({
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+        })
+        
+        start_time = time.time()
+        ticker = yf.Ticker("MKTX", session=session)
+        history = ticker.history(period="1d")
+        elapsed = time.time() - start_time
+        
+        results["tests"][test_id].update({
+            "status": "completed",
+            "elapsed_seconds": round(elapsed, 2),
+            "data_empty": history.empty if hasattr(history, "empty") else True,
+            "data_shape": str(history.shape) if hasattr(history, "shape") else "No shape attribute"
+        })
+        
+        # Add sample of data if available
+        if hasattr(history, "to_dict") and not history.empty:
+            try:
+                sample = history.iloc[-1].to_dict()
+                results["tests"][test_id]["data_sample"] = sample
+            except:
+                results["tests"][test_id]["data_sample"] = "Could not convert to dict"
+    except Exception as e:
+        results["tests"][test_id].update({
+            "status": "error",
+            "error": str(e),
+            "traceback": traceback.format_exc()
+        })
+    
+    # 4. TEST OTHER POPULAR TICKERS
+    for ticker_symbol in ["AAPL", "MSFT", "GOOGL"]:
+        test_id = f"popular_ticker_{ticker_symbol}"
+        results["tests"][test_id] = {"status": "running"}
+        
+        try:
+            start_time = time.time()
+            ticker = yf.Ticker(ticker_symbol)
+            history = ticker.history(period="1d")
+            elapsed = time.time() - start_time
+            
+            results["tests"][test_id].update({
+                "status": "completed",
+                "elapsed_seconds": round(elapsed, 2),
+                "data_empty": history.empty if hasattr(history, "empty") else True,
+                "data_shape": str(history.shape) if hasattr(history, "shape") else "No shape attribute"
+            })
+            
+            if hasattr(history, "to_dict") and not history.empty:
+                try:
+                    sample = history.iloc[-1].to_dict()
+                    results["tests"][test_id]["data_sample"] = sample
+                except:
+                    results["tests"][test_id]["data_sample"] = "Could not convert to dict"
+        except Exception as e:
+            results["tests"][test_id].update({
+                "status": "error",
+                "error": str(e),
+                "traceback": traceback.format_exc()
+            })
+    
+    # 5. TEST ALTERNATIVE PACKAGES (if available)
+    # First check if yahoo_fin is available
+    test_id = "yahoo_fin_test"
+    results["tests"][test_id] = {"status": "checking"}
+    
+    try:
+        import yahoo_fin.stock_info as si
+        results["tests"][test_id]["status"] = "package_available"
+        
+        try:
+            start_time = time.time()
+            quote_data = si.get_quote_table("MKTX")
+            price_data = si.get_live_price("MKTX")
+            elapsed = time.time() - start_time
+            
+            results["tests"][test_id].update({
+                "status": "completed",
+                "elapsed_seconds": round(elapsed, 2),
+                "quote_data": quote_data if isinstance(quote_data, dict) else "Not a dictionary",
+                "price": price_data
+            })
+        except Exception as e:
+            results["tests"][test_id].update({
+                "status": "error",
+                "error": str(e),
+                "traceback": traceback.format_exc()
+            })
+    except ImportError:
+        results["tests"][test_id]["status"] = "package_not_available"
+    
+    # Check if yahooquery is available
+    test_id = "yahooquery_test"
+    results["tests"][test_id] = {"status": "checking"}
+    
+    try:
+        import yahooquery as yq
+        results["tests"][test_id]["status"] = "package_available"
+        
+        try:
+            start_time = time.time()
+            ticker = yq.Ticker("MKTX")
+            price_data = ticker.price
+            elapsed = time.time() - start_time
+            
+            results["tests"][test_id].update({
+                "status": "completed",
+                "elapsed_seconds": round(elapsed, 2),
+                "price_data": price_data
+            })
+        except Exception as e:
+            results["tests"][test_id].update({
+                "status": "error",
+                "error": str(e),
+                "traceback": traceback.format_exc()
+            })
+    except ImportError:
+        results["tests"][test_id]["status"] = "package_not_available"
+    
+    # 6. RAW REQUEST TEST
+    # Make a direct request to Yahoo Finance API without any library to see if we get a response
+    test_id = "raw_request_test"
+    results["tests"][test_id] = {"status": "running"}
+    
+    try:
+        url = "https://query1.finance.yahoo.com/v8/finance/chart/MKTX?interval=1d"
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+        }
+        
+        start_time = time.time()
+        response = requests.get(url, headers=headers, timeout=10)
+        elapsed = time.time() - start_time
+        
+        results["tests"][test_id].update({
+            "status": "completed",
+            "elapsed_seconds": round(elapsed, 2),
+            "status_code": response.status_code,
+            "response_size": len(response.content)
+        })
+        
+        if response.status_code == 200:
+            data = response.json()
+            if "chart" in data and "result" in data["chart"] and data["chart"]["result"]:
+                result = data["chart"]["result"][0]
+                meta = result.get("meta", {})
+                quotes = result.get("indicators", {}).get("quote", [{}])[0]
+                
+                if quotes and "close" in quotes and quotes["close"]:
+                    results["tests"][test_id]["current_price"] = quotes["close"][-1]
+                
+                results["tests"][test_id]["meta_sample"] = {
+                    key: meta[key] for key in list(meta.keys())[:5]
+                } if meta else {}
+            else:
+                results["tests"][test_id]["parse_error"] = "Could not find expected data in response"
+        else:
+            results["tests"][test_id]["error"] = f"HTTP error {response.status_code}"
+    except Exception as e:
+        results["tests"][test_id].update({
+            "status": "error",
+            "error": str(e),
+            "traceback": traceback.format_exc()
+        })
+    
+    return results
+
 @app.get("/debug/test-yahoo-direct")
 async def test_yahoo_direct():
     """
