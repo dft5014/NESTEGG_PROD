@@ -81,7 +81,64 @@ class YahooQueryClient(MarketDataSource):
                     await asyncio.sleep(delay * (2 ** attempt))
                 else:
                     logger.error(f"All retries exhausted for {ticker}")
-                    return []
+                    return None
+    
+    async def get_batch_prices(self, tickers: List[str], max_batch_size: int = 10) -> Dict[str, Dict[str, Any]]:
+        """
+        Get current prices for multiple tickers
+        """
+        logger.info(f"Starting batch request for: {tickers}")
+        if not tickers:
+            return {}
+            
+        results = {}
+        
+        # Process in smaller batches to avoid any rate limiting
+        for i in range(0, len(tickers), max_batch_size):
+            batch = tickers[i:i + max_batch_size]
+            logger.info(f"Processing batch {i//max_batch_size + 1}/{(len(tickers) + max_batch_size - 1)//max_batch_size}: {batch}")
+            
+            try:
+                # Use yahooquery to get price data for the batch
+                loop = asyncio.get_event_loop()
+                ticker_obj = await loop.run_in_executor(None, lambda: yq.Ticker(batch))
+                price_data = await loop.run_in_executor(None, lambda: ticker_obj.price)
+                
+                # Process each ticker in the batch
+                for ticker in batch:
+                    if ticker in price_data and "regularMarketPrice" in price_data[ticker]:
+                        ticker_price = price_data[ticker]
+                        
+                        results[ticker] = {
+                            "price": float(ticker_price["regularMarketPrice"]),
+                            "day_open": float(ticker_price["regularMarketOpen"]) if "regularMarketOpen" in ticker_price else None,
+                            "day_high": float(ticker_price["regularMarketDayHigh"]) if "regularMarketDayHigh" in ticker_price else None,
+                            "day_low": float(ticker_price["regularMarketDayLow"]) if "regularMarketDayLow" in ticker_price else None,
+                            "close_price": float(ticker_price["regularMarketPrice"]),
+                            "volume": int(ticker_price["regularMarketVolume"]) if "regularMarketVolume" in ticker_price else None,
+                            "timestamp": datetime.now(),
+                            "price_timestamp": datetime.now(),
+                            "price_timestamp_str": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                            "source": self.source_name
+                        }
+            except Exception as e:
+                logger.error(f"Error processing batch {batch}: {str(e)}")
+                
+                # Fall back to individual processing
+                for ticker in batch:
+                    try:
+                        price_data = await self.get_current_price(ticker)
+                        if price_data:
+                            results[ticker] = price_data
+                    except Exception as ticker_error:
+                        logger.error(f"Error processing {ticker} individually: {str(ticker_error)}")
+            
+            # Add a small delay between batches
+            if i + max_batch_size < len(tickers):
+                await asyncio.sleep(1)
+        
+        logger.info(f"Batch request complete, returning data for {len(results)} tickers")
+        return results
     
     async def get_batch_historical_prices(self, tickers: List[str], start_date: datetime, end_date: Optional[datetime] = None, max_batch_size: int = 5) -> Dict[str, List[Dict[str, Any]]]:
         """
@@ -207,68 +264,6 @@ class YahooQueryClient(MarketDataSource):
                 await asyncio.sleep(1)
         
         logger.info(f"Batch historical data request complete, returning data for {len(results)} tickers")
-        return results {str(e)}")
-                if attempt < retries - 1:
-                    await asyncio.sleep(delay * (2 ** attempt))
-                else:
-                    logger.error(f"All retries exhausted for {ticker}")
-                    return None
-    
-    async def get_batch_prices(self, tickers: List[str], max_batch_size: int = 10) -> Dict[str, Dict[str, Any]]:
-        """
-        Get current prices for multiple tickers
-        """
-        logger.info(f"Starting batch request for: {tickers}")
-        if not tickers:
-            return {}
-            
-        results = {}
-        
-        # Process in smaller batches to avoid any rate limiting
-        for i in range(0, len(tickers), max_batch_size):
-            batch = tickers[i:i + max_batch_size]
-            logger.info(f"Processing batch {i//max_batch_size + 1}/{(len(tickers) + max_batch_size - 1)//max_batch_size}: {batch}")
-            
-            try:
-                # Use yahooquery to get price data for the batch
-                loop = asyncio.get_event_loop()
-                ticker_obj = await loop.run_in_executor(None, lambda: yq.Ticker(batch))
-                price_data = await loop.run_in_executor(None, lambda: ticker_obj.price)
-                
-                # Process each ticker in the batch
-                for ticker in batch:
-                    if ticker in price_data and "regularMarketPrice" in price_data[ticker]:
-                        ticker_price = price_data[ticker]
-                        
-                        results[ticker] = {
-                            "price": float(ticker_price["regularMarketPrice"]),
-                            "day_open": float(ticker_price["regularMarketOpen"]) if "regularMarketOpen" in ticker_price else None,
-                            "day_high": float(ticker_price["regularMarketDayHigh"]) if "regularMarketDayHigh" in ticker_price else None,
-                            "day_low": float(ticker_price["regularMarketDayLow"]) if "regularMarketDayLow" in ticker_price else None,
-                            "close_price": float(ticker_price["regularMarketPrice"]),
-                            "volume": int(ticker_price["regularMarketVolume"]) if "regularMarketVolume" in ticker_price else None,
-                            "timestamp": datetime.now(),
-                            "price_timestamp": datetime.now(),
-                            "price_timestamp_str": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                            "source": self.source_name
-                        }
-            except Exception as e:
-                logger.error(f"Error processing batch {batch}: {str(e)}")
-                
-                # Fall back to individual processing
-                for ticker in batch:
-                    try:
-                        price_data = await self.get_current_price(ticker)
-                        if price_data:
-                            results[ticker] = price_data
-                    except Exception as ticker_error:
-                        logger.error(f"Error processing {ticker} individually: {str(ticker_error)}")
-            
-            # Add a small delay between batches
-            if i + max_batch_size < len(tickers):
-                await asyncio.sleep(1)
-        
-        logger.info(f"Batch request complete, returning data for {len(results)} tickers")
         return results
     
     async def get_company_metrics(self, ticker: str) -> Optional[Dict[str, Any]]:
@@ -446,4 +441,9 @@ class YahooQueryClient(MarketDataSource):
                 return results
                 
             except Exception as e:
-                logger.error(f"Attempt {attempt + 1}/{retries} failed for {ticker}:
+                logger.error(f"Attempt {attempt + 1}/{retries} failed for {ticker} historical data: {str(e)}")
+                if attempt < retries - 1:
+                    await asyncio.sleep(delay * (2 ** attempt))
+                else:
+                    logger.error(f"All retries exhausted for {ticker} historical data")
+                    return []

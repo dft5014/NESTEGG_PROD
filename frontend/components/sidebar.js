@@ -76,6 +76,10 @@ const Sidebar = () => {
                     <Settings size={iconSize} />
                     {!sidebarCollapsed && <span>Settings</span>}
                 </Link>
+                <Link href="/todo" className={`flex items-center gap-3 p-3 hover:bg-gray-800 rounded-lg ${sidebarCollapsed ? 'justify-center' : ''}`}>
+                    <Settings size={iconSize} />
+                    {!sidebarCollapsed && <span>To Do List</span>}
+                </Link>
                 <Link href="/data-summary" className={`flex items-center gap-3 p-3 hover:bg-gray-800 rounded-lg ${sidebarCollapsed ? 'justify-center' : ''}`}>
                     <Database size={iconSize} />
                     {!sidebarCollapsed && <span>Data Summary</span>}
