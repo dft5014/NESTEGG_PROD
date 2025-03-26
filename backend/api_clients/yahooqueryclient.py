@@ -5,6 +5,7 @@ Uses the yahooquery library for data access.
 import os
 import logging
 import asyncio
+import pandas as pd  # Added pandas import for pd.notna() functions
 from typing import List, Dict, Any, Optional
 from datetime import datetime, timedelta
 import yahooquery as yq
@@ -76,6 +77,137 @@ class YahooQueryClient(MarketDataSource):
                 
             except Exception as e:
                 logger.error(f"Attempt {attempt + 1}/{retries} failed for {ticker}: {str(e)}")
+                if attempt < retries - 1:
+                    await asyncio.sleep(delay * (2 ** attempt))
+                else:
+                    logger.error(f"All retries exhausted for {ticker}")
+                    return []
+    
+    async def get_batch_historical_prices(self, tickers: List[str], start_date: datetime, end_date: Optional[datetime] = None, max_batch_size: int = 5) -> Dict[str, List[Dict[str, Any]]]:
+        """
+        Get historical prices for multiple tickers in batches
+        """
+        if not tickers:
+            return {}
+            
+        if not end_date:
+            end_date = datetime.now()
+            
+        results = {}
+        
+        # Process tickers in smaller batches
+        for i in range(0, len(tickers), max_batch_size):
+            batch = tickers[i:i + max_batch_size]
+            batch_str = ", ".join(batch)
+            logger.info(f"Processing historical batch {i//max_batch_size + 1}/{(len(tickers) + max_batch_size - 1)//max_batch_size}: {batch_str}")
+            
+            try:
+                # Convert dates to format required by yahooquery
+                start_str = start_date.strftime("%Y-%m-%d")
+                end_str = end_date.strftime("%Y-%m-%d")
+                
+                # Use yahooquery to get historical data for the batch
+                loop = asyncio.get_event_loop()
+                ticker_obj = await loop.run_in_executor(None, lambda: yq.Ticker(batch))
+                history = await loop.run_in_executor(
+                    None, 
+                    lambda: ticker_obj.history(start=start_str, end=end_str)
+                )
+                
+                # Check if we got valid data
+                if history.empty:
+                    logger.warning(f"No historical data available for batch: {batch_str}")
+                    continue
+                
+                # Process each ticker in the batch
+                for ticker in batch:
+                    try:
+                        # Filter to only get the data for this ticker
+                        ticker_history = history.reset_index()
+                        if 'symbol' in ticker_history.columns:
+                            ticker_history = ticker_history[ticker_history['symbol'] == ticker]
+                        else:
+                            logger.warning(f"Symbol column not found in historical data for {ticker}")
+                            continue
+                        
+                        if ticker_history.empty:
+                            logger.warning(f"No historical data found for {ticker} in batch response")
+                            continue
+                        
+                        ticker_results = []
+                        for _, row in ticker_history.iterrows():
+                            date_val = row.get('date')
+                            if date_val is None:
+                                continue
+                                
+                            # Convert date to appropriate format
+                            if isinstance(date_val, str):
+                                try:
+                                    date_val = datetime.strptime(date_val, "%Y-%m-%d")
+                                except ValueError:
+                                    continue
+                            
+                            # Extract price data and handle potential errors
+                            try:
+                                close_val = row.get('close')
+                                open_val = row.get('open')
+                                high_val = row.get('high')
+                                low_val = row.get('low')
+                                volume_val = row.get('volume')
+                                
+                                # Handle NaN values
+                                close_price = float(close_val) if pd.notna(close_val) else None
+                                if close_price is None:
+                                    continue
+                                    
+                                ticker_results.append({
+                                    "date": date_val.date() if hasattr(date_val, 'date') else date_val,
+                                    "timestamp": date_val if isinstance(date_val, datetime) else datetime.combine(date_val, datetime.min.time()),
+                                    "day_open": float(open_val) if pd.notna(open_val) else None,
+                                    "day_high": float(high_val) if pd.notna(high_val) else None,
+                                    "day_low": float(low_val) if pd.notna(low_val) else None,
+                                    "close_price": close_price,
+                                    "volume": int(volume_val) if pd.notna(volume_val) else None,
+                                    "source": self.source_name
+                                })
+                            except Exception as row_err:
+                                logger.warning(f"Error processing row for {ticker}: {str(row_err)}")
+                        
+                        if ticker_results:
+                            results[ticker] = ticker_results
+                            logger.info(f"Added {len(ticker_results)} historical points for {ticker}")
+                        else:
+                            logger.warning(f"No valid historical data points extracted for {ticker}")
+                    except Exception as ticker_error:
+                        logger.error(f"Error processing historical data for {ticker}: {str(ticker_error)}")
+                        
+                        # Try to get data for this ticker individually
+                        try:
+                            ticker_data = await self.get_historical_prices(ticker, start_date, end_date)
+                            if ticker_data:
+                                results[ticker] = ticker_data
+                                logger.info(f"Individual lookup successful for {ticker}: {len(ticker_data)} points")
+                        except Exception as e:
+                            logger.error(f"Individual historical data retrieval failed for {ticker}: {str(e)}")
+            except Exception as batch_error:
+                logger.error(f"Error processing batch historical data for {batch_str}: {str(batch_error)}")
+                
+                # Try each ticker individually
+                for ticker in batch:
+                    try:
+                        ticker_data = await self.get_historical_prices(ticker, start_date, end_date)
+                        if ticker_data:
+                            results[ticker] = ticker_data
+                            logger.info(f"Individual lookup successful for {ticker}: {len(ticker_data)} points")
+                    except Exception as e:
+                        logger.error(f"Individual historical data retrieval failed for {ticker}: {str(e)}")
+            
+            # Add a small delay between batches to avoid rate limiting
+            if i + max_batch_size < len(tickers):
+                await asyncio.sleep(1)
+        
+        logger.info(f"Batch historical data request complete, returning data for {len(results)} tickers")
+        return results {str(e)}")
                 if attempt < retries - 1:
                     await asyncio.sleep(delay * (2 ** attempt))
                 else:
@@ -207,6 +339,13 @@ class YahooQueryClient(MarketDataSource):
                     "eps": stats.get("trailingEps"),
                     "forward_eps": stats.get("forwardEps"),
                     "average_volume": details.get("averageVolume"),
+                    # Additional fields to match other clients
+                    "target_high_price": stats.get("targetHighPrice"),
+                    "target_low_price": stats.get("targetLowPrice"),
+                    "target_mean_price": stats.get("targetMeanPrice"),
+                    "target_median_price": stats.get("targetMedianPrice"),
+                    "bid_price": details.get("bid"),
+                    "ask_price": details.get("ask"),
                 }
                 
                 # Calculate fifty_two_week_range
@@ -265,150 +404,46 @@ class YahooQueryClient(MarketDataSource):
                 
                 # Filter to only get the data for this ticker
                 ticker_history = history.reset_index()
-                ticker_history = ticker_history[ticker_history['symbol'] == ticker]
+                if 'symbol' in ticker_history.columns:
+                    ticker_history = ticker_history[ticker_history['symbol'] == ticker]
                 
                 for _, row in ticker_history.iterrows():
-                    results.append({
-                        "date": row['date'].date() if hasattr(row['date'], 'date') else row['date'],
-                        "timestamp": row['date'] if isinstance(row['date'], datetime) else datetime.combine(row['date'], datetime.min.time()),
-                        "day_open": float(row['open']) if pd.notna(row['open']) else None,
-                        "day_high": float(row['high']) if pd.notna(row['high']) else None,
-                        "day_low": float(row['low']) if pd.notna(row['low']) else None,
-                        "close_price": float(row['close']) if pd.notna(row['close']) else None,
-                        "volume": int(row['volume']) if pd.notna(row['volume']) else None,
-                        "source": self.source_name
-                    })
+                    date_val = row.get('date')
+                    if date_val is None:
+                        continue
+                        
+                    # Make sure we can handle various date formats
+                    if isinstance(date_val, str):
+                        try:
+                            date_val = datetime.strptime(date_val, "%Y-%m-%d")
+                        except ValueError:
+                            continue
+                    
+                    # Extract and convert values safely
+                    try:
+                        day_open = float(row['open']) if pd.notna(row['open']) else None
+                        day_high = float(row['high']) if pd.notna(row['high']) else None
+                        day_low = float(row['low']) if pd.notna(row['low']) else None
+                        close_price = float(row['close']) if pd.notna(row['close']) else None
+                        volume = int(row['volume']) if pd.notna(row['volume']) else None
+                        
+                        # Only add points with valid close price
+                        if close_price is not None:
+                            results.append({
+                                "date": date_val.date() if hasattr(date_val, 'date') else date_val,
+                                "timestamp": date_val if isinstance(date_val, datetime) else datetime.combine(date_val, datetime.min.time()),
+                                "day_open": day_open,
+                                "day_high": day_high,
+                                "day_low": day_low,
+                                "close_price": close_price,
+                                "volume": volume,
+                                "source": self.source_name
+                            })
+                    except Exception as row_error:
+                        logger.warning(f"Error processing historical data row for {ticker}: {str(row_error)}")
                 
                 logger.info(f"Successfully processed {len(results)} historical data points for {ticker}")
                 return results
                 
             except Exception as e:
-                logger.error(f"Attempt {attempt + 1}/{retries} failed for {ticker}: {str(e)}")
-                if attempt < retries - 1:
-                    await asyncio.sleep(delay * (2 ** attempt))
-                else:
-                    logger.error(f"All retries exhausted for {ticker}")
-                    return []
-    
-    async def get_batch_historical_prices(self, tickers: List[str], start_date: datetime, end_date: Optional[datetime] = None, max_batch_size: int = 5) -> Dict[str, List[Dict[str, Any]]]:
-            """
-            Get historical prices for multiple tickers in batches
-            """
-            if not tickers:
-                return {}
-                
-            if not end_date:
-                end_date = datetime.now()
-                
-            results = {}
-            
-            # Process tickers in smaller batches
-            for i in range(0, len(tickers), max_batch_size):
-                batch = tickers[i:i + max_batch_size]
-                batch_str = ", ".join(batch)
-                logger.info(f"Processing historical batch {i//max_batch_size + 1}/{(len(tickers) + max_batch_size - 1)//max_batch_size}: {batch_str}")
-                
-                try:
-                    # Convert dates to format required by yahooquery
-                    start_str = start_date.strftime("%Y-%m-%d")
-                    end_str = end_date.strftime("%Y-%m-%d")
-                    
-                    # Use yahooquery to get historical data for the batch
-                    loop = asyncio.get_event_loop()
-                    ticker_obj = await loop.run_in_executor(None, lambda: yq.Ticker(batch))
-                    history = await loop.run_in_executor(
-                        None, 
-                        lambda: ticker_obj.history(start=start_str, end=end_str)
-                    )
-                    
-                    # Check if we got valid data
-                    if history.empty:
-                        logger.warning(f"No historical data available for batch: {batch_str}")
-                        continue
-                    
-                    # Process each ticker in the batch
-                    for ticker in batch:
-                        try:
-                            # Filter to only get the data for this ticker
-                            ticker_history = history.reset_index()
-                            if 'symbol' in ticker_history.columns:
-                                ticker_history = ticker_history[ticker_history['symbol'] == ticker]
-                            else:
-                                logger.warning(f"Symbol column not found in historical data for {ticker}")
-                                continue
-                            
-                            if ticker_history.empty:
-                                logger.warning(f"No historical data found for {ticker} in batch response")
-                                continue
-                            
-                            ticker_results = []
-                            for _, row in ticker_history.iterrows():
-                                date_val = row.get('date')
-                                if date_val is None:
-                                    continue
-                                    
-                                # Convert date to appropriate format
-                                if isinstance(date_val, str):
-                                    try:
-                                        date_val = datetime.strptime(date_val, "%Y-%m-%d")
-                                    except ValueError:
-                                        continue
-                                
-                                # Extract price data
-                                close_val = row.get('close')
-                                open_val = row.get('open')
-                                high_val = row.get('high')
-                                low_val = row.get('low')
-                                volume_val = row.get('volume')
-                                
-                                # Handle NaN values
-                                close_price = float(close_val) if pd.notna(close_val) else None
-                                if close_price is None:
-                                    continue
-                                    
-                                ticker_results.append({
-                                    "date": date_val.date() if hasattr(date_val, 'date') else date_val,
-                                    "timestamp": date_val if isinstance(date_val, datetime) else datetime.combine(date_val, datetime.min.time()),
-                                    "day_open": float(open_val) if pd.notna(open_val) else None,
-                                    "day_high": float(high_val) if pd.notna(high_val) else None,
-                                    "day_low": float(low_val) if pd.notna(low_val) else None,
-                                    "close_price": close_price,
-                                    "volume": int(volume_val) if pd.notna(volume_val) else None,
-                                    "source": self.source_name
-                                })
-                            
-                            if ticker_results:
-                                results[ticker] = ticker_results
-                                logger.info(f"Added {len(ticker_results)} historical points for {ticker}")
-                            else:
-                                logger.warning(f"No valid historical data points extracted for {ticker}")
-                        except Exception as ticker_error:
-                            logger.error(f"Error processing historical data for {ticker}: {str(ticker_error)}")
-                            
-                            # Try to get data for this ticker individually
-                            try:
-                                ticker_data = await self.get_historical_prices(ticker, start_date, end_date)
-                                if ticker_data:
-                                    results[ticker] = ticker_data
-                                    logger.info(f"Individual lookup successful for {ticker}: {len(ticker_data)} points")
-                            except Exception as e:
-                                logger.error(f"Individual historical data retrieval failed for {ticker}: {str(e)}")
-                except Exception as batch_error:
-                    logger.error(f"Error processing batch historical data for {batch_str}: {str(batch_error)}")
-                    
-                    # Try each ticker individually
-                    for ticker in batch:
-                        try:
-                            ticker_data = await self.get_historical_prices(ticker, start_date, end_date)
-                            if ticker_data:
-                                results[ticker] = ticker_data
-                                logger.info(f"Individual lookup successful for {ticker}: {len(ticker_data)} points")
-                        except Exception as e:
-                            logger.error(f"Individual historical data retrieval failed for {ticker}: {str(e)}")
-                
-                # Add a small delay between batches to avoid rate limiting
-                if i + max_batch_size < len(tickers):
-                    await asyncio.sleep(1)
-            
-            logger.info(f"Batch historical data request complete, returning data for {len(results)} tickers")
-            return results
+                logger.error(f"Attempt {attempt + 1}/{retries} failed for {ticker}:
