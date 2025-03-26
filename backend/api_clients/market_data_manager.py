@@ -10,6 +10,8 @@ from datetime import datetime, timedelta
 # Import the data source interface
 from backend.api_clients.data_source_interface import MarketDataSource
 from backend.api_clients.yahoo_finance_client import YahooFinanceClient
+from backend.api_clients.yahooquery_client import YahooQueryClient
+from backend.api_clients.direct_yahooclient import DirectYahooFinanceClient
 from backend.api_clients.polygon_client import PolygonClient
 
 # Set up logging
@@ -50,7 +52,7 @@ class MarketDataManager:
     def _load_sources(self):
         """Load all available data sources"""
         # Always add Yahoo Finance as it requires no API key
-        yahoo = YahooFinanceClient()
+        yahoo = DirectYahooFinanceClient()
         self.sources[yahoo.source_name] = yahoo
         self.usage_stats[yahoo.source_name] = {
             "calls": 0,
