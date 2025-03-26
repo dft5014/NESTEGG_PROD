@@ -808,3 +808,63 @@ body {
   z-index: 20;
   background-color: theme('colors.gray.50');
 }
+
+/* Add this to your CSS */
+@media (max-width: 768px) {
+  .portfolio-dashboard {
+    grid-template-columns: 1fr; /* Single column layout */
+    gap: 1rem;
+  }
+  
+  .dashboard-card {
+    padding: 1rem;
+  }
+  
+  .dashboard-value {
+    font-size: 1.5rem; /* Slightly smaller font on mobile */
+  }
+  
+  /* Make chart container responsive */
+  .portfolio-chart {
+    height: 250px; /* Shorter height on mobile */
+  }
+}
+
+/* Add this to your globals.css */
+@media (max-width: 768px) {
+  .accounts-table thead {
+    display: none;
+  }
+  
+  .accounts-table, .accounts-table tbody, .accounts-table tr {
+    display: block;
+    width: 100%;
+  }
+  
+  .accounts-table tr {
+    margin-bottom: 1rem;
+    border: 1px solid #e2e8f0;
+    border-radius: 0.5rem;
+    padding: 1rem;
+    background-color: white;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+  }
+  
+  .accounts-table td {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.5rem 0;
+    border-bottom: 1px solid #f7fafc;
+  }
+  
+  .accounts-table td:before {
+    content: attr(data-label);
+    font-weight: 600;
+    color: #4a5568;
+  }
+  
+  .accounts-table td:last-child {
+    border-bottom: none;
+  }
+}
