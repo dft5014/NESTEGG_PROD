@@ -1668,6 +1668,109 @@ async def get_table_details(table_name: str, limit: int = 10, current_user: dict
             detail=f"Failed to fetch table details: {str(e)}"
         )
 
+# Add this to main.py or create a new endpoint specifically for testing
+@app.get("/debug/test-yfinance")
+async def test_yfinance():
+    """
+    Simple test endpoint to check if yfinance is working in this environment
+    """
+    import yfinance as yf
+    import requests
+    
+    results = {
+        "status": "running test",
+        "environment": {},
+        "test_results": {}
+    }
+    
+    # Log environment info
+    import platform
+    import sys
+    results["environment"] = {
+        "python_version": sys.version,
+        "platform": platform.platform(),
+        "ip_info": None
+    }
+    
+    # Try to get external IP (to check if Render can access external services)
+    try:
+        ip_response = requests.get("https://api.ipify.org?format=json", timeout=5)
+        if ip_response.status_code == 200:
+            results["environment"]["ip_info"] = ip_response.json()
+    except Exception as e:
+        results["environment"]["ip_info_error"] = str(e)
+    
+    # Test with a few well-known tickers
+    test_tickers = ["AAPL", "MSFT", "GOOG", "MKTX", "SPY"]
+    
+    for ticker in test_tickers:
+        try:
+            results["test_results"][ticker] = {
+                "status": "attempting"
+            }
+            
+            # Create a custom session with browser-like user agent
+            session = requests.Session()
+            session.headers.update({
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+            })
+            
+            # Try to get ticker info
+            ticker_obj = yf.Ticker(ticker, session=session)
+            info = ticker_obj.info
+            
+            # Check if we got meaningful data
+            if info and len(info) > 1:
+                results["test_results"][ticker].update({
+                    "status": "success",
+                    "data_keys": list(info.keys())[:5],  # First 5 keys
+                    "current_price": info.get("currentPrice"),
+                    "company_name": info.get("shortName") or info.get("longName"),
+                    "data_points": len(info)
+                })
+            else:
+                results["test_results"][ticker].update({
+                    "status": "empty_response",
+                    "data": info
+                })
+            
+            # Try to get history (separate try block)
+            try:
+                history = ticker_obj.history(period="1d")
+                
+                if not history.empty:
+                    results["test_results"][ticker].update({
+                        "history_status": "success",
+                        "history_rows": len(history),
+                        "history_columns": list(history.columns) if hasattr(history, "columns") else None,
+                        "latest_price": float(history['Close'].iloc[-1]) if 'Close' in history.columns and len(history) > 0 else None
+                    })
+                else:
+                    results["test_results"][ticker].update({
+                        "history_status": "empty_history"
+                    })
+            except Exception as hist_error:
+                results["test_results"][ticker].update({
+                    "history_status": "error",
+                    "history_error": str(hist_error)
+                })
+            
+        except Exception as e:
+            results["test_results"][ticker].update({
+                "status": "error", 
+                "error": str(e),
+                "error_type": type(e).__name__
+            })
+    
+    # Add yfinance version info
+    try:
+        results["yfinance_version"] = yf.__version__
+    except:
+        results["yfinance_version"] = "unknown"
+    
+    return results
+
+
 # Add data consistency endpoints
 @app.get("/admin/data-consistency/check")
 async def check_data_consistency(current_user: dict = Depends(get_current_user)):
