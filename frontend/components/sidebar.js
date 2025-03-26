@@ -1,6 +1,6 @@
 // components/Sidebar.js
 import Link from 'next/link';
-import { Home, Briefcase, Info, LogOut, LogIn, Settings, Database, Shield, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Home, Briefcase, Info, LogOut, LogIn, Settings, Database, Shield, ChevronLeft, ChevronRight, Home as RealEstate, Coins, Bitcoin } from 'lucide-react';
 import { useContext, useState, useEffect } from 'react';
 import { AuthContext } from '@/context/AuthContext';
 
@@ -24,6 +24,9 @@ const Sidebar = () => {
         return () => window.removeEventListener('resize', handleResize);
     }, []);
 
+    // Determine icon size based on sidebar state
+    const iconSize = sidebarCollapsed ? 28 : 20;
+
     return (
         <div className={`h-screen ${sidebarCollapsed ? 'w-16' : 'w-64'} bg-gray-900 text-white flex flex-col p-4 shadow-lg transition-all duration-300 relative`}>
             {/* Toggle button */}
@@ -37,7 +40,7 @@ const Sidebar = () => {
             {/* Logo */}
             <div className="mb-6 text-center">
                 {sidebarCollapsed ? (
-                    <span className="text-2xl font-bold">🥚</span>
+                    <span className="text-3xl font-bold">🥚</span>
                 ) : (
                     <h1 className="text-2xl font-bold">NestEgg</h1>
                 )}
@@ -45,32 +48,44 @@ const Sidebar = () => {
             
             {/* Navigation */}
             <nav className="space-y-4 flex-1">
-                <Link href="/" className="flex items-center gap-3 p-3 hover:bg-gray-800 rounded-lg">
-                    <Home size={20} />
+                <Link href="/" className={`flex items-center gap-3 p-3 hover:bg-gray-800 rounded-lg ${sidebarCollapsed ? 'justify-center' : ''}`}>
+                    <Home size={iconSize} />
                     {!sidebarCollapsed && <span>Home</span>}
                 </Link>
-                <Link href="/portfolio" className="flex items-center gap-3 p-3 hover:bg-gray-800 rounded-lg">
-                    <Briefcase size={20} />
+                <Link href="/portfolio" className={`flex items-center gap-3 p-3 hover:bg-gray-800 rounded-lg ${sidebarCollapsed ? 'justify-center' : ''}`}>
+                    <Briefcase size={iconSize} />
                     {!sidebarCollapsed && <span>Portfolio</span>}
                 </Link>
-                <Link href="/about" className="flex items-center gap-3 p-3 hover:bg-gray-800 rounded-lg">
-                    <Info size={20} />
+                <Link href="/real-estate" className={`flex items-center gap-3 p-3 hover:bg-gray-800 rounded-lg ${sidebarCollapsed ? 'justify-center' : ''}`}>
+                    <RealEstate size={iconSize} />
+                    {!sidebarCollapsed && <span>Real Estate</span>}
+                </Link>
+                <Link href="/metals" className={`flex items-center gap-3 p-3 hover:bg-gray-800 rounded-lg ${sidebarCollapsed ? 'justify-center' : ''}`}>
+                    <Coins size={iconSize} />
+                    {!sidebarCollapsed && <span>Metals</span>}
+                </Link>
+                <Link href="/crypto" className={`flex items-center gap-3 p-3 hover:bg-gray-800 rounded-lg ${sidebarCollapsed ? 'justify-center' : ''}`}>
+                    <Bitcoin size={iconSize} />
+                    {!sidebarCollapsed && <span>Crypto</span>}
+                </Link>
+                <Link href="/about" className={`flex items-center gap-3 p-3 hover:bg-gray-800 rounded-lg ${sidebarCollapsed ? 'justify-center' : ''}`}>
+                    <Info size={iconSize} />
                     {!sidebarCollapsed && <span>About</span>}
                 </Link>
-                <Link href="/settings" className="flex items-center gap-3 p-3 hover:bg-gray-800 rounded-lg">
-                    <Settings size={20} />
+                <Link href="/settings" className={`flex items-center gap-3 p-3 hover:bg-gray-800 rounded-lg ${sidebarCollapsed ? 'justify-center' : ''}`}>
+                    <Settings size={iconSize} />
                     {!sidebarCollapsed && <span>Settings</span>}
                 </Link>
-                <Link href="/data-summary" className="flex items-center gap-3 p-3 hover:bg-gray-800 rounded-lg">
-                    <Database size={20} />
+                <Link href="/data-summary" className={`flex items-center gap-3 p-3 hover:bg-gray-800 rounded-lg ${sidebarCollapsed ? 'justify-center' : ''}`}>
+                    <Database size={iconSize} />
                     {!sidebarCollapsed && <span>Data Summary</span>}
                 </Link>
-                <Link href="/admin" className="flex items-center gap-3 p-3 hover:bg-gray-800 rounded-lg">
-                    <Shield size={20} />
+                <Link href="/admin" className={`flex items-center gap-3 p-3 hover:bg-gray-800 rounded-lg ${sidebarCollapsed ? 'justify-center' : ''}`}>
+                    <Shield size={iconSize} />
                     {!sidebarCollapsed && <span>Admin</span>}
                 </Link>
-                <Link href="/login" className="flex items-center gap-3 p-3 hover:bg-blue-600 rounded-lg">
-                    <LogIn size={20} />
+                <Link href="/login" className={`flex items-center gap-3 p-3 hover:bg-blue-600 rounded-lg ${sidebarCollapsed ? 'justify-center' : ''}`}>
+                    <LogIn size={iconSize} />
                     {!sidebarCollapsed && <span>Login</span>}
                 </Link>
             </nav>
@@ -80,7 +95,7 @@ const Sidebar = () => {
                 onClick={logout} 
                 className={`flex items-center gap-3 p-3 hover:bg-red-600 rounded-lg mt-auto text-white ${sidebarCollapsed ? 'justify-center' : 'bg-red-500'}`}
             >
-                <LogOut size={20} />
+                <LogOut size={iconSize} />
                 {!sidebarCollapsed && <span>Logout</span>}
             </button>
         </div>
