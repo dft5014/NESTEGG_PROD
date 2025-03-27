@@ -1846,6 +1846,313 @@ async def test_direct_yahoo():
     
     return results
 
+@app.get("/debug/test-yahoo-company-metrics")
+async def test_yahoo_company_metrics():
+    """
+    Focused test for company metrics data from Yahoo Finance using multiple approaches
+    """
+    import requests
+    import time
+    import json
+    import traceback
+    from datetime import datetime
+    
+    results = {
+        "timestamp": datetime.utcnow().isoformat(),
+        "tests": {}
+    }
+    
+    # Browser-like headers to avoid being blocked
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+        'Accept-Language': 'en-US,en;q=0.5',
+        'Connection': 'keep-alive',
+        'Upgrade-Insecure-Requests': '1'
+    }
+    
+    # Test ticker
+    test_ticker = "AAPL"
+    
+    # Test 1: Try the direct quoteSummary API endpoint (most reliable)
+    test_id = "quote_summary_api"
+    results["tests"][test_id] = {"status": "running"}
+    
+    try:
+        url = f"https://query2.finance.yahoo.com/v10/finance/quoteSummary/{test_ticker}?modules=summaryProfile,summaryDetail,defaultKeyStatistics,assetProfile,price"
+        
+        start_time = time.time()
+        response = requests.get(url, headers=headers, timeout=15)
+        elapsed = time.time() - start_time
+        
+        results["tests"][test_id].update({
+            "status": "completed",
+            "elapsed_seconds": round(elapsed, 2),
+            "status_code": response.status_code,
+            "content_type": response.headers.get("Content-Type", ""),
+            "response_size": len(response.content)
+        })
+        
+        if response.status_code == 200:
+            try:
+                data = response.json()
+                
+                # Check if we got valid data
+                if "quoteSummary" in data and "result" in data["quoteSummary"]:
+                    if data["quoteSummary"]["result"]:
+                        # Success, we have data!
+                        result_obj = data["quoteSummary"]["result"][0]
+                        
+                        # Log just enough data to understand structure without overwhelming
+                        extracted_data = {
+                            "modules_present": [],
+                            "sample_fields": {}
+                        }
+                        
+                        # Check which modules are present
+                        if "summaryProfile" in result_obj:
+                            extracted_data["modules_present"].append("summaryProfile")
+                            profile = result_obj["summaryProfile"]
+                            extracted_data["sample_fields"]["company_name"] = profile.get("shortName") or profile.get("longName")
+                            extracted_data["sample_fields"]["sector"] = profile.get("sector")
+                            extracted_data["sample_fields"]["industry"] = profile.get("industry")
+                        
+                        if "price" in result_obj:
+                            extracted_data["modules_present"].append("price")
+                            price = result_obj["price"]
+                            extracted_data["sample_fields"]["current_price"] = price.get("regularMarketPrice", {}).get("raw") if isinstance(price.get("regularMarketPrice"), dict) else price.get("regularMarketPrice")
+                        
+                        if "summaryDetail" in result_obj:
+                            extracted_data["modules_present"].append("summaryDetail")
+                            details = result_obj["summaryDetail"]
+                            extracted_data["sample_fields"]["pe_ratio"] = details.get("trailingPE", {}).get("raw") if isinstance(details.get("trailingPE"), dict) else details.get("trailingPE")
+                        
+                        if "defaultKeyStatistics" in result_obj:
+                            extracted_data["modules_present"].append("defaultKeyStatistics")
+                            stats = result_obj["defaultKeyStatistics"]
+                            extracted_data["sample_fields"]["beta"] = stats.get("beta", {}).get("raw") if isinstance(stats.get("beta"), dict) else stats.get("beta")
+                        
+                        results["tests"][test_id]["extracted_data"] = extracted_data
+                        results["tests"][test_id]["data_structure"] = "valid"
+                    else:
+                        # Empty result list
+                        results["tests"][test_id]["data_structure"] = "empty_result_list"
+                else:
+                    # Missing expected structure
+                    results["tests"][test_id]["data_structure"] = "invalid_structure"
+                    results["tests"][test_id]["response_sample"] = str(data)[:500] + "..."
+            except json.JSONDecodeError:
+                # Not a valid JSON response
+                results["tests"][test_id]["data_structure"] = "invalid_json"
+                results["tests"][test_id]["response_sample"] = response.text[:500] + "..."
+        else:
+            # Non-200 status code
+            results["tests"][test_id]["status"] = "failed"
+            results["tests"][test_id]["error"] = f"HTTP {response.status_code}: {response.text[:200]}"
+    except Exception as e:
+        results["tests"][test_id].update({
+            "status": "error",
+            "error": str(e),
+            "error_type": type(e).__name__,
+            "traceback": traceback.format_exc()
+        })
+    
+    # Test 2: Try the yahooquery package
+    test_id = "yahooquery_metrics"
+    results["tests"][test_id] = {"status": "running"}
+    
+    try:
+        import yahooquery as yq
+        
+        start_time = time.time()
+        ticker = yq.Ticker(test_ticker)
+        
+        # Try to get different data modules
+        modules_results = {}
+        try:
+            asset_profile = ticker.asset_profile
+            modules_results["asset_profile"] = {
+                "success": True,
+                "sample": str(asset_profile)[:100] + "..." if asset_profile else "No data"
+            }
+        except Exception as e:
+            modules_results["asset_profile"] = {"success": False, "error": str(e)}
+        
+        try:
+            financial_data = ticker.financial_data
+            modules_results["financial_data"] = {
+                "success": True,
+                "sample": str(financial_data)[:100] + "..." if financial_data else "No data"
+            }
+        except Exception as e:
+            modules_results["financial_data"] = {"success": False, "error": str(e)}
+        
+        try:
+            key_stats = ticker.key_stats
+            modules_results["key_stats"] = {
+                "success": True,
+                "sample": str(key_stats)[:100] + "..." if key_stats else "No data"
+            }
+        except Exception as e:
+            modules_results["key_stats"] = {"success": False, "error": str(e)}
+        
+        try:
+            summary_detail = ticker.summary_detail
+            modules_results["summary_detail"] = {
+                "success": True,
+                "sample": str(summary_detail)[:100] + "..." if summary_detail else "No data"
+            }
+        except Exception as e:
+            modules_results["summary_detail"] = {"success": False, "error": str(e)}
+        
+        elapsed = time.time() - start_time
+        
+        results["tests"][test_id].update({
+            "status": "completed",
+            "elapsed_seconds": round(elapsed, 2),
+            "modules_results": modules_results,
+            "overall_success": any(module["success"] for module in modules_results.values())
+        })
+    except Exception as e:
+        results["tests"][test_id].update({
+            "status": "error",
+            "error": str(e),
+            "error_type": type(e).__name__,
+            "traceback": traceback.format_exc()
+        })
+    
+    # Test 3: Try yfinance package
+    test_id = "yfinance_metrics"
+    results["tests"][test_id] = {"status": "running"}
+    
+    try:
+        import yfinance as yf
+        
+        start_time = time.time()
+        ticker = yf.Ticker(test_ticker)
+        info = ticker.info
+        elapsed = time.time() - start_time
+        
+        results["tests"][test_id].update({
+            "status": "completed",
+            "elapsed_seconds": round(elapsed, 2),
+            "info_keys_count": len(info) if info else 0
+        })
+        
+        # Include a sample of the info
+        if info:
+            sample_keys = ["shortName", "longName", "sector", "industry", 
+                          "currentPrice", "marketCap", "trailingPE"]
+            sample_info = {k: info.get(k) for k in sample_keys if k in info}
+            results["tests"][test_id]["sample_info"] = sample_info
+    except Exception as e:
+        results["tests"][test_id].update({
+            "status": "error",
+            "error": str(e),
+            "error_type": type(e).__name__,
+            "traceback": traceback.format_exc()
+        })
+    
+    # Test 4: Try alternative HTTP-only approach with different parameters
+    test_id = "alternative_api_approach"
+    results["tests"][test_id] = {"status": "running"}
+    
+    try:
+        # Try a different URL format
+        url = f"https://query1.finance.yahoo.com/v7/finance/quote?symbols={test_ticker}"
+        
+        start_time = time.time()
+        response = requests.get(url, headers=headers, timeout=15)
+        elapsed = time.time() - start_time
+        
+        results["tests"][test_id].update({
+            "status": "completed",
+            "elapsed_seconds": round(elapsed, 2),
+            "status_code": response.status_code,
+            "content_type": response.headers.get("Content-Type", ""),
+            "response_size": len(response.content)
+        })
+        
+        if response.status_code == 200:
+            try:
+                data = response.json()
+                
+                # Check if we got valid data
+                if "quoteResponse" in data and "result" in data["quoteResponse"]:
+                    if data["quoteResponse"]["result"]:
+                        # Success, we have data!
+                        quote = data["quoteResponse"]["result"][0]
+                        
+                        # Extract basic fields
+                        extracted_data = {
+                            "displayName": quote.get("displayName"),
+                            "shortName": quote.get("shortName"),
+                            "longName": quote.get("longName"),
+                            "regularMarketPrice": quote.get("regularMarketPrice"),
+                            "regularMarketChange": quote.get("regularMarketChange"),
+                            "regularMarketChangePercent": quote.get("regularMarketChangePercent"),
+                            "marketCap": quote.get("marketCap")
+                        }
+                        
+                        results["tests"][test_id]["extracted_data"] = extracted_data
+                        results["tests"][test_id]["fields_count"] = len(quote)
+                    else:
+                        # Empty result list
+                        results["tests"][test_id]["data_structure"] = "empty_result_list"
+                else:
+                    # Missing expected structure
+                    results["tests"][test_id]["data_structure"] = "invalid_structure"
+                    results["tests"][test_id]["response_sample"] = str(data)[:500] + "..."
+            except json.JSONDecodeError:
+                # Not a valid JSON response
+                results["tests"][test_id]["data_structure"] = "invalid_json"
+                results["tests"][test_id]["response_sample"] = response.text[:500] + "..."
+        else:
+            # Non-200 status code
+            results["tests"][test_id]["status"] = "failed"
+            results["tests"][test_id]["error"] = f"HTTP {response.status_code}: {response.text[:200]}"
+    except Exception as e:
+        results["tests"][test_id].update({
+            "status": "error",
+            "error": str(e),
+            "error_type": type(e).__name__,
+            "traceback": traceback.format_exc()
+        })
+    
+    # Summary of findings
+    results["summary"] = {
+        "total_tests": len(results["tests"]),
+        "successful_tests": sum(1 for test in results["tests"].values() if test.get("status") == "completed"),
+        "best_approach": None
+    }
+    
+    # Determine best approach
+    best_elapsed = float('inf')
+    for test_id, test in results["tests"].items():
+        if test.get("status") == "completed" and test.get("elapsed_seconds", float('inf')) < best_elapsed:
+            if ("extracted_data" in test or "sample_info" in test or 
+                ("modules_results" in test and test.get("overall_success", False))):
+                best_elapsed = test.get("elapsed_seconds", float('inf'))
+                results["summary"]["best_approach"] = test_id
+    
+    # Recommendations
+    results["recommendations"] = []
+    
+    # Check if we had any success
+    if results["summary"]["successful_tests"] > 0:
+        if results["summary"]["best_approach"]:
+            results["recommendations"].append(f"Use the {results['summary']['best_approach']} approach for best results")
+    else:
+        results["recommendations"].append("All approaches failed - possible rate limiting or network issues")
+        
+    # Check for specific issues
+    if any("rate" in test.get("error", "").lower() for test in results["tests"].values()):
+        results["recommendations"].append("Evidence of rate limiting - implement exponential backoff and caching")
+    
+    if any(test.get("status_code", 0) == 403 for test in results["tests"].values()):
+        results["recommendations"].append("HTTP 403 errors indicate IP blocking - consider proxies or VPN")
+    
+    return results
 
 @app.get("/debug/test-yahoo-metrics")
 async def test_yahoo_company_metrics():

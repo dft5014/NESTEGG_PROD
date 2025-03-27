@@ -25,7 +25,7 @@ const Sidebar = () => {
     }, []);
 
     // Determine icon size based on sidebar state
-    const iconSize = sidebarCollapsed ? 28 : 20;
+    const iconSize = sidebarCollapsed ? 32 : 32;
 
     return (
         <div className={`h-screen ${sidebarCollapsed ? 'w-16' : 'w-64'} bg-gray-900 text-white flex flex-col p-4 shadow-lg transition-all duration-300 relative`}>
@@ -76,29 +76,13 @@ const Sidebar = () => {
                     <Info size={iconSize} />
                     {!sidebarCollapsed && <span>About</span>}
                 </Link>
-                <Link href="/settings" className={`flex items-center gap-3 p-3 hover:bg-gray-800 rounded-lg ${sidebarCollapsed ? 'justify-center' : ''}`}>
-                    <Settings size={iconSize} />
-                    {!sidebarCollapsed && <span>Settings</span>}
-                </Link>
                 <Link href="/todo" className={`flex items-center gap-3 p-3 hover:bg-gray-800 rounded-lg ${sidebarCollapsed ? 'justify-center' : ''}`}>
                     <Settings size={iconSize} />
                     {!sidebarCollapsed && <span>To Do List</span>}
                 </Link>
-                <Link href="/profile" className={`flex items-center gap-3 p-3 hover:bg-gray-800 rounded-lg ${sidebarCollapsed ? 'justify-center' : ''}`}>
-                    <Settings size={iconSize} />
-                    {!sidebarCollapsed && <span>Profile</span>}
-                </Link>
                 <Link href="/data-summary" className={`flex items-center gap-3 p-3 hover:bg-gray-800 rounded-lg ${sidebarCollapsed ? 'justify-center' : ''}`}>
                     <Database size={iconSize} />
                     {!sidebarCollapsed && <span>Data Summary</span>}
-                </Link>
-                <Link href="/admin" className={`flex items-center gap-3 p-3 hover:bg-gray-800 rounded-lg ${sidebarCollapsed ? 'justify-center' : ''}`}>
-                    <Shield size={iconSize} />
-                    {!sidebarCollapsed && <span>Admin</span>}
-                </Link>
-                <Link href="/login" className={`flex items-center gap-3 p-3 hover:bg-blue-600 rounded-lg ${sidebarCollapsed ? 'justify-center' : ''}`}>
-                    <LogIn size={iconSize} />
-                    {!sidebarCollapsed && <span>Login</span>}
                 </Link>
             </nav>
             

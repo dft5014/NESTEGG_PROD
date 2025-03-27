@@ -868,3 +868,9 @@ body {
     border-bottom: none;
   }
 }
+/* Add to your globals.css */
+@media (max-width: 768px) {
+  .sidebar-icon {
+    margin: 0 auto;
+  }
+}
