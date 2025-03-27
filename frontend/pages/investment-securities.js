@@ -1,2794 +1,868 @@
-// pages/investment-securities.js
-import { useContext, useEffect, useState } from "react";
-import { AuthContext } from "@/context/AuthContext";
-import { useRouter } from "next/router";
+import { useState, useEffect } from "react";
 import { 
-  BarChart3, 
-  Briefcase, 
-  ChevronDown, 
-  ChevronUp, 
-  DollarSign, 
-  Download, 
-  FileUp, 
-  Filter, 
-  PlusCircle, 
-  RefreshCw, 
   Search, 
-  Settings, 
+  Filter, 
+  TrendingUp, 
   TrendingDown, 
-  TrendingUp,
-  X,
-  Circle,
-  AlertCircle,
-  Info,
+  Star, 
   Clock,
-  Eye,
-  EyeOff,
-  ChevronRight,
+  Bookmark,
   ArrowUpRight,
-  ArrowDownRight,
+  Briefcase,
+  BarChart4,
+  SlidersHorizontal,
+  X,
   Plus
 } from 'lucide-react';
-import { Line, Doughnut } from "react-chartjs-2";
-import "chart.js/auto";
-import { fetchWithAuth } from '@/utils/api';
-import { useEggMascot } from '@/context/EggMascotContext';
 
-export default function InvestmentSecurities() {
-  // Context and router
-  const { user } = useContext(AuthContext);
-  const router = useRouter();
-  const { triggerCartwheel } = useEggMascot();
+export default function Securities() {
+  const [isLoading, setIsLoading] = useState(true);
+  const [securities, setSecurities] = useState([]);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [filterType, setFilterType] = useState("all");
+  const [sortOption, setSortOption] = useState("popularity");
+  const [watchlistModal, setWatchlistModal] = useState(false);
+  const [selectedSecurity, setSelectedSecurity] = useState(null);
   
-  // State for accounts and positions
-  const [accounts, setAccounts] = useState([]);
-  const [positions, setPositions] = useState({});
-  const [expandedAccount, setExpandedAccount] = useState(null);
-  const [viewMode, setViewMode] = useState('accounts'); // 'accounts', 'positions', 'summary'
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [lastUpdated, setLastUpdated] = useState(null);
+  // Mock security data - in a real app, this would come from an API call
+  const mockSecurities = [
+    {
+      id: "aapl",
+      name: "Apple Inc.",
+      symbol: "AAPL",
+      type: "stock",
+      price: 213.07,
+      change: 1.25,
+      marketCap: "3.5T",
+      sector: "Technology",
+      popularity: 98,
+      description: "Apple Inc. designs, manufactures, and markets smartphones, personal computers, tablets, wearables, and accessories worldwide.",
+      pe: 33.27,
+      dividend: 0.52,
+      beta: 1.28,
+      isWatchlisted: true
+    },
+    {
+      id: "msft",
+      name: "Microsoft Corp.",
+      symbol: "MSFT",
+      type: "stock",
+      price: 416.38,
+      change: -0.42,
+      marketCap: "3.1T",
+      sector: "Technology",
+      popularity: 96,
+      description: "Microsoft Corporation develops, licenses, and supports software, services, devices, and solutions worldwide.",
+      pe: 35.82,
+      dividend: 0.68,
+      beta: 0.93,
+      isWatchlisted: false
+    },
+    {
+      id: "amzn",
+      name: "Amazon.com Inc.",
+      symbol: "AMZN",
+      type: "stock",
+      price: 179.63,
+      change: 1.83,
+      marketCap: "1.9T",
+      sector: "Consumer Cyclical",
+      popularity: 95,
+      description: "Amazon.com, Inc. engages in the retail sale of consumer products and subscriptions in North America and internationally.",
+      pe: 61.45,
+      dividend: 0,
+      beta: 1.22,
+      isWatchlisted: true
+    },
+    {
+      id: "nvda",
+      name: "NVIDIA Corp.",
+      symbol: "NVDA",
+      type: "stock",
+      price: 122.46,
+      change: 3.21,
+      marketCap: "3.0T",
+      sector: "Technology",
+      popularity: 99,
+      description: "NVIDIA Corporation provides graphics, and compute and networking solutions in the United States, Taiwan, China, and internationally.",
+      pe: 72.15,
+      dividend: 0.04,
+      beta: 1.75,
+      isWatchlisted: false
+    },
+    {
+      id: "vti",
+      name: "Vanguard Total Stock Market ETF",
+      symbol: "VTI",
+      type: "etf",
+      price: 252.89,
+      change: 0.54,
+      marketCap: "386.4B",
+      sector: "Broad Market",
+      popularity: 91,
+      description: "The investment seeks to track the performance of the CRSP US Total Market Index.",
+      pe: null,
+      dividend: 1.38,
+      beta: 1.01,
+      isWatchlisted: true
+    },
+    {
+      id: "agg",
+      name: "iShares Core U.S. Aggregate Bond ETF",
+      symbol: "AGG",
+      type: "etf",
+      price: 99.23,
+      change: -0.12,
+      marketCap: "89.2B",
+      sector: "Fixed Income",
+      popularity: 87,
+      description: "The investment seeks to track the investment results of the Bloomberg U.S. Aggregate Bond Index.",
+      pe: null,
+      dividend: 2.93,
+      beta: 0.42,
+      isWatchlisted: false
+    },
+    {
+      id: "googl",
+      name: "Alphabet Inc.",
+      symbol: "GOOGL",
+      type: "stock",
+      price: 172.46,
+      change: -0.78,
+      marketCap: "2.1T",
+      sector: "Communication Services",
+      popularity: 94,
+      description: "Alphabet Inc. provides various products and platforms in the United States, Europe, the Middle East, Africa, the Asia-Pacific, Canada, and Latin America.",
+      pe: 26.15,
+      dividend: 0,
+      beta: 1.06,
+      isWatchlisted: true
+    },
+    {
+      id: "meta",
+      name: "Meta Platforms Inc.",
+      symbol: "META",
+      type: "stock",
+      price: 515.83,
+      change: 2.57,
+      marketCap: "1.3T",
+      sector: "Communication Services",
+      popularity: 93,
+      description: "Meta Platforms, Inc. engages in the development of products that enable people to connect and share with friends and family through mobile devices, personal computers, virtual reality headsets, and wearables worldwide.",
+      pe: 29.73,
+      dividend: 0,
+      beta: 1.42,
+      isWatchlisted: false
+    },
+    {
+      id: "brkb",
+      name: "Berkshire Hathaway Inc.",
+      symbol: "BRK.B",
+      type: "stock",
+      price: 428.97,
+      change: 0.23,
+      marketCap: "932.5B",
+      sector: "Financial Services",
+      popularity: 90,
+      description: "Berkshire Hathaway Inc. engages in the insurance, freight rail transportation, and utility businesses worldwide.",
+      pe: 21.08,
+      dividend: 0,
+      beta: 0.85,
+      isWatchlisted: false
+    },
+    {
+      id: "schd",
+      name: "Schwab US Dividend Equity ETF",
+      symbol: "SCHD",
+      type: "etf",
+      price: 78.41,
+      change: 0.05,
+      marketCap: "52.7B",
+      sector: "Dividend",
+      popularity: 89,
+      description: "The investment seeks to track the total return of the Dow Jones U.S. Dividend 100 Index.",
+      pe: null,
+      dividend: 3.42,
+      beta: 0.88,
+      isWatchlisted: true
+    },
+  ];
 
-  // State for account operations
-  const [isAddAccountModalOpen, setIsAddAccountModalOpen] = useState(false);
-  const [isSelectAccountModalOpen, setIsSelectAccountModalOpen] = useState(false);
-  const [selectedAccount, setSelectedAccount] = useState(null);
-  const [isUSSecuritiesModalOpen, setIsUSSecuritiesModalOpen] = useState(false);
-  
-  // State for position operations
-  const [isAddPositionModalOpen, setIsAddPositionModalOpen] = useState(false);
-  const [isBulkUploadModalOpen, setIsBulkUploadModalOpen] = useState(false);
-  const [editPosition, setEditPosition] = useState(null);
-  const [isEditPositionModalOpen, setIsEditPositionModalOpen] = useState(false);
-  const [isPositionDetailModalOpen, setIsPositionDetailModalOpen] = useState(false);
-  const [selectedPositionDetail, setSelectedPositionDetail] = useState(null);
-  
-  // Filter and sort states
-  const [sortField, setSortField] = useState('value');
-  const [sortDirection, setSortDirection] = useState('desc');
-  const [searchQuery, setSearchQuery] = useState('');
-  const [filterOptions, setFilterOptions] = useState({
-    accountType: 'all',
-    assetClass: 'all',
-    gainLoss: 'all',
-  });
-  const [isFilterModalOpen, setIsFilterModalOpen] = useState(false);
-  
-  // Chart states
-  const [selectedTimeframe, setSelectedTimeframe] = useState("1Y");
-  const [chartView, setChartView] = useState('value'); // 'value', 'allocation'
-  const [hideBalances, setHideBalances] = useState(false);
-  
-  // Bulk upload state
-  const [selectedBulkAccount, setSelectedBulkAccount] = useState(null);
-  const [bulkData, setBulkData] = useState("");
-  const [isProcessingBulk, setIsProcessingBulk] = useState(false);
-  const [bulkUploadStep, setBulkUploadStep] = useState(1);
-  
-  // Position form state
-  const [securitySearch, setSecuritySearch] = useState("");
-  const [securityShares, setSecurityShares] = useState(0);
-  const [securityPrice, setSecurityPrice] = useState(0);
-  const [purchaseDate, setPurchaseDate] = useState("");
-  const [costPerShare, setCostPerShare] = useState(0);
-  const [totalCost, setTotalCost] = useState(0);
-  const [searchResults, setSearchResults] = useState([]);
-  const [formMessage, setFormMessage] = useState("");
-
-  // Summary metrics
-  const [portfolioSummary, setPortfolioSummary] = useState({
-    total_value: 0,
-    total_cost: 0,
-    daily_change: 0,
-    daily_change_value: 0,
-    weekly_change: 0,
-    monthly_change: 0,
-    ytd_change: 0,
-    yearly_change: 0,
-  });
-  
-  // Fetch initial data
   useEffect(() => {
-    fetchAccounts();
-    fetchPortfolioSummary();
-    
-    // Set up event listeners for navbar actions
-    const handleOpenAddPositionModal = () => setIsAddPositionModalOpen(true);
-    const handleOpenAddAccountModal = () => setIsAddAccountModalOpen(true);
-    const handleResetSelectedAccount = () => setSelectedAccount(null);
-    const handleOpenSelectAccountModal = () => {
-      setSelectedAccount(null);
-      setIsAddPositionModalOpen(false);
-      setIsUSSecuritiesModalOpen(false);
-      setIsSelectAccountModalOpen(true);
-    };
-    
-    // Add event listeners
-    window.addEventListener('openAddPositionModal', handleOpenAddPositionModal);
-    window.addEventListener('openAddAccountModal', handleOpenAddAccountModal);
-    window.addEventListener('resetSelectedAccount', handleResetSelectedAccount);
-    window.addEventListener('openSelectAccountModal', handleOpenSelectAccountModal);
-    
-    // Clean up
-    return () => {
-      window.removeEventListener('openAddPositionModal', handleOpenAddPositionModal);
-      window.removeEventListener('openAddAccountModal', handleOpenAddAccountModal);
-      window.removeEventListener('resetSelectedAccount', handleResetSelectedAccount);
-      window.removeEventListener('openSelectAccountModal', handleOpenSelectAccountModal);
-    };
+    // Simulate API call to fetch securities
+    setTimeout(() => {
+      setSecurities(mockSecurities);
+      setIsLoading(false);
+    }, 800);
   }, []);
 
-  // Calculate portfolio metrics from account data
-  useEffect(() => {
-    if (accounts.length > 0) {
-      calculatePortfolioSummary();
+  // Filter securities based on search query and filter type
+  const filteredSecurities = securities.filter(security => {
+    const matchesSearch = 
+      security.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
+      security.symbol.toLowerCase().includes(searchQuery.toLowerCase());
+    
+    const matchesFilter = 
+      filterType === "all" || 
+      (filterType === "stocks" && security.type === "stock") ||
+      (filterType === "etfs" && security.type === "etf") ||
+      (filterType === "watchlist" && security.isWatchlisted);
+    
+    return matchesSearch && matchesFilter;
+  });
+
+  // Sort securities based on sort option
+  const sortedSecurities = [...filteredSecurities].sort((a, b) => {
+    switch (sortOption) {
+      case "popularity":
+        return b.popularity - a.popularity;
+      case "price-high":
+        return b.price - a.price;
+      case "price-low":
+        return a.price - b.price;
+      case "change-high":
+        return b.change - a.change;
+      case "change-low":
+        return a.change - b.change;
+      case "name":
+        return a.name.localeCompare(b.name);
+      default:
+        return 0;
     }
-  }, [accounts, positions]);
+  });
 
-  // Fetch accounts data
-  const fetchAccounts = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      const response = await fetchWithAuth('/accounts');
-
-      if (!response.ok) {
-        throw new Error(`Failed to fetch accounts: ${response.status}`);
-      }
-
-      const data = await response.json();
-      
-      if (data.accounts && Array.isArray(data.accounts)) {
-        setAccounts(data.accounts);
-        
-        // Fetch positions for each account
-        data.accounts.forEach(account => {
-          fetchPositions(account.id);
-        });
-        
-        setLastUpdated(new Date());
-      }
-    } catch (error) {
-      console.error("Error fetching accounts:", error);
-      setError(error.message || "Failed to load accounts");
-    } finally {
-      setLoading(false);
-    }
+  // Toggle watchlist status
+  const toggleWatchlist = (id) => {
+    setSecurities(securities.map(security => 
+      security.id === id 
+        ? { ...security, isWatchlisted: !security.isWatchlisted }
+        : security
+    ));
   };
 
-  // Fetch positions for a specific account
-  const fetchPositions = async (accountId) => {
-    try {
-      const response = await fetchWithAuth(`/positions/${accountId}`);
-      
-      if (!response.ok) {
-        throw new Error(`Failed to fetch positions: ${response.status}`);
-      }
-      
-      const data = await response.json();
-      
-      if (data && data.positions) {
-        setPositions(prevPositions => ({
-          ...prevPositions,
-          [accountId]: data.positions || []
-        }));
-      }
-    } catch (error) {
-      console.error(`Error fetching positions for account ${accountId}:`, error);
-    }
+  // Open security detail modal
+  const openSecurityDetail = (security) => {
+    setSelectedSecurity(security);
   };
 
-  // Fetch portfolio summary data
-  const fetchPortfolioSummary = async () => {
-    try {
-      const response = await fetchWithAuth('/portfolio/summary');
-      
-      if (response.ok) {
-        const data = await response.json();
-        setPortfolioSummary({
-          total_value: data.net_worth || 0,
-          daily_change: data.daily_change || 0,
-          daily_change_value: data.net_worth * (data.daily_change / 100) || 0,
-          weekly_change: 2.5, // Mock data - would be from API
-          monthly_change: 5.3, // Mock data - would be from API
-          ytd_change: data.ytd_change || 8.7,
-          yearly_change: data.yearly_change || 12.4,
-          last_price_update: data.last_price_update,
-        });
-      }
-    } catch (error) {
-      console.error("Error fetching portfolio summary:", error);
-    }
+  // Close security detail modal
+  const closeSecurityDetail = () => {
+    setSelectedSecurity(null);
   };
 
-  // Update market prices
-  const updateMarketPrices = async () => {
-    setLoading(true);
-    try {
-      const response = await fetchWithAuth('/market/update-prices-v2', {
-        method: "POST"
-      });
-      
-      if (response.ok) {
-        const data = await response.json();
-        setError(`Success: ${data.message}`);
-        setTimeout(() => setError(null), 3000);
-        
-        // Refresh data
-        fetchAccounts();
-        fetchPortfolioSummary();
-        triggerCartwheel(); // Animate the mascot
-      } else {
-        const errorText = await response.text();
-        setError(`Failed to update prices: ${errorText}`);
-      }
-    } catch (error) {
-      setError(`Error updating prices: ${error.message}`);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Calculate account cost basis
-  const calculateAccountCostBasis = (accountId) => {
-    if (!positions[accountId]) return 0;
-    
-    return positions[accountId].reduce((total, position) => {
-      const positionCostBasis = position.cost_basis || position.price;
-      return total + (positionCostBasis * position.shares);
-    }, 0);
-  };
-
-  // Calculate portfolio summary
-  const calculatePortfolioSummary = () => {
-    let totalValue = 0;
-    let totalCost = 0;
-    
-    accounts.forEach(account => {
-      totalValue += account.balance || 0;
-      const accountPositions = positions[account.id] || [];
-      const accountCost = accountPositions.reduce((sum, position) => {
-        return sum + ((position.cost_basis || position.price) * position.shares);
-      }, 0);
-      totalCost += accountCost;
-    });
-    
-    // Update summary
-    setPortfolioSummary(prev => ({
-      ...prev,
-      total_value: totalValue,
-      total_cost: totalCost
-    }));
-  };
-
-  // Handle adding a position to account
-  const handleAddPosition = (type) => {
-    if (!selectedAccount) {
-      setIsSelectAccountModalOpen(true);
-    } else {
-      if (type === "US Securities") {
-        setIsUSSecuritiesModalOpen(true);
-      } else {
-        alert(`${type} support coming soon!`);
-      }
-    }
-  };
-
-  // Toggle account expansion
-  const toggleAccountExpansion = (accountId) => {
-    setExpandedAccount(expandedAccount === accountId ? null : accountId);
-  };
-
-  // Change sort order
-  const handleSort = (field) => {
-    if (sortField === field) {
-      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
-    } else {
-      setSortField(field);
-      setSortDirection('desc');
-    }
-  };
-
-  // Filter positions by search query
-  const filterBySearch = (item) => {
-    if (!searchQuery) return true;
-    
-    const query = searchQuery.toLowerCase();
-    if ('ticker' in item) {
-      // Position filtering
-      return item.ticker.toLowerCase().includes(query);
-    } else {
-      // Account filtering
-      return item.account_name.toLowerCase().includes(query) || 
-             (item.institution && item.institution.toLowerCase().includes(query));
-    }
-  };
-
-  // Apply filters to accounts or positions
-  const applyFilters = (item) => {
-    if (!filterBySearch(item)) return false;
-    
-    // Account type filter
-    if ('account_name' in item && filterOptions.accountType !== 'all') {
-      if (!item.type || item.type.toLowerCase() !== filterOptions.accountType.toLowerCase()) {
-        return false;
-      }
-    }
-    
-    // Gain/Loss filter for positions
-    if ('ticker' in item && filterOptions.gainLoss !== 'all') {
-      const gainLoss = item.value - (item.cost_basis * item.shares);
-      if (filterOptions.gainLoss === 'gains' && gainLoss <= 0) return false;
-      if (filterOptions.gainLoss === 'losses' && gainLoss >= 0) return false;
-    }
-    
-    return true;
-  };
-
-  // Sort accounts or positions
-  const sortItems = (items, isPositions = false) => {
-    return [...items].sort((a, b) => {
-      let aValue, bValue;
-      
-      if (isPositions) {
-        // Position sorting
-        switch(sortField) {
-          case 'ticker':
-            aValue = a.ticker;
-            bValue = b.ticker;
-            break;
-          case 'price':
-            aValue = a.price;
-            bValue = b.price;
-            break;
-          case 'value':
-            aValue = a.value || (a.price * a.shares);
-            bValue = b.value || (b.price * b.shares);
-            break;
-          case 'gainLoss':
-            aValue = (a.value || (a.price * a.shares)) - (a.cost_basis * a.shares);
-            bValue = (b.value || (b.price * b.shares)) - (b.cost_basis * b.shares);
-            break;
-          default:
-            aValue = a.ticker;
-            bValue = b.ticker;
-        }
-      } else {
-        // Account sorting
-        switch(sortField) {
-          case 'name':
-            aValue = a.account_name;
-            bValue = b.account_name;
-            break;
-          case 'institution':
-            aValue = a.institution || '';
-            bValue = b.institution || '';
-            break;
-          case 'value':
-            aValue = a.balance || 0;
-            bValue = b.balance || 0;
-            break;
-          case 'gainLoss':
-            const aCostBasis = calculateAccountCostBasis(a.id);
-            const bCostBasis = calculateAccountCostBasis(b.id);
-            aValue = (a.balance || 0) - aCostBasis;
-            bValue = (b.balance || 0) - bCostBasis;
-            break;
-          default:
-            aValue = a.account_name;
-            bValue = b.account_name;
-        }
-      }
-      
-      // String comparison
-      if (typeof aValue === 'string' && typeof bValue === 'string') {
-        return sortDirection === 'asc' 
-          ? aValue.localeCompare(bValue) 
-          : bValue.localeCompare(aValue);
-      }
-      
-      // Numeric comparison
-      return sortDirection === 'asc' ? aValue - bValue : bValue - aValue;
-    });
-  };
-
-  // Get filtered and sorted accounts
-  const getFilteredAccounts = () => {
-    return sortItems(accounts.filter(applyFilters));
-  };
-
-  // Get filtered and sorted positions for an account
-  const getFilteredPositions = (accountId) => {
-    const accountPositions = positions[accountId] || [];
-    return sortItems(accountPositions.filter(applyFilters), true);
-  };
-
-  // Get all positions across all accounts
-  const getAllPositions = () => {
-    const allPositions = [];
-    
-    accounts.forEach(account => {
-      const accountPositions = positions[account.id] || [];
-      accountPositions.forEach(position => {
-        allPositions.push({
-          ...position,
-          account_name: account.account_name,
-          account_id: account.id
-        });
-      });
-    });
-    
-    return sortItems(allPositions.filter(applyFilters), true);
-  };
-
-  // Format currency values
-  const formatCurrency = (value) => {
-    return new Intl.NumberFormat('en-US', { 
-      style: 'currency', 
-      currency: 'USD',
-      maximumFractionDigits: 2
-    }).format(value);
-  };
-
-  // Format percentage values
-  const formatPercentage = (value) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'percent',
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2
-    }).format(value / 100);
-  };
-
-  // Handle security search
-  const handleSecuritySearch = async (value) => {
-    setSecuritySearch(value);
-    
-    if (value.length >= 2) {
-      try {
-        const results = await searchSecurities(value);
-        
-        if (results.length > 0) {
-          setSecurityPrice(results[0].price || 0);
-        }
-      } catch (error) {
-        console.error("Error in security search:", error);
-        setFormMessage(`Security search error: ${error.message}`);
-      }
-    } else {
-      setSearchResults([]);
-    }
-  };
-
-  // Search securities API
-  const searchSecurities = async (query) => {
-    if (!query || query.length < 1) {
-      setSearchResults([]);
-      return [];
-    }
-    
-    try {
-      const response = await fetchWithAuth(`/securities/search?query=${encodeURIComponent(query)}`);
-      
-      if (!response.ok) {
-        throw new Error(`Failed to search securities: ${response.status}`);
-      }
-      
-      const data = await response.json();
-      
-      if (!data || !data.results) {
-        return [];
-      }
-      
-      const formattedResults = data.results.map(result => ({
-        ticker: result.ticker || '',
-        name: result.name || result.company_name || "Unknown",
-        price: typeof result.price === 'number' ? result.price : 0,
-        sector: result.sector || '',
-        industry: result.industry || '',
-        market_cap: result.market_cap || 0
-      }));
-      
-      setSearchResults(formattedResults);
-      return formattedResults;
-    } catch (error) {
-      console.error("Error searching securities:", error);
-      setSearchResults([]);
-      return [];
-    }
-  };
-
-  // Add a security position
-  const handleAddSecurity = async () => {
-    if (!securitySearch || securityShares <= 0 || !selectedAccount || !purchaseDate || costPerShare <= 0) {
-      setFormMessage("All fields are required and must be valid values");
-      return;
-    }
-  
-    setFormMessage("Adding position...");
-    try {
-      const response = await fetchWithAuth(`/positions/${selectedAccount}`, {
-        method: "POST",
-        body: JSON.stringify({
-          ticker: securitySearch.toUpperCase(),
-          shares: parseFloat(securityShares),
-          price: parseFloat(securityPrice),
-          cost_basis: parseFloat(costPerShare),
-          purchase_date: purchaseDate
-        }),
-      });
-  
-      if (!response.ok) {
-        const responseData = await response.json();
-        setFormMessage(`Failed to add position: ${responseData.detail || 'Unknown error'}`);
-        return;
-      }
-  
-      setFormMessage("Position added successfully!");
-  
-      // Refresh data
-      fetchAccounts();
-      fetchPositions(selectedAccount);
-      fetchPortfolioSummary();
-  
-      // Reset modal and form
-      setTimeout(() => {
-        setIsAddPositionModalOpen(false);
-        setIsUSSecuritiesModalOpen(false);
-        setSecuritySearch("");
-        setSecurityShares(0);
-        setSecurityPrice(0);
-        setPurchaseDate("");
-        setCostPerShare(0);
-        setFormMessage("");
-      }, 1000);
-    } catch (error) {
-      setFormMessage(`Error adding position: ${error.message}`);
-    }
-  };
-
-  // View position details
-  const handlePositionDetailClick = (position) => {
-    setSelectedPositionDetail(position);
-    setIsPositionDetailModalOpen(true);
-  };
-
-  // Parse bulk data
-  const getParsedBulkData = () => {
-    if (!bulkData.trim()) return [];
-    
-    const lines = bulkData.split(/\r?\n/).filter(line => line.trim());
-    const parsedData = [];
-    
-    for (const line of lines) {
-      let row;
-      if (line.includes('\t')) {
-        row = line.split('\t');
-      } else if (line.includes(',')) {
-        row = line.split(',');
-      } else if (line.includes(';')) {
-        row = line.split(';');
-      } else {
-        row = line.split(/\s+/);
-      }
-      
-      if (row.length >= 1) {
-        while (row.length < 5) row.push('');
-        parsedData.push(row.slice(0, 5).map(item => item.trim()));
-      }
-    }
-    
-    return parsedData;
-  };
-
-  // Handle bulk upload
-  const handleBulkUpload = async () => {
-    if (!bulkData.trim() || !selectedBulkAccount) {
-      setFormMessage("Please paste data to upload");
-      return;
-    }
-    
-    setIsProcessingBulk(true);
-    setFormMessage("");
-    
-    const lines = bulkData.split(/\r?\n/).filter(line => line.trim());
-    let successCount = 0;
-    let errorCount = 0;
-    
-    try {
-      for (const line of lines) {
-        let row;
-        if (line.includes('\t')) {
-          row = line.split('\t');
-        } else if (line.includes(',')) {
-          row = line.split(',');
-        } else if (line.includes(';')) {
-          row = line.split(';');
-        } else {
-          errorCount++;
-          continue;
-        }
-        
-        if (row.length < 5) {
-          errorCount++;
-          continue;
-        }
-        
-        const [ticker, shares, price, costBasis, purchaseDate] = row.map(item => item.trim());
-        
-        if (!ticker || isNaN(parseFloat(shares)) || isNaN(parseFloat(price)) || 
-            isNaN(parseFloat(costBasis)) || !purchaseDate) {
-          errorCount++;
-          continue;
-        }
-        
-        try {
-          let formattedDate = purchaseDate;
-          
-          if (purchaseDate.includes('/')) {
-            const parts = purchaseDate.split('/');
-            if (parts.length === 3) {
-              const month = parts[0].padStart(2, '0');
-              const day = parts[1].padStart(2, '0');
-              const year = parts[2].length === 2 ? `20${parts[2]}` : parts[2];
-              formattedDate = `${year}-${month}-${day}`;
-            }
-          }
-          
-          const response = await fetchWithAuth(`/positions/${selectedBulkAccount.id}`, {
-            method: "POST",
-            body: JSON.stringify({
-              ticker: ticker.toUpperCase(),
-              shares: parseFloat(shares),
-              price: parseFloat(price),
-              cost_basis: parseFloat(costBasis),
-              purchase_date: formattedDate
-            }),
-          });
-          
-          if (response.ok) {
-            successCount++;
-          } else {
-            errorCount++;
-          }
-        } catch (error) {
-          errorCount++;
-        }
-      }
-      
-      if (successCount > 0) {
-        setFormMessage(`Successfully uploaded ${successCount} positions${errorCount > 0 ? `, ${errorCount} failed` : ''}`);
-        fetchAccounts();
-        fetchPositions(selectedBulkAccount.id);
-        fetchPortfolioSummary();
-        
-        setTimeout(() => {
-          setIsBulkUploadModalOpen(false);
-          setBulkUploadStep(1);
-          setSelectedBulkAccount(null);
-          setBulkData("");
-          setFormMessage("");
-        }, 2000);
-      } else {
-        setFormMessage(`Failed to upload positions. Please check your data format.`);
-      }
-    } catch (error) {
-      setFormMessage("Error uploading positions");
-    } finally {
-      setIsProcessingBulk(false);
-    }
-  };
-
-  // Generate chart data for portfolio value over time
-  const getPortfolioChartData = () => {
-    // This would be replaced with actual historical data from API
-    const months = selectedTimeframe === "1Y" ? 12 : 
-                  selectedTimeframe === "5Y" ? 60 : 
-                  selectedTimeframe === "1M" ? 30 : 
-                  selectedTimeframe === "YTD" ? new Date().getMonth() + 1 : 6;
-    
-    const labels = Array.from({ length: months }, (_, i) => {
-      const date = new Date();
-      if (selectedTimeframe === "1M") {
-        date.setDate(date.getDate() - (months - i - 1));
-        return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-      } else {
-        date.setMonth(date.getMonth() - (months - i - 1));
-        return date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
-      }
-    });
-    
-    // Generate mock data with realistic market patterns
-    const volatility = selectedTimeframe === "1M" ? 0.01 : 
-                      selectedTimeframe === "1Y" ? 0.03 : 0.05;
-    const upwardBias = 0.002; // Slight upward bias over time
-    
-    const totalValue = portfolioSummary.total_value;
-    const startValue = totalValue * 0.85; // Start at 85% of current value
-    
-    const data = Array.from({ length: months }, (_, i) => {
-      const progress = i / (months - 1);
-      const trendValue = startValue + (totalValue - startValue) * progress;
-      const randomFactor = (Math.random() - 0.5) * 2 * volatility * trendValue;
-      const biasValue = i * upwardBias * startValue;
-      return trendValue + randomFactor + biasValue;
-    });
-    
-    return {
-      labels,
-      datasets: [
-        {
-          label: "Portfolio Value ($)",
-          data,
-          borderColor: "#4A90E2",
-          backgroundColor: "rgba(74, 144, 226, 0.2)",
-          borderWidth: 2,
-          pointRadius: 1,
-          pointHoverRadius: 5,
-          tension: 0.3,
-          fill: true,
-        },
-      ],
-    };
-  };
-
-  // Generate allocation pie chart data
-  const getAllocationData = () => {
-    const allPositions = getAllPositions();
-    
-    // Group by sector or asset class
-    const threshold = portfolioSummary.total_value * 0.03; // 3% threshold
-    let allocations = {};
-    let otherTotal = 0;
-    
-    // Group by ticker for simplicity
-    allPositions.forEach(position => {
-      const value = position.value || (position.price * position.shares);
-      if (value >= threshold) {
-        allocations[position.ticker] = (allocations[position.ticker] || 0) + value;
-      } else {
-        otherTotal += value;
-      }
-    });
-    
-    if (otherTotal > 0) {
-      allocations['Others'] = otherTotal;
-    }
-    
-    // Generate a palette of professional-looking colors
-    const generateColors = (count) => {
-      const baseColors = [
-        '#4A90E2', '#5DBB63', '#9B59B6', '#F39C12', '#E74C3C', 
-        '#16A085', '#2C3E50', '#D35400', '#8E44AD', '#2980B9'
-      ];
-      
-      let colors = [];
-      for (let i = 0; i < count; i++) {
-        colors.push(baseColors[i % baseColors.length]);
-      }
-      return colors;
-    };
-    
-    const keys = Object.keys(allocations);
-    const values = Object.values(allocations);
-    const colors = generateColors(keys.length);
-    
-    return {
-      labels: keys,
-      datasets: [
-        {
-          data: values,
-          backgroundColor: colors,
-          borderWidth: 1,
-          borderColor: 'rgba(255, 255, 255, 0.5)',
-          hoverOffset: 15
-        }
-      ]
-    };
-  };
-
-  // Chart options
-  const chartOptions = {
-    responsive: true,
-    maintainAspectRatio: false,
-    scales: {
-      x: {
-        ticks: {
-          maxTicksLimit: 8,
-          autoSkip: true,
-          font: { size: 12 },
-          padding: 10,
-          color: "rgba(31, 41, 55, 0.7)",
-        },
-        grid: { display: false },
-      },
-      y: {
-        ticks: {
-          font: { size: 12 },
-          color: "rgba(31, 41, 55, 0.7)",
-          callback: (value) => `$${value.toLocaleString()}`,
-        },
-        grid: { color: "rgba(0, 0, 0, 0.05)" },
-      },
-    },
-    plugins: {
-      legend: { display: false },
-      tooltip: {
-        callbacks: {
-          label: (context) => `Value: $${context.parsed.y.toLocaleString()}`
-        }
-      }
-    },
-  };
-
-  // Pie chart options
-  const doughnutOptions = {
-    responsive: true,
-    maintainAspectRatio: false,
-    plugins: {
-      legend: {
-        position: 'right',
-        labels: {
-          color: 'rgba(31, 41, 55, 0.9)',
-          font: {
-            size: 12
-          },
-          boxWidth: 15,
-          padding: 15
-        }
-      },
-      tooltip: {
-        callbacks: {
-          label: (context) => {
-            const value = context.raw;
-            const percentage = ((value / portfolioSummary.total_value) * 100).toFixed(1);
-            return `${context.label}: $${value.toLocaleString()} (${percentage}%)`;
-          }
-        }
-      }
-    }
-  };
-
-  // UI rendering based on login state
-  if (!user) {
-    return (
-      <div className="flex items-center justify-center min-h-screen bg-gray-50 text-gray-900">
-        <div className="bg-white p-8 rounded-xl shadow-lg text-center max-w-md">
-          <Briefcase className="w-16 h-16 mx-auto text-blue-600 mb-4" />
-          <h1 className="text-2xl font-bold mb-4">Investment Securities</h1>
-          <p className="text-gray-600 mb-6">Please log in to view your investment portfolio.</p>
-          <button 
-            onClick={() => router.push('/login')}
-            className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg transition-colors"
-          >
-            Login
-          </button>
+  // Render trend indicator based on change value
+  const renderTrend = (change) => {
+    if (change > 0) {
+      return (
+        <div className="flex items-center text-green-500">
+          <TrendingUp className="h-4 w-4 mr-1" />
+          <span>+{change.toFixed(2)}%</span>
         </div>
-      </div>
-    );
-  }
+      );
+    } else if (change < 0) {
+      return (
+        <div className="flex items-center text-red-500">
+          <TrendingDown className="h-4 w-4 mr-1" />
+          <span>{change.toFixed(2)}%</span>
+        </div>
+      );
+    } else {
+      return <span className="text-gray-500">0.00%</span>;
+    }
+  };
 
-  // Main UI
   return (
-    <div className="min-h-screen bg-gray-50 text-gray-900">
-      <div className="container mx-auto px-4 py-6">
-        {/* Header Section */}
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
-          <div>
+    <div className="min-h-screen bg-gradient-to-br from-gray-900 to-blue-900 text-white">
+      {/* Main Content Container */}
+      <div className="container mx-auto px-4 py-10">
+        {/* Header */}
+        <header className="mb-8">
+          <div className="flex items-center justify-between mb-6">
             <h1 className="text-3xl font-bold flex items-center">
-              <Briefcase className="mr-3 text-blue-600" size={32} />
-              Investment Securities
+              <Briefcase className="w-8 h-8 text-blue-400 mr-3" />
+              Securities Explorer
             </h1>
-            <p className="text-gray-600 mt-1">
-              Comprehensive view of your securities portfolio
-            </p>
-          </div>
-          
-          <div className="flex flex-wrap gap-2">
-            <button
-              onClick={() => setHideBalances(!hideBalances)}
-              className="flex items-center gap-2 text-gray-700 bg-white border border-gray-300 py-2 px-3 rounded-lg hover:bg-gray-100 transition-colors"
+            <button 
+              onClick={() => setWatchlistModal(true)}
+              className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center transition-colors"
             >
-              {hideBalances ? <Eye size={16} /> : <EyeOff size={16} />}
-              {hideBalances ? "Show Balances" : "Hide Balances"}
-            </button>
-            
-            <button
-              onClick={updateMarketPrices}
-              disabled={loading}
-              className="flex items-center gap-2 text-gray-700 bg-white border border-gray-300 py-2 px-3 rounded-lg hover:bg-gray-100 transition-colors"
-            >
-              <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
-              {loading ? "Updating..." : "Refresh Prices"}
-            </button>
-            
-            <button
-              onClick={() => setIsFilterModalOpen(true)}
-              className="flex items-center gap-2 text-gray-700 bg-white border border-gray-300 py-2 px-3 rounded-lg hover:bg-gray-100 transition-colors"
-            >
-              <Filter size={16} />
-              Filter
-            </button>
-            
-            <button
-              onClick={() => setIsBulkUploadModalOpen(true)}
-              className="flex items-center gap-2 text-white bg-blue-500 border border-blue-600 py-2 px-3 rounded-lg hover:bg-blue-600 transition-colors"
-            >
-              <FileUp size={16} />
-              Bulk Upload
-            </button>
-            
-            <button
-              onClick={() => setIsAddAccountModalOpen(true)}
-              className="flex items-center gap-2 text-white bg-blue-600 py-2 px-3 rounded-lg hover:bg-blue-700 transition-colors"
-            >
-              <PlusCircle size={16} />
-              Add Account
+              <Star className="w-4 h-4 mr-2" />
+              Manage Watchlists
             </button>
           </div>
-        </div>
-        
-        {/* Last update notification */}
-        {lastUpdated && (
-          <div className="flex items-center gap-2 text-sm text-gray-500 mb-4">
-            <Clock size={14} />
-            <span>Last updated: {lastUpdated.toLocaleString()}</span>
-            {portfolioSummary.last_price_update && (
-              <span className="ml-2">
-                Prices as of: {new Date(portfolioSummary.last_price_update).toLocaleString()}
-              </span>
-            )}
-          </div>
-        )}
-        
-        {/* Error message */}
-        {error && (
-          <div className={`mb-4 p-3 rounded-lg flex items-center gap-2 ${
-            error.includes("Success") ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"
-          }`}>
-            {error.includes("Success") ? (
-              <Info size={18} className="flex-shrink-0" />
-            ) : (
-              <AlertCircle size={18} className="flex-shrink-0" />
-            )}
-            <span>{error}</span>
-          </div>
-        )}
-        
-        {/* Portfolio Summary Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 xl:grid-cols-6 gap-4 mb-6">
-          <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-100">
-            <h3 className="text-sm font-medium text-gray-500 mb-1">Total Value</h3>
-            <div className="flex items-center">
-              <span className="text-2xl font-bold">
-                {hideBalances ? "••••••" : formatCurrency(portfolioSummary.total_value)}
-              </span>
-            </div>
-          </div>
-          
-          <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-100">
-            <h3 className="text-sm font-medium text-gray-500 mb-1">Today's Change</h3>
-            <div className="flex items-center">
-              <span className={`text-2xl font-bold ${portfolioSummary.daily_change >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                {hideBalances ? "••••••" : (
-                  <>
-                    {portfolioSummary.daily_change >= 0 ? (
-                      <ArrowUpRight size={18} className="inline mr-1" />
-                    ) : (
-                      <ArrowDownRight size={18} className="inline mr-1" />
-                    )}
-                    {formatPercentage(portfolioSummary.daily_change)}
-                  </>
-                )}
-              </span>
-            </div>
-            {!hideBalances && (
-              <div className={`text-sm ${portfolioSummary.daily_change >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                {formatCurrency(portfolioSummary.daily_change_value)}
+          <p className="text-gray-300 max-w-3xl mb-4">
+            Discover, analyze, and track securities to build a well-balanced retirement portfolio. 
+            Add securities to your watchlist or directly to your portfolio.
+          </p>
+        </header>
+
+        {/* Search and Filter Controls */}
+        <div className="bg-gray-800/80 p-6 rounded-xl mb-8 backdrop-blur-sm">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+            {/* Search */}
+            <div className="relative">
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <Search className="h-5 w-5 text-gray-400" />
               </div>
-            )}
-          </div>
-          
-          <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-100">
-            <h3 className="text-sm font-medium text-gray-500 mb-1">1W Change</h3>
-            <div className="flex items-center">
-              <span className={`text-2xl font-bold ${portfolioSummary.weekly_change >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                {hideBalances ? "••••••" : (
-                  <>
-                    {portfolioSummary.weekly_change >= 0 ? (
-                      <ArrowUpRight size={18} className="inline mr-1" />
-                    ) : (
-                      <ArrowDownRight size={18} className="inline mr-1" />
-                    )}
-                    {formatPercentage(portfolioSummary.weekly_change)}
-                  </>
-                )}
-              </span>
+              <input
+                type="text"
+                className="bg-gray-700 text-white w-full pl-10 pr-4 py-3 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                placeholder="Search stocks, ETFs by name or symbol..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
+            </div>
+
+            {/* Filter Type */}
+            <div className="flex items-center space-x-2 bg-gray-700 rounded-lg p-1">
+              <button
+                className={`flex-1 py-2 px-3 rounded-md transition-colors ${
+                  filterType === "all" ? "bg-blue-600 text-white" : "text-gray-300 hover:bg-gray-600"
+                }`}
+                onClick={() => setFilterType("all")}
+              >
+                All
+              </button>
+              <button
+                className={`flex-1 py-2 px-3 rounded-md transition-colors ${
+                  filterType === "stocks" ? "bg-blue-600 text-white" : "text-gray-300 hover:bg-gray-600"
+                }`}
+                onClick={() => setFilterType("stocks")}
+              >
+                Stocks
+              </button>
+              <button
+                className={`flex-1 py-2 px-3 rounded-md transition-colors ${
+                  filterType === "etfs" ? "bg-blue-600 text-white" : "text-gray-300 hover:bg-gray-600"
+                }`}
+                onClick={() => setFilterType("etfs")}
+              >
+                ETFs
+              </button>
+              <button
+                className={`flex-1 py-2 px-3 rounded-md transition-colors ${
+                  filterType === "watchlist" ? "bg-blue-600 text-white" : "text-gray-300 hover:bg-gray-600"
+                }`}
+                onClick={() => setFilterType("watchlist")}
+              >
+                <Star className="h-4 w-4 inline mr-1" />
+                Watchlist
+              </button>
+            </div>
+
+            {/* Sort Options */}
+            <div className="relative">
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <SlidersHorizontal className="h-5 w-5 text-gray-400" />
+              </div>
+              <select
+                className="bg-gray-700 text-white w-full pl-10 pr-4 py-3 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none appearance-none"
+                value={sortOption}
+                onChange={(e) => setSortOption(e.target.value)}
+              >
+                <option value="popularity">Sort by Popularity</option>
+                <option value="price-high">Price (High to Low)</option>
+                <option value="price-low">Price (Low to High)</option>
+                <option value="change-high">% Change (High to Low)</option>
+                <option value="change-low">% Change (Low to High)</option>
+                <option value="name">Name (A-Z)</option>
+              </select>
+              <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
+                <svg className="h-5 w-5 text-gray-400" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+                </svg>
+              </div>
             </div>
           </div>
-          
-          <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-100">
-            <h3 className="text-sm font-medium text-gray-500 mb-1">1M Change</h3>
-            <div className="flex items-center">
-              <span className={`text-2xl font-bold ${portfolioSummary.monthly_change >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                {hideBalances ? "••••••" : (
-                  <>
-                    {portfolioSummary.monthly_change >= 0 ? (
-                      <ArrowUpRight size={18} className="inline mr-1" />
-                    ) : (
-                      <ArrowDownRight size={18} className="inline mr-1" />
-                    )}
-                    {formatPercentage(portfolioSummary.monthly_change)}
-                  </>
-                )}
-              </span>
-            </div>
-          </div>
-          
-          <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-100">
-            <h3 className="text-sm font-medium text-gray-500 mb-1">YTD Change</h3>
-            <div className="flex items-center">
-              <span className={`text-2xl font-bold ${portfolioSummary.ytd_change >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                {hideBalances ? "••••••" : (
-                  <>
-                    {portfolioSummary.ytd_change >= 0 ? (
-                      <ArrowUpRight size={18} className="inline mr-1" />
-                    ) : (
-                      <ArrowDownRight size={18} className="inline mr-1" />
-                    )}
-                    {formatPercentage(portfolioSummary.ytd_change)}
-                  </>
-                )}
-              </span>
-            </div>
-          </div>
-          
-          <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-100">
-            <h3 className="text-sm font-medium text-gray-500 mb-1">1Y Change</h3>
-            <div className="flex items-center">
-              <span className={`text-2xl font-bold ${portfolioSummary.yearly_change >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                {hideBalances ? "••••••" : (
-                  <>
-                    {portfolioSummary.yearly_change >= 0 ? (
-                      <ArrowUpRight size={18} className="inline mr-1" />
-                    ) : (
-                      <ArrowDownRight size={18} className="inline mr-1" />
-                    )}
-                    {formatPercentage(portfolioSummary.yearly_change)}
-                  </>
-                )}
-              </span>
+
+          {/* Active Filters Display */}
+          <div className="flex items-center space-x-2 text-sm text-gray-400">
+            <Filter className="h-4 w-4" />
+            <span>Active filters:</span>
+            <div className="flex flex-wrap gap-2">
+              {filterType !== "all" && (
+                <span className="bg-blue-900/50 text-blue-300 px-2 py-1 rounded-md">
+                  {filterType === "stocks" ? "Stocks" : filterType === "etfs" ? "ETFs" : "Watchlist"}
+                </span>
+              )}
+              {searchQuery && (
+                <span className="bg-blue-900/50 text-blue-300 px-2 py-1 rounded-md">
+                  Search: "{searchQuery}"
+                </span>
+              )}
+              {(filterType !== "all" || searchQuery) && (
+                <button
+                  onClick={() => {
+                    setFilterType("all");
+                    setSearchQuery("");
+                  }}
+                  className="text-gray-400 hover:text-white"
+                >
+                  Clear all
+                </button>
+              )}
             </div>
           </div>
         </div>
-        
-        {/* View Toggle */}
-        <div className="flex items-center justify-between mb-6">
-          <div className="flex border border-gray-300 rounded-lg overflow-hidden">
-            <button
-              className={`px-4 py-2 ${viewMode === 'accounts' ? 'bg-blue-600 text-white' : 'bg-white text-gray-700'}`}
-              onClick={() => setViewMode('accounts')}
-            >
-              Accounts
-            </button>
-            <button
-              className={`px-4 py-2 ${viewMode === 'positions' ? 'bg-blue-600 text-white' : 'bg-white text-gray-700'}`}
-              onClick={() => setViewMode('positions')}
-            >
-              Positions
-            </button>
-            <button
-              className={`px-4 py-2 ${viewMode === 'summary' ? 'bg-blue-600 text-white' : 'bg-white text-gray-700'}`}
-              onClick={() => setViewMode('summary')}
-            >
-              Summary
-            </button>
-          </div>
-          
-          <div className="relative">
-            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-              <Search size={16} className="text-gray-400" />
+
+        {/* Securities List */}
+        <div className="bg-gray-800/70 backdrop-blur-sm rounded-xl mb-8 overflow-hidden">
+          {isLoading ? (
+            <div className="p-8 text-center">
+              <div className="inline-block w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mb-4"></div>
+              <p className="text-gray-400">Loading securities data...</p>
             </div>
-            <input
-              type="text"
-              placeholder="Search..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
-            />
-          </div>
-        </div>
-        
-        {/* Portfolio Charts */}
-        {viewMode === 'summary' && (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-            <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-100">
-              <div className="flex justify-between items-center mb-4">
-                <h3 className="font-semibold text-gray-800">Portfolio Value Over Time</h3>
-                <div className="flex space-x-2">
-                  {["1M", "YTD", "1Y", "5Y"].map((time) => (
-                    <button
-                      key={time}
-                      className={`px-3 py-1 text-sm rounded ${
-                        selectedTimeframe === time 
-                          ? 'bg-blue-600 text-white' 
-                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                      }`}
-                      onClick={() => setSelectedTimeframe(time)}
-                    >
-                      {time}
-                    </button>
-                  ))}
-                </div>
+          ) : sortedSecurities.length === 0 ? (
+            <div className="p-8 text-center">
+              <div className="bg-gray-700/50 rounded-full w-16 h-16 flex items-center justify-center mx-auto mb-4">
+                <Search className="h-8 w-8 text-gray-500" />
               </div>
-              <div className="h-72">
-                <Line data={getPortfolioChartData()} options={chartOptions} />
-              </div>
+              <h3 className="text-xl font-medium mb-2">No securities found</h3>
+              <p className="text-gray-400 max-w-md mx-auto">
+                Try adjusting your search or filters to find what you're looking for.
+              </p>
             </div>
-            
-            <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-100">
-              <div className="flex justify-between items-center mb-4">
-                <h3 className="font-semibold text-gray-800">Portfolio Allocation</h3>
-              </div>
-              <div className="h-72">
-                <Doughnut data={getAllocationData()} options={doughnutOptions} />
-              </div>
-            </div>
-          </div>
-        )}
-        
-        {/* Accounts View */}
-        {viewMode === 'accounts' && (
-          <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+          ) : (
             <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
+              <table className="min-w-full divide-y divide-gray-700">
+                <thead className="bg-gray-900/50">
                   <tr>
-                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer" onClick={() => handleSort('name')}>
-                      <div className="flex items-center">
-                        Account Name
-                        {sortField === 'name' && (
-                          sortDirection === 'asc' ? <ChevronUp size={16} className="ml-1" /> : <ChevronDown size={16} className="ml-1" />
-                        )}
-                      </div>
+                    <th scope="col" className="px-6 py-4 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
+                      Security
                     </th>
-                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer" onClick={() => handleSort('institution')}>
-                      <div className="flex items-center">
-                        Institution
-                        {sortField === 'institution' && (
-                          sortDirection === 'asc' ? <ChevronUp size={16} className="ml-1" /> : <ChevronDown size={16} className="ml-1" />
-                        )}
-                      </div>
+                    <th scope="col" className="px-6 py-4 text-right text-xs font-medium text-gray-400 uppercase tracking-wider">
+                      Price
                     </th>
-                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Type
+                    <th scope="col" className="px-6 py-4 text-right text-xs font-medium text-gray-400 uppercase tracking-wider">
+                      Change (24h)
                     </th>
-                    <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer" onClick={() => handleSort('value')}>
-                      <div className="flex items-center justify-end">
-                        Balance
-                        {sortField === 'value' && (
-                          sortDirection === 'asc' ? <ChevronUp size={16} className="ml-1" /> : <ChevronDown size={16} className="ml-1" />
-                        )}
-                      </div>
+                    <th scope="col" className="px-6 py-4 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
+                      Market Cap
                     </th>
-                    <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer" onClick={() => handleSort('gainLoss')}>
-                      <div className="flex items-center justify-end">
-                        Gain/Loss
-                        {sortField === 'gainLoss' && (
-                          sortDirection === 'asc' ? <ChevronUp size={16} className="ml-1" /> : <ChevronDown size={16} className="ml-1" />
-                        )}
-                      </div>
+                    <th scope="col" className="px-6 py-4 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
+                      Sector
                     </th>
-                    <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th scope="col" className="px-6 py-4 text-center text-xs font-medium text-gray-400 uppercase tracking-wider">
                       Actions
                     </th>
                   </tr>
                 </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {loading ? (
-                    <tr>
-                      <td colSpan={6} className="p-6 text-center text-gray-500">
-                        Loading accounts...
+                <tbody className="divide-y divide-gray-700">
+                  {sortedSecurities.map((security) => (
+                    <tr 
+                      key={security.id}
+                      className="hover:bg-gray-700/50 transition-colors cursor-pointer"
+                      onClick={() => openSecurityDetail(security)}
+                    >
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="flex items-center">
+                          <div className="flex-shrink-0 h-10 w-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center">
+                            <span className="font-bold">{security.symbol.charAt(0)}</span>
+                          </div>
+                          <div className="ml-4">
+                            <div className="flex items-center">
+                              <div className="text-sm font-medium">
+                                {security.name}
+                              </div>
+                              {security.isWatchlisted && (
+                                <Star className="h-4 w-4 text-yellow-400 ml-2" fill="currentColor" />
+                              )}
+                            </div>
+                            <div className="text-sm text-gray-400 flex items-center">
+                              <span className="mr-2">{security.symbol}</span>
+                              <span className="px-2 py-0.5 text-xs rounded-full bg-gray-700">
+                                {security.type === "stock" ? "Stock" : "ETF"}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-right">
+                        <div className="text-sm font-medium">${security.price.toFixed(2)}</div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-right">
+                        {renderTrend(security.change)}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm">{security.marketCap}</div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm">{security.sector}</div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-center">
+                        <div className="flex items-center justify-center space-x-3" onClick={(e) => e.stopPropagation()}>
+                          <button
+                            onClick={() => toggleWatchlist(security.id)}
+                            className={`p-2 rounded-full transition-colors ${
+                              security.isWatchlisted 
+                                ? "bg-yellow-500/20 text-yellow-400 hover:bg-yellow-500/30" 
+                                : "bg-gray-700 text-gray-400 hover:bg-gray-600"
+                            }`}
+                            title={security.isWatchlisted ? "Remove from watchlist" : "Add to watchlist"}
+                          >
+                            <Star className="h-5 w-5" fill={security.isWatchlisted ? "currentColor" : "none"} />
+                          </button>
+                          <button
+                            className="p-2 bg-blue-600/20 text-blue-400 rounded-full hover:bg-blue-600/30 transition-colors"
+                            title="Add to portfolio"
+                          >
+                            <Plus className="h-5 w-5" />
+                          </button>
+                          <button
+                            className="p-2 bg-purple-600/20 text-purple-400 rounded-full hover:bg-purple-600/30 transition-colors"
+                            title="View charts"
+                          >
+                            <BarChart4 className="h-5 w-5" />
+                          </button>
+                        </div>
                       </td>
                     </tr>
-                  ) : getFilteredAccounts().length === 0 ? (
-                    <tr>
-                      <td colSpan={6} className="p-6 text-center text-gray-500">
-                        No accounts found. Add your first account to get started.
-                      </td>
-                    </tr>
-                  ) : (
-                    getFilteredAccounts().map((account) => {
-                      const costBasis = calculateAccountCostBasis(account.id);
-                      const gainLoss = (account.balance || 0) - costBasis;
-                      const gainLossPercent = costBasis > 0 ? (gainLoss / costBasis) * 100 : 0;
-                      
-                      return (
-                        <React.Fragment key={account.id}>
-                          <tr className="hover:bg-gray-50">
-                            <td className="px-6 py-4 whitespace-nowrap">
-                              <div className="flex items-center">
-                                <button 
-                                  className="mr-2 text-blue-500"
-                                  onClick={() => toggleAccountExpansion(account.id)}
-                                >
-                                  {expandedAccount === account.id ? (
-                                    <ChevronDown size={18} />
-                                  ) : (
-                                    <ChevronRight size={18} />
-                                  )}
-                                </button>
-                                <div className="font-medium text-gray-900">{account.account_name}</div>
-                              </div>
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap">
-                              <div className="text-gray-900">{account.institution || 'N/A'}</div>
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-gray-500">
-                              {account.type || 'N/A'}
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-right text-gray-900 font-medium">
-                              {hideBalances ? "••••••" : formatCurrency(account.balance || 0)}
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-right">
-                              <div className={gainLoss >= 0 ? 'text-green-600' : 'text-red-600'}>
-                                <div className="font-medium">
-                                  {hideBalances ? "••••••" : formatCurrency(gainLoss)}
-                                </div>
-                                <div className="text-xs">
-                                  {hideBalances ? "••" : `${gainLossPercent >= 0 ? '+' : ''}${gainLossPercent.toFixed(2)}%`}
-                                </div>
-                              </div>
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-right">
-                              <button
-                                onClick={() => handleAddPositionClick(account.id)}
-                                className="text-blue-600 hover:text-blue-800 mr-4"
-                                title="Add Position"
-                              >
-                                <Plus size={18} />
-                              </button>
-                              <button
-                                onClick={() => router.push(`/settings?account=${account.id}`)}
-                                className="text-gray-600 hover:text-gray-800"
-                                title="Account Settings"
-                              >
-                                <Settings size={18} />
-                              </button>
-                            </td>
-                          </tr>
-                          
-                          {/* Expanded positions for this account */}
-                          {expandedAccount === account.id && (
-                            <tr>
-                              <td colSpan={6} className="p-0">
-                                <div className="bg-gray-50 p-4">
-                                  <h4 className="text-sm font-medium text-gray-700 mb-3">Positions in {account.account_name}</h4>
-                                  
-                                  {positions[account.id] && positions[account.id].length > 0 ? (
-                                    <div className="overflow-x-auto">
-                                      <table className="min-w-full divide-y divide-gray-200">
-                                        <thead className="bg-gray-100">
-                                          <tr>
-                                            <th scope="col" className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                              Ticker
-                                            </th>
-                                            <th scope="col" className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                              Shares
-                                            </th>
-                                            <th scope="col" className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                              Price
-                                            </th>
-                                            <th scope="col" className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                              Value
-                                            </th>
-                                            <th scope="col" className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                              Cost Basis
-                                            </th>
-                                            <th scope="col" className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                              Gain/Loss
-                                            </th>
-                                          </tr>
-                                        </thead>
-                                        <tbody className="bg-white divide-y divide-gray-200">
-                                          {getFilteredPositions(account.id).map((position) => {
-                                            const positionValue = position.value || (position.price * position.shares);
-                                            const positionCostBasis = (position.cost_basis || position.price) * position.shares;
-                                            const positionGainLoss = positionValue - positionCostBasis;
-                                            const gainLossPercent = positionCostBasis > 0 ? (positionGainLoss / positionCostBasis) * 100 : 0;
-                                            
-                                            return (
-                                              <tr 
-                                                key={position.id} 
-                                                className="hover:bg-gray-50 cursor-pointer"
-                                                onClick={() => handlePositionDetailClick(position)}
-                                              >
-                                                <td className="px-4 py-2 whitespace-nowrap">
-                                                  <div className="font-medium text-blue-600">{position.ticker}</div>
-                                                </td>
-                                                <td className="px-4 py-2 whitespace-nowrap text-right">
-                                                  {position.shares.toLocaleString()}
-                                                </td>
-                                                <td className="px-4 py-2 whitespace-nowrap text-right">
-                                                  {formatCurrency(position.price)}
-                                                </td>
-                                                <td className="px-4 py-2 whitespace-nowrap text-right">
-                                                  {hideBalances ? "••••••" : formatCurrency(positionValue)}
-                                                </td>
-                                                <td className="px-4 py-2 whitespace-nowrap text-right">
-                                                  {hideBalances ? "••••••" : formatCurrency(positionCostBasis)}
-                                                </td>
-                                                <td className="px-4 py-2 whitespace-nowrap text-right">
-                                                  <div className={positionGainLoss >= 0 ? 'text-green-600' : 'text-red-600'}>
-                                                    <div>
-                                                      {hideBalances ? "••••••" : formatCurrency(positionGainLoss)}
-                                                    </div>
-                                                    <div className="text-xs">
-                                                      {hideBalances ? "••" : `${gainLossPercent >= 0 ? '+' : ''}${gainLossPercent.toFixed(2)}%`}
-                                                    </div>
-                                                  </div>
-                                                </td>
-                                              </tr>
-                                            );
-                                          })}
-                                        </tbody>
-                                      </table>
-                                    </div>
-                                  ) : (
-                                    <div className="text-gray-500 text-sm">No positions found in this account.</div>
-                                  )}
-                                  
-                                  <div className="mt-3 flex justify-end">
-                                    <button 
-                                      onClick={() => handleAddPositionClick(account.id)}
-                                      className="text-sm text-blue-600 hover:text-blue-800 flex items-center gap-1"
-                                    >
-                                      <Plus size={14} />
-                                      Add Position
-                                    </button>
-                                  </div>
-                                </div>
-                              </td>
-                            </tr>
-                          )}
-                        </React.Fragment>
-                      );
-                    })
-                  )}
+                  ))}
                 </tbody>
               </table>
             </div>
-          </div>
-        )}
-        
-        {/* Positions View */}
-        {viewMode === 'positions' && (
-          <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer" onClick={() => handleSort('ticker')}>
-                      <div className="flex items-center">
-                        Ticker
-                        {sortField === 'ticker' && (
-                          sortDirection === 'asc' ? <ChevronUp size={16} className="ml-1" /> : <ChevronDown size={16} className="ml-1" />
-                        )}
-                      </div>
-                    </th>
-                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Account
-                    </th>
-                    <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Shares
-                    </th>
-                    <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer" onClick={() => handleSort('price')}>
-                      <div className="flex items-center justify-end">
-                        Price
-                        {sortField === 'price' && (
-                          sortDirection === 'asc' ? <ChevronUp size={16} className="ml-1" /> : <ChevronDown size={16} className="ml-1" />
-                        )}
-                      </div>
-                    </th>
-                    <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer" onClick={() => handleSort('value')}>
-                      <div className="flex items-center justify-end">
-                        Value
-                        {sortField === 'value' && (
-                          sortDirection === 'asc' ? <ChevronUp size={16} className="ml-1" /> : <ChevronDown size={16} className="ml-1" />
-                        )}
-                      </div>
-                    </th>
-                    <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Cost Basis
-                    </th>
-                    <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer" onClick={() => handleSort('gainLoss')}>
-                      <div className="flex items-center justify-end">
-                        Gain/Loss
-                        {sortField === 'gainLoss' && (
-                          sortDirection === 'asc' ? <ChevronUp size={16} className="ml-1" /> : <ChevronDown size={16} className="ml-1" />
-                        )}
-                      </div>
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {loading ? (
-                    <tr>
-                      <td colSpan={7} className="p-6 text-center text-gray-500">
-                        Loading positions...
-                      </td>
-                    </tr>
-                  ) : getAllPositions().length === 0 ? (
-                    <tr>
-                      <td colSpan={7} className="p-6 text-center text-gray-500">
-                        No positions found. Add a position to get started.
-                      </td>
-                    </tr>
-                  ) : (
-                    getAllPositions().map((position) => {
-                      const positionValue = position.value || (position.price * position.shares);
-                      const positionCostBasis = (position.cost_basis || position.price) * position.shares;
-                      const positionGainLoss = positionValue - positionCostBasis;
-                      const gainLossPercent = positionCostBasis > 0 ? (positionGainLoss / positionCostBasis) * 100 : 0;
-                      
-                      return (
-                        <tr 
-                          key={position.id} 
-                          className="hover:bg-gray-50 cursor-pointer"
-                          onClick={() => handlePositionDetailClick(position)}
-                        >
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="font-medium text-blue-600">{position.ticker}</div>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-gray-500">
-                            {position.account_name}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-right text-gray-900">
-                            {position.shares.toLocaleString()}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-right text-gray-900">
-                            {formatCurrency(position.price)}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-right text-gray-900 font-medium">
-                            {hideBalances ? "••••••" : formatCurrency(positionValue)}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-right text-gray-900">
-                            {hideBalances ? "••••••"
-                            formatCurrency(positionCostBasis)}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-right">
-                            <div className={positionGainLoss >= 0 ? 'text-green-600' : 'text-red-600'}>
-                              <div>
-                                {hideBalances ? "••••••" : formatCurrency(positionGainLoss)}
-                              </div>
-                              <div className="text-xs">
-                                {hideBalances ? "••" : `${gainLossPercent >= 0 ? '+' : ''}${gainLossPercent.toFixed(2)}%`}
-                              </div>
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
-        
-        {/* Add Account Modal */}
-        {isAddAccountModalOpen && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-xl shadow-lg max-w-lg w-full p-6">
-              <div className="flex justify-between items-center mb-4">
-                <h2 className="text-xl font-bold text-gray-900">Add New Account</h2>
-                <button 
-                  onClick={() => setIsAddAccountModalOpen(false)}
-                  className="text-gray-500 hover:text-gray-700"
-                >
-                  <X size={24} />
-                </button>
-              </div>
-              
-              <div className="mb-6">
-                <h3 className="text-sm font-medium text-gray-700 mb-2">Account Category</h3>
-                <div className="flex space-x-4">
-                  <label className="flex items-center">
-                    <input
-                      type="radio"
-                      name="accountCategory"
-                      value="brokerage"
-                      className="mr-2"
-                    />
-                    <span>Brokerage</span>
-                  </label>
-                  <label className="flex items-center">
-                    <input
-                      type="radio"
-                      name="accountCategory"
-                      value="retirement"
-                      className="mr-2"
-                    />
-                    <span>Retirement</span>
-                  </label>
-                </div>
-              </div>
-              
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Account Name</label>
-                  <input
-                    type="text"
-                    placeholder="E.g., Main Brokerage, IRA"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
-                  />
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Institution</label>
-                  <input
-                    type="text"
-                    placeholder="E.g., Vanguard, Fidelity"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
-                  />
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Account Type</label>
-                  <select
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
-                  >
-                    <option value="">-- Select Account Type --</option>
-                    <option value="Individual">Individual</option>
-                    <option value="Joint">Joint</option>
-                    <option value="IRA">Traditional IRA</option>
-                    <option value="Roth IRA">Roth IRA</option>
-                    <option value="401k">401(k)</option>
-                    <option value="Trust">Trust</option>
-                  </select>
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Initial Balance</label>
-                  <input
-                    type="number"
-                    placeholder="0.00"
-                    step="0.01"
-                    min="0"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
-                  />
-                </div>
-              </div>
-              
-              <div className="mt-6 flex justify-end gap-3">
-                <button
-                  onClick={() => setIsAddAccountModalOpen(false)}
-                  className="px-4 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50"
-                >
-                  Cancel
-                </button>
-                <button
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-                >
-                  Add Account
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-        
-        {/* Add Position (US Securities) Modal */}
-        {isUSSecuritiesModalOpen && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-xl shadow-lg max-w-lg w-full p-6">
-              <div className="flex justify-between items-center mb-4">
-                <h2 className="text-xl font-bold text-gray-900">Add Security</h2>
-                <button 
-                  onClick={() => setIsUSSecuritiesModalOpen(false)}
-                  className="text-gray-500 hover:text-gray-700"
-                >
-                  <X size={24} />
-                </button>
-              </div>
-              
-              <div className="space-y-4">
-                <div className="relative">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Search Ticker</label>
-                  <input
-                    type="text"
-                    value={securitySearch}
-                    onChange={(e) => handleSecuritySearch(e.target.value)}
-                    placeholder="E.g., AAPL, MSFT, GOOGL"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
-                  />
-                  
-                  {searchResults.length > 0 && (
-                    <div className="absolute left-0 right-0 mt-1 bg-white border border-gray-300 rounded-lg shadow-lg z-10 max-h-60 overflow-y-auto">
-                      {searchResults.map((result) => (
-                        <div 
-                          key={result.ticker} 
-                          className="p-3 hover:bg-gray-100 cursor-pointer border-b border-gray-200 last:border-b-0"
-                          onClick={() => {
-                            setSecuritySearch(result.ticker);
-                            setSecurityPrice(result.price || 0);
-                            setSearchResults([]);
-                          }}
-                        >
-                          <div className="flex justify-between">
-                            <div>
-                              <div className="font-medium text-blue-600">{result.ticker}</div>
-                              <div className="text-sm text-gray-600">{result.name}</div>
-                            </div>
-                            <div className="text-gray-900 font-medium">
-                              {formatCurrency(result.price || 0)}
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-                
-                {securitySearch && (
-                  <>
-                    <div className="bg-gray-50 p-3 rounded-lg">
-                      <div className="flex justify-between items-center mb-2">
-                        <p className="font-medium">{securitySearch.toUpperCase()}</p>
-                        <div className="text-sm text-gray-600">Current Price: {formatCurrency(securityPrice)}</div>
-                      </div>
-                    </div>
-                    
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Number of Shares</label>
-                        <input
-                          type="number"
-                          value={securityShares}
-                          onChange={(e) => {
-                            const shares = parseFloat(e.target.value);
-                            setSecurityShares(shares);
-                            if (costPerShare) {
-                              setTotalCost(shares * costPerShare);
-                            }
-                          }}
-                          step="0.01"
-                          min="0.01"
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
-                        />
-                      </div>
-                      
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Purchase Date</label>
-                        <input
-                          type="date"
-                          value={purchaseDate}
-                          onChange={(e) => setPurchaseDate(e.target.value)}
-                          max={new Date().toISOString().split('T')[0]}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
-                        />
-                      </div>
-                    </div>
-                    
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Cost Per Share</label>
-                        <input
-                          type="number"
-                          value={costPerShare}
-                          onChange={(e) => {
-                            const cost = parseFloat(e.target.value);
-                            setCostPerShare(cost);
-                            setTotalCost(securityShares * cost);
-                          }}
-                          step="0.01"
-                          min="0.01"
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
-                        />
-                      </div>
-                      
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Total Cost</label>
-                        <input
-                          type="number"
-                          value={totalCost}
-                          onChange={(e) => {
-                            const total = parseFloat(e.target.value);
-                            setTotalCost(total);
-                            if (securityShares > 0) {
-                              setCostPerShare(total / securityShares);
-                            }
-                          }}
-                          step="0.01"
-                          min="0.01"
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
-                        />
-                      </div>
-                    </div>
-                    
-                    <div className="bg-blue-50 p-3 rounded-lg">
-                      <div className="grid grid-cols-2 gap-4">
-                        <div>
-                          <p className="text-sm text-gray-600">Current Value</p>
-                          <p className="font-medium">{formatCurrency(securityPrice * securityShares)}</p>
-                        </div>
-                        
-                        {totalCost > 0 && (
-                          <div>
-                            <p className="text-sm text-gray-600">Unrealized Gain/Loss</p>
-                            <p className={`font-medium ${(securityPrice * securityShares - totalCost) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                              {formatCurrency(securityPrice * securityShares - totalCost)}
-                              {' '}
-                              ({((securityPrice * securityShares) / totalCost * 100 - 100).toFixed(2)}%)
-                            </p>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </>
-                )}
-              </div>
-              
-              {formMessage && (
-                <div className={`mt-4 p-3 rounded-lg ${
-                  formMessage.includes("Error") || formMessage.includes("Failed") 
-                    ? "bg-red-100 text-red-700" 
-                    : "bg-green-100 text-green-700"
-                }`}>
-                  {formMessage}
-                </div>
-              )}
-              
-              <div className="mt-6 flex justify-end gap-3">
-                <button
-                  onClick={() => setIsUSSecuritiesModalOpen(false)}
-                  className="px-4 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleAddSecurity}
-                  disabled={!securitySearch || securityShares <= 0 || !purchaseDate || costPerShare <= 0}
-                  className={`px-4 py-2 rounded-lg ${
-                    !securitySearch || securityShares <= 0 || !purchaseDate || costPerShare <= 0
-                      ? 'bg-blue-300 cursor-not-allowed'
-                      : 'bg-blue-600 hover:bg-blue-700'
-                  } text-white`}
-                >
-                  Add Position
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-        
-        {/* Filter Modal */}
-        {isFilterModalOpen && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-xl shadow-lg max-w-md w-full p-6">
-              <div className="flex justify-between items-center mb-4">
-                <h2 className="text-xl font-bold text-gray-900">Filter Options</h2>
-                <button 
-                  onClick={() => setIsFilterModalOpen(false)}
-                  className="text-gray-500 hover:text-gray-700"
-                >
-                  <X size={24} />
-                </button>
-              </div>
-              
-              <div className="space-y-5">
-                <div>
-                  <h3 className="text-sm font-medium text-gray-700 mb-2">Account Type</h3>
-                  <select
-                    value={filterOptions.accountType}
-                    onChange={(e) => setFilterOptions({...filterOptions, accountType: e.target.value})}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
-                  >
-                    <option value="all">All Account Types</option>
-                    <option value="brokerage">Brokerage</option>
-                    <option value="ira">IRA</option>
-                    <option value="401k">401(k)</option>
-                    <option value="roth">Roth IRA</option>
-                  </select>
-                </div>
-                
-                <div>
-                  <h3 className="text-sm font-medium text-gray-700 mb-2">Gain/Loss Filter</h3>
-                  <select
-                    value={filterOptions.gainLoss}
-                    onChange={(e) => setFilterOptions({...filterOptions, gainLoss: e.target.value})}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
-                  >
-                    <option value="all">Show All</option>
-                    <option value="gains">Gains Only</option>
-                    <option value="losses">Losses Only</option>
-                  </select>
-                </div>
-                
-                <div>
-                  <h3 className="text-sm font-medium text-gray-700 mb-2">Asset Class</h3>
-                  <select
-                    value={filterOptions.assetClass}
-                    onChange={(e) => setFilterOptions({...filterOptions, assetClass: e.target.value})}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
-                  >
-                    <option value="all">All Asset Classes</option>
-                    <option value="stocks">Stocks</option>
-                    <option value="etfs">ETFs</option>
-                    <option value="funds">Mutual Funds</option>
-                    <option value="bonds">Bonds</option>
-                  </select>
-                </div>
-              </div>
-              
-              <div className="mt-6 flex justify-between">
-                <button
-                  onClick={() => {
-                    setFilterOptions({
-                      accountType: 'all',
-                      assetClass: 'all',
-                      gainLoss: 'all',
-                    });
-                  }}
-                  className="px-4 py-2 text-blue-600 hover:text-blue-800"
-                >
-                  Reset Filters
-                </button>
-                <button
-                  onClick={() => setIsFilterModalOpen(false)}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-                >
-                  Apply Filters
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-        
-        {/* Bulk Upload Modal */}
-        {isBulkUploadModalOpen && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-xl shadow-lg max-w-4xl w-full p-6">
-              <div className="flex justify-between items-center mb-4">
-                <h2 className="text-xl font-bold text-gray-900">
-                  {bulkUploadStep === 1 ? 'Select Account for Bulk Upload' : 'Bulk Upload Positions'}
-                </h2>
-                <button 
-                  onClick={() => {
-                    setIsBulkUploadModalOpen(false);
-                    setBulkUploadStep(1);
-                  }}
-                  className="text-gray-500 hover:text-gray-700"
-                >
-                  <X size={24} />
-                </button>
-              </div>
-              
-              {bulkUploadStep === 1 ? (
-                <div>
-                  <p className="mb-4 text-gray-600">Select an account to bulk upload positions:</p>
-                  
-                  <div className="space-y-3 max-h-96 overflow-y-auto">
-                    {accounts.map((account) => (
-                      <button
-                        key={account.id}
-                        onClick={() => {
-                          setSelectedBulkAccount(account);
-                          setBulkUploadStep(2);
-                        }}
-                        className="w-full p-4 border border-gray-200 rounded-lg hover:bg-gray-50 flex justify-between items-center"
-                      >
-                        <div className="text-left">
-                          <div className="font-medium text-gray-900">{account.account_name}</div>
-                          <div className="text-sm text-gray-500">
-                            {account.institution || 'N/A'} • {account.type || 'N/A'}
-                          </div>
-                        </div>
-                        <ChevronRight size={20} className="text-gray-400" />
-                      </button>
-                    ))}
-                  </div>
-                  
-                  <div className="mt-6 flex justify-end">
-                    <button
-                      onClick={() => setIsBulkUploadModalOpen(false)}
-                      className="px-4 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50"
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <div>
-                  <p className="mb-1 text-gray-600">
-                    Uploading to: <span className="font-medium">{selectedBulkAccount.account_name}</span>
-                  </p>
-                  
-                  <div className="mb-4">
-                    <div className="flex items-center gap-2 mb-2">
-                      <Download size={18} className="text-blue-600" />
-                      <h3 className="font-medium text-gray-900">Paste your data below</h3>
-                    </div>
-                    <textarea
-                      value={bulkData}
-                      onChange={(e) => setBulkData(e.target.value)}
-                      placeholder="Paste data from spreadsheet (CSV, TSV)..."
-                      className="w-full h-32 px-3 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 font-mono text-sm"
-                    />
-                  </div>
-                  
-                  <div className="bg-blue-50 p-4 rounded-lg mb-4">
-                    <h4 className="text-sm font-semibold text-blue-700 mb-2">Format Instructions</h4>
-                    <p className="text-sm text-blue-600 mb-2">
-                      Your data should have the following columns in this order:
-                    </p>
-                    <div className="grid grid-cols-5 gap-2 mb-3">
-                      <div className="text-xs font-semibold text-blue-700 text-center bg-blue-100 py-1 px-2 rounded">Ticker</div>
-                      <div className="text-xs font-semibold text-blue-700 text-center bg-blue-100 py-1 px-2 rounded">Shares</div>
-                      <div className="text-xs font-semibold text-blue-700 text-center bg-blue-100 py-1 px-2 rounded">Price</div>
-                      <div className="text-xs font-semibold text-blue-700 text-center bg-blue-100 py-1 px-2 rounded">Cost Basis</div>
-                      <div className="text-xs font-semibold text-blue-700 text-center bg-blue-100 py-1 px-2 rounded">Purchase Date</div>
-                    </div>
-                    <p className="text-xs text-blue-600">
-                      Example: AAPL,10,185.92,150.75,2022-06-15
-                    </p>
-                  </div>
-                  
-                  {/* Data Preview */}
-                  <div className="mb-4">
-                    <h3 className="text-sm font-medium text-gray-700 mb-2">Data Preview</h3>
-                    <div className="border border-gray-200 rounded-lg overflow-hidden">
-                      <div className="grid grid-cols-5 gap-1 bg-gray-100 p-2 text-xs font-medium text-gray-700">
-                        <div>Ticker</div>
-                        <div>Shares</div>
-                        <div>Price</div>
-                        <div>Cost Basis</div>
-                        <div>Purchase Date</div>
-                      </div>
-                      
-                      <div className="max-h-40 overflow-y-auto">
-                        {getParsedBulkData().length > 0 ? (
-                          getParsedBulkData().map((row, index) => (
-                            <div 
-                              key={index} 
-                              className={`grid grid-cols-5 gap-1 p-2 text-xs ${index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}`}
-                            >
-                              {row.map((cell, cellIndex) => (
-                                <div key={cellIndex}>{cell}</div>
-                              ))}
-                            </div>
-                          ))
-                        ) : (
-                          <div className="p-4 text-center text-gray-500 text-sm">
-                            Paste your data above to see a preview
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                  
-                  {formMessage && (
-                    <div className={`mb-4 p-3 rounded-lg ${
-                      formMessage.includes("Error") || formMessage.includes("Failed") 
-                        ? "bg-red-100 text-red-700" 
-                        : "bg-green-100 text-green-700"
-                    }`}>
-                      {formMessage}
-                    </div>
-                  )}
-                  
-                  <div className="flex justify-between">
-                    <button
-                      onClick={() => setBulkUploadStep(1)}
-                      className="px-4 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50"
-                    >
-                      Back
-                    </button>
-                    
-                    <button
-                      onClick={handleBulkUpload}
-                      disabled={!bulkData.trim() || isProcessingBulk}
-                      className={`px-4 py-2 rounded-lg ${
-                        !bulkData.trim() || isProcessingBulk
-                          ? 'bg-blue-300 cursor-not-allowed'
-                          : 'bg-blue-600 hover:bg-blue-700'
-                      } text-white flex items-center gap-2`}
-                    >
-                      {isProcessingBulk && (
-                        <RefreshCw size={16} className="animate-spin" />
-                      )}
-                      {isProcessingBulk ? 'Processing...' : `Upload ${getParsedBulkData().length} Positions`}
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-        
-        {/* Position Detail Modal */}
-        {isPositionDetailModalOpen && selectedPositionDetail && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-xl shadow-lg max-w-3xl w-full p-6">
-              <div className="flex justify-between items-center mb-6">
-                <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center text-blue-600 font-bold text-xl">
-                    {selectedPositionDetail.ticker.charAt(0)}
-                  </div>
+          )}
+        </div>
+
+        {/* Recently Viewed Section */}
+        <div className="bg-gray-800/70 backdrop-blur-sm p-6 rounded-xl mb-8">
+          <h2 className="text-xl font-semibold mb-4 flex items-center">
+            <Clock className="w-5 h-5 mr-2 text-blue-400" />
+            Recently Viewed
+          </h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            {[mockSecurities[0], mockSecurities[3], mockSecurities[6], mockSecurities[4]].map((security) => (
+              <div 
+                key={`recent-${security.id}`}
+                className="bg-gray-700/50 rounded-lg p-4 hover:bg-gray-700 transition-colors cursor-pointer"
+                onClick={() => openSecurityDetail(security)}
+              >
+                <div className="flex justify-between items-start mb-2">
                   <div>
-                    <h2 className="text-2xl font-bold text-gray-900">{selectedPositionDetail.ticker}</h2>
-                    <p className="text-gray-500">
-                      {(() => {
-                        // Find account name if it's not in the position data
-                        if (selectedPositionDetail.account_name) {
-                          return selectedPositionDetail.account_name;
-                        } else {
-                          const account = accounts.find(a => a.id === selectedPositionDetail.account_id);
-                          return account ? account.account_name : 'Unknown Account';
-                        }
-                      })()}
-                    </p>
+                    <h3 className="font-medium">{security.symbol}</h3>
+                    <p className="text-sm text-gray-400 truncate">{security.name}</p>
                   </div>
-                </div>
-                <button 
-                  onClick={() => setIsPositionDetailModalOpen(false)}
-                  className="text-gray-500 hover:text-gray-700"
-                >
-                  <X size={24} />
-                </button>
-              </div>
-              
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-                <div className="bg-gray-50 p-4 rounded-lg">
-                  <p className="text-sm text-gray-500 mb-1">Shares</p>
-                  <p className="text-xl font-semibold">{selectedPositionDetail.shares.toLocaleString()}</p>
-                </div>
-                
-                <div className="bg-gray-50 p-4 rounded-lg">
-                  <p className="text-sm text-gray-500 mb-1">Current Price</p>
-                  <p className="text-xl font-semibold">{formatCurrency(selectedPositionDetail.price)}</p>
-                </div>
-                
-                <div className="bg-gray-50 p-4 rounded-lg">
-                  <p className="text-sm text-gray-500 mb-1">Market Value</p>
-                  <p className="text-xl font-semibold">
-                    {formatCurrency(selectedPositionDetail.value || (selectedPositionDetail.price * selectedPositionDetail.shares))}
-                  </p>
-                </div>
-                
-                <div className="bg-gray-50 p-4 rounded-lg">
-                  <p className="text-sm text-gray-500 mb-1">Cost Basis Per Share</p>
-                  <p className="text-xl font-semibold">
-                    {formatCurrency(selectedPositionDetail.cost_basis || selectedPositionDetail.price)}
-                  </p>
-                </div>
-                
-                <div className="bg-gray-50 p-4 rounded-lg">
-                  <p className="text-sm text-gray-500 mb-1">Total Cost Basis</p>
-                  <p className="text-xl font-semibold">
-                    {formatCurrency((selectedPositionDetail.cost_basis || selectedPositionDetail.price) * selectedPositionDetail.shares)}
-                  </p>
-                </div>
-                
-                <div className="bg-gray-50 p-4 rounded-lg">
-                  <p className="text-sm text-gray-500 mb-1">Unrealized Gain/Loss</p>
-                  {(() => {
-                    const positionValue = selectedPositionDetail.value || (selectedPositionDetail.price * selectedPositionDetail.shares);
-                    const positionCostBasis = (selectedPositionDetail.cost_basis || selectedPositionDetail.price) * selectedPositionDetail.shares;
-                    const positionGainLoss = positionValue - positionCostBasis;
-                    const gainLossPercent = positionCostBasis > 0 ? (positionGainLoss / positionCostBasis) * 100 : 0;
-                    
-                    return (
-                      <div className={positionGainLoss >= 0 ? 'text-green-600' : 'text-red-600'}>
-                        <p className="text-xl font-semibold">{formatCurrency(positionGainLoss)}</p>
-                        <p className="text-sm">{`${gainLossPercent >= 0 ? '+' : ''}${gainLossPercent.toFixed(2)}%`}</p>
-                      </div>
-                    );
-                  })()}
-                </div>
-              </div>
-              
-              <div className="bg-gray-50 p-4 rounded-lg mb-6">
-                <h3 className="font-medium text-gray-700 mb-3">Position History</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <p className="text-sm text-gray-500 mb-1">Purchase Date</p>
-                    formatCurrency(positionCostBasis)}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-right">
-                            <div className={positionGainLoss >= 0 ? 'text-green-600' : 'text-red-600'}>
-                              <div>
-                                {hideBalances ? "••••••" : formatCurrency(positionGainLoss)}
-                              </div>
-                              <div className="text-xs">
-                                {hideBalances ? "••" : `${gainLossPercent >= 0 ? '+' : ''}${gainLossPercent.toFixed(2)}%`}
-                              </div>
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
-        
-        {/* Add Account Modal */}
-        {isAddAccountModalOpen && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-xl shadow-lg max-w-lg w-full p-6">
-              <div className="flex justify-between items-center mb-4">
-                <h2 className="text-xl font-bold text-gray-900">Add New Account</h2>
-                <button 
-                  onClick={() => setIsAddAccountModalOpen(false)}
-                  className="text-gray-500 hover:text-gray-700"
-                >
-                  <X size={24} />
-                </button>
-              </div>
-              
-              <div className="mb-6">
-                <h3 className="text-sm font-medium text-gray-700 mb-2">Account Category</h3>
-                <div className="flex space-x-4">
-                  <label className="flex items-center">
-                    <input
-                      type="radio"
-                      name="accountCategory"
-                      value="brokerage"
-                      className="mr-2"
-                    />
-                    <span>Brokerage</span>
-                  </label>
-                  <label className="flex items-center">
-                    <input
-                      type="radio"
-                      name="accountCategory"
-                      value="retirement"
-                      className="mr-2"
-                    />
-                    <span>Retirement</span>
-                  </label>
-                </div>
-              </div>
-              
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Account Name</label>
-                  <input
-                    type="text"
-                    placeholder="E.g., Main Brokerage, IRA"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
-                  />
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Institution</label>
-                  <input
-                    type="text"
-                    placeholder="E.g., Vanguard, Fidelity"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
-                  />
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Account Type</label>
-                  <select
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      toggleWatchlist(security.id);
+                    }}
+                    className="text-gray-400 hover:text-yellow-400 transition-colors"
                   >
-                    <option value="">-- Select Account Type --</option>
-                    <option value="Individual">Individual</option>
-                    <option value="Joint">Joint</option>
-                    <option value="IRA">Traditional IRA</option>
-                    <option value="Roth IRA">Roth IRA</option>
-                    <option value="401k">401(k)</option>
-                    <option value="Trust">Trust</option>
-                  </select>
+                    <Star className="h-5 w-5" fill={security.isWatchlisted ? "currentColor" : "none"} />
+                  </button>
                 </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Initial Balance</label>
-                  <input
-                    type="number"
-                    placeholder="0.00"
-                    step="0.01"
-                    min="0"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
-                  />
+                <div className="flex justify-between items-center">
+                  <span className="font-medium">${security.price.toFixed(2)}</span>
+                  {renderTrend(security.change)}
                 </div>
               </div>
-              
-              <div className="mt-6 flex justify-end gap-3">
-                <button
-                  onClick={() => setIsAddAccountModalOpen(false)}
-                  className="px-4 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50"
-                >
-                  Cancel
-                </button>
-                <button
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-                >
-                  Add Account
-                </button>
-              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Sector Distribution */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+          <div className="bg-gray-800/70 backdrop-blur-sm p-6 rounded-xl lg:col-span-2">
+            <h2 className="text-xl font-semibold mb-4">Popular Sectors</h2>
+            <div className="space-y-4">
+              {[
+                { name: "Technology", value: 34, color: "bg-blue-500" },
+                { name: "Healthcare", value: 18, color: "bg-green-500" },
+                { name: "Financial Services", value: 15, color: "bg-purple-500" },
+                { name: "Consumer Cyclical", value: 12, color: "bg-yellow-500" },
+                { name: "Communication Services", value: 10, color: "bg-red-500" }
+              ].map((sector) => (
+                <div key={sector.name}>
+                  <div className="flex justify-between text-sm mb-1">
+                    <span>{sector.name}</span>
+                    <span>{sector.value}%</span>
+                  </div>
+                  <div className="w-full bg-gray-700 rounded-full h-2.5">
+                    <div
+                      className={`${sector.color} h-2.5 rounded-full`}
+                      style={{ width: `${sector.value}%` }}
+                    ></div>
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
-        )}
-        
-        {/* Add Position (US Securities) Modal */}
-        {isUSSecuritiesModalOpen && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-xl shadow-lg max-w-lg w-full p-6">
-              <div className="flex justify-between items-center mb-4">
-                <h2 className="text-xl font-bold text-gray-900">Add Security</h2>
-                <button 
-                  onClick={() => setIsUSSecuritiesModalOpen(false)}
-                  className="text-gray-500 hover:text-gray-700"
-                >
-                  <X size={24} />
-                </button>
-              </div>
-              
-              <div className="space-y-4">
-                <div className="relative">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Search Ticker</label>
-                  <input
-                    type="text"
-                    value={securitySearch}
-                    onChange={(e) => handleSecuritySearch(e.target.value)}
-                    placeholder="E.g., AAPL, MSFT, GOOGL"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
-                  />
-                  
-                  {searchResults.length > 0 && (
-                    <div className="absolute left-0 right-0 mt-1 bg-white border border-gray-300 rounded-lg shadow-lg z-10 max-h-60 overflow-y-auto">
-                      {searchResults.map((result) => (
-                        <div 
-                          key={result.ticker} 
-                          className="p-3 hover:bg-gray-100 cursor-pointer border-b border-gray-200 last:border-b-0"
-                          onClick={() => {
-                            setSecuritySearch(result.ticker);
-                            setSecurityPrice(result.price || 0);
-                            setSearchResults([]);
-                          }}
-                        >
-                          <div className="flex justify-between">
-                            <div>
-                              <div className="font-medium text-blue-600">{result.ticker}</div>
-                              <div className="text-sm text-gray-600">{result.name}</div>
-                            </div>
-                            <div className="text-gray-900 font-medium">
-                              {formatCurrency(result.price || 0)}
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-                
-                {securitySearch && (
-                  <>
-                    <div className="bg-gray-50 p-3 rounded-lg">
-                      <div className="flex justify-between items-center mb-2">
-                        <p className="font-medium">{securitySearch.toUpperCase()}</p>
-                        <div className="text-sm text-gray-600">Current Price: {formatCurrency(securityPrice)}</div>
-                      </div>
-                    </div>
-                    
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Number of Shares</label>
-                        <input
-                          type="number"
-                          value={securityShares}
-                          onChange={(e) => {
-                            const shares = parseFloat(e.target.value);
-                            setSecurityShares(shares);
-                            if (costPerShare) {
-                              setTotalCost(shares * costPerShare);
-                            }
-                          }}
-                          step="0.01"
-                          min="0.01"
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
-                        />
-                      </div>
-                      
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Purchase Date</label>
-                        <input
-                          type="date"
-                          value={purchaseDate}
-                          onChange={(e) => setPurchaseDate(e.target.value)}
-                          max={new Date().toISOString().split('T')[0]}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
-                        />
-                      </div>
-                    </div>
-                    
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Cost Per Share</label>
-                        <input
-                          type="number"
-                          value={costPerShare}
-                          onChange={(e) => {
-                            const cost = parseFloat(e.target.value);
-                            setCostPerShare(cost);
-                            setTotalCost(securityShares * cost);
-                          }}
-                          step="0.01"
-                          min="0.01"
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
-                        />
-                      </div>
-                      
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Total Cost</label>
-                        <input
-                          type="number"
-                          value={totalCost}
-                          onChange={(e) => {
-                            const total = parseFloat(e.target.value);
-                            setTotalCost(total);
-                            if (securityShares > 0) {
-                              setCostPerShare(total / securityShares);
-                            }
-                          }}
-                          step="0.01"
-                          min="0.01"
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
-                        />
-                      </div>
-                    </div>
-                    
-                    <div className="bg-blue-50 p-3 rounded-lg">
-                      <div className="grid grid-cols-2 gap-4">
-                        <div>
-                          <p className="text-sm text-gray-600">Current Value</p>
-                          <p className="font-medium">{formatCurrency(securityPrice * securityShares)}</p>
-                        </div>
-                        
-                        {totalCost > 0 && (
-                          <div>
-                            <p className="text-sm text-gray-600">Unrealized Gain/Loss</p>
-                            <p className={`font-medium ${(securityPrice * securityShares - totalCost) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                              {formatCurrency(securityPrice * securityShares - totalCost)}
-                              {' '}
-                              ({((securityPrice * securityShares) / totalCost * 100 - 100).toFixed(2)}%)
-                            </p>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </>
-                )}
-              </div>
-              
-              {formMessage && (
-                <div className={`mt-4 p-3 rounded-lg ${
-                  formMessage.includes("Error") || formMessage.includes("Failed") 
-                    ? "bg-red-100 text-red-700" 
-                    : "bg-green-100 text-green-700"
-                }`}>
-                  {formMessage}
-                </div>
-              )}
-              
-              <div className="mt-6 flex justify-end gap-3">
-                <button
-                  onClick={() => setIsUSSecuritiesModalOpen(false)}
-                  className="px-4 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleAddSecurity}
-                  disabled={!securitySearch || securityShares <= 0 || !purchaseDate || costPerShare <= 0}
-                  className={`px-4 py-2 rounded-lg ${
-                    !securitySearch || securityShares <= 0 || !purchaseDate || costPerShare <= 0
-                      ? 'bg-blue-300 cursor-not-allowed'
-                      : 'bg-blue-600 hover:bg-blue-700'
-                  } text-white`}
-                >
-                  Add Position
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-        
-        {/* Filter Modal */}
-        {isFilterModalOpen && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-xl shadow-lg max-w-md w-full p-6">
-              <div className="flex justify-between items-center mb-4">
-                <h2 className="text-xl font-bold text-gray-900">Filter Options</h2>
-                <button 
-                  onClick={() => setIsFilterModalOpen(false)}
-                  className="text-gray-500 hover:text-gray-700"
-                >
-                  <X size={24} />
-                </button>
-              </div>
-              
-              <div className="space-y-5">
-                <div>
-                  <h3 className="text-sm font-medium text-gray-700 mb-2">Account Type</h3>
-                  <select
-                    value={filterOptions.accountType}
-                    onChange={(e) => setFilterOptions({...filterOptions, accountType: e.target.value})}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
+
+          <div className="bg-gray-800/70 backdrop-blur-sm p-6 rounded-xl">
+            <h2 className="text-xl font-semibold mb-4">Top Performers</h2>
+            <div className="space-y-3">
+              {mockSecurities
+                .sort((a, b) => b.change - a.change)
+                .slice(0, 5)
+                .map((security) => (
+                  <div 
+                    key={`top-${security.id}`}
+                    className="flex items-center justify-between p-3 bg-gray-700/50 rounded-lg hover:bg-gray-700 transition-colors cursor-pointer"
+                    onClick={() => openSecurityDetail(security)}
                   >
-                    <option value="all">All Account Types</option>
-                    <option value="brokerage">Brokerage</option>
-                    <option value="ira">IRA</option>
-                    <option value="401k">401(k)</option>
-                    <option value="roth">Roth IRA</option>
-                  </select>
-                </div>
-                
-                <div>
-                  <h3 className="text-sm font-medium text-gray-700 mb-2">Gain/Loss Filter</h3>
-                  <select
-                    value={filterOptions.gainLoss}
-                    onChange={(e) => setFilterOptions({...filterOptions, gainLoss: e.target.value})}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
-                  >
-                    <option value="all">Show All</option>
-                    <option value="gains">Gains Only</option>
-                    <option value="losses">Losses Only</option>
-                  </select>
-                </div>
-                
-                <div>
-                  <h3 className="text-sm font-medium text-gray-700 mb-2">Asset Class</h3>
-                  <select
-                    value={filterOptions.assetClass}
-                    onChange={(e) => setFilterOptions({...filterOptions, assetClass: e.target.value})}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
-                  >
-                    <option value="all">All Asset Classes</option>
-                    <option value="stocks">Stocks</option>
-                    <option value="etfs">ETFs</option>
-                    <option value="funds">Mutual Funds</option>
-                    <option value="bonds">Bonds</option>
-                  </select>
-                </div>
-              </div>
-              
-              <div className="mt-6 flex justify-between">
-                <button
-                  onClick={() => {
-                    setFilterOptions({
-                      accountType: 'all',
-                      assetClass: 'all',
-                      gainLoss: 'all',
-                    });
-                  }}
-                  className="px-4 py-2 text-blue-600 hover:text-blue-800"
-                >
-                  Reset Filters
-                </button>
-                <button
-                  onClick={() => setIsFilterModalOpen(false)}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-                >
-                  Apply Filters
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-        
-        {/* Bulk Upload Modal */}
-        {isBulkUploadModalOpen && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-xl shadow-lg max-w-4xl w-full p-6">
-              <div className="flex justify-between items-center mb-4">
-                <h2 className="text-xl font-bold text-gray-900">
-                  {bulkUploadStep === 1 ? 'Select Account for Bulk Upload' : 'Bulk Upload Positions'}
-                </h2>
-                <button 
-                  onClick={() => {
-                    setIsBulkUploadModalOpen(false);
-                    setBulkUploadStep(1);
-                  }}
-                  className="text-gray-500 hover:text-gray-700"
-                >
-                  <X size={24} />
-                </button>
-              </div>
-              
-              {bulkUploadStep === 1 ? (
-                <div>
-                  <p className="mb-4 text-gray-600">Select an account to bulk upload positions:</p>
-                  
-                  <div className="space-y-3 max-h-96 overflow-y-auto">
-                    {accounts.map((account) => (
-                      <button
-                        key={account.id}
-                        onClick={() => {
-                          setSelectedBulkAccount(account);
-                          setBulkUploadStep(2);
-                        }}
-                        className="w-full p-4 border border-gray-200 rounded-lg hover:bg-gray-50 flex justify-between items-center"
-                      >
-                        <div className="text-left">
-                          <div className="font-medium text-gray-900">{account.account_name}</div>
-                          <div className="text-sm text-gray-500">
-                            {account.institution || 'N/A'} • {account.type || 'N/A'}
-                          </div>
-                        </div>
-                        <ChevronRight size={20} className="text-gray-400" />
-                      </button>
-                    ))}
-                  </div>
-                  
-                  <div className="mt-6 flex justify-end">
-                    <button
-                      onClick={() => setIsBulkUploadModalOpen(false)}
-                      className="px-4 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50"
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <div>
-                  <p className="mb-1 text-gray-600">
-                    Uploading to: <span className="font-medium">{selectedBulkAccount.account_name}</span>
-                  </p>
-                  
-                  <div className="mb-4">
-                    <div className="flex items-center gap-2 mb-2">
-                      <Download size={18} className="text-blue-600" />
-                      <h3 className="font-medium text-gray-900">Paste your data below</h3>
-                    </div>
-                    <textarea
-                      value={bulkData}
-                      onChange={(e) => setBulkData(e.target.value)}
-                      placeholder="Paste data from spreadsheet (CSV, TSV)..."
-                      className="w-full h-32 px-3 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 font-mono text-sm"
-                    />
-                  </div>
-                  
-                  <div className="bg-blue-50 p-4 rounded-lg mb-4">
-                    <h4 className="text-sm font-semibold text-blue-700 mb-2">Format Instructions</h4>
-                    <p className="text-sm text-blue-600 mb-2">
-                      Your data should have the following columns in this order:
-                    </p>
-                    <div className="grid grid-cols-5 gap-2 mb-3">
-                      <div className="text-xs font-semibold text-blue-700 text-center bg-blue-100 py-1 px-2 rounded">Ticker</div>
-                      <div className="text-xs font-semibold text-blue-700 text-center bg-blue-100 py-1 px-2 rounded">Shares</div>
-                      <div className="text-xs font-semibold text-blue-700 text-center bg-blue-100 py-1 px-2 rounded">Price</div>
-                      <div className="text-xs font-semibold text-blue-700 text-center bg-blue-100 py-1 px-2 rounded">Cost Basis</div>
-                      <div className="text-xs font-semibold text-blue-700 text-center bg-blue-100 py-1 px-2 rounded">Purchase Date</div>
-                    </div>
-                    <p className="text-xs text-blue-600">
-                      Example: AAPL,10,185.92,150.75,2022-06-15
-                    </p>
-                  </div>
-                  
-                  {/* Data Preview */}
-                  <div className="mb-4">
-                    <h3 className="text-sm font-medium text-gray-700 mb-2">Data Preview</h3>
-                    <div className="border border-gray-200 rounded-lg overflow-hidden">
-                      <div className="grid grid-cols-5 gap-1 bg-gray-100 p-2 text-xs font-medium text-gray-700">
-                        <div>Ticker</div>
-                        <div>Shares</div>
-                        <div>Price</div>
-                        <div>Cost Basis</div>
-                        <div>Purchase Date</div>
+                    <div className="flex items-center">
+                      <div className="w-8 h-8 rounded-full bg-gradient-to-br from-green-500 to-blue-500 flex items-center justify-center mr-3">
+                        <span className="text-xs font-bold">{security.symbol.charAt(0)}</span>
                       </div>
-                      
-                      <div className="max-h-40 overflow-y-auto">
-                        {getParsedBulkData().length > 0 ? (
-                          getParsedBulkData().map((row, index) => (
-                            <div 
-                              key={index} 
-                              className={`grid grid-cols-5 gap-1 p-2 text-xs ${index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}`}
-                            >
-                              {row.map((cell, cellIndex) => (
-                                <div key={cellIndex}>{cell}</div>
-                              ))}
-                            </div>
-                          ))
-                        ) : (
-                          <div className="p-4 text-center text-gray-500 text-sm">
-                            Paste your data above to see a preview
-                          </div>
-                        )}
+                      <div>
+                        <div className="font-medium">{security.symbol}</div>
+                        <div className="text-xs text-gray-400">{security.sector}</div>
                       </div>
                     </div>
-                  </div>
-                  
-                  {formMessage && (
-                    <div className={`mb-4 p-3 rounded-lg ${
-                      formMessage.includes("Error") || formMessage.includes("Failed") 
-                        ? "bg-red-100 text-red-700" 
-                        : "bg-green-100 text-green-700"
-                    }`}>
-                      {formMessage}
+                    <div className="text-green-500 font-medium flex items-center">
+                      <TrendingUp className="h-4 w-4 mr-1" />
+                      +{security.change.toFixed(2)}%
                     </div>
-                  )}
-                  
-                  <div className="flex justify-between">
-                    <button
-                      onClick={() => setBulkUploadStep(1)}
-                      className="px-4 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50"
-                    >
-                      Back
-                    </button>
-                    
-                    <button
-                      onClick={handleBulkUpload}
-                      disabled={!bulkData.trim() || isProcessingBulk}
-                      className={`px-4 py-2 rounded-lg ${
-                        !bulkData.trim() || isProcessingBulk
-                          ? 'bg-blue-300 cursor-not-allowed'
-                          : 'bg-blue-600 hover:bg-blue-700'
-                      } text-white flex items-center gap-2`}
-                    >
-                      {isProcessingBulk && (
-                        <RefreshCw size={16} className="animate-spin" />
-                      )}
-                      {isProcessingBulk ? 'Processing...' : `Upload ${getParsedBulkData().length} Positions`}
-                    </button>
                   </div>
-                </div>
-              )}
+                ))}
             </div>
+            <button className="w-full mt-4 py-2 text-blue-400 hover:text-blue-300 transition-colors flex items-center justify-center">
+              View More <ArrowUpRight className="h-4 w-4 ml-1" />
+            </button>
           </div>
-        )}
-        
-        {/* Position Detail Modal */}
-        {isPositionDetailModalOpen && selectedPositionDetail && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-xl shadow-lg max-w-3xl w-full p-6">
-              <div className="flex justify-between items-center mb-6">
-                <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center text-blue-600 font-bold text-xl">
-                    {selectedPositionDetail.ticker.charAt(0)}
-                  </div>
-                  <div>
-                    <h2 className="text-2xl font-bold text-gray-900">{selectedPositionDetail.ticker}</h2>
-                    <p className="text-gray-500">
-                      {(() => {
-                        // Find account name if it's not in the position data
-                        if (selectedPositionDetail.account_name) {
-                          return selectedPositionDetail.account_name;
-                        } else {
-                          const account = accounts.find(a => a.id === selectedPositionDetail.account_id);
-                          return account ? account.account_name : 'Unknown Account';
-                        }
-                      })()}
-                    </p>
-                  </div>
-                </div>
-                <button 
-                  onClick={() => setIsPositionDetailModalOpen(false)}
-                  className="text-gray-500 hover:text-gray-700"
-                >
-                  <X size={24} />
-                </button>
-              </div>
-              
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-                <div className="bg-gray-50 p-4 rounded-lg">
-                  <p className="text-sm text-gray-500 mb-1">Shares</p>
-                  <p className="text-xl font-semibold">{selectedPositionDetail.shares.toLocaleString()}</p>
-                </div>
-                
-                <div className="bg-gray-50 p-4 rounded-lg">
-                  <p className="text-sm text-gray-500 mb-1">Current Price</p>
-                  <p className="text-xl font-semibold">{formatCurrency(selectedPositionDetail.price)}</p>
-                </div>
-                
-                <div className="bg-gray-50 p-4 rounded-lg">
-                  <p className="text-sm text-gray-500 mb-1">Market Value</p>
-                  <p className="text-xl font-semibold">
-                    {formatCurrency(selectedPositionDetail.value || (selectedPositionDetail.price * selectedPositionDetail.shares))}
-                  </p>
-                </div>
-                
-                <div className="bg-gray-50 p-4 rounded-lg">
-                  <p className="text-sm text-gray-500 mb-1">Cost Basis Per Share</p>
-                  <p className="text-xl font-semibold">
-                    {formatCurrency(selectedPositionDetail.cost_basis || selectedPositionDetail.price)}
-                  </p>
-                </div>
-                
-                <div className="bg-gray-50 p-4 rounded-lg">
-                  <p className="text-sm text-gray-500 mb-1">Total Cost Basis</p>
-                  <p className="text-xl font-semibold">
-                    {formatCurrency((selectedPositionDetail.cost_basis || selectedPositionDetail.price) * selectedPositionDetail.shares)}
-                  </p>
-                </div>
-                
-                <div className="bg-gray-50 p-4 rounded-lg">
-                  <p className="text-sm text-gray-500 mb-1">Unrealized Gain/Loss</p>
-                  {(() => {
-                    const positionValue = selectedPositionDetail.value || (selectedPositionDetail.price * selectedPositionDetail.shares);
-                    const positionCostBasis = (selectedPositionDetail.cost_basis || selectedPositionDetail.price) * selectedPositionDetail.shares;
-                    const positionGainLoss = positionValue - positionCostBasis;
-                    const gainLossPercent = positionCostBasis > 0 ? (positionGainLoss / positionCostBasis) * 100 : 0;
-                    
-                    return (
-                      <div className={positionGainLoss >= 0 ? 'text-green-600' : 'text-red-600'}>
-                        <p className="text-xl font-semibold">{formatCurrency(positionGainLoss)}</p>
-                        <p className="text-sm">{`${gainLossPercent >= 0 ? '+' : ''}${gainLossPercent.toFixed(2)}%`}</p>
-                      </div>
-                    );
-                  })()}
-                </div>
-              </div>
-              
-              <div className="bg-gray-50 p-4 rounded-lg mb-6">
-                <h3 className="font-medium text-gray-700 mb-3">Position History</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <p className="text-sm text-gray-500 mb-1">Purchase Date</p>
-                    <p className="text-base font-medium">
-                      {selectedPositionDetail.purchase_date 
-                        ? new Date(selectedPositionDetail.purchase_date).toLocaleDateString() 
-                        : 'Unknown'}
-                    </p>
-                  </div>
-                  
-                  <div>
-                    <p className="text-sm text-gray-500 mb-1">Days Held</p>
-                    <p className="text-base font-medium">
-                      {selectedPositionDetail.purchase_date
-                        ? Math.floor((new Date() - new Date(selectedPositionDetail.purchase_date)) / (1000 * 60 * 60 * 24))
-                        : 'Unknown'}
-                    </p>
-                  </div>
-                </div>
-              </div>
-              
-              <div className="flex justify-end gap-3">
-                <button
-                  onClick={() => {
-                    setIsPositionDetailModalOpen(false);
-                    setEditPosition(selectedPositionDetail);
-                    setIsEditPositionModalOpen(true);
-                  }}
-                  className="px-4 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50"
-                >
-                  Edit Position
-                </button>
-                <button
-                  onClick={() => setIsPositionDetailModalOpen(false)}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-                >
-                  Close
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
+        </div>
       </div>
+
+      {/* Security Detail Modal */}
+      {selectedSecurity && (
+        <div className="fixed inset-0 z-50 overflow-y-auto">
+          <div className="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+            <div className="fixed inset-0 transition-opacity" aria-hidden="true">
+              <div className="absolute inset-0 bg-black/80 backdrop-blur-sm"></div>
+            </div>
+
+            <span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+            
+            <div className="inline-block align-bottom bg-gray-800 rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-3xl sm:w-full">
+              <div className="flex justify-between items-start p-6 border-b border-gray-700">
+                <div className="flex items-center">
+                  <div className="flex-shrink-0 h-12 w-12 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center mr-4">
+                    <span className="font-bold text-lg">{selectedSecurity.symbol.charAt(0)}</span>
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-semibold">{selectedSecurity.name}</h3>
+                    <div className="flex items-center mt-1">
+                      <span className="text-gray-400 mr-2">{selectedSecurity.symbol}</span>
+                      <span className="px-2 py-0.5 text-xs rounded-full bg-gray-700">
+                        {selectedSecurity.type === "stock" ? "Stock" : "ETF"}
+                      </span>
+                      <span className="ml-2 px-2 py-0.5 text-xs rounded-full bg-blue-900/70 text-blue-300">
+                        {selectedSecurity.sector}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+                <button
+                  onClick={closeSecurityDetail}
+                  className="text-gray-400 hover:text-white transition-colors"
+                >
+                  <X className="h-6 w-6" />
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-6">
+                {/* Price Overview */}
+                <div className="bg-gray-700/50 rounded-lg p-4">
+                  <h4 className="text-gray-400 text-sm mb-2">Current Price</h4>
+                  <div className="flex justify-between items-center mb-4">
+                    <span className="text-3xl font-bold">${selectedSecurity.price.toFixed(2)}</span>
+                    <div className={`px-3 py-1 rounded-full text-sm font-medium ${
+                      selectedSecurity.change > 0 ? 'bg-green-900/30 text-green-400' : 'bg-red-900/30 text-red-400'
+                    }`}>
+                      {selectedSecurity.change > 0 ? '+' : ''}{selectedSecurity.change.toFixed(2)}%
+                    </div>
+                  </div>
+                  
+                  {/* Chart Placeholder */}
+                  <div className="bg-gray-800/70 h-48 rounded-lg flex items-center justify-center mb-4">
+                    <div className="text-center text-gray-500">
+                      <BarChart4 className="h-8 w-8 mx-auto mb-2" />
+                      <p>Price chart loading...</p>
+                    </div>
+                  </div>
+                  
+                  <div className="grid grid-cols-3 gap-2">
+                    {['1D', '1W', '1M', '3M', '6M', 'YTD', '1Y', '5Y'].map((period) => (
+                      <button
+                        key={period}
+                        className={`py-1 text-center rounded ${
+                          period === '1M' 
+                            ? 'bg-blue-600 text-white' 
+                            : 'bg-gray-700 text-gray-400 hover:bg-gray-600 transition-colors'
+                        }`}
+                      >
+                        {period}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Key Statistics */}
+                <div className="bg-gray-700/50 rounded-lg p-4">
+                  <h4 className="text-gray-400 text-sm mb-4">Key Statistics</h4>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <p className="text-gray-400 text-sm">Market Cap</p>
+                      <p className="font-medium">{selectedSecurity.marketCap}</p>
+                    </div>
+                    <div>
+                      <p className="text-gray-400 text-sm">P/E Ratio</p>
+                      <p className="font-medium">{selectedSecurity.pe ? selectedSecurity.pe.toFixed(2) : 'N/A'}</p>
+                    </div>
+                    <div>
+                      <p className="text-gray-400 text-sm">Dividend Yield</p>
+                      <p className="font-medium">{selectedSecurity.dividend ? selectedSecurity.dividend.toFixed(2) + '%' : 'N/A'}</p>
+                    </div>
+                    <div>
+                      <p className="text-gray-400 text-sm">Beta</p>
+                      <p className="font-medium">{selectedSecurity.beta.toFixed(2)}</p>
+                    </div>
+                    <div>
+                      <p className="text-gray-400 text-sm">52-Week High</p>
+                      <p className="font-medium">${(selectedSecurity.price * 1.2).toFixed(2)}</p>
+                    </div>
+                    <div>
+                      <p className="text-gray-400 text-sm">52-Week Low</p>
+                      <p className="font-medium">${(selectedSecurity.price * 0.8).toFixed(2)}</p>
+                    </div>
+                    <div>
+                      <p className="text-gray-400 text-sm">Average Volume</p>
+                      <p className="font-medium">5.2M</p>
+                    </div>
+                    <div>
+                      <p className="text-gray-400 text-sm">Popularity</p>
+                      <p className="font-medium">{selectedSecurity.popularity}/100</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Security Description */}
+              <div className="p-6 border-t border-gray-700">
+                <h4 className="text-gray-400 text-sm mb-2">About</h4>
+                <p className="text-gray-300 mb-6">{selectedSecurity.description}</p>
+                
+                {/* Action Buttons */}
+                <div className="flex flex-wrap gap-3">
+                  <button
+                    onClick={() => {
+                      toggleWatchlist(selectedSecurity.id);
+                      closeSecurityDetail();
+                    }}
+                    className={`px-4 py-2 rounded-lg flex items-center ${
+                      selectedSecurity.isWatchlisted
+                        ? 'bg-yellow-500/20 text-yellow-400 hover:bg-yellow-500/30'
+                        : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                    } transition-colors`}
+                  >
+                    <Star className="h-5 w-5 mr-2" fill={selectedSecurity.isWatchlisted ? "currentColor" : "none"} />
+                    {selectedSecurity.isWatchlisted ? 'Remove from Watchlist' : 'Add to Watchlist'}
+                  </button>
+                  <button className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center">
+                    <Plus className="h-5 w-5 mr-2" />
+                    Add to Portfolio
+                  </button>
+                  <button className="px-4 py-2 bg-purple-600/20 text-purple-400 rounded-lg hover:bg-purple-600/30 transition-colors flex items-center">
+                    <BarChart4 className="h-5 w-5 mr-2" />
+                    View Detailed Charts
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Watchlist Management Modal */}
+      {watchlistModal && (
+        <div className="fixed inset-0 z-50 overflow-y-auto">
+          <div className="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+            <div className="fixed inset-0 transition-opacity" aria-hidden="true">
+              <div className="absolute inset-0 bg-black/80 backdrop-blur-sm"></div>
+            </div>
+
+            <span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+            
+            <div className="inline-block align-bottom bg-gray-800 rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
+              <div className="flex justify-between items-start p-6 border-b border-gray-700">
+                <div className="flex items-center">
+                  <Star className="w-6 h-6 text-yellow-400 mr-3" />
+                  <h3 className="text-xl font-semibold">Manage Watchlists</h3>
+                </div>
+                <button
+                  onClick={() => setWatchlistModal(false)}
+                  className="text-gray-400 hover:text-white transition-colors"
+                >
+                  <X className="h-6 w-6" />
+                </button>
+              </div>
+
+              <div className="p-6">
+                <div className="bg-gray-700/50 rounded-lg mb-6">
+                  <div className="p-4 border-b border-gray-700 flex justify-between items-center">
+                    <h4 className="font-medium">Default Watchlist</h4>
+                    <span className="bg-blue-900/30 text-blue-400 text-xs px-2 py-1 rounded-full">
+                      {securities.filter(s => s.isWatchlisted).length} items
+                    </span>
+                  </div>
+
+                  <div className="p-2 max-h-64 overflow-y-auto">
+                    {securities.filter(s => s.isWatchlisted).map(security => (
+                      <div key={`watchlist-${security.id}`} className="flex items-center justify-between p-2 hover:bg-gray-700 rounded-lg">
+                        <div className="flex items-center">
+                          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center mr-3">
+                            <span className="text-xs font-bold">{security.symbol.charAt(0)}</span>
+                          </div>
+                          <div>
+                            <div className="font-medium">{security.symbol}</div>
+                            <div className="text-xs text-gray-400">{security.name}</div>
+                          </div>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <div className={`text-sm ${security.change > 0 ? 'text-green-500' : 'text-red-500'}`}>
+                            {security.change > 0 ? '+' : ''}{security.change.toFixed(2)}%
+                          </div>
+                          <button
+                            onClick={() => toggleWatchlist(security.id)}
+                            className="p-1 text-gray-400 hover:text-red-500 transition-colors"
+                          >
+                            <X className="h-5 w-5" />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+
+                    {securities.filter(s => s.isWatchlisted).length === 0 && (
+                      <div className="text-center py-6 text-gray-400">
+                        <Bookmark className="h-10 w-10 mx-auto mb-2 opacity-50" />
+                        <p>Your watchlist is empty</p>
+                        <p className="text-sm">Add securities to track them here</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Create New Watchlist (Placeholder) */}
+                <div className="bg-blue-900/20 border border-blue-800/30 border-dashed rounded-lg p-4 text-center">
+                  <Plus className="h-8 w-8 mx-auto mb-2 text-blue-400" />
+                  <p className="text-blue-400">Create New Watchlist</p>
+                  <p className="text-sm text-blue-500/70 mt-1">Organize securities by strategy or goal</p>
+                </div>
+              </div>
+
+              <div className="bg-gray-900/50 px-6 py-4 flex justify-end">
+                <button
+                  onClick={() => setWatchlistModal(false)}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                >
+                  Done
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
