@@ -192,9 +192,6 @@ class DirectYahooFinanceClient(MarketDataSource):
                 # Parse the JSON response
                 data = response.json()
                 
-                # Log the raw response to debug
-                logger.info(f"Raw response for {ticker}: {str(data)[:500]}...")
-                
                 # Extract quote data - different path for this endpoint
                 if "quoteSummary" in data and "result" in data["quoteSummary"] and data["quoteSummary"]["result"]:
                     result = data["quoteSummary"]["result"][0]
@@ -281,15 +278,15 @@ class DirectYahooFinanceClient(MarketDataSource):
                     logger.error(f"All retries exhausted for {ticker} metrics")
                     return {"not_found": True, "source": self.source_name, "error": str(e)}
         
-        def _extract_raw_value(self, data_dict: Dict, key: str) -> Any:
-            """Helper method to extract raw values from nested Yahoo Finance response structures"""
-            if key in data_dict:
-                item = data_dict[key]
-                # Yahoo often wraps values in objects with 'raw' as the actual value
-                if isinstance(item, dict) and 'raw' in item:
-                    return item['raw']
-                return item
-            return None
+    def _extract_raw_value(self, data_dict: Dict, key: str) -> Any:
+        """Helper method to extract raw values from nested Yahoo Finance response structures"""
+        if key in data_dict:
+            item = data_dict[key]
+            # Yahoo often wraps values in objects with 'raw' as the actual value
+            if isinstance(item, dict) and 'raw' in item:
+                return item['raw']
+            return item
+        return None
     
     async def get_historical_prices(self, ticker: str, start_date: datetime, end_date: Optional[datetime] = None) -> List[Dict[str, Any]]:
         """

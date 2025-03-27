@@ -24,11 +24,11 @@ const Sidebar = () => {
         return () => window.removeEventListener('resize', handleResize);
     }, []);
 
-    // Determine icon size based on sidebar state
-    const iconSize = sidebarCollapsed ? 32 : 32;
+    // Set icon size to 32px, we'll use CSS to ensure proper sizing
+    const iconSize = 32;
 
     return (
-        <div className={`h-screen ${sidebarCollapsed ? 'w-16' : 'w-64'} bg-gray-900 text-white flex flex-col p-4 shadow-lg transition-all duration-300 relative`}>
+        <div className={`h-screen ${sidebarCollapsed ? 'w-16 sidebar-collapsed' : 'w-64'} bg-gray-900 text-white flex flex-col p-4 shadow-lg transition-all duration-300 relative`}>
             {/* Toggle button */}
             <button 
                 onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
@@ -49,40 +49,40 @@ const Sidebar = () => {
             {/* Navigation */}
             <nav className="space-y-4 flex-1">
                 <Link href="/" className={`flex items-center gap-3 p-3 hover:bg-gray-800 rounded-lg ${sidebarCollapsed ? 'justify-center' : ''}`}>
-                    <Home size={iconSize} />
+                    <Home size={iconSize} className="sidebar-icon min-w-[32px] min-h-[32px]" />
                     {!sidebarCollapsed && <span>Home</span>}
                 </Link>
                 <Link href="/portfolio" className={`flex items-center gap-3 p-3 hover:bg-gray-800 rounded-lg ${sidebarCollapsed ? 'justify-center' : ''}`}>
-                    <Briefcase size={iconSize} />
+                    <Briefcase size={iconSize} className="sidebar-icon min-w-[32px] min-h-[32px]" />
                     {!sidebarCollapsed && <span>Portfolio</span>}
                 </Link>
                 <Link href="/investment-securities" className={`flex items-center gap-3 p-3 hover:bg-gray-800 rounded-lg ${sidebarCollapsed ? 'justify-center' : ''}`}>
-                    <Briefcase size={iconSize} />
+                    <Briefcase size={iconSize} className="sidebar-icon min-w-[32px] min-h-[32px]" />
                     {!sidebarCollapsed && <span>Investments</span>}
                 </Link>
                 <Link href="/real-estate" className={`flex items-center gap-3 p-3 hover:bg-gray-800 rounded-lg ${sidebarCollapsed ? 'justify-center' : ''}`}>
-                    <RealEstate size={iconSize} />
+                    <RealEstate size={iconSize} className="sidebar-icon min-w-[32px] min-h-[32px]" />
                     {!sidebarCollapsed && <span>Real Estate</span>}
                 </Link>
                 <Link href="/metals" className={`flex items-center gap-3 p-3 hover:bg-gray-800 rounded-lg ${sidebarCollapsed ? 'justify-center' : ''}`}>
-                    <Coins size={iconSize} />
+                    <Coins size={iconSize} className="sidebar-icon min-w-[32px] min-h-[32px]" />
                     {!sidebarCollapsed && <span>Metals</span>}
                 </Link>
                 <Link href="/crypto" className={`flex items-center gap-3 p-3 hover:bg-gray-800 rounded-lg ${sidebarCollapsed ? 'justify-center' : ''}`}>
-                    <Bitcoin size={iconSize} />
+                    <Bitcoin size={iconSize} className="sidebar-icon min-w-[32px] min-h-[32px]" />
                     {!sidebarCollapsed && <span>Crypto</span>}
                 </Link>
-                <Link href="/about" className={`flex items-center gap-3 p-3 hover:bg-gray-800 rounded-lg ${sidebarCollapsed ? 'justify-center' : ''}`}>
-                    <Info size={iconSize} />
-                    {!sidebarCollapsed && <span>About</span>}
-                </Link>
                 <Link href="/todo" className={`flex items-center gap-3 p-3 hover:bg-gray-800 rounded-lg ${sidebarCollapsed ? 'justify-center' : ''}`}>
-                    <Settings size={iconSize} />
+                    <Settings size={iconSize} className="sidebar-icon min-w-[32px] min-h-[32px]" />
                     {!sidebarCollapsed && <span>To Do List</span>}
                 </Link>
                 <Link href="/data-summary" className={`flex items-center gap-3 p-3 hover:bg-gray-800 rounded-lg ${sidebarCollapsed ? 'justify-center' : ''}`}>
-                    <Database size={iconSize} />
+                    <Database size={iconSize} className="sidebar-icon min-w-[32px] min-h-[32px]" />
                     {!sidebarCollapsed && <span>Data Summary</span>}
+                </Link>
+                <Link href="/about" className={`flex items-center gap-3 p-3 hover:bg-gray-800 rounded-lg ${sidebarCollapsed ? 'justify-center' : ''}`}>
+                    <Info size={iconSize} className="sidebar-icon min-w-[32px] min-h-[32px]" />
+                    {!sidebarCollapsed && <span>About</span>}
                 </Link>
             </nav>
             
@@ -91,7 +91,7 @@ const Sidebar = () => {
                 onClick={logout} 
                 className={`flex items-center gap-3 p-3 hover:bg-red-600 rounded-lg mt-auto text-white ${sidebarCollapsed ? 'justify-center' : 'bg-red-500'}`}
             >
-                <LogOut size={iconSize} />
+                <LogOut size={iconSize} className="sidebar-icon min-w-[32px] min-h-[32px]" />
                 {!sidebarCollapsed && <span>Logout</span>}
             </button>
         </div>
