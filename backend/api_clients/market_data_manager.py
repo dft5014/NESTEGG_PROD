@@ -11,7 +11,7 @@ from datetime import datetime, timedelta
 from backend.api_clients.data_source_interface import MarketDataSource
 from backend.api_clients.yahoo_finance_client import YahooFinanceClient
 from backend.api_clients.yahooquery_client import YahooQueryClient
-from backend.api_clients.direct_yahooclient import DirectYahooFinanceClient
+from backend.api_clients.direct_yahoo_client import DirectYahooFinanceClient
 from backend.api_clients.polygon_client import PolygonClient
 
 # Set up logging
@@ -51,8 +51,34 @@ class MarketDataManager:
     
     def _load_sources(self):
         """Load all available data sources"""
-        # Always add Yahoo Finance as it requires no API key
-        yahoo = DirectYahooFinanceClient()
+        # Add DirectYahooFinanceClient as primary source
+        try:
+            direct_yahoo = DirectYahooFinanceClient()
+            self.sources["direct_yahoo"] = direct_yahoo
+            self.usage_stats["direct_yahoo"] = {
+                "calls": 0,
+                "last_reset": datetime.now(),
+                "success_rate": 1.0,
+            }
+            logger.info("DirectYahooFinanceClient loaded successfully")
+        except Exception as e:
+            logger.info(f"DirectYahooFinanceClient not available: {str(e)}")
+        
+        # Add YahooQueryClient for company metrics
+        try:
+            yahooquery = YahooQueryClient()
+            self.sources["yahooquery"] = yahooquery
+            self.usage_stats["yahooquery"] = {
+                "calls": 0,
+                "last_reset": datetime.now(),
+                "success_rate": 1.0,
+            }
+            logger.info("YahooQueryClient loaded successfully")
+        except Exception as e:
+            logger.info(f"YahooQueryClient not available: {str(e)}")
+        
+        # Add legacy YahooFinanceClient as backup
+        yahoo = YahooFinanceClient()
         self.sources[yahoo.source_name] = yahoo
         self.usage_stats[yahoo.source_name] = {
             "calls": 0,
@@ -60,7 +86,7 @@ class MarketDataManager:
             "success_rate": 1.0,
         }
         
-        # Try to load Polygon if API key is available
+        # Try to load Polygon if API key is available (lowest priority)
         try:
             polygon = PolygonClient()
             self.sources[polygon.source_name] = polygon
@@ -73,48 +99,27 @@ class MarketDataManager:
         except Exception as e:
             logger.info(f"Polygon.io not available: {str(e)}")
         
-        # Placeholder for future sources
-        # Example:
-        # try:
-        #     finnhub = FinnhubClient()
-        #     self.sources[finnhub.source_name] = finnhub
-        #     self.usage_stats[finnhub.source_name] = {
-        #         "calls": 0,
-        #         "last_reset": datetime.now(),
-        #         "success_rate": 1.0,
-        #         "daily_limit": finnhub.daily_call_limit
-        #     }
-        # except Exception as e:
-        #     logger.info(f"Finnhub not available: {str(e)}")
-        
         logger.info(f"Loaded {len(self.sources)} data sources: {', '.join(self.sources.keys())}")
-    
+
     def _set_default_preferences(self):
-        """Set default source preferences for different data types"""
+        """Set default source preferences for different data types based on performance testing"""
         available_sources = list(self.sources.keys())
         
-        # Define priorities for current price (prefer Polygon then Yahoo Finance)
-        if "polygon" in available_sources:
-            self.preferred_sources["current_price"].append("polygon")
-        self.preferred_sources["current_price"].append("yahoo_finance")
+        # Default preference order for most operations
+        default_order = ["direct_yahoo", "yahooquery", "yahoo_finance", "polygon"]
         
-        # Define priorities for batch prices (prefer Yahoo Finance for efficiency)
-        self.preferred_sources["batch_prices"].append("yahoo_finance")
-        if "polygon" in available_sources:
-            self.preferred_sources["batch_prices"].append("polygon")
+        # Company metrics use yahooquery first (it has much richer data)
+        metrics_order = ["yahooquery", "direct_yahoo", "yahoo_finance", "polygon"]
         
-        # Define priorities for company metrics (prefer Yahoo Finance for completeness)
-        self.preferred_sources["company_metrics"].append("yahoo_finance")
-        if "polygon" in available_sources:
-            self.preferred_sources["company_metrics"].append("polygon")
+        # Filter to only use available sources
+        for data_type in ["current_price", "batch_prices", "historical_prices"]:
+            self.preferred_sources[data_type] = [s for s in default_order if s in available_sources]
         
-        # Define priorities for historical prices (prefer Yahoo Finance for history depth)
-        self.preferred_sources["historical_prices"].append("yahoo_finance")
-        if "polygon" in available_sources:
-            self.preferred_sources["historical_prices"].append("polygon")
+        # Set company metrics to use YahooQuery first
+        self.preferred_sources["company_metrics"] = [s for s in metrics_order if s in available_sources]
         
-        logger.info("Set default source preferences")
-    
+        logger.info("Set default source preferences based on performance testing")  
+        
     def set_source_preference(self, data_type: str, sources: List[str]):
         """
         Set preferred sources for a data type

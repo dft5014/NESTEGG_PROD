@@ -56,6 +56,10 @@ const Sidebar = () => {
                     <Briefcase size={iconSize} />
                     {!sidebarCollapsed && <span>Portfolio</span>}
                 </Link>
+                <Link href="/investment-securities" className={`flex items-center gap-3 p-3 hover:bg-gray-800 rounded-lg ${sidebarCollapsed ? 'justify-center' : ''}`}>
+                    <Briefcase size={iconSize} />
+                    {!sidebarCollapsed && <span>Investments</span>}
+                </Link>
                 <Link href="/real-estate" className={`flex items-center gap-3 p-3 hover:bg-gray-800 rounded-lg ${sidebarCollapsed ? 'justify-center' : ''}`}>
                     <RealEstate size={iconSize} />
                     {!sidebarCollapsed && <span>Real Estate</span>}
