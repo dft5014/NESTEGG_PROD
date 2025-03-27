@@ -24,7 +24,37 @@ class YahooQueryClient(MarketDataSource):
     
     def __init__(self):
         """Initialize the YahooQuery client"""
-        pass
+        # Add a cache dictionary with TTL values
+        self.cache = {}
+        self.cache_ttl = {
+            "current_price": 15 * 60,  # 15 minutes
+            "company_metrics": 24 * 60 * 60,  # 24 hours
+            "historical_prices": 6 * 60 * 60,  # 6 hours
+        }
+
+    def _get_from_cache(self, cache_key: str, cache_type: str) -> Optional[Any]:
+        """Get data from cache if it exists and is not expired"""
+        if not hasattr(self, 'cache'):
+            return None
+            
+        if cache_key in self.cache:
+            cached_data = self.cache[cache_key]
+            now = datetime.now()
+            if (now - cached_data["timestamp"]).total_seconds() < self.cache_ttl[cache_type]:
+                logger.debug(f"Cache hit for {cache_key}")
+                return cached_data["data"]
+        return None
+
+    def _set_in_cache(self, cache_key: str, cache_type: str, data: Any) -> None:
+        """Store data in cache with current timestamp"""
+        if not hasattr(self, 'cache'):
+            return
+            
+        self.cache[cache_key] = {
+            "data": data,
+            "timestamp": datetime.now()
+        }
+        logger.debug(f"Cached data for {cache_key}")
     
     @property
     def source_name(self) -> str:
@@ -40,6 +70,12 @@ class YahooQueryClient(MarketDataSource):
         """
         Get current price for a single ticker with retry logic
         """
+        # Check cache first
+        cache_key = f"price_{ticker}"
+        cached_data = self._get_from_cache(cache_key, "current_price")
+        if cached_data:
+            return cached_data
+            
         retries = 3
         delay = 2
         for attempt in range(retries):
@@ -71,6 +107,9 @@ class YahooQueryClient(MarketDataSource):
                     "price_timestamp_str": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                     "source": self.source_name
                 }
+                
+                # Cache the result
+                self._set_in_cache(cache_key, "current_price", result)
                 
                 logger.info(f"Returning data for {ticker}: {result}")
                 return result
@@ -270,6 +309,12 @@ class YahooQueryClient(MarketDataSource):
         """
         Get company metrics for a ticker
         """
+        # Check cache first
+        cache_key = f"metrics_{ticker}"
+        cached_data = self._get_from_cache(cache_key, "company_metrics")
+        if cached_data:
+            return cached_data
+            
         retries = 3
         delay = 2
         for attempt in range(retries):
@@ -349,6 +394,9 @@ class YahooQueryClient(MarketDataSource):
                 
                 # Filter out None values
                 metrics = {k: v for k, v in metrics.items() if v is not None}
+                
+                # Cache the metrics
+                self._set_in_cache(cache_key, "company_metrics", metrics)
                 
                 logger.info(f"Metrics for {ticker}: {metrics}")
                 return metrics

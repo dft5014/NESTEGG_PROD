@@ -1,4 +1,6 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useContext } from "react";
+import { AuthContext } from "@/context/AuthContext";
+import { useRouter } from "next/router";
 import { 
   Search, 
   Filter, 
@@ -12,246 +14,246 @@ import {
   BarChart4,
   SlidersHorizontal,
   X,
-  Plus
+  Plus,
+  Settings,
+  Trash
 } from 'lucide-react';
+import { API_BASE_URL, fetchWithAuth } from '@/utils/api';
+import SkeletonLoader from '@/components/SkeletonLoader';
 
-export default function Securities() {
+export default function InvestmentSecurities() {
+  const { user } = useContext(AuthContext);
+  const router = useRouter();
   const [isLoading, setIsLoading] = useState(true);
-  const [securities, setSecurities] = useState([]);
+  const [accounts, setAccounts] = useState([]);
+  const [positions, setPositions] = useState({});
+  const [selectedAccount, setSelectedAccount] = useState(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [filterType, setFilterType] = useState("all");
-  const [sortOption, setSortOption] = useState("popularity");
+  const [sortOption, setSortOption] = useState("name");
   const [watchlistModal, setWatchlistModal] = useState(false);
   const [selectedSecurity, setSelectedSecurity] = useState(null);
+  const [isAddAccountModalOpen, setIsAddAccountModalOpen] = useState(false);
+  const [isEditAccountModalOpen, setIsEditAccountModalOpen] = useState(false);
+  const [isAddPositionModalOpen, setIsAddPositionModalOpen] = useState(false);
+  const [error, setError] = useState(null);
   
-  // Mock security data - in a real app, this would come from an API call
-  const mockSecurities = [
-    {
-      id: "aapl",
-      name: "Apple Inc.",
-      symbol: "AAPL",
-      type: "stock",
-      price: 213.07,
-      change: 1.25,
-      marketCap: "3.5T",
-      sector: "Technology",
-      popularity: 98,
-      description: "Apple Inc. designs, manufactures, and markets smartphones, personal computers, tablets, wearables, and accessories worldwide.",
-      pe: 33.27,
-      dividend: 0.52,
-      beta: 1.28,
-      isWatchlisted: true
-    },
-    {
-      id: "msft",
-      name: "Microsoft Corp.",
-      symbol: "MSFT",
-      type: "stock",
-      price: 416.38,
-      change: -0.42,
-      marketCap: "3.1T",
-      sector: "Technology",
-      popularity: 96,
-      description: "Microsoft Corporation develops, licenses, and supports software, services, devices, and solutions worldwide.",
-      pe: 35.82,
-      dividend: 0.68,
-      beta: 0.93,
-      isWatchlisted: false
-    },
-    {
-      id: "amzn",
-      name: "Amazon.com Inc.",
-      symbol: "AMZN",
-      type: "stock",
-      price: 179.63,
-      change: 1.83,
-      marketCap: "1.9T",
-      sector: "Consumer Cyclical",
-      popularity: 95,
-      description: "Amazon.com, Inc. engages in the retail sale of consumer products and subscriptions in North America and internationally.",
-      pe: 61.45,
-      dividend: 0,
-      beta: 1.22,
-      isWatchlisted: true
-    },
-    {
-      id: "nvda",
-      name: "NVIDIA Corp.",
-      symbol: "NVDA",
-      type: "stock",
-      price: 122.46,
-      change: 3.21,
-      marketCap: "3.0T",
-      sector: "Technology",
-      popularity: 99,
-      description: "NVIDIA Corporation provides graphics, and compute and networking solutions in the United States, Taiwan, China, and internationally.",
-      pe: 72.15,
-      dividend: 0.04,
-      beta: 1.75,
-      isWatchlisted: false
-    },
-    {
-      id: "vti",
-      name: "Vanguard Total Stock Market ETF",
-      symbol: "VTI",
-      type: "etf",
-      price: 252.89,
-      change: 0.54,
-      marketCap: "386.4B",
-      sector: "Broad Market",
-      popularity: 91,
-      description: "The investment seeks to track the performance of the CRSP US Total Market Index.",
-      pe: null,
-      dividend: 1.38,
-      beta: 1.01,
-      isWatchlisted: true
-    },
-    {
-      id: "agg",
-      name: "iShares Core U.S. Aggregate Bond ETF",
-      symbol: "AGG",
-      type: "etf",
-      price: 99.23,
-      change: -0.12,
-      marketCap: "89.2B",
-      sector: "Fixed Income",
-      popularity: 87,
-      description: "The investment seeks to track the investment results of the Bloomberg U.S. Aggregate Bond Index.",
-      pe: null,
-      dividend: 2.93,
-      beta: 0.42,
-      isWatchlisted: false
-    },
-    {
-      id: "googl",
-      name: "Alphabet Inc.",
-      symbol: "GOOGL",
-      type: "stock",
-      price: 172.46,
-      change: -0.78,
-      marketCap: "2.1T",
-      sector: "Communication Services",
-      popularity: 94,
-      description: "Alphabet Inc. provides various products and platforms in the United States, Europe, the Middle East, Africa, the Asia-Pacific, Canada, and Latin America.",
-      pe: 26.15,
-      dividend: 0,
-      beta: 1.06,
-      isWatchlisted: true
-    },
-    {
-      id: "meta",
-      name: "Meta Platforms Inc.",
-      symbol: "META",
-      type: "stock",
-      price: 515.83,
-      change: 2.57,
-      marketCap: "1.3T",
-      sector: "Communication Services",
-      popularity: 93,
-      description: "Meta Platforms, Inc. engages in the development of products that enable people to connect and share with friends and family through mobile devices, personal computers, virtual reality headsets, and wearables worldwide.",
-      pe: 29.73,
-      dividend: 0,
-      beta: 1.42,
-      isWatchlisted: false
-    },
-    {
-      id: "brkb",
-      name: "Berkshire Hathaway Inc.",
-      symbol: "BRK.B",
-      type: "stock",
-      price: 428.97,
-      change: 0.23,
-      marketCap: "932.5B",
-      sector: "Financial Services",
-      popularity: 90,
-      description: "Berkshire Hathaway Inc. engages in the insurance, freight rail transportation, and utility businesses worldwide.",
-      pe: 21.08,
-      dividend: 0,
-      beta: 0.85,
-      isWatchlisted: false
-    },
-    {
-      id: "schd",
-      name: "Schwab US Dividend Equity ETF",
-      symbol: "SCHD",
-      type: "etf",
-      price: 78.41,
-      change: 0.05,
-      marketCap: "52.7B",
-      sector: "Dividend",
-      popularity: 89,
-      description: "The investment seeks to track the total return of the Dow Jones U.S. Dividend 100 Index.",
-      pe: null,
-      dividend: 3.42,
-      beta: 0.88,
-      isWatchlisted: true
-    },
-  ];
-
+  // Form states
+  const [accountName, setAccountName] = useState("");
+  const [institution, setInstitution] = useState("");
+  const [accountType, setAccountType] = useState("");
+  const [balance, setBalance] = useState(0);
+  const [formMessage, setFormMessage] = useState("");
+  
   useEffect(() => {
-    // Simulate API call to fetch securities
-    setTimeout(() => {
-      setSecurities(mockSecurities);
-      setIsLoading(false);
-    }, 800);
+    fetchUserData();
   }, []);
+  
+  const fetchUserData = async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
+      // Fetch accounts
+      const response = await fetchWithAuth('/accounts');
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Failed to fetch accounts: ${response.status} ${errorText}`);
+      }
+      
+      const data = await response.json();
+      
+      if (data.accounts && Array.isArray(data.accounts)) {
+        setAccounts(data.accounts);
+        
+        // Fetch positions for each account
+        data.accounts.forEach(account => {
+          fetchPositions(account.id);
+        });
+      } else {
+        setError("Unexpected data format received from server.");
+      }
+    } catch (error) {
+      console.error("Error fetching accounts:", error);
+      setError(error.message || "Failed to load accounts. Please try again.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+  
+  const fetchPositions = async (accountId) => {
+    try {
+      const response = await fetchWithAuth(`/positions/${accountId}`);
+      
+      if (!response.ok) {
+        console.error(`Failed to fetch positions for account ${accountId}`);
+        return;
+      }
+      
+      const data = await response.json();
+      
+      if (data && data.positions) {
+        setPositions(prevPositions => ({
+          ...prevPositions,
+          [accountId]: data.positions || []
+        }));
+      } else {
+        console.warn(`No positions data returned for account ${accountId}`);
+        setPositions(prevPositions => ({
+          ...prevPositions,
+          [accountId]: []
+        }));
+      }
+    } catch (error) {
+      console.error(`Error fetching positions for account ${accountId}:`, error);
+    }
+  };
 
-  // Filter securities based on search query and filter type
-  const filteredSecurities = securities.filter(security => {
+  // Handle adding a new account
+  const handleAddAccount = async (e) => {
+    e.preventDefault();
+    if (!accountName.trim()) {
+      setFormMessage("Account name is required");
+      return;
+    }
+
+    try {
+      const response = await fetchWithAuth('/accounts', {
+        method: "POST",
+        body: JSON.stringify({
+          account_name: accountName,
+          institution: institution || "",
+          type: accountType || "",
+          balance: parseFloat(balance) || 0
+        })
+      });
+
+      if (response.ok) {
+        setFormMessage("Account added successfully!");
+        setAccountName("");
+        setInstitution("");
+        setAccountType("");
+        setBalance(0);
+        
+        setTimeout(() => {
+          setIsAddAccountModalOpen(false);
+          setFormMessage("");
+          fetchUserData();
+        }, 1000);
+      } else {
+        const errorData = await response.json();
+        setFormMessage(`Failed to add account: ${JSON.stringify(errorData)}`);
+      }
+    } catch (error) {
+      console.error("Error adding account:", error);
+      setFormMessage("Error adding account");
+    }
+  };
+
+  // Handle deleting an account
+  const handleDeleteAccount = async (accountId) => {
+    if (!confirm("Are you sure you want to delete this account and all its positions?")) {
+      return;
+    }
+   
+    try {
+      const response = await fetchWithAuth(`/accounts/${accountId}`, {
+        method: "DELETE"
+      });
+      
+      if (response.ok) {
+        fetchUserData();
+      } else {
+        const errorText = await response.text();
+        alert(`Failed to delete account: ${errorText}`);
+      }
+    } catch (error) {
+      console.error("Error deleting account:", error);
+      alert("Error deleting account");
+    }
+  };
+
+  // Handle adding a position to an account
+  const handleAddPositionClick = (accountId) => {
+    setSelectedAccount(accountId);
+    setIsAddPositionModalOpen(true);
+  };
+
+  // Filter accounts based on search query
+  const filteredAccounts = accounts.filter(account => {
     const matchesSearch = 
-      security.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
-      security.symbol.toLowerCase().includes(searchQuery.toLowerCase());
+      account.account_name.toLowerCase().includes(searchQuery.toLowerCase()) || 
+      (account.institution && account.institution.toLowerCase().includes(searchQuery.toLowerCase()));
     
-    const matchesFilter = 
-      filterType === "all" || 
-      (filterType === "stocks" && security.type === "stock") ||
-      (filterType === "etfs" && security.type === "etf") ||
-      (filterType === "watchlist" && security.isWatchlisted);
-    
-    return matchesSearch && matchesFilter;
+    return matchesSearch;
   });
 
-  // Sort securities based on sort option
-  const sortedSecurities = [...filteredSecurities].sort((a, b) => {
+  // Sort accounts based on sort option
+  const sortedAccounts = [...filteredAccounts].sort((a, b) => {
     switch (sortOption) {
-      case "popularity":
-        return b.popularity - a.popularity;
-      case "price-high":
-        return b.price - a.price;
-      case "price-low":
-        return a.price - b.price;
-      case "change-high":
-        return b.change - a.change;
-      case "change-low":
-        return a.change - b.change;
+      case "balance-high":
+        return b.balance - a.balance;
+      case "balance-low":
+        return a.balance - b.balance;
       case "name":
-        return a.name.localeCompare(b.name);
+        return a.account_name.localeCompare(b.account_name);
+      case "institution":
+        return (a.institution || "").localeCompare(b.institution || "");
       default:
         return 0;
     }
   });
 
-  // Toggle watchlist status
-  const toggleWatchlist = (id) => {
-    setSecurities(securities.map(security => 
-      security.id === id 
-        ? { ...security, isWatchlisted: !security.isWatchlisted }
-        : security
-    ));
+  // Get all positions across all accounts
+  const getAllPositions = () => {
+    const allPositions = [];
+    
+    Object.keys(positions).forEach(accountId => {
+      const accountPositions = positions[accountId] || [];
+      const account = accounts.find(a => a.id === parseInt(accountId));
+      
+      accountPositions.forEach(position => {
+        allPositions.push({
+          ...position,
+          accountName: account ? account.account_name : 'Unknown Account'
+        });
+      });
+    });
+    
+    return allPositions;
   };
 
-  // Open security detail modal
-  const openSecurityDetail = (security) => {
-    setSelectedSecurity(security);
-  };
+  // Filter positions based on search query
+  const filteredPositions = getAllPositions().filter(position => {
+    const matchesSearch = 
+      position.ticker.toLowerCase().includes(searchQuery.toLowerCase()) || 
+      position.accountName.toLowerCase().includes(searchQuery.toLowerCase());
+    
+    return matchesSearch;
+  });
 
-  // Close security detail modal
-  const closeSecurityDetail = () => {
-    setSelectedSecurity(null);
-  };
+  // Sort positions based on sort option
+  const sortedPositions = [...filteredPositions].sort((a, b) => {
+    switch (sortOption) {
+      case "value-high":
+        return b.value - a.value;
+      case "value-low":
+        return a.value - b.value;
+      case "ticker":
+        return a.ticker.localeCompare(b.ticker);
+      case "account":
+        return a.accountName.localeCompare(b.accountName);
+      default:
+        return 0;
+    }
+  });
 
   // Render trend indicator based on change value
-  const renderTrend = (change) => {
+  const renderTrend = (value, costBasis) => {
+    if (!costBasis) return <span className="text-gray-500">N/A</span>;
+    
+    const change = ((value - costBasis) / costBasis) * 100;
+    
     if (change > 0) {
       return (
         <div className="flex items-center text-green-500">
@@ -271,6 +273,29 @@ export default function Securities() {
     }
   };
 
+  // Calculate cost basis for a position
+  const getPositionCostBasis = (position) => {
+    return position.cost_basis || position.price;
+  };
+
+  if (!user) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-gray-900">
+        <div className="bg-gray-800 p-8 rounded-xl shadow-lg text-center">
+          <Briefcase className="w-16 h-16 mx-auto text-blue-500 mb-4" />
+          <h1 className="text-2xl font-bold text-white mb-4">Investment Securities</h1>
+          <p className="text-gray-300 mb-6">Please log in to view your investment accounts and positions.</p>
+          <button 
+            onClick={() => router.push('/login')}
+            className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+          >
+            Login
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 to-blue-900 text-white">
       {/* Main Content Container */}
@@ -280,19 +305,27 @@ export default function Securities() {
           <div className="flex items-center justify-between mb-6">
             <h1 className="text-3xl font-bold flex items-center">
               <Briefcase className="w-8 h-8 text-blue-400 mr-3" />
-              Securities Explorer
+              Investment Securities
             </h1>
-            <button 
-              onClick={() => setWatchlistModal(true)}
-              className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center transition-colors"
-            >
-              <Star className="w-4 h-4 mr-2" />
-              Manage Watchlists
-            </button>
+            <div className="flex space-x-3">
+              <button 
+                onClick={() => setIsAddAccountModalOpen(true)}
+                className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center transition-colors"
+              >
+                <Plus className="w-4 h-4 mr-2" />
+                Add Account
+              </button>
+              <button 
+                onClick={() => setWatchlistModal(true)}
+                className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg flex items-center transition-colors"
+              >
+                <Star className="w-4 h-4 mr-2" />
+                Manage Watchlists
+              </button>
+            </div>
           </div>
           <p className="text-gray-300 max-w-3xl mb-4">
-            Discover, analyze, and track securities to build a well-balanced retirement portfolio. 
-            Add securities to your watchlist or directly to your portfolio.
+            Manage your investment accounts and positions. Track performance and analyze your portfolio to make informed investment decisions.
           </p>
         </header>
 
@@ -307,7 +340,7 @@ export default function Securities() {
               <input
                 type="text"
                 className="bg-gray-700 text-white w-full pl-10 pr-4 py-3 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                placeholder="Search stocks, ETFs by name or symbol..."
+                placeholder="Search accounts or positions..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
               />
@@ -325,28 +358,19 @@ export default function Securities() {
               </button>
               <button
                 className={`flex-1 py-2 px-3 rounded-md transition-colors ${
-                  filterType === "stocks" ? "bg-blue-600 text-white" : "text-gray-300 hover:bg-gray-600"
+                  filterType === "accounts" ? "bg-blue-600 text-white" : "text-gray-300 hover:bg-gray-600"
                 }`}
-                onClick={() => setFilterType("stocks")}
+                onClick={() => setFilterType("accounts")}
               >
-                Stocks
+                Accounts
               </button>
               <button
                 className={`flex-1 py-2 px-3 rounded-md transition-colors ${
-                  filterType === "etfs" ? "bg-blue-600 text-white" : "text-gray-300 hover:bg-gray-600"
+                  filterType === "positions" ? "bg-blue-600 text-white" : "text-gray-300 hover:bg-gray-600"
                 }`}
-                onClick={() => setFilterType("etfs")}
+                onClick={() => setFilterType("positions")}
               >
-                ETFs
-              </button>
-              <button
-                className={`flex-1 py-2 px-3 rounded-md transition-colors ${
-                  filterType === "watchlist" ? "bg-blue-600 text-white" : "text-gray-300 hover:bg-gray-600"
-                }`}
-                onClick={() => setFilterType("watchlist")}
-              >
-                <Star className="h-4 w-4 inline mr-1" />
-                Watchlist
+                Positions
               </button>
             </div>
 
@@ -360,12 +384,14 @@ export default function Securities() {
                 value={sortOption}
                 onChange={(e) => setSortOption(e.target.value)}
               >
-                <option value="popularity">Sort by Popularity</option>
-                <option value="price-high">Price (High to Low)</option>
-                <option value="price-low">Price (Low to High)</option>
-                <option value="change-high">% Change (High to Low)</option>
-                <option value="change-low">% Change (Low to High)</option>
-                <option value="name">Name (A-Z)</option>
+                <option value="name">Sort by Name (A-Z)</option>
+                <option value="balance-high">Balance (High to Low)</option>
+                <option value="balance-low">Balance (Low to High)</option>
+                <option value="institution">Institution (A-Z)</option>
+                <option value="value-high">Value (High to Low)</option>
+                <option value="value-low">Value (Low to High)</option>
+                <option value="ticker">Ticker (A-Z)</option>
+                <option value="account">Account (A-Z)</option>
               </select>
               <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
                 <svg className="h-5 w-5 text-gray-400" viewBox="0 0 20 20" fill="currentColor">
@@ -382,7 +408,7 @@ export default function Securities() {
             <div className="flex flex-wrap gap-2">
               {filterType !== "all" && (
                 <span className="bg-blue-900/50 text-blue-300 px-2 py-1 rounded-md">
-                  {filterType === "stocks" ? "Stocks" : filterType === "etfs" ? "ETFs" : "Watchlist"}
+                  {filterType === "accounts" ? "Accounts" : "Positions"}
                 </span>
               )}
               {searchQuery && (
@@ -405,183 +431,280 @@ export default function Securities() {
           </div>
         </div>
 
-        {/* Securities List */}
-        <div className="bg-gray-800/70 backdrop-blur-sm rounded-xl mb-8 overflow-hidden">
-          {isLoading ? (
-            <div className="p-8 text-center">
-              <div className="inline-block w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mb-4"></div>
-              <p className="text-gray-400">Loading securities data...</p>
-            </div>
-          ) : sortedSecurities.length === 0 ? (
-            <div className="p-8 text-center">
-              <div className="bg-gray-700/50 rounded-full w-16 h-16 flex items-center justify-center mx-auto mb-4">
-                <Search className="h-8 w-8 text-gray-500" />
-              </div>
-              <h3 className="text-xl font-medium mb-2">No securities found</h3>
-              <p className="text-gray-400 max-w-md mx-auto">
-                Try adjusting your search or filters to find what you're looking for.
-              </p>
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-700">
-                <thead className="bg-gray-900/50">
-                  <tr>
-                    <th scope="col" className="px-6 py-4 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
-                      Security
-                    </th>
-                    <th scope="col" className="px-6 py-4 text-right text-xs font-medium text-gray-400 uppercase tracking-wider">
-                      Price
-                    </th>
-                    <th scope="col" className="px-6 py-4 text-right text-xs font-medium text-gray-400 uppercase tracking-wider">
-                      Change (24h)
-                    </th>
-                    <th scope="col" className="px-6 py-4 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
-                      Market Cap
-                    </th>
-                    <th scope="col" className="px-6 py-4 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
-                      Sector
-                    </th>
-                    <th scope="col" className="px-6 py-4 text-center text-xs font-medium text-gray-400 uppercase tracking-wider">
-                      Actions
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-700">
-                  {sortedSecurities.map((security) => (
-                    <tr 
-                      key={security.id}
-                      className="hover:bg-gray-700/50 transition-colors cursor-pointer"
-                      onClick={() => openSecurityDetail(security)}
-                    >
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="flex items-center">
-                          <div className="flex-shrink-0 h-10 w-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center">
-                            <span className="font-bold">{security.symbol.charAt(0)}</span>
-                          </div>
-                          <div className="ml-4">
-                            <div className="flex items-center">
-                              <div className="text-sm font-medium">
-                                {security.name}
-                              </div>
-                              {security.isWatchlisted && (
-                                <Star className="h-4 w-4 text-yellow-400 ml-2" fill="currentColor" />
-                              )}
-                            </div>
-                            <div className="text-sm text-gray-400 flex items-center">
-                              <span className="mr-2">{security.symbol}</span>
-                              <span className="px-2 py-0.5 text-xs rounded-full bg-gray-700">
-                                {security.type === "stock" ? "Stock" : "ETF"}
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-right">
-                        <div className="text-sm font-medium">${security.price.toFixed(2)}</div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-right">
-                        {renderTrend(security.change)}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm">{security.marketCap}</div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm">{security.sector}</div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-center">
-                        <div className="flex items-center justify-center space-x-3" onClick={(e) => e.stopPropagation()}>
-                          <button
-                            onClick={() => toggleWatchlist(security.id)}
-                            className={`p-2 rounded-full transition-colors ${
-                              security.isWatchlisted 
-                                ? "bg-yellow-500/20 text-yellow-400 hover:bg-yellow-500/30" 
-                                : "bg-gray-700 text-gray-400 hover:bg-gray-600"
-                            }`}
-                            title={security.isWatchlisted ? "Remove from watchlist" : "Add to watchlist"}
-                          >
-                            <Star className="h-5 w-5" fill={security.isWatchlisted ? "currentColor" : "none"} />
-                          </button>
-                          <button
-                            className="p-2 bg-blue-600/20 text-blue-400 rounded-full hover:bg-blue-600/30 transition-colors"
-                            title="Add to portfolio"
-                          >
-                            <Plus className="h-5 w-5" />
-                          </button>
-                          <button
-                            className="p-2 bg-purple-600/20 text-purple-400 rounded-full hover:bg-purple-600/30 transition-colors"
-                            title="View charts"
-                          >
-                            <BarChart4 className="h-5 w-5" />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
-
-        {/* Recently Viewed Section */}
-        <div className="bg-gray-800/70 backdrop-blur-sm p-6 rounded-xl mb-8">
-          <h2 className="text-xl font-semibold mb-4 flex items-center">
-            <Clock className="w-5 h-5 mr-2 text-blue-400" />
-            Recently Viewed
-          </h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            {[mockSecurities[0], mockSecurities[3], mockSecurities[6], mockSecurities[4]].map((security) => (
-              <div 
-                key={`recent-${security.id}`}
-                className="bg-gray-700/50 rounded-lg p-4 hover:bg-gray-700 transition-colors cursor-pointer"
-                onClick={() => openSecurityDetail(security)}
+        {/* Accounts Table */}
+        {(filterType === "all" || filterType === "accounts") && (
+          <div className="bg-gray-800/70 backdrop-blur-sm rounded-xl mb-8 overflow-hidden">
+            <div className="flex justify-between items-center p-4 border-b border-gray-700">
+              <h2 className="text-xl font-semibold flex items-center">
+                <Briefcase className="w-5 h-5 mr-2 text-blue-400" />
+                Your Accounts
+              </h2>
+              <button 
+                onClick={() => setIsAddAccountModalOpen(true)}
+                className="px-3 py-1 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 transition-colors flex items-center"
               >
-                <div className="flex justify-between items-start mb-2">
-                  <div>
-                    <h3 className="font-medium">{security.symbol}</h3>
-                    <p className="text-sm text-gray-400 truncate">{security.name}</p>
-                  </div>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      toggleWatchlist(security.id);
-                    }}
-                    className="text-gray-400 hover:text-yellow-400 transition-colors"
-                  >
-                    <Star className="h-5 w-5" fill={security.isWatchlisted ? "currentColor" : "none"} />
-                  </button>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="font-medium">${security.price.toFixed(2)}</span>
-                  {renderTrend(security.change)}
-                </div>
+                <Plus className="w-4 h-4 mr-1" />
+                Add Account
+              </button>
+            </div>
+            
+            {isLoading ? (
+              <div className="p-8 text-center">
+                <div className="inline-block w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mb-4"></div>
+                <p className="text-gray-400">Loading accounts data...</p>
               </div>
-            ))}
+            ) : sortedAccounts.length === 0 ? (
+              <div className="p-8 text-center">
+                <div className="bg-gray-700/50 rounded-full w-16 h-16 flex items-center justify-center mx-auto mb-4">
+                  <Briefcase className="h-8 w-8 text-gray-500" />
+                </div>
+                <h3 className="text-xl font-medium mb-2">No accounts found</h3>
+                <p className="text-gray-400 max-w-md mx-auto">
+                  Add your first investment account to start tracking your portfolio.
+                </p>
+                <button 
+                  onClick={() => setIsAddAccountModalOpen(true)}
+                  className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                >
+                  Add Account
+                </button>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-700">
+                  <thead className="bg-gray-900/50">
+                    <tr>
+                      <th scope="col" className="px-6 py-4 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
+                        Account Name
+                      </th>
+                      <th scope="col" className="px-6 py-4 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
+                        Institution
+                      </th>
+                      <th scope="col" className="px-6 py-4 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
+                        Type
+                      </th>
+                      <th scope="col" className="px-6 py-4 text-right text-xs font-medium text-gray-400 uppercase tracking-wider">
+                        Balance
+                      </th>
+                      <th scope="col" className="px-6 py-4 text-center text-xs font-medium text-gray-400 uppercase tracking-wider">
+                        Actions
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-700">
+                    {sortedAccounts.map((account) => (
+                      <tr 
+                        key={account.id}
+                        className="hover:bg-gray-700/50 transition-colors"
+                      >
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="flex items-center">
+                            <div className="flex-shrink-0 h-10 w-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center">
+                              <span className="font-bold">{account.account_name.charAt(0)}</span>
+                            </div>
+                            <div className="ml-4">
+                              <div className="text-sm font-medium">
+                                {account.account_name}
+                              </div>
+                              <div className="text-sm text-gray-400">
+                                Last updated: {new Date(account.updated_at).toLocaleDateString()}
+                              </div>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="text-sm">{account.institution || "N/A"}</div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="text-sm">{account.type || "N/A"}</div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-right">
+                          <div className="text-sm font-medium">${account.balance.toLocaleString()}</div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-center">
+                          <div className="flex items-center justify-center space-x-3">
+                            <button
+                              onClick={() => handleAddPositionClick(account.id)}
+                              className="p-2 bg-blue-600/20 text-blue-400 rounded-full hover:bg-blue-600/30 transition-colors"
+                              title="Add Position"
+                            >
+                              <Plus className="h-5 w-5" />
+                            </button>
+                            <button
+                              onClick={() => {/* handle edit account */}}
+                              className="p-2 bg-purple-600/20 text-purple-400 rounded-full hover:bg-purple-600/30 transition-colors"
+                              title="Edit Account"
+                            >
+                              <Settings className="h-5 w-5" />
+                            </button>
+                            <button
+                              onClick={() => handleDeleteAccount(account.id)}
+                              className="p-2 bg-red-600/20 text-red-400 rounded-full hover:bg-red-600/30 transition-colors"
+                              title="Delete Account"
+                            >
+                              <Trash className="h-5 w-5" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
-        </div>
+        )}
 
-        {/* Sector Distribution */}
+        {/* Positions Table */}
+        {(filterType === "all" || filterType === "positions") && (
+          <div className="bg-gray-800/70 backdrop-blur-sm rounded-xl mb-8 overflow-hidden">
+            <div className="flex justify-between items-center p-4 border-b border-gray-700">
+              <h2 className="text-xl font-semibold flex items-center">
+                <BarChart4 className="w-5 h-5 mr-2 text-purple-400" />
+                Your Positions
+              </h2>
+              <div className="text-sm text-gray-400">
+                {Object.keys(positions).reduce((sum, accountId) => sum + (positions[accountId]?.length || 0), 0)} positions across {accounts.length} accounts
+              </div>
+            </div>
+            
+            {isLoading ? (
+              <div className="p-8 text-center">
+                <div className="inline-block w-8 h-8 border-4 border-purple-500 border-t-transparent rounded-full animate-spin mb-4"></div>
+                <p className="text-gray-400">Loading positions data...</p>
+              </div>
+            ) : sortedPositions.length === 0 ? (
+              <div className="p-8 text-center">
+                <div className="bg-gray-700/50 rounded-full w-16 h-16 flex items-center justify-center mx-auto mb-4">
+                  <BarChart4 className="h-8 w-8 text-gray-500" />
+                </div>
+                <h3 className="text-xl font-medium mb-2">No positions found</h3>
+                <p className="text-gray-400 max-w-md mx-auto">
+                  Add positions to your accounts to start tracking your investments.
+                </p>
+                {accounts.length > 0 && (
+                  <button 
+                    onClick={() => handleAddPositionClick(accounts[0].id)}
+                    className="mt-4 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
+                  >
+                    Add Position
+                  </button>
+                )}
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-700">
+                  <thead className="bg-gray-900/50">
+                    <tr>
+                      <th scope="col" className="px-6 py-4 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
+                        Ticker
+                      </th>
+                      <th scope="col" className="px-6 py-4 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
+                        Account
+                      </th>
+                      <th scope="col" className="px-6 py-4 text-right text-xs font-medium text-gray-400 uppercase tracking-wider">
+                        Shares
+                      </th>
+                      <th scope="col" className="px-6 py-4 text-right text-xs font-medium text-gray-400 uppercase tracking-wider">
+                        Price
+                      </th>
+                      <th scope="col" className="px-6 py-4 text-right text-xs font-medium text-gray-400 uppercase tracking-wider">
+                        Value
+                      </th>
+                      <th scope="col" className="px-6 py-4 text-right text-xs font-medium text-gray-400 uppercase tracking-wider">
+                        Gain/Loss
+                      </th>
+                      <th scope="col" className="px-6 py-4 text-center text-xs font-medium text-gray-400 uppercase tracking-wider">
+                        Actions
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-700">
+                    {sortedPositions.map((position) => {
+                      const costBasis = getPositionCostBasis(position);
+                      return (
+                        <tr 
+                          key={position.id}
+                          className="hover:bg-gray-700/50 transition-colors"
+                        >
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="flex items-center">
+                              <div className="flex-shrink-0 h-10 w-10 rounded-full bg-gradient-to-br from-green-500 to-blue-600 flex items-center justify-center">
+                                <span className="font-bold">{position.ticker.charAt(0)}</span>
+                              </div>
+                              <div className="ml-4">
+                                <div className="text-sm font-medium">
+                                  {position.ticker}
+                                </div>
+                                <div className="text-sm text-gray-400">
+                                  {position.purchase_date ? new Date(position.purchase_date).toLocaleDateString() : 'N/A'}
+                                </div>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="text-sm">{position.accountName}</div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-right">
+                            <div className="text-sm">{position.shares.toLocaleString()}</div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-right">
+                            <div className="text-sm">${position.price.toLocaleString()}</div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-right">
+                            <div className="text-sm font-medium">${position.value.toLocaleString()}</div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-right">
+                            {renderTrend(position.value, position.shares * costBasis)}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-center">
+                            <div className="flex items-center justify-center space-x-3">
+                              <button
+                                onClick={() => {/* handle edit position */}}
+                                className="p-2 bg-purple-600/20 text-purple-400 rounded-full hover:bg-purple-600/30 transition-colors"
+                                title="Edit Position"
+                              >
+                                <Settings className="h-5 w-5" />
+                              </button>
+                              <button
+                                onClick={() => {/* handle delete position */}}
+                                className="p-2 bg-red-600/20 text-red-400 rounded-full hover:bg-red-600/30 transition-colors"
+                                title="Delete Position"
+                              >
+                                <Trash className="h-5 w-5" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Portfolio Summary Section */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
           <div className="bg-gray-800/70 backdrop-blur-sm p-6 rounded-xl lg:col-span-2">
-            <h2 className="text-xl font-semibold mb-4">Popular Sectors</h2>
+            <h2 className="text-xl font-semibold mb-4">Portfolio Allocation</h2>
             <div className="space-y-4">
               {[
-                { name: "Technology", value: 34, color: "bg-blue-500" },
-                { name: "Healthcare", value: 18, color: "bg-green-500" },
-                { name: "Financial Services", value: 15, color: "bg-purple-500" },
-                { name: "Consumer Cyclical", value: 12, color: "bg-yellow-500" },
-                { name: "Communication Services", value: 10, color: "bg-red-500" }
-              ].map((sector) => (
-                <div key={sector.name}>
+                { name: "Stocks", value: 65, color: "bg-blue-500" },
+                { name: "ETFs", value: 25, color: "bg-purple-500" },
+                { name: "Bonds", value: 7, color: "bg-green-500" },
+                { name: "Cash", value: 3, color: "bg-yellow-500" }
+              ].map((asset) => (
+                <div key={asset.name}>
                   <div className="flex justify-between text-sm mb-1">
-                    <span>{sector.name}</span>
-                    <span>{sector.value}%</span>
+                    <span>{asset.name}</span>
+                    <span>{asset.value}%</span>
                   </div>
                   <div className="w-full bg-gray-700 rounded-full h-2.5">
                     <div
-                      className={`${sector.color} h-2.5 rounded-full`}
-                      style={{ width: `${sector.value}%` }}
+                      className={`${asset.color} h-2.5 rounded-full`}
+                      style={{ width: `${asset.value}%` }}
                     ></div>
                   </div>
                 </div>
@@ -590,42 +713,35 @@ export default function Securities() {
           </div>
 
           <div className="bg-gray-800/70 backdrop-blur-sm p-6 rounded-xl">
-            <h2 className="text-xl font-semibold mb-4">Top Performers</h2>
+            <h2 className="text-xl font-semibold mb-4">Top Holdings</h2>
             <div className="space-y-3">
-              {mockSecurities
-                .sort((a, b) => b.change - a.change)
-                .slice(0, 5)
-                .map((security) => (
-                  <div 
-                    key={`top-${security.id}`}
-                    className="flex items-center justify-between p-3 bg-gray-700/50 rounded-lg hover:bg-gray-700 transition-colors cursor-pointer"
-                    onClick={() => openSecurityDetail(security)}
-                  >
-                    <div className="flex items-center">
-                      <div className="w-8 h-8 rounded-full bg-gradient-to-br from-green-500 to-blue-500 flex items-center justify-center mr-3">
-                        <span className="text-xs font-bold">{security.symbol.charAt(0)}</span>
-                      </div>
-                      <div>
-                        <div className="font-medium">{security.symbol}</div>
-                        <div className="text-xs text-gray-400">{security.sector}</div>
-                      </div>
+              {sortedPositions.slice(0, 5).map((position) => (
+                <div 
+                  key={`top-${position.id}`}
+                  className="flex items-center justify-between p-3 bg-gray-700/50 rounded-lg hover:bg-gray-700 transition-colors cursor-pointer"
+                >
+                  <div className="flex items-center">
+                    <div className="w-8 h-8 rounded-full bg-gradient-to-br from-green-500 to-blue-500 flex items-center justify-center mr-3">
+                      <span className="text-xs font-bold">{position.ticker.charAt(0)}</span>
                     </div>
-                    <div className="text-green-500 font-medium flex items-center">
-                      <TrendingUp className="h-4 w-4 mr-1" />
-                      +{security.change.toFixed(2)}%
+                    <div>
+                      <div className="font-medium">{position.ticker}</div>
+                      <div className="text-xs text-gray-400">{position.accountName}</div>
                     </div>
                   </div>
-                ))}
+                  <div className="text-right">
+                    <div className="font-medium">${position.value.toLocaleString()}</div>
+                    <div className="text-xs text-gray-400">{position.shares} shares</div>
+                  </div>
+                </div>
+              ))}
             </div>
-            <button className="w-full mt-4 py-2 text-blue-400 hover:text-blue-300 transition-colors flex items-center justify-center">
-              View More <ArrowUpRight className="h-4 w-4 ml-1" />
-            </button>
           </div>
         </div>
       </div>
 
-      {/* Security Detail Modal */}
-      {selectedSecurity && (
+      {/* Add Account Modal */}
+      {isAddAccountModalOpen && (
         <div className="fixed inset-0 z-50 overflow-y-auto">
           <div className="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
             <div className="fixed inset-0 transition-opacity" aria-hidden="true">
@@ -634,138 +750,210 @@ export default function Securities() {
 
             <span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
             
-            <div className="inline-block align-bottom bg-gray-800 rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-3xl sm:w-full">
+            <div className="inline-block align-bottom bg-gray-800 rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
               <div className="flex justify-between items-start p-6 border-b border-gray-700">
                 <div className="flex items-center">
-                  <div className="flex-shrink-0 h-12 w-12 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center mr-4">
-                    <span className="font-bold text-lg">{selectedSecurity.symbol.charAt(0)}</span>
-                  </div>
-                  <div>
-                    <h3 className="text-xl font-semibold">{selectedSecurity.name}</h3>
-                    <div className="flex items-center mt-1">
-                      <span className="text-gray-400 mr-2">{selectedSecurity.symbol}</span>
-                      <span className="px-2 py-0.5 text-xs rounded-full bg-gray-700">
-                        {selectedSecurity.type === "stock" ? "Stock" : "ETF"}
-                      </span>
-                      <span className="ml-2 px-2 py-0.5 text-xs rounded-full bg-blue-900/70 text-blue-300">
-                        {selectedSecurity.sector}
-                      </span>
-                    </div>
-                  </div>
+                  <Briefcase className="w-6 h-6 text-blue-500 mr-3" />
+                  <h3 className="text-xl font-semibold">Add New Account</h3>
                 </div>
                 <button
-                  onClick={closeSecurityDetail}
+                  onClick={() => setIsAddAccountModalOpen(false)}
                   className="text-gray-400 hover:text-white transition-colors"
                 >
                   <X className="h-6 w-6" />
                 </button>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-6">
-                {/* Price Overview */}
-                <div className="bg-gray-700/50 rounded-lg p-4">
-                  <h4 className="text-gray-400 text-sm mb-2">Current Price</h4>
-                  <div className="flex justify-between items-center mb-4">
-                    <span className="text-3xl font-bold">${selectedSecurity.price.toFixed(2)}</span>
-                    <div className={`px-3 py-1 rounded-full text-sm font-medium ${
-                      selectedSecurity.change > 0 ? 'bg-green-900/30 text-green-400' : 'bg-red-900/30 text-red-400'
-                    }`}>
-                      {selectedSecurity.change > 0 ? '+' : ''}{selectedSecurity.change.toFixed(2)}%
-                    </div>
+              <form onSubmit={handleAddAccount} className="p-6">
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-400 mb-1">Account Name</label>
+                    <input
+                      type="text"
+                      value={accountName}
+                      onChange={(e) => setAccountName(e.target.value)}
+                      className="w-full p-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                      placeholder="e.g. Retirement Account, Brokerage Account"
+                      required
+                    />
                   </div>
                   
-                  {/* Chart Placeholder */}
-                  <div className="bg-gray-800/70 h-48 rounded-lg flex items-center justify-center mb-4">
-                    <div className="text-center text-gray-500">
-                      <BarChart4 className="h-8 w-8 mx-auto mb-2" />
-                      <p>Price chart loading...</p>
-                    </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-400 mb-1">Institution</label>
+                    <input
+                      type="text"
+                      value={institution}
+                      onChange={(e) => setInstitution(e.target.value)}
+                      className="w-full p-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                      placeholder="e.g. Vanguard, Fidelity, Schwab"
+                    />
                   </div>
                   
-                  <div className="grid grid-cols-3 gap-2">
-                    {['1D', '1W', '1M', '3M', '6M', 'YTD', '1Y', '5Y'].map((period) => (
-                      <button
-                        key={period}
-                        className={`py-1 text-center rounded ${
-                          period === '1M' 
-                            ? 'bg-blue-600 text-white' 
-                            : 'bg-gray-700 text-gray-400 hover:bg-gray-600 transition-colors'
-                        }`}
-                      >
-                        {period}
-                      </button>
-                    ))}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-400 mb-1">Account Type</label>
+                    <select
+                      value={accountType}
+                      onChange={(e) => setAccountType(e.target.value)}
+                      className="w-full p-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                    >
+                      <option value="">-- Select Account Type --</option>
+                      <option value="401(k)">401(k)</option>
+                      <option value="IRA">IRA</option>
+                      <option value="Roth IRA">Roth IRA</option>
+                      <option value="Brokerage">Brokerage</option>
+                      <option value="HSA">HSA</option>
+                      <option value="529">529</option>
+                      <option value="Other">Other</option>
+                    </select>
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-400 mb-1">Initial Balance</label>
+                    <input
+                      type="number"
+                      value={balance}
+                      onChange={(e) => setBalance(e.target.value)}
+                      className="w-full p-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                      placeholder="0.00"
+                      min="0"
+                      step="0.01"
+                    />
                   </div>
                 </div>
+                
+                {formMessage && (
+                  <div className={`mt-4 p-3 rounded-lg ${formMessage.includes("Error") || formMessage.includes("Failed") ? "bg-red-900/50 text-red-300" : "bg-green-900/50 text-green-300"}`}>
+                    {formMessage}
+                  </div>
+                )}
+                
+                <div className="mt-6 flex justify-end space-x-3">
+                  <button
+                    type="button"
+                    onClick={() => setIsAddAccountModalOpen(false)}
+                    className="px-4 py-2 border border-gray-600 rounded-lg hover:bg-gray-700 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                  >
+                    Add Account
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
 
-                {/* Key Statistics */}
-                <div className="bg-gray-700/50 rounded-lg p-4">
-                  <h4 className="text-gray-400 text-sm mb-4">Key Statistics</h4>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <p className="text-gray-400 text-sm">Market Cap</p>
-                      <p className="font-medium">{selectedSecurity.marketCap}</p>
-                    </div>
-                    <div>
-                      <p className="text-gray-400 text-sm">P/E Ratio</p>
-                      <p className="font-medium">{selectedSecurity.pe ? selectedSecurity.pe.toFixed(2) : 'N/A'}</p>
-                    </div>
-                    <div>
-                      <p className="text-gray-400 text-sm">Dividend Yield</p>
-                      <p className="font-medium">{selectedSecurity.dividend ? selectedSecurity.dividend.toFixed(2) + '%' : 'N/A'}</p>
-                    </div>
-                    <div>
-                      <p className="text-gray-400 text-sm">Beta</p>
-                      <p className="font-medium">{selectedSecurity.beta.toFixed(2)}</p>
-                    </div>
-                    <div>
-                      <p className="text-gray-400 text-sm">52-Week High</p>
-                      <p className="font-medium">${(selectedSecurity.price * 1.2).toFixed(2)}</p>
-                    </div>
-                    <div>
-                      <p className="text-gray-400 text-sm">52-Week Low</p>
-                      <p className="font-medium">${(selectedSecurity.price * 0.8).toFixed(2)}</p>
-                    </div>
-                    <div>
-                      <p className="text-gray-400 text-sm">Average Volume</p>
-                      <p className="font-medium">5.2M</p>
-                    </div>
-                    <div>
-                      <p className="text-gray-400 text-sm">Popularity</p>
-                      <p className="font-medium">{selectedSecurity.popularity}/100</p>
-                    </div>
-                  </div>
+      {/* Add Position Modal */}
+      {isAddPositionModalOpen && (
+        <div className="fixed inset-0 z-50 overflow-y-auto">
+          <div className="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+            <div className="fixed inset-0 transition-opacity" aria-hidden="true">
+              <div className="absolute inset-0 bg-black/80 backdrop-blur-sm"></div>
+            </div>
+
+            <span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+            
+            <div className="inline-block align-bottom bg-gray-800 rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
+              <div className="flex justify-between items-start p-6 border-b border-gray-700">
+                <div className="flex items-center">
+                  <BarChart4 className="w-6 h-6 text-purple-500 mr-3" />
+                  <h3 className="text-xl font-semibold">Add New Position</h3>
                 </div>
+                <button
+                  onClick={() => setIsAddPositionModalOpen(false)}
+                  className="text-gray-400 hover:text-white transition-colors"
+                >
+                  <X className="h-6 w-6" />
+                </button>
               </div>
 
-              {/* Security Description */}
-              <div className="p-6 border-t border-gray-700">
-                <h4 className="text-gray-400 text-sm mb-2">About</h4>
-                <p className="text-gray-300 mb-6">{selectedSecurity.description}</p>
+              <div className="p-6">
+                <div className="mb-4">
+                  <p className="text-gray-300">
+                    Adding position to account: <span className="font-medium text-white">
+                      {accounts.find(a => a.id === selectedAccount)?.account_name || "Account"}
+                    </span>
+                  </p>
+                </div>
                 
-                {/* Action Buttons */}
-                <div className="flex flex-wrap gap-3">
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-400 mb-1">Ticker Symbol</label>
+                    <input
+                      type="text"
+                      className="w-full p-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                      placeholder="e.g. AAPL, MSFT, GOOGL"
+                    />
+                  </div>
+                  
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-400 mb-1">Shares</label>
+                      <input
+                        type="number"
+                        className="w-full p-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                        placeholder="0.00"
+                        min="0.0001"
+                        step="0.0001"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-400 mb-1">Price Per Share</label>
+                      <input
+                        type="number"
+                        className="w-full p-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                        placeholder="0.00"
+                        min="0.01"
+                        step="0.01"
+                      />
+                    </div>
+                  </div>
+                  
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-400 mb-1">Purchase Date</label>
+                      <input
+                        type="date"
+                        className="w-full p-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-400 mb-1">Cost Basis</label>
+                      <input
+                        type="number"
+                        className="w-full p-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                        placeholder="0.00"
+                        min="0.01"
+                        step="0.01"
+                      />
+                    </div>
+                  </div>
+                </div>
+                
+                {formMessage && (
+                  <div className={`mt-4 p-3 rounded-lg ${formMessage.includes("Error") || formMessage.includes("Failed") ? "bg-red-900/50 text-red-300" : "bg-green-900/50 text-green-300"}`}>
+                    {formMessage}
+                  </div>
+                )}
+                
+                <div className="mt-6 flex justify-end space-x-3">
                   <button
-                    onClick={() => {
-                      toggleWatchlist(selectedSecurity.id);
-                      closeSecurityDetail();
-                    }}
-                    className={`px-4 py-2 rounded-lg flex items-center ${
-                      selectedSecurity.isWatchlisted
-                        ? 'bg-yellow-500/20 text-yellow-400 hover:bg-yellow-500/30'
-                        : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
-                    } transition-colors`}
+                    type="button"
+                    onClick={() => setIsAddPositionModalOpen(false)}
+                    className="px-4 py-2 border border-gray-600 rounded-lg hover:bg-gray-700 transition-colors"
                   >
-                    <Star className="h-5 w-5 mr-2" fill={selectedSecurity.isWatchlisted ? "currentColor" : "none"} />
-                    {selectedSecurity.isWatchlisted ? 'Remove from Watchlist' : 'Add to Watchlist'}
+                    Cancel
                   </button>
-                  <button className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center">
-                    <Plus className="h-5 w-5 mr-2" />
-                    Add to Portfolio
-                  </button>
-                  <button className="px-4 py-2 bg-purple-600/20 text-purple-400 rounded-lg hover:bg-purple-600/30 transition-colors flex items-center">
-                    <BarChart4 className="h-5 w-5 mr-2" />
-                    View Detailed Charts
+                  <button
+                    type="button"
+                    className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
+                  >
+                    Add Position
                   </button>
                 </div>
               </div>
@@ -774,7 +962,7 @@ export default function Securities() {
         </div>
       )}
 
-      {/* Watchlist Management Modal */}
+      {/* Watchlist Modal */}
       {watchlistModal && (
         <div className="fixed inset-0 z-50 overflow-y-auto">
           <div className="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
@@ -803,43 +991,14 @@ export default function Securities() {
                   <div className="p-4 border-b border-gray-700 flex justify-between items-center">
                     <h4 className="font-medium">Default Watchlist</h4>
                     <span className="bg-blue-900/30 text-blue-400 text-xs px-2 py-1 rounded-full">
-                      {securities.filter(s => s.isWatchlisted).length} items
+                      0 items
                     </span>
                   </div>
 
-                  <div className="p-2 max-h-64 overflow-y-auto">
-                    {securities.filter(s => s.isWatchlisted).map(security => (
-                      <div key={`watchlist-${security.id}`} className="flex items-center justify-between p-2 hover:bg-gray-700 rounded-lg">
-                        <div className="flex items-center">
-                          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center mr-3">
-                            <span className="text-xs font-bold">{security.symbol.charAt(0)}</span>
-                          </div>
-                          <div>
-                            <div className="font-medium">{security.symbol}</div>
-                            <div className="text-xs text-gray-400">{security.name}</div>
-                          </div>
-                        </div>
-                        <div className="flex items-center space-x-2">
-                          <div className={`text-sm ${security.change > 0 ? 'text-green-500' : 'text-red-500'}`}>
-                            {security.change > 0 ? '+' : ''}{security.change.toFixed(2)}%
-                          </div>
-                          <button
-                            onClick={() => toggleWatchlist(security.id)}
-                            className="p-1 text-gray-400 hover:text-red-500 transition-colors"
-                          >
-                            <X className="h-5 w-5" />
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-
-                    {securities.filter(s => s.isWatchlisted).length === 0 && (
-                      <div className="text-center py-6 text-gray-400">
-                        <Bookmark className="h-10 w-10 mx-auto mb-2 opacity-50" />
-                        <p>Your watchlist is empty</p>
-                        <p className="text-sm">Add securities to track them here</p>
-                      </div>
-                    )}
+                  <div className="p-6 text-center text-gray-400">
+                    <Bookmark className="h-10 w-10 mx-auto mb-2 opacity-50" />
+                    <p>Your watchlist is empty</p>
+                    <p className="text-sm">Add securities to track them here</p>
                   </div>
                 </div>
 

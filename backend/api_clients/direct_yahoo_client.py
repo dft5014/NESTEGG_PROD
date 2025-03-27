@@ -31,7 +31,41 @@ class DirectYahooFinanceClient(MarketDataSource):
             'Accept-Language': 'en-US,en;q=0.5',
             'Connection': 'keep-alive',
         })
+        
+        # Add a cache dictionary with TTL values
+        self.cache = {}
+        self.cache_ttl = {
+            "current_price": 15 * 60,  # 15 minutes
+            "company_metrics": 24 * 60 * 60,  # 24 hours
+            "historical_prices": 6 * 60 * 60,  # 6 hours
+        }
     
+
+
+    def _get_from_cache(self, cache_key: str, cache_type: str) -> Optional[Any]:
+        """Get data from cache if it exists and is not expired"""
+        if not hasattr(self, 'cache'):
+            return None
+            
+        if cache_key in self.cache:
+            cached_data = self.cache[cache_key]
+            now = datetime.now()
+            if (now - cached_data["timestamp"]).total_seconds() < self.cache_ttl[cache_type]:
+                logger.debug(f"Cache hit for {cache_key}")
+                return cached_data["data"]
+        return None
+
+    def _set_in_cache(self, cache_key: str, cache_type: str, data: Any) -> None:
+        """Store data in cache with current timestamp"""
+        if not hasattr(self, 'cache'):
+            return
+            
+        self.cache[cache_key] = {
+            "data": data,
+            "timestamp": datetime.now()
+        }
+        logger.debug(f"Cached data for {cache_key}")
+
     @property
     def source_name(self) -> str:
         """Return the name of this data source"""
@@ -46,6 +80,12 @@ class DirectYahooFinanceClient(MarketDataSource):
         """
         Get current price for a single ticker with retry logic
         """
+        # Check cache first
+        cache_key = f"price_{ticker}"
+        cached_data = self._get_from_cache(cache_key, "current_price")
+        if cached_data:
+            return cached_data
+            
         retries = 3
         delay = 2
         for attempt in range(retries):
@@ -117,6 +157,9 @@ class DirectYahooFinanceClient(MarketDataSource):
                         "source": self.source_name
                     }
                     
+                    # Cache the result
+                    self._set_in_cache(cache_key, "current_price", result)
+                    
                     logger.info(f"Returning data for {ticker}: {result}")
                     return result
                 else:
@@ -169,6 +212,12 @@ class DirectYahooFinanceClient(MarketDataSource):
         """
         Get company metrics for a ticker with retry logic
         """
+        # Check cache first
+        cache_key = f"metrics_{ticker}"
+        cached_data = self._get_from_cache(cache_key, "company_metrics")
+        if cached_data:
+            return cached_data
+            
         retries = 3
         delay = 2
         for attempt in range(retries):
@@ -191,6 +240,9 @@ class DirectYahooFinanceClient(MarketDataSource):
                 
                 # Parse the JSON response
                 data = response.json()
+                
+                # Log the raw response to debug log
+                logger.debug(f"Raw response for {ticker}: {str(data)[:500]}...")
                 
                 # Extract quote data - different path for this endpoint
                 if "quoteSummary" in data and "result" in data["quoteSummary"] and data["quoteSummary"]["result"]:
@@ -255,6 +307,9 @@ class DirectYahooFinanceClient(MarketDataSource):
                     
                     # Check if we got meaningful data
                     if len(metrics) > 3:  # More than just the basics (ticker, source, etc.)
+                        # Cache the metrics
+                        self._set_in_cache(cache_key, "company_metrics", metrics)
+                        
                         logger.info(f"Metrics for {ticker}: {metrics}")
                         return metrics
                     else:
@@ -292,14 +347,20 @@ class DirectYahooFinanceClient(MarketDataSource):
         """
         Get historical prices for a single ticker with retry logic
         """
+        if not end_date:
+            end_date = datetime.now()
+        
+        # Create a cache key that includes the date range
+        cache_key = f"history_{ticker}_{start_date.strftime('%Y%m%d')}_{end_date.strftime('%Y%m%d')}"
+        cached_data = self._get_from_cache(cache_key, "historical_prices")
+        if cached_data:
+            return cached_data
+            
         retries = 3
         delay = 2
         for attempt in range(retries):
             try:
                 logger.info(f"Fetching historical data for {ticker} (attempt {attempt+1}/{retries})")
-                
-                if not end_date:
-                    end_date = datetime.now()
                 
                 # Convert dates to UNIX timestamps
                 start_timestamp = int(start_date.timestamp())
@@ -367,6 +428,9 @@ class DirectYahooFinanceClient(MarketDataSource):
                             logger.warning(f"Error processing historical point for {ticker} at index {i}: {str(point_error)}")
                     
                     if results:
+                        # Cache the results
+                        self._set_in_cache(cache_key, "historical_prices", results)
+                        
                         logger.info(f"Successfully processed {len(results)} historical data points for {ticker}")
                     return results
                 else:

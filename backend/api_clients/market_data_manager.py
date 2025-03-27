@@ -105,18 +105,25 @@ class MarketDataManager:
         """Set default source preferences for different data types based on performance testing"""
         available_sources = list(self.sources.keys())
         
-        # Default preference order for most operations
-        default_order = ["direct_yahoo", "yahooquery", "yahoo_finance", "polygon"]
+        # Current price preference (direct_yahoo is faster)
+        current_price_order = ["direct_yahoo", "yahooquery", "yahoo_finance", "polygon"]
         
-        # Company metrics use yahooquery first (it has much richer data)
-        metrics_order = ["yahooquery", "direct_yahoo", "yahoo_finance", "polygon"]
+        # Batch prices preference (yahooquery is slightly faster)
+        batch_prices_order = ["yahooquery", "direct_yahoo", "yahoo_finance", "polygon"]
+        
+        # Company metrics preference (only yahooquery works reliably)
+        metrics_order = ["yahooquery", "yahoo_finance", "direct_yahoo", "polygon"]
+        
+        # Historical prices preference (direct_yahoo is much faster)
+        historical_order = ["direct_yahoo", "yahooquery", "yahoo_finance", "polygon"]
         
         # Filter to only use available sources
-        for data_type in ["current_price", "batch_prices", "historical_prices"]:
-            self.preferred_sources[data_type] = [s for s in default_order if s in available_sources]
-        
-        # Set company metrics to use YahooQuery first
+        self.preferred_sources["current_price"] = [s for s in current_price_order if s in available_sources]
+        self.preferred_sources["batch_prices"] = [s for s in batch_prices_order if s in available_sources]
         self.preferred_sources["company_metrics"] = [s for s in metrics_order if s in available_sources]
+        self.preferred_sources["historical_prices"] = [s for s in historical_order if s in available_sources]
+        
+        logger.info("Set optimized source preferences based on performance testing")
         
         logger.info("Set default source preferences based on performance testing")  
         

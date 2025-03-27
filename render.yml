@@ -19,3 +19,38 @@ services:
         sync: false
       - key: REDIS_ENABLED
         sync: false
+
+
+  # New background worker for scheduled tasks
+  - type: worker
+    name: nestegg-scheduler
+    env: python
+    buildCommand: pip install -r backend/requirements.txt
+    startCommand: cd backend && python scheduler.py
+    envVars:
+      # Use the same env vars as the web service
+      - key: DATABASE_URL
+        sync: false
+      - key: POLYGON_API_KEY
+        sync: false
+      - key: SECRET_KEY
+        sync: false
+      - key: REDIS_HOST
+        sync: false
+      - key: REDIS_PORT
+        sync: false
+      - key: REDIS_DB
+        sync: false
+      - key: REDIS_ENABLED
+        sync: false
+      # Scheduler-specific env vars
+      - key: SCHEDULER_ENABLED
+        value: "true"
+      - key: PRICE_UPDATE_FREQUENCY
+        value: "15"
+      - key: METRICS_UPDATE_TIME
+        value: "02:00" 
+      - key: HISTORY_UPDATE_TIME
+        value: "03:00"
+      - key: PORTFOLIO_SNAPSHOT_TIME
+        value: "04:00"
