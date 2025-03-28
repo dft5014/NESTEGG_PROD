@@ -1,164 +1,155 @@
-import React, { useState, useEffect } from 'react';
-import { RefreshCcw, CheckCircle, XCircle, Clock, AlertCircle } from 'lucide-react';
-import { API_BASE_URL, fetchWithAuth } from '@/utils/api';
+import { useState, useEffect, useContext } from 'react';
+import { fetchWithAuth } from '@/utils/api';
+import { AuthContext } from '@/context/AuthContext';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Loader2, AlertCircle, CheckCircle2, Info } from 'lucide-react';
 
-
-const SystemEvents = () => {
+export default function SystemEvents() {
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-
-  const fetchEvents = async () => {
-    setLoading(true);
-    try {
-      const response = await fetchWithAuth(`/system/events?limit=5`);
-
-      if (!response.ok) {
-        throw new Error("Failed to fetch system events");
-      }
-
-      const data = await response.json();
-      setEvents(data.events || []);
-    } catch (err) {
-      console.error("Error fetching system events:", err);
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Initial fetch
+  const auth = useContext(AuthContext); // Use AuthContext directly
+  
   useEffect(() => {
-    fetchEvents();
-    
-    // Set up auto-refresh every 60 seconds
-    const interval = setInterval(fetchEvents, 60000);
-    return () => clearInterval(interval);
-  }, []);
-
-  // Format relative time (e.g., "2 minutes ago")
-  const getRelativeTime = (timestamp) => {
-    if (!timestamp) return "N/A";
-    
-    const date = new Date(timestamp);
-    const now = new Date();
-    const seconds = Math.floor((now - date) / 1000);
-    
-    if (seconds < 60) return `${seconds} seconds ago`;
-    if (seconds < 3600) return `${Math.floor(seconds / 60)} minutes ago`;
-    if (seconds < 86400) return `${Math.floor(seconds / 3600)} hours ago`;
-    return `${Math.floor(seconds / 86400)} days ago`;
-  };
-
-  // Get status icon based on event status
-  const getStatusIcon = (status) => {
-    switch (status) {
-      case "completed":
-        return <CheckCircle className="w-5 h-5 text-green-500" />;
-      case "failed":
-        return <XCircle className="w-5 h-5 text-red-500" />;
-      case "started":
-        return <Clock className="w-5 h-5 text-blue-500" />;
-      default:
-        return <AlertCircle className="w-5 h-5 text-gray-500" />;
-    }
-  };
-
-  // Get friendly name for event type
-  const getEventTypeName = (type) => {
-    const eventTypes = {
-      "price_update": "Market Data Update",
-      "portfolio_calculation": "Portfolio Calculation",
-      "portfolio_snapshot": "Portfolio Snapshot",
-      "metrics_update": "Company Metrics Update",
-      "history_update": "Historical Data Update"
+    const fetchSystemEvents = async () => {
+      try {
+        if (!auth.user) return;
+        
+        setLoading(true);
+        const response = await fetchWithAuth('/system/events');
+        
+        if (response.ok) {
+          const data = await response.json();
+          setEvents(data.events || []);
+          setError(null);
+        } else {
+          console.error('Failed to fetch system events');
+          setError('Failed to fetch system events');
+        }
+      } catch (err) {
+        console.error('Error fetching system events:', err);
+        setError(err.message);
+      } finally {
+        setLoading(false);
+      }
     };
     
-    return eventTypes[type] || type;
-  };
-
-  // Calculate duration of completed events
-  const getDuration = (startTime, endTime) => {
-    if (!startTime || !endTime) return "N/A";
+    fetchSystemEvents();
     
-    const start = new Date(startTime);
-    const end = new Date(endTime);
-    const seconds = Math.floor((end - start) / 1000);
+    // Set up polling interval for live updates
+    const interval = setInterval(fetchSystemEvents, 30000); // Every 30 seconds
     
-    if (seconds < 60) return `${seconds} seconds`;
-    return `${Math.floor(seconds / 60)} minutes ${seconds % 60} seconds`;
+    return () => clearInterval(interval);
+  }, [auth.user]);
+  
+  // Format date for display
+  const formatDate = (dateString) => {
+    if (!dateString) return '';
+    const date = new Date(dateString);
+    return date.toLocaleString();
   };
-
-  return (
-    <div className="bg-white rounded-xl shadow-md p-4 mb-6">
-      <div className="flex justify-between items-center mb-4">
-        <h2 className="text-lg font-semibold text-gray-800">System Updates</h2>
-        <button 
-          onClick={fetchEvents} 
-          className="flex items-center text-sm text-blue-600 hover:text-blue-800"
-          disabled={loading}
-        >
-          <RefreshCcw className={`w-4 h-4 mr-1 ${loading ? 'animate-spin' : ''}`} />
-          Refresh
-        </button>
+  
+  // Get severity badge
+  const getSeverityBadge = (severity) => {
+    switch (severity.toLowerCase()) {
+      case 'error':
+        return <Badge variant="destructive" className="flex items-center space-x-1">
+          <AlertCircle className="h-3 w-3" />
+          <span>Error</span>
+        </Badge>;
+      case 'warning':
+        return <Badge variant="warning" className="flex items-center space-x-1 bg-yellow-500">
+          <AlertCircle className="h-3 w-3" />
+          <span>Warning</span>
+        </Badge>;
+      case 'info':
+        return <Badge variant="secondary" className="flex items-center space-x-1">
+          <Info className="h-3 w-3" />
+          <span>Info</span>
+        </Badge>;
+      case 'success':
+        return <Badge variant="success" className="flex items-center space-x-1 bg-green-500">
+          <CheckCircle2 className="h-3 w-3" />
+          <span>Success</span>
+        </Badge>;
+      default:
+        return <Badge variant="outline">{severity}</Badge>;
+    }
+  };
+  
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center h-40">
+        <Loader2 className="h-6 w-6 animate-spin text-primary" />
       </div>
-      
-      {error && (
-        <div className="bg-red-50 text-red-700 p-3 rounded-md mb-4">
-          {error}
-        </div>
-      )}
-      
-      {events.length === 0 ? (
-        <p className="text-gray-500 text-center py-4">No recent system events</p>
-      ) : (
-        <div className="space-y-3">
-          {events.map((event) => (
-            <div key={event.id} className="border border-gray-100 rounded-lg p-3 hover:bg-gray-50">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center">
-                  {getStatusIcon(event.status)}
-                  <span className="ml-2 font-medium">{getEventTypeName(event.event_type)}</span>
+    );
+  }
+  
+  if (error) {
+    return (
+      <Card className="border-destructive">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-destructive flex items-center">
+            <AlertCircle className="h-4 w-4 mr-2" />
+            Error
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="text-sm">{error}</p>
+        </CardContent>
+      </Card>
+    );
+  }
+  
+  if (events.length === 0) {
+    return (
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle>System Events</CardTitle>
+          <CardDescription>Recent system events and notifications</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex justify-center items-center h-24">
+            <p className="text-sm text-muted-foreground">No system events to display</p>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+  
+  return (
+    <Card>
+      <CardHeader className="pb-2">
+        <CardTitle>System Events</CardTitle>
+        <CardDescription>Recent system events and notifications</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <div className="space-y-4">
+          {events.map((event, index) => (
+            <div 
+              key={index} 
+              className="border-b pb-3 last:border-0 last:pb-0"
+            >
+              <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start mb-1">
+                <div className="font-medium">{event.title}</div>
+                <div className="flex space-x-2 text-xs text-muted-foreground mt-1 sm:mt-0">
+                  <span>{formatDate(event.timestamp)}</span>
+                  {getSeverityBadge(event.severity)}
                 </div>
-                <span className="text-sm text-gray-500">{getRelativeTime(event.started_at)}</span>
               </div>
-              
-              <div className="mt-2 text-sm">
-                <div className="flex justify-between text-gray-600">
-                  <span>Status: <span className={
-                    event.status === "completed" ? "text-green-600" : 
-                    event.status === "failed" ? "text-red-600" : 
-                    "text-blue-600"
-                  }>{event.status}</span></span>
-                  
-                  {event.status === "completed" && (
-                    <span>Duration: {getDuration(event.started_at, event.completed_at)}</span>
-                  )}
+              <p className="text-sm mt-1">{event.message}</p>
+              {event.details && (
+                <div className="mt-2 p-2 bg-muted rounded text-xs font-mono whitespace-pre-wrap overflow-x-auto">
+                  {typeof event.details === 'object' ? 
+                    JSON.stringify(event.details, null, 2) : 
+                    event.details}
                 </div>
-                
-                {event.error_message && (
-                  <div className="mt-1 text-red-600 text-xs">
-                    Error: {event.error_message}
-                  </div>
-                )}
-                
-                {event.details && typeof event.details === 'object' && (
-                  <div className="mt-2 text-xs bg-gray-50 p-2 rounded">
-                    {Object.entries(event.details).map(([key, value]) => (
-                      <div key={key} className="grid grid-cols-2 gap-2">
-                        <span className="text-gray-500">{key}:</span>
-                        <span>{typeof value === 'object' ? JSON.stringify(value) : value}</span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
+              )}
             </div>
           ))}
         </div>
-      )}
-    </div>
+      </CardContent>
+    </Card>
   );
-};
-
-export default SystemEvents;
+}
