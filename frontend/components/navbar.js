@@ -14,7 +14,7 @@ import {
   Shield,
   Clock
 } from 'lucide-react';
-import { UpdateStatusIndicator } from '@/components/UpdateStatusIndicator';
+import UpdateStatusIndicator from '@/components/UpdateStatusIndicator';
 
 const Navbar = () => {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
