@@ -3591,7 +3591,7 @@ async def get_update_history(
 
 @app.get("/admin/update-thresholds")
 async def get_update_thresholds(
-    current_user: User = Depends(get_current_user_admin)
+    current_user: dict = Depends(get_current_user_admin)
 ):
     """Get current update thresholds"""
     query = """
@@ -3607,7 +3607,7 @@ async def get_update_thresholds(
 @app.post("/admin/update-thresholds")
 async def set_update_thresholds(
     thresholds: UpdateThresholds,
-    current_user: User = Depends(get_current_user_admin)
+    current_user: dict = Depends(get_current_user_admin)
 ):
     """Update threshold configuration"""
     # Update each threshold
