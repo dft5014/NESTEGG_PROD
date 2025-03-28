@@ -11,8 +11,10 @@ import {
   DollarSign,
   ChartLine,
   PlusCircle,
-  Shield
+  Shield,
+  Clock
 } from 'lucide-react';
+import { UpdateStatusIndicator } from '@/components/UpdateStatusIndicator';
 
 const Navbar = () => {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
@@ -35,6 +37,11 @@ const Navbar = () => {
       icon: <Settings className="w-5 h-5 mr-2" />, 
       label: "Settings", 
       href: "/settings" 
+    },
+    { 
+      icon: <Clock className="w-5 h-5 mr-2" />, 
+      label: "Scheduler", 
+      href: "/scheduler" 
     },
     { 
       icon: <HelpCircle className="w-5 h-5 mr-2" />, 
@@ -161,6 +168,9 @@ const Navbar = () => {
           {/* User Section */}
           {user ? (
             <div className="flex items-center space-x-4">
+              {/* Update Status Indicator */}
+              <UpdateStatusIndicator />
+              
               {/* Notifications - Optional */}
               <button className="text-gray-300 hover:text-white relative">
                 <Bell className="w-6 h-6" />

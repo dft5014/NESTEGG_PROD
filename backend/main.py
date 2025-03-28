@@ -98,6 +98,7 @@ positions = sqlalchemy.Table(
 engine = sqlalchemy.create_engine(DATABASE_URL)
 metadata.create_all(engine)
 
+
 # Initialize FastAPI App
 app = FastAPI(title="NestEgg API", description="Investment portfolio tracking API")
 
@@ -179,6 +180,21 @@ class UserSignup(BaseModel):
             raise ValueError('Password must be at least 6 characters')
         return v
 
+class UpdateLockRequest(BaseModel):
+    update_type: str
+
+class ReleaseLockRequest(BaseModel):
+    update_type: str
+    success: bool
+    details: Optional[dict] = None
+    history_id: Optional[str] = None
+
+class UpdateThresholds(BaseModel):
+    price_updates: int
+    metrics_updates: int
+    history_updates: int
+    portfolio_snapshots: int
+
 class AccountCreate(BaseModel):
     account_name: str
     institution: Optional[str] = None
@@ -249,6 +265,11 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends()):
     
     access_token = create_access_token(data={"sub": user["email"]})
     return {"access_token": access_token, "token_type": "bearer"}
+
+async def get_current_user_admin(current_user: dict = Depends(get_current_user)):
+    # You could implement extra checks here to ensure the user is an admin
+    # For now, we'll just use the regular user authentication
+    return current_user
 
 @app.get("/user")
 async def get_user_data(current_user: dict = Depends(get_current_user)):
@@ -1137,6 +1158,54 @@ async def trigger_history_update(days: int = 30, current_user: dict = Depends(ge
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
             detail=f"Failed to update historical prices: {str(e)}"
+        )
+
+@app.get("/system/database-status")
+async def get_database_status(current_user: dict = Depends(get_current_user)):
+    """Get database health and statistics"""
+    try:
+        # Get securities stats
+        securities_query = """
+        SELECT 
+            COUNT(*) as total,
+            COUNT(CASE WHEN current_price IS NOT NULL AND price_updated_at > NOW() - INTERVAL '24 HOURS' THEN 1 END) as with_current_prices,
+            COUNT(CASE WHEN current_price IS NULL OR price_updated_at < NOW() - INTERVAL '24 HOURS' THEN 1 END) as with_outdated_prices,
+            AVG(EXTRACT(EPOCH FROM (NOW() - price_updated_at)) / 3600) as average_price_age_hours
+        FROM securities
+        """
+        securities_stats = await database.fetch_one(securities_query)
+        
+        # Get user metrics
+        user_query = """
+        SELECT 
+            (SELECT COUNT(*) FROM users) as total_users,
+            (SELECT COUNT(*) FROM users WHERE last_login > NOW() - INTERVAL '7 DAYS') as active_users,
+            (SELECT COUNT(*) FROM portfolios) as total_portfolios,
+            (SELECT COUNT(*) FROM accounts) as total_accounts,
+            (SELECT COUNT(*) FROM positions) as total_positions
+        """
+        user_stats = await database.fetch_one(user_query)
+        
+        return {
+            "securities": {
+                "total": securities_stats["total"] or 0,
+                "withCurrentPrices": securities_stats["with_current_prices"] or 0,
+                "withOutdatedPrices": securities_stats["with_outdated_prices"] or 0,
+                "averagePriceAge": securities_stats["average_price_age_hours"] or 0
+            },
+            "userMetrics": {
+                "totalUsers": user_stats["total_users"] or 0,
+                "activeUsers": user_stats["active_users"] or 0,
+                "totalPortfolios": user_stats["total_portfolios"] or 0,
+                "totalAccounts": user_stats["total_accounts"] or 0,
+                "totalPositions": user_stats["total_positions"] or 0
+            }
+        }
+    except Exception as e:
+        logger.error(f"Error getting database status: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to get database status: {str(e)}"
         )
 
 # New endpoints for portfolio calculations
@@ -3425,6 +3494,138 @@ async def check_data_consistency(current_user: dict = Depends(get_current_user))
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to check data consistency: {str(e)}"
         )
+
+@app.get("/system/update-status")
+async def get_update_status(current_user: dict = Depends(get_current_user)):
+    """Get status of all update types including staleness"""
+    query = """
+    SELECT 
+        update_type, 
+        last_updated, 
+        threshold_minutes, 
+        in_progress,
+        lock_acquired_at,
+        lock_acquired_by,
+        success_count,
+        failure_count,
+        last_success_details,
+        last_failure_details,
+        last_failure_at,
+        EXTRACT(EPOCH FROM (NOW() - last_updated))/60 as minutes_since_update
+    FROM update_tracking
+    """
+    results = await database.fetch_all(query)
+    
+    return {
+        row["update_type"]: {
+            "last_updated": row["last_updated"],
+            "threshold_minutes": row["threshold_minutes"],
+            "in_progress": row["in_progress"],
+            "lock_acquired_at": row["lock_acquired_at"],
+            "lock_acquired_by": row["lock_acquired_by"],
+            "success_count": row["success_count"],
+            "failure_count": row["failure_count"],
+            "last_success_details": row["last_success_details"],
+            "last_failure_details": row["last_failure_details"],
+            "last_failure_at": row["last_failure_at"],
+            "minutes_since_update": row["minutes_since_update"],
+            "is_stale": row["minutes_since_update"] > row["threshold_minutes"]
+        }
+        for row in results
+    }
+
+@app.post("/system/acquire-update-lock")
+async def acquire_update_lock(
+    request: UpdateLockRequest,
+    current_user: dict = Depends(get_current_user)
+):
+    """Try to acquire lock for an update type"""
+    query = """
+    SELECT try_acquire_update_lock($1, $2) as lock_acquired
+    """
+    result = await database.fetch_one(
+        query, 
+        request.update_type, 
+        str(current_user.id)
+    )
+    
+    return {"lock_acquired": result["lock_acquired"]}
+
+@app.post("/system/release-update-lock")
+async def release_update_lock(
+    request: ReleaseLockRequest,
+    current_user: dict = Depends(get_current_user)
+):
+    """Release an update lock after completion or failure"""
+    query = """
+    SELECT release_update_lock($1, $2, $3, $4)
+    """
+    await database.execute(
+        query, 
+        request.update_type, 
+        request.success,
+        request.details,
+        request.history_id
+    )
+    
+    return {"success": True}
+
+@app.get("/system/update-history")
+async def get_update_history(
+    update_type: str = None,
+    limit: int = 20,
+    current_user: dict = Depends(get_current_user)
+):
+    """Get history of update operations"""
+    query = """
+    SELECT * FROM update_history
+    WHERE ($1 IS NULL OR update_type = $1)
+    ORDER BY triggered_at DESC
+    LIMIT $2
+    """
+    results = await database.fetch_all(query, update_type, limit)
+    
+    return {
+        "history": [dict(row) for row in results]
+    }
+
+@app.get("/admin/update-thresholds")
+async def get_update_thresholds(
+    current_user: User = Depends(get_current_user_admin)
+):
+    """Get current update thresholds"""
+    query = """
+    SELECT update_type, threshold_minutes FROM update_tracking
+    """
+    results = await database.fetch_all(query)
+    
+    return {
+        row["update_type"]: row["threshold_minutes"]
+        for row in results
+    }
+
+@app.post("/admin/update-thresholds")
+async def set_update_thresholds(
+    thresholds: UpdateThresholds,
+    current_user: User = Depends(get_current_user_admin)
+):
+    """Update threshold configuration"""
+    # Update each threshold
+    for update_type, minutes in thresholds.dict().items():
+        await database.execute(
+            """
+            UPDATE update_tracking 
+            SET threshold_minutes = $2
+            WHERE update_type = $1
+            """,
+            update_type,
+            minutes
+        )
+    
+    return {"success": True}
+
+
+
 
 @app.post("/admin/data-consistency/fix")
 async def fix_data_consistency(current_user: dict = Depends(get_current_user)):
