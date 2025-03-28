@@ -1,142 +1,98 @@
-// context/UpdateCheckContext.js
-import React, { createContext, useContext, useState, useEffect } from 'react';
-import { useAuth } from './AuthContext';
+import { createContext, useContext, useState, useEffect } from 'react';
+import { AuthContext } from './AuthContext';
 import { fetchWithAuth } from '@/utils/api';
 
 const UpdateCheckContext = createContext();
 
-export const useUpdateCheck = () => useContext(UpdateCheckContext);
+export const useUpdateCheck = () => {
+  const context = useContext(UpdateCheckContext);
+  if (!context) {
+    throw new Error('useUpdateCheck must be used within an UpdateCheckProvider');
+  }
+  return context;
+};
 
 export const UpdateCheckProvider = ({ children }) => {
-  const { user } = useAuth();
-  const [updateStatus, setUpdateStatus] = useState({
-    price_updates: { is_stale: false, in_progress: false },
-    metrics_updates: { is_stale: false, in_progress: false },
-    history_updates: { is_stale: false, in_progress: false },
-    portfolio_snapshots: { is_stale: false, in_progress: false }
-  });
-  const [isCheckingUpdates, setIsCheckingUpdates] = useState(false);
-  const [lastChecked, setLastChecked] = useState(null);
+  const [updateStatus, setUpdateStatus] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const auth = useContext(AuthContext); // Use AuthContext directly
 
-  // Check for updates on initial load and periodically
-  useEffect(() => {
-    if (!user) return;
-
-    const checkUpdates = async () => {
-      setIsCheckingUpdates(true);
-      try {
-        const response = await fetchWithAuth('/system/update-status');
-        if (response.ok) {
-          const data = await response.json();
-          setUpdateStatus(data);
-          setLastChecked(new Date());
-          
-          // Check if any updates are stale but not in progress
-          for (const [type, status] of Object.entries(data)) {
-            if (status.is_stale && !status.in_progress) {
-              console.log(`${type} is stale, attempting to trigger update`);
-              triggerUpdate(type);
-              // Only trigger one update at a time
-              break;
-            }
-          }
-        }
-      } catch (error) {
-        console.error('Error checking update status:', error);
-      } finally {
-        setIsCheckingUpdates(false);
-      }
-    };
-
-    // Check immediately on mount
-    checkUpdates();
-    
-    // Then check every 5 minutes
-    const interval = setInterval(checkUpdates, 5 * 60 * 1000);
-    
-    return () => clearInterval(interval);
-  }, [user]);
-
-  // Function to trigger an update
-  const triggerUpdate = async (updateType) => {
-    // Try to acquire lock
+  // Fetch update status
+  const fetchUpdateStatus = async () => {
     try {
-      const lockResponse = await fetchWithAuth('/system/acquire-update-lock', {
-        method: 'POST',
-        body: JSON.stringify({ update_type: updateType })
-      });
+      if (!auth.user) return; // Only fetch if user is authenticated
       
-      if (!lockResponse.ok) {
-        console.log(`Failed to acquire lock for ${updateType}`);
-        return false;
-      }
+      const response = await fetchWithAuth('/system/update_status');
       
-      const lockResult = await lockResponse.json();
-      if (!lockResult.lock_acquired) {
-        console.log(`Lock not acquired for ${updateType}`);
-        return false;
-      }
-      
-      // Lock acquired, trigger the appropriate update
-      let endpoint;
-      switch (updateType) {
-        case 'price_updates':
-          endpoint = '/market/update-prices-v2';
-          break;
-        case 'metrics_updates':
-          endpoint = '/market/update-metrics';
-          break;
-        case 'history_updates':
-          endpoint = '/market/update-history';
-          break;
-        case 'portfolio_snapshots':
-          endpoint = '/portfolios/calculate/all';
-          break;
-        default:
-          console.error(`Unknown update type: ${updateType}`);
-          return false;
-      }
-      
-      // Set as in progress in local state
-      setUpdateStatus(prev => ({
-        ...prev,
-        [updateType]: { ...prev[updateType], in_progress: true }
-      }));
-      
-      // Trigger the update
-      const updateResponse = await fetchWithAuth(endpoint, {
-        method: 'POST'
-      });
-      
-      // Refresh status after update
-      const statusResponse = await fetchWithAuth('/system/update-status');
-      if (statusResponse.ok) {
-        const data = await statusResponse.json();
+      if (response.ok) {
+        const data = await response.json();
         setUpdateStatus(data);
+        setError(null);
+      } else {
+        console.error('Failed to fetch update status');
+        setError('Failed to fetch update status');
       }
+    } catch (err) {
+      console.error('Error fetching update status:', err);
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Manually trigger updates
+  const manuallyTriggerUpdate = async (updateType) => {
+    try {
+      if (!auth.user) return false;
       
-      return updateResponse.ok;
-    } catch (error) {
-      console.error(`Error triggering ${updateType}:`, error);
+      const response = await fetchWithAuth('/system/trigger_update', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ update_type: updateType }),
+      });
+      
+      if (response.ok) {
+        // Refetch status after triggering update
+        await fetchUpdateStatus();
+        return true;
+      } else {
+        console.error('Failed to trigger update');
+        return false;
+      }
+    } catch (err) {
+      console.error('Error triggering update:', err);
       return false;
     }
   };
 
-  // Manual trigger function exposed to components
-  const manuallyTriggerUpdate = async (updateType) => {
-    return await triggerUpdate(updateType);
-  };
+  // Initial fetch and setup interval
+  useEffect(() => {
+    if (auth.user) {
+      fetchUpdateStatus();
+      
+      // Set up polling interval
+      const interval = setInterval(fetchUpdateStatus, 60000); // Check every minute
+      
+      return () => clearInterval(interval);
+    }
+  }, [auth.user]);
 
   return (
     <UpdateCheckContext.Provider
       value={{
         updateStatus,
-        isCheckingUpdates,
-        lastChecked,
-        manuallyTriggerUpdate
+        loading,
+        error,
+        fetchUpdateStatus,
+        manuallyTriggerUpdate,
       }}
     >
       {children}
     </UpdateCheckContext.Provider>
   );
 };
+
+export default UpdateCheckContext;
