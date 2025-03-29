@@ -9,6 +9,8 @@ import uuid
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Optional, List
+from datetime import date
+from typing import Dict, Optional
 
 # Third-party imports
 import bcrypt
@@ -223,6 +225,44 @@ class SecurityUpdate(BaseModel):
     update_type: str  # Can be 'metrics', 'current_price', or 'history'
     days: Optional[int] = None
 
+class UserProfileResponse(BaseModel):
+    id: str
+    email: str
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    phone: Optional[str] = None
+    occupation: Optional[str] = None
+    date_of_birth: Optional[date] = None
+    address: Optional[str] = None
+    city: Optional[str] = None
+    state: Optional[str] = None
+    zip_code: Optional[str] = None
+    country: Optional[str] = None
+    bio: Optional[str] = None
+    created_at: datetime
+    subscription_plan: str = "basic"
+    notification_preferences: Dict[str, bool] = {
+        "emailUpdates": True,
+        "marketAlerts": True,
+        "performanceReports": True,
+        "securityAlerts": True,
+        "newsletterUpdates": False
+    }
+    is_admin: bool = False
+
+class UserProfileUpdate(BaseModel):
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    phone: Optional[str] = None
+    occupation: Optional[str] = None
+    date_of_birth: Optional[date] = None
+    address: Optional[str] = None
+    city: Optional[str] = None
+    state: Optional[str] = None
+    zip_code: Optional[str] = None
+    country: Optional[str] = None
+    bio: Optional[str] = None
+
 
 # API Endpoints
 @app.get("/")
@@ -277,6 +317,181 @@ async def get_user_data(current_user: dict = Depends(get_current_user)):
         "email": current_user["email"], 
         "id": current_user["id"]
     }
+
+@app.get("/user/profile", response_model=UserProfileResponse)
+async def get_user_profile(current_user: dict = Depends(get_current_user)):
+    """Get the current user's extended profile information."""
+    try:
+        # Query the database for the user's profile
+        query = "SELECT * FROM users WHERE id = :user_id"
+        result = await database.fetch_one(query, {"user_id": current_user["id"]})
+        
+        if not result:
+            raise HTTPException(status_code=404, detail="User profile not found")
+        
+        # Convert the database result to your response model
+        profile = UserProfileResponse(
+            id=result["id"],
+            email=result["email"],
+            first_name=result.get("first_name") or None,
+            last_name=result.get("last_name") or None,
+            phone=result.get("phone") or None,
+            occupation=result.get("occupation") or None,
+            date_of_birth=result.get("date_of_birth"),
+            address=result.get("address") or None,
+            city=result.get("city") or None,
+            state=result.get("state") or None,
+            zip_code=result.get("zip_code") or None,
+            country=result.get("country") or None,
+            bio=result.get("bio") or None,
+            created_at=result.get("created_at") or datetime.utcnow(),
+            subscription_plan=result.get("subscription_plan") or "basic",
+            notification_preferences=result.get("notification_preferences") or {
+                "emailUpdates": True,
+                "marketAlerts": True,
+                "performanceReports": True,
+                "securityAlerts": True,
+                "newsletterUpdates": False
+            },
+            is_admin=result.get("is_admin") or False  # Include is_admin field
+        )
+        
+        return profile
+    except Exception as e:
+        logger.error(f"Error retrieving user profile: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to retrieve user profile")
+
+# Update user profile endpoint
+@app.put("/user/profile", response_model=UserProfileResponse)
+async def update_user_profile(
+    profile_data: UserProfileUpdate,
+    current_user: dict = Depends(get_current_user)
+):
+    """Update the current user's profile information."""
+    try:
+        # Build the update query dynamically based on the provided fields
+        update_fields = {}
+        for field, value in profile_data.dict(exclude_unset=True).items():
+            update_fields[field] = value
+        
+        if not update_fields:
+            raise HTTPException(status_code=400, detail="No update data provided")
+        
+        # Build query
+        fields_str = ", ".join([f"{k} = :{k}" for k in update_fields.keys()])
+        query = f"UPDATE users SET {fields_str} WHERE id = :user_id RETURNING *"
+        
+        # Add user_id to params
+        update_fields["user_id"] = current_user["id"]
+        
+        # Execute the update
+        result = await database.fetch_one(query, update_fields)
+        
+        if not result:
+            raise HTTPException(status_code=404, detail="User profile not found")
+        
+        # Build the response using the same format as get_user_profile
+        profile = UserProfileResponse(
+            id=result["id"],
+            email=result["email"],
+            first_name=result.get("first_name") or None,
+            last_name=result.get("last_name") or None,
+            phone=result.get("phone") or None,
+            occupation=result.get("occupation") or None,
+            date_of_birth=result.get("date_of_birth"),
+            address=result.get("address") or None,
+            city=result.get("city") or None,
+            state=result.get("state") or None,
+            zip_code=result.get("zip_code") or None,
+            country=result.get("country") or None,
+            bio=result.get("bio") or None,
+            created_at=result.get("created_at") or datetime.utcnow(),
+            subscription_plan=result.get("subscription_plan") or "basic",
+            notification_preferences=result.get("notification_preferences") or {
+                "emailUpdates": True,
+                "marketAlerts": True,
+                "performanceReports": True,
+                "securityAlerts": True,
+                "newsletterUpdates": False
+            },
+            is_admin=result.get("is_admin") or False  # Include is_admin field
+        )
+        
+        return profile
+    except Exception as e:
+        logger.error(f"Error updating user profile: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to update user profile")
+
+@app.post("/user/change-password")
+async def change_password(
+    password_data: PasswordChangeRequest,
+    current_user: dict = Depends(get_current_user)
+):
+    """Change the current user's password."""
+    try:
+        # Get the current user's password hash
+        query = "SELECT password_hash FROM users WHERE id = :user_id"
+        result = await database.fetch_one(query, {"user_id": current_user["id"]})
+        
+        if not result:
+            raise HTTPException(status_code=404, detail="User not found")
+        
+        # Verify current password
+        if not verify_password(password_data.current_password, result["password_hash"]):
+            raise HTTPException(status_code=400, detail="Current password is incorrect")
+        
+        # Hash the new password
+        hashed_password = hash_password(password_data.new_password)
+        
+        # Update the password
+        update_query = "UPDATE users SET password_hash = :password_hash WHERE id = :user_id"
+        await database.execute(update_query, {"password_hash": hashed_password, "user_id": current_user["id"]})
+        
+        return {"message": "Password updated successfully"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error changing password: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to change password")
+
+
+@app.put("/user/notifications")
+async def update_notification_preferences(
+    notification_data: NotificationPreferences,
+    current_user: dict = Depends(get_current_user)
+):
+    """Update the user's notification preferences."""
+    try:
+        # Update notification preferences
+        query = """
+        UPDATE users 
+        SET notification_preferences = :preferences 
+        WHERE id = :user_id
+        RETURNING *
+        """
+        result = await database.fetch_one(query, {
+            "preferences": json.dumps(notification_data.dict()),
+            "user_id": current_user["id"]
+        })
+        
+        if not result:
+            raise HTTPException(status_code=404, detail="User not found")
+        
+        return {"message": "Notification preferences updated successfully"}
+    except Exception as e:
+        logger.error(f"Error updating notification preferences: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to update notification preferences")
+
+class PasswordChangeRequest(BaseModel):
+    current_password: str
+    new_password: str
+
+class NotificationPreferences(BaseModel):
+    emailUpdates: bool = True
+    marketAlerts: bool = True
+    performanceReports: bool = True
+    securityAlerts: bool = True
+    newsletterUpdates: bool = False
 
 # Account Management
 @app.get("/accounts")
@@ -3100,275 +3315,6 @@ async def test_yahoo_clients_performance():
             "error_type": type(e).__name__,
             "traceback": traceback.format_exc()
         }
-
-@app.get("/debug/yfinance-tests")
-async def yfinance_detailed_tests():
-    """
-    Comprehensive tests for yfinance to diagnose issues in Render
-    """
-    import yfinance as yf
-    import requests
-    import time
-    import json
-    import traceback
-    from datetime import datetime
-    import socket
-    import uuid
-    
-    results = {
-        "timestamp": datetime.utcnow().isoformat(),
-        "yfinance_version": yf.__version__,
-        "tests": {},
-        "environment": {
-            "hostname": socket.gethostname()
-        }
-    }
-    
-    # Check our IP address to determine if we're being rate-limited
-    try:
-        ip_response = requests.get("https://api.ipify.org?format=json", timeout=5)
-        if ip_response.status_code == 200:
-            results["environment"]["ip_address"] = ip_response.json().get("ip")
-    except Exception as e:
-        results["environment"]["ip_error"] = str(e)
-    
-    # 1. BASIC DOWNLOAD TEST WITH MKTX
-    test_id = "basic_download_mktx"
-    results["tests"][test_id] = {"status": "running"}
-    
-    try:
-        # Add a unique identifier to potentially bypass caching
-        unique_id = str(uuid.uuid4())[:8]
-        results["tests"][test_id]["unique_id"] = unique_id
-        
-        # Direct download to see raw response
-        start_time = time.time()
-        data = yf.download("MKTX", period="1d")
-        elapsed = time.time() - start_time
-        
-        results["tests"][test_id].update({
-            "status": "completed",
-            "elapsed_seconds": round(elapsed, 2),
-            "data_empty": data.empty if hasattr(data, "empty") else True,
-            "data_shape": str(data.shape) if hasattr(data, "shape") else "No shape attribute"
-        })
-        
-        # Add sample of data if available
-        if hasattr(data, "to_dict") and not data.empty:
-            try:
-                sample = data.iloc[-1].to_dict()
-                results["tests"][test_id]["data_sample"] = sample
-            except:
-                results["tests"][test_id]["data_sample"] = "Could not convert to dict"
-    except Exception as e:
-        results["tests"][test_id].update({
-            "status": "error",
-            "error": str(e),
-            "traceback": traceback.format_exc()
-        })
-    
-    # 2. INFO TEST FOR MKTX
-    test_id = "info_test_mktx"
-    results["tests"][test_id] = {"status": "running"}
-    
-    try:
-        start_time = time.time()
-        ticker = yf.Ticker("MKTX")
-        info = ticker.info
-        elapsed = time.time() - start_time
-        
-        results["tests"][test_id].update({
-            "status": "completed", 
-            "elapsed_seconds": round(elapsed, 2),
-            "info_keys": list(info.keys()) if info else [],
-            "info_length": len(info) if info else 0
-        })
-        
-        # Include a few key fields if available
-        if info:
-            important_fields = ["symbol", "shortName", "currentPrice", "regularMarketPrice"]
-            sample_data = {field: info.get(field) for field in important_fields if field in info}
-            results["tests"][test_id]["sample_data"] = sample_data
-    except Exception as e:
-        results["tests"][test_id].update({
-            "status": "error",
-            "error": str(e),
-            "traceback": traceback.format_exc()
-        })
-    
-    # 3. TRY WITH CUSTOM USER AGENT
-    test_id = "custom_user_agent_test"
-    results["tests"][test_id] = {"status": "running"}
-    
-    try:
-        # Create a custom session with browser-like user agent
-        session = requests.Session()
-        session.headers.update({
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-        })
-        
-        start_time = time.time()
-        ticker = yf.Ticker("MKTX", session=session)
-        history = ticker.history(period="1d")
-        elapsed = time.time() - start_time
-        
-        results["tests"][test_id].update({
-            "status": "completed",
-            "elapsed_seconds": round(elapsed, 2),
-            "data_empty": history.empty if hasattr(history, "empty") else True,
-            "data_shape": str(history.shape) if hasattr(history, "shape") else "No shape attribute"
-        })
-        
-        # Add sample of data if available
-        if hasattr(history, "to_dict") and not history.empty:
-            try:
-                sample = history.iloc[-1].to_dict()
-                results["tests"][test_id]["data_sample"] = sample
-            except:
-                results["tests"][test_id]["data_sample"] = "Could not convert to dict"
-    except Exception as e:
-        results["tests"][test_id].update({
-            "status": "error",
-            "error": str(e),
-            "traceback": traceback.format_exc()
-        })
-    
-    # 4. TEST OTHER POPULAR TICKERS
-    for ticker_symbol in ["AAPL", "MSFT", "GOOGL"]:
-        test_id = f"popular_ticker_{ticker_symbol}"
-        results["tests"][test_id] = {"status": "running"}
-        
-        try:
-            start_time = time.time()
-            ticker = yf.Ticker(ticker_symbol)
-            history = ticker.history(period="1d")
-            elapsed = time.time() - start_time
-            
-            results["tests"][test_id].update({
-                "status": "completed",
-                "elapsed_seconds": round(elapsed, 2),
-                "data_empty": history.empty if hasattr(history, "empty") else True,
-                "data_shape": str(history.shape) if hasattr(history, "shape") else "No shape attribute"
-            })
-            
-            if hasattr(history, "to_dict") and not history.empty:
-                try:
-                    sample = history.iloc[-1].to_dict()
-                    results["tests"][test_id]["data_sample"] = sample
-                except:
-                    results["tests"][test_id]["data_sample"] = "Could not convert to dict"
-        except Exception as e:
-            results["tests"][test_id].update({
-                "status": "error",
-                "error": str(e),
-                "traceback": traceback.format_exc()
-            })
-    
-    # 5. TEST ALTERNATIVE PACKAGES (if available)
-    # First check if yahoo_fin is available
-    test_id = "yahoo_fin_test"
-    results["tests"][test_id] = {"status": "checking"}
-    
-    try:
-        import yahoo_fin.stock_info as si
-        results["tests"][test_id]["status"] = "package_available"
-        
-        try:
-            start_time = time.time()
-            quote_data = si.get_quote_table("MKTX")
-            price_data = si.get_live_price("MKTX")
-            elapsed = time.time() - start_time
-            
-            results["tests"][test_id].update({
-                "status": "completed",
-                "elapsed_seconds": round(elapsed, 2),
-                "quote_data": quote_data if isinstance(quote_data, dict) else "Not a dictionary",
-                "price": price_data
-            })
-        except Exception as e:
-            results["tests"][test_id].update({
-                "status": "error",
-                "error": str(e),
-                "traceback": traceback.format_exc()
-            })
-    except ImportError:
-        results["tests"][test_id]["status"] = "package_not_available"
-    
-    # Check if yahooquery is available
-    test_id = "yahooquery_test"
-    results["tests"][test_id] = {"status": "checking"}
-    
-    try:
-        import yahooquery as yq
-        results["tests"][test_id]["status"] = "package_available"
-        
-        try:
-            start_time = time.time()
-            ticker = yq.Ticker("MKTX")
-            price_data = ticker.price
-            elapsed = time.time() - start_time
-            
-            results["tests"][test_id].update({
-                "status": "completed",
-                "elapsed_seconds": round(elapsed, 2),
-                "price_data": price_data
-            })
-        except Exception as e:
-            results["tests"][test_id].update({
-                "status": "error",
-                "error": str(e),
-                "traceback": traceback.format_exc()
-            })
-    except ImportError:
-        results["tests"][test_id]["status"] = "package_not_available"
-    
-    # 6. RAW REQUEST TEST
-    # Make a direct request to Yahoo Finance API without any library to see if we get a response
-    test_id = "raw_request_test"
-    results["tests"][test_id] = {"status": "running"}
-    
-    try:
-        url = "https://query1.finance.yahoo.com/v8/finance/chart/MKTX?interval=1d"
-        headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-        }
-        
-        start_time = time.time()
-        response = requests.get(url, headers=headers, timeout=10)
-        elapsed = time.time() - start_time
-        
-        results["tests"][test_id].update({
-            "status": "completed",
-            "elapsed_seconds": round(elapsed, 2),
-            "status_code": response.status_code,
-            "response_size": len(response.content)
-        })
-        
-        if response.status_code == 200:
-            data = response.json()
-            if "chart" in data and "result" in data["chart"] and data["chart"]["result"]:
-                result = data["chart"]["result"][0]
-                meta = result.get("meta", {})
-                quotes = result.get("indicators", {}).get("quote", [{}])[0]
-                
-                if quotes and "close" in quotes and quotes["close"]:
-                    results["tests"][test_id]["current_price"] = quotes["close"][-1]
-                
-                results["tests"][test_id]["meta_sample"] = {
-                    key: meta[key] for key in list(meta.keys())[:5]
-                } if meta else {}
-            else:
-                results["tests"][test_id]["parse_error"] = "Could not find expected data in response"
-        else:
-            results["tests"][test_id]["error"] = f"HTTP error {response.status_code}"
-    except Exception as e:
-        results["tests"][test_id].update({
-            "status": "error",
-            "error": str(e),
-            "traceback": traceback.format_exc()
-        })
-    
-    return results
 
 @app.get("/debug/test-yahoo-direct")
 async def test_yahoo_direct():

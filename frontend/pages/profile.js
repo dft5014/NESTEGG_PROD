@@ -18,7 +18,8 @@ import {
   EyeOff,
   CreditCard,
   Bell,
-  Settings
+  Settings,
+  AlertTriangle
 } from "lucide-react";
 
 export default function Profile() {
@@ -31,6 +32,7 @@ export default function Profile() {
   const [daysAsMember, setDaysAsMember] = useState(0);
   const [passwordVisible, setPasswordVisible] = useState(false);
   const [activeSection, setActiveSection] = useState("profile");
+  const [accountStats, setAccountStats] = useState(null);
   
   // Form states
   const [editMode, setEditMode] = useState(false);
@@ -110,52 +112,22 @@ export default function Profile() {
       buttonColor: "bg-purple-600 hover:bg-purple-700"
     }
   ];
-  const [currentPlan, setCurrentPlan] = useState("premium");
+  const [currentPlan, setCurrentPlan] = useState("basic");
   
-  // Activity logs (mock data)
-  const [activityLog, setActivityLog] = useState([
-    {
-      action: "Password changed",
-      date: new Date(Date.now() - 15 * 24 * 60 * 60 * 1000).toISOString(),
-      details: "Password successfully updated from a device in New York",
-      icon: "Lock"
-    },
-    {
-      action: "Account created",
-      date: new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString(),
-      details: "NestEgg account successfully created",
-      icon: "User"
-    },
-    {
-      action: "Login from new device",
-      date: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
-      details: "New login detected from Windows PC in San Francisco",
-      icon: "Shield"
-    },
-    {
-      action: "Portfolio recalculated",
-      date: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
-      details: "Portfolio values updated based on latest market data",
-      icon: "PiggyBank"
-    },
-    {
-      action: "Profile updated",
-      date: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(),
-      details: "Profile information was updated",
-      icon: "Edit"
-    }
-  ]);
+  // Activity logs
+  const [activityLog, setActivityLog] = useState([]);
 
   // Fetch user profile data
   useEffect(() => {
     const fetchProfileData = async () => {
       setLoading(true);
       try {
-        // Fetch extended user profile data
+        // Fetch extended user profile data from our new API endpoint
         const response = await fetchWithAuth('/user/profile');
         
         if (response.ok) {
           const userData = await response.json();
+          console.log("User profile data:", userData);
           
           // Calculate membership duration
           const createdDate = new Date(userData.created_at || Date.now() - 60 * 24 * 60 * 60 * 1000);
@@ -166,14 +138,25 @@ export default function Profile() {
           setMemberSince(createdDate);
           setDaysAsMember(diffDays);
           
-          // Set profile data
+          // Format date of birth if it exists (handle various date formats)
+          let formattedDateOfBirth = "";
+          if (userData.date_of_birth) {
+            // Handle both string dates and ISO dates
+            const dateOfBirth = typeof userData.date_of_birth === 'string' 
+              ? userData.date_of_birth 
+              : userData.date_of_birth.toISOString().split('T')[0];
+              
+            formattedDateOfBirth = dateOfBirth;
+          }
+          
+          // Set profile data from API response
           setProfileData({
-            firstName: userData.first_name || user?.first_name || "",
-            lastName: userData.last_name || user?.last_name || "",
-            email: userData.email || user?.email || "",
+            firstName: userData.first_name || "",
+            lastName: userData.last_name || "",
+            email: userData.email || "",
             phone: userData.phone || "",
             occupation: userData.occupation || "",
-            dateOfBirth: userData.date_of_birth || "",
+            dateOfBirth: formattedDateOfBirth,
             address: userData.address || "",
             city: userData.city || "",
             state: userData.state || "",
@@ -182,14 +165,25 @@ export default function Profile() {
             bio: userData.bio || ""
           });
           
-          // Set plan
-          setCurrentPlan(userData.plan || "premium");
+          // Set subscription plan
+          setCurrentPlan(userData.subscription_plan || "basic");
           
           // Set notification preferences if available
           if (userData.notification_preferences) {
             setNotifications(userData.notification_preferences);
           }
+          
+          // Fetch account statistics
+          fetchAccountStats();
+          
+          // Fetch activity log
+          fetchActivityLog();
         } else {
+          console.error("Error fetching profile: ", response.status);
+          // Set error message
+          const errorData = await response.json().catch(() => ({}));
+          setError(errorData.detail || `Failed to load profile (${response.status})`);
+          
           // If we can't get extended profile, use basic user data
           setProfileData({
             firstName: user?.first_name || "",
@@ -213,16 +207,115 @@ export default function Profile() {
         }
       } catch (err) {
         console.error("Error fetching profile:", err);
-        setError("Failed to load profile data");
+        setError("Failed to load profile data: " + (err.message || "Unknown error"));
       } finally {
         setLoading(false);
       }
     };
 
+    // Only fetch profile data if user is authenticated
     if (user) {
       fetchProfileData();
+    } else {
+      setLoading(false);
     }
   }, [user]);
+
+  // Fetch account statistics
+  const fetchAccountStats = async () => {
+    try {
+      // Get portfolio summary for account stats
+      const response = await fetchWithAuth('/portfolio/summary');
+      
+      if (response.ok) {
+        const summaryData = await response.json();
+        setAccountStats({
+          lastLogin: new Date().toLocaleString(),
+          loginStreak: Math.floor(Math.random() * 20) + 1, // Placeholder for now
+          priceUpdates: summaryData.last_price_update ? "Real-time" : "Daily",
+          storageUsage: `${Math.floor(Math.random() * 100)} MB / 5 GB`, // Placeholder
+          portfolioUpdates: summaryData.positions_count || 0,
+          totalAccounts: summaryData.accounts_count || 0,
+          totalPositions: summaryData.positions_count || 0
+        });
+      }
+    } catch (err) {
+      console.error("Error fetching account stats:", err);
+    }
+  };
+
+  // Fetch activity log
+  const fetchActivityLog = async () => {
+    try {
+      // Attempt to get real activity log
+      const response = await fetchWithAuth('/system/events?limit=5');
+      
+      if (response.ok) {
+        const eventsData = await response.json();
+        
+        if (eventsData && eventsData.events && eventsData.events.length > 0) {
+          const mappedEvents = eventsData.events.map(event => ({
+            action: event.event_type.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
+            date: event.started_at,
+            details: event.status === 'failed' 
+              ? `Failed: ${event.error_message || 'Unknown error'}`
+              : `Status: ${event.status || 'unknown'}`,
+            icon: getEventIcon(event.event_type)
+          }));
+          
+          setActivityLog(mappedEvents);
+          return;
+        }
+      }
+      
+      // Fallback to sample activity if no real data
+      setActivityLog([
+        {
+          action: "Account Login",
+          date: new Date(Date.now() - 1 * 60 * 60 * 1000).toISOString(),
+          details: "Successful login from your usual device",
+          icon: "User"
+        },
+        {
+          action: "Portfolio Updated",
+          date: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
+          details: "Portfolio values updated with latest market data",
+          icon: "PiggyBank"
+        },
+        {
+          action: "Security Alert",
+          date: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
+          details: "All securities updated with latest prices",
+          icon: "Shield"
+        },
+        {
+          action: "Profile Updated",
+          date: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
+          details: "Your profile information was updated",
+          icon: "Edit"
+        },
+        {
+          action: "Account Created",
+          date: memberSince ? memberSince.toISOString() : new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString(),
+          details: "NestEgg account successfully created",
+          icon: "User"
+        }
+      ]);
+    } catch (err) {
+      console.error("Error fetching activity log:", err);
+      // Fallback to empty activity log
+      setActivityLog([]);
+    }
+  };
+
+  // Map event types to icons
+  const getEventIcon = (eventType) => {
+    if (eventType.includes("security") || eventType.includes("price")) return "Shield";
+    if (eventType.includes("portfolio")) return "PiggyBank";
+    if (eventType.includes("user") || eventType.includes("login")) return "User";
+    if (eventType.includes("profile") || eventType.includes("update")) return "Edit";
+    return "Clock";
+  };
 
   // Handle profile updates
   const handleUpdateProfile = async (e) => {
@@ -232,30 +325,65 @@ export default function Profile() {
     setSuccessMessage("");
     
     try {
+      // Format the data for the API
+      const apiData = {
+        first_name: profileData.firstName,
+        last_name: profileData.lastName,
+        phone: profileData.phone,
+        occupation: profileData.occupation,
+        date_of_birth: profileData.dateOfBirth || null,
+        address: profileData.address,
+        city: profileData.city,
+        state: profileData.state,
+        zip_code: profileData.zipCode,
+        country: profileData.country,
+        bio: profileData.bio
+      };
+      
       const response = await fetchWithAuth('/user/profile', {
         method: 'PUT',
-        body: JSON.stringify(profileData)
+        body: JSON.stringify(apiData)
       });
       
       if (response.ok) {
+        const updatedUserData = await response.json();
         setSuccessMessage("Profile updated successfully!");
         setEditMode(false);
         
         // Update user context if necessary
-        const updatedUserData = {
+        const contextUserUpdate = {
           ...user,
-          first_name: profileData.firstName,
-          last_name: profileData.lastName,
-          email: profileData.email
+          first_name: updatedUserData.first_name,
+          last_name: updatedUserData.last_name,
+          email: updatedUserData.email
         };
-        setUser(updatedUserData);
+        
+        if (setUser) {
+          setUser(contextUserUpdate);
+        }
+        
+        // Update local state with the response data
+        setProfileData({
+          firstName: updatedUserData.first_name || "",
+          lastName: updatedUserData.last_name || "",
+          email: updatedUserData.email || "",
+          phone: updatedUserData.phone || "",
+          occupation: updatedUserData.occupation || "",
+          dateOfBirth: updatedUserData.date_of_birth || "",
+          address: updatedUserData.address || "",
+          city: updatedUserData.city || "",
+          state: updatedUserData.state || "",
+          zipCode: updatedUserData.zip_code || "",
+          country: updatedUserData.country || "",
+          bio: updatedUserData.bio || ""
+        });
       } else {
-        const errorData = await response.json();
-        setError(errorData.detail || "Failed to update profile");
+        const errorData = await response.json().catch(() => ({}));
+        setError(errorData.detail || `Failed to update profile (${response.status})`);
       }
     } catch (err) {
       console.error("Error updating profile:", err);
-      setError("An error occurred while updating your profile");
+      setError("An error occurred while updating your profile: " + (err.message || "Unknown error"));
     } finally {
       setSaving(false);
       
@@ -282,6 +410,12 @@ export default function Profile() {
       return;
     }
     
+    if (passwordData.newPassword.length < 6) {
+      setError("New password must be at least 6 characters long");
+      setSaving(false);
+      return;
+    }
+    
     try {
       const response = await fetchWithAuth('/user/change-password', {
         method: 'POST',
@@ -299,22 +433,25 @@ export default function Profile() {
           newPassword: "",
           confirmPassword: ""
         });
+        
+        // Update activity log with new entry
+        const newActivity = {
+          action: "Password Changed",
+          date: new Date().toISOString(),
+          details: "Your password was successfully updated",
+          icon: "Lock"
+        };
+        
+        setActivityLog([newActivity, ...activityLog.slice(0, 4)]);
       } else {
-        const errorData = await response.json();
-        setError(errorData.detail || "Failed to change password");
+        const errorData = await response.json().catch(() => ({}));
+        setError(errorData.detail || "Current password is incorrect");
       }
     } catch (err) {
       console.error("Error changing password:", err);
-      setError("An error occurred while changing your password");
+      setError("An error occurred while changing your password: " + (err.message || "Unknown error"));
     } finally {
       setSaving(false);
-      
-      // Clear success message after 3 seconds
-      if (successMessage) {
-        setTimeout(() => {
-          setSuccessMessage("");
-        }, 3000);
-      }
     }
   };
   
@@ -340,13 +477,23 @@ export default function Profile() {
       
       if (response.ok) {
         setSuccessMessage("Notification preferences updated!");
+        
+        // Update activity log
+        const newActivity = {
+          action: "Preferences Updated",
+          date: new Date().toISOString(),
+          details: "Notification preferences were updated",
+          icon: "Bell"
+        };
+        
+        setActivityLog([newActivity, ...activityLog.slice(0, 4)]);
       } else {
-        const errorData = await response.json();
+        const errorData = await response.json().catch(() => ({}));
         setError(errorData.detail || "Failed to update notification preferences");
       }
     } catch (err) {
       console.error("Error updating notifications:", err);
-      setError("An error occurred while updating your notification preferences");
+      setError("An error occurred while updating your notification preferences: " + (err.message || "Unknown error"));
     } finally {
       setSaving(false);
       
@@ -359,6 +506,27 @@ export default function Profile() {
     }
   };
   
+  // Update subscription plan (currently mocked)
+  const handlePlanChange = (planId) => {
+    setCurrentPlan(planId);
+    setSuccessMessage(`Subscription updated to ${plans.find(p => p.id === planId).name} plan!`);
+    
+    // Add to activity log
+    const newActivity = {
+      action: "Subscription Changed",
+      date: new Date().toISOString(),
+      details: `Subscription plan changed to ${plans.find(p => p.id === planId).name}`,
+      icon: "CreditCard"
+    };
+    
+    setActivityLog([newActivity, ...activityLog.slice(0, 4)]);
+    
+    // Clear success message after 3 seconds
+    setTimeout(() => {
+      setSuccessMessage("");
+    }, 3000);
+  };
+  
   // Helper function to get icon component
   const getActivityIcon = (iconName) => {
     switch (iconName) {
@@ -367,14 +535,23 @@ export default function Profile() {
       case "Shield": return <Shield className="h-5 w-5" />;
       case "PiggyBank": return <PiggyBank className="h-5 w-5" />;
       case "Edit": return <Edit className="h-5 w-5" />;
+      case "Bell": return <Bell className="h-5 w-5" />;
+      case "CreditCard": return <CreditCard className="h-5 w-5" />;
       default: return <Clock className="h-5 w-5" />;
     }
   };
   
   // Format date for display
   const formatDate = (dateString) => {
+    if (!dateString) return "N/A";
     const options = { year: 'numeric', month: 'long', day: 'numeric' };
-    return new Date(dateString).toLocaleDateString(undefined, options);
+    
+    try {
+      return new Date(dateString).toLocaleDateString(undefined, options);
+    } catch (e) {
+      console.error("Error formatting date:", e);
+      return dateString;
+    }
   };
   
   // Render membership level badge
@@ -408,6 +585,27 @@ export default function Profile() {
     return (
       <div className="min-h-screen flex justify-center items-center">
         <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+      </div>
+    );
+  }
+
+  // Not authenticated state
+  if (!user) {
+    return (
+      <div className="min-h-screen flex justify-center items-center bg-gray-50">
+        <div className="max-w-md w-full bg-white rounded-lg shadow-md p-8 text-center">
+          <AlertTriangle className="h-16 w-16 text-yellow-500 mx-auto mb-4" />
+          <h2 className="text-2xl font-bold mb-4">Authentication Required</h2>
+          <p className="text-gray-600 mb-6">
+            You need to be logged in to view and manage your profile.
+          </p>
+          <button 
+            onClick={() => router.push('/login')}
+            className="w-full py-2 px-4 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+          >
+            Go to Login
+          </button>
+        </div>
       </div>
     );
   }
@@ -543,7 +741,7 @@ export default function Profile() {
                   <div>
                     <p className="text-sm font-medium text-gray-900">Subscription Plan</p>
                     <p className="text-sm text-gray-500">
-                      {plans.find(p => p.id === currentPlan)?.name || "Premium"} Plan
+                      {plans.find(p => p.id === currentPlan)?.name || "Basic"} Plan
                     </p>
                   </div>
                 </div>
@@ -553,7 +751,9 @@ export default function Profile() {
                   <div>
                     <p className="text-sm font-medium text-gray-900">Portfolio Status</p>
                     <p className="text-sm text-gray-500">
-                      3 Active Accounts, 28 Positions
+                      {accountStats 
+                        ? `${accountStats.totalAccounts} Accounts, ${accountStats.totalPositions} Positions` 
+                        : "No portfolio data available"}
                     </p>
                   </div>
                 </div>
@@ -568,27 +768,37 @@ export default function Profile() {
                 <div className="space-y-4">
                   <div className="flex justify-between">
                     <span className="text-sm text-gray-500">Last Login</span>
-                    <span className="text-sm font-medium">Today, 9:32 AM</span>
+                    <span className="text-sm font-medium">
+                      {accountStats?.lastLogin || "Today"}
+                    </span>
                   </div>
                   
                   <div className="flex justify-between">
                     <span className="text-sm text-gray-500">Login Streak</span>
-                    <span className="text-sm font-medium">12 days</span>
+                    <span className="text-sm font-medium">
+                      {accountStats?.loginStreak || "1"} days
+                    </span>
                   </div>
                   
                   <div className="flex justify-between">
                     <span className="text-sm text-gray-500">Price Updates</span>
-                    <span className="text-sm font-medium">Real-time</span>
+                    <span className="text-sm font-medium">
+                      {accountStats?.priceUpdates || "Daily"}
+                    </span>
                   </div>
                   
                   <div className="flex justify-between">
                     <span className="text-sm text-gray-500">Storage Usage</span>
-                    <span className="text-sm font-medium">48 MB / 5 GB</span>
+                    <span className="text-sm font-medium">
+                      {accountStats?.storageUsage || "< 1 MB / 5 GB"}
+                    </span>
                   </div>
                   
                   <div className="flex justify-between">
                     <span className="text-sm text-gray-500">Portfolio Updates</span>
-                    <span className="text-sm font-medium">152 times</span>
+                    <span className="text-sm font-medium">
+                      {accountStats?.portfolioUpdates || "0"} positions
+                    </span>
                   </div>
                 </div>
               </div>
@@ -656,10 +866,14 @@ export default function Profile() {
                         <input
                           type="email"
                           value={profileData.email}
-                          onChange={(e) => setProfileData({...profileData, email: e.target.value})}
-                          disabled={!editMode}
-                          className={`w-full px-3 py-2 border ${editMode ? 'border-gray-300' : 'border-gray-200 bg-gray-50'} rounded-md`}
+                          disabled={true} // Email can't be changed
+                          className="w-full px-3 py-2 border border-gray-200 bg-gray-50 rounded-md"
                         />
+                        {editMode && (
+                          <p className="text-xs text-gray-500 mt-1">
+                            Email cannot be changed. Contact support if needed.
+                          </p>
+                        )}
                       </div>
                       
                       <div>
@@ -694,7 +908,7 @@ export default function Profile() {
                         </label>
                         <input
                           type="date"
-                          value={profileData.dateOfBirth}
+                          value={profileData.dateOfBirth || ''}
                           onChange={(e) => setProfileData({...profileData, dateOfBirth: e.target.value})}
                           disabled={!editMode}
                           className={`w-full px-3 py-2 border ${editMode ? 'border-gray-300' : 'border-gray-200 bg-gray-50'} rounded-md`}
@@ -786,11 +1000,20 @@ export default function Profile() {
                       <div className="mt-6 flex justify-end">
                         <button
                           type="submit"
-                          className="px-4 py-2 bg-blue-600 text-white rounded-m                  d hover:bg-blue-700 flex items-center disabled:bg-blue-400"
+                          className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 flex items-center disabled:bg-blue-400"
                           disabled={saving}
                         >
-                          <Save className="h-4 w-4 mr-2" />
-                          {saving ? "Saving..." : "Save Changes"}
+                          {saving ? (
+                            <>
+                              <div className="animate-spin h-4 w-4 mr-2 border-2 border-t-transparent border-white rounded-full"></div>
+                              Saving...
+                            </>
+                          ) : (
+                            <>
+                              <Save className="h-4 w-4 mr-2" />
+                              Save Changes
+                            </>
+                          )}
                         </button>
                       </div>
                     )}
@@ -819,6 +1042,7 @@ export default function Profile() {
                             value={passwordData.currentPassword}
                             onChange={(e) => setPasswordData({...passwordData, currentPassword: e.target.value})}
                             className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                            required
                           />
                           <button
                             type="button"
@@ -839,7 +1063,12 @@ export default function Profile() {
                           value={passwordData.newPassword}
                           onChange={(e) => setPasswordData({...passwordData, newPassword: e.target.value})}
                           className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                          required
+                          minLength={6}
                         />
+                        <p className="text-xs text-gray-500 mt-1">
+                          Password must be at least 6 characters long
+                        </p>
                       </div>
                       
                       <div>
@@ -851,6 +1080,7 @@ export default function Profile() {
                           value={passwordData.confirmPassword}
                           onChange={(e) => setPasswordData({...passwordData, confirmPassword: e.target.value})}
                           className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                          required
                         />
                       </div>
                     </div>
@@ -861,11 +1091,47 @@ export default function Profile() {
                         className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 flex items-center disabled:bg-blue-400"
                         disabled={saving}
                       >
-                        <Lock className="h-4 w-4 mr-2" />
-                        {saving ? "Changing..." : "Change Password"}
+                        {saving ? (
+                          <>
+                            <div className="animate-spin h-4 w-4 mr-2 border-2 border-t-transparent border-white rounded-full"></div>
+                            Changing...
+                          </>
+                        ) : (
+                          <>
+                            <Lock className="h-4 w-4 mr-2" />
+                            Change Password
+                          </>
+                        )}
                       </button>
                     </div>
                   </form>
+                  
+                  <div className="mt-10 pt-6 border-t border-gray-200">
+                    <h4 className="text-md font-medium text-gray-900 mb-4">Security Recommendations</h4>
+                    <ul className="space-y-4">
+                      <li className="flex items-start">
+                        <Shield className="h-5 w-5 text-green-500 mr-3 mt-0.5" />
+                        <div>
+                          <p className="text-sm font-medium text-gray-900">Use a strong, unique password</p>
+                          <p className="text-sm text-gray-600">Combine letters, numbers, and symbols</p>
+                        </div>
+                      </li>
+                      <li className="flex items-start">
+                        <Shield className="h-5 w-5 text-green-500 mr-3 mt-0.5" />
+                        <div>
+                          <p className="text-sm font-medium text-gray-900">Change passwords regularly</p>
+                          <p className="text-sm text-gray-600">Update your password every 3-6 months</p>
+                        </div>
+                      </li>
+                      <li className="flex items-start">
+                        <Shield className="h-5 w-5 text-green-500 mr-3 mt-0.5" />
+                        <div>
+                          <p className="text-sm font-medium text-gray-900">Be alert for suspicious activity</p>
+                          <p className="text-sm text-gray-600">Report any unusual account activity immediately</p>
+                        </div>
+                      </li>
+                    </ul>
+                  </div>
                 </div>
               </div>
             )}
@@ -891,7 +1157,7 @@ export default function Profile() {
                         <ul className="mt-4 space-y-2">
                           {plan.features.map((feature, index) => (
                             <li key={index} className="flex items-center text-sm text-gray-600">
-                              <CheckCircle className="h-4 w-4 text-green-500 mr-2" />
+                              <CheckCircle className="h-4 w-4 text-green-500 mr-2 flex-shrink-0" />
                               {feature}
                             </li>
                           ))}
@@ -901,11 +1167,35 @@ export default function Profile() {
                             currentPlan === plan.id ? "opacity-50 cursor-not-allowed" : ""
                           }`}
                           disabled={currentPlan === plan.id}
+                          onClick={() => handlePlanChange(plan.id)}
                         >
                           {currentPlan === plan.id ? "Current Plan" : "Select Plan"}
                         </button>
                       </div>
                     ))}
+                  </div>
+                  
+                  <div className="mt-10 pt-6 border-t border-gray-200">
+                    <h4 className="text-md font-medium text-gray-900 mb-4">Billing Information</h4>
+                    {currentPlan === 'basic' ? (
+                      <p className="text-gray-600">
+                        You are currently on the free plan with no billing information required.
+                      </p>
+                    ) : (
+                      <div className="bg-gray-50 p-4 rounded-lg">
+                        <p className="text-sm text-gray-700 mb-4">
+                          Your {plans.find(p => p.id === currentPlan)?.name} Plan subscription will renew automatically on:
+                        </p>
+                        <p className="text-md font-semibold">
+                          April 28, 2025
+                        </p>
+                        <div className="mt-4 text-right">
+                          <button className="text-blue-600 hover:text-blue-800 text-sm font-medium">
+                            Manage Payment Methods
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -919,29 +1209,134 @@ export default function Profile() {
                 </div>
                 
                 <div className="p-6">
-                  <div className="space-y-4">
-                    {Object.entries(notifications).map(([key, value]) => (
-                      <div key={key} className="flex items-center justify-between">
-                        <span className="text-sm text-gray-700">
-                          {key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())}
-                        </span>
-                        <input
-                          type="checkbox"
-                          checked={value}
-                          onChange={() => handleNotificationChange(key)}
-                          className="h-4 w-4 text-blue-600 border-gray-300 rounded"
-                        />
+                  <p className="text-sm text-gray-600 mb-6">
+                    Choose which notifications you'd like to receive about your investments, account activity, and platform updates.
+                  </p>
+                  
+                  <div className="space-y-5">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <label htmlFor="emailUpdates" className="font-medium text-gray-700">
+                          Email Updates
+                        </label>
+                        <p className="text-sm text-gray-500">
+                          Important announcements and account activity
+                        </p>
                       </div>
-                    ))}
+                      <label className="relative inline-flex items-center cursor-pointer">
+                        <input 
+                          type="checkbox" 
+                          id="emailUpdates"
+                          checked={notifications.emailUpdates} 
+                          onChange={() => handleNotificationChange('emailUpdates')}
+                          className="sr-only peer" 
+                        />
+                        <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                      </label>
+                    </div>
+                    
+                    <div className="border-t border-gray-200 pt-5 flex items-center justify-between">
+                      <div>
+                        <label htmlFor="marketAlerts" className="font-medium text-gray-700">
+                          Market Alerts
+                        </label>
+                        <p className="text-sm text-gray-500">
+                          Price changes and market events for your holdings
+                        </p>
+                      </div>
+                      <label className="relative inline-flex items-center cursor-pointer">
+                        <input 
+                          type="checkbox" 
+                          id="marketAlerts"
+                          checked={notifications.marketAlerts} 
+                          onChange={() => handleNotificationChange('marketAlerts')}
+                          className="sr-only peer" 
+                        />
+                        <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                      </label>
+                    </div>
+                    
+                    <div className="border-t border-gray-200 pt-5 flex items-center justify-between">
+                      <div>
+                        <label htmlFor="performanceReports" className="font-medium text-gray-700">
+                          Performance Reports
+                        </label>
+                        <p className="text-sm text-gray-500">
+                          Weekly and monthly portfolio performance summaries
+                        </p>
+                      </div>
+                      <label className="relative inline-flex items-center cursor-pointer">
+                        <input 
+                          type="checkbox" 
+                          id="performanceReports"
+                          checked={notifications.performanceReports} 
+                          onChange={() => handleNotificationChange('performanceReports')}
+                          className="sr-only peer" 
+                        />
+                        <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                      </label>
+                    </div>
+                    
+                    <div className="border-t border-gray-200 pt-5 flex items-center justify-between">
+                      <div>
+                        <label htmlFor="securityAlerts" className="font-medium text-gray-700">
+                          Security Alerts
+                        </label>
+                        <p className="text-sm text-gray-500">
+                          Login attempts and security-related notifications
+                        </p>
+                      </div>
+                      <label className="relative inline-flex items-center cursor-pointer">
+                        <input 
+                          type="checkbox" 
+                          id="securityAlerts"
+                          checked={notifications.securityAlerts} 
+                          onChange={() => handleNotificationChange('securityAlerts')}
+                          className="sr-only peer" 
+                        />
+                        <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                      </label>
+                    </div>
+                    
+                    <div className="border-t border-gray-200 pt-5 flex items-center justify-between">
+                      <div>
+                        <label htmlFor="newsletterUpdates" className="font-medium text-gray-700">
+                          Newsletter Updates
+                        </label>
+                        <p className="text-sm text-gray-500">
+                          Educational content and investment insights
+                        </p>
+                      </div>
+                      <label className="relative inline-flex items-center cursor-pointer">
+                        <input 
+                          type="checkbox" 
+                          id="newsletterUpdates"
+                          checked={notifications.newsletterUpdates} 
+                          onChange={() => handleNotificationChange('newsletterUpdates')}
+                          className="sr-only peer" 
+                        />
+                        <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                      </label>
+                    </div>
                   </div>
+                  
                   <div className="mt-6 flex justify-end">
                     <button
                       onClick={saveNotificationPreferences}
                       className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 flex items-center disabled:bg-blue-400"
                       disabled={saving}
                     >
-                      <Bell className="h-4 w-4 mr-2" />
-                      {saving ? "Saving..." : "Save Preferences"}
+                      {saving ? (
+                        <>
+                          <div className="animate-spin h-4 w-4 mr-2 border-2 border-t-transparent border-white rounded-full"></div>
+                          Saving...
+                        </>
+                      ) : (
+                        <>
+                          <Bell className="h-4 w-4 mr-2" />
+                          Save Preferences
+                        </>
+                      )}
                     </button>
                   </div>
                 </div>
@@ -956,20 +1351,36 @@ export default function Profile() {
                 </div>
                 
                 <div className="p-6">
-                  <div className="space-y-6">
-                    {activityLog.map((activity, index) => (
-                      <div key={index} className="flex items-start">
-                        <div className="flex-shrink-0 mr-4 text-gray-400">
-                          {getActivityIcon(activity.icon)}
+                  {activityLog.length === 0 ? (
+                    <div className="text-center py-8">
+                      <Clock className="h-12 w-12 mx-auto text-gray-400 mb-4" />
+                      <h4 className="text-lg font-medium text-gray-900 mb-2">No activity yet</h4>
+                      <p className="text-gray-500">
+                        Your account activity will appear here as you use the platform.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="space-y-6">
+                      {activityLog.map((activity, index) => (
+                        <div key={index} className="flex items-start">
+                          <div className={`flex-shrink-0 h-10 w-10 rounded-full flex items-center justify-center mr-4 ${
+                            activity.icon === 'Shield' ? 'bg-green-100 text-green-600' :
+                            activity.icon === 'Lock' ? 'bg-blue-100 text-blue-600' :
+                            activity.icon === 'PiggyBank' ? 'bg-purple-100 text-purple-600' :
+                            activity.icon === 'Edit' ? 'bg-yellow-100 text-yellow-600' :
+                            'bg-gray-100 text-gray-600'
+                          }`}>
+                            {getActivityIcon(activity.icon)}
+                          </div>
+                          <div>
+                            <p className="text-sm font-medium text-gray-900">{activity.action}</p>
+                            <p className="text-sm text-gray-500">{activity.details}</p>
+                            <p className="text-xs text-gray-400 mt-1">{formatDate(activity.date)}</p>
+                          </div>
                         </div>
-                        <div>
-                          <p className="text-sm font-medium text-gray-900">{activity.action}</p>
-                          <p className="text-sm text-gray-500">{activity.details}</p>
-                          <p className="text-xs text-gray-400 mt-1">{formatDate(activity.date)}</p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
             )}
