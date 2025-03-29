@@ -25,7 +25,7 @@ import { fetchWithAuth } from '@/utils/api';
 export default function Crypto() {
   const { user } = useContext(AuthContext);
   const router = useRouter();
-  const [loading, setisLoading] = useState(true);
+  const [isloading, setisLoading] = useState(true);
   const [cryptos, setCryptos] = useState([]);
   const [isAddCryptoModalOpen, setIsAddCryptoModalOpen] = useState(false);
   const [isEditCryptoModalOpen, setIsEditCryptoModalOpen] = useState(false);
@@ -50,6 +50,7 @@ export default function Crypto() {
   const [newTag, setNewTag] = useState('');
   const [accounts, setAccounts] = useState([]);
   const [selectedAccount, setSelectedAccount] = useState(null);
+  
   
   // Chart timeframe state
   const [selectedTimeframe, setSelectedTimeframe] = useState("1Y");
@@ -169,6 +170,13 @@ export default function Crypto() {
       'Dogecoin': { symbol: 'DOGE', icon: 'Ð' }
     };
     return info[type] || { symbol: '?', icon: '?' };
+  };
+
+  const handleAddTag = () => {
+    if (newTag && !tags.includes(newTag)) {
+      setTags([...tags, newTag]);
+      setNewTag('');
+    }
   };
 
   // Generate chart data for portfolio value over time
@@ -319,6 +327,10 @@ export default function Crypto() {
 
   // Handle adding a new crypto
   const handleAddCrypto = async (e) => {
+    if (!selectedAccount) {
+      setError("No account selected. Please select an account first.");
+      return;
+    }
     e.preventDefault();
     
     // Validation
@@ -784,7 +796,7 @@ export default function Crypto() {
             <span className="text-sm text-gray-400 font-normal">Showing {filteredCryptos.length} of {cryptos.length}</span>
           </h2>
           
-          {loading ? (
+          {isloading ? (
             <div className="p-6 text-center">
               <p>Loading cryptocurrencies...</p>
             </div>

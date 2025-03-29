@@ -183,13 +183,18 @@ export default function Metals() {
     }
   };
 
-  // Handle adding a new metal
   const handleAddMetal = async (e) => {
     e.preventDefault();
     
     // Validation
     if (!metalType || !quantity || !purchasePrice || !purchaseDate) {
       setError("Please fill out all required fields");
+      return;
+    }
+    
+    // Check if account is selected
+    if (!selectedAccount) {
+      setError("No account selected. Please select an account first.");
       return;
     }
     
@@ -404,6 +409,21 @@ export default function Metals() {
               Add Metal
             </button>
           </div>
+        </div>
+
+        {/* Account Selector */}
+        <div className="mb-4">
+          <label className="block text-sm font-medium mb-1">Account</label>
+          <select
+            value={selectedAccount || ''}
+            onChange={(e) => handleAccountChange(e.target.value)}
+            className="w-full p-2 bg-gray-700 border border-gray-600 rounded-lg text-white"
+          >
+            <option value="" disabled>Select an account</option>
+            {accounts.map(account => (
+              <option key={account.id} value={account.id}>{account.name}</option>
+            ))}
+          </select>
         </div>
 
         {/* Portfolio Summary Cards */}

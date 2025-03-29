@@ -396,7 +396,7 @@ async def get_user_profile(current_user: dict = Depends(get_current_user)):
             logger.warning(f"No user profile found for ID: {current_user['id']}")
             # Create a default profile with minimal user information
             profile = UserProfileResponse(
-                id=current_user["id"],
+                id=str(current_user["id"]),  # Convert to string
                 email=current_user["email"],
                 first_name=current_user.get("first_name", ""),
                 last_name=current_user.get("last_name", ""),
@@ -411,7 +411,7 @@ async def get_user_profile(current_user: dict = Depends(get_current_user)):
                 bio="",
                 created_at=datetime.utcnow(),
                 subscription_plan="basic",
-                notification_preferences={
+                notification_preferences={  # Ensure this is a dict
                     "emailUpdates": True,
                     "marketAlerts": True,
                     "performanceReports": True,
@@ -422,9 +422,22 @@ async def get_user_profile(current_user: dict = Depends(get_current_user)):
             )
             return profile
         
+        # Extract notification preferences with proper type conversion
+        notification_prefs = result["notification_preferences"] if "notification_preferences" in result and result["notification_preferences"] is not None else {}
+        
+        # Ensure it's a dictionary
+        if not isinstance(notification_prefs, dict):
+            notification_prefs = {
+                "emailUpdates": True,
+                "marketAlerts": True,
+                "performanceReports": True,
+                "securityAlerts": True,
+                "newsletterUpdates": False
+            }
+        
         # Safely create response object with existing data
         profile = UserProfileResponse(
-            id=result["id"],
+            id=str(result["id"]),  # Convert to string
             email=result["email"],
             first_name=result["first_name"] if "first_name" in result and result["first_name"] is not None else "",
             last_name=result["last_name"] if "last_name" in result and result["last_name"] is not None else "",
@@ -439,13 +452,7 @@ async def get_user_profile(current_user: dict = Depends(get_current_user)):
             bio=result["bio"] if "bio" in result and result["bio"] is not None else "",
             created_at=result["created_at"] if "created_at" in result and result["created_at"] is not None else datetime.utcnow(),
             subscription_plan=result["subscription_plan"] if "subscription_plan" in result and result["subscription_plan"] is not None else "basic",
-            notification_preferences=result["notification_preferences"] if "notification_preferences" in result and result["notification_preferences"] is not None else {
-                "emailUpdates": True,
-                "marketAlerts": True,
-                "performanceReports": True,
-                "securityAlerts": True,
-                "newsletterUpdates": False
-            },
+            notification_preferences=notification_prefs,  # Use the properly validated preferences
             is_admin=result["is_admin"] if "is_admin" in result and result["is_admin"] is not None else False
         )
         
@@ -508,7 +515,7 @@ async def update_user_profile(
             logger.warning(f"Update returned no result for user ID: {current_user['id']}")
             # Create a default response with provided update fields
             profile = UserProfileResponse(
-                id=current_user["id"],
+                id=str(current_user["id"]),  # Convert to string
                 email=current_user["email"],
                 first_name=update_fields.get("first_name", current_user.get("first_name", "")),
                 last_name=update_fields.get("last_name", current_user.get("last_name", "")),
@@ -523,7 +530,7 @@ async def update_user_profile(
                 bio=update_fields.get("bio", ""),
                 created_at=datetime.utcnow(),
                 subscription_plan="basic",
-                notification_preferences={
+                notification_preferences={  # Ensure this is a dict
                     "emailUpdates": True,
                     "marketAlerts": True,
                     "performanceReports": True,
@@ -563,9 +570,22 @@ async def update_user_profile(
             
             return profile
         
+        # Extract notification preferences with proper type conversion
+        notification_prefs = result["notification_preferences"] if "notification_preferences" in result and result["notification_preferences"] is not None else {}
+        
+        # Ensure it's a dictionary
+        if not isinstance(notification_prefs, dict):
+            notification_prefs = {
+                "emailUpdates": True,
+                "marketAlerts": True,
+                "performanceReports": True,
+                "securityAlerts": True,
+                "newsletterUpdates": False
+            }
+        
         # Build profile response from the update result
         profile = UserProfileResponse(
-            id=result["id"],
+            id=str(result["id"]),  # Convert to string
             email=result["email"],
             first_name=result["first_name"] if "first_name" in result and result["first_name"] is not None else "",
             last_name=result["last_name"] if "last_name" in result and result["last_name"] is not None else "",
@@ -580,13 +600,7 @@ async def update_user_profile(
             bio=result["bio"] if "bio" in result and result["bio"] is not None else "",
             created_at=result["created_at"] if "created_at" in result and result["created_at"] is not None else datetime.utcnow(),
             subscription_plan=result["subscription_plan"] if "subscription_plan" in result and result["subscription_plan"] is not None else "basic",
-            notification_preferences=result["notification_preferences"] if "notification_preferences" in result and result["notification_preferences"] is not None else {
-                "emailUpdates": True,
-                "marketAlerts": True,
-                "performanceReports": True,
-                "securityAlerts": True,
-                "newsletterUpdates": False
-            },
+            notification_preferences=notification_prefs,  # Use the properly validated preferences
             is_admin=result["is_admin"] if "is_admin" in result and result["is_admin"] is not None else False
         )
         
