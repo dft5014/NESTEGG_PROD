@@ -274,6 +274,58 @@ class NotificationPreferences(BaseModel):
     securityAlerts: bool = True
     newsletterUpdates: bool = False
 
+# Crypto Models
+class CryptoPositionCreate(BaseModel):
+    coin_type: str
+    coin_symbol: str
+    quantity: float
+    purchase_price: float
+    current_price: float
+    purchase_date: str  # Format: YYYY-MM-DD
+    storage_type: str = "Exchange"  # Default to Exchange
+    exchange_name: Optional[str] = None
+    wallet_address: Optional[str] = None
+    notes: Optional[str] = None
+    tags: Optional[List[str]] = None
+    is_favorite: bool = False
+
+class CryptoPositionUpdate(BaseModel):
+    coin_type: Optional[str] = None
+    coin_symbol: Optional[str] = None
+    quantity: Optional[float] = None
+    purchase_price: Optional[float] = None
+    current_price: Optional[float] = None
+    purchase_date: Optional[str] = None
+    storage_type: Optional[str] = None
+    exchange_name: Optional[str] = None
+    wallet_address: Optional[str] = None
+    notes: Optional[str] = None
+    tags: Optional[List[str]] = None
+    is_favorite: Optional[bool] = None
+
+# Metals Models
+class MetalPositionCreate(BaseModel):
+    metal_type: str
+    quantity: float
+    unit: str = "oz"  # Default to troy ounces
+    purity: Optional[str] = "999"  # Default to 999 (24K)
+    purchase_price: float
+    cost_basis: Optional[float] = None
+    purchase_date: str  # Format: YYYY-MM-DD
+    storage_location: Optional[str] = None
+    description: Optional[str] = None
+
+class MetalPositionUpdate(BaseModel):
+    metal_type: Optional[str] = None
+    quantity: Optional[float] = None
+    unit: Optional[str] = None
+    purity: Optional[str] = None
+    purchase_price: Optional[float] = None
+    cost_basis: Optional[float] = None
+    purchase_date: Optional[str] = None
+    storage_location: Optional[str] = None
+    description: Optional[str] = None
+
 # API Endpoints
 @app.get("/")
 async def read_root():
@@ -332,46 +384,48 @@ async def get_user_data(current_user: dict = Depends(get_current_user)):
 async def get_user_profile(current_user: dict = Depends(get_current_user)):
     """Get the current user's extended profile information."""
     try:
-        # Query the database for the user's profile
+        # IMPORTANT: Use direct SQL query instead of any potentially undefined function
         query = "SELECT * FROM users WHERE id = :user_id"
         result = await database.fetch_one(query, {"user_id": current_user["id"]})
         
         if not result:
             raise HTTPException(status_code=404, detail="User profile not found")
         
-        # Convert the database result to your response model
+        # Safely create response object, handling missing fields
         profile = UserProfileResponse(
             id=result["id"],
             email=result["email"],
-            first_name=result.get("first_name") or None,
-            last_name=result.get("last_name") or None,
-            phone=result.get("phone") or None,
-            occupation=result.get("occupation") or None,
+            first_name=result.get("first_name"),
+            last_name=result.get("last_name"),
+            phone=result.get("phone"),
+            occupation=result.get("occupation"),
             date_of_birth=result.get("date_of_birth"),
-            address=result.get("address") or None,
-            city=result.get("city") or None,
-            state=result.get("state") or None,
-            zip_code=result.get("zip_code") or None,
-            country=result.get("country") or None,
-            bio=result.get("bio") or None,
-            created_at=result.get("created_at") or datetime.utcnow(),
-            subscription_plan=result.get("subscription_plan") or "basic",
-            notification_preferences=result.get("notification_preferences") or {
+            address=result.get("address"),
+            city=result.get("city"),
+            state=result.get("state"),
+            zip_code=result.get("zip_code"),
+            country=result.get("country"),
+            bio=result.get("bio"),
+            created_at=result.get("created_at", datetime.utcnow()),
+            subscription_plan=result.get("subscription_plan", "basic"),
+            notification_preferences=result.get("notification_preferences", {
                 "emailUpdates": True,
                 "marketAlerts": True,
                 "performanceReports": True,
                 "securityAlerts": True,
                 "newsletterUpdates": False
-            },
-            is_admin=result.get("is_admin") or False  # Include is_admin field
+            }),
+            is_admin=result.get("is_admin", False)
         )
         
         return profile
     except Exception as e:
         logger.error(f"Error retrieving user profile: {str(e)}")
+        # Add more detailed debug information
+        import traceback
+        logger.error(f"Traceback: {traceback.format_exc()}")
         raise HTTPException(status_code=500, detail="Failed to retrieve user profile")
 
-# Update user profile endpoint
 @app.put("/user/profile", response_model=UserProfileResponse)
 async def update_user_profile(
     profile_data: UserProfileUpdate,
@@ -379,20 +433,28 @@ async def update_user_profile(
 ):
     """Update the current user's profile information."""
     try:
-        # Build the update query dynamically based on the provided fields
+        # Extract update fields carefully
         update_fields = {}
-        for field, value in profile_data.dict(exclude_unset=True).items():
+        # Use dict() without any callable methods that might be None
+        data_dict = {k: v for k, v in profile_data.__dict__.items() 
+                    if not k.startswith('_') and v is not None}
+        
+        for field, value in data_dict.items():
             update_fields[field] = value
         
         if not update_fields:
             raise HTTPException(status_code=400, detail="No update data provided")
         
-        # Build query
+        # Build query string safely
         fields_str = ", ".join([f"{k} = :{k}" for k in update_fields.keys()])
         query = f"UPDATE users SET {fields_str} WHERE id = :user_id RETURNING *"
         
         # Add user_id to params
         update_fields["user_id"] = current_user["id"]
+        
+        # Log the query for debugging
+        logger.info(f"Update query: {query}")
+        logger.info(f"Update parameters: {update_fields}")
         
         # Execute the update
         result = await database.fetch_one(query, update_fields)
@@ -400,36 +462,39 @@ async def update_user_profile(
         if not result:
             raise HTTPException(status_code=404, detail="User profile not found")
         
-        # Build the response using the same format as get_user_profile
+        # Build response directly with the same pattern as the GET endpoint
         profile = UserProfileResponse(
             id=result["id"],
             email=result["email"],
-            first_name=result.get("first_name") or None,
-            last_name=result.get("last_name") or None,
-            phone=result.get("phone") or None,
-            occupation=result.get("occupation") or None,
+            first_name=result.get("first_name"),
+            last_name=result.get("last_name"),
+            phone=result.get("phone"),
+            occupation=result.get("occupation"),
             date_of_birth=result.get("date_of_birth"),
-            address=result.get("address") or None,
-            city=result.get("city") or None,
-            state=result.get("state") or None,
-            zip_code=result.get("zip_code") or None,
-            country=result.get("country") or None,
-            bio=result.get("bio") or None,
-            created_at=result.get("created_at") or datetime.utcnow(),
-            subscription_plan=result.get("subscription_plan") or "basic",
-            notification_preferences=result.get("notification_preferences") or {
+            address=result.get("address"),
+            city=result.get("city"),
+            state=result.get("state"),
+            zip_code=result.get("zip_code"),
+            country=result.get("country"),
+            bio=result.get("bio"),
+            created_at=result.get("created_at", datetime.utcnow()),
+            subscription_plan=result.get("subscription_plan", "basic"),
+            notification_preferences=result.get("notification_preferences", {
                 "emailUpdates": True,
                 "marketAlerts": True,
                 "performanceReports": True,
                 "securityAlerts": True,
                 "newsletterUpdates": False
-            },
-            is_admin=result.get("is_admin") or False  # Include is_admin field
+            }),
+            is_admin=result.get("is_admin", False)
         )
         
         return profile
     except Exception as e:
         logger.error(f"Error updating user profile: {str(e)}")
+        # Add more detailed debug information
+        import traceback
+        logger.error(f"Traceback: {traceback.format_exc()}")
         raise HTTPException(status_code=500, detail="Failed to update user profile")
 
 @app.post("/user/change-password")
@@ -1204,7 +1269,6 @@ async def get_portfolio_history(period: str = "1m", current_user: dict = Depends
             detail=f"Failed to fetch portfolio history: {str(e)}"
         )
 
-
 @app.get("/securities/{ticker}/history")
 async def get_security_history(ticker: str, current_user: dict = Depends(get_current_user)):
     """Get historical price data for a security"""
@@ -1249,7 +1313,6 @@ async def get_security_history(ticker: str, current_user: dict = Depends(get_cur
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to fetch security history: {str(e)}"
         )
-
 
 @app.post("/securities/{ticker}/update")
 async def update_specific_security(
@@ -1961,7 +2024,6 @@ async def get_table_details(table_name: str, limit: int = 10, current_user: dict
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to fetch table details: {str(e)}"
         )
-
 
 @app.get("/debug/direct-yahoo-test")
 async def test_direct_yahoo():
@@ -2960,8 +3022,6 @@ async def test_yahooquery():
             "traceback": traceback.format_exc()
         }
 
-
-
 @app.get("/debug/yahoo-client-performance-test")
 async def test_yahoo_clients_performance():
     """
@@ -3571,16 +3631,460 @@ async def set_update_thresholds(
         await database.execute(
             """
             UPDATE update_tracking 
-            SET threshold_minutes = $2
-            WHERE update_type = $1
+            SET threshold_minutes = :minutes
+            WHERE update_type = :update_type
             """,
-            update_type,
-            minutes
+            {
+                "update_type": update_type,
+                "minutes": minutes
+            }
         )
     
     return {"success": True}
 
+# ----- Cryptocurrency Endpoints -----
 
+@app.get("/crypto/{account_id}")
+async def get_crypto_positions(account_id: int, current_user: dict = Depends(get_current_user)):
+    """Get all cryptocurrency positions for a specific account"""
+    try:
+        # Check if the account belongs to the user
+        account_query = accounts.select().where(
+            (accounts.c.id == account_id) & 
+            (accounts.c.user_id == current_user["id"])
+        )
+        account = await database.fetch_one(account_query)
+        
+        if not account:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Account not found or access denied")
+        
+        # Get crypto positions for the account
+        query = """
+        SELECT * FROM crypto_positions 
+        WHERE account_id = :account_id
+        ORDER BY coin_type ASC
+        """
+        result = await database.fetch_all(query=query, values={"account_id": account_id})
+        
+        crypto_positions = [dict(row) for row in result]
+        
+        # Calculate additional values for frontend display
+        for position in crypto_positions:
+            position["total_value"] = position["quantity"] * position["current_price"]
+            position["gain_loss"] = position["total_value"] - (position["quantity"] * position["purchase_price"])
+            position["gain_loss_percent"] = ((position["current_price"] / position["purchase_price"]) - 1) * 100 if position["purchase_price"] > 0 else 0
+            
+            # Convert tags from array to list if needed
+            if position.get("tags") and isinstance(position["tags"], str):
+                position["tags"] = eval(position["tags"])  # Safely convert string representation to list
+                
+            # Format dates as ISO strings
+            if "purchase_date" in position and position["purchase_date"]:
+                position["purchase_date"] = position["purchase_date"].isoformat() if hasattr(position["purchase_date"], "isoformat") else position["purchase_date"]
+            if "created_at" in position and position["created_at"]:
+                position["created_at"] = position["created_at"].isoformat() if hasattr(position["created_at"], "isoformat") else position["created_at"]
+            if "updated_at" in position and position["updated_at"]:
+                position["updated_at"] = position["updated_at"].isoformat() if hasattr(position["updated_at"], "isoformat") else position["updated_at"]
+                
+        return {"crypto_positions": crypto_positions}
+    except Exception as e:
+        logger.error(f"Error fetching crypto positions: {str(e)}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Failed to fetch crypto positions: {str(e)}")
+
+@app.post("/crypto/{account_id}", status_code=status.HTTP_201_CREATED)
+async def add_crypto_position(account_id: int, position: CryptoPositionCreate, current_user: dict = Depends(get_current_user)):
+    """Add a new cryptocurrency position to an account"""
+    try:
+        # Check if the account belongs to the user
+        account_query = accounts.select().where(
+            (accounts.c.id == account_id) & 
+            (accounts.c.user_id == current_user["id"])
+        )
+        account = await database.fetch_one(account_query)
+        
+        if not account:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Account not found or access denied")
+        
+        # Prepare tags for storage
+        tags_value = position.tags if position.tags else []
+        
+        # Add crypto position
+        query = """
+        INSERT INTO crypto_positions (
+            account_id, coin_type, coin_symbol, quantity, purchase_price, current_price, 
+            purchase_date, storage_type, exchange_name, wallet_address, notes, tags, is_favorite
+        ) VALUES (
+            :account_id, :coin_type, :coin_symbol, :quantity, :purchase_price, :current_price,
+            :purchase_date, :storage_type, :exchange_name, :wallet_address, :notes, :tags, :is_favorite
+        ) RETURNING id
+        """
+        values = {
+            "account_id": account_id,
+            "coin_type": position.coin_type,
+            "coin_symbol": position.coin_symbol,
+            "quantity": position.quantity,
+            "purchase_price": position.purchase_price,
+            "current_price": position.current_price,
+            "purchase_date": datetime.strptime(position.purchase_date, "%Y-%m-%d").date() if position.purchase_date else None,
+            "storage_type": position.storage_type,
+            "exchange_name": position.exchange_name if position.storage_type == "Exchange" else None,
+            "wallet_address": position.wallet_address if position.storage_type != "Exchange" else None,
+            "notes": position.notes,
+            "tags": tags_value,
+            "is_favorite": position.is_favorite
+        }
+        
+        result = await database.fetch_one(query=query, values=values)
+        position_id = result["id"]
+        
+        # Update account balance (optional, if you track balances per account)
+        position_value = position.quantity * position.current_price
+        update_query = accounts.update().where(
+            accounts.c.id == account_id
+        ).values(
+            balance=account["balance"] + position_value,
+            updated_at=datetime.utcnow()
+        )
+        await database.execute(update_query)
+        
+        return {
+            "message": "Crypto position added successfully",
+            "position_id": position_id,
+            "position_value": position_value
+        }
+    except Exception as e:
+        logger.error(f"Error adding crypto position: {str(e)}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Failed to add crypto position: {str(e)}")
+
+@app.put("/crypto/{position_id}")
+async def update_crypto_position(position_id: int, position: CryptoPositionUpdate, current_user: dict = Depends(get_current_user)):
+    """Update an existing cryptocurrency position"""
+    try:
+        # Get position and check if it belongs to the user
+        check_query = """
+        SELECT cp.*, a.user_id, a.balance, a.id as account_id
+        FROM crypto_positions cp
+        JOIN accounts a ON cp.account_id = a.id
+        WHERE cp.id = :position_id
+        """
+        position_data = await database.fetch_one(query=check_query, values={"position_id": position_id})
+        
+        if not position_data or position_data["user_id"] != current_user["id"]:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Position not found or access denied")
+        
+        # Calculate old and new values for account balance update
+        old_value = position_data["quantity"] * position_data["current_price"]
+        new_value = (position.quantity or position_data["quantity"]) * (position.current_price or position_data["current_price"])
+        value_difference = new_value - old_value
+        
+        # Build update dictionary with only provided fields
+        update_values = {}
+        for key, value in position.dict(exclude_unset=True).items():
+            if key == 'purchase_date' and value is not None:
+                update_values[key] = datetime.strptime(value, "%Y-%m-%d").date()
+            elif key == 'tags' and value is not None:
+                update_values[key] = value  # Store as array
+            else:
+                update_values[key] = value
+        
+        # Only update if there are values to update
+        if update_values:
+            # Construct dynamic query with only the fields that need updating
+            set_clause = ", ".join([f"{key} = :{key}" for key in update_values.keys()])
+            query = f"""
+            UPDATE crypto_positions 
+            SET {set_clause} 
+            WHERE id = :position_id
+            RETURNING id
+            """
+            
+            # Add position_id to values
+            update_values["position_id"] = position_id
+            
+            await database.execute(query=query, values=update_values)
+            
+            # Update account balance (optional)
+            if value_difference != 0:
+                account_id = position_data["account_id"]
+                account_balance = position_data["balance"]
+                
+                update_account_query = accounts.update().where(
+                    accounts.c.id == account_id
+                ).values(
+                    balance=account_balance + value_difference,
+                    updated_at=datetime.utcnow()
+                )
+                await database.execute(update_account_query)
+        
+        return {"message": "Crypto position updated successfully"}
+    except Exception as e:
+        logger.error(f"Error updating crypto position: {str(e)}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Failed to update crypto position: {str(e)}")
+
+@app.delete("/crypto/{position_id}")
+async def delete_crypto_position(position_id: int, current_user: dict = Depends(get_current_user)):
+    """Delete a cryptocurrency position"""
+    try:
+        # Get position and check if it belongs to the user
+        check_query = """
+        SELECT cp.*, a.user_id, a.balance, a.id as account_id
+        FROM crypto_positions cp
+        JOIN accounts a ON cp.account_id = a.id
+        WHERE cp.id = :position_id
+        """
+        position_data = await database.fetch_one(query=check_query, values={"position_id": position_id})
+        
+        if not position_data or position_data["user_id"] != current_user["id"]:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Position not found or access denied")
+        
+        # Calculate value for account balance adjustment
+        position_value = position_data["quantity"] * position_data["current_price"]
+        
+        # Delete the position
+        delete_query = """
+        DELETE FROM crypto_positions WHERE id = :position_id
+        """
+        await database.execute(query=delete_query, values={"position_id": position_id})
+        
+        # Update account balance (optional)
+        account_id = position_data["account_id"]
+        account_balance = position_data["balance"]
+        
+        update_account_query = accounts.update().where(
+            accounts.c.id == account_id
+        ).values(
+            balance=account_balance - position_value,
+            updated_at=datetime.utcnow()
+        )
+        await database.execute(update_account_query)
+        
+        return {"message": "Crypto position deleted successfully"}
+    except Exception as e:
+        logger.error(f"Error deleting crypto position: {str(e)}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Failed to delete crypto position: {str(e)}")
+
+# ----- Precious Metals Endpoints -----
+
+@app.get("/metals/{account_id}")
+async def get_metal_positions(account_id: int, current_user: dict = Depends(get_current_user)):
+    """Get all precious metal positions for a specific account"""
+    try:
+        # Check if the account belongs to the user
+        account_query = accounts.select().where(
+            (accounts.c.id == account_id) & 
+            (accounts.c.user_id == current_user["id"])
+        )
+        account = await database.fetch_one(account_query)
+        
+        if not account:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Account not found or access denied")
+        
+        # Get metal positions for the account
+        query = """
+        SELECT * FROM metal_positions 
+        WHERE account_id = :account_id
+        ORDER BY metal_type ASC
+        """
+        result = await database.fetch_all(query=query, values={"account_id": account_id})
+        
+        metal_positions = [dict(row) for row in result]
+        
+        # Calculate additional values and format dates
+        for position in metal_positions:
+            # Use the cost_basis if provided, otherwise use purchase_price
+            cost_basis = position.get("cost_basis") or position["purchase_price"]
+            
+            # Calculate value based on current price (would need to be fetched from metals price table)
+            # For now, using purchase price as placeholder
+            current_price = position["purchase_price"]  # Replace with actual current price
+            
+            position["value"] = position["quantity"] * current_price
+            position["gain_loss"] = position["value"] - (position["quantity"] * cost_basis)
+            position["gain_loss_percent"] = ((current_price / cost_basis) - 1) * 100 if cost_basis > 0 else 0
+            
+            # Format dates as ISO strings
+            if "purchase_date" in position and position["purchase_date"]:
+                position["purchase_date"] = position["purchase_date"].isoformat() if hasattr(position["purchase_date"], "isoformat") else position["purchase_date"]
+            if "created_at" in position and position["created_at"]:
+                position["created_at"] = position["created_at"].isoformat() if hasattr(position["created_at"], "isoformat") else position["created_at"]
+            if "updated_at" in position and position["updated_at"]:
+                position["updated_at"] = position["updated_at"].isoformat() if hasattr(position["updated_at"], "isoformat") else position["updated_at"]
+                
+        return {"metal_positions": metal_positions}
+    except Exception as e:
+        logger.error(f"Error fetching metal positions: {str(e)}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Failed to fetch metal positions: {str(e)}")
+
+@app.post("/metals/{account_id}", status_code=status.HTTP_201_CREATED)
+async def add_metal_position(account_id: int, position: MetalPositionCreate, current_user: dict = Depends(get_current_user)):
+    """Add a new precious metal position to an account"""
+    try:
+        # Check if the account belongs to the user
+        account_query = accounts.select().where(
+            (accounts.c.id == account_id) & 
+            (accounts.c.user_id == current_user["id"])
+        )
+        account = await database.fetch_one(account_query)
+        
+        if not account:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Account not found or access denied")
+        
+        # Use the provided cost_basis or default to purchase_price
+        cost_basis = position.cost_basis if position.cost_basis is not None else position.purchase_price
+        
+        # Add metal position
+        query = """
+        INSERT INTO metal_positions (
+            account_id, metal_type, quantity, unit, purity, purchase_price, 
+            cost_basis, purchase_date, storage_location, description
+        ) VALUES (
+            :account_id, :metal_type, :quantity, :unit, :purity, :purchase_price,
+            :cost_basis, :purchase_date, :storage_location, :description
+        ) RETURNING id
+        """
+        values = {
+            "account_id": account_id,
+            "metal_type": position.metal_type,
+            "quantity": position.quantity,
+            "unit": position.unit,
+            "purity": position.purity,
+            "purchase_price": position.purchase_price,
+            "cost_basis": cost_basis,
+            "purchase_date": datetime.strptime(position.purchase_date, "%Y-%m-%d").date() if position.purchase_date else None,
+            "storage_location": position.storage_location,
+            "description": position.description
+        }
+        
+        result = await database.fetch_one(query=query, values=values)
+        position_id = result["id"]
+        
+        # Calculate position value
+        position_value = position.quantity * position.purchase_price
+        
+        # Update account balance (optional)
+        update_query = accounts.update().where(
+            accounts.c.id == account_id
+        ).values(
+            balance=account["balance"] + position_value,
+            updated_at=datetime.utcnow()
+        )
+        await database.execute(update_query)
+        
+        return {
+            "message": "Metal position added successfully",
+            "position_id": position_id,
+            "position_value": position_value
+        }
+    except Exception as e:
+        logger.error(f"Error adding metal position: {str(e)}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Failed to add metal position: {str(e)}")
+
+@app.put("/metals/{position_id}")
+async def update_metal_position(position_id: int, position: MetalPositionUpdate, current_user: dict = Depends(get_current_user)):
+    """Update an existing precious metal position"""
+    try:
+        # Get position and check if it belongs to the user
+        check_query = """
+        SELECT mp.*, a.user_id, a.balance, a.id as account_id
+        FROM metal_positions mp
+        JOIN accounts a ON mp.account_id = a.id
+        WHERE mp.id = :position_id
+        """
+        position_data = await database.fetch_one(query=check_query, values={"position_id": position_id})
+        
+        if not position_data or position_data["user_id"] != current_user["id"]:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Position not found or access denied")
+        
+        # Calculate old and new values for account balance update
+        old_value = position_data["quantity"] * position_data["purchase_price"]
+        new_purchase_price = position.purchase_price if position.purchase_price is not None else position_data["purchase_price"]
+        new_quantity = position.quantity if position.quantity is not None else position_data["quantity"]
+        new_value = new_quantity * new_purchase_price
+        value_difference = new_value - old_value
+        
+        # Build update dictionary with only provided fields
+        update_values = {}
+        for key, value in position.dict(exclude_unset=True).items():
+            if key == 'purchase_date' and value is not None:
+                update_values[key] = datetime.strptime(value, "%Y-%m-%d").date()
+            else:
+                update_values[key] = value
+        
+        # Only update if there are values to update
+        if update_values:
+            # Construct dynamic query with only the fields that need updating
+            set_clause = ", ".join([f"{key} = :{key}" for key in update_values.keys()])
+            query = f"""
+            UPDATE metal_positions 
+            SET {set_clause} 
+            WHERE id = :position_id
+            RETURNING id
+            """
+            
+            # Add position_id to values
+            update_values["position_id"] = position_id
+            
+            await database.execute(query=query, values=update_values)
+            
+            # Update account balance (optional)
+            if value_difference != 0:
+                account_id = position_data["account_id"]
+                account_balance = position_data["balance"]
+                
+                update_account_query = accounts.update().where(
+                    accounts.c.id == account_id
+                ).values(
+                    balance=account_balance + value_difference,
+                    updated_at=datetime.utcnow()
+                )
+                await database.execute(update_account_query)
+        
+        return {"message": "Metal position updated successfully"}
+    except Exception as e:
+        logger.error(f"Error updating metal position: {str(e)}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Failed to update metal position: {str(e)}")
+
+@app.delete("/metals/{position_id}")
+async def delete_metal_position(position_id: int, current_user: dict = Depends(get_current_user)):
+    """Delete a precious metal position"""
+    try:
+        # Get position and check if it belongs to the user
+        check_query = """
+        SELECT mp.*, a.user_id, a.balance, a.id as account_id
+        FROM metal_positions mp
+        JOIN accounts a ON mp.account_id = a.id
+        WHERE mp.id = :position_id
+        """
+        position_data = await database.fetch_one(query=check_query, values={"position_id": position_id})
+        
+        if not position_data or position_data["user_id"] != current_user["id"]:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Position not found or access denied")
+        
+        # Calculate value for account balance adjustment
+        position_value = position_data["quantity"] * position_data["purchase_price"]
+        
+        # Delete the position
+        delete_query = """
+        DELETE FROM metal_positions WHERE id = :position_id
+        """
+        await database.execute(query=delete_query, values={"position_id": position_id})
+        
+        # Update account balance (optional)
+        account_id = position_data["account_id"]
+        account_balance = position_data["balance"]
+        
+        update_account_query = accounts.update().where(
+            accounts.c.id == account_id
+        ).values(
+            balance=account_balance - position_value,
+            updated_at=datetime.utcnow()
+        )
+        await database.execute(update_account_query)
+        
+        return {"message": "Metal position deleted successfully"}
+    except Exception as e:
+        logger.error(f"Error deleting metal position: {str(e)}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Failed to delete metal position: {str(e)}")
 
 
 @app.post("/admin/data-consistency/fix")

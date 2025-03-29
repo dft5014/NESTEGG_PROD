@@ -6,6 +6,7 @@ import { AuthContext } from '@/context/AuthContext';
 import { Gem, Plus, PenTool, Trash, TrendingUp, TrendingDown, DollarSign, Scale } from 'lucide-react';
 import { Line } from 'react-chartjs-2';
 import 'chart.js/auto';
+import { fetchWithAuth } from '@/utils/api';
 
 export default function Metals() {
   const { user } = useContext(AuthContext);
@@ -26,64 +27,69 @@ export default function Metals() {
   const [purchaseDate, setPurchaseDate] = useState('');
   const [storageLocation, setStorageLocation] = useState('Home Safe');
   const [description, setDescription] = useState('');
+  const [accounts, setAccounts] = useState([]);
+  const [selectedAccount, setSelectedAccount] = useState(null);
   
   // Chart timeframe state
   const [selectedTimeframe, setSelectedTimeframe] = useState("1Y");
 
-  // Mock data for demonstration purposes
   useEffect(() => {
-    // In a real implementation, we would fetch from API
-    setTimeout(() => {
-      setMetals([
-        {
-          id: 1,
-          metalType: 'Gold',
-          quantity: 10,
-          unit: 'oz',
-          purity: '999', // 24K
-          purchasePrice: 1750,
-          currentPrice: 2250,
-          purchaseDate: '2021-06-15',
-          storageLocation: 'Home Safe',
-          description: 'American Eagle coins',
-          totalValue: 10 * 2250,
-          gainLoss: (2250 - 1750) * 10,
-          gainLossPercent: ((2250 - 1750) / 1750) * 100
-        },
-        {
-          id: 2,
-          metalType: 'Silver',
-          quantity: 100,
-          unit: 'oz',
-          purity: '999',
-          purchasePrice: 22,
-          currentPrice: 28,
-          purchaseDate: '2020-03-20',
-          storageLocation: 'Safety Deposit Box',
-          description: '1oz Silver rounds',
-          totalValue: 100 * 28,
-          gainLoss: (28 - 22) * 100,
-          gainLossPercent: ((28 - 22) / 22) * 100
-        },
-        {
-          id: 3,
-          metalType: 'Platinum',
-          quantity: 5,
-          unit: 'oz',
-          purity: '999',
-          purchasePrice: 900,
-          currentPrice: 950,
-          purchaseDate: '2022-01-10',
-          storageLocation: 'Home Safe',
-          description: 'Platinum bars',
-          totalValue: 5 * 950,
-          gainLoss: (950 - 900) * 5,
-          gainLossPercent: ((950 - 900) / 900) * 100
-        }
-      ]);
+    if (user) {
+      fetchUserData();
+    }
+  }, [user]);
+
+  const fetchUserData = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      // Fetch accounts
+      const accountsResponse = await fetchWithAuth('/accounts');
+      if (!accountsResponse.ok) {
+        throw new Error('Failed to fetch accounts');
+      }
+      
+      const accountsData = await accountsResponse.json();
+      setAccounts(accountsData.accounts || []);
+      
+      // If we have accounts, select the first one and fetch its metal positions
+      if (accountsData.accounts && accountsData.accounts.length > 0) {
+        const firstAccount = accountsData.accounts[0];
+        setSelectedAccount(firstAccount.id);
+        await fetchMetalPositions(firstAccount.id);
+      } else {
+        setLoading(false);
+      }
+    } catch (error) {
+      console.error('Error fetching user data:', error);
+      setError('Failed to load your data. Please try again.');
       setLoading(false);
-    }, 1000);
-  }, []);
+    }
+  };
+
+  const fetchMetalPositions = async (accountId) => {
+    try {
+      const response = await fetchWithAuth(`/metals/${accountId}`);
+      if (!response.ok) {
+        throw new Error('Failed to fetch metal positions');
+      }
+      
+      const data = await response.json();
+      setMetals(data.metal_positions || []);
+    } catch (error) {
+      console.error('Error fetching metal positions:', error);
+      setError('Failed to load metal positions. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleAccountChange = async (accountId) => {
+    setSelectedAccount(accountId);
+    setLoading(true);
+    await fetchMetalPositions(accountId);
+  };
 
   // Calculate total portfolio value
   const totalValue = metals.reduce((sum, metal) => sum + (metal.quantity * metal.currentPrice), 0);
@@ -178,7 +184,7 @@ export default function Metals() {
   };
 
   // Handle adding a new metal
-  const handleAddMetal = (e) => {
+  const handleAddMetal = async (e) => {
     e.preventDefault();
     
     // Validation
@@ -187,36 +193,45 @@ export default function Metals() {
       return;
     }
     
-    // Get current market price
-    const currentPrice = getCurrentPrice(metalType);
-    
-    // Create new metal object
-    const newMetal = {
-      id: metals.length + 1,
-      metalType,
-      quantity: parseFloat(quantity),
-      unit,
-      purity,
-      purchasePrice: parseFloat(purchasePrice),
-      currentPrice,
-      purchaseDate,
-      storageLocation,
-      description,
-      totalValue: parseFloat(quantity) * currentPrice,
-      gainLoss: (currentPrice - parseFloat(purchasePrice)) * parseFloat(quantity),
-      gainLossPercent: ((currentPrice - parseFloat(purchasePrice)) / parseFloat(purchasePrice)) * 100
-    };
-    
-    // Add to metals array
-    setMetals([...metals, newMetal]);
-    
-    // Reset form and close modal
-    resetForm();
-    setIsAddMetalModalOpen(false);
+    try {
+      setLoading(true);
+      
+      const response = await fetchWithAuth(`/metals/${selectedAccount}`, {
+        method: 'POST',
+        body: JSON.stringify({
+          metal_type: metalType,
+          quantity: parseFloat(quantity),
+          unit: unit,
+          purity: purity,
+          purchase_price: parseFloat(purchasePrice),
+          purchase_date: purchaseDate,
+          storage_location: storageLocation,
+          description: description
+        })
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || 'Failed to add metal');
+      }
+      
+      // Reset form and close modal
+      resetForm();
+      setIsAddMetalModalOpen(false);
+      
+      // Refresh metal list
+      await fetchMetalPositions(selectedAccount);
+      
+    } catch (error) {
+      console.error('Error adding metal:', error);
+      setError(error.message);
+    } finally {
+      setLoading(false);
+    }
   };
 
   // Handle editing an existing metal
-  const handleEditMetal = (e) => {
+  const handleEditMetal = async (e) => {
     e.preventDefault();
     
     if (!metalType || !quantity || !purchasePrice || !purchaseDate) {
@@ -224,40 +239,67 @@ export default function Metals() {
       return;
     }
     
-    // Get current market price
-    const currentPrice = getCurrentPrice(metalType);
-    
-    // Update metal
-    const updatedMetals = metals.map(metal => {
-      if (metal.id === selectedMetal.id) {
-        return {
-          ...metal,
-          metalType,
+    try {
+      setLoading(true);
+      
+      const response = await fetchWithAuth(`/metals/${selectedMetal.id}`, {
+        method: 'PUT',
+        body: JSON.stringify({
+          metal_type: metalType,
           quantity: parseFloat(quantity),
-          unit,
-          purity,
-          purchasePrice: parseFloat(purchasePrice),
-          currentPrice,
-          purchaseDate,
-          storageLocation,
-          description,
-          totalValue: parseFloat(quantity) * currentPrice,
-          gainLoss: (currentPrice - parseFloat(purchasePrice)) * parseFloat(quantity),
-          gainLossPercent: ((currentPrice - parseFloat(purchasePrice)) / parseFloat(purchasePrice)) * 100
-        };
+          unit: unit,
+          purity: purity,
+          purchase_price: parseFloat(purchasePrice),
+          purchase_date: purchaseDate,
+          storage_location: storageLocation,
+          description: description
+        })
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || 'Failed to update metal');
       }
-      return metal;
-    });
-    
-    setMetals(updatedMetals);
-    resetForm();
-    setIsEditMetalModalOpen(false);
+      
+      // Reset form and close modal
+      resetForm();
+      setIsEditMetalModalOpen(false);
+      
+      // Refresh metal list
+      await fetchMetalPositions(selectedAccount);
+      
+    } catch (error) {
+      console.error('Error updating metal:', error);
+      setError(error.message);
+    } finally {
+      setLoading(false);
+    }
   };
 
   // Handle deleting a metal
-  const handleDeleteMetal = (metalId) => {
+  const handleDeleteMetal = async (metalId) => {
     if (confirm("Are you sure you want to delete this metal holding?")) {
-      setMetals(metals.filter(metal => metal.id !== metalId));
+      try {
+        setLoading(true);
+        
+        const response = await fetchWithAuth(`/metals/${metalId}`, {
+          method: 'DELETE'
+        });
+        
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.detail || 'Failed to delete metal');
+        }
+        
+        // Refresh metal list
+        await fetchMetalPositions(selectedAccount);
+        
+      } catch (error) {
+        console.error('Error deleting metal:', error);
+        setError(error.message);
+      } finally {
+        setLoading(false);
+      }
     }
   };
 
@@ -302,22 +344,19 @@ export default function Metals() {
   };
 
   // Helper for refreshing metal prices (would connect to real API)
-  const refreshPrices = () => {
-    // In a real implementation, this would fetch the latest prices from an API
-    const updatedMetals = metals.map(metal => {
-      const currentPrice = getCurrentPrice(metal.metalType);
-      return {
-        ...metal,
-        currentPrice,
-        totalValue: metal.quantity * currentPrice,
-        gainLoss: (currentPrice - metal.purchasePrice) * metal.quantity,
-        gainLossPercent: ((currentPrice - metal.purchasePrice) / metal.purchasePrice) * 100
-      };
-    });
-    
-    setMetals(updatedMetals);
-    // Display a success message
-    alert("Metal prices refreshed successfully!");
+  const refreshPrices = async () => {
+    try {
+      setLoading(true);
+      // In a real implementation, this would call a specific endpoint to refresh prices
+      // For now, just re-fetch the positions
+      await fetchMetalPositions(selectedAccount);
+      alert("Metal prices refreshed successfully!");
+    } catch (error) {
+      console.error('Error refreshing prices:', error);
+      setError('Failed to refresh prices');
+    } finally {
+      setLoading(false);
+    }
   };
 
   if (!user) {

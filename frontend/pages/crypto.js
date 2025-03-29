@@ -25,7 +25,7 @@ import { fetchWithAuth } from '@/utils/api';
 export default function Crypto() {
   const { user } = useContext(AuthContext);
   const router = useRouter();
-  const [loading, setLoading] = useState(true);
+  const [loading, setisLoading] = useState(true);
   const [cryptos, setCryptos] = useState([]);
   const [isAddCryptoModalOpen, setIsAddCryptoModalOpen] = useState(false);
   const [isEditCryptoModalOpen, setIsEditCryptoModalOpen] = useState(false);
@@ -48,116 +48,71 @@ export default function Crypto() {
   const [isFavorite, setIsFavorite] = useState(false);
   const [tags, setTags] = useState([]);
   const [newTag, setNewTag] = useState('');
+  const [accounts, setAccounts] = useState([]);
+  const [selectedAccount, setSelectedAccount] = useState(null);
   
   // Chart timeframe state
   const [selectedTimeframe, setSelectedTimeframe] = useState("1Y");
   const [activeCurrencyTab, setActiveCurrencyTab] = useState('USD');
 
-  // Mock data for demonstration purposes
   useEffect(() => {
-    // In a real implementation, we would fetch from API
-    setTimeout(() => {
-      setCryptos([
-        {
-          id: 1,
-          coinType: 'Bitcoin',
-          coinSymbol: 'BTC',
-          coinIcon: '₿',
-          quantity: 2.5,
-          purchasePrice: 30000,
-          currentPrice: 65000,
-          purchaseDate: '2020-11-15',
-          storageType: 'Cold Wallet',
-          exchangeName: '',
-          walletAddress: '3FZbgi29cp...k99',
-          notes: 'Hardware wallet',
-          totalValue: 2.5 * 65000,
-          gainLoss: (65000 - 30000) * 2.5,
-          gainLossPercent: ((65000 - 30000) / 30000) * 100,
-          isFavorite: true,
-          tags: ['Long Term', 'Store of Value']
-        },
-        {
-          id: 2,
-          coinType: 'Ethereum',
-          coinSymbol: 'ETH',
-          coinIcon: 'Ξ',
-          quantity: 15,
-          purchasePrice: 1800,
-          currentPrice: 3500,
-          purchaseDate: '2021-04-20',
-          storageType: 'Exchange',
-          exchangeName: 'Coinbase',
-          walletAddress: '',
-          notes: 'Staking for ETH 2.0',
-          totalValue: 15 * 3500,
-          gainLoss: (3500 - 1800) * 15,
-          gainLossPercent: ((3500 - 1800) / 1800) * 100,
-          isFavorite: true,
-          tags: ['Staking', 'DeFi']
-        },
-        {
-          id: 3,
-          coinType: 'Solana',
-          coinSymbol: 'SOL',
-          coinIcon: '◎',
-          quantity: 200,
-          purchasePrice: 40,
-          currentPrice: 120,
-          purchaseDate: '2021-08-10',
-          storageType: 'Exchange',
-          exchangeName: 'Binance',
-          walletAddress: '',
-          notes: '',
-          totalValue: 200 * 120,
-          gainLoss: (120 - 40) * 200,
-          gainLossPercent: ((120 - 40) / 40) * 100,
-          isFavorite: false,
-          tags: ['Altcoin']
-        },
-        {
-          id: 4,
-          coinType: 'Cardano',
-          coinSymbol: 'ADA',
-          coinIcon: '₳',
-          quantity: 5000,
-          purchasePrice: 0.50,
-          currentPrice: 0.85,
-          purchaseDate: '2021-02-05',
-          storageType: 'Hardware Wallet',
-          exchangeName: '',
-          walletAddress: 'addr1q9j...7t2',
-          notes: 'Ledger Nano X',
-          totalValue: 5000 * 0.85,
-          gainLoss: (0.85 - 0.50) * 5000,
-          gainLossPercent: ((0.85 - 0.50) / 0.50) * 100,
-          isFavorite: false,
-          tags: ['Staking', 'Long Term']
-        },
-        {
-          id: 5,
-          coinType: 'Polkadot',
-          coinSymbol: 'DOT',
-          coinIcon: '●',
-          quantity: 300,
-          purchasePrice: 15,
-          currentPrice: 12,
-          purchaseDate: '2022-01-20',
-          storageType: 'Exchange',
-          exchangeName: 'Kraken',
-          walletAddress: '',
-          notes: 'Staking on Kraken',
-          totalValue: 300 * 12,
-          gainLoss: (12 - 15) * 300,
-          gainLossPercent: ((12 - 15) / 15) * 100,
-          isFavorite: false,
-          tags: ['Staking']
-        }
-      ]);
-      setLoading(false);
+    if (user) {
+      fetchUserData();
+    }
+  }, [user]);
+
+  const fetchUserData = async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
+      
+      // Fetch accounts
+      const accountsResponse = await fetchWithAuth('/accounts');
+      if (!accountsResponse.ok) {
+        throw new Error('Failed to fetch accounts');
+      }
+      
+      const accountsData = await accountsResponse.json();
+      setAccounts(accountsData.accounts || []);
+      
+      // If we have accounts, select the first one and fetch its crypto positions
+      if (accountsData.accounts && accountsData.accounts.length > 0) {
+        const firstAccount = accountsData.accounts[0];
+        setSelectedAccount(firstAccount.id);
+        await fetchCryptoPositions(firstAccount.id);
+      } else {
+        setIsLoading(false);
+      }
+    } catch (error) {
+      console.error('Error fetching user data:', error);
+      setError('Failed to load your data. Please try again.');
+      setIsLoading(false);
+    }
+  };
+
+  const fetchCryptoPositions = async (accountId) => {
+    try {
+      const response = await fetchWithAuth(`/crypto/${accountId}`);
+      if (!response.ok) {
+        throw new Error('Failed to fetch crypto positions');
+      }
+      
+      const data = await response.json();
+      setCryptos(data.crypto_positions || []);
       setSyncStatus({ lastSync: new Date(), syncing: false });
-    }, 1000);
-  }, []);
+    } catch (error) {
+      console.error('Error fetching crypto positions:', error);
+      setError('Failed to load crypto positions. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleAccountChange = async (accountId) => {
+    setSelectedAccount(accountId);
+    setIsLoading(true);
+    await fetchCryptoPositions(accountId);
+  };
 
   // Calculate total portfolio value
   const totalValue = cryptos.reduce((sum, crypto) => sum + crypto.totalValue, 0);
@@ -363,7 +318,7 @@ export default function Crypto() {
   };
 
   // Handle adding a new crypto
-  const handleAddCrypto = (e) => {
+  const handleAddCrypto = async (e) => {
     e.preventDefault();
     
     // Validation
@@ -378,37 +333,48 @@ export default function Crypto() {
     // Get coin info
     const coinInfo = getCoinInfo(coinType);
     
-    // Create new crypto object
-    const newCrypto = {
-      id: cryptos.length + 1,
-      coinType,
-      coinSymbol: coinInfo.symbol,
-      coinIcon: coinInfo.icon,
-      quantity: parseFloat(quantity),
-      purchasePrice: parseFloat(purchasePrice),
-      currentPrice,
-      purchaseDate,
-      storageType,
-      exchangeName: storageType === 'Exchange' ? exchangeName : '',
-      walletAddress: storageType !== 'Exchange' ? walletAddress : '',
-      notes,
-      tags: tags,
-      isFavorite,
-      totalValue: parseFloat(quantity) * currentPrice,
-      gainLoss: (currentPrice - parseFloat(purchasePrice)) * parseFloat(quantity),
-      gainLossPercent: ((currentPrice - parseFloat(purchasePrice)) / parseFloat(purchasePrice)) * 100
-    };
-    
-    // Add to cryptos array
-    setCryptos([...cryptos, newCrypto]);
-    
-    // Reset form and close modal
-    resetForm();
-    setIsAddCryptoModalOpen(false);
+    try {
+      setIsLoading(true);
+      
+      const response = await fetchWithAuth(`/crypto/${selectedAccount}`, {
+        method: 'POST',
+        body: JSON.stringify({
+          coin_type: coinType,
+          coin_symbol: coinInfo.symbol,
+          quantity: parseFloat(quantity),
+          purchase_price: parseFloat(purchasePrice),
+          current_price: currentPrice,
+          purchase_date: purchaseDate,
+          storage_type: storageType,
+          exchange_name: storageType === 'Exchange' ? exchangeName : null,
+          wallet_address: storageType !== 'Exchange' ? walletAddress : null,
+          notes: notes,
+          tags: tags,
+          is_favorite: isFavorite
+        })
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || 'Failed to add crypto');
+      }
+      
+      // Reset form and close modal
+      resetForm();
+      setIsAddCryptoModalOpen(false);
+      
+      // Refresh crypto list
+      await fetchCryptoPositions(selectedAccount);
+      
+    } catch (error) {
+      console.error('Error adding crypto:', error);
+      setError(error.message);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  // Handle editing an existing crypto
-  const handleEditCrypto = (e) => {
+  const handleEditCrypto = async (e) => {
     e.preventDefault();
     
     if (!coinType || !quantity || !purchasePrice || !purchaseDate || !storageType) {
@@ -416,47 +382,75 @@ export default function Crypto() {
       return;
     }
     
-    // Get current market price
-    const currentPrice = getCurrentPrice(coinType);
-    
-    // Get coin info
-    const coinInfo = getCoinInfo(coinType);
-    
-    // Update crypto
-    const updatedCryptos = cryptos.map(crypto => {
-      if (crypto.id === selectedCrypto.id) {
-        return {
-          ...crypto,
-          coinType,
-          coinSymbol: coinInfo.symbol,
-          coinIcon: coinInfo.icon,
+    try {
+      setIsLoading(true);
+      
+      const response = await fetchWithAuth(`/crypto/${selectedCrypto.id}`, {
+        method: 'PUT',
+        body: JSON.stringify({
+          coin_type: coinType,
+          coin_symbol: getCoinInfo(coinType).symbol,
           quantity: parseFloat(quantity),
-          purchasePrice: parseFloat(purchasePrice),
-          currentPrice,
-          purchaseDate,
-          storageType,
-          exchangeName: storageType === 'Exchange' ? exchangeName : '',
-          walletAddress: storageType !== 'Exchange' ? walletAddress : '',
-          notes,
-          tags,
-          isFavorite,
-          totalValue: parseFloat(quantity) * currentPrice,
-          gainLoss: (currentPrice - parseFloat(purchasePrice)) * parseFloat(quantity),
-          gainLossPercent: ((currentPrice - parseFloat(purchasePrice)) / parseFloat(purchasePrice)) * 100
-        };
+          purchase_price: parseFloat(purchasePrice),
+          current_price: getCurrentPrice(coinType),
+          purchase_date: purchaseDate,
+          storage_type: storageType,
+          exchange_name: storageType === 'Exchange' ? exchangeName : null,
+          wallet_address: storageType !== 'Exchange' ? walletAddress : null,
+          notes: notes,
+          tags: tags,
+          is_favorite: isFavorite
+        })
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || 'Failed to update crypto');
       }
-      return crypto;
-    });
-    
-    setCryptos(updatedCryptos);
-    resetForm();
-    setIsEditCryptoModalOpen(false);
+      
+      // Reset form and close modal
+      resetForm();
+      setIsEditCryptoModalOpen(false);
+      
+      // Refresh crypto list
+      await fetchCryptoPositions(selectedAccount);
+      
+    } catch (error) {
+      console.error('Error updating crypto:', error);
+      setError(error.message);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  // Handle deleting a crypto
-  const handleDeleteCrypto = (cryptoId) => {
+  const handleDeleteCrypto = async (cryptoId) => {
     if (confirm("Are you sure you want to delete this cryptocurrency?")) {
-      setCryptos(cryptos.filter(crypto => crypto.id !== cryptoId));
+      try {
+        setIsLoading(true);
+        
+        const response = await fetchWithAuth(`/crypto/${cryptoId}`, {
+          method: 'DELETE'
+        });
+        
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.detail || 'Failed to delete crypto');
+        }
+        
+        // Refresh crypto list
+        await fetchCryptoPositions(selectedAccount);
+        
+        // Close detail modal if open
+        if (isCryptoDetailModalOpen) {
+          setIsCryptoDetailModalOpen(false);
+        }
+        
+      } catch (error) {
+        console.error('Error deleting crypto:', error);
+        setError(error.message);
+      } finally {
+        setIsLoading(false);
+      }
     }
   };
 
@@ -514,20 +508,34 @@ export default function Crypto() {
   };
 
   // Toggle favorite status
-  const toggleFavorite = (cryptoId) => {
-    setCryptos(cryptos.map(crypto => {
-      if (crypto.id === cryptoId) {
-        return { ...crypto, isFavorite: !crypto.isFavorite };
+  const toggleFavorite = async (cryptoId) => {
+    // Find the crypto
+    const crypto = cryptos.find(c => c.id === cryptoId);
+    if (!crypto) return;
+    
+    try {
+      const response = await fetchWithAuth(`/crypto/${cryptoId}`, {
+        method: 'PUT',
+        body: JSON.stringify({
+          is_favorite: !crypto.is_favorite
+        })
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to update favorite status');
       }
-      return crypto;
-    }));
-  };
-
-  // Add a tag to the current form
-  const handleAddTag = () => {
-    if (newTag && !tags.includes(newTag)) {
-      setTags([...tags, newTag]);
-      setNewTag('');
+      
+      // Update the local state
+      setCryptos(cryptos.map(c => {
+        if (c.id === cryptoId) {
+          return { ...c, is_favorite: !c.is_favorite };
+        }
+        return c;
+      }));
+      
+    } catch (error) {
+      console.error('Error toggling favorite:', error);
+      setError('Failed to update favorite status');
     }
   };
 
@@ -537,28 +545,18 @@ export default function Crypto() {
   };
 
   // Simulate synchronizing with crypto price APIs
-  const syncPrices = () => {
+  const syncPrices = async () => {
     setSyncStatus({ ...syncStatus, syncing: true });
     
-    // Simulate API call delay
-    setTimeout(() => {
-      // Update prices with small random changes to simulate real-time market
-      const updatedCryptos = cryptos.map(crypto => {
-        const priceChange = crypto.currentPrice * (Math.random() * 0.04 - 0.02); // -2% to +2%
-        const newPrice = crypto.currentPrice + priceChange;
-        
-        return {
-          ...crypto,
-          currentPrice: newPrice,
-          totalValue: crypto.quantity * newPrice,
-          gainLoss: (newPrice - crypto.purchasePrice) * crypto.quantity,
-          gainLossPercent: ((newPrice - crypto.purchasePrice) / crypto.purchasePrice) * 100
-        };
-      });
-      
-      setCryptos(updatedCryptos);
+    try {
+      // Refresh data by fetching positions again
+      await fetchCryptoPositions(selectedAccount);
+    } catch (error) {
+      console.error('Error syncing prices:', error);
+      setError('Failed to sync prices');
+    } finally {
       setSyncStatus({ lastSync: new Date(), syncing: false });
-    }, 2000);
+    }
   };
 
   // Function to format currency based on active tab
