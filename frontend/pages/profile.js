@@ -325,7 +325,7 @@ export default function Profile() {
     setSuccessMessage("");
     
     try {
-      // Format the data for the API
+      // Format the data for the API - ensure field names match exactly with backend
       const apiData = {
         first_name: profileData.firstName,
         last_name: profileData.lastName,
@@ -340,25 +340,37 @@ export default function Profile() {
         bio: profileData.bio
       };
       
+      console.log("Sending profile update:", apiData); // Debug log
+      
       const response = await fetchWithAuth('/user/profile', {
         method: 'PUT',
-        body: JSON.stringify(apiData)
+        body: JSON.stringify(apiData),
+        headers: {
+          'Content-Type': 'application/json' // Ensure content type is set
+        }
       });
       
+      // Check for successful response
       if (response.ok) {
         const updatedUserData = await response.json();
+        console.log("Profile update response:", updatedUserData); // Debug log
+        
+        if (!updatedUserData) {
+          throw new Error("Received empty response");
+        }
+        
         setSuccessMessage("Profile updated successfully!");
         setEditMode(false);
         
         // Update user context if necessary
-        const contextUserUpdate = {
-          ...user,
-          first_name: updatedUserData.first_name,
-          last_name: updatedUserData.last_name,
-          email: updatedUserData.email
-        };
-        
-        if (setUser) {
+        if (setUser && user) {
+          const contextUserUpdate = {
+            ...user,
+            first_name: updatedUserData.first_name,
+            last_name: updatedUserData.last_name,
+            email: updatedUserData.email
+          };
+          
           setUser(contextUserUpdate);
         }
         
@@ -377,9 +389,27 @@ export default function Profile() {
           country: updatedUserData.country || "",
           bio: updatedUserData.bio || ""
         });
+        
+        // Update activity log with new entry
+        const newActivity = {
+          action: "Profile Updated",
+          date: new Date().toISOString(),
+          details: "Your profile information was updated",
+          icon: "Edit"
+        };
+        
+        setActivityLog([newActivity, ...activityLog.slice(0, 4)]);
+        
       } else {
-        const errorData = await response.json().catch(() => ({}));
-        setError(errorData.detail || `Failed to update profile (${response.status})`);
+        // Better error handling
+        let errorDetail = "Failed to update profile";
+        try {
+          const errorData = await response.json();
+          errorDetail = errorData.detail || `Failed to update profile (${response.status})`;
+        } catch (jsonError) {
+          errorDetail = `Server error (${response.status}): ${response.statusText}`;
+        }
+        setError(errorDetail);
       }
     } catch (err) {
       console.error("Error updating profile:", err);
@@ -395,7 +425,6 @@ export default function Profile() {
       }
     }
   };
-  
   // Handle password change
   const handleChangePassword = async (e) => {
     e.preventDefault();
