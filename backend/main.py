@@ -263,6 +263,16 @@ class UserProfileUpdate(BaseModel):
     country: Optional[str] = None
     bio: Optional[str] = None
 
+class PasswordChangeRequest(BaseModel):
+    current_password: str
+    new_password: str
+
+class NotificationPreferences(BaseModel):
+    emailUpdates: bool = True
+    marketAlerts: bool = True
+    performanceReports: bool = True
+    securityAlerts: bool = True
+    newsletterUpdates: bool = False
 
 # API Endpoints
 @app.get("/")
