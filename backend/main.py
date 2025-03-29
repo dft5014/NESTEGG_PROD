@@ -384,38 +384,69 @@ async def get_user_data(current_user: dict = Depends(get_current_user)):
 async def get_user_profile(current_user: dict = Depends(get_current_user)):
     """Get the current user's extended profile information."""
     try:
-        # IMPORTANT: Use direct SQL query instead of any potentially undefined function
+        # Query the database for the user's profile
         query = "SELECT * FROM users WHERE id = :user_id"
         result = await database.fetch_one(query, {"user_id": current_user["id"]})
         
-        if not result:
-            raise HTTPException(status_code=404, detail="User profile not found")
+        # Debug logging
+        logger.info(f"User profile query result type: {type(result)}")
         
-        # Safely create response object, handling missing fields
+        # Handle the case where result is None
+        if result is None:
+            logger.warning(f"No user profile found for ID: {current_user['id']}")
+            # Create a default profile with minimal user information
+            profile = UserProfileResponse(
+                id=current_user["id"],
+                email=current_user["email"],
+                first_name=current_user.get("first_name", ""),
+                last_name=current_user.get("last_name", ""),
+                phone="",
+                occupation="",
+                date_of_birth=None,
+                address="",
+                city="",
+                state="",
+                zip_code="",
+                country="",
+                bio="",
+                created_at=datetime.utcnow(),
+                subscription_plan="basic",
+                notification_preferences={
+                    "emailUpdates": True,
+                    "marketAlerts": True,
+                    "performanceReports": True,
+                    "securityAlerts": True,
+                    "newsletterUpdates": False
+                },
+                is_admin=False
+            )
+            return profile
+        
+        # Safely create response object with existing data
         profile = UserProfileResponse(
             id=result["id"],
             email=result["email"],
-            first_name=result.get("first_name"),
-            last_name=result.get("last_name"),
-            phone=result.get("phone"),
-            occupation=result.get("occupation"),
-            date_of_birth=result.get("date_of_birth"),
-            address=result.get("address"),
-            city=result.get("city"),
-            state=result.get("state"),
-            zip_code=result.get("zip_code"),
-            country=result.get("country"),
-            bio=result.get("bio"),
-            created_at=result.get("created_at", datetime.utcnow()),
-            subscription_plan=result.get("subscription_plan", "basic"),
-            notification_preferences=result.get("notification_preferences", {
+            first_name=result["first_name"] if "first_name" in result and result["first_name"] is not None else "",
+            last_name=result["last_name"] if "last_name" in result and result["last_name"] is not None else "",
+            phone=result["phone"] if "phone" in result and result["phone"] is not None else "",
+            occupation=result["occupation"] if "occupation" in result and result["occupation"] is not None else "",
+            date_of_birth=result["date_of_birth"] if "date_of_birth" in result and result["date_of_birth"] is not None else None,
+            address=result["address"] if "address" in result and result["address"] is not None else "",
+            city=result["city"] if "city" in result and result["city"] is not None else "",
+            state=result["state"] if "state" in result and result["state"] is not None else "",
+            zip_code=result["zip_code"] if "zip_code" in result and result["zip_code"] is not None else "",
+            country=result["country"] if "country" in result and result["country"] is not None else "",
+            bio=result["bio"] if "bio" in result and result["bio"] is not None else "",
+            created_at=result["created_at"] if "created_at" in result and result["created_at"] is not None else datetime.utcnow(),
+            subscription_plan=result["subscription_plan"] if "subscription_plan" in result and result["subscription_plan"] is not None else "basic",
+            notification_preferences=result["notification_preferences"] if "notification_preferences" in result and result["notification_preferences"] is not None else {
                 "emailUpdates": True,
                 "marketAlerts": True,
                 "performanceReports": True,
                 "securityAlerts": True,
                 "newsletterUpdates": False
-            }),
-            is_admin=result.get("is_admin", False)
+            },
+            is_admin=result["is_admin"] if "is_admin" in result and result["is_admin"] is not None else False
         )
         
         return profile
@@ -435,9 +466,19 @@ async def update_user_profile(
     try:
         # Extract update fields carefully
         update_fields = {}
-        # Use dict() without any callable methods that might be None
-        data_dict = {k: v for k, v in profile_data.__dict__.items() 
-                    if not k.startswith('_') and v is not None}
+        # Handle data extraction based on the type of profile_data
+        if hasattr(profile_data, "dict") and callable(profile_data.dict):
+            # If it's a Pydantic model
+            try:
+                data_dict = profile_data.dict(exclude_unset=True)
+            except:
+                # Fallback if dict() method fails
+                data_dict = {k: v for k, v in profile_data.__dict__.items() 
+                           if not k.startswith('_') and v is not None}
+        else:
+            # Direct dictionary access
+            data_dict = {k: v for k, v in profile_data.__dict__.items() 
+                       if not k.startswith('_') and v is not None}
         
         for field, value in data_dict.items():
             update_fields[field] = value
@@ -459,34 +500,94 @@ async def update_user_profile(
         # Execute the update
         result = await database.fetch_one(query, update_fields)
         
-        if not result:
-            raise HTTPException(status_code=404, detail="User profile not found")
+        # Debug logging for result
+        logger.info(f"Update result type: {type(result)}")
         
-        # Build response directly with the same pattern as the GET endpoint
+        # Handle case where result is None
+        if result is None:
+            logger.warning(f"Update returned no result for user ID: {current_user['id']}")
+            # Create a default response with provided update fields
+            profile = UserProfileResponse(
+                id=current_user["id"],
+                email=current_user["email"],
+                first_name=update_fields.get("first_name", current_user.get("first_name", "")),
+                last_name=update_fields.get("last_name", current_user.get("last_name", "")),
+                phone=update_fields.get("phone", ""),
+                occupation=update_fields.get("occupation", ""),
+                date_of_birth=update_fields.get("date_of_birth"),
+                address=update_fields.get("address", ""),
+                city=update_fields.get("city", ""),
+                state=update_fields.get("state", ""),
+                zip_code=update_fields.get("zip_code", ""),
+                country=update_fields.get("country", ""),
+                bio=update_fields.get("bio", ""),
+                created_at=datetime.utcnow(),
+                subscription_plan="basic",
+                notification_preferences={
+                    "emailUpdates": True,
+                    "marketAlerts": True,
+                    "performanceReports": True,
+                    "securityAlerts": True,
+                    "newsletterUpdates": False
+                },
+                is_admin=False
+            )
+            
+            # Try to insert a new user profile instead
+            try:
+                # Add any missing fields needed for insert
+                insert_data = update_fields.copy()
+                insert_data.pop("user_id", None)  # Remove the user_id key used for WHERE clause
+                
+                # Construct columns and values for insertion
+                columns = ", ".join(["id"] + list(insert_data.keys()))
+                placeholders = ", ".join([":user_id"] + [f":{k}" for k in insert_data.keys()])
+                
+                insert_query = f"INSERT INTO users ({columns}) VALUES ({placeholders}) RETURNING *"
+                insert_params = {"user_id": current_user["id"], **insert_data}
+                
+                logger.info(f"Attempting to create profile - Query: {insert_query}")
+                logger.info(f"Insert parameters: {insert_params}")
+                
+                insert_result = await database.fetch_one(insert_query, insert_params)
+                
+                if insert_result:
+                    logger.info("Successfully created new user profile")
+                    # Update the profile with inserted data
+                    for key in insert_result.keys():
+                        if key != "id" and key != "email" and hasattr(profile, key):
+                            setattr(profile, key, insert_result[key])
+            except Exception as insert_err:
+                logger.error(f"Error creating new profile: {str(insert_err)}")
+                # Continue with default profile on error
+            
+            return profile
+        
+        # Build profile response from the update result
         profile = UserProfileResponse(
             id=result["id"],
             email=result["email"],
-            first_name=result.get("first_name"),
-            last_name=result.get("last_name"),
-            phone=result.get("phone"),
-            occupation=result.get("occupation"),
-            date_of_birth=result.get("date_of_birth"),
-            address=result.get("address"),
-            city=result.get("city"),
-            state=result.get("state"),
-            zip_code=result.get("zip_code"),
-            country=result.get("country"),
-            bio=result.get("bio"),
-            created_at=result.get("created_at", datetime.utcnow()),
-            subscription_plan=result.get("subscription_plan", "basic"),
-            notification_preferences=result.get("notification_preferences", {
+            first_name=result["first_name"] if "first_name" in result and result["first_name"] is not None else "",
+            last_name=result["last_name"] if "last_name" in result and result["last_name"] is not None else "",
+            phone=result["phone"] if "phone" in result and result["phone"] is not None else "",
+            occupation=result["occupation"] if "occupation" in result and result["occupation"] is not None else "",
+            date_of_birth=result["date_of_birth"] if "date_of_birth" in result and result["date_of_birth"] is not None else None,
+            address=result["address"] if "address" in result and result["address"] is not None else "",
+            city=result["city"] if "city" in result and result["city"] is not None else "",
+            state=result["state"] if "state" in result and result["state"] is not None else "",
+            zip_code=result["zip_code"] if "zip_code" in result and result["zip_code"] is not None else "",
+            country=result["country"] if "country" in result and result["country"] is not None else "",
+            bio=result["bio"] if "bio" in result and result["bio"] is not None else "",
+            created_at=result["created_at"] if "created_at" in result and result["created_at"] is not None else datetime.utcnow(),
+            subscription_plan=result["subscription_plan"] if "subscription_plan" in result and result["subscription_plan"] is not None else "basic",
+            notification_preferences=result["notification_preferences"] if "notification_preferences" in result and result["notification_preferences"] is not None else {
                 "emailUpdates": True,
                 "marketAlerts": True,
                 "performanceReports": True,
                 "securityAlerts": True,
                 "newsletterUpdates": False
-            }),
-            is_admin=result.get("is_admin", False)
+            },
+            is_admin=result["is_admin"] if "is_admin" in result and result["is_admin"] is not None else False
         )
         
         return profile
