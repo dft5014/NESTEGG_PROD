@@ -9,7 +9,7 @@ const AddAccountModal = ({ isOpen, onClose, onAccountAdded }) => {
   const [institution, setInstitution] = useState("");
   const [accountType, setAccountType] = useState("");
   const [balance, setBalance] = useState(0);
-  const [accountCategory, setAccountCategory] = useState(""); // brokerage or retirement
+  const [accountCategory, setAccountCategory] = useState(""); // brokerage, retirement, or cash
   const [institutionSuggestions, setInstitutionSuggestions] = useState([]);
   const [formMessage, setFormMessage] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -56,43 +56,62 @@ const AddAccountModal = ({ isOpen, onClose, onAccountAdded }) => {
       return;
     }
     if (!accountType) {
-        setFormMessage("Account type is required");
-        return;
+      setFormMessage("Account type is required");
+      return;
     }
 
     setIsLoading(true);
     setFormMessage("");
 
     try {
+      const payload = {
+        account_name: accountName,
+        institution: institution || null, // Send null if empty
+        type: accountType || null, // Send null if empty
+        account_category: accountCategory, // Include category - it's needed by backend
+        balance: parseFloat(balance) || 0
+      };
+
+      console.log("Sending account data:", payload);
+
       const response = await fetchWithAuth('/accounts', {
         method: "POST",
-        body: JSON.stringify({
-          account_name: accountName,
-          institution: institution || null, // Send null if empty
-          type: accountType || null, // Send null if empty
-          // account_category: accountCategory, // Backend might not need this if 'type' implies it
-          balance: parseFloat(balance) || 0
-        })
+        body: JSON.stringify(payload)
       });
 
-      const responseData = await response.json();
+      // Handle response
+      let responseData;
+      try {
+        responseData = await response.json();
+      } catch (e) {
+        // Handle case where response might not be JSON
+        responseData = { detail: await response.text() };
+      }
 
       if (response.ok) {
         setFormMessage("Account added successfully!");
-        setIsLoading(false);
+        
         if (onAccountAdded) {
           onAccountAdded(responseData); // Pass back new account data if needed
         }
+        
         setTimeout(() => {
           onClose(); // Close modal after success
         }, 1000);
       } else {
-        setFormMessage(`Failed to add account: ${responseData.detail || JSON.stringify(responseData)}`);
-        setIsLoading(false);
+        // Better error handling
+        let errorMsg = "Failed to add account";
+        if (responseData.detail) {
+          errorMsg += `: ${responseData.detail}`;
+        } else if (typeof responseData === 'object') {
+          errorMsg += `: ${Object.values(responseData).join(', ')}`;
+        }
+        setFormMessage(errorMsg);
       }
     } catch (error) {
       console.error("Error adding account:", error);
       setFormMessage(`Error adding account: ${error.message}`);
+    } finally {
       setIsLoading(false);
     }
   };
@@ -124,7 +143,7 @@ const AddAccountModal = ({ isOpen, onClose, onAccountAdded }) => {
             <option value="Other Retirement">Other Retirement</option>
           </>
         );
-        case "cash":
+      case "cash":
         return (
           <>
             <option value="Checking">Checking</option>
@@ -140,29 +159,27 @@ const AddAccountModal = ({ isOpen, onClose, onAccountAdded }) => {
     }
   };
 
-
   return (
     <Modal isOpen={isOpen} onClose={onClose} title="Add New Account">
       <form onSubmit={handleSubmit} className="space-y-4">
         {/* Account Category Selection */}
-         <div className="mb-4">
-            <label className="block text-sm font-medium mb-1 text-gray-700">Account Category*</label>
-             <select
-                value={accountCategory}
-                onChange={(e) => {
-                  setAccountCategory(e.target.value);
-                  setAccountType(''); // Reset type when category changes
-                }}
-                className="modal-input w-full"
-                required
-             >
-               <option value="" disabled>-- Select Category --</option>
-               <option value="brokerage">Brokerage / Investment</option>
-               <option value="retirement">Retirement</option>
-               <option value="cash">Cash / Banking</option>
-             </select>
-           </div>
-
+        <div className="mb-4">
+          <label className="block text-sm font-medium mb-1 text-gray-700">Account Category*</label>
+          <select
+            value={accountCategory}
+            onChange={(e) => {
+              setAccountCategory(e.target.value);
+              setAccountType(''); // Reset type when category changes
+            }}
+            className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            required
+          >
+            <option value="" disabled>-- Select Category --</option>
+            <option value="brokerage">Brokerage / Investment</option>
+            <option value="retirement">Retirement</option>
+            <option value="cash">Cash / Banking</option>
+          </select>
+        </div>
 
         <div>
           <label htmlFor="accountName" className="block text-sm font-medium text-gray-700 mb-1">Account Name*</label>
@@ -172,7 +189,7 @@ const AddAccountModal = ({ isOpen, onClose, onAccountAdded }) => {
             value={accountName}
             onChange={(e) => setAccountName(e.target.value)}
             placeholder="e.g., My Brokerage Account"
-            className="modal-input w-full"
+            className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
             required
           />
         </div>
@@ -185,7 +202,7 @@ const AddAccountModal = ({ isOpen, onClose, onAccountAdded }) => {
             value={institution}
             onChange={(e) => handleInstitutionInput(e.target.value)}
             placeholder="e.g., Vanguard, Fidelity (Optional)"
-            className="modal-input w-full"
+            className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
             autoComplete="off"
           />
           {institutionSuggestions.length > 0 && (
@@ -197,9 +214,9 @@ const AddAccountModal = ({ isOpen, onClose, onAccountAdded }) => {
                   onClick={() => selectInstitution(brokerage.name)}
                 >
                   {brokerage.logo && (
-                     <img src={brokerage.logo} alt={brokerage.name} className="w-5 h-5 object-contain mr-2"/>
+                    <img src={brokerage.logo} alt={brokerage.name} className="w-5 h-5 object-contain mr-2"/>
                   )}
-                 {brokerage.name}
+                  {brokerage.name}
                 </div>
               ))}
             </div>
@@ -212,7 +229,7 @@ const AddAccountModal = ({ isOpen, onClose, onAccountAdded }) => {
             id="accountType"
             value={accountType}
             onChange={(e) => setAccountType(e.target.value)}
-            className="modal-input w-full"
+            className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
             disabled={!accountCategory}
             required
           >
@@ -229,7 +246,7 @@ const AddAccountModal = ({ isOpen, onClose, onAccountAdded }) => {
             value={balance}
             onChange={(e) => setBalance(e.target.value)}
             placeholder="0.00"
-            className="modal-input w-full"
+            className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
             min="0"
             step="0.01"
           />
@@ -244,7 +261,7 @@ const AddAccountModal = ({ isOpen, onClose, onAccountAdded }) => {
         <div className="flex justify-end space-x-3 pt-2">
           <button
             type="button"
-            className="modal-cancel-btn"
+            className="bg-gray-100 text-gray-700 px-4 py-2 rounded-md hover:bg-gray-200 border border-gray-300"
             onClick={onClose}
             disabled={isLoading}
           >
@@ -252,23 +269,13 @@ const AddAccountModal = ({ isOpen, onClose, onAccountAdded }) => {
           </button>
           <button
             type="submit"
-            className="modal-submit-btn"
+            className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 disabled:bg-blue-400 disabled:cursor-not-allowed"
             disabled={isLoading || !accountCategory || !accountType || !accountName}
           >
             {isLoading ? "Adding..." : "Add Account"}
           </button>
         </div>
       </form>
-      {/* Add CSS for inputs if needed:
-         .modal-input { padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 6px; width: 100%; font-size: 14px; }
-         .modal-input:focus { outline: none; border-color: #3b82f6; box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.3); }
-         .modal-submit-btn { background-color: #2563eb; color: white; padding: 8px 16px; border-radius: 6px; font-size: 14px; font-weight: 500; transition: background-color 0.2s; }
-         .modal-submit-btn:hover { background-color: #1d4ed8; }
-         .modal-submit-btn:disabled { background-color: #9ca3af; cursor: not-allowed; }
-         .modal-cancel-btn { background-color: #f3f4f6; color: #374151; padding: 8px 16px; border-radius: 6px; font-size: 14px; font-weight: 500; border: 1px solid #d1d5db; transition: background-color 0.2s; }
-         .modal-cancel-btn:hover { background-color: #e5e7eb; }
-         .modal-cancel-btn:disabled { opacity: 0.6; cursor: not-allowed; }
-       */}
     </Modal>
   );
 };
