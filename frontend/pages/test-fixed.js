@@ -1,97 +1,21 @@
-// pages/test-fixed.js
+// pages/test-production.js
 import { useState, useEffect, useContext } from 'react';
 import { AuthContext } from '@/context/AuthContext';
 import { useRouter } from 'next/router';
+import AccountModal from '@/components/modals/AccountModal';
 import FixedModal from '@/components/modals/FixedModal';
-import { fetchAccounts } from '@/utils/apimethods/accountMethods';
+import { fetchAccounts, createAccount, updateAccount, deleteAccount } from '@/utils/apimethods/accountMethods';
 
-// Simple Account Form Component
-const SimpleAccountForm = ({ onSubmit, onCancel }) => {
-  const [accountName, setAccountName] = useState("");
-  const [accountType, setAccountType] = useState("");
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (!accountName || !accountType) return;
-    
-    setIsSubmitting(true);
-    
-    // Simulate API call
-    try {
-      await onSubmit({ 
-        account_name: accountName,
-        type: accountType,
-        account_category: accountType === 'Checking' || accountType === 'Savings' ? 'cash' : 'brokerage',
-        balance: 0
-      });
-    } catch (error) {
-      console.error("Form submission error:", error);
-      alert("Error submitting form: " + error.message);
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-  
-  return (
-    <form onSubmit={handleSubmit} className="space-y-4">
-      <div>
-        <label className="block text-sm font-medium mb-1">Account Name</label>
-        <input
-          type="text"
-          value={accountName}
-          onChange={(e) => setAccountName(e.target.value)}
-          className="w-full p-2 border rounded"
-          placeholder="My Account"
-          required
-        />
-      </div>
-      
-      <div>
-        <label className="block text-sm font-medium mb-1">Account Type</label>
-        <select
-          value={accountType}
-          onChange={(e) => setAccountType(e.target.value)}
-          className="w-full p-2 border rounded"
-          required
-        >
-          <option value="">Select Type</option>
-          <option value="Individual">Individual Brokerage</option>
-          <option value="Checking">Checking</option>
-          <option value="Savings">Savings</option>
-        </select>
-      </div>
-      
-      <div className="flex justify-end space-x-3 pt-4">
-        <button
-          type="button"
-          onClick={onCancel}
-          className="px-4 py-2 border rounded text-gray-700 hover:bg-gray-50"
-          disabled={isSubmitting}
-        >
-          Cancel
-        </button>
-        
-        <button
-          type="submit"
-          className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
-          disabled={isSubmitting}
-        >
-          {isSubmitting ? "Adding..." : "Add Account"}
-        </button>
-      </div>
-    </form>
-  );
-};
-
-export default function TestFixedPage() {
+export default function TestProductionPage() {
   const { user } = useContext(AuthContext);
   const router = useRouter();
   
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isAccountModalOpen, setIsAccountModalOpen] = useState(false);
+  const [accountToEdit, setAccountToEdit] = useState(null);
   const [accounts, setAccounts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [successMessage, setSuccessMessage] = useState("");
 
   // Check authentication
   useEffect(() => {
@@ -125,116 +49,164 @@ export default function TestFixedPage() {
     }
   }, [user]);
 
-  // Handle form submission
-  const handleAddAccount = async (accountData) => {
+  // Handle account saved (added or updated)
+  const handleAccountSaved = (savedAccount) => {
+    console.log('Account saved:', savedAccount);
+    loadAccounts(); // Refresh accounts list
+    
+    // Show success message
+    const action = accountToEdit ? "updated" : "added";
+    setSuccessMessage(`Account ${action} successfully!`);
+    
+    // Clear success message after 3 seconds
+    setTimeout(() => {
+      setSuccessMessage("");
+    }, 3000);
+  };
+
+  // Open modal for adding a new account
+  const handleAddAccount = () => {
+    setAccountToEdit(null); // Ensure we're in "add" mode
+    setIsAccountModalOpen(true);
+  };
+
+  // Open modal for editing an existing account
+  const handleEditAccount = (account) => {
+    setAccountToEdit(account);
+    setIsAccountModalOpen(true);
+  };
+
+  // Handle account deletion
+  const handleDeleteAccount = async (accountId) => {
+    if (!window.confirm("Are you sure you want to delete this account?")) {
+      return;
+    }
+    
     try {
-      console.log("Adding account:", accountData);
+      await deleteAccount(accountId);
+      loadAccounts(); // Refresh accounts list
+      setSuccessMessage("Account deleted successfully!");
       
-      // Using fetch directly here for debugging
-      const token = localStorage.getItem('token');
-      if (!token) throw new Error("No authentication token found");
-      
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/accounts`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify(accountData)
-      });
-      
-      console.log("Response status:", response.status);
-      
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error("API Error:", errorText);
-        throw new Error(errorText || `Failed to add account (${response.status})`);
-      }
-      
-      const data = await response.json();
-      console.log("Account added:", data);
-      
-      // Refresh accounts list and close modal
-      await loadAccounts();
-      setIsModalOpen(false);
-      
-      // Show success message
-      alert("Account added successfully!");
+      // Clear success message after 3 seconds
+      setTimeout(() => {
+        setSuccessMessage("");
+      }, 3000);
     } catch (error) {
-      console.error("Error adding account:", error);
-      alert("Failed to add account: " + error.message);
+      console.error("Error deleting account:", error);
+      setError("Failed to delete account: " + error.message);
     }
   };
 
   return (
     <div className="container mx-auto p-6">
-      <h1 className="text-2xl font-bold mb-4">Account Management (Fixed)</h1>
+      <h1 className="text-2xl font-bold mb-4">Account Management (Production)</h1>
       
       <div className="bg-white shadow-md rounded-lg p-6 mb-6">
-        <p className="mb-4">This page lets you test the fixed modal implementation for adding accounts.</p>
+        <div className="flex justify-between items-center">
+          <div>
+            <h2 className="text-xl font-bold">Your Accounts</h2>
+            <p className="text-gray-600">Manage your financial accounts here</p>
+          </div>
+          
+          <button
+            onClick={handleAddAccount}
+            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md flex items-center"
+          >
+            <span className="mr-2">+</span> Add Account
+          </button>
+        </div>
         
-        <button
-          onClick={() => setIsModalOpen(true)}
-          className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md"
-        >
-          Open Add Account Modal
-        </button>
-      </div>
-      
-      {/* Debugging information */}
-      <div className="bg-gray-100 p-4 rounded-lg mb-4">
-        <h2 className="font-bold mb-2">Debugging Info:</h2>
-        <p>Modal Open: {isModalOpen ? "Yes" : "No"}</p>
-        <p>Loading: {loading ? "Yes" : "No"}</p>
-        <p>Error: {error || "None"}</p>
-        <p>Accounts Count: {accounts.length}</p>
+        {/* Success Message */}
+        {successMessage && (
+          <div className="mt-4 p-3 bg-green-100 text-green-700 rounded-md">
+            {successMessage}
+          </div>
+        )}
+        
+        {/* Error Message */}
+        {error && (
+          <div className="mt-4 p-3 bg-red-100 text-red-700 rounded-md">
+            {error}
+            <button 
+              className="ml-2 underline" 
+              onClick={() => {
+                setError(null);
+                loadAccounts();
+              }}
+            >
+              Retry
+            </button>
+          </div>
+        )}
       </div>
       
       {/* Accounts Table */}
       <div className="bg-white shadow-md rounded-lg p-6">
-        <h2 className="text-xl font-bold mb-4">Your Accounts</h2>
-        
         {loading ? (
-          <p className="text-center py-4">Loading accounts...</p>
-        ) : error ? (
-          <p className="text-center py-4 text-red-600">{error}</p>
+          <div className="flex justify-center py-8">
+            <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500"></div>
+          </div>
         ) : accounts.length > 0 ? (
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Category</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Balance</th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {accounts.map((account) => (
-                <tr key={account.id} className="hover:bg-gray-50">
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{account.account_name}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{account.type || "N/A"}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{account.account_category || "N/A"}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${account.balance.toLocaleString()}</td>
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Account Name</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Institution</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Category</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Balance</th>
+                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {accounts.map((account) => (
+                  <tr key={account.id} className="hover:bg-gray-50">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{account.account_name}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{account.institution || "N/A"}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{account.type || "N/A"}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{account.account_category || "N/A"}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${account.balance.toLocaleString()}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                      <button
+                        onClick={() => handleEditAccount(account)}
+                        className="text-blue-600 hover:text-blue-900 mr-4"
+                      >
+                        Edit
+                      </button>
+                      <button
+                        onClick={() => handleDeleteAccount(account.id)}
+                        className="text-red-600 hover:text-red-900"
+                      >
+                        Delete
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         ) : (
-          <p className="text-center py-4 text-gray-500">No accounts found. Add an account to get started!</p>
+          <div className="text-center py-8 border border-gray-200 rounded-lg">
+            <p className="text-gray-500 mb-4">No accounts found. Add an account to get started!</p>
+            <button
+              onClick={handleAddAccount}
+              className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md"
+            >
+              Add Your First Account
+            </button>
+          </div>
         )}
       </div>
       
-      {/* Fixed Modal with Simple Account Form */}
-      <FixedModal
-        isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-        title="Add New Account"
-      >
-        <SimpleAccountForm
-          onSubmit={handleAddAccount}
-          onCancel={() => setIsModalOpen(false)}
-        />
-      </FixedModal>
+      {/* Production Account Modal */}
+      {/* Note that we're using the actual AccountModal component here */}
+      <AccountModal
+        isOpen={isAccountModalOpen}
+        onClose={() => setIsAccountModalOpen(false)}
+        onAccountAdded={handleAccountSaved}
+        editAccount={accountToEdit}
+      />
     </div>
   );
 }
