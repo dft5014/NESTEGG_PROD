@@ -1,6 +1,6 @@
 // frontend/components/modals/AccountModal.js
 import React, { useState, useEffect } from 'react';
-import Modal from './Modal';
+import FixedModal from './FixedModal';
 import { fetchWithAuth } from '@/utils/api';
 import { popularBrokerages } from '@/utils/constants';
 
@@ -15,6 +15,11 @@ const AccountModal = ({ isOpen, onClose, onAccountAdded, editAccount = null }) =
   const [formMessage, setFormMessage] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
+
+  // Log modal rendering for debugging
+  useEffect(() => {
+    console.log("AccountModal render state:", { isOpen, isEditMode, editAccount: !!editAccount });
+  }, [isOpen, isEditMode, editAccount]);
 
   // Reset form when modal opens/closes or changes mode
   useEffect(() => {
@@ -105,6 +110,8 @@ const AccountModal = ({ isOpen, onClose, onAccountAdded, editAccount = null }) =
         balance: parseFloat(balance) || 0
       };
 
+      console.log(`${isEditMode ? 'Updating' : 'Creating'} account:`, payload);
+      
       let response;
       
       if (isEditMode) {
@@ -121,8 +128,12 @@ const AccountModal = ({ isOpen, onClose, onAccountAdded, editAccount = null }) =
         });
       }
 
+      console.log("API response status:", response.status);
+      
       if (response.ok) {
         const responseData = await response.json();
+        console.log("API response data:", responseData);
+        
         setFormMessage(isEditMode ? "Account updated successfully!" : "Account added successfully!");
         
         setTimeout(() => {
@@ -135,6 +146,8 @@ const AccountModal = ({ isOpen, onClose, onAccountAdded, editAccount = null }) =
         }, 1000);
       } else {
         const errorData = await response.json();
+        console.error("API error response:", errorData);
+        
         setFormMessage(`Failed to ${isEditMode ? 'update' : 'add'} account: ${errorData.detail || JSON.stringify(errorData)}`);
       }
     } catch (error) {
@@ -192,7 +205,7 @@ const AccountModal = ({ isOpen, onClose, onAccountAdded, editAccount = null }) =
   };
 
   return (
-    <Modal 
+    <FixedModal 
       isOpen={isOpen} 
       onClose={onClose} 
       title={isEditMode ? `Edit Account: ${editAccount?.account_name}` : "Add New Account"}
@@ -313,7 +326,7 @@ const AccountModal = ({ isOpen, onClose, onAccountAdded, editAccount = null }) =
           </button>
         </div>
       </form>
-    </Modal>
+    </FixedModal>
   );
 };
 
