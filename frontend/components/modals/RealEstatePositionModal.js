@@ -102,13 +102,26 @@ const RealEstatePositionModal = ({ isOpen, onClose, accountId, onPositionSaved, 
       };
       
       console.log(`${isEditMode ? 'Updating' : 'Adding'} real estate position:`, realEstateData);
+      console.log(`Using accountId: ${accountId}`);
       
       let result;
       
       if (isEditMode) {
         result = await updatePosition(positionToEdit.id, realEstateData, 'realestate');
       } else {
-        result = await addRealEstatePosition(accountId, realEstateData);
+        // Make sure we're using the correct endpoint and format
+        const response = await fetchWithAuth(`/realestate/${accountId}`, {
+          method: 'POST',
+          body: JSON.stringify(realEstateData)
+        });
+        
+        if (!response.ok) {
+          const errorData = await response.text();
+          console.error('Real estate API error:', errorData);
+          throw new Error(errorData || 'Failed to add real estate position');
+        }
+        
+        result = await response.json();
       }
       
       console.log(`Real estate position ${isEditMode ? 'updated' : 'added'}:`, result);
@@ -134,7 +147,7 @@ const RealEstatePositionModal = ({ isOpen, onClose, accountId, onPositionSaved, 
       setIsSubmitting(false);
     }
   };
-
+  
   return (
     <FixedModal
       isOpen={isOpen}

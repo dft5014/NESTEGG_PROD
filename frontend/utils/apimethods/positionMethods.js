@@ -29,6 +29,67 @@ export const fetchPositions = async (accountId) => {
  * @param {Object} positionData - Position data (ticker, shares, price, etc.)
  * @returns {Promise} - Promise resolving to the created position object
  */
+
+// Updated position API methods to ensure correct endpoint usage
+export const fetchPositionsByType = async (accountId, type = 'security') => {
+  try {
+    let endpoint = '';
+    
+    switch (type) {
+      case 'crypto':
+        endpoint = `/crypto/${accountId}`;
+        break;
+      case 'metal':
+        endpoint = `/metals/${accountId}`;
+        break;
+      case 'realestate':
+        endpoint = `/realestate/${accountId}`;
+        break;
+      case 'security':
+      default:
+        endpoint = `/positions/${accountId}`;
+        break;
+    }
+    
+    console.log(`Fetching ${type} positions from endpoint: ${endpoint}`);
+    const response = await fetchWithAuth(endpoint);
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(errorText || `Failed to fetch ${type} positions for account ${accountId}`);
+    }
+    
+    const data = await response.json();
+    return data.positions || [];
+  } catch (error) {
+    console.error(`Error fetching ${type} positions for account ${accountId}:`, error);
+    throw error;
+  }
+};
+
+
+// Add this as a utility function to the positionMethods.js file
+export const fetchAllPositionTypes = async (accountId) => {
+  try {
+    const [securities, crypto, metals, realEstate] = await Promise.allSettled([
+      fetchPositionsByType(accountId, 'security'),
+      fetchPositionsByType(accountId, 'crypto'),
+      fetchPositionsByType(accountId, 'metal'),
+      fetchPositionsByType(accountId, 'realestate')
+    ]);
+    
+    return {
+      securities: securities.status === 'fulfilled' ? securities.value : [],
+      crypto: crypto.status === 'fulfilled' ? crypto.value : [],
+      metals: metals.status === 'fulfilled' ? metals.value : [],
+      realEstate: realEstate.status === 'fulfilled' ? realEstate.value : []
+    };
+  } catch (error) {
+    console.error(`Error fetching all position types for account ${accountId}:`, error);
+    throw error;
+  }
+};
+
 export const addSecurityPosition = async (accountId, positionData) => {
   try {
     const response = await fetchWithAuth(`/positions/${accountId}`, {
