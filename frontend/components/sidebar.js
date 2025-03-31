@@ -84,10 +84,6 @@ const Sidebar = () => {
                     <Info size={iconSize} className="sidebar-icon min-w-[32px] min-h-[32px]" />
                     {!sidebarCollapsed && <span>About</span>}
                 </Link>
-                <Link href="/test-simple" className={`flex items-center gap-3 p-3 hover:bg-gray-800 rounded-lg ${sidebarCollapsed ? 'justify-center' : ''}`}>
-                    <Info size={iconSize} className="sidebar-icon min-w-[32px] min-h-[32px]" />
-                    {!sidebarCollapsed && <span>positions</span>}
-                </Link>
                 <Link href="/test-fixed" className={`flex items-center gap-3 p-3 hover:bg-gray-800 rounded-lg ${sidebarCollapsed ? 'justify-center' : ''}`}>
                     <Info size={iconSize} className="sidebar-icon min-w-[32px] min-h-[32px]" />
                     {!sidebarCollapsed && <span>accounts</span>}

@@ -30,11 +30,17 @@ export const fetchPositions = async (accountId) => {
  * @returns {Promise} - Promise resolving to the created position object
  */
 
-// Modify fetchPositionsByType in positionMethods.js to handle different response structures
+// Optimized fetchPositionsByType in positionMethods.js
 export const fetchPositionsByType = async (accountId, type = 'security') => {
+  if (!accountId) {
+    console.error('Account ID is required for fetchPositionsByType');
+    return [];
+  }
+
   try {
     let endpoint = '';
     
+    // Determine the correct endpoint based on position type
     switch (type) {
       case 'crypto':
         endpoint = `/crypto/${accountId}`;
@@ -51,7 +57,6 @@ export const fetchPositionsByType = async (accountId, type = 'security') => {
         break;
     }
     
-    console.log(`Fetching ${type} positions from endpoint: ${endpoint}`);
     const response = await fetchWithAuth(endpoint);
     
     if (!response.ok) {
@@ -62,23 +67,26 @@ export const fetchPositionsByType = async (accountId, type = 'security') => {
     const data = await response.json();
     
     // Handle different response structures based on position type
-    if (type === 'crypto' && data.crypto_positions) {
-      return data.crypto_positions || [];
-    } else if (type === 'metal' && data.metal_positions) {
-      return data.metal_positions || [];
-    } else if (type === 'realestate' && data.realestate_positions) {
-      // Assuming the API returns a field called "realestate_positions"
-      return data.realestate_positions || [];
-    } else {
-      // Default for securities
+    if (type === 'crypto' && data.positions) {
       return data.positions || [];
+    } else if (type === 'metal' && data.positions) {
+      return data.positions || [];
+    } else if (type === 'realestate' && data.positions) {
+      return data.positions || [];
+    } else if (data.positions) {
+      return data.positions || [];
+    } else if (Array.isArray(data)) {
+      return data;
+    } else {
+      console.warn(`Unexpected response format for ${type} positions:`, data);
+      return [];
     }
   } catch (error) {
     console.error(`Error fetching ${type} positions for account ${accountId}:`, error);
-    throw error;
+    // Return empty array instead of throwing to improve resilience
+    return [];
   }
 };
-
 
 // Add this as a utility function to the positionMethods.js file
 export const fetchAllPositionTypes = async (accountId) => {

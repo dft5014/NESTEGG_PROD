@@ -4,6 +4,8 @@ import { AuthContext } from '@/context/AuthContext';
 import { useRouter } from 'next/router';
 import { fetchAccounts, createAccount, updateAccount, deleteAccount } from '@/utils/apimethods/accountMethods';
 import { fetchPositions } from '@/utils/apimethods/positionMethods';
+import { SecurityTableSkeleton, CryptoTableSkeleton, MetalTableSkeleton, RealEstateTableSkeleton } from '@/components/skeletons/PositionTableSkeletons';
+import { AccountsTableSkeleton } from '@/components/skeletons/PortfolioSkeleton';
 
 // Import modal components
 import AccountModal from '@/components/modals/AccountModal';
@@ -53,6 +55,8 @@ export default function TestCombinedPage() {
   
   // Tab state (accounts, securities, crypto, metals, realestate)
   const [activeTab, setActiveTab] = useState('accounts');
+  const [loadingProgress, setLoadingProgress] = useState(0);
+  const [loadingMessage, setLoadingMessage] = useState('');
 
   // Check authentication
   useEffect(() => {
@@ -60,6 +64,41 @@ export default function TestCombinedPage() {
       router.push('/login');
     }
   }, [user, router]);
+
+    // Prefetch data for other tabs in the background after accounts are loaded
+  useEffect(() => {
+    if (user && accounts.length > 0 && !loadingPositions) {
+      // Determine which tab data to load first based on active tab
+      const prefetchOrder = ['securities', 'crypto', 'metals', 'realestate'].filter(t => t !== activeTab);
+      
+      // Start prefetching the first non-active tab
+      if (prefetchOrder.length > 0) {
+        const tabToType = {
+          'securities': 'security',
+          'crypto': 'crypto',
+          'metals': 'metal',
+          'realestate': 'realestate'
+        };
+        
+        // Check if this tab's data is already loaded
+        const isDataLoaded = {
+          'securities': securityPositions.length > 0,
+          'crypto': cryptoPositions.length > 0,
+          'metals': metalPositions.length > 0,
+          'realestate': realEstatePositions.length > 0
+        };
+        
+        // Find the first tab that needs data
+        const tabToLoad = prefetchOrder.find(tab => !isDataLoaded[tab]);
+        
+        if (tabToLoad) {
+          console.log(`Prefetching data for ${tabToLoad} tab in the background`);
+          // Load in the background without setting loading state
+          prefetchPositionData(tabToType[tabToLoad]);
+        }
+      }
+    }
+  }, [accounts, activeTab, loadingPositions]);
 
   // Load accounts
   const loadAccounts = async () => {
@@ -84,109 +123,199 @@ export default function TestCombinedPage() {
     }
   };
 
-// Update the loadAllPositions function in test-combined.js
-    const loadAllPositions = async (accountsList) => {
-        setLoadingPositions(true);
-        
-        try {
-            const allPositions = {};
-            let allSecurities = [];
-            let allCrypto = [];
-            let allMetals = [];
-            let allRealEstate = [];
-            
-            // Import the needed function
-            const { fetchPositionsByType } = require('@/utils/apimethods/positionMethods');
-            
-            // Load positions for each account
-            for (const account of accountsList) {
-                try {
-                    // Fetch securities
-                    console.log(`Fetching securities for account ${account.id}`);
-                    const securitiesData = await fetchPositionsByType(account.id, 'security');
-                    allPositions[account.id] = securitiesData;
-                    
-                    // Enrich securities with account info
-                    const securitiesWithAccount = securitiesData.map(position => ({
-                        ...position,
-                        account_name: account.account_name,
-                        account_id: account.id
-                    }));
-                    allSecurities = [...allSecurities, ...securitiesWithAccount];
-                    
-                    // Fetch crypto positions
-                    console.log(`Fetching crypto for account ${account.id}`);
-                    try {
-                        const cryptoData = await fetchPositionsByType(account.id, 'crypto');
-                        if (cryptoData && Array.isArray(cryptoData)) {
-                            const cryptoWithAccount = cryptoData.map(position => ({
-                                ...position,
-                                account_name: account.account_name,
-                                account_id: account.id
-                            }));
-                            allCrypto = [...allCrypto, ...cryptoWithAccount];
-                        }
-                    } catch (cryptoError) {
-                        console.error(`Error fetching crypto for account ${account.id}:`, cryptoError);
-                    }
-                    
-                    // Fetch metals positions
-                    console.log(`Fetching metals for account ${account.id}`);
-                    try {
-                        const metalsData = await fetchPositionsByType(account.id, 'metal');
-                        if (metalsData && Array.isArray(metalsData)) {
-                            const metalsWithAccount = metalsData.map(position => ({
-                                ...position,
-                                account_name: account.account_name,
-                                account_id: account.id
-                            }));
-                            allMetals = [...allMetals, ...metalsWithAccount];
-                        }
-                    } catch (metalsError) {
-                        console.error(`Error fetching metals for account ${account.id}:`, metalsError);
-                    }
-                    
-                    // Fetch real estate positions
-                    console.log(`Fetching real estate for account ${account.id}`);
-                    try {
-                        const realEstateData = await fetchPositionsByType(account.id, 'realestate');
-                        if (realEstateData && Array.isArray(realEstateData)) {
-                            const realEstateWithAccount = realEstateData.map(position => ({
-                                ...position,
-                                account_name: account.account_name,
-                                account_id: account.id
-                            }));
-                            allRealEstate = [...allRealEstate, ...realEstateWithAccount];
-                        }
-                    } catch (realEstateError) {
-                        console.error(`Error fetching real estate for account ${account.id}:`, realEstateError);
-                    }
-                } catch (error) {
-                    console.error(`Error loading positions for account ${account.id}:`, error);
-                }
-            }
-            
-            console.log('Loaded positions:', {
-                securities: allSecurities.length,
-                crypto: allCrypto.length,
-                metals: allMetals.length,
-                realEstate: allRealEstate.length
-            });
-            
-            // Update state with all positions
-            setPositions(allPositions);
-            setSecurityPositions(allSecurities);
-            setCryptoPositions(allCrypto);
-            setMetalPositions(allMetals);
-            setRealEstatePositions(allRealEstate);
-        } catch (error) {
-            console.error('Error loading positions:', error);
-            setError('Failed to load positions. Please try again.');
-        } finally {
-            setLoadingPositions(false);
-        }
-    };
+  // Load data based on selected tab
+  const loadTabData = (tabName) => {
+    setActiveTab(tabName);
     
+    // Reset error state when changing tabs
+    setError(null);
+    
+    // Only load data for the selected tab if not already loaded
+    switch(tabName) {
+      case 'accounts':
+        if (!loadingAccounts) {
+          loadAccounts();
+        }
+        break;
+      case 'securities':
+        if (securityPositions.length === 0 && !loadingPositions) {
+          loadPositionsByType('security');
+        }
+        break;
+      case 'crypto':
+        if (cryptoPositions.length === 0 && !loadingPositions) {
+          loadPositionsByType('crypto');
+        }
+        break;
+      case 'metals':
+        if (metalPositions.length === 0 && !loadingPositions) {
+          loadPositionsByType('metal');
+        }
+        break;
+      case 'realestate':
+        if (realEstatePositions.length === 0 && !loadingPositions) {
+          loadPositionsByType('realestate');
+        }
+        break;
+    }
+  };
+
+// Silently prefetch position data without showing loading state
+  const prefetchPositionData = async (type) => {
+    try {
+      const { fetchPositionsByType } = require('@/utils/apimethods/positionMethods');
+      let positionsWithAccounts = [];
+      
+      // Load positions for each account
+      for (const account of accounts) {
+        try {
+          const positions = await fetchPositionsByType(account.id, type);
+          
+          if (positions && Array.isArray(positions)) {
+            // Enrich with account info
+            const enrichedPositions = positions.map(position => ({
+              ...position,
+              account_name: account.account_name,
+              account_id: account.id
+            }));
+            
+            positionsWithAccounts = [...positionsWithAccounts, ...enrichedPositions];
+          }
+        } catch (error) {
+          console.error(`Error prefetching ${type} for account ${account.id}:`, error);
+        }
+      }
+      
+      // Update appropriate state based on type
+      switch(type) {
+        case 'security':
+          if (securityPositions.length === 0) {
+            setSecurityPositions(positionsWithAccounts);
+          }
+          break;
+        case 'crypto':
+          if (cryptoPositions.length === 0) {
+            setCryptoPositions(positionsWithAccounts);
+          }
+          break;
+        case 'metal':
+          if (metalPositions.length === 0) {
+            setMetalPositions(positionsWithAccounts);
+          }
+          break;
+        case 'realestate':
+          if (realEstatePositions.length === 0) {
+            setRealEstatePositions(positionsWithAccounts);
+          }
+          break;
+      }
+      
+      console.log(`Successfully prefetched ${positionsWithAccounts.length} ${type} positions`);
+    } catch (error) {
+      console.error(`Error prefetching ${type} positions:`, error);
+      // No UI error for prefetching
+    }
+  };
+
+  // Load positions for a specific type
+  const loadPositionsByType = async (type) => {
+    setLoadingPositions(true);
+    setLoadingProgress(10);
+    setLoadingMessage(`Loading ${type} positions...`);
+    setError(null);
+    
+    try {
+      const { fetchPositionsByType } = require('@/utils/apimethods/positionMethods');
+      let positionsWithAccounts = [];
+      
+      setLoadingProgress(30);
+      
+      // Load positions for each account
+      for (let i = 0; i < accounts.length; i++) {
+        const account = accounts[i];
+        try {
+          const positions = await fetchPositionsByType(account.id, type);
+          
+          if (positions && Array.isArray(positions)) {
+            // Enrich with account info
+            const enrichedPositions = positions.map(position => ({
+              ...position,
+              account_name: account.account_name,
+              account_id: account.id
+            }));
+            
+            positionsWithAccounts = [...positionsWithAccounts, ...enrichedPositions];
+          }
+          
+          // Update progress
+          setLoadingProgress(30 + Math.floor(60 * (i + 1) / accounts.length));
+          setLoadingMessage(`Loading ${type} positions from ${account.account_name}...`);
+          
+        } catch (error) {
+          console.error(`Error fetching ${type} for account ${account.id}:`, error);
+        }
+      }
+      
+      // Update appropriate state based on type
+      setLoadingProgress(95);
+      switch(type) {
+        case 'security':
+          setSecurityPositions(positionsWithAccounts);
+          break;
+        case 'crypto':
+          setCryptoPositions(positionsWithAccounts);
+          break;
+        case 'metal':
+          setMetalPositions(positionsWithAccounts);
+          break;
+        case 'realestate':
+          setRealEstatePositions(positionsWithAccounts);
+          break;
+      }
+      
+      setLoadingProgress(100);
+      setLoadingMessage('Loading complete!');
+      
+    } catch (error) {
+      console.error(`Error loading ${type} positions:`, error);
+      setError(`Failed to load ${type} positions: ${error.message}`);
+    } finally {
+      setTimeout(() => {
+        setLoadingPositions(false);
+      }, 500); // Short delay to show 100% completion
+    }
+  };
+
+// Load initial data for accounts tab only, other data will be loaded on tab selection
+  const loadAllPositions = async (accountsList) => {
+    setLoadingPositions(true);
+    setLoadingProgress(0);
+    setLoadingMessage('Preparing to load account data...');
+    
+    try {
+      // We'll only preload the account positions initially
+      const allPositions = {};
+      setLoadingProgress(50);
+      setLoadingMessage('Loading account positions...');
+      
+      // If we're on the accounts tab, we don't need to load specific position types yet
+      if (activeTab === 'accounts') {
+        setPositions(allPositions);
+        setLoadingProgress(100);
+        setLoadingMessage('Account data loaded!');
+        return;
+      }
+      
+      // If specific tab is already selected, load that data type
+      await loadPositionsByType(activeTab);
+      
+    } catch (error) {
+      console.error('Error loading positions:', error);
+      setError('Failed to load positions. Please try again.');
+    } finally {
+      setLoadingPositions(false);
+    }
+  };
   // Load accounts and positions on mount
   useEffect(() => {
     if (user) {
@@ -401,7 +530,7 @@ export default function TestCombinedPage() {
               className={`inline-block p-4 rounded-t-lg ${activeTab === 'accounts' 
                 ? 'border-b-2 border-blue-600 text-blue-600'
                 : 'border-transparent hover:text-gray-600 hover:border-gray-300'}`}
-              onClick={() => setActiveTab('accounts')}
+              onClick={() => loadTabData('accounts')}
             >
               Accounts
             </button>
@@ -411,7 +540,7 @@ export default function TestCombinedPage() {
               className={`inline-block p-4 rounded-t-lg ${activeTab === 'securities' 
                 ? 'border-b-2 border-blue-600 text-blue-600'
                 : 'border-transparent hover:text-gray-600 hover:border-gray-300'}`}
-              onClick={() => setActiveTab('securities')}
+              onClick={() => loadTabData('securities')}
             >
               Securities
             </button>
@@ -421,7 +550,7 @@ export default function TestCombinedPage() {
               className={`inline-block p-4 rounded-t-lg ${activeTab === 'crypto' 
                 ? 'border-b-2 border-blue-600 text-blue-600'
                 : 'border-transparent hover:text-gray-600 hover:border-gray-300'}`}
-              onClick={() => setActiveTab('crypto')}
+              onClick={() => loadTabData('crypto')}
             >
               Cryptocurrency
             </button>
@@ -431,20 +560,20 @@ export default function TestCombinedPage() {
               className={`inline-block p-4 rounded-t-lg ${activeTab === 'metals' 
                 ? 'border-b-2 border-blue-600 text-blue-600'
                 : 'border-transparent hover:text-gray-600 hover:border-gray-300'}`}
-              onClick={() => setActiveTab('metals')}
+              onClick={() => loadTabData('metals')}
             >
               Precious Metals
             </button>
           </li>
           <li>
-            <button
-              className={`inline-block p-4 rounded-t-lg ${activeTab === 'realestate' 
-                ? 'border-b-2 border-blue-600 text-blue-600'
-                : 'border-transparent hover:text-gray-600 hover:border-gray-300'}`}
-              onClick={() => setActiveTab('realestate')}
-            >
-              Real Estate
-            </button>
+              <button
+                className={`inline-block p-4 rounded-t-lg ${activeTab === 'realestate' 
+                  ? 'border-b-2 border-blue-600 text-blue-600'
+                  : 'border-transparent hover:text-gray-600 hover:border-gray-300'}`}
+                onClick={() => loadTabData('realestate')}
+              >
+                Real Estate
+              </button>
           </li>
         </ul>
       </div>
@@ -456,9 +585,7 @@ export default function TestCombinedPage() {
           <>
             <h2 className="text-xl font-bold mb-4">Your Accounts</h2>
             {loadingAccounts ? (
-              <div className="flex justify-center py-8">
-                <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500"></div>
-              </div>
+              <AccountsTableSkeleton />
             ) : accounts.length > 0 ? (
               <div className="overflow-x-auto">
                 <table className="min-w-full divide-y divide-gray-200">
@@ -518,9 +645,19 @@ export default function TestCombinedPage() {
           <>
             <h2 className="text-xl font-bold mb-4">Your Securities</h2>
             {loadingPositions ? (
-              <div className="flex justify-center py-8">
-                <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500"></div>
+              <div className="space-y-4">
+              {/* Progress Bar */}
+              <div className="w-full bg-gray-200 rounded-full h-2.5 mb-2">
+                <div 
+                  className="bg-blue-600 h-2.5 rounded-full transition-all duration-300" 
+                  style={{ width: `${loadingProgress}%` }}
+                ></div>
               </div>
+              <p className="text-sm text-gray-500 text-center mb-4">{loadingMessage}</p>
+              
+              {/* Specialized skeleton for securities */}
+              <SecurityTableSkeleton />
+            </div>
             ) : securityPositions.length > 0 ? (
               <div className="overflow-x-auto">
                 <table className="min-w-full divide-y divide-gray-200">
@@ -583,9 +720,19 @@ export default function TestCombinedPage() {
           <>
             <h2 className="text-xl font-bold mb-4">Your Cryptocurrencies</h2>
             {loadingPositions ? (
-              <div className="flex justify-center py-8">
-                <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500"></div>
+              <div className="space-y-4">
+              {/* Progress Bar */}
+              <div className="w-full bg-gray-200 rounded-full h-2.5 mb-2">
+                <div 
+                  className="bg-blue-600 h-2.5 rounded-full transition-all duration-300" 
+                  style={{ width: `${loadingProgress}%` }}
+                ></div>
               </div>
+              <p className="text-sm text-gray-500 text-center mb-4">{loadingMessage}</p>
+              
+              {/* Specialized skeleton for crypto */}
+              <CryptoTableSkeleton />
+            </div>
             ) : cryptoPositions.length > 0 ? (
               <div className="overflow-x-auto">
                 <table className="min-w-full divide-y divide-gray-200">
@@ -654,9 +801,19 @@ export default function TestCombinedPage() {
           <>
             <h2 className="text-xl font-bold mb-4">Your Precious Metals</h2>
             {loadingPositions ? (
-              <div className="flex justify-center py-8">
-                <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500"></div>
+              <div className="space-y-4">
+              {/* Progress Bar */}
+              <div className="w-full bg-gray-200 rounded-full h-2.5 mb-2">
+                <div 
+                  className="bg-blue-600 h-2.5 rounded-full transition-all duration-300" 
+                  style={{ width: `${loadingProgress}%` }}
+                ></div>
               </div>
+              <p className="text-sm text-gray-500 text-center mb-4">{loadingMessage}</p>
+              
+              {/* Specialized skeleton for metals */}
+              <MetalTableSkeleton />
+            </div>
             ) : metalPositions.length > 0 ? (
               <div className="overflow-x-auto">
                 <table className="min-w-full divide-y divide-gray-200">
@@ -721,9 +878,19 @@ export default function TestCombinedPage() {
           <>
             <h2 className="text-xl font-bold mb-4">Your Real Estate</h2>
             {loadingPositions ? (
-              <div className="flex justify-center py-8">
-                <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500"></div>
+              <div className="space-y-4">
+              {/* Progress Bar */}
+              <div className="w-full bg-gray-200 rounded-full h-2.5 mb-2">
+                <div 
+                  className="bg-blue-600 h-2.5 rounded-full transition-all duration-300" 
+                  style={{ width: `${loadingProgress}%` }}
+                ></div>
               </div>
+              <p className="text-sm text-gray-500 text-center mb-4">{loadingMessage}</p>
+              
+              {/* Specialized skeleton for real estate */}
+              <RealEstateTableSkeleton />
+            </div>
               ) : realEstatePositions.length > 0 ? (
                 <div className="overflow-x-auto">
                   <table className="min-w-full divide-y divide-gray-200">
