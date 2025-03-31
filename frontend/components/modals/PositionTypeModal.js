@@ -1,5 +1,5 @@
 // Modified PositionTypeModal.js
-import React from 'react';
+import React, { useContext } from 'react';
 import FixedModal from './FixedModal';
 import { getDefaultAccountForPositionType } from '@/utils/apimethods/positionMethods';
 import { AuthContext } from '@/context/AuthContext';
