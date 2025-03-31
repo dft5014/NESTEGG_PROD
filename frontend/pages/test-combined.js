@@ -84,112 +84,106 @@ export default function TestCombinedPage() {
     }
   };
 
-  // Load all positions for all accounts
+// Update the loadAllPositions function in test-combined.js
     const loadAllPositions = async (accountsList) => {
         setLoadingPositions(true);
         
         try {
-        const allPositions = {};
-        let allSecurities = [];
-        let allCrypto = [];
-        let allMetals = [];
-        let allRealEstate = [];
-        
-        // Load positions for each account
-        for (const account of accountsList) {
-            try {
-            // Fetch standard securities
-            console.log(`Fetching securities for account ${account.id}`);
-            const accountPositions = await fetchPositions(account.id);
-            allPositions[account.id] = accountPositions;
+            const allPositions = {};
+            let allSecurities = [];
+            let allCrypto = [];
+            let allMetals = [];
+            let allRealEstate = [];
             
-            // Enrich securities with account info
-            const securitiesWithAccount = accountPositions.map(position => ({
-                ...position,
-                account_name: account.account_name,
-                account_id: account.id
-            }));
-            allSecurities = [...allSecurities, ...securitiesWithAccount];
+            // Import the needed function
+            const { fetchPositionsByType } = require('@/utils/apimethods/positionMethods');
             
-            // Fetch crypto positions directly from crypto endpoint
-            console.log(`Fetching crypto for account ${account.id}`);
-            try {
-                const cryptoResponse = await fetchWithAuth(`/crypto/${account.id}`);
-                if (cryptoResponse.ok) {
-                const cryptoData = await cryptoResponse.json();
-                if (cryptoData.positions && Array.isArray(cryptoData.positions)) {
-                    const cryptoWithAccount = cryptoData.positions.map(position => ({
-                    ...position,
-                    account_name: account.account_name,
-                    account_id: account.id
+            // Load positions for each account
+            for (const account of accountsList) {
+                try {
+                    // Fetch securities
+                    console.log(`Fetching securities for account ${account.id}`);
+                    const securitiesData = await fetchPositionsByType(account.id, 'security');
+                    allPositions[account.id] = securitiesData;
+                    
+                    // Enrich securities with account info
+                    const securitiesWithAccount = securitiesData.map(position => ({
+                        ...position,
+                        account_name: account.account_name,
+                        account_id: account.id
                     }));
-                    allCrypto = [...allCrypto, ...cryptoWithAccount];
+                    allSecurities = [...allSecurities, ...securitiesWithAccount];
+                    
+                    // Fetch crypto positions
+                    console.log(`Fetching crypto for account ${account.id}`);
+                    try {
+                        const cryptoData = await fetchPositionsByType(account.id, 'crypto');
+                        if (cryptoData && Array.isArray(cryptoData)) {
+                            const cryptoWithAccount = cryptoData.map(position => ({
+                                ...position,
+                                account_name: account.account_name,
+                                account_id: account.id
+                            }));
+                            allCrypto = [...allCrypto, ...cryptoWithAccount];
+                        }
+                    } catch (cryptoError) {
+                        console.error(`Error fetching crypto for account ${account.id}:`, cryptoError);
+                    }
+                    
+                    // Fetch metals positions
+                    console.log(`Fetching metals for account ${account.id}`);
+                    try {
+                        const metalsData = await fetchPositionsByType(account.id, 'metal');
+                        if (metalsData && Array.isArray(metalsData)) {
+                            const metalsWithAccount = metalsData.map(position => ({
+                                ...position,
+                                account_name: account.account_name,
+                                account_id: account.id
+                            }));
+                            allMetals = [...allMetals, ...metalsWithAccount];
+                        }
+                    } catch (metalsError) {
+                        console.error(`Error fetching metals for account ${account.id}:`, metalsError);
+                    }
+                    
+                    // Fetch real estate positions
+                    console.log(`Fetching real estate for account ${account.id}`);
+                    try {
+                        const realEstateData = await fetchPositionsByType(account.id, 'realestate');
+                        if (realEstateData && Array.isArray(realEstateData)) {
+                            const realEstateWithAccount = realEstateData.map(position => ({
+                                ...position,
+                                account_name: account.account_name,
+                                account_id: account.id
+                            }));
+                            allRealEstate = [...allRealEstate, ...realEstateWithAccount];
+                        }
+                    } catch (realEstateError) {
+                        console.error(`Error fetching real estate for account ${account.id}:`, realEstateError);
+                    }
+                } catch (error) {
+                    console.error(`Error loading positions for account ${account.id}:`, error);
                 }
-                }
-            } catch (cryptoError) {
-                console.error(`Error fetching crypto for account ${account.id}:`, cryptoError);
             }
             
-            // Fetch metals positions directly
-            console.log(`Fetching metals for account ${account.id}`);
-            try {
-                const metalsResponse = await fetchWithAuth(`/metals/${account.id}`);
-                if (metalsResponse.ok) {
-                const metalsData = await metalsResponse.json();
-                if (metalsData.positions && Array.isArray(metalsData.positions)) {
-                    const metalsWithAccount = metalsData.positions.map(position => ({
-                    ...position,
-                    account_name: account.account_name,
-                    account_id: account.id
-                    }));
-                    allMetals = [...allMetals, ...metalsWithAccount];
-                }
-                }
-            } catch (metalsError) {
-                console.error(`Error fetching metals for account ${account.id}:`, metalsError);
-            }
+            console.log('Loaded positions:', {
+                securities: allSecurities.length,
+                crypto: allCrypto.length,
+                metals: allMetals.length,
+                realEstate: allRealEstate.length
+            });
             
-            // Fetch real estate positions directly
-            console.log(`Fetching real estate for account ${account.id}`);
-            try {
-                const realEstateResponse = await fetchWithAuth(`/realestate/${account.id}`);
-                if (realEstateResponse.ok) {
-                const realEstateData = await realEstateResponse.json();
-                if (realEstateData.positions && Array.isArray(realEstateData.positions)) {
-                    const realEstateWithAccount = realEstateData.positions.map(position => ({
-                    ...position,
-                    account_name: account.account_name,
-                    account_id: account.id
-                    }));
-                    allRealEstate = [...allRealEstate, ...realEstateWithAccount];
-                }
-                }
-            } catch (realEstateError) {
-                console.error(`Error fetching real estate for account ${account.id}:`, realEstateError);
-            }
-            } catch (error) {
-            console.error(`Error loading positions for account ${account.id}:`, error);
-            }
-        }
-        
-        console.log('Loaded positions:', {
-            securities: allSecurities.length,
-            crypto: allCrypto.length,
-            metals: allMetals.length,
-            realEstate: allRealEstate.length
-        });
-        
-        // Update state with all positions
-        setPositions(allPositions);
-        setSecurityPositions(allSecurities);
-        setCryptoPositions(allCrypto);
-        setMetalPositions(allMetals);
-        setRealEstatePositions(allRealEstate);
+            // Update state with all positions
+            setPositions(allPositions);
+            setSecurityPositions(allSecurities);
+            setCryptoPositions(allCrypto);
+            setMetalPositions(allMetals);
+            setRealEstatePositions(allRealEstate);
         } catch (error) {
-        console.error('Error loading positions:', error);
-        setError('Failed to load positions. Please try again.');
+            console.error('Error loading positions:', error);
+            setError('Failed to load positions. Please try again.');
         } finally {
-        setLoadingPositions(false);
+            setLoadingPositions(false);
         }
     };
     
@@ -218,6 +212,29 @@ export default function TestCombinedPage() {
   const handleAddAccount = () => {
     setAccountToEdit(null); // Ensure we're in "add" mode
     setIsAccountModalOpen(true);
+  };
+
+  const handleAccountAndTypeSelected = (positionType, accountId) => {
+    setSelectedPositionType(positionType);
+    setSelectedAccount(accountId);
+    
+    // Open appropriate modal based on type
+    switch (positionType) {
+      case 'security':
+        setIsSecurityModalOpen(true);
+        break;
+      case 'crypto':
+        setIsCryptoModalOpen(true);
+        break;
+      case 'metal':
+        setIsMetalModalOpen(true);
+        break;
+      case 'realestate':
+        setIsRealEstateModalOpen(true);
+        break;
+      default:
+        console.warn(`Unknown position type: ${positionType}`);
+    }
   };
 
   const handleEditAccount = (account) => {
@@ -796,9 +813,10 @@ export default function TestCombinedPage() {
         />
         
         <PositionTypeModal 
-          isOpen={isPositionTypeModalOpen}
-          onClose={() => setIsPositionTypeModalOpen(false)}
-          onTypeSelected={handlePositionTypeSelected}
+        isOpen={isPositionTypeModalOpen}
+        onClose={() => setIsPositionTypeModalOpen(false)}
+        onTypeSelected={handlePositionTypeSelected}
+        onAccountAndTypeSelected={handleAccountAndTypeSelected}
         />
         
         <SecurityPositionModal 

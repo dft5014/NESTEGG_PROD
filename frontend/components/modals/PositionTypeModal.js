@@ -1,8 +1,12 @@
-// frontend/components/modals/PositionTypeModal.js
+// Modified PositionTypeModal.js
 import React from 'react';
 import FixedModal from './FixedModal';
+import { getDefaultAccountForPositionType } from '@/utils/apimethods/positionMethods';
+import { AuthContext } from '@/context/AuthContext';
 
-const PositionTypeModal = ({ isOpen, onClose, onTypeSelected }) => {
+const PositionTypeModal = ({ isOpen, onClose, onTypeSelected, onAccountAndTypeSelected }) => {
+  const { user } = useContext(AuthContext);
+  
   const positionTypes = [
     { 
       id: 'security', 
@@ -10,7 +14,8 @@ const PositionTypeModal = ({ isOpen, onClose, onTypeSelected }) => {
       description: 'Stocks, ETFs, and other publicly traded securities',
       icon: '📈', 
       bgColor: 'bg-blue-100',
-      textColor: 'text-blue-800'
+      textColor: 'text-blue-800',
+      needsAccountSelection: true
     },
     { 
       id: 'crypto', 
@@ -18,7 +23,8 @@ const PositionTypeModal = ({ isOpen, onClose, onTypeSelected }) => {
       description: 'Bitcoin, Ethereum, and other digital currencies',
       icon: '₿', 
       bgColor: 'bg-yellow-100',
-      textColor: 'text-yellow-800'
+      textColor: 'text-yellow-800',
+      needsAccountSelection: true
     },
     { 
       id: 'metal', 
@@ -26,7 +32,8 @@ const PositionTypeModal = ({ isOpen, onClose, onTypeSelected }) => {
       description: 'Gold, silver, platinum, and other precious metals',
       icon: '🪙', 
       bgColor: 'bg-amber-100',
-      textColor: 'text-amber-800'
+      textColor: 'text-amber-800',
+      needsAccountSelection: true
     },
     { 
       id: 'realestate', 
@@ -34,9 +41,45 @@ const PositionTypeModal = ({ isOpen, onClose, onTypeSelected }) => {
       description: 'Property investments and holdings',
       icon: '🏠', 
       bgColor: 'bg-green-100',
-      textColor: 'text-green-800'
+      textColor: 'text-green-800',
+      needsAccountSelection: false // Does not need user to select account
     }
   ];
+
+  const handleTypeSelection = async (type) => {
+    console.log(`Selected position type: ${type.id}`);
+    
+    if (!type.needsAccountSelection) {
+      try {
+        // For types that don't need manual account selection,
+        // automatically find or create the default account
+        const defaultAccount = await getDefaultAccountForPositionType(type.id, user.id);
+        
+        if (defaultAccount) {
+          // Call combined callback with both type and account
+          if (onAccountAndTypeSelected) {
+            onAccountAndTypeSelected(type.id, defaultAccount.id);
+          }
+        } else {
+          // If no default account could be found/created, fall back to regular flow
+          if (onTypeSelected) {
+            onTypeSelected(type.id);
+          }
+        }
+      } catch (error) {
+        console.error(`Error handling default account for ${type.id}:`, error);
+        // Fall back to regular type selection
+        if (onTypeSelected) {
+          onTypeSelected(type.id);
+        }
+      }
+    } else {
+      // For types that need manual account selection
+      if (onTypeSelected) {
+        onTypeSelected(type.id);
+      }
+    }
+  };
 
   return (
     <FixedModal
@@ -53,10 +96,7 @@ const PositionTypeModal = ({ isOpen, onClose, onTypeSelected }) => {
           {positionTypes.map((type) => (
             <button
               key={type.id}
-              onClick={() => {
-                console.log(`Selected position type: ${type.id}`);
-                onTypeSelected(type.id);
-              }}
+              onClick={() => handleTypeSelection(type)}
               className={`flex flex-col items-center p-4 border rounded-xl ${type.bgColor} hover:shadow-md transition-shadow`}
             >
               <div className="text-4xl mb-2">{type.icon}</div>

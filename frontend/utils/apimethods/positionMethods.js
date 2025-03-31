@@ -30,7 +30,7 @@ export const fetchPositions = async (accountId) => {
  * @returns {Promise} - Promise resolving to the created position object
  */
 
-// Updated position API methods to ensure correct endpoint usage
+// Modify fetchPositionsByType in positionMethods.js to handle different response structures
 export const fetchPositionsByType = async (accountId, type = 'security') => {
   try {
     let endpoint = '';
@@ -60,7 +60,19 @@ export const fetchPositionsByType = async (accountId, type = 'security') => {
     }
     
     const data = await response.json();
-    return data.positions || [];
+    
+    // Handle different response structures based on position type
+    if (type === 'crypto' && data.crypto_positions) {
+      return data.crypto_positions || [];
+    } else if (type === 'metal' && data.metal_positions) {
+      return data.metal_positions || [];
+    } else if (type === 'realestate' && data.realestate_positions) {
+      // Assuming the API returns a field called "realestate_positions"
+      return data.realestate_positions || [];
+    } else {
+      // Default for securities
+      return data.positions || [];
+    }
   } catch (error) {
     console.error(`Error fetching ${type} positions for account ${accountId}:`, error);
     throw error;
@@ -292,6 +304,62 @@ export const searchSecurities = async (query) => {
     return data.results || [];
   } catch (error) {
     console.error('Error searching securities:', error);
+    throw error;
+  }
+};
+
+// Add this function to positionMethods.js or a new utility file
+export const getDefaultAccountForPositionType = async (positionType, userId) => {
+  switch (positionType) {
+    case 'realestate':
+      // Find or create a default "Real Estate Portfolio" account
+      return await findOrCreateDefaultAccount(
+        userId, 
+        "Real Estate Portfolio",
+        "realestate"
+      );
+    // Add other defaults as needed
+    default:
+      return null; // No default, require selection
+  }
+};
+
+// Helper function to find or create default accounts
+const findOrCreateDefaultAccount = async (userId, accountName, accountCategory) => {
+  try {
+    // Try to find an existing default account
+    const response = await fetchWithAuth('/accounts');
+    if (response.ok) {
+      const data = await response.json();
+      const existingAccount = data.accounts.find(
+        account => account.account_name === accountName
+      );
+      
+      if (existingAccount) {
+        return existingAccount;
+      }
+    }
+    
+    // If not found, create the default account
+    const createResponse = await fetchWithAuth('/accounts', {
+      method: 'POST',
+      body: JSON.stringify({
+        account_name: accountName,
+        institution: "Default",
+        type: "Portfolio",
+        account_category: accountCategory,
+        balance: 0
+      })
+    });
+    
+    if (createResponse.ok) {
+      const newAccount = await createResponse.json();
+      return { id: newAccount.account_id, account_name: accountName };
+    }
+    
+    throw new Error("Failed to create default account");
+  } catch (error) {
+    console.error("Error getting default account:", error);
     throw error;
   }
 };
