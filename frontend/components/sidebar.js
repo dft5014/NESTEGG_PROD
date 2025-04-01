@@ -73,12 +73,13 @@ const Sidebar = () => {
                 <span className="text-xl">🥚</span>
                 {!sidebarCollapsed && <span>NestEgg</span>}
               </Link>
-              <div className="flex items-center space-x-1">
+              <div className="flex items-center space-x-1 z-50"> {/* Higher z-index to ensure visibility */}
                 {/* Toggle for child components */}
                 {!sidebarCollapsed && (
                   <button 
                     onClick={() => setPortfolioCollapsed(!portfolioCollapsed)}
                     className="p-2 text-gray-300 hover:text-white"
+                    aria-label={portfolioCollapsed ? "Expand portfolio components" : "Collapse portfolio components"}
                   >
                     {portfolioCollapsed ? <ChevronDown size={20} /> : <ChevronUp size={20} />}
                   </button>
