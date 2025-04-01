@@ -35,7 +35,7 @@ const EggLogo = memo(() => (
       className="text-blue-400"
     >
       <defs>
-        <linearGradient id="eggGradient"也好: x1="0%" y1="0%" x2="100%" y2="100%">
+        <linearGradient id="eggGradient" x1="0%" y1="0%" x2="100%" y2="100%">
           <stop offset="0%" stopColor="#60A5FA" />
           <stop offset="100%" stopColor="#93C5FD" />
         </linearGradient>
@@ -154,7 +154,7 @@ const Navbar = () => {
                   {isQuickActionsOpen && (
                     <div className="flex space-x-4">
                       <AddAccountButton />
-                      <AddPositionButton onCancel={() => {}} /> {/* No state to reset in Navbar */}
+                      <AddPositionButton onCancel={() => {}} />
                       <button 
                         onClick={handleViewPortfolio}
                         className="flex items-center text-white py-1 px-4 transition-colors group"
