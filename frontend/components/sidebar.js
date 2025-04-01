@@ -9,7 +9,7 @@ import { useRouter } from 'next/router';
 
 const Sidebar = () => {
   const { logout } = useContext(AuthContext);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false); // Start collapsed (icons only)
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false); // Start expanded (not collapsed)
   const [portfolioCollapsed, setPortfolioCollapsed] = useState(false); // Portfolio sections start expanded
   const router = useRouter();
 
@@ -18,6 +18,8 @@ const Sidebar = () => {
     const handleResize = () => {
       if (window.innerWidth < 768) {
         setSidebarCollapsed(true); // Collapse on mobile
+      } else {
+        setSidebarCollapsed(false); // Expand on desktop
       }
     };
     handleResize();
@@ -54,7 +56,7 @@ const Sidebar = () => {
       <aside 
         className={`
           fixed inset-y-0 left-0 z-30
-          ${sidebarCollapsed ? 'w-16' : 'w-64'} 
+          ${sidebarCollapsed ? 'w-16 border-r-4 border-blue-600' : 'w-64 border-r border-gray-800'} 
           bg-gray-900 text-white flex flex-col shadow-lg transition-all duration-300
           overflow-y-auto scrollbar-thin scrollbar-thumb-gray-700 scrollbar-track-gray-900
         `}
@@ -69,8 +71,8 @@ const Sidebar = () => {
           onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
           className={`
             absolute z-50 p-2 rounded-full bg-gray-800 text-white
-            hover:bg-gray-700 transition-colors duration-200
-            ${sidebarCollapsed ? 'left-2 top-2 translate-x-0' : 'left-2 top-2 translate-x-0'}
+            hover:bg-gray-700 transition-colors duration-200 shadow-md
+            ${sidebarCollapsed ? 'left-12 top-2 -translate-x-1/2' : 'left-2 top-2 translate-x-0'}
           `}
           aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
         >
@@ -81,10 +83,10 @@ const Sidebar = () => {
         <nav className="flex-1 py-4 px-2">
           <div className="space-y-1">
             {/* NestEgg (Portfolio) with Child Components Toggle */}
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between px-3">
               <Link href="/portfolio" className={menuItemClasses(isActive('/portfolio'))}>
                 <span className="text-xl">🥚</span>
-                {!sidebarCollapsed && <span>NestEgg</span>}
+                {!sidebarCollapsed && <span className="ml-3">NestEgg</span>}
               </Link>
               {/* Toggle for child components */}
               {!sidebarCollapsed && (
@@ -99,30 +101,30 @@ const Sidebar = () => {
             </div>
 
             {/* Portfolio Child Pages */}
-            {!portfolioCollapsed && (
-              <div className={`${sidebarCollapsed ? '' : 'pl-4'} space-y-1`}>
+            {!sidebarCollapsed && !portfolioCollapsed && (
+              <div className="pl-4 space-y-1">
                 {/* Investment Securities */}
                 <Link href="/investment-securities" className={menuItemClasses(isActive('/investment-securities'))}>
                   <TrendingUp size={24} className={iconClasses} />
-                  {!sidebarCollapsed && <span>Securities</span>}
+                  <span>Securities</span>
                 </Link>
 
                 {/* Real Estate */}
                 <Link href="/real-estate" className={menuItemClasses(isActive('/real-estate'))}>
                   <Home size={24} className={iconClasses} />
-                  {!sidebarCollapsed && <span>Real Estate</span>}
+                  <span>Real Estate</span>
                 </Link>
 
                 {/* Metals */}
                 <Link href="/metals" className={menuItemClasses(isActive('/metals'))}>
                   <Coins size={24} className={iconClasses} />
-                  {!sidebarCollapsed && <span>Metals</span>}
+                  <span>Metals</span>
                 </Link>
 
                 {/* Crypto */}
                 <Link href="/crypto" className={menuItemClasses(isActive('/crypto'))}>
                   <Bitcoin size={24} className={iconClasses} />
-                  {!sidebarCollapsed && <span>Crypto</span>}
+                  <span>Crypto</span>
                 </Link>
               </div>
             )}
