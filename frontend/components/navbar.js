@@ -25,6 +25,12 @@ import {
 import UpdateStatusIndicator from '@/components/UpdateStatusIndicator';
 import AccountModal from '@/components/modals/AccountModal';
 import PositionTypeModal from '@/components/modals/PositionTypeModal';
+import AccountSelectModal from '@/components/modals/AccountSelectModal';
+import SecurityPositionModal from '@/components/modals/SecurityPositionModal';
+import CryptoPositionModal from '@/components/modals/CryptoPositionModal';
+import MetalPositionModal from '@/components/modals/MetalPositionModal';
+import RealEstatePositionModal from '@/components/modals/RealEstatePositionModal';
+import { fetchAccounts } from '@/utils/apimethods/accountMethods';
 
 // Memoized EggLogo component
 const EggLogo = memo(() => (
@@ -65,6 +71,16 @@ const Navbar = () => {
   const [unreadNotifications, setUnreadNotifications] = useState(3);
   const [isAccountModalOpen, setIsAccountModalOpen] = useState(false);
   const [isPositionTypeModalOpen, setIsPositionTypeModalOpen] = useState(false);
+  const [isAccountSelectModalOpen, setIsAccountSelectModalOpen] = useState(false);
+  const [isSecurityModalOpen, setIsSecurityModalOpen] = useState(false);
+  const [isCryptoModalOpen, setIsCryptoModalOpen] = useState(false);
+  const [isMetalModalOpen, setIsMetalModalOpen] = useState(false);
+  const [isRealEstateModalOpen, setIsRealEstateModalOpen] = useState(false);
+  const [accounts, setAccounts] = useState([]);
+  const [selectedAccount, setSelectedAccount] = useState(null);
+  const [selectedPositionType, setSelectedPositionType] = useState(null);
+  const [error, setError] = useState(null);
+  const [successMessage, setSuccessMessage] = useState("");
 
   const { user, logout } = useContext(AuthContext);
   const router = useRouter();
@@ -91,6 +107,23 @@ const Navbar = () => {
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [isDropdownOpen, showNotifications]);
+
+  // Load accounts on mount
+  useEffect(() => {
+    if (user) {
+      loadAccounts();
+    }
+  }, [user]);
+
+  const loadAccounts = async () => {
+    try {
+      const accountsData = await fetchAccounts();
+      setAccounts(accountsData);
+    } catch (error) {
+      console.error("Error fetching accounts:", error);
+      setError("Failed to load accounts: " + error.message);
+    }
+  };
 
   const dropdownItems = [
     { icon: <User className="w-5 h-5 mr-2" />, label: "Profile", href: "/profile" },
@@ -123,15 +156,83 @@ const Navbar = () => {
 
   // Modal handlers
   const handleAddAccount = () => setIsAccountModalOpen(true);
-  const handleAddPosition = () => setIsPositionTypeModalOpen(true);
+
+  const handleAddPosition = () => {
+    if (accounts.length === 0) {
+      setError('Please add an account first before adding positions.');
+      return;
+    }
+    
+    // If we only have one account, skip account selection
+    if (accounts.length === 1) {
+      setSelectedAccount(accounts[0]);
+      setIsPositionTypeModalOpen(true);
+    } else {
+      // Show account selection modal
+      setIsAccountSelectModalOpen(true);
+    }
+  };
+
+  const handleAccountSelected = (accountId) => {
+    const account = accounts.find(acc => acc.id === accountId);
+    
+    if (account) {
+      setSelectedAccount(account);
+      setIsAccountSelectModalOpen(false);
+      
+      if (selectedPositionType) {
+        // If position type already selected, open that modal
+        openPositionModal(selectedPositionType);
+      } else {
+        // Otherwise show position type selection
+        setIsPositionTypeModalOpen(true);
+      }
+    }
+  };
+
+  const handlePositionTypeSelected = (type) => {
+    setSelectedPositionType(type);
+    setIsPositionTypeModalOpen(false);
+    openPositionModal(type);
+  };
+
+  const openPositionModal = (type) => {
+    switch (type) {
+      case 'security':
+        setIsSecurityModalOpen(true);
+        break;
+      case 'crypto':
+        setIsCryptoModalOpen(true);
+        break;
+      case 'metal':
+        setIsMetalModalOpen(true);
+        break;
+      case 'realestate':
+        setIsRealEstateModalOpen(true);
+        break;
+      default:
+        console.warn(`Unknown position type: ${type}`);
+    }
+  };
+
   const handleViewPortfolio = () => router.push('/portfolio');
+
   const handleAccountSaved = () => {
     setIsAccountModalOpen(false);
-    // Add refresh logic if needed
+    loadAccounts(); // Refresh accounts
+    setSuccessMessage("Account added successfully!");
+    setTimeout(() => setSuccessMessage(""), 3000);
   };
+
   const handlePositionSaved = () => {
-    setIsPositionTypeModalOpen(false);
-    // Add refresh logic if needed
+    setIsSecurityModalOpen(false);
+    setIsCryptoModalOpen(false);
+    setIsMetalModalOpen(false);
+    setIsRealEstateModalOpen(false);
+    setSuccessMessage(`${selectedPositionType} position added successfully!`);
+    setTimeout(() => setSuccessMessage(""), 3000);
+    setSelectedPositionType(null);
+    setSelectedAccount(null);
   };
 
   // Notifications mock data
@@ -207,7 +308,7 @@ const Navbar = () => {
                 {/* Market Update Status */}
                 <div className="bg-green-800/80 px-4 py-1.5 rounded-full flex items-center text-green-100">
                   <UpdateStatusIndicator />
-                  <span className="ml-2">Prices Status</span>
+                  <span className="ml-2">Prices up to date</span>
                 </div>
 
                 {/* Notifications */}
@@ -403,16 +504,65 @@ const Navbar = () => {
         </div>
       )}
 
+      {/* Error Message */}
+      {error && (
+        <div className="fixed top-16 left-1/2 transform -translate-x-1/2 p-4 bg-red-100 text-red-700 rounded-lg z-50">
+          {error}
+          <button 
+            className="ml-2 underline" 
+            onClick={() => setError(null)}
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
+
+      {/* Success Message */}
+      {successMessage && (
+        <div className="fixed top-16 left-1/2 transform -translate-x-1/2 p-4 bg-green-100 text-green-700 rounded-lg z-50">
+          {successMessage}
+        </div>
+      )}
+
       {/* Modals */}
       <AccountModal
         isOpen={isAccountModalOpen}
         onClose={() => setIsAccountModalOpen(false)}
         onAccountAdded={handleAccountSaved}
       />
-      <PositionTypeModal
+      <AccountSelectModal 
+        isOpen={isAccountSelectModalOpen}
+        onClose={() => setIsAccountSelectModalOpen(false)}
+        onAccountSelected={handleAccountSelected}
+      />
+      <PositionTypeModal 
         isOpen={isPositionTypeModalOpen}
         onClose={() => setIsPositionTypeModalOpen(false)}
-        onTypeSelected={handlePositionSaved}
+        onTypeSelected={handlePositionTypeSelected}
+      />
+      <SecurityPositionModal 
+        isOpen={isSecurityModalOpen}
+        onClose={() => setIsSecurityModalOpen(false)}
+        accountId={selectedAccount?.id}
+        onPositionSaved={handlePositionSaved}
+      />
+      <CryptoPositionModal 
+        isOpen={isCryptoModalOpen}
+        onClose={() => setIsCryptoModalOpen(false)}
+        accountId={selectedAccount?.id}
+        onPositionSaved={handlePositionSaved}
+      />
+      <MetalPositionModal 
+        isOpen={isMetalModalOpen}
+        onClose={() => setIsMetalModalOpen(false)}
+        accountId={selectedAccount?.id}
+        onPositionSaved={handlePositionSaved}
+      />
+      <RealEstatePositionModal 
+        isOpen={isRealEstateModalOpen}
+        onClose={() => setIsRealEstateModalOpen(false)}
+        accountId={selectedAccount?.id}
+        onPositionSaved={handlePositionSaved}
       />
     </div>
   );
