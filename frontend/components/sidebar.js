@@ -74,7 +74,7 @@ const Sidebar = () => {
           `}
           aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
         >
-          {sidebarCollapsed ? <ChevronRight size={20} /> : <ChevronLeft size={20} />}
+          {sidebarCollapsed ? <ChevronRight size={40} /> : <ChevronLeft size={40} />}
         </button>
         
         {/* Navigation */}

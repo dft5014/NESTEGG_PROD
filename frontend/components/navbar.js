@@ -15,15 +15,14 @@ import {
   Clock,
   Menu,
   X,
-  CirclePlus,
   LineChart,
   BarChart4,
   ChevronLeft,
   ChevronRight
 } from 'lucide-react';
 import UpdateStatusIndicator from '@/components/UpdateStatusIndicator';
-import AccountModal from '@/components/modals/AccountModal';
-import AddPositionButton from '@/components/AddPositionButton'; // Import the new component
+import AddPositionButton from '@/components/AddPositionButton';
+import AddAccountButton from '@/components/AddAccountButton'; // Import the new component
 
 // Memoized EggLogo component
 const EggLogo = memo(() => (
@@ -62,8 +61,6 @@ const Navbar = () => {
   const [scrolledDown, setScrolledDown] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
   const [unreadNotifications, setUnreadNotifications] = useState(3);
-  const [isAccountModalOpen, setIsAccountModalOpen] = useState(false);
-  const [successMessage, setSuccessMessage] = useState("");
 
   const { user, logout } = useContext(AuthContext);
   const router = useRouter();
@@ -120,16 +117,7 @@ const Navbar = () => {
     return 'U';
   }, [user]);
 
-  // Modal handlers
-  const handleAddAccount = () => setIsAccountModalOpen(true);
-
   const handleViewPortfolio = () => router.push('/portfolio');
-
-  const handleAccountSaved = () => {
-    setIsAccountModalOpen(false);
-    setSuccessMessage("Account added successfully!");
-    setTimeout(() => setSuccessMessage(""), 3000);
-  };
 
   // Notifications mock data
   const notifications = [
@@ -165,14 +153,8 @@ const Navbar = () => {
                 <div className="flex items-center">
                   {isQuickActionsOpen && (
                     <div className="flex space-x-4">
-                      <button 
-                        onClick={handleAddAccount}
-                        className="flex items-center text-white py-1 px-4 transition-colors group"
-                      >
-                        <CirclePlus className="w-6 h-6 mr-2 text-white group-hover:text-blue-300" />
-                        <span className="text-sm text-gray-200 group-hover:text-white">Add Account</span>
-                      </button>
-                      <AddPositionButton /> {/* Use the new component */}
+                      <AddAccountButton /> {/* Use the new component */}
+                      <AddPositionButton />
                       <button 
                         onClick={handleViewPortfolio}
                         className="flex items-center text-white py-1 px-4 transition-colors group"
@@ -369,14 +351,8 @@ const Navbar = () => {
       {user && (
         <div className="md:hidden bg-blue-900 border-t border-blue-800">
           <div className="grid grid-cols-3 text-center">
-            <button 
-              onClick={handleAddAccount}
-              className="flex flex-col items-center justify-center py-3"
-            >
-              <CirclePlus className="h-6 w-6 text-white mb-1" />
-              <span className="text-xs text-gray-200">Add Account</span>
-            </button>
-            <AddPositionButton className="flex flex-col items-center justify-center py-3" /> {/* Use the new component */}
+            <AddAccountButton className="flex flex-col items-center justify-center py-3" /> {/* Use the new component */}
+            <AddPositionButton className="flex flex-col items-center justify-center py-3" />
             <button 
               onClick={handleViewPortfolio}
               className="flex flex-col items-center justify-center py-3"
@@ -387,20 +363,6 @@ const Navbar = () => {
           </div>
         </div>
       )}
-
-      {/* Success Message */}
-      {successMessage && (
-        <div className="fixed top-16 left-1/2 transform -translate-x-1/2 p-4 bg-green-100 text-green-700 rounded-lg z-50">
-          {successMessage}
-        </div>
-      )}
-
-      {/* Modals */}
-      <AccountModal
-        isOpen={isAccountModalOpen}
-        onClose={() => setIsAccountModalOpen(false)}
-        onAccountAdded={handleAccountSaved}
-      />
     </div>
   );
 };
