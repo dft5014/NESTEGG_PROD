@@ -9,7 +9,7 @@ import { useRouter } from 'next/router';
 
 const Sidebar = () => {
   const { logout } = useContext(AuthContext);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(true); // Start collapsed (icons only)
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false); // Start collapsed (icons only)
   const [portfolioCollapsed, setPortfolioCollapsed] = useState(false); // Portfolio sections start expanded
   const router = useRouter();
 
