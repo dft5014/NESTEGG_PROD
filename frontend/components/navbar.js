@@ -14,10 +14,11 @@ import {
   PlusCircle,
   Shield,
   Clock,
-  HomeIcon,
-  ChevronDown,
   Menu,
-  X
+  X,
+  CirclePlus,
+  LineChart,
+  BarChart4
 } from 'lucide-react';
 import UpdateStatusIndicator from '@/components/UpdateStatusIndicator';
 
@@ -27,8 +28,6 @@ const Navbar = () => {
   const { user, logout } = useContext(AuthContext);
   const router = useRouter();
   const [scrolledDown, setScrolledDown] = useState(false);
-  const [showAddAccountModal, setShowAddAccountModal] = useState(false);
-  const [showAddPositionModal, setShowAddPositionModal] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
   const [unreadNotifications, setUnreadNotifications] = useState(3);
 
@@ -125,6 +124,10 @@ const Navbar = () => {
     }
   };
 
+  const handleViewPortfolio = () => {
+    router.push('/portfolio');
+  };
+
   // Custom EggLogo component
   const EggLogo = () => (
     <div className="relative">
@@ -133,7 +136,7 @@ const Navbar = () => {
         height="36" 
         viewBox="0 0 36 36" 
         xmlns="http://www.w3.org/2000/svg"
-        className="transition-all duration-300 ease-in-out"
+        className="text-blue-400"
       >
         <defs>
           <linearGradient id="eggGradient" x1="0%" y1="0%" x2="100%" y2="100%">
@@ -146,18 +149,11 @@ const Navbar = () => {
           fill="url(#eggGradient)" 
           stroke="currentColor" 
           strokeWidth="1.5"
-          className="transition-all duration-300"
         />
         <circle cx="14" cy="16" r="1.5" fill="#1E3A8A" />
         <circle cx="22" cy="16" r="1.5" fill="#1E3A8A" />
         <path d="M15 24C16.5 25.5 19.5 25.5 21 24" stroke="#1E3A8A" strokeWidth="1.5" strokeLinecap="round" />
       </svg>
-      <div className={`absolute -top-1 -right-1 transition-all duration-500 ${scrolledDown ? 'opacity-100 scale-100' : 'opacity-0 scale-0'}`}>
-        <span className="flex h-3 w-3">
-          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-sky-400 opacity-75"></span>
-          <span className="relative inline-flex rounded-full h-3 w-3 bg-sky-500"></span>
-        </span>
-      </div>
     </div>
   );
 
@@ -189,6 +185,16 @@ const Navbar = () => {
               </Link>
             </div>
 
+            {/* Center Status */}
+            {user && (
+              <div className="hidden md:flex items-center">
+                <div className="bg-green-800/80 px-4 py-1.5 rounded-full flex items-center text-green-100">
+                  <UpdateStatusIndicator />
+                  <span className="ml-2">Prices up to date</span>
+                </div>
+              </div>
+            )}
+
             {/* Mobile Menu Button */}
             <button 
               className="md:hidden text-white focus:outline-none" 
@@ -203,9 +209,6 @@ const Navbar = () => {
             {/* Desktop User Menu Section */}
             {user && (
               <div className="hidden md:flex items-center space-x-4">
-                {/* Update Status Indicator */}
-                <UpdateStatusIndicator />
-                
                 {/* Notifications */}
                 <div className="relative notification-dropdown">
                   <button 
@@ -260,19 +263,15 @@ const Navbar = () => {
                     aria-expanded={isDropdownOpen}
                     aria-haspopup="true"
                   >
-                    <div className="w-8 h-8 rounded-full bg-gradient-to-r from-blue-500 to-blue-600 flex items-center justify-center shadow-md">
+                    <div className="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center text-white">
                       {getInitials()}
                     </div>
-                    <span className="font-medium hidden lg:inline-block max-w-[180px] truncate">
-                      {displayName}
-                    </span>
-                    <ChevronDown className="h-4 w-4 hidden lg:block" />
                   </button>
 
                   {isDropdownOpen && (
-                    <div className="absolute right-0 mt-2 w-56 bg-white rounded-lg shadow-xl z-20 overflow-hidden">
+                    <div className="absolute right-0 mt-2 w-60 bg-white rounded-lg shadow-xl z-20 overflow-hidden">
                       <div className="bg-gradient-to-r from-blue-600 to-blue-700 p-4 text-white">
-                        <p className="font-medium truncate">{displayName}</p>
+                        <p className="font-medium text-lg">{user.first_name && user.last_name ? `${user.first_name} ${user.last_name}` : "User"}</p>
                         <p className="text-sm text-blue-200 truncate">{user.email}</p>
                       </div>
                       <div className="py-1">
@@ -324,45 +323,34 @@ const Navbar = () => {
           </div>
         </div>
         
-        {/* Bottom Action Bar - Desktop */}
+        {/* Quick Action Bar - Desktop */}
         {user && (
-          <div className="hidden md:block border-t border-blue-800/30 bg-blue-900/20 backdrop-blur-sm">
+          <div className="hidden md:block border-t border-blue-800/30 bg-blue-900/80">
             <div className="container mx-auto px-4">
-              <div className="flex justify-between items-center py-2">
-                {/* Left Side: Current Page */}
-                <div className="text-blue-300 text-sm">
-                  {router.pathname === "/" ? "Dashboard" : 
-                   router.pathname === "/portfolio" ? "Portfolio Management" : 
-                   router.pathname === "/investment-securities" ? "Investment Securities" : 
-                   "Account Management"}
-                </div>
+              <div className="flex justify-center items-center py-2 space-x-12">
+                <button 
+                  onClick={handleAddAccountClick}
+                  className="flex flex-col items-center text-white py-1 px-4 transition-colors group"
+                >
+                  <CirclePlus className="w-6 h-6 mb-1 text-white group-hover:text-blue-300" />
+                  <span className="text-sm text-gray-200 group-hover:text-white">Add Account</span>
+                </button>
                 
-                {/* Right Side: Quick Actions */}
-                <div className="flex space-x-2">
-                  <button 
-                    onClick={handleAddAccountClick}
-                    className="flex items-center bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white px-3 py-1.5 rounded-lg transition-all shadow-sm hover:shadow-md text-sm"
-                  >
-                    <PlusCircle className="w-4 h-4 mr-1.5" />
-                    <span>Add Account</span>
-                  </button>
-                  
-                  <button 
-                    onClick={handleAddPositionClick}
-                    className="flex items-center bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 text-white px-3 py-1.5 rounded-lg transition-all shadow-sm hover:shadow-md text-sm"
-                  >
-                    <DollarSign className="w-4 h-4 mr-1.5" />
-                    <span>Add Position</span>
-                  </button>
-                  
-                  <Link 
-                    href="/portfolio" 
-                    className="flex items-center bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white px-3 py-1.5 rounded-lg transition-all shadow-sm hover:shadow-md text-sm"
-                  >
-                    <ChartLine className="w-4 h-4 mr-1.5" />
-                    <span>View Portfolio</span>
-                  </Link>
-                </div>
+                <button 
+                  onClick={handleAddPositionClick}
+                  className="flex flex-col items-center text-white py-1 px-4 transition-colors group"
+                >
+                  <DollarSign className="w-6 h-6 mb-1 text-white group-hover:text-blue-300" />
+                  <span className="text-sm text-gray-200 group-hover:text-white">Add Positions</span>
+                </button>
+                
+                <Link 
+                  href="/portfolio" 
+                  className="flex flex-col items-center text-white py-1 px-4 transition-colors group"
+                >
+                  <LineChart className="w-6 h-6 mb-1 text-white group-hover:text-blue-300" />
+                  <span className="text-sm text-gray-200 group-hover:text-white">Portfolio</span>
+                </Link>
               </div>
             </div>
           </div>
@@ -372,18 +360,17 @@ const Navbar = () => {
       {/* Mobile Menu */}
       {isMobileMenuOpen && user && (
         <div className="md:hidden bg-gray-900 text-white">
-          <div className="container mx-auto p-4 space-y-3">
+          <div className="p-4 space-y-3">
             <div className="flex items-center justify-between border-b border-gray-800 pb-3">
               <div className="flex items-center">
-                <div className="w-8 h-8 rounded-full bg-gradient-to-r from-blue-500 to-blue-600 flex items-center justify-center mr-3">
+                <div className="w-12 h-12 rounded-full bg-blue-600 flex items-center justify-center text-white mr-3">
                   {getInitials()}
                 </div>
                 <div>
-                  <div className="font-medium">{displayName}</div>
+                  <div className="font-medium">{user.first_name && user.last_name ? `${user.first_name} ${user.last_name}` : "User"}</div>
                   <div className="text-xs text-gray-400">{user.email}</div>
                 </div>
               </div>
-              <UpdateStatusIndicator />
             </div>
             
             {/* Dropdown Menu Items */}
@@ -414,70 +401,38 @@ const Navbar = () => {
                 )
               ))}
             </div>
-            
-            {/* Mobile Quick Actions */}
-            <div className="grid grid-cols-3 gap-2 pt-3 border-t border-gray-800">
-              <button 
-                onClick={() => {
-                  setIsMobileMenuOpen(false);
-                  handleAddAccountClick();
-                }}
-                className="flex flex-col items-center justify-center text-blue-300 hover:text-blue-200 p-3 rounded bg-gray-800/80 hover:bg-gray-800 transition-colors"
-              >
-                <PlusCircle className="w-6 h-6 mb-1" />
-                <span className="text-xs">Add Account</span>
-              </button>
-              
-              <button 
-                onClick={() => {
-                  setIsMobileMenuOpen(false);
-                  handleAddPositionClick();
-                }}
-                className="flex flex-col items-center justify-center text-purple-300 hover:text-purple-200 p-3 rounded bg-gray-800/80 hover:bg-gray-800 transition-colors"
-              >
-                <DollarSign className="w-6 h-6 mb-1" />
-                <span className="text-xs">Add Position</span>
-              </button>
-              
-              <Link 
-                href="/portfolio" 
-                className="flex flex-col items-center justify-center text-green-300 hover:text-green-200 p-3 rounded bg-gray-800/80 hover:bg-gray-800 transition-colors"
-                onClick={() => setIsMobileMenuOpen(false)}
-              >
-                <ChartLine className="w-6 h-6 mb-1" />
-                <span className="text-xs">Portfolio</span>
-              </Link>
-            </div>
           </div>
         </div>
       )}
       
-      {/* Mobile Menu Quick Actions - Only shown on small screens when menu is closed */}
-      {user && !isMobileMenuOpen && (
-        <div className="md:hidden bg-blue-900/95 backdrop-blur-sm p-2 flex justify-around shadow-lg">
-          <button 
-            onClick={handleAddAccountClick}
-            className="flex flex-col items-center justify-center text-blue-300 hover:text-blue-200 p-2 w-1/3 transition-colors"
-          >
-            <PlusCircle className="w-5 h-5 mb-1" />
-            <span className="text-xs">Add Account</span>
-          </button>
-          
-          <button 
-            onClick={handleAddPositionClick}
-            className="flex flex-col items-center justify-center text-purple-300 hover:text-purple-200 p-2 w-1/3 transition-colors"
-          >
-            <DollarSign className="w-5 h-5 mb-1" />
-            <span className="text-xs">Add Position</span>
-          </button>
-          
-          <Link 
-            href="/portfolio" 
-            className="flex flex-col items-center justify-center text-green-300 hover:text-green-200 p-2 w-1/3 transition-colors"
-          >
-            <ChartLine className="w-5 h-5 mb-1" />
-            <span className="text-xs">Portfolio</span>
-          </Link>
+      {/* Mobile Quick Actions - Always shown on mobile when user is logged in */}
+      {user && (
+        <div className="md:hidden bg-blue-900 border-t border-blue-800">
+          <div className="grid grid-cols-3 text-center">
+            <button 
+              onClick={handleAddAccountClick}
+              className="flex flex-col items-center justify-center py-3"
+            >
+              <CirclePlus className="h-6 w-6 text-white mb-1" />
+              <span className="text-xs text-gray-200">Add Account</span>
+            </button>
+            
+            <button 
+              onClick={handleAddPositionClick}
+              className="flex flex-col items-center justify-center py-3"
+            >
+              <DollarSign className="h-6 w-6 text-white mb-1" />
+              <span className="text-xs text-gray-200">Add Positions</span>
+            </button>
+            
+            <Link 
+              href="/portfolio" 
+              className="flex flex-col items-center justify-center py-3"
+            >
+              <BarChart4 className="h-6 w-6 text-white mb-1" />
+              <span className="text-xs text-gray-200">Portfolio</span>
+            </Link>
+          </div>
         </div>
       )}
     </div>

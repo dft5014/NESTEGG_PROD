@@ -10,7 +10,7 @@ import RealEstatePositionModal from '@/components/modals/RealEstatePositionModal
 import AccountSelectModal from '@/components/modals/AccountSelectModal';
 import PositionTypeModal from '@/components/modals/PositionTypeModal';
 import { fetchAccounts, deleteAccount } from '@/utils/apimethods/accountMethods';
-import { fetchPositionsByType } from '@/utils/apimethods/positionMethods';
+import { fetchPositionsByType, fetchAllPositionTypes } from '@/utils/apimethods/positionMethods';
 import { AccountsTableSkeleton } from '@/components/skeletons/PortfolioSkeleton';
 import { SecurityTableSkeleton, CryptoTableSkeleton, MetalTableSkeleton, RealEstateTableSkeleton } from '@/components/skeletons/PositionTableSkeletons';
 
@@ -93,20 +93,99 @@ export default function TestFixedPage() {
     const accountsToUse = accountsList || accounts;
     if (accountsToUse.length === 0) return;
     
-    // Load securities
-    loadPositionsByType('security', accountsToUse);
+    // Set all position types to loading
+    setLoadingPositions({
+      securities: true,
+      crypto: true,
+      metals: true,
+      realestate: true
+    });
     
-    // Load crypto
-    loadPositionsByType('crypto', accountsToUse);
-    
-    // Load metals
-    loadPositionsByType('metal', accountsToUse);
-    
-    // Load real estate
-    loadPositionsByType('realestate', accountsToUse);
+    try {
+      console.log("Loading all positions for accounts:", accountsToUse.map(a => a.id));
+      
+      // Load positions for each account in parallel
+      const allSecurities = [];
+      const allCrypto = [];
+      const allMetals = [];
+      const allRealEstate = [];
+      
+      // Process each account
+      for (const account of accountsToUse) {
+        try {
+          // Load all position types for this account
+          console.log(`Loading positions for account ${account.id} (${account.account_name})`);
+          
+          const positionTypes = await fetchAllPositionTypes(account.id);
+          
+          // Process securities
+          if (positionTypes.securities && positionTypes.securities.length > 0) {
+            const enrichedSecurities = positionTypes.securities.map(position => ({
+              ...position,
+              account_name: account.account_name,
+              account_id: account.id
+            }));
+            allSecurities.push(...enrichedSecurities);
+          }
+          
+          // Process crypto
+          if (positionTypes.crypto && positionTypes.crypto.length > 0) {
+            const enrichedCrypto = positionTypes.crypto.map(position => ({
+              ...position,
+              account_name: account.account_name,
+              account_id: account.id
+            }));
+            allCrypto.push(...enrichedCrypto);
+          }
+          
+          // Process metals
+          if (positionTypes.metals && positionTypes.metals.length > 0) {
+            const enrichedMetals = positionTypes.metals.map(position => ({
+              ...position,
+              account_name: account.account_name,
+              account_id: account.id
+            }));
+            allMetals.push(...enrichedMetals);
+          }
+          
+          // Process real estate
+          if (positionTypes.realEstate && positionTypes.realEstate.length > 0) {
+            const enrichedRealEstate = positionTypes.realEstate.map(position => ({
+              ...position,
+              account_name: account.account_name,
+              account_id: account.id
+            }));
+            allRealEstate.push(...enrichedRealEstate);
+          }
+          
+        } catch (error) {
+          console.error(`Error loading positions for account ${account.id}:`, error);
+        }
+      }
+      
+      // Update state with all loaded positions
+      setSecurityPositions(allSecurities);
+      setCryptoPositions(allCrypto);
+      setMetalPositions(allMetals);
+      setRealEstatePositions(allRealEstate);
+      
+      console.log(`Loaded ${allSecurities.length} securities, ${allCrypto.length} crypto, ${allMetals.length} metals, ${allRealEstate.length} real estate positions`);
+      
+    } catch (error) {
+      console.error("Error loading positions:", error);
+      setError("Failed to load positions: " + error.message);
+    } finally {
+      // Clear all loading states
+      setLoadingPositions({
+        securities: false,
+        crypto: false,
+        metals: false,
+        realestate: false
+      });
+    }
   };
 
-  // Load positions by type
+  // Load positions by type (for individual refresh)
   const loadPositionsByType = async (type, accountsList) => {
     const accountsToUse = accountsList || accounts;
     if (accountsToUse.length === 0) return;
@@ -120,7 +199,9 @@ export default function TestFixedPage() {
       // Load positions for each account
       for (const account of accountsToUse) {
         try {
+          console.log(`Fetching ${type} positions for account ${account.id}...`);
           const positions = await fetchPositionsByType(account.id, type);
+          console.log(`Received positions:`, positions);
           
           if (positions && Array.isArray(positions)) {
             // Enrich with account info
@@ -137,6 +218,8 @@ export default function TestFixedPage() {
         }
       }
       
+      console.log(`Successfully loaded ${allPositions.length} ${type} positions`);
+      
       // Update appropriate state based on type
       switch(type) {
         case 'security':
@@ -152,8 +235,6 @@ export default function TestFixedPage() {
           setRealEstatePositions(allPositions);
           break;
       }
-      
-      console.log(`Loaded ${allPositions.length} ${type} positions`);
     } catch (error) {
       console.error(`Error loading ${type} positions:`, error);
     } finally {
@@ -613,6 +694,7 @@ export default function TestFixedPage() {
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Unit</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Purchase Price</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Value</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Storage</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Storage</th>
                   <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                 </tr>
