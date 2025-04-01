@@ -207,7 +207,7 @@ const Navbar = () => {
                 {/* Market Update Status */}
                 <div className="bg-green-800/80 px-4 py-1.5 rounded-full flex items-center text-green-100">
                   <UpdateStatusIndicator />
-                  <span className="ml-2">Prices up to date</span>
+                  <span className="ml-2">Prices Status</span>
                 </div>
 
                 {/* Notifications */}

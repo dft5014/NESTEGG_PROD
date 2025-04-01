@@ -59,16 +59,6 @@ const Sidebar = () => {
           overflow-y-auto scrollbar-thin scrollbar-thumb-gray-700 scrollbar-track-gray-900
         `}
       >
-        {/* Toggle button for sidebar collapse/expand */}
-        <button 
-          onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-          className="p-2 rounded-full bg-gray-800 text-white absolute top-4 right-0 transform translate-x-1/2 z-10
-                     hover:bg-gray-700 transition-colors duration-200"
-          aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
-        >
-          {sidebarCollapsed ? <ChevronRight size={20} /> : <ChevronLeft size={20} />}
-        </button>
-        
         {/* Logo (Emoji Only) */}
         <div className="flex items-center justify-center py-6 border-b border-gray-800">
           <div className="text-2xl">🥚</div>
@@ -83,20 +73,31 @@ const Sidebar = () => {
                 <span className="text-xl">🥚</span>
                 {!sidebarCollapsed && <span>NestEgg</span>}
               </Link>
-              {!sidebarCollapsed && (
+              <div className="flex items-center space-x-1">
+                {/* Toggle for child components */}
+                {!sidebarCollapsed && (
+                  <button 
+                    onClick={() => setPortfolioCollapsed(!portfolioCollapsed)}
+                    className="p-2 text-gray-300 hover:text-white"
+                  >
+                    {portfolioCollapsed ? <ChevronDown size={20} /> : <ChevronUp size={20} />}
+                  </button>
+                )}
+                {/* Toggle for sidebar collapse/expand */}
                 <button 
-                  onClick={() => setPortfolioCollapsed(!portfolioCollapsed)}
+                  onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
                   className="p-2 text-gray-300 hover:text-white"
+                  aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
                 >
-                  {portfolioCollapsed ? <ChevronDown size={20} /> : <ChevronUp size={20} />}
+                  {sidebarCollapsed ? <ChevronRight size={20} /> : <ChevronLeft size={20} />}
                 </button>
-              )}
+              </div>
             </div>
 
             {/* Portfolio Child Pages */}
             {!portfolioCollapsed && (
               <div className={`${sidebarCollapsed ? '' : 'pl-4'} space-y-1`}>
-                {/* Investment Securities (Updated Icon) */}
+                {/* Investment Securities */}
                 <Link href="/investment-securities" className={menuItemClasses(isActive('/investment-securities'))}>
                   <TrendingUp size={24} className={iconClasses} />
                   {!sidebarCollapsed && <span>Securities</span>}
