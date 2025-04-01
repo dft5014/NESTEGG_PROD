@@ -17,7 +17,7 @@ const Sidebar = () => {
   useEffect(() => {
     const handleResize = () => {
       if (window.innerWidth < 768) {
-        setSidebarCollapsed(true); // Collapse on mobile
+        setSidebarCollapsed(false); // Collapse on mobile
       } else {
         setSidebarCollapsed(false); // Expand on desktop
       }
@@ -72,7 +72,7 @@ const Sidebar = () => {
           className={`
             absolute z-50 p-2 rounded-full bg-gray-800 text-white
             hover:bg-gray-700 transition-colors duration-200 shadow-md
-            ${sidebarCollapsed ? 'left-12 top-2 -translate-x-1/2' : 'left-2 top-2 translate-x-0'}
+            ${sidebarCollapsed ? 'left-12 top-20 -translate-x-1/2' : 'left-2 top-2 translate-x-0'}
           `}
           aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
         >
