@@ -68,13 +68,13 @@ const Sidebar = () => {
         <button 
           onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
           className={`
-            absolute top-20 right-0 z-50 p-2 rounded-full bg-gray-800 text-white
+            absolute z-50 p-2 rounded-full bg-gray-800 text-white
             hover:bg-gray-700 transition-colors duration-200
-            ${sidebarCollapsed ? 'translate-x-1/2' : 'translate-x-0'}
+            ${sidebarCollapsed ? 'left-2 top-2 translate-x-0' : 'left-2 top-2 translate-x-0'}
           `}
           aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
         >
-          {sidebarCollapsed ? <ChevronRight size={40} /> : <ChevronLeft size={40} />}
+          {sidebarCollapsed ? <ChevronRight size={24} /> : <ChevronLeft size={24} />}
         </button>
         
         {/* Navigation */}

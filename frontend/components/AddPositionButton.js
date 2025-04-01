@@ -1,87 +1,49 @@
 // components/AddPositionButton.js
-import { useState, useEffect, useContext } from 'react';
-import { AuthContext } from '@/context/AuthContext';
-import { DollarSign } from 'lucide-react';
-import AccountSelectModal from '@/components/modals/AccountSelectModal';
-import PositionTypeModal from '@/components/modals/PositionTypeModal';
+import { useState } from 'react';
 import SecurityPositionModal from '@/components/modals/SecurityPositionModal';
 import CryptoPositionModal from '@/components/modals/CryptoPositionModal';
 import MetalPositionModal from '@/components/modals/MetalPositionModal';
 import RealEstatePositionModal from '@/components/modals/RealEstatePositionModal';
-import { fetchAccounts } from '@/utils/apimethods/accountMethods';
+import { CirclePlus } from 'lucide-react';
 
-const AddPositionButton = ({ className = "", onPositionAdded = () => {} }) => {
-  const { user } = useContext(AuthContext);
-  const [accounts, setAccounts] = useState([]);
-  const [selectedAccount, setSelectedAccount] = useState(null);
-  const [selectedPositionType, setSelectedPositionType] = useState(null);
-  const [error, setError] = useState(null);
-  const [successMessage, setSuccessMessage] = useState("");
-  const [isAccountSelectModalOpen, setIsAccountSelectModalOpen] = useState(false);
+const AddPositionButton = ({ className = "", onPositionAdded = () => {}, onCancel = () => {} }) => {
   const [isPositionTypeModalOpen, setIsPositionTypeModalOpen] = useState(false);
+  const [selectedPositionType, setSelectedPositionType] = useState(null);
+  const [selectedAccountId, setSelectedAccountId] = useState(null);
   const [isSecurityModalOpen, setIsSecurityModalOpen] = useState(false);
   const [isCryptoModalOpen, setIsCryptoModalOpen] = useState(false);
   const [isMetalModalOpen, setIsMetalModalOpen] = useState(false);
   const [isRealEstateModalOpen, setIsRealEstateModalOpen] = useState(false);
+  const [accounts, setAccounts] = useState([]);
+  const [successMessage, setSuccessMessage] = useState("");
 
-  // Load accounts on mount
-  useEffect(() => {
-    if (user) {
-      loadAccounts();
-    }
-  }, [user]);
-
-  const loadAccounts = async () => {
+  const fetchAccounts = async () => {
     try {
-      const accountsData = await fetchAccounts();
-      setAccounts(accountsData);
+      const response = await fetch('/api/accounts');
+      const data = await response.json();
+      setAccounts(data);
     } catch (error) {
-      console.error("Error fetching accounts:", error);
-      setError("Failed to load accounts: " + error.message);
+      console.error('Error fetching accounts:', error);
     }
   };
 
-  const handleAddPosition = () => {
-    if (accounts.length === 0) {
-      setError('Please add an account first before adding positions.');
-      return;
-    }
-    
-    // If we only have one account, skip account selection
-    if (accounts.length === 1) {
-      setSelectedAccount(accounts[0]);
-      setIsPositionTypeModalOpen(true);
-    } else {
-      // Show account selection modal
-      setIsAccountSelectModalOpen(true);
-    }
+  const handleAddPositionClick = () => {
+    fetchAccounts();
+    setIsPositionTypeModalOpen(true);
   };
 
-  const handleAccountSelected = (accountId) => {
-    const account = accounts.find(acc => acc.id === accountId);
-    
-    if (account) {
-      setSelectedAccount(account);
-      setIsAccountSelectModalOpen(false);
-      
-      if (selectedPositionType) {
-        // If position type already selected, open that modal
-        openPositionModal(selectedPositionType);
-      } else {
-        // Otherwise show position type selection
-        setIsPositionTypeModalOpen(true);
-      }
-    }
-  };
-
-  const handlePositionTypeSelected = (type) => {
+  const handlePositionTypeSelect = (type) => {
     setSelectedPositionType(type);
     setIsPositionTypeModalOpen(false);
-    openPositionModal(type);
   };
 
-  const openPositionModal = (type) => {
-    switch (type) {
+  const handleAccountSelect = (accountId) => {
+    setSelectedAccountId(accountId);
+    openPositionModal();
+  };
+
+  const openPositionModal = () => {
+    switch (selectedPositionType) {
       case 'security':
         setIsSecurityModalOpen(true);
         break;
@@ -95,45 +57,39 @@ const AddPositionButton = ({ className = "", onPositionAdded = () => {} }) => {
         setIsRealEstateModalOpen(true);
         break;
       default:
-        console.warn(`Unknown position type: ${type}`);
+        console.warn(`Unknown position type: ${selectedPositionType}`);
     }
   };
 
   const handlePositionSaved = () => {
+    setSuccessMessage(`${selectedPositionType.charAt(0).toUpperCase() + selectedPositionType.slice(1)} position added successfully!`);
+    setTimeout(() => setSuccessMessage(""), 3000);
+    setSelectedPositionType(null);
+    setSelectedAccountId(null);
+    onPositionAdded();
+  };
+
+  const handleCancel = () => {
+    setIsPositionTypeModalOpen(false);
+    setSelectedPositionType(null);
+    setSelectedAccountId(null);
     setIsSecurityModalOpen(false);
     setIsCryptoModalOpen(false);
     setIsMetalModalOpen(false);
     setIsRealEstateModalOpen(false);
-    setSuccessMessage(`${selectedPositionType} position added successfully!`);
-    setTimeout(() => setSuccessMessage(""), 3000);
-    setSelectedPositionType(null);
-    setSelectedAccount(null);
-    onPositionAdded(); // Callback to notify parent component
+    onCancel(); // Notify parent component of cancellation
   };
 
   return (
     <>
-      {/* Add Positions Button */}
+      {/* Add Position Button */}
       <button 
-        onClick={handleAddPosition}
+        onClick={handleAddPositionClick}
         className={`flex items-center text-white py-1 px-4 transition-colors group ${className}`}
       >
-        <DollarSign className="w-6 h-6 mr-2 text-white group-hover:text-blue-300" />
-        <span className="text-sm text-gray-200 group-hover:text-white">Add Positions</span>
+        <CirclePlus className="w-6 h-6 mr-2 text-white group-hover:text-green-300" />
+        <span className="text-sm text-gray-200 group-hover:text-white">Add Position</span>
       </button>
-
-      {/* Error Message */}
-      {error && (
-        <div className="fixed top-16 left-1/2 transform -translate-x-1/2 p-4 bg-red-100 text-red-700 rounded-lg z-50">
-          {error}
-          <button 
-            className="ml-2 underline" 
-            onClick={() => setError(null)}
-          >
-            Dismiss
-          </button>
-        </div>
-      )}
 
       {/* Success Message */}
       {successMessage && (
@@ -142,39 +98,100 @@ const AddPositionButton = ({ className = "", onPositionAdded = () => {} }) => {
         </div>
       )}
 
-      {/* Modals */}
-      <AccountSelectModal 
-        isOpen={isAccountSelectModalOpen}
-        onClose={() => setIsAccountSelectModalOpen(false)}
-        onAccountSelected={handleAccountSelected}
-      />
-      <PositionTypeModal 
-        isOpen={isPositionTypeModalOpen}
-        onClose={() => setIsPositionTypeModalOpen(false)}
-        onTypeSelected={handlePositionTypeSelected}
-      />
-      <SecurityPositionModal 
+      {/* Position Type Selection Modal */}
+      {isPositionTypeModalOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white p-6 rounded-lg shadow-lg w-full max-w-md">
+            <h2 className="text-xl font-bold mb-4">Select Position Type</h2>
+            <div className="grid grid-cols-2 gap-4">
+              <button
+                onClick={() => handlePositionTypeSelect('security')}
+                className="p-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+              >
+                Security
+              </button>
+              <button
+                onClick={() => handlePositionTypeSelect('crypto')}
+                className="p-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+              >
+                Cryptocurrency
+              </button>
+              <button
+                onClick={() => handlePositionTypeSelect('metal')}
+                className="p-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+              >
+                Precious Metal
+              </button>
+              <button
+                onClick={() => handlePositionTypeSelect('realestate')}
+                className="p-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+              >
+                Real Estate
+              </button>
+            </div>
+            <button
+              onClick={handleCancel}
+              className="mt-4 w-full p-3 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400 transition-colors"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Account Selection Modal */}
+      {selectedPositionType && !selectedAccountId && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white p-6 rounded-lg shadow-lg w-full max-w-md">
+            <h2 className="text-xl font-bold mb-4">Select Account</h2>
+            <div className="space-y-2 max-h-64 overflow-y-auto">
+              {accounts.length > 0 ? (
+                accounts.map((account) => (
+                  <button
+                    key={account.id}
+                    onClick={() => handleAccountSelect(account.id)}
+                    className="w-full p-3 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors text-left"
+                  >
+                    {account.account_name} ({account.institution || 'N/A'})
+                  </button>
+                ))
+              ) : (
+                <p className="text-gray-500">No accounts available.</p>
+              )}
+            </div>
+            <button
+              onClick={handleCancel}
+              className="mt-4 w-full p-3 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400 transition-colors"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Position Modals */}
+      <SecurityPositionModal
         isOpen={isSecurityModalOpen}
-        onClose={() => setIsSecurityModalOpen(false)}
-        accountId={selectedAccount?.id}
+        onClose={handleCancel}
+        accountId={selectedAccountId}
         onPositionSaved={handlePositionSaved}
       />
-      <CryptoPositionModal 
+      <CryptoPositionModal
         isOpen={isCryptoModalOpen}
-        onClose={() => setIsCryptoModalOpen(false)}
-        accountId={selectedAccount?.id}
+        onClose={handleCancel}
+        accountId={selectedAccountId}
         onPositionSaved={handlePositionSaved}
       />
-      <MetalPositionModal 
+      <MetalPositionModal
         isOpen={isMetalModalOpen}
-        onClose={() => setIsMetalModalOpen(false)}
-        accountId={selectedAccount?.id}
+        onClose={handleCancel}
+        accountId={selectedAccountId}
         onPositionSaved={handlePositionSaved}
       />
-      <RealEstatePositionModal 
+      <RealEstatePositionModal
         isOpen={isRealEstateModalOpen}
-        onClose={() => setIsRealEstateModalOpen(false)}
-        accountId={selectedAccount?.id}
+        onClose={handleCancel}
+        accountId={selectedAccountId}
         onPositionSaved={handlePositionSaved}
       />
     </>

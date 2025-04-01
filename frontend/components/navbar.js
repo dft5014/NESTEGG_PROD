@@ -22,7 +22,7 @@ import {
 } from 'lucide-react';
 import UpdateStatusIndicator from '@/components/UpdateStatusIndicator';
 import AddPositionButton from '@/components/AddPositionButton';
-import AddAccountButton from '@/components/AddAccountButton'; // Import the new component
+import AddAccountButton from '@/components/AddAccountButton';
 
 // Memoized EggLogo component
 const EggLogo = memo(() => (
@@ -35,7 +35,7 @@ const EggLogo = memo(() => (
       className="text-blue-400"
     >
       <defs>
-        <linearGradient id="eggGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+        <linearGradient id="eggGradient"也好: x1="0%" y1="0%" x2="100%" y2="100%">
           <stop offset="0%" stopColor="#60A5FA" />
           <stop offset="100%" stopColor="#93C5FD" />
         </linearGradient>
@@ -57,7 +57,7 @@ EggLogo.displayName = 'EggLogo';
 const Navbar = () => {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [isQuickActionsOpen, setIsQuickActionsOpen] = useState(true); // Start expanded
+  const [isQuickActionsOpen, setIsQuickActionsOpen] = useState(true);
   const [scrolledDown, setScrolledDown] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
   const [unreadNotifications, setUnreadNotifications] = useState(3);
@@ -153,8 +153,8 @@ const Navbar = () => {
                 <div className="flex items-center">
                   {isQuickActionsOpen && (
                     <div className="flex space-x-4">
-                      <AddAccountButton /> {/* Use the new component */}
-                      <AddPositionButton />
+                      <AddAccountButton />
+                      <AddPositionButton onCancel={() => {}} /> {/* No state to reset in Navbar */}
                       <button 
                         onClick={handleViewPortfolio}
                         className="flex items-center text-white py-1 px-4 transition-colors group"
@@ -351,8 +351,8 @@ const Navbar = () => {
       {user && (
         <div className="md:hidden bg-blue-900 border-t border-blue-800">
           <div className="grid grid-cols-3 text-center">
-            <AddAccountButton className="flex flex-col items-center justify-center py-3" /> {/* Use the new component */}
-            <AddPositionButton className="flex flex-col items-center justify-center py-3" />
+            <AddAccountButton className="flex flex-col items-center justify-center py-3" />
+            <AddPositionButton className="flex flex-col items-center justify-center py-3" onCancel={() => {}} />
             <button 
               onClick={handleViewPortfolio}
               className="flex flex-col items-center justify-center py-3"
