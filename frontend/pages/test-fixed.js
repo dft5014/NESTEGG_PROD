@@ -3,12 +3,7 @@ import { useState, useEffect, useContext } from 'react';
 import { AuthContext } from '@/context/AuthContext';
 import { useRouter } from 'next/router';
 import AccountModal from '@/components/modals/AccountModal';
-import SecurityPositionModal from '@/components/modals/SecurityPositionModal';
-import CryptoPositionModal from '@/components/modals/CryptoPositionModal';
-import MetalPositionModal from '@/components/modals/MetalPositionModal';
-import RealEstatePositionModal from '@/components/modals/RealEstatePositionModal';
-import AccountSelectModal from '@/components/modals/AccountSelectModal';
-import PositionTypeModal from '@/components/modals/PositionTypeModal';
+import AddPositionButton from '@/components/AddPositionButton';
 import { fetchAccounts, deleteAccount } from '@/utils/apimethods/accountMethods';
 import { fetchPositionsByType, fetchAllPositionTypes } from '@/utils/apimethods/positionMethods';
 import { AccountsTableSkeleton } from '@/components/skeletons/PortfolioSkeleton';
@@ -29,7 +24,7 @@ export default function TestFixedPage() {
   // Position states
   const [securityPositions, setSecurityPositions] = useState([]);
   const [cryptoPositions, setCryptoPositions] = useState([]);
-  const [metalPositions, setMetalPositions] = useState([]);
+  const [metalPositions, setMetalPositions] = useState([]); // Fixed: Changed setCryptoPositions to setMetalPositions
   const [realEstatePositions, setRealEstatePositions] = useState([]);
   const [loadingPositions, setLoadingPositions] = useState({
     securities: false,
@@ -38,9 +33,7 @@ export default function TestFixedPage() {
     realestate: false
   });
 
-  // Position modal states
-  const [isPositionTypeModalOpen, setIsPositionTypeModalOpen] = useState(false);
-  const [isAccountSelectModalOpen, setIsAccountSelectModalOpen] = useState(false);
+  // Position modal states (for editing)
   const [isSecurityModalOpen, setIsSecurityModalOpen] = useState(false);
   const [isCryptoModalOpen, setIsCryptoModalOpen] = useState(false);
   const [isMetalModalOpen, setIsMetalModalOpen] = useState(false);
@@ -302,68 +295,26 @@ export default function TestFixedPage() {
     }
   };
 
-  // Handle adding a position
-  const handleAddPosition = () => {
-    if (accounts.length === 0) {
-      setError('Please add an account first before adding positions.');
-      return;
-    }
-    
-    // If we only have one account, skip account selection
-    if (accounts.length === 1) {
-      setSelectedAccount(accounts[0]);
-      setIsPositionTypeModalOpen(true);
-    } else {
-      // Show account selection modal
-      setIsAccountSelectModalOpen(true);
-    }
-  };
-
   // Handle adding a specific position type
   const handleAddSpecificPosition = (type) => {
-    setSelectedPositionType(type);
-    
-    if (accounts.length === 0) {
-      setError('Please add an account first before adding positions.');
-      return;
-    }
-    
-    // If we only have one account, skip account selection
-    if (accounts.length === 1) {
-      setSelectedAccount(accounts[0]);
-      openPositionModal(type);
-    } else {
-      // Show account selection modal
-      setIsAccountSelectModalOpen(true);
-    }
+    setSelectedPositionType(type); // Set the position type for refreshing
+    // Note: The actual modal opening is handled by AddPositionButton
   };
 
-  // Handle account selected from modal
-  const handleAccountSelected = (accountId) => {
-    const account = accounts.find(acc => acc.id === accountId);
+  // Handle edit position
+  const handleEditPosition = (position, type) => {
+    // Find the account this position belongs to
+    const account = accounts.find(acc => acc.id === position.account_id);
     
     if (account) {
       setSelectedAccount(account);
-      setIsAccountSelectModalOpen(false);
-      
-      if (selectedPositionType) {
-        // If position type already selected, open that modal
-        openPositionModal(selectedPositionType);
-      } else {
-        // Otherwise show position type selection
-        setIsPositionTypeModalOpen(true);
-      }
+      setSelectedPositionType(type);
+      setPositionToEdit(position);
+      openPositionModal(type);
     }
   };
 
-  // Handle position type selected from modal
-  const handlePositionTypeSelected = (type) => {
-    setSelectedPositionType(type);
-    setIsPositionTypeModalOpen(false);
-    openPositionModal(type);
-  };
-
-  // Open the appropriate position modal
+  // Open the appropriate position modal for editing
   const openPositionModal = (type) => {
     switch (type) {
       case 'security':
@@ -380,50 +331,6 @@ export default function TestFixedPage() {
         break;
       default:
         console.warn(`Unknown position type: ${type}`);
-    }
-  };
-
-  // Handle combined account and type selection
-  const handleAccountAndTypeSelected = (positionType, accountId) => {
-    const account = accounts.find(acc => acc.id === accountId);
-    
-    if (account) {
-      setSelectedAccount(account);
-      setSelectedPositionType(positionType);
-      openPositionModal(positionType);
-    }
-  };
-
-  // Handle position saved
-  const handlePositionSaved = () => {
-    // Refresh positions
-    if (selectedPositionType) {
-      loadPositionsByType(selectedPositionType);
-    }
-    
-    // Show success message
-    setSuccessMessage(`${selectedPositionType} position saved successfully!`);
-    
-    // Clear message after 3 seconds
-    setTimeout(() => {
-      setSuccessMessage("");
-    }, 3000);
-    
-    // Reset state
-    setSelectedPositionType(null);
-    setPositionToEdit(null);
-  };
-
-  // Handle edit position
-  const handleEditPosition = (position, type) => {
-    // Find the account this position belongs to
-    const account = accounts.find(acc => acc.id === position.account_id);
-    
-    if (account) {
-      setSelectedAccount(account);
-      setSelectedPositionType(type);
-      setPositionToEdit(position);
-      openPositionModal(type);
     }
   };
 
@@ -463,12 +370,14 @@ export default function TestFixedPage() {
           <span className="mr-2">+</span> Add Account
         </button>
         
-        <button
-          onClick={handleAddPosition}
+        <AddPositionButton 
           className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg shadow-md flex items-center"
-        >
-          <span className="mr-2">+</span> Add Position
-        </button>
+          onPositionAdded={() => {
+            if (selectedPositionType) {
+              loadPositionsByType(selectedPositionType); // Refresh only the specific position type
+            }
+          }}
+        />
       </div>
 
       {/* Accounts Section */}
@@ -695,7 +604,6 @@ export default function TestFixedPage() {
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Purchase Price</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Value</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Storage</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Storage</th>
                   <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                 </tr>
               </thead>
@@ -826,24 +734,16 @@ export default function TestFixedPage() {
         editAccount={accountToEdit}
       />
       
-      <AccountSelectModal 
-        isOpen={isAccountSelectModalOpen}
-        onClose={() => setIsAccountSelectModalOpen(false)}
-        onAccountSelected={handleAccountSelected}
-      />
-      
-      <PositionTypeModal 
-        isOpen={isPositionTypeModalOpen}
-        onClose={() => setIsPositionTypeModalOpen(false)}
-        onTypeSelected={handlePositionTypeSelected}
-        onAccountAndTypeSelected={handleAccountAndTypeSelected}
-      />
-      
+      {/* Modals for editing positions */}
       <SecurityPositionModal 
         isOpen={isSecurityModalOpen}
         onClose={() => setIsSecurityModalOpen(false)}
         accountId={selectedAccount?.id}
-        onPositionSaved={handlePositionSaved}
+        onPositionSaved={() => {
+          loadPositionsByType('security');
+          setIsSecurityModalOpen(false);
+          setPositionToEdit(null);
+        }}
         positionToEdit={selectedPositionType === 'security' ? positionToEdit : null}
       />
       
@@ -851,7 +751,11 @@ export default function TestFixedPage() {
         isOpen={isCryptoModalOpen}
         onClose={() => setIsCryptoModalOpen(false)}
         accountId={selectedAccount?.id}
-        onPositionSaved={handlePositionSaved}
+        onPositionSaved={() => {
+          loadPositionsByType('crypto');
+          setIsCryptoModalOpen(false);
+          setPositionToEdit(null);
+        }}
         positionToEdit={selectedPositionType === 'crypto' ? positionToEdit : null}
       />
       
@@ -859,7 +763,11 @@ export default function TestFixedPage() {
         isOpen={isMetalModalOpen}
         onClose={() => setIsMetalModalOpen(false)}
         accountId={selectedAccount?.id}
-        onPositionSaved={handlePositionSaved}
+        onPositionSaved={() => {
+          loadPositionsByType('metal');
+          setIsMetalModalOpen(false);
+          setPositionToEdit(null);
+        }}
         positionToEdit={selectedPositionType === 'metal' ? positionToEdit : null}
       />
       
@@ -867,7 +775,11 @@ export default function TestFixedPage() {
         isOpen={isRealEstateModalOpen}
         onClose={() => setIsRealEstateModalOpen(false)}
         accountId={selectedAccount?.id}
-        onPositionSaved={handlePositionSaved}
+        onPositionSaved={() => {
+          loadPositionsByType('realestate');
+          setIsRealEstateModalOpen(false);
+          setPositionToEdit(null);
+        }}
         positionToEdit={selectedPositionType === 'realestate' ? positionToEdit : null}
       />
     </div>

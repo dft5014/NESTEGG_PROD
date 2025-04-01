@@ -9,7 +9,7 @@ import { useRouter } from 'next/router';
 
 const Sidebar = () => {
   const { logout } = useContext(AuthContext);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false); // Start collapsed (icons only)
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(true); // Start collapsed (icons only)
   const [portfolioCollapsed, setPortfolioCollapsed] = useState(false); // Portfolio sections start expanded
   const router = useRouter();
 
@@ -63,36 +63,39 @@ const Sidebar = () => {
         <div className="flex items-center justify-center py-6 border-b border-gray-800">
           <div className="text-2xl">🥚</div>
         </div>
+
+        {/* Toggle button for sidebar collapse/expand */}
+        <button 
+          onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+          className={`
+            absolute top-20 right-0 z-50 p-2 rounded-full bg-gray-800 text-white
+            hover:bg-gray-700 transition-colors duration-200
+            ${sidebarCollapsed ? 'translate-x-1/2' : 'translate-x-0'}
+          `}
+          aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+        >
+          {sidebarCollapsed ? <ChevronRight size={20} /> : <ChevronLeft size={20} />}
+        </button>
         
         {/* Navigation */}
         <nav className="flex-1 py-4 px-2">
           <div className="space-y-1">
-            {/* NestEgg (Portfolio) with Dual Chevrons */}
+            {/* NestEgg (Portfolio) with Child Components Toggle */}
             <div className="flex items-center justify-between">
               <Link href="/portfolio" className={menuItemClasses(isActive('/portfolio'))}>
                 <span className="text-xl">🥚</span>
                 {!sidebarCollapsed && <span>NestEgg</span>}
               </Link>
-              <div className="flex items-center space-x-1 z-50"> {/* Higher z-index to ensure visibility */}
-                {/* Toggle for child components */}
-                {!sidebarCollapsed && (
-                  <button 
-                    onClick={() => setPortfolioCollapsed(!portfolioCollapsed)}
-                    className="p-2 text-gray-300 hover:text-white"
-                    aria-label={portfolioCollapsed ? "Expand portfolio components" : "Collapse portfolio components"}
-                  >
-                    {portfolioCollapsed ? <ChevronDown size={20} /> : <ChevronUp size={20} />}
-                  </button>
-                )}
-                {/* Toggle for sidebar collapse/expand */}
+              {/* Toggle for child components */}
+              {!sidebarCollapsed && (
                 <button 
-                  onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+                  onClick={() => setPortfolioCollapsed(!portfolioCollapsed)}
                   className="p-2 text-gray-300 hover:text-white"
-                  aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+                  aria-label={portfolioCollapsed ? "Expand portfolio components" : "Collapse portfolio components"}
                 >
-                  {sidebarCollapsed ? <ChevronRight size={20} /> : <ChevronLeft size={20} />}
+                  {portfolioCollapsed ? <ChevronDown size={20} /> : <ChevronUp size={20} />}
                 </button>
-              </div>
+              )}
             </div>
 
             {/* Portfolio Child Pages */}
