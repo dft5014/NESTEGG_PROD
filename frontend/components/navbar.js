@@ -19,8 +19,8 @@ import {
   CirclePlus,
   LineChart,
   BarChart4,
-  ChevronDown,
-  ChevronUp
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react';
 import UpdateStatusIndicator from '@/components/UpdateStatusIndicator';
 import AccountModal from '@/components/modals/AccountModal';
@@ -59,7 +59,7 @@ EggLogo.displayName = 'EggLogo';
 const Navbar = () => {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [isQuickActionsOpen, setIsQuickActionsOpen] = useState(false);
+  const [isQuickActionsOpen, setIsQuickActionsOpen] = useState(true); // Start expanded
   const [scrolledDown, setScrolledDown] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
   const [unreadNotifications, setUnreadNotifications] = useState(3);
@@ -87,13 +87,10 @@ const Navbar = () => {
       if (showNotifications && !event.target.closest('.notification-dropdown')) {
         setShowNotifications(false);
       }
-      if (isQuickActionsOpen && !event.target.closest('.quick-actions-dropdown')) {
-        setIsQuickActionsOpen(false);
-      }
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [isDropdownOpen, showNotifications, isQuickActionsOpen]);
+  }, [isDropdownOpen, showNotifications]);
 
   const dropdownItems = [
     { icon: <User className="w-5 h-5 mr-2" />, label: "Profile", href: "/profile" },
@@ -164,65 +161,55 @@ const Navbar = () => {
               </Link>
             </div>
 
-            {/* Center: Status and Quick Actions Toggle */}
+            {/* Center: Quick Actions and Toggle */}
             {user && (
               <div className="hidden md:flex items-center space-x-4">
-                <div className="bg-green-800/80 px-4 py-1.5 rounded-full flex items-center text-green-100">
-                  <UpdateStatusIndicator />
-                  <span className="ml-2">Prices up to date</span>
-                </div>
-                <div className="relative quick-actions-dropdown">
-                  <button 
-                    onClick={() => setIsQuickActionsOpen(!isQuickActionsOpen)}
-                    className="flex items-center text-white px-4 py-2 hover:bg-blue-800/30 rounded-lg transition-colors group"
-                  >
-                    <span className="text-sm font-medium mr-2">Quick Actions</span>
-                    {isQuickActionsOpen ? (
-                      <ChevronUp className="w-5 h-5 text-white group-hover:text-blue-300" />
-                    ) : (
-                      <ChevronDown className="w-5 h-5 text-white group-hover:text-blue-300" />
-                    )}
-                  </button>
+                {/* Quick Actions */}
+                <div className="flex items-center">
                   {isQuickActionsOpen && (
-                    <div className="absolute left-0 mt-2 w-60 bg-white rounded-lg shadow-xl z-20 overflow-hidden">
+                    <div className="flex space-x-4">
                       <button 
                         onClick={handleAddAccount}
-                        className="flex w-full items-center px-4 py-3 hover:bg-gray-100 transition-colors text-gray-800"
+                        className="flex items-center text-white py-1 px-4 transition-colors group"
                       >
-                        <CirclePlus className="w-5 h-5 mr-2" />
-                        Add Account
+                        <CirclePlus className="w-6 h-6 mr-2 text-white group-hover:text-blue-300" />
+                        <span className="text-sm text-gray-200 group-hover:text-white">Add Account</span>
                       </button>
                       <button 
                         onClick={handleAddPosition}
-                        className="flex w-full items-center px-4 py-3 hover:bg-gray-100 transition-colors text-gray-800"
+                        className="flex items-center text-white py-1 px-4 transition-colors group"
                       >
-                        <DollarSign className="w-5 h-5 mr-2" />
-                        Add Positions
+                        <DollarSign className="w-6 h-6 mr-2 text-white group-hover:text-blue-300" />
+                        <span className="text-sm text-gray-200 group-hover:text-white">Add Positions</span>
                       </button>
                       <button 
                         onClick={handleViewPortfolio}
-                        className="flex w-full items-center px-4 py-3 hover:bg-gray-100 transition-colors text-gray-800"
+                        className="flex items-center text-white py-1 px-4 transition-colors group"
                       >
-                        <LineChart className="w-5 h-5 mr-2" />
-                        Portfolio
+                        <LineChart className="w-6 h-6 mr-2 text-white group-hover:text-blue-300" />
+                        <span className="text-sm text-gray-200 group-hover:text-white">Portfolio</span>
                       </button>
                     </div>
                   )}
+                  <button 
+                    onClick={() => setIsQuickActionsOpen(!isQuickActionsOpen)}
+                    className="text-white p-2 hover:bg-blue-800/30 rounded-lg transition-colors"
+                  >
+                    {isQuickActionsOpen ? <ChevronLeft className="w-5 h-5" /> : <ChevronRight className="w-5 h-5" />}
+                  </button>
                 </div>
               </div>
             )}
 
-            {/* Mobile Menu Button */}
-            <button 
-              className="md:hidden text-white focus:outline-none" 
-              onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-            >
-              {isMobileMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
-            </button>
-
-            {/* Desktop User Menu Section */}
+            {/* Right: Market Update Status, Notifications, and Profile */}
             {user && (
               <div className="hidden md:flex items-center space-x-4">
+                {/* Market Update Status */}
+                <div className="bg-green-800/80 px-4 py-1.5 rounded-full flex items-center text-green-100">
+                  <UpdateStatusIndicator />
+                  <span className="ml-2">Prices up to date</span>
+                </div>
+
                 {/* Notifications */}
                 <div className="relative notification-dropdown">
                   <button 
@@ -314,6 +301,14 @@ const Navbar = () => {
                 </div>
               </div>
             )}
+
+            {/* Mobile Menu Button */}
+            <button 
+              className="md:hidden text-white focus:outline-none" 
+              onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+            >
+              {isMobileMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
+            </button>
 
             {/* Non-Authenticated Links */}
             {!user && (

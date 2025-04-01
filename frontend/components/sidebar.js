@@ -2,14 +2,14 @@
 import Link from 'next/link';
 import { BarChart2, ChevronLeft, ChevronRight, 
          CheckSquare, Settings, Database, Shield, 
-         Home, Briefcase, Coins, Bitcoin, ChevronDown, ChevronUp } from 'lucide-react';
+         Home, Coins, Bitcoin, ChevronDown, ChevronUp, TrendingUp } from 'lucide-react';
 import { useContext, useState, useEffect } from 'react';
 import { AuthContext } from '@/context/AuthContext';
 import { useRouter } from 'next/router';
 
 const Sidebar = () => {
   const { logout } = useContext(AuthContext);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(true); // Start collapsed
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(true); // Start collapsed (icons only)
   const [portfolioCollapsed, setPortfolioCollapsed] = useState(false); // Portfolio sections start expanded
   const router = useRouter();
 
@@ -53,13 +53,13 @@ const Sidebar = () => {
     
       <aside 
         className={`
-          fixed inset-y-0 left-0 z-50
+          fixed inset-y-0 left-0 z-30
           ${sidebarCollapsed ? 'w-16' : 'w-64'} 
           bg-gray-900 text-white flex flex-col shadow-lg transition-all duration-300
           overflow-y-auto scrollbar-thin scrollbar-thumb-gray-700 scrollbar-track-gray-900
         `}
       >
-        {/* Toggle button */}
+        {/* Toggle button for sidebar collapse/expand */}
         <button 
           onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
           className="p-2 rounded-full bg-gray-800 text-white absolute top-4 right-0 transform translate-x-1/2 z-10
@@ -69,44 +69,36 @@ const Sidebar = () => {
           {sidebarCollapsed ? <ChevronRight size={20} /> : <ChevronLeft size={20} />}
         </button>
         
-        {/* Logo */}
+        {/* Logo (Emoji Only) */}
         <div className="flex items-center justify-center py-6 border-b border-gray-800">
-          {sidebarCollapsed ? (
-            <div className="text-2xl">🥚</div>
-          ) : (
-            <div className="flex items-center space-x-2">
-              <span className="text-2xl">🥚</span>
-              <h1 className="text-xl font-bold bg-gradient-to-r from-blue-400 to-purple-500 bg-clip-text text-transparent">
-                NestEgg
-              </h1>
-            </div>
-          )}
+          <div className="text-2xl">🥚</div>
         </div>
         
         {/* Navigation */}
         <nav className="flex-1 py-4 px-2">
           <div className="space-y-1">
-            {/* NestEgg (Overview) */}
-            <Link href="/portfolio" className={menuItemClasses(isActive('/portfolio'))}>
-              <span className="text-xl">🥚</span>
-              {!sidebarCollapsed && <span>NestEgg</span>}
-            </Link>
+            {/* NestEgg (Portfolio) with Dual Chevrons */}
+            <div className="flex items-center justify-between">
+              <Link href="/portfolio" className={menuItemClasses(isActive('/portfolio'))}>
+                <span className="text-xl">🥚</span>
+                {!sidebarCollapsed && <span>NestEgg</span>}
+              </Link>
+              {!sidebarCollapsed && (
+                <button 
+                  onClick={() => setPortfolioCollapsed(!portfolioCollapsed)}
+                  className="p-2 text-gray-300 hover:text-white"
+                >
+                  {portfolioCollapsed ? <ChevronDown size={20} /> : <ChevronUp size={20} />}
+                </button>
+              )}
+            </div>
 
-            {/* Portfolio Components */}
-            {!sidebarCollapsed && (
-              <button 
-                onClick={() => setPortfolioCollapsed(!portfolioCollapsed)}
-                className="flex items-center justify-between w-full p-3 text-gray-300 hover:text-white"
-              >
-                <span>Portfolio Components</span>
-                {portfolioCollapsed ? <ChevronDown size={20} /> : <ChevronUp size={20} />}
-              </button>
-            )}
+            {/* Portfolio Child Pages */}
             {!portfolioCollapsed && (
               <div className={`${sidebarCollapsed ? '' : 'pl-4'} space-y-1`}>
-                {/* Investment Securities */}
+                {/* Investment Securities (Updated Icon) */}
                 <Link href="/investment-securities" className={menuItemClasses(isActive('/investment-securities'))}>
-                  <Briefcase size={24} className={iconClasses} />
+                  <TrendingUp size={24} className={iconClasses} />
                   {!sidebarCollapsed && <span>Securities</span>}
                 </Link>
 
