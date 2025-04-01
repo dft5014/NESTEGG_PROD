@@ -66,7 +66,18 @@ const Sidebar = () => {
           <div className="text-2xl">🥚</div>
         </div>
 
-        {/* Toggle button for sidebar collapse/expand */}
+
+        
+        {/* Navigation */}
+        <nav className="flex-1 py-4 px-2">
+          <div className="space-y-1">
+            {/* NestEgg (Portfolio) with Child Components Toggle */}
+            <div className="flex items-center justify-between px-3">
+              <Link href="/portfolio" className={menuItemClasses(isActive('/portfolio'))}>
+                <span className="text-xl">🥚</span>
+                {!sidebarCollapsed && <span className="ml-3">NestEgg</span>}
+              </Link>
+                      {/* Toggle button for sidebar collapse/expand */}
         <button 
           onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
           className={`
@@ -78,16 +89,7 @@ const Sidebar = () => {
         >
           {sidebarCollapsed ? <ChevronRight size={24} /> : <ChevronLeft size={24} />}
         </button>
-        
-        {/* Navigation */}
-        <nav className="flex-1 py-4 px-2">
-          <div className="space-y-1">
-            {/* NestEgg (Portfolio) with Child Components Toggle */}
-            <div className="flex items-center justify-between px-3">
-              <Link href="/portfolio" className={menuItemClasses(isActive('/portfolio'))}>
-                <span className="text-xl">🥚</span>
-                {!sidebarCollapsed && <span className="ml-3">NestEgg</span>}
-              </Link>
+              
               {/* Toggle for child components */}
               {!sidebarCollapsed && (
                 <button 
