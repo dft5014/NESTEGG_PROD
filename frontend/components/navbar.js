@@ -26,7 +26,7 @@ import UpdateStatusIndicator from '@/components/UpdateStatusIndicator';
 import AccountModal from '@/components/modals/AccountModal';
 import PositionTypeModal from '@/components/modals/PositionTypeModal';
 
-// Memoized EggLogo component to prevent unnecessary re-renders
+// Memoized EggLogo component
 const EggLogo = memo(() => (
   <div className="relative">
     <svg 
@@ -87,10 +87,13 @@ const Navbar = () => {
       if (showNotifications && !event.target.closest('.notification-dropdown')) {
         setShowNotifications(false);
       }
+      if (isQuickActionsOpen && !event.target.closest('.quick-actions-dropdown')) {
+        setIsQuickActionsOpen(false);
+      }
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [isDropdownOpen, showNotifications]);
+  }, [isDropdownOpen, showNotifications, isQuickActionsOpen]);
 
   const dropdownItems = [
     { icon: <User className="w-5 h-5 mr-2" />, label: "Profile", href: "/profile" },
@@ -127,11 +130,11 @@ const Navbar = () => {
   const handleViewPortfolio = () => router.push('/portfolio');
   const handleAccountSaved = () => {
     setIsAccountModalOpen(false);
-    // Add any refresh logic if needed
+    // Add refresh logic if needed
   };
   const handlePositionSaved = () => {
     setIsPositionTypeModalOpen(false);
-    // Add any refresh logic if needed
+    // Add refresh logic if needed
   };
 
   // Notifications mock data
@@ -143,11 +146,10 @@ const Navbar = () => {
   ];
 
   return (
-    <div className="sticky top-0 z-40"> {/* Lower z-index to sit behind sidebar */}
+    <div className="sticky top-0 z-40">
       {/* Main Navbar */}
       <nav className={`${scrolledDown ? 'bg-gray-900/95 backdrop-blur-sm shadow-lg' : 'bg-gradient-to-r from-gray-900 to-blue-900'} transition-all duration-300`}>
         <div className="container mx-auto px-4">
-          {/* Top Row: Logo and User Menu */}
           <div className="h-16 flex justify-between items-center">
             {/* Logo and App Name */}
             <div className="flex items-center">
@@ -162,12 +164,50 @@ const Navbar = () => {
               </Link>
             </div>
 
-            {/* Center Status */}
+            {/* Center: Status and Quick Actions Toggle */}
             {user && (
-              <div className="hidden md:flex items-center">
+              <div className="hidden md:flex items-center space-x-4">
                 <div className="bg-green-800/80 px-4 py-1.5 rounded-full flex items-center text-green-100">
                   <UpdateStatusIndicator />
                   <span className="ml-2">Prices up to date</span>
+                </div>
+                <div className="relative quick-actions-dropdown">
+                  <button 
+                    onClick={() => setIsQuickActionsOpen(!isQuickActionsOpen)}
+                    className="flex items-center text-white px-4 py-2 hover:bg-blue-800/30 rounded-lg transition-colors group"
+                  >
+                    <span className="text-sm font-medium mr-2">Quick Actions</span>
+                    {isQuickActionsOpen ? (
+                      <ChevronUp className="w-5 h-5 text-white group-hover:text-blue-300" />
+                    ) : (
+                      <ChevronDown className="w-5 h-5 text-white group-hover:text-blue-300" />
+                    )}
+                  </button>
+                  {isQuickActionsOpen && (
+                    <div className="absolute left-0 mt-2 w-60 bg-white rounded-lg shadow-xl z-20 overflow-hidden">
+                      <button 
+                        onClick={handleAddAccount}
+                        className="flex w-full items-center px-4 py-3 hover:bg-gray-100 transition-colors text-gray-800"
+                      >
+                        <CirclePlus className="w-5 h-5 mr-2" />
+                        Add Account
+                      </button>
+                      <button 
+                        onClick={handleAddPosition}
+                        className="flex w-full items-center px-4 py-3 hover:bg-gray-100 transition-colors text-gray-800"
+                      >
+                        <DollarSign className="w-5 h-5 mr-2" />
+                        Add Positions
+                      </button>
+                      <button 
+                        onClick={handleViewPortfolio}
+                        className="flex w-full items-center px-4 py-3 hover:bg-gray-100 transition-colors text-gray-800"
+                      >
+                        <LineChart className="w-5 h-5 mr-2" />
+                        Portfolio
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
             )}
@@ -291,52 +331,6 @@ const Navbar = () => {
             )}
           </div>
         </div>
-
-        {/* Quick Action Bar - Desktop */}
-        {user && (
-          <div className="hidden md:block border-t border-blue-800/30 bg-blue-900/80">
-            <div className="container mx-auto px-4">
-              <div className="flex justify-center items-center py-2">
-                <button 
-                  onClick={() => setIsQuickActionsOpen(!isQuickActionsOpen)}
-                  className="flex items-center text-white px-4 py-2 transition-colors group"
-                >
-                  <span className="text-sm font-medium mr-2">Quick Actions</span>
-                  {isQuickActionsOpen ? (
-                    <ChevronUp className="w-5 h-5 text-white group-hover:text-blue-300" />
-                  ) : (
-                    <ChevronDown className="w-5 h-5 text-white group-hover:text-blue-300" />
-                  )}
-                </button>
-              </div>
-              {isQuickActionsOpen && (
-                <div className="flex justify-center items-center py-2 space-x-12">
-                  <button 
-                    onClick={handleAddAccount}
-                    className="flex flex-col items-center text-white py-1 px-4 transition-colors group"
-                  >
-                    <CirclePlus className="w-6 h-6 mb-1 text-white group-hover:text-blue-300" />
-                    <span className="text-sm text-gray-200 group-hover:text-white">Add Account</span>
-                  </button>
-                  <button 
-                    onClick={handleAddPosition}
-                    className="flex flex-col items-center text-white py-1 px-4 transition-colors group"
-                  >
-                    <DollarSign className="w-6 h-6 mb-1 text-white group-hover:text-blue-300" />
-                    <span className="text-sm text-gray-200 group-hover:text-white">Add Positions</span>
-                  </button>
-                  <button 
-                    onClick={handleViewPortfolio}
-                    className="flex flex-col items-center text-white py-1 px-4 transition-colors group"
-                  >
-                    <LineChart className="w-6 h-6 mb-1 text-white group-hover:text-blue-300" />
-                    <span className="text-sm text-gray-200 group-hover:text-white">Portfolio</span>
-                  </button>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
       </nav>
 
       {/* Mobile Menu */}

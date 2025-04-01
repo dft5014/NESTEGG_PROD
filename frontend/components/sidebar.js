@@ -2,29 +2,26 @@
 import Link from 'next/link';
 import { BarChart2, ChevronLeft, ChevronRight, 
          CheckSquare, Settings, Database, Shield, 
-         Home, Briefcase, Coins, Bitcoin } from 'lucide-react';
+         Home, Briefcase, Coins, Bitcoin, ChevronDown, ChevronUp } from 'lucide-react';
 import { useContext, useState, useEffect } from 'react';
 import { AuthContext } from '@/context/AuthContext';
 import { useRouter } from 'next/router';
 
 const Sidebar = () => {
   const { logout } = useContext(AuthContext);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(true); // Start collapsed
+  const [portfolioCollapsed, setPortfolioCollapsed] = useState(false); // Portfolio sections start expanded
   const router = useRouter();
 
-  // Set initial collapsed state based on screen width
+  // Handle resize for mobile behavior
   useEffect(() => {
     const handleResize = () => {
-      setSidebarCollapsed(window.innerWidth < 768);
+      if (window.innerWidth < 768) {
+        setSidebarCollapsed(true); // Collapse on mobile
+      }
     };
-    
-    // Set initial state
     handleResize();
-    
-    // Add event listener
     window.addEventListener('resize', handleResize);
-    
-    // Clean up
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
@@ -56,7 +53,7 @@ const Sidebar = () => {
     
       <aside 
         className={`
-          fixed inset-y-0 left-0 z-30
+          fixed inset-y-0 left-0 z-50
           ${sidebarCollapsed ? 'w-16' : 'w-64'} 
           bg-gray-900 text-white flex flex-col shadow-lg transition-all duration-300
           overflow-y-auto scrollbar-thin scrollbar-thumb-gray-700 scrollbar-track-gray-900
@@ -95,49 +92,60 @@ const Sidebar = () => {
               {!sidebarCollapsed && <span>NestEgg</span>}
             </Link>
 
-            {/* Investment Securities */}
-            <Link href="/investment-securities" className={menuItemClasses(isActive('/investment-securities'))}>
-              <Briefcase size={24} className={iconClasses} />
-              {!sidebarCollapsed && <span>Securities</span>}
-            </Link>
+            {/* Portfolio Components */}
+            {!sidebarCollapsed && (
+              <button 
+                onClick={() => setPortfolioCollapsed(!portfolioCollapsed)}
+                className="flex items-center justify-between w-full p-3 text-gray-300 hover:text-white"
+              >
+                <span>Portfolio Components</span>
+                {portfolioCollapsed ? <ChevronDown size={20} /> : <ChevronUp size={20} />}
+              </button>
+            )}
+            {!portfolioCollapsed && (
+              <div className={`${sidebarCollapsed ? '' : 'pl-4'} space-y-1`}>
+                {/* Investment Securities */}
+                <Link href="/investment-securities" className={menuItemClasses(isActive('/investment-securities'))}>
+                  <Briefcase size={24} className={iconClasses} />
+                  {!sidebarCollapsed && <span>Securities</span>}
+                </Link>
 
-            {/* Real Estate */}
-            <Link href="/real-estate" className={menuItemClasses(isActive('/real-estate'))}>
-              <Home size={24} className={iconClasses} />
-              {!sidebarCollapsed && <span>Real Estate</span>}
-            </Link>
+                {/* Real Estate */}
+                <Link href="/real-estate" className={menuItemClasses(isActive('/real-estate'))}>
+                  <Home size={24} className={iconClasses} />
+                  {!sidebarCollapsed && <span>Real Estate</span>}
+                </Link>
 
-            {/* Metals */}
-            <Link href="/metals" className={menuItemClasses(isActive('/metals'))}>
-              <Coins size={24} className={iconClasses} />
-              {!sidebarCollapsed && <span>Metals</span>}
-            </Link>
+                {/* Metals */}
+                <Link href="/metals" className={menuItemClasses(isActive('/metals'))}>
+                  <Coins size={24} className={iconClasses} />
+                  {!sidebarCollapsed && <span>Metals</span>}
+                </Link>
 
-            {/* Crypto */}
-            <Link href="/crypto" className={menuItemClasses(isActive('/crypto'))}>
-              <Bitcoin size={24} className={iconClasses} />
-              {!sidebarCollapsed && <span>Crypto</span>}
-            </Link>
-            
-            {/* Market Update (formerly Home) */}
+                {/* Crypto */}
+                <Link href="/crypto" className={menuItemClasses(isActive('/crypto'))}>
+                  <Bitcoin size={24} className={iconClasses} />
+                  {!sidebarCollapsed && <span>Crypto</span>}
+                </Link>
+              </div>
+            )}
+
+            {/* Other Navigation Items */}
             <Link href="/" className={menuItemClasses(isActive('/'))}>
               <BarChart2 size={24} className={iconClasses} />
               {!sidebarCollapsed && <span>Market Update</span>}
             </Link>
 
-            {/* To Do List */}
             <Link href="/todo" className={menuItemClasses(isActive('/todo'))}>
               <CheckSquare size={24} className={iconClasses} />
               {!sidebarCollapsed && <span>To Do List</span>}
             </Link>
 
-            {/* Data Summary */}
             <Link href="/data-summary" className={menuItemClasses(isActive('/data-summary'))}>
               <Database size={24} className={iconClasses} />
               {!sidebarCollapsed && <span>Data Summary</span>}
             </Link>
 
-            {/* Trial Page (formerly About) */}
             <Link href="/about" className={menuItemClasses(isActive('/about'))}>
               <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className={iconClasses}>
                 <path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
@@ -146,7 +154,7 @@ const Sidebar = () => {
               {!sidebarCollapsed && <span>Trial Page</span>}
             </Link>
 
-            {/* Test pages */}
+            {/* Test Pages */}
             <div className="pt-4 space-y-1">
               <Link href="/test-fixed" className={menuItemClasses(isActive('/test-fixed'))}>
                 <Shield size={24} className={iconClasses} />
@@ -161,7 +169,7 @@ const Sidebar = () => {
         </nav>
       </aside>
       
-      {/* Main content wrapper that adjusts to sidebar width */}
+      {/* Main content wrapper */}
       <div className={`transition-all duration-300 ${sidebarCollapsed ? 'ml-16' : 'ml-64'}`}>
         {/* This wraps around the main content in _app.js */}
       </div>
