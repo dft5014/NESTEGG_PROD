@@ -54,7 +54,7 @@ const Sidebar = () => {
       <aside 
         className={`
           fixed inset-y-0 left-0 z-30
-          ${sidebarCollapsed ? 'w-16 border-r-4 border-blue-600' : 'w-64 border-r border-gray-800'} 
+          ${sidebarCollapsed ? 'w-16' : 'w-64'} 
           bg-gray-900 text-white flex flex-col shadow-lg transition-all duration-300
           overflow-y-auto scrollbar-thin scrollbar-thumb-gray-700 scrollbar-track-gray-900
         `}
@@ -70,7 +70,7 @@ const Sidebar = () => {
           className={`
             absolute z-50 p-2 rounded-full bg-gray-800 text-white
             hover:bg-gray-700 transition-colors duration-200
-            ${sidebarCollapsed ? 'left-12 top-2 -translate-x-1/2' : 'left-2 top-2 translate-x-0'}
+            ${sidebarCollapsed ? 'left-2 top-2 translate-x-0' : 'left-2 top-2 translate-x-0'}
           `}
           aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
         >
@@ -81,10 +81,10 @@ const Sidebar = () => {
         <nav className="flex-1 py-4 px-2">
           <div className="space-y-1">
             {/* NestEgg (Portfolio) with Child Components Toggle */}
-            <div className="flex items-center justify-between px-3">
+            <div className="flex items-center justify-between">
               <Link href="/portfolio" className={menuItemClasses(isActive('/portfolio'))}>
                 <span className="text-xl">🥚</span>
-                {!sidebarCollapsed && <span className="ml-3">NestEgg</span>}
+                {!sidebarCollapsed && <span>NestEgg</span>}
               </Link>
               {/* Toggle for child components */}
               {!sidebarCollapsed && (
@@ -99,30 +99,30 @@ const Sidebar = () => {
             </div>
 
             {/* Portfolio Child Pages */}
-            {!sidebarCollapsed && !portfolioCollapsed && (
-              <div className="pl-4 space-y-1">
+            {!portfolioCollapsed && (
+              <div className={`${sidebarCollapsed ? '' : 'pl-4'} space-y-1`}>
                 {/* Investment Securities */}
                 <Link href="/investment-securities" className={menuItemClasses(isActive('/investment-securities'))}>
                   <TrendingUp size={24} className={iconClasses} />
-                  <span>Securities</span>
+                  {!sidebarCollapsed && <span>Securities</span>}
                 </Link>
 
                 {/* Real Estate */}
                 <Link href="/real-estate" className={menuItemClasses(isActive('/real-estate'))}>
                   <Home size={24} className={iconClasses} />
-                  <span>Real Estate</span>
+                  {!sidebarCollapsed && <span>Real Estate</span>}
                 </Link>
 
                 {/* Metals */}
                 <Link href="/metals" className={menuItemClasses(isActive('/metals'))}>
                   <Coins size={24} className={iconClasses} />
-                  <span>Metals</span>
+                  {!sidebarCollapsed && <span>Metals</span>}
                 </Link>
 
                 {/* Crypto */}
                 <Link href="/crypto" className={menuItemClasses(isActive('/crypto'))}>
                   <Bitcoin size={24} className={iconClasses} />
-                  <span>Crypto</span>
+                  {!sidebarCollapsed && <span>Crypto</span>}
                 </Link>
               </div>
             )}
