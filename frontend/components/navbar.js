@@ -1,5 +1,5 @@
 // components/Navbar.js
-import { useState, useContext, useEffect } from 'react';
+import { useState, useContext, useEffect, useCallback, memo } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { AuthContext } from '@/context/AuthContext';
@@ -18,31 +18,67 @@ import {
   X,
   CirclePlus,
   LineChart,
-  BarChart4
+  BarChart4,
+  ChevronDown,
+  ChevronUp
 } from 'lucide-react';
 import UpdateStatusIndicator from '@/components/UpdateStatusIndicator';
+import AccountModal from '@/components/modals/AccountModal';
+import PositionTypeModal from '@/components/modals/PositionTypeModal';
+
+// Memoized EggLogo component to prevent unnecessary re-renders
+const EggLogo = memo(() => (
+  <div className="relative">
+    <svg 
+      width="36" 
+      height="36" 
+      viewBox="0 0 36 36" 
+      xmlns="http://www.w3.org/2000/svg"
+      className="text-blue-400"
+    >
+      <defs>
+        <linearGradient id="eggGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stopColor="#60A5FA" />
+          <stop offset="100%" stopColor="#93C5FD" />
+        </linearGradient>
+      </defs>
+      <path 
+        d="M18 2C12 2 6 12 6 22C6 30 11 34 18 34C25 34 30 30 30 22C30 12 24 2 18 2Z" 
+        fill="url(#eggGradient)" 
+        stroke="currentColor" 
+        strokeWidth="1.5"
+      />
+      <circle cx="14" cy="16" r="1.5" fill="#1E3A8A" />
+      <circle cx="22" cy="16" r="1.5" fill="#1E3A8A" />
+      <path d="M15 24C16.5 25.5 19.5 25.5 21 24" stroke="#1E3A8A" strokeWidth="1.5" strokeLinecap="round" />
+    </svg>
+  </div>
+));
+EggLogo.displayName = 'EggLogo';
 
 const Navbar = () => {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const { user, logout } = useContext(AuthContext);
-  const router = useRouter();
+  const [isQuickActionsOpen, setIsQuickActionsOpen] = useState(false);
   const [scrolledDown, setScrolledDown] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
   const [unreadNotifications, setUnreadNotifications] = useState(3);
+  const [isAccountModalOpen, setIsAccountModalOpen] = useState(false);
+  const [isPositionTypeModalOpen, setIsPositionTypeModalOpen] = useState(false);
+
+  const { user, logout } = useContext(AuthContext);
+  const router = useRouter();
 
   // Handle scroll events for navbar appearance
   useEffect(() => {
     const handleScroll = () => {
-      const scrollPosition = window.scrollY;
-      setScrolledDown(scrollPosition > 10);
+      setScrolledDown(window.scrollY > 10);
     };
-    
     window.addEventListener('scroll', handleScroll);
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
-  // Close dropdown when clicking outside
+  // Close dropdowns when clicking outside
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (isDropdownOpen && !event.target.closest('.user-dropdown')) {
@@ -52,37 +88,16 @@ const Navbar = () => {
         setShowNotifications(false);
       }
     };
-    
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [isDropdownOpen, showNotifications]);
 
   const dropdownItems = [
-    { 
-      icon: <User className="w-5 h-5 mr-2" />, 
-      label: "Profile", 
-      href: "/profile" 
-    },
-    { 
-      icon: <Shield className="w-5 h-5 mr-2" />, 
-      label: "Admin", 
-      href: "/admin" 
-    },
-    { 
-      icon: <Settings className="w-5 h-5 mr-2" />, 
-      label: "Settings", 
-      href: "/settings" 
-    },
-    { 
-      icon: <Clock className="w-5 h-5 mr-2" />, 
-      label: "Scheduler", 
-      href: "/scheduler" 
-    },
-    { 
-      icon: <HelpCircle className="w-5 h-5 mr-2" />, 
-      label: "Help", 
-      href: "/help" 
-    },
+    { icon: <User className="w-5 h-5 mr-2" />, label: "Profile", href: "/profile" },
+    { icon: <Shield className="w-5 h-5 mr-2" />, label: "Admin", href: "/admin" },
+    { icon: <Settings className="w-5 h-5 mr-2" />, label: "Settings", href: "/settings" },
+    { icon: <Clock className="w-5 h-5 mr-2" />, label: "Scheduler", href: "/scheduler" },
+    { icon: <HelpCircle className="w-5 h-5 mr-2" />, label: "Help", href: "/help" },
     { 
       icon: <LogOut className="w-5 h-5 mr-2 text-red-500" />, 
       label: "Logout", 
@@ -92,12 +107,10 @@ const Navbar = () => {
   ];
 
   const displayName = user ? 
-    (user.first_name && user.last_name ? 
-      `${user.first_name} ${user.last_name}` : 
-      user.email) : 
+    (user.first_name && user.last_name ? `${user.first_name} ${user.last_name}` : user.email) : 
     '';
 
-  const getInitials = () => {
+  const getInitials = useCallback(() => {
     if (user) {
       if (user.first_name && user.last_name) {
         return `${user.first_name[0]}${user.last_name[0]}`.toUpperCase();
@@ -106,56 +119,20 @@ const Navbar = () => {
       }
     }
     return 'U';
-  };
+  }, [user]);
 
-  const handleAddAccountClick = () => {
-    if (window.dispatchEvent) {
-      window.dispatchEvent(new CustomEvent('openAddAccountModal'));
-    } else {
-      router.push('/portfolio');
-    }
+  // Modal handlers
+  const handleAddAccount = () => setIsAccountModalOpen(true);
+  const handleAddPosition = () => setIsPositionTypeModalOpen(true);
+  const handleViewPortfolio = () => router.push('/portfolio');
+  const handleAccountSaved = () => {
+    setIsAccountModalOpen(false);
+    // Add any refresh logic if needed
   };
-  
-  const handleAddPositionClick = () => {
-    if (window.dispatchEvent) {
-      window.dispatchEvent(new CustomEvent('openPositionTypeModal'));
-    } else {
-      router.push('/portfolio');
-    }
+  const handlePositionSaved = () => {
+    setIsPositionTypeModalOpen(false);
+    // Add any refresh logic if needed
   };
-
-  const handleViewPortfolio = () => {
-    router.push('/portfolio');
-  };
-
-  // Custom EggLogo component
-  const EggLogo = () => (
-    <div className="relative">
-      <svg 
-        width="36" 
-        height="36" 
-        viewBox="0 0 36 36" 
-        xmlns="http://www.w3.org/2000/svg"
-        className="text-blue-400"
-      >
-        <defs>
-          <linearGradient id="eggGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" stopColor="#60A5FA" />
-            <stop offset="100%" stopColor="#93C5FD" />
-          </linearGradient>
-        </defs>
-        <path 
-          d="M18 2C12 2 6 12 6 22C6 30 11 34 18 34C25 34 30 30 30 22C30 12 24 2 18 2Z" 
-          fill="url(#eggGradient)" 
-          stroke="currentColor" 
-          strokeWidth="1.5"
-        />
-        <circle cx="14" cy="16" r="1.5" fill="#1E3A8A" />
-        <circle cx="22" cy="16" r="1.5" fill="#1E3A8A" />
-        <path d="M15 24C16.5 25.5 19.5 25.5 21 24" stroke="#1E3A8A" strokeWidth="1.5" strokeLinecap="round" />
-      </svg>
-    </div>
-  );
 
   // Notifications mock data
   const notifications = [
@@ -166,7 +143,7 @@ const Navbar = () => {
   ];
 
   return (
-    <div className="sticky top-0 z-50">
+    <div className="sticky top-0 z-40"> {/* Lower z-index to sit behind sidebar */}
       {/* Main Navbar */}
       <nav className={`${scrolledDown ? 'bg-gray-900/95 backdrop-blur-sm shadow-lg' : 'bg-gradient-to-r from-gray-900 to-blue-900'} transition-all duration-300`}>
         <div className="container mx-auto px-4">
@@ -200,10 +177,7 @@ const Navbar = () => {
               className="md:hidden text-white focus:outline-none" 
               onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
             >
-              {isMobileMenuOpen ? 
-                <X className="h-6 w-6" /> : 
-                <Menu className="h-6 w-6" />
-              }
+              {isMobileMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
             </button>
 
             {/* Desktop User Menu Section */}
@@ -222,8 +196,6 @@ const Navbar = () => {
                       </span>
                     )}
                   </button>
-                  
-                  {/* Notifications Dropdown */}
                   {showNotifications && (
                     <div className="absolute right-0 mt-2 w-80 bg-white rounded-lg shadow-xl overflow-hidden z-20">
                       <div className="bg-gradient-to-r from-blue-700 to-blue-600 p-3 text-white border-b border-blue-500">
@@ -254,7 +226,7 @@ const Navbar = () => {
                     </div>
                   )}
                 </div>
-                
+
                 {/* User Dropdown */}
                 <div className="relative user-dropdown">
                   <button 
@@ -266,13 +238,13 @@ const Navbar = () => {
                     <div className="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center text-white">
                       {getInitials()}
                     </div>
+                    <span className="text-sm font-medium">{displayName}</span>
                   </button>
-
                   {isDropdownOpen && (
                     <div className="absolute right-0 mt-2 w-60 bg-white rounded-lg shadow-xl z-20 overflow-hidden">
-                      <div className="bg-gradient-to-r from-blue-600 to-blue-700 p-4 text-white">
-                        <p className="font-medium text-lg">{user.first_name && user.last_name ? `${user.first_name} ${user.last_name}` : "User"}</p>
-                        <p className="text-sm text-blue-200 truncate">{user.email}</p>
+                      <div className="bg-gradient-to-r from-blue-600 to-blue-700 p-4">
+                        <p className="font-medium text-lg text-white">{displayName}</p>
+                        <p className="text-sm text-blue-100 truncate">{user.email}</p>
                       </div>
                       <div className="py-1">
                         {dropdownItems.map((item, index) => (
@@ -280,7 +252,7 @@ const Navbar = () => {
                             <button
                               key={index}
                               onClick={item.action}
-                              className={`flex w-full items-center px-4 py-3 hover:bg-gray-100 transition-colors text-left ${item.className || ''}`}
+                              className={`flex w-full items-center px-4 py-3 hover:bg-gray-100 transition-colors text-left text-gray-800 ${item.className || ''}`}
                             >
                               {item.icon}
                               {item.label}
@@ -289,7 +261,7 @@ const Navbar = () => {
                             <Link
                               key={index}
                               href={item.href}
-                              className={`flex items-center px-4 py-3 hover:bg-gray-100 transition-colors ${item.className || ''}`}
+                              className={`flex items-center px-4 py-3 hover:bg-gray-100 transition-colors text-gray-800 ${item.className || ''}`}
                             >
                               {item.icon}
                               {item.label}
@@ -306,10 +278,7 @@ const Navbar = () => {
             {/* Non-Authenticated Links */}
             {!user && (
               <div className="flex items-center space-x-4">
-                <Link 
-                  href="/login" 
-                  className="text-gray-300 hover:text-white transition-colors"
-                >
+                <Link href="/login" className="text-gray-300 hover:text-white transition-colors">
                   Login
                 </Link>
                 <Link 
@@ -322,41 +291,54 @@ const Navbar = () => {
             )}
           </div>
         </div>
-        
+
         {/* Quick Action Bar - Desktop */}
         {user && (
           <div className="hidden md:block border-t border-blue-800/30 bg-blue-900/80">
             <div className="container mx-auto px-4">
-              <div className="flex justify-center items-center py-2 space-x-12">
+              <div className="flex justify-center items-center py-2">
                 <button 
-                  onClick={handleAddAccountClick}
-                  className="flex flex-col items-center text-white py-1 px-4 transition-colors group"
+                  onClick={() => setIsQuickActionsOpen(!isQuickActionsOpen)}
+                  className="flex items-center text-white px-4 py-2 transition-colors group"
                 >
-                  <CirclePlus className="w-6 h-6 mb-1 text-white group-hover:text-blue-300" />
-                  <span className="text-sm text-gray-200 group-hover:text-white">Add Account</span>
+                  <span className="text-sm font-medium mr-2">Quick Actions</span>
+                  {isQuickActionsOpen ? (
+                    <ChevronUp className="w-5 h-5 text-white group-hover:text-blue-300" />
+                  ) : (
+                    <ChevronDown className="w-5 h-5 text-white group-hover:text-blue-300" />
+                  )}
                 </button>
-                
-                <button 
-                  onClick={handleAddPositionClick}
-                  className="flex flex-col items-center text-white py-1 px-4 transition-colors group"
-                >
-                  <DollarSign className="w-6 h-6 mb-1 text-white group-hover:text-blue-300" />
-                  <span className="text-sm text-gray-200 group-hover:text-white">Add Positions</span>
-                </button>
-                
-                <Link 
-                  href="/portfolio" 
-                  className="flex flex-col items-center text-white py-1 px-4 transition-colors group"
-                >
-                  <LineChart className="w-6 h-6 mb-1 text-white group-hover:text-blue-300" />
-                  <span className="text-sm text-gray-200 group-hover:text-white">Portfolio</span>
-                </Link>
               </div>
+              {isQuickActionsOpen && (
+                <div className="flex justify-center items-center py-2 space-x-12">
+                  <button 
+                    onClick={handleAddAccount}
+                    className="flex flex-col items-center text-white py-1 px-4 transition-colors group"
+                  >
+                    <CirclePlus className="w-6 h-6 mb-1 text-white group-hover:text-blue-300" />
+                    <span className="text-sm text-gray-200 group-hover:text-white">Add Account</span>
+                  </button>
+                  <button 
+                    onClick={handleAddPosition}
+                    className="flex flex-col items-center text-white py-1 px-4 transition-colors group"
+                  >
+                    <DollarSign className="w-6 h-6 mb-1 text-white group-hover:text-blue-300" />
+                    <span className="text-sm text-gray-200 group-hover:text-white">Add Positions</span>
+                  </button>
+                  <button 
+                    onClick={handleViewPortfolio}
+                    className="flex flex-col items-center text-white py-1 px-4 transition-colors group"
+                  >
+                    <LineChart className="w-6 h-6 mb-1 text-white group-hover:text-blue-300" />
+                    <span className="text-sm text-gray-200 group-hover:text-white">Portfolio</span>
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         )}
       </nav>
-      
+
       {/* Mobile Menu */}
       {isMobileMenuOpen && user && (
         <div className="md:hidden bg-gray-900 text-white">
@@ -367,13 +349,11 @@ const Navbar = () => {
                   {getInitials()}
                 </div>
                 <div>
-                  <div className="font-medium">{user.first_name && user.last_name ? `${user.first_name} ${user.last_name}` : "User"}</div>
+                  <div className="font-medium">{displayName}</div>
                   <div className="text-xs text-gray-400">{user.email}</div>
                 </div>
               </div>
             </div>
-            
-            {/* Dropdown Menu Items */}
             <div className="space-y-2 py-2">
               {dropdownItems.map((item, index) => (
                 item.action ? (
@@ -404,37 +384,47 @@ const Navbar = () => {
           </div>
         </div>
       )}
-      
-      {/* Mobile Quick Actions - Always shown on mobile when user is logged in */}
+
+      {/* Mobile Quick Actions */}
       {user && (
         <div className="md:hidden bg-blue-900 border-t border-blue-800">
           <div className="grid grid-cols-3 text-center">
             <button 
-              onClick={handleAddAccountClick}
+              onClick={handleAddAccount}
               className="flex flex-col items-center justify-center py-3"
             >
               <CirclePlus className="h-6 w-6 text-white mb-1" />
               <span className="text-xs text-gray-200">Add Account</span>
             </button>
-            
             <button 
-              onClick={handleAddPositionClick}
+              onClick={handleAddPosition}
               className="flex flex-col items-center justify-center py-3"
             >
               <DollarSign className="h-6 w-6 text-white mb-1" />
               <span className="text-xs text-gray-200">Add Positions</span>
             </button>
-            
-            <Link 
-              href="/portfolio" 
+            <button 
+              onClick={handleViewPortfolio}
               className="flex flex-col items-center justify-center py-3"
             >
               <BarChart4 className="h-6 w-6 text-white mb-1" />
               <span className="text-xs text-gray-200">Portfolio</span>
-            </Link>
+            </button>
           </div>
         </div>
       )}
+
+      {/* Modals */}
+      <AccountModal
+        isOpen={isAccountModalOpen}
+        onClose={() => setIsAccountModalOpen(false)}
+        onAccountAdded={handleAccountSaved}
+      />
+      <PositionTypeModal
+        isOpen={isPositionTypeModalOpen}
+        onClose={() => setIsPositionTypeModalOpen(false)}
+        onTypeSelected={handlePositionSaved}
+      />
     </div>
   );
 };
