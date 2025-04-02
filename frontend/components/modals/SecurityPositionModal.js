@@ -177,15 +177,18 @@ const SecurityPositionModal = ({ isOpen, onClose, accountId, onPositionSaved, po
     setSelectedSecurity(security);
     setSecurityDetails(security);
     setTicker(security.ticker);
-    setCurrentPrice(security.price?.toString() || '');
+    
+    // Round to 2 decimal places for display and input
+    const roundedPrice = parseFloat(security.price || 0).toFixed(2);
+    setCurrentPrice(roundedPrice);
     
     // If cost basis is empty, default to current price
     if (!costPerShare) {
-      setCostPerShare(security.price?.toString() || '');
+      setCostPerShare(roundedPrice);
       
       // Update total cost if shares are already entered
       const numShares = parseFloat(shares);
-      const cost = parseFloat(security.price || 0);
+      const cost = parseFloat(roundedPrice);
       if (!isNaN(numShares) && !isNaN(cost)) {
         setTotalCost((numShares * cost).toFixed(2));
       }

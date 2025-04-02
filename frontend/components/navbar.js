@@ -1,4 +1,4 @@
-// components/Navbar.js
+// components/navbar.js
 import { useState, useContext, useEffect, useCallback, memo } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
@@ -18,11 +18,13 @@ import {
   LineChart,
   BarChart4,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  ClipboardList
 } from 'lucide-react';
 import UpdateStatusIndicator from '@/components/UpdateStatusIndicator';
 import AddPositionButton from '@/components/AddPositionButton';
 import AddAccountButton from '@/components/AddAccountButton';
+import BulkPositionButton from '@/components/BulkPositionButton';
 
 // Memoized EggLogo component
 const EggLogo = memo(() => (
@@ -54,7 +56,7 @@ const EggLogo = memo(() => (
 ));
 EggLogo.displayName = 'EggLogo';
 
-const Navbar = () => {
+const Navbar = ({ accounts, fetchAccounts, fetchPositions, fetchPortfolioSummary }) => {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isQuickActionsOpen, setIsQuickActionsOpen] = useState(true);
@@ -155,6 +157,16 @@ const Navbar = () => {
                     <div className="flex space-x-4">
                       <AddAccountButton />
                       <AddPositionButton onCancel={() => {}} />
+                      {/* Add the BulkPositionButton here */}
+                      <BulkPositionButton 
+                        accounts={accounts || []}
+                        fetchAccounts={fetchAccounts}
+                        fetchPositions={fetchPositions}
+                        fetchPortfolioSummary={fetchPortfolioSummary}
+                        buttonText="Bulk Upload"
+                        buttonIcon={<ClipboardList className="w-6 h-6 mr-2 text-white group-hover:text-blue-300" />}
+                        className="flex items-center text-white py-1 px-4 transition-colors group"
+                      />
                       <button 
                         onClick={handleViewPortfolio}
                         className="flex items-center text-white py-1 px-4 transition-colors group"
@@ -350,9 +362,19 @@ const Navbar = () => {
       {/* Mobile Quick Actions */}
       {user && (
         <div className="md:hidden bg-blue-900 border-t border-blue-800">
-          <div className="grid grid-cols-3 text-center">
+          <div className="grid grid-cols-4 text-center">
             <AddAccountButton className="flex flex-col items-center justify-center py-3" />
             <AddPositionButton className="flex flex-col items-center justify-center py-3" onCancel={() => {}} />
+            {/* Add mobile BulkPositionButton */}
+            <BulkPositionButton 
+              accounts={accounts || []}
+              fetchAccounts={fetchAccounts}
+              fetchPositions={fetchPositions}
+              fetchPortfolioSummary={fetchPortfolioSummary}
+              buttonIcon={<ClipboardList className="h-6 w-6 text-white mb-1" />}
+              buttonText="Bulk"
+              className="flex flex-col items-center justify-center py-3"
+            />
             <button 
               onClick={handleViewPortfolio}
               className="flex flex-col items-center justify-center py-3"

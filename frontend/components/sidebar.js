@@ -65,8 +65,6 @@ const Sidebar = () => {
         <div className="flex items-center justify-center py-6 border-b border-gray-800">
           <div className="text-2xl">🥚</div>
         </div>
-
-
         
         {/* Navigation */}
         <nav className="flex-1 py-4 px-2">
@@ -77,18 +75,19 @@ const Sidebar = () => {
                 <span className="text-xl">🥚</span>
                 {!sidebarCollapsed && <span className="ml-3">NestEgg</span>}
               </Link>
-                      {/* Toggle button for sidebar collapse/expand */}
-        <button 
-          onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-          className={`
-            absolute z-50 p-2 rounded-full bg-gray-800 text-white
-            hover:bg-gray-700 transition-colors duration-200 shadow-md
-            ${sidebarCollapsed ? 'left-12 top-20 -translate-x-1/2' : 'left-2 top-2 translate-x-0'}
-          `}
-          aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
-        >
-          {sidebarCollapsed ? <ChevronRight size={24} /> : <ChevronLeft size={24} />}
-        </button>
+              
+              {/* Toggle button for sidebar collapse/expand */}
+              <button 
+                onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+                className={`
+                  absolute z-50 p-2 rounded-full bg-gray-800 text-white
+                  hover:bg-gray-700 transition-colors duration-200 shadow-md
+                  ${sidebarCollapsed ? 'right-0 top-20 -translate-x-1/2' : 'right-2 top-20 translate-x-0'}
+                `}
+                aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+              >
+                {sidebarCollapsed ? <ChevronRight size={24} /> : <ChevronLeft size={24} />}
+              </button>
               
               {/* Toggle for child components */}
               {!sidebarCollapsed && (
