@@ -180,3 +180,29 @@ export const fetchAllRealEstateWithDetails = async () => {
       throw error;
     }
   };
+
+/**
+ * [TEST VERSION] Fetch overall portfolio summary metrics.
+ * Assumes backend endpoint '/portfolio/summary/all'.
+ * @returns {Promise<object>} - Promise resolving to summary data.
+ */
+export const fetchPortfolioSummary = async () => {
+    console.log("Using testPositionMethods.fetchPortfolioSummary");
+    try {
+      // *** Make sure this endpoint matches your backend ***
+      const response = await fetchWithAuth('/portfolio/summary/all');
+  
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error("testPositionMethods (Summary) fetch error:", response.status, errorText);
+        throw new Error(`Failed to fetch portfolio summary: ${response.status} ${errorText}`);
+      }
+  
+      const data = await response.json();
+      return data; // Expecting object like { total_value, total_cost_basis, ... }
+  
+    } catch (error) {
+      console.error('Error in testPositionMethods.fetchPortfolioSummary:', error);
+      throw error;
+    }
+  };

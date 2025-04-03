@@ -411,6 +411,21 @@ class RealEstatePositionDetail(BaseModel):
 class RealEstatePositionsDetailedResponse(BaseModel):
     real_estate_positions: List[RealEstatePositionDetail]
 
+class PortfolioAssetSummary(BaseModel):
+    asset_type: str
+    total_value: float
+    total_cost_basis: float
+    count: int
+
+class PortfolioSummaryAllResponse(BaseModel):
+    total_value: float
+    total_cost_basis: float
+    total_gain_loss: float
+    total_gain_loss_percent: float
+    total_positions: int
+    total_accounts: int # Or maybe filter for accounts with these asset types
+    breakdown: Optional[List[PortfolioAssetSummary]] = None # Optional breakdown by asset
+
 
 # API Endpoints
 @app.get("/")
@@ -1414,6 +1429,106 @@ async def get_all_securities(current_user: dict = Depends(get_current_user)):
         )   
 
 # Portfolio Summary
+@app.get("/portfolio/summary/all", response_model=PortfolioSummaryAllResponse)
+async def get_portfolio_summary_all(current_user: dict = Depends(get_current_user)):
+    """Get a summary across all asset types for the user."""
+    try:
+        user_id = current_user["id"]
+        total_value = 0.0
+        total_cost_basis = 0.0
+        total_positions = 0
+        # Asset specific summaries for breakdown (optional)
+        asset_summaries = []
+
+        # --- 1. Securities ---
+        sec_query = """
+        SELECT COALESCE(SUM(p.shares * p.price), 0) as value,
+               COALESCE(SUM(p.shares * COALESCE(p.cost_basis, p.price)), 0) as cost,
+               COUNT(p.id) as count
+        FROM positions p JOIN accounts a ON p.account_id = a.id
+        WHERE a.user_id = :user_id
+        """
+        sec_res = await database.fetch_one(sec_query, {"user_id": user_id})
+        if sec_res:
+            total_value += float(sec_res["value"])
+            total_cost_basis += float(sec_res["cost"])
+            total_positions += sec_res["count"]
+            asset_summaries.append(PortfolioAssetSummary(asset_type="Securities", total_value=float(sec_res["value"]), total_cost_basis=float(sec_res["cost"]), count=sec_res["count"]))
+
+
+        # --- 2. Crypto ---
+        cry_query = """
+        SELECT COALESCE(SUM(cp.quantity * cp.current_price), 0) as value,
+               COALESCE(SUM(cp.quantity * cp.purchase_price), 0) as cost,
+               COUNT(cp.id) as count
+        FROM crypto_positions cp JOIN accounts a ON cp.account_id = a.id
+        WHERE a.user_id = :user_id
+        """
+        cry_res = await database.fetch_one(cry_query, {"user_id": user_id})
+        if cry_res:
+             total_value += float(cry_res["value"])
+             total_cost_basis += float(cry_res["cost"])
+             total_positions += cry_res["count"]
+             asset_summaries.append(PortfolioAssetSummary(asset_type="Crypto", total_value=float(cry_res["value"]), total_cost_basis=float(cry_res["cost"]), count=cry_res["count"]))
+
+        # --- 3. Metals ---
+        # Note: Requires accurate current_price_per_unit logic for metals
+        met_query = """
+        SELECT COALESCE(SUM(mp.quantity * mp.current_price_per_unit), 0) as value, -- Requires current_price_per_unit
+               COALESCE(SUM(mp.quantity * COALESCE(mp.cost_basis, mp.purchase_price)), 0) as cost,
+               COUNT(mp.id) as count
+        FROM metal_positions mp JOIN accounts a ON mp.account_id = a.id
+        WHERE a.user_id = :user_id
+        """
+        # Need to fetch/update mp.current_price_per_unit before this query or join with a prices table
+        met_res = await database.fetch_one(met_query, {"user_id": user_id})
+        if met_res:
+            total_value += float(met_res["value"])
+            total_cost_basis += float(met_res["cost"])
+            total_positions += met_res["count"]
+            asset_summaries.append(PortfolioAssetSummary(asset_type="Metals", total_value=float(met_res["value"]), total_cost_basis=float(met_res["cost"]), count=met_res["count"]))
+
+
+        # --- 4. Real Estate ---
+        re_query = """
+        SELECT COALESCE(SUM(re.estimated_value), 0) as value,
+               COALESCE(SUM(re.purchase_price), 0) as cost,
+               COUNT(re.id) as count
+        FROM real_estate_positions re JOIN accounts a ON re.account_id = a.id
+        WHERE a.user_id = :user_id
+        """
+        re_res = await database.fetch_one(re_query, {"user_id": user_id})
+        if re_res:
+            total_value += float(re_res["value"])
+            total_cost_basis += float(re_res["cost"])
+            total_positions += re_res["count"]
+            asset_summaries.append(PortfolioAssetSummary(asset_type="Real Estate", total_value=float(re_res["value"]), total_cost_basis=float(re_res["cost"]), count=re_res["count"]))
+
+        # --- Calculate Final Metrics ---
+        total_gain_loss = total_value - total_cost_basis
+        total_gain_loss_percent = (total_gain_loss / total_cost_basis) * 100 if total_cost_basis > 0 else 0
+
+        # Count distinct accounts involved
+        acc_query = """SELECT COUNT(DISTINCT a.id) as count FROM accounts a WHERE a.user_id = :user_id"""
+        acc_res = await database.fetch_one(acc_query, {"user_id": user_id})
+        total_accounts = acc_res["count"] if acc_res else 0
+
+        return PortfolioSummaryAllResponse(
+            total_value=total_value,
+            total_cost_basis=total_cost_basis,
+            total_gain_loss=total_gain_loss,
+            total_gain_loss_percent=total_gain_loss_percent,
+            total_positions=total_positions,
+            total_accounts=total_accounts,
+            breakdown=asset_summaries
+        )
+
+    except Exception as e:
+        logger.error(f"Error generating portfolio summary all for user {user_id}: {str(e)}")
+        import traceback
+        logger.error(traceback.format_exc())
+        raise HTTPException(status_code=500, detail="Failed to generate portfolio summary")
+
 @app.get("/portfolio/summary")
 async def get_portfolio_summary(current_user: dict = Depends(get_current_user)):
     try:
