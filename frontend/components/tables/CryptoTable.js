@@ -1,6 +1,6 @@
 // nestegg/frontend/components/tables/CryptoTable.js
 import React, { useState, useEffect, useMemo } from 'react';
-import { fetchAllCryptoWithDetails } from '@/utils/apimethods/PositionMethods';
+import { fetchAllCryptoWithDetails } from '@/utils/apimethods/positionMethods';
 import CryptoDetailModal from '@/components/modals/CryptoDetailModal';
 // Import other modals if testing edit/delete flow
 import { Bitcoin, Settings, Trash, TrendingUp, TrendingDown, Loader, Info, Search, SlidersHorizontal } from 'lucide-react'; // Use Crypto icon

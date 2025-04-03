@@ -1,6 +1,6 @@
 // nestegg/frontend/components/tables/SecurityTableAccount.js
 import React, { useState, useEffect, useMemo } from 'react';
-import { fetchAllPositionsWithDetails } from '@/utils/apimethods/PositionMethods';
+import { fetchAllPositionsWithDetails } from '@/utils/apimethods/positionMethods';
 import PositionDetailModal from '@/components/modals/PositionDetailModal';
 // Import other modals if testing edit/delete flow
 // import SecurityPositionModal from '@/components/modals/SecurityPositionModal';

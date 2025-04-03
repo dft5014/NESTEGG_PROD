@@ -1,6 +1,6 @@
 // components/tables/MetalsTable.js
 import React, { useState, useEffect, useMemo } from 'react';
-import { fetchAllMetalsWithDetails } from '@/utils/apimethods/PositionMethods';
+import { fetchAllMetalsWithDetails } from '@/utils/apimethods/positionMethods';
 import MetalDetailModal from '@/components/modals/MetalDetailModal';
 import { Gem, Settings, Trash, Loader, Info, Search, SlidersHorizontal } from 'lucide-react';
 import { formatCurrency, formatDate, formatNumber } from '@/utils/formatters';

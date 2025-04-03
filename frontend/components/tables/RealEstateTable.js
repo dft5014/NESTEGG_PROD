@@ -1,6 +1,6 @@
 // components/tables/RealEstateTable.js
 import React, { useState, useEffect, useMemo } from 'react';
-import { fetchAllRealEstateWithDetails } from '@/utils/apimethods/PositionMethods';
+import { fetchAllRealEstateWithDetails } from '@/utils/apimethods/positionMethods';
 import RealEstateDetailModal from '@/components/modals/RealEstateDetailModal';
 import { Home, Settings, Trash, Loader, Info, Search, SlidersHorizontal } from 'lucide-react'; // Use relevant icons
 import { formatCurrency, formatDate } from '@/utils/formatters';
