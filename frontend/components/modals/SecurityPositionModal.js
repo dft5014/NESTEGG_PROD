@@ -338,18 +338,21 @@ const SecurityPositionModal = ({ isOpen, onClose, accountId, onPositionSaved, po
       isOpen={isOpen}
       onClose={onClose}
       title={`${isEditMode ? 'Edit' : 'Add'} Security Position`}
-    >
+    >  
+      <form onSubmit={(e) => handleSubmit(e, false)} className="space-y-4">
       {/* Account Badge at the top */}
       {accountName && (
-        <div className="mb-4">
-          <div className="inline-flex items-center px-3 py-1.5 bg-blue-100 text-blue-800 rounded-full text-sm font-medium shadow-sm">
-            <Tag className="w-4 h-4 mr-1.5" />
-            {accountName}
+        <div className="mb-4 bg-blue-50 p-3 rounded-lg border border-blue-200">
+          <div className="flex items-center">
+            <Tag className="h-5 w-5 text-blue-600 mr-2" />
+            <span className="font-medium text-blue-800">
+              Adding to: {accountName}
+            </span>
           </div>
         </div>
       )}
-      
-      <form onSubmit={(e) => handleSubmit(e, false)} className="space-y-4">
+
+
         {/* Ticker/Security Search */}
         <div className="relative">
           <label className="block text-sm font-medium text-gray-700 mb-1">
