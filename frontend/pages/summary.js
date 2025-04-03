@@ -5,7 +5,7 @@ import CryptoTable from '@/components/tables/CryptoTable';
 import MetalsTable from '@/components/tables/MetalsTable';
 import RealEstateTable from '@/components/tables/RealEstateTable';
 import KpiCard from '@/components/ui/KpiCard'; // Import the KPI Card
-import { fetchPortfolioSummary } from '@/utils/apimethods/PositionMethods'; // Import summary fetch
+import { fetchPortfolioSummary } from '@/utils/apimethods/positionMethods'; // Import summary fetch
 import { formatCurrency, formatPercentage } from '@/utils/formatters';
 import { DollarSign, BarChart4, Users, TrendingUp, TrendingDown, Percent } from 'lucide-react'; // Import icons
 
