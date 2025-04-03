@@ -1,6 +1,7 @@
 // nestegg/frontend/pages/test123.js
 import React from 'react';
-import TestSecurityTableAccount from '@/components/tables/TestSecurityTableAccount'; // Import the new TEST table component
+import TestSecurityTableAccount from '@/components/tables/TestSecurityTableAccount'; // Import the TEST security table
+import TestCryptoTable from '@/components/tables/TestCryptoTable'; // Import the NEW TEST crypto table
 // You might want to wrap this in your standard Layout component if you have one
 // import Layout from '@/components/Layout';
 
@@ -12,11 +13,18 @@ export default function Test123Page() {
         <div className="container mx-auto">
           <header className="mb-8">
              <h1 className="text-3xl font-bold">Positions Table Test Page</h1>
-             <p className="text-gray-400 mt-2">This page uses isolated components (`TestSecurityTableAccount`, `testPositionMethods`) to replicate the positions table.</p>
+             <p className="text-gray-400 mt-2">This page uses isolated components to replicate position tables.</p>
           </header>
 
-          {/* Render the new, self-contained table component */}
-          <TestSecurityTableAccount />
+          {/* Render the security table component */}
+          <div className="mb-12"> {/* Add some margin between tables */}
+             <TestSecurityTableAccount />
+          </div>
+
+          {/* Render the NEW crypto table component */}
+           <div>
+             <TestCryptoTable />
+           </div>
 
         </div>
       </div>

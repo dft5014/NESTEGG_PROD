@@ -342,6 +342,34 @@ class PositionDetail(BaseModel):
 class PositionsDetailedResponse(BaseModel):
     positions: List[PositionDetail]
 
+class CryptoPositionDetail(BaseModel):
+    id: int
+    account_id: int
+    coin_type: Optional[str] = None
+    coin_symbol: Optional[str] = None
+    quantity: Optional[float] = None
+    purchase_price: Optional[float] = None
+    current_price: Optional[float] = None
+    purchase_date: Optional[date] = None
+    storage_type: Optional[str] = None
+    exchange_name: Optional[str] = None
+    wallet_address: Optional[str] = None
+    notes: Optional[str] = None
+    tags: Optional[List[str]] = None # Assuming stored as array/list
+    is_favorite: Optional[bool] = None
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+    # Added fields
+    account_name: str
+    total_value: float # Calculated field
+    gain_loss: Optional[float] = None # Calculated field
+    gain_loss_percent: Optional[float] = None # Calculated field
+
+
+class CryptoPositionsDetailedResponse(BaseModel):
+    crypto_positions: List[CryptoPositionDetail]
+
+
 # API Endpoints
 @app.get("/")
 async def read_root():
@@ -866,6 +894,94 @@ async def get_all_detailed_positions(current_user: dict = Depends(get_current_us
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to fetch detailed positions: {str(e)}"
+        )
+
+@app.get("/crypto/all/detailed", response_model=CryptoPositionsDetailedResponse)
+async def get_all_detailed_crypto_positions(current_user: dict = Depends(get_current_user)):
+    """
+    Fetch all crypto positions for the logged-in user,
+    enriched with account details (like account_name).
+    """
+    try:
+        user_id = current_user["id"]
+        logger.info(f"Fetching all detailed crypto positions for user_id: {user_id}")
+
+        # SQL Query joining crypto_positions and accounts
+        # Adjust column names if your crypto_positions table schema is different
+        query = """
+        SELECT
+            cp.id, cp.account_id, cp.coin_type, cp.coin_symbol, cp.quantity,
+            cp.purchase_price, cp.current_price, cp.purchase_date,
+            cp.storage_type, cp.exchange_name, cp.wallet_address, cp.notes,
+            cp.tags, cp.is_favorite, cp.created_at, cp.updated_at,
+            a.account_name
+        FROM crypto_positions cp
+        JOIN accounts a ON cp.account_id = a.id
+        WHERE a.user_id = :user_id
+        ORDER BY a.account_name, cp.coin_type, cp.coin_symbol
+        """
+
+        results = await database.fetch_all(query=query, values={"user_id": user_id})
+
+        crypto_positions_list = []
+        for row in results:
+            row_dict = dict(row)
+
+            # Calculate derived values
+            quantity = float(row_dict.get("quantity") or 0)
+            current_price = float(row_dict.get("current_price") or 0)
+            purchase_price = float(row_dict.get("purchase_price") or 0)
+            total_value = quantity * current_price
+            gain_loss = total_value - (quantity * purchase_price)
+            gain_loss_percent = ((current_price / purchase_price) - 1) * 100 if purchase_price and purchase_price > 0 else 0
+
+            # Parse tags if stored as string representation of list/array
+            tags_list = row_dict.get("tags")
+            # Example simple parsing (adjust if stored differently, e.g., JSON string)
+            if isinstance(tags_list, str) and tags_list.startswith('{') and tags_list.endswith('}'):
+                 try:
+                    # Assuming PostgreSQL array string like '{tag1,tag2}'
+                    tags_list = [tag.strip('" ') for tag in tags_list[1:-1].split(',') if tag.strip()]
+                 except Exception:
+                    tags_list = [] # Fallback if parsing fails
+            elif not isinstance(tags_list, list):
+                tags_list = []
+
+
+            crypto_detail = CryptoPositionDetail(
+                id=row_dict["id"],
+                account_id=row_dict["account_id"],
+                coin_type=row_dict.get("coin_type"),
+                coin_symbol=row_dict.get("coin_symbol"),
+                quantity=quantity,
+                purchase_price=purchase_price,
+                current_price=current_price,
+                purchase_date=row_dict.get("purchase_date"),
+                storage_type=row_dict.get("storage_type"),
+                exchange_name=row_dict.get("exchange_name"),
+                wallet_address=row_dict.get("wallet_address"),
+                notes=row_dict.get("notes"),
+                tags=tags_list,
+                is_favorite=row_dict.get("is_favorite", False),
+                created_at=row_dict.get("created_at"),
+                updated_at=row_dict.get("updated_at"),
+                account_name=row_dict["account_name"],
+                total_value=total_value,
+                gain_loss=gain_loss,
+                gain_loss_percent=gain_loss_percent
+            )
+            crypto_positions_list.append(crypto_detail)
+
+        logger.info(f"Returning {len(crypto_positions_list)} detailed crypto positions for user_id: {user_id}")
+        return CryptoPositionsDetailedResponse(crypto_positions=crypto_positions_list)
+
+    except Exception as e:
+        logger.error(f"Error fetching all detailed crypto positions for user {user_id}: {str(e)}")
+        import traceback
+        logger.error(traceback.format_exc())
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to fetch detailed crypto positions: {str(e)}"
         )
 
 @app.get("/positions/{account_id}")
