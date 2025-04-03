@@ -84,14 +84,14 @@ const AccountDetailModal = ({
         <div className="fixed inset-0 z-[60] overflow-y-auto"> {/* Increased z-index */}
             <div className="flex items-center justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
                 {/* Background overlay */}
-                <div className="fixed inset-0 transition-opacity z-[61]" aria-hidden="true" onClick={onClose}>
+                <div className="fixed inset-0 transition-opacity z-[1000]" aria-hidden="true" onClick={onClose}>
                     <div className="absolute inset-0 bg-black/80 backdrop-blur-sm"></div>
                 </div>
 
                 {/* Modal content */}
                 {/* Make sure modal content is above overlay */}
                 <span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
-                <div className="inline-block align-bottom bg-gray-800 rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-3xl md:max-w-4xl lg:max-w-5xl sm:w-full z-[62]">
+                <div className="inline-block align-bottom bg-gray-800 rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-3xl md:max-w-4xl lg:max-w-5xl sm:w-full z-[1010]">
                     {/* Header */}
                     <div className="flex justify-between items-start p-5 border-b border-gray-700 bg-gradient-to-r from-blue-900/80 to-blue-700/80">
                         <div className="flex items-center">
