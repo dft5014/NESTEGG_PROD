@@ -4,7 +4,7 @@ import { fetchAllCryptoWithDetails } from '@/utils/apimethods/testPositionMethod
 import TestCryptoDetailModal from '@/components/modals/TestCryptoDetailModal'; // Use the TEST crypto modal
 // Import other modals if testing edit/delete flow
 import { Bitcoin, Settings, Trash, TrendingUp, TrendingDown, Loader, Info, Search, SlidersHorizontal } from 'lucide-react'; // Use Crypto icon
-import { formatCurrency, formatDate, formatNumber } from '@/utils/formatting';
+import { formatCurrency, formatDate, formatNumber } from '@/utils/formatters';
 
 const TestCryptoTable = ({ initialSort = "total_value-high" }) => {
   const [positions, setPositions] = useState([]);
