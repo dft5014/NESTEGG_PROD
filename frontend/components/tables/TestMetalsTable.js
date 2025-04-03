@@ -3,7 +3,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { fetchAllMetalsWithDetails } from '@/utils/apimethods/testPositionMethods'; // Use TEST methods
 import TestMetalDetailModal from '@/components/modals/TestMetalDetailModal'; // Use TEST metal modal
 import { Gem, Settings, Trash, Loader, Info, Search, SlidersHorizontal } from 'lucide-react'; // Use relevant icons
-import { formatCurrency, formatDate, formatNumber } from '@/utils/formatting';
+import { formatCurrency, formatDate, formatNumber } from '@/utils/formatters';
 
 const TestMetalsTable = ({ initialSort = "total_value-high" }) => {
   const [positions, setPositions] = useState([]);
