@@ -97,3 +97,86 @@ export const fetchAllCryptoWithDetails = async () => {
       throw error;
     }
   };
+
+/**
+ * [TEST VERSION] Fetch all metal positions for the user, enriched with account details.
+ * Assumes a backend endpoint like '/metals/all/detailed' exists.
+ * @returns {Promise<Array>} - Promise resolving to an array of enriched metal position objects.
+ */
+export const fetchAllMetalsWithDetails = async () => {
+    console.log("Using testPositionMethods.fetchAllMetalsWithDetails");
+    try {
+      const response = await fetchWithAuth('/metals/all/detailed'); // Call the new metals endpoint
+  
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error("testPositionMethods (Metals) fetch error:", response.status, errorText);
+        throw new Error(`Failed to fetch all metal positions: ${response.status} ${errorText}`);
+      }
+  
+      const data = await response.json();
+  
+      // Assuming the backend returns data in the shape { metal_positions: [...] }
+      if (data && Array.isArray(data.metal_positions)) {
+         return data.metal_positions.map(pos => ({
+             ...pos,
+             // Ensure numeric types if necessary (Python endpoint should handle this with Pydantic)
+             quantity: parseFloat(pos.quantity || 0),
+             purchase_price: parseFloat(pos.purchase_price || 0),
+             cost_basis: parseFloat(pos.cost_basis || 0),
+             current_price_per_unit: parseFloat(pos.current_price_per_unit || 0),
+             total_value: parseFloat(pos.total_value || 0),
+             gain_loss: parseFloat(pos.gain_loss || 0),
+             gain_loss_percent: parseFloat(pos.gain_loss_percent || 0),
+             account_id: parseInt(pos.account_id || pos.accountId || 0),
+         }));
+      } else {
+         console.warn("fetchAllMetalsWithDetails: Unexpected data format received:", data);
+         return [];
+      }
+  
+    } catch (error) {
+      console.error('Error in testPositionMethods.fetchAllMetalsWithDetails:', error);
+      throw error;
+    }
+  };
+
+/**
+ * [TEST VERSION] Fetch all real estate positions for the user, enriched with account details.
+ * Assumes a backend endpoint like '/realestate/all/detailed' exists.
+ * @returns {Promise<Array>} - Promise resolving to an array of enriched real estate position objects.
+ */
+export const fetchAllRealEstateWithDetails = async () => {
+    console.log("Using testPositionMethods.fetchAllRealEstateWithDetails");
+    try {
+      const response = await fetchWithAuth('/realestate/all/detailed'); // Call the new real estate endpoint
+  
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error("testPositionMethods (Real Estate) fetch error:", response.status, errorText);
+        throw new Error(`Failed to fetch all real estate positions: ${response.status} ${errorText}`);
+      }
+  
+      const data = await response.json();
+  
+      // Assuming the backend returns data in the shape { real_estate_positions: [...] }
+      if (data && Array.isArray(data.real_estate_positions)) {
+         return data.real_estate_positions.map(pos => ({
+             ...pos,
+              // Ensure numeric types if necessary
+              purchase_price: parseFloat(pos.purchase_price || 0),
+              estimated_value: parseFloat(pos.estimated_value || 0),
+              gain_loss: parseFloat(pos.gain_loss || 0),
+              gain_loss_percent: parseFloat(pos.gain_loss_percent || 0),
+             account_id: parseInt(pos.account_id || pos.accountId || 0),
+         }));
+      } else {
+         console.warn("fetchAllRealEstateWithDetails: Unexpected data format received:", data);
+         return [];
+      }
+  
+    } catch (error) {
+      console.error('Error in testPositionMethods.fetchAllRealEstateWithDetails:', error);
+      throw error;
+    }
+  };

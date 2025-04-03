@@ -369,6 +369,48 @@ class CryptoPositionDetail(BaseModel):
 class CryptoPositionsDetailedResponse(BaseModel):
     crypto_positions: List[CryptoPositionDetail]
 
+class MetalPositionDetail(BaseModel):
+    id: int
+    account_id: int
+    metal_type: Optional[str] = None
+    quantity: Optional[float] = None
+    unit: Optional[str] = None
+    purity: Optional[str] = None
+    purchase_price: Optional[float] = None # Price per unit at purchase
+    cost_basis: Optional[float] = None # Cost per unit at purchase (might be same as purchase_price)
+    purchase_date: Optional[date] = None
+    storage_location: Optional[str] = None
+    description: Optional[str] = None
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+    # Added fields
+    account_name: str
+    current_price_per_unit: Optional[float] = None # Placeholder - Needs real data source
+    total_value: Optional[float] = None # Calculated field
+    gain_loss: Optional[float] = None # Calculated field
+    gain_loss_percent: Optional[float] = None # Calculated field
+
+class MetalPositionsDetailedResponse(BaseModel):
+    metal_positions: List[MetalPositionDetail]
+
+class RealEstatePositionDetail(BaseModel):
+    id: int
+    account_id: int
+    address: Optional[str] = None # Example field
+    property_type: Optional[str] = None # Example field (e.g., Residential, Commercial)
+    purchase_price: Optional[float] = None
+    estimated_value: Optional[float] = None # Current estimated market value
+    purchase_date: Optional[date] = None
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+    # Added fields
+    account_name: str
+    gain_loss: Optional[float] = None # Calculated
+    gain_loss_percent: Optional[float] = None # Calculated
+
+class RealEstatePositionsDetailedResponse(BaseModel):
+    real_estate_positions: List[RealEstatePositionDetail]
+
 
 # API Endpoints
 @app.get("/")
@@ -982,6 +1024,146 @@ async def get_all_detailed_crypto_positions(current_user: dict = Depends(get_cur
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to fetch detailed crypto positions: {str(e)}"
+        )
+
+@app.get("/metals/all/detailed", response_model=MetalPositionsDetailedResponse)
+async def get_all_detailed_metal_positions(current_user: dict = Depends(get_current_user)):
+    """
+    Fetch all metal positions for the logged-in user,
+    enriched with account details (like account_name).
+    """
+    try:
+        user_id = current_user["id"]
+        logger.info(f"Fetching all detailed metal positions for user_id: {user_id}")
+
+        # *** Make sure 'metal_positions' is the correct table name ***
+        query = """
+        SELECT
+            mp.id, mp.account_id, mp.metal_type, mp.quantity, mp.unit, mp.purity,
+            mp.purchase_price, mp.cost_basis, mp.purchase_date, mp.storage_location,
+            mp.description, mp.created_at, mp.updated_at,
+            a.account_name
+        FROM metal_positions mp
+        JOIN accounts a ON mp.account_id = a.id
+        WHERE a.user_id = :user_id
+        ORDER BY a.account_name, mp.metal_type
+        """
+
+        results = await database.fetch_all(query=query, values={"user_id": user_id})
+
+        metal_positions_list = []
+        for row in results:
+            row_dict = dict(row)
+            quantity = float(row_dict.get("quantity") or 0)
+            purchase_price = float(row_dict.get("purchase_price") or 0)
+            cost_basis_per_unit = float(row_dict.get("cost_basis") or purchase_price) # Use purchase price if cost basis null
+
+            # --- Placeholder for Current Metal Price ---
+            # TODO: Implement logic to fetch the current spot price for row_dict["metal_type"]
+            # This might involve another table lookup or an external API call.
+            # For testing, we can use purchase price as a placeholder.
+            current_price_per_unit = purchase_price # Replace with actual current price logic
+            # --- End Placeholder ---
+
+            total_value = quantity * current_price_per_unit
+            total_cost = quantity * cost_basis_per_unit
+            gain_loss = total_value - total_cost
+            gain_loss_percent = ((current_price_per_unit / cost_basis_per_unit) - 1) * 100 if cost_basis_per_unit and cost_basis_per_unit > 0 else 0
+
+            metal_detail = MetalPositionDetail(
+                id=row_dict["id"],
+                account_id=row_dict["account_id"],
+                metal_type=row_dict.get("metal_type"),
+                quantity=quantity,
+                unit=row_dict.get("unit"),
+                purity=row_dict.get("purity"),
+                purchase_price=purchase_price,
+                cost_basis=cost_basis_per_unit,
+                purchase_date=row_dict.get("purchase_date"),
+                storage_location=row_dict.get("storage_location"),
+                description=row_dict.get("description"),
+                created_at=row_dict.get("created_at"),
+                updated_at=row_dict.get("updated_at"),
+                account_name=row_dict["account_name"],
+                current_price_per_unit=current_price_per_unit, # Include fetched/placeholder price
+                total_value=total_value,
+                gain_loss=gain_loss,
+                gain_loss_percent=gain_loss_percent
+            )
+            metal_positions_list.append(metal_detail)
+
+        logger.info(f"Returning {len(metal_positions_list)} detailed metal positions for user_id: {user_id}")
+        return MetalPositionsDetailedResponse(metal_positions=metal_positions_list)
+
+    except Exception as e:
+        logger.error(f"Error fetching all detailed metal positions for user {user_id}: {str(e)}")
+        import traceback
+        logger.error(traceback.format_exc())
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to fetch detailed metal positions: {str(e)}"
+        )
+
+@app.get("/realestate/all/detailed", response_model=RealEstatePositionsDetailedResponse)
+async def get_all_detailed_realestate_positions(current_user: dict = Depends(get_current_user)):
+    """
+    Fetch all real estate positions for the logged-in user,
+    enriched with account details (like account_name).
+    """
+    try:
+        user_id = current_user["id"]
+        logger.info(f"Fetching all detailed real estate positions for user_id: {user_id}")
+
+        # *** Make sure 'real_estate_positions' is the correct table name & columns ***
+        query = """
+        SELECT
+            re.id, re.account_id, re.address, re.property_type,
+            re.purchase_price, re.estimated_value, re.purchase_date,
+            re.created_at, re.updated_at,
+            a.account_name
+        FROM real_estate_positions re  -- Use alias 're'
+        JOIN accounts a ON re.account_id = a.id
+        WHERE a.user_id = :user_id
+        ORDER BY a.account_name, re.address
+        """
+
+        results = await database.fetch_all(query=query, values={"user_id": user_id})
+
+        real_estate_positions_list = []
+        for row in results:
+            row_dict = dict(row)
+            purchase_price = float(row_dict.get("purchase_price") or 0)
+            estimated_value = float(row_dict.get("estimated_value") or purchase_price) # Default to purchase price if no estimate
+
+            gain_loss = estimated_value - purchase_price
+            gain_loss_percent = ((estimated_value / purchase_price) - 1) * 100 if purchase_price and purchase_price > 0 else 0
+
+            realestate_detail = RealEstatePositionDetail(
+                id=row_dict["id"],
+                account_id=row_dict["account_id"],
+                address=row_dict.get("address"),
+                property_type=row_dict.get("property_type"),
+                purchase_price=purchase_price,
+                estimated_value=estimated_value,
+                purchase_date=row_dict.get("purchase_date"),
+                created_at=row_dict.get("created_at"),
+                updated_at=row_dict.get("updated_at"),
+                account_name=row_dict["account_name"],
+                gain_loss=gain_loss,
+                gain_loss_percent=gain_loss_percent
+            )
+            real_estate_positions_list.append(realestate_detail)
+
+        logger.info(f"Returning {len(real_estate_positions_list)} detailed real estate positions for user_id: {user_id}")
+        return RealEstatePositionsDetailedResponse(real_estate_positions=real_estate_positions_list)
+
+    except Exception as e:
+        logger.error(f"Error fetching all detailed real estate positions for user {user_id}: {str(e)}")
+        import traceback
+        logger.error(traceback.format_exc())
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to fetch detailed real estate positions: {str(e)}"
         )
 
 @app.get("/positions/{account_id}")
