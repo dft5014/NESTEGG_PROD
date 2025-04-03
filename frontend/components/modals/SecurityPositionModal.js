@@ -339,11 +339,11 @@ const SecurityPositionModal = ({ isOpen, onClose, accountId, onPositionSaved, po
       onClose={onClose}
       title={`${isEditMode ? 'Edit' : 'Add'} Security Position`}
     >
-      {/* Account Badge */}
+      {/* Account Badge - Top Right Corner */}
       {accountName && (
-        <div className="mb-4">
-          <div className="inline-flex items-center px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm">
-            <Tag className="w-4 h-4 mr-2" />
+        <div className="absolute top-4 right-12">
+          <div className="inline-flex items-center px-3 py-1.5 bg-blue-100 text-blue-800 rounded-full text-sm font-medium shadow-sm">
+            <Tag className="w-4 h-4 mr-1.5" />
             {accountName}
           </div>
         </div>
@@ -422,21 +422,48 @@ const SecurityPositionModal = ({ isOpen, onClose, accountId, onPositionSaved, po
             
             {/* Additional Details */}
             {securityDetails && (
-              <div className="grid grid-cols-3 gap-4 mt-3 pt-3 border-t border-blue-200">
-                <div className="text-center">
-                  <div className="text-xs text-gray-500">Market Cap</div>
-                  <div className="font-medium text-blue-800">{formatMarketCap(securityDetails.market_cap)}</div>
+              <div className="mt-3 pt-3 border-t border-blue-200">
+                <div className="grid grid-cols-3 gap-4 mb-2">
+                  <div className="text-center">
+                    <div className="text-xs text-gray-500">Market Cap</div>
+                    <div className="font-medium text-blue-800">{formatMarketCap(securityDetails.market_cap)}</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-xs text-gray-500">P/E Ratio</div>
+                    <div className="font-medium text-blue-800">{securityDetails.pe_ratio ? securityDetails.pe_ratio.toFixed(2) : 'N/A'}</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-xs text-gray-500">Dividend Yield</div>
+                    <div className="font-medium text-blue-800">
+                      {securityDetails.dividend_yield 
+                        ? `${(securityDetails.dividend_yield * 100).toFixed(2)}%` 
+                        : 'N/A'}
+                    </div>
+                  </div>
                 </div>
-                <div className="text-center">
-                  <div className="text-xs text-gray-500">P/E Ratio</div>
-                  <div className="font-medium text-blue-800">{securityDetails.pe_ratio ? securityDetails.pe_ratio.toFixed(2) : 'N/A'}</div>
-                </div>
-                <div className="text-center">
-                  <div className="text-xs text-gray-500">Dividend Yield</div>
-                  <div className="font-medium text-blue-800">
-                    {securityDetails.dividend_yield 
-                      ? `${(securityDetails.dividend_yield * 100).toFixed(2)}%` 
-                      : 'N/A'}
+                
+                <div className="grid grid-cols-3 gap-4">
+                  <div className="text-center">
+                    <div className="text-xs text-gray-500">52w High</div>
+                    <div className="font-medium text-blue-800">
+                      ${securityDetails.fifty_two_week_high?.toFixed(2) || 'N/A'}
+                    </div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-xs text-gray-500">52w Low</div>
+                    <div className="font-medium text-blue-800">
+                      ${securityDetails.fifty_two_week_low?.toFixed(2) || 'N/A'}
+                    </div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-xs text-gray-500">Avg Volume</div>
+                    <div className="font-medium text-blue-800">
+                      {securityDetails.avg_volume 
+                        ? (securityDetails.avg_volume >= 1000000 
+                            ? `${(securityDetails.avg_volume / 1000000).toFixed(1)}M` 
+                            : `${(securityDetails.avg_volume / 1000).toFixed(0)}K`)
+                        : 'N/A'}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -549,6 +576,65 @@ const SecurityPositionModal = ({ isOpen, onClose, accountId, onPositionSaved, po
               max={new Date().toISOString().split('T')[0]}
               required
             />
+          </div>
+          
+          {/* Date Helper Buttons */}
+          <div className="flex flex-wrap gap-2 mt-2">
+            <button
+              type="button"
+              onClick={() => {
+                const date = new Date();
+                date.setFullYear(date.getFullYear() - 1);
+                setPurchaseDate(date.toISOString().split('T')[0]);
+              }}
+              className="px-2 py-1 text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 rounded transition-colors"
+            >
+              1yr ago
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                const date = new Date();
+                date.setFullYear(date.getFullYear() - 2);
+                setPurchaseDate(date.toISOString().split('T')[0]);
+              }}
+              className="px-2 py-1 text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 rounded transition-colors"
+            >
+              2yr ago
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                const date = new Date();
+                date.setMonth(date.getMonth() - 9);
+                setPurchaseDate(date.toISOString().split('T')[0]);
+              }}
+              className="px-2 py-1 text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 rounded transition-colors"
+            >
+              9mo ago
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                const date = new Date();
+                date.setMonth(date.getMonth() - 6);
+                setPurchaseDate(date.toISOString().split('T')[0]);
+              }}
+              className="px-2 py-1 text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 rounded transition-colors"
+            >
+              6mo ago
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                const date = new Date();
+                date.setMonth(date.getMonth() - 3);
+                setPurchaseDate(date.toISOString().split('T')[0]);
+              }}
+              className="px-2 py-1 text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 rounded transition-colors"
+            >
+              3mo ago
+            </button>
           </div>
         </div>
         
