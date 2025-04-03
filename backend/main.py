@@ -326,6 +326,22 @@ class MetalPositionUpdate(BaseModel):
     storage_location: Optional[str] = None
     description: Optional[str] = None
 
+class PositionDetail(BaseModel):
+    id: int
+    account_id: int
+    ticker: str
+    shares: float
+    price: float
+    cost_basis: Optional[float] = None
+    purchase_date: Optional[date] = None
+    date: Optional[datetime] = None # Or Optional[str] if you prefer ISO strings from backend
+    # Added fields from JOIN
+    account_name: str
+    value: float # Calculated field
+
+class PositionsDetailedResponse(BaseModel):
+    positions: List[PositionDetail]
+
 # API Endpoints
 @app.get("/")
 async def read_root():
@@ -783,6 +799,75 @@ async def delete_account(account_id: int, current_user: dict = Depends(get_curre
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Server error: {str(e)}")
 
 # Position Management
+@app.get("/positions/all/detailed", response_model=PositionsDetailedResponse)
+async def get_all_detailed_positions(current_user: dict = Depends(get_current_user)):
+    """
+    Fetch all security positions for the logged-in user,
+    enriched with account details (like account_name).
+    """
+    try:
+        user_id = current_user["id"]
+        logger.info(f"Fetching all detailed positions for user_id: {user_id}")
+
+        # Construct the JOIN query using SQLAlchemy core
+        query = select(
+            positions.c.id,
+            positions.c.account_id,
+            positions.c.ticker,
+            positions.c.shares,
+            positions.c.price,
+            positions.c.cost_basis,
+            positions.c.purchase_date,
+            positions.c.date,
+            accounts.c.account_name  # Get the account name via JOIN
+        ).select_from(
+            positions.join(accounts, positions.c.account_id == accounts.c.id)
+        ).where(
+            accounts.c.user_id == user_id
+        ).order_by(
+            accounts.c.account_name, positions.c.ticker # Optional ordering
+        )
+
+        results = await database.fetch_all(query)
+
+        positions_list = []
+        for row in results:
+            row_dict = dict(row) # Convert RowProxy to dict
+
+            # Calculate value
+            value = (row_dict.get("shares") or 0) * (row_dict.get("price") or 0)
+
+            # Ensure cost_basis fallback if null
+            cost_basis = row_dict.get("cost_basis")
+            if cost_basis is None:
+                cost_basis = row_dict.get("price") # Fallback to current price
+
+            position_detail = PositionDetail(
+                id=row_dict["id"],
+                account_id=row_dict["account_id"],
+                ticker=row_dict["ticker"],
+                shares=float(row_dict.get("shares") or 0),
+                price=float(row_dict.get("price") or 0),
+                cost_basis=float(cost_basis or 0),
+                purchase_date=row_dict.get("purchase_date"), # Already a date object or None
+                date=row_dict.get("date"), # Already a datetime object or None
+                account_name=row_dict["account_name"],
+                value=float(value or 0)
+            )
+            positions_list.append(position_detail)
+
+        logger.info(f"Returning {len(positions_list)} detailed positions for user_id: {user_id}")
+        return PositionsDetailedResponse(positions=positions_list)
+
+    except Exception as e:
+        logger.error(f"Error fetching all detailed positions for user {user_id}: {str(e)}")
+        import traceback
+        logger.error(traceback.format_exc())
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to fetch detailed positions: {str(e)}"
+        )
+
 @app.get("/positions/{account_id}")
 async def get_positions(account_id: int, current_user: dict = Depends(get_current_user)):
     try:

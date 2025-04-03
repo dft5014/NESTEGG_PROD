@@ -190,6 +190,10 @@ const Sidebar = () => {
                 <Settings size={24} className={iconClasses} />
                 {!sidebarCollapsed && <span>Test Combined</span>}
               </Link>
+              <Link href="/test123" className={menuItemClasses(isActive('/test-combined'))}>
+                <Settings size={24} className={iconClasses} />
+                {!sidebarCollapsed && <span>Test 123</span>}
+              </Link>
             </div>
           </div>
         </nav>
