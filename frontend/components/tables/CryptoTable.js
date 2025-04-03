@@ -180,7 +180,7 @@ const CryptoTable = ({ initialSort = "total_value-high" }) => {
       </div>
 
       {/* Render the Detail Modal */}
-      <TestCryptoDetailModal
+      <CryptoDetailModal
         isOpen={isDetailModalOpen}
         onClose={() => setIsDetailModalOpen(false)}
         position={selectedPositionDetail}
