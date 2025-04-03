@@ -1,7 +1,7 @@
-// nestegg/frontend/components/tables/TestSecurityTableAccount.js
+// nestegg/frontend/components/tables/SecurityTableAccount.js
 import React, { useState, useEffect, useMemo } from 'react';
-import { fetchAllPositionsWithDetails } from '@/utils/apimethods/testPositionMethods'; // Use the TEST API methods
-import TestPositionDetailModal from '@/components/modals/TestPositionDetailModal'; // Use the TEST detail modal
+import { fetchAllPositionsWithDetails } from '@/utils/apimethods/PositionMethods';
+import PositionDetailModal from '@/components/modals/PositionDetailModal';
 // Import other modals if testing edit/delete flow
 // import SecurityPositionModal from '@/components/modals/SecurityPositionModal';
 // import DeleteConfirmationModal from '@/components/modals/DeleteConfirmationModal';
@@ -19,7 +19,7 @@ const calculateGainLoss = (position) => {
   return { gainLossAmount, gainLossPercent };
 };
 
-const TestSecurityTableAccount = ({ initialSort = "value-high" }) => {
+const SecurityTableAccount = ({ initialSort = "value-high" }) => {
   const [positions, setPositions] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -40,15 +40,15 @@ const TestSecurityTableAccount = ({ initialSort = "value-high" }) => {
 
   // Fetch data
   const fetchData = async () => {
-    console.log("TestSecurityTableAccount: Fetching data...");
+    console.log("SecurityTableAccount: Fetching data...");
     setIsLoading(true);
     setError(null);
     try {
-      const fetchedPositions = await fetchAllPositionsWithDetails(); // Using test method
-      console.log("TestSecurityTableAccount: Data received:", fetchedPositions);
+      const fetchedPositions = await fetchAllPositionsWithDetails();
+      console.log("SecurityTableAccount: Data received:", fetchedPositions);
       setPositions(fetchedPositions);
     } catch (err) {
-      console.error("TestSecurityTableAccount fetch error:", err);
+      console.error("SecurityTableAccount fetch error:", err);
       setError(err.message || "Failed to load positions.");
     } finally {
       setIsLoading(false);
@@ -140,7 +140,7 @@ const TestSecurityTableAccount = ({ initialSort = "value-high" }) => {
            <div className="flex flex-wrap justify-between items-center p-4 border-b border-gray-700 gap-4">
               <h2 className="text-xl font-semibold flex items-center whitespace-nowrap">
                 <BarChart4 className="w-5 h-5 mr-2 text-purple-400" />
-                Test Positions Table
+                Positions Table
               </h2>
                <div className='flex flex-wrap items-center gap-4'>
                  <div className="relative flex-grow sm:flex-grow-0">
@@ -272,7 +272,7 @@ const TestSecurityTableAccount = ({ initialSort = "value-high" }) => {
       </div>
 
       {/* Render the Test Detail Modal */}
-      <TestPositionDetailModal
+      <PositionDetailModal
         isOpen={isDetailModalOpen}
         onClose={() => setIsDetailModalOpen(false)}
         position={selectedPositionDetail}
@@ -288,4 +288,4 @@ const TestSecurityTableAccount = ({ initialSort = "value-high" }) => {
   );
 };
 
-export default TestSecurityTableAccount;
+export default SecurityTableAccount;

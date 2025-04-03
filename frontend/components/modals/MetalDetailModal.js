@@ -1,9 +1,9 @@
-// components/modals/TestMetalDetailModal.js
+// components/modals/MetalDetailModal.js
 import React from 'react';
 import { X, Settings, Trash, Tag, Box, Warehouse, Scale, Gem, Percent } from 'lucide-react'; // Add relevant icons
 import { formatCurrency, formatDate, formatNumber } from '@/utils/formatters';
 
-const TestMetalDetailModal = ({ isOpen, onClose, position, onEdit, onDelete }) => {
+const MetalDetailModal = ({ isOpen, onClose, position, onEdit, onDelete }) => {
   if (!isOpen || !position) return null;
 
   const {
@@ -79,7 +79,7 @@ const TestMetalDetailModal = ({ isOpen, onClose, position, onEdit, onDelete }) =
   );
 };
 
-// Helper components (reuse from TestCryptoDetailModal or define here)
+// Helper components (reuse from CryptoDetailModal or define here)
 const MetricCard = ({ label, value, isPositive = null, isNegative = null }) => (
   <div className="bg-gray-700 rounded-lg p-3">
     <div className="text-gray-400 text-xs mb-1 uppercase tracking-wider">{label}</div>
@@ -90,4 +90,4 @@ const DetailItem = ({ label, value, icon = null, children = null }) => (
     <div> <div className="text-gray-400 text-xs uppercase tracking-wider flex items-center">{icon}{label}</div> {value && <div className="font-medium text-white break-words">{value}</div>} {children} </div>
 );
 
-export default TestMetalDetailModal;
+export default MetalDetailModal;

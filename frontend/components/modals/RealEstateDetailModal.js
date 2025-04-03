@@ -1,9 +1,9 @@
-// components/modals/TestRealEstateDetailModal.js
+// components/modals/RealEstateDetailModal.js
 import React from 'react';
 import { X, Home, Building, MapPin, DollarSign } from 'lucide-react'; // Add relevant icons
 import { formatCurrency, formatDate } from '@/utils/formatters';
 
-const TestRealEstateDetailModal = ({ isOpen, onClose, position, onEdit, onDelete }) => {
+const RealEstateDetailModal = ({ isOpen, onClose, position, onEdit, onDelete }) => {
   if (!isOpen || !position) return null;
 
   const { gain_loss = 0, gain_loss_percent = 0 } = position;
@@ -68,4 +68,4 @@ const TestRealEstateDetailModal = ({ isOpen, onClose, position, onEdit, onDelete
 const MetricCard = ({ label, value, isPositive = null, isNegative = null }) => ( <div className="bg-gray-700 rounded-lg p-3"><div className="text-gray-400 text-xs mb-1 uppercase tracking-wider">{label}</div><div className={`text-lg font-semibold truncate ${isPositive ? 'text-green-400' : isNegative ? 'text-red-400' : 'text-white'}`}>{value}</div></div> );
 const DetailItem = ({ label, value, icon = null, children = null }) => ( <div><div className="text-gray-400 text-xs uppercase tracking-wider flex items-center">{icon}{label}</div>{value && <div className="font-medium text-white break-words">{value}</div>}{children}</div> );
 
-export default TestRealEstateDetailModal;
+export default RealEstateDetailModal;

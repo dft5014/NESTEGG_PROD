@@ -1,12 +1,12 @@
-// nestegg/frontend/components/tables/TestCryptoTable.js
+// nestegg/frontend/components/tables/CryptoTable.js
 import React, { useState, useEffect, useMemo } from 'react';
-import { fetchAllCryptoWithDetails } from '@/utils/apimethods/testPositionMethods'; // Use the TEST API methods
-import TestCryptoDetailModal from '@/components/modals/TestCryptoDetailModal'; // Use the TEST crypto modal
+import { fetchAllCryptoWithDetails } from '@/utils/apimethods/PositionMethods';
+import CryptoDetailModal from '@/components/modals/CryptoDetailModal';
 // Import other modals if testing edit/delete flow
 import { Bitcoin, Settings, Trash, TrendingUp, TrendingDown, Loader, Info, Search, SlidersHorizontal } from 'lucide-react'; // Use Crypto icon
 import { formatCurrency, formatDate, formatNumber } from '@/utils/formatters';
 
-const TestCryptoTable = ({ initialSort = "total_value-high" }) => {
+const CryptoTable = ({ initialSort = "total_value-high" }) => {
   const [positions, setPositions] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -21,15 +21,15 @@ const TestCryptoTable = ({ initialSort = "total_value-high" }) => {
 
   // Fetch data
   const fetchData = async () => {
-    console.log("TestCryptoTable: Fetching data...");
+    console.log("CryptoTable: Fetching data...");
     setIsLoading(true);
     setError(null);
     try {
-      const fetchedPositions = await fetchAllCryptoWithDetails(); // Using crypto test method
-      console.log("TestCryptoTable: Data received:", fetchedPositions);
+      const fetchedPositions = await fetchAllCryptoWithDetails(); // Using crypto method
+      console.log("CryptoTable: Data received:", fetchedPositions);
       setPositions(fetchedPositions);
     } catch (err) {
-      console.error("TestCryptoTable fetch error:", err);
+      console.error("CryptoTable fetch error:", err);
       setError(err.message || "Failed to load crypto positions.");
     } finally {
       setIsLoading(false);
@@ -95,7 +95,7 @@ const TestCryptoTable = ({ initialSort = "total_value-high" }) => {
         {/* Header */}
         <div className="flex flex-wrap justify-between items-center p-4 border-b border-gray-700 gap-4">
           <h2 className="text-xl font-semibold flex items-center whitespace-nowrap">
-            <Bitcoin className="w-5 h-5 mr-2 text-yellow-400" /> Test Crypto Table
+            <Bitcoin className="w-5 h-5 mr-2 text-yellow-400" /> 
           </h2>
           {/* Controls */}
           <div className='flex flex-wrap items-center gap-4'>
@@ -193,4 +193,4 @@ const TestCryptoTable = ({ initialSort = "total_value-high" }) => {
   );
 };
 
-export default TestCryptoTable;
+export default CryptoTable;

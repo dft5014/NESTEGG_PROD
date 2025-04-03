@@ -1,4 +1,4 @@
-// nestegg/frontend/components/modals/TestPositionDetailModal.js
+// nestegg/frontend/components/modals/PositionDetailModal.js
 import React from 'react';
 import { X, Settings, Trash } from 'lucide-react';
 import { formatCurrency, formatDate } from '@/utils/formatters';
@@ -14,7 +14,7 @@ const calculateGainLoss = (position) => {
   return { gainLossAmount, gainLossPercent };
 };
 
-const TestPositionDetailModal = ({ isOpen, onClose, position, onEdit, onDelete }) => {
+const PositionDetailModal = ({ isOpen, onClose, position, onEdit, onDelete }) => {
   if (!isOpen || !position) return null;
 
   const { gainLossAmount, gainLossPercent } = calculateGainLoss(position);
@@ -126,4 +126,4 @@ const DetailItem = ({ label, value }) => (
   </div>
 );
 
-export default TestPositionDetailModal;
+export default PositionDetailModal;

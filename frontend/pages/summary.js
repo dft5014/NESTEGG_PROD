@@ -1,15 +1,15 @@
-// pages/test123.js
+// pages/summary.js
 import React, { useState, useEffect } from 'react';
-import TestSecurityTableAccount from '@/components/tables/TestSecurityTableAccount';
-import TestCryptoTable from '@/components/tables/TestCryptoTable';
-import TestMetalsTable from '@/components/tables/TestMetalsTable';
-import TestRealEstateTable from '@/components/tables/TestRealEstateTable';
+import SecurityTableAccount from '@/components/tables/SecurityTableAccount';
+import CryptoTable from '@/components/tables/CryptoTable';
+import MetalsTable from '@/components/tables/MetalsTable';
+import RealEstateTable from '@/components/tables/RealEstateTable';
 import KpiCard from '@/components/ui/KpiCard'; // Import the KPI Card
-import { fetchPortfolioSummary } from '@/utils/apimethods/testPositionMethods'; // Import summary fetch
+import { fetchPortfolioSummary } from '@/utils/apimethods/PositionMethods'; // Import summary fetch
 import { formatCurrency, formatPercentage } from '@/utils/formatters';
 import { DollarSign, BarChart4, Users, TrendingUp, TrendingDown, Percent } from 'lucide-react'; // Import icons
 
-export default function Test123Page() {
+export default function summary() {
   const [summaryData, setSummaryData] = useState(null);
   const [isSummaryLoading, setIsSummaryLoading] = useState(true);
   const [summaryError, setSummaryError] = useState(null);
@@ -40,8 +40,8 @@ export default function Test123Page() {
     <div className="min-h-screen bg-gradient-to-br from-gray-900 to-blue-900 text-white p-4 md:p-8">
       <div className="container mx-auto">
         <header className="mb-8">
-           <h1 className="text-3xl font-bold">Positions Table Test Page</h1>
-           <p className="text-gray-400 mt-2">Isolated components for testing position tables.</p>
+           <h1 className="text-3xl font-bold">Positions Page</h1>
+           <p className="text-gray-400 mt-2">Isolated components position tables.</p>
         </header>
 
         {/* --- KPI Section --- */}
@@ -108,10 +108,10 @@ export default function Test123Page() {
         {/* --- End KPI Section --- */}
 
         {/* Wrap each table in a section for better structure */}
-        <section className="mb-12"> <TestSecurityTableAccount /> </section>
-        <section className="mb-12"> <TestCryptoTable /> </section>
-        <section className="mb-12"> <TestMetalsTable /> </section>
-        <section> <TestRealEstateTable /> </section>
+        <section className="mb-12"> <SecurityTableAccount /> </section>
+        <section className="mb-12"> <CryptoTable /> </section>
+        <section className="mb-12"> <MetalsTable /> </section>
+        <section> <RealEstateTable /> </section>
 
       </div>
     </div>

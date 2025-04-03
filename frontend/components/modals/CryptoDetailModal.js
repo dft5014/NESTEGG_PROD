@@ -1,9 +1,9 @@
-// nestegg/frontend/components/modals/TestCryptoDetailModal.js
+// nestegg/frontend/components/modals/CryptoDetailModal.js
 import React from 'react';
 import { X, Settings, Trash, Tag, Hash, Box, Wallet, Building, FileText, Star } from 'lucide-react'; // Add relevant icons
 import { formatCurrency, formatDate, formatNumber } from '@/utils/formatters'; // Use your formatters
 
-const TestCryptoDetailModal = ({ isOpen, onClose, position, onEdit, onDelete }) => {
+const CryptoDetailModal = ({ isOpen, onClose, position, onEdit, onDelete }) => {
   if (!isOpen || !position) return null;
 
   // Values might already be calculated from backend, use them directly
@@ -106,4 +106,4 @@ const DetailItem = ({ label, value, icon = null, children = null }) => (
 );
 
 
-export default TestCryptoDetailModal;
+export default CryptoDetailModal;

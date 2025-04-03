@@ -1,11 +1,11 @@
-// components/tables/TestMetalsTable.js
+// components/tables/MetalsTable.js
 import React, { useState, useEffect, useMemo } from 'react';
-import { fetchAllMetalsWithDetails } from '@/utils/apimethods/testPositionMethods'; // Use TEST methods
-import TestMetalDetailModal from '@/components/modals/TestMetalDetailModal'; // Use TEST metal modal
-import { Gem, Settings, Trash, Loader, Info, Search, SlidersHorizontal } from 'lucide-react'; // Use relevant icons
+import { fetchAllMetalsWithDetails } from '@/utils/apimethods/PositionMethods';
+import MetalDetailModal from '@/components/modals/MetalDetailModal';
+import { Gem, Settings, Trash, Loader, Info, Search, SlidersHorizontal } from 'lucide-react';
 import { formatCurrency, formatDate, formatNumber } from '@/utils/formatters';
 
-const TestMetalsTable = ({ initialSort = "total_value-high" }) => {
+const MetalsTable = ({ initialSort = "total_value-high" }) => {
   const [positions, setPositions] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -14,15 +14,15 @@ const TestMetalsTable = ({ initialSort = "total_value-high" }) => {
   const [sortOption, setSortOption] = useState(initialSort);
   const [searchQuery, setSearchQuery] = useState("");
 
-  const fetchData = async () => { /* ... (same as TestCryptoTable, but call fetchAllMetalsWithDetails) ... */
-    console.log("TestMetalsTable: Fetching data...");
+  const fetchData = async () => { 
+    console.log("MetalsTable: Fetching data...");
     setIsLoading(true); setError(null);
     try {
         const fetchedPositions = await fetchAllMetalsWithDetails();
-        console.log("TestMetalsTable: Data received:", fetchedPositions);
+        console.log("MetalsTable: Data received:", fetchedPositions);
         setPositions(fetchedPositions);
     } catch (err) {
-        console.error("TestMetalsTable fetch error:", err);
+        console.error("MetalsTable fetch error:", err);
         setError(err.message || "Failed to load metal positions.");
     } finally { setIsLoading(false); }
   };
@@ -115,7 +115,7 @@ const TestMetalsTable = ({ initialSort = "total_value-high" }) => {
       </div>
 
       {/* Render the Detail Modal */}
-      <TestMetalDetailModal
+      <MetalDetailModal
         isOpen={isDetailModalOpen}
         onClose={() => setIsDetailModalOpen(false)}
         position={selectedPositionDetail}
@@ -124,4 +124,4 @@ const TestMetalsTable = ({ initialSort = "total_value-high" }) => {
   );
 };
 
-export default TestMetalsTable;
+export default MetalsTable;

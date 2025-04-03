@@ -1,11 +1,11 @@
-// components/tables/TestRealEstateTable.js
+// components/tables/RealEstateTable.js
 import React, { useState, useEffect, useMemo } from 'react';
-import { fetchAllRealEstateWithDetails } from '@/utils/apimethods/testPositionMethods';
-import TestRealEstateDetailModal from '@/components/modals/TestRealEstateDetailModal';
+import { fetchAllRealEstateWithDetails } from '@/utils/apimethods/PositionMethods';
+import RealEstateDetailModal from '@/components/modals/RealEstateDetailModal';
 import { Home, Settings, Trash, Loader, Info, Search, SlidersHorizontal } from 'lucide-react'; // Use relevant icons
 import { formatCurrency, formatDate } from '@/utils/formatters';
 
-const TestRealEstateTable = ({ initialSort = "estimated_value-high" }) => {
+const RealEstateTable = ({ initialSort = "estimated_value-high" }) => {
   const [positions, setPositions] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -15,9 +15,9 @@ const TestRealEstateTable = ({ initialSort = "estimated_value-high" }) => {
   const [searchQuery, setSearchQuery] = useState("");
 
   const fetchData = async () => { /* ... (same pattern, call fetchAllRealEstateWithDetails) ... */
-     console.log("TestRealEstateTable: Fetching data..."); setIsLoading(true); setError(null);
-     try { const fetchedPositions = await fetchAllRealEstateWithDetails(); console.log("TestRealEstateTable: Data received:", fetchedPositions); setPositions(fetchedPositions); }
-     catch (err) { console.error("TestRealEstateTable fetch error:", err); setError(err.message || "Failed to load real estate positions."); }
+     console.log("RealEstateTable: Fetching data..."); setIsLoading(true); setError(null);
+     try { const fetchedPositions = await fetchAllRealEstateWithDetails(); console.log("RealEstateTable: Data received:", fetchedPositions); setPositions(fetchedPositions); }
+     catch (err) { console.error("RealEstateTable fetch error:", err); setError(err.message || "Failed to load real estate positions."); }
      finally { setIsLoading(false); }
   };
   useEffect(() => { fetchData(); }, []);
@@ -100,7 +100,7 @@ const TestRealEstateTable = ({ initialSort = "estimated_value-high" }) => {
       </div>
 
       {/* Render the Detail Modal */}
-      <TestRealEstateDetailModal
+      <RealEstateDetailModal
         isOpen={isDetailModalOpen}
         onClose={() => setIsDetailModalOpen(false)}
         position={selectedPositionDetail}
@@ -109,4 +109,4 @@ const TestRealEstateTable = ({ initialSort = "estimated_value-high" }) => {
   );
 };
 
-export default TestRealEstateTable;
+export default RealEstateTable;
