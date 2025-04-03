@@ -25,6 +25,8 @@ from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from pydantic import BaseModel, validator
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.sql import select
+from sqlalchemy import func, case, literal_column
+from sqlalchemy.sql import select, join, text # Ensure text is imported
 
 # Load environment variables first
 env_path = Path(__file__).resolve().parent / ".env"
@@ -267,6 +269,39 @@ class AccountUpdate(BaseModel):
     account_name: Optional[str] = None
     institution: Optional[str] = None
     type: Optional[str] = None
+
+class PositionBasicInfo(BaseModel):
+    id: int
+    asset_type: str # 'security', 'crypto', 'metal', 'real_estate'
+    ticker_or_name: str # Ticker for securities, name/type for others
+    quantity_or_shares: Optional[float] = None
+    value: Optional[float] = None
+    cost_basis_total: Optional[float] = None # Total cost for this position entry
+    gain_loss_amount: Optional[float] = None
+    gain_loss_percent: Optional[float] = None
+
+# Detailed Account information including calculated metrics and positions
+class AccountDetail(BaseModel):
+    id: int
+    user_id: str
+    account_name: str
+    institution: Optional[str] = None
+    type: Optional[str] = None
+    balance: float = 0.0 # This might represent cash balance or total calculated value depending on usage
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+    # Calculated Fields
+    total_value: float = 0.0
+    total_cost_basis: float = 0.0
+    total_gain_loss: float = 0.0
+    total_gain_loss_percent: float = 0.0
+    positions_count: int = 0
+    # Nested positions for modal drill-down
+    positions: List[PositionBasicInfo] = [] # List of basic position info
+
+
+class AccountsDetailedResponse(BaseModel):
+    accounts: List[AccountDetail]
 
 class PositionCreate(BaseModel):
     ticker: str
@@ -574,10 +609,285 @@ class PortfolioSummaryAllResponse(BaseModel):
     breakdown: List[PortfolioAssetSummary] # Non-optional now
 
 
+async def _get_detailed_securities(user_id: str) -> List[PositionDetail]:
+    try:
+        query = select(
+            positions.c.id, positions.c.account_id, positions.c.ticker,
+            positions.c.shares, positions.c.price, positions.c.cost_basis,
+            positions.c.purchase_date, positions.c.date, accounts.c.account_name
+        ).select_from(
+            positions.join(accounts, positions.c.account_id == accounts.c.id)
+        ).where(accounts.c.user_id == user_id)
+
+        results = await database.fetch_all(query)
+        positions_list = []
+        for row in results:
+            row_dict = dict(row)
+            value = float(row_dict.get("shares", 0)) * float(row_dict.get("price", 0))
+            cost_basis_val = row_dict.get("cost_basis")
+            if cost_basis_val is None: cost_basis_val = row_dict.get("price")
+
+            positions_list.append(PositionDetail(
+                id=row_dict["id"], account_id=row_dict["account_id"], ticker=row_dict["ticker"],
+                shares=float(row_dict.get("shares") or 0), price=float(row_dict.get("price") or 0),
+                cost_basis=float(cost_basis_val or 0), purchase_date=row_dict.get("purchase_date"),
+                date=row_dict.get("date"), account_name=row_dict["account_name"], value=float(value or 0)
+            ))
+        return positions_list
+    except Exception as e:
+        logger.error(f"Error in _get_detailed_securities for user {user_id}: {e}")
+        return []
+
+async def _get_detailed_crypto(user_id: str) -> List[CryptoPositionDetail]:
+    try:
+        query = """
+        SELECT cp.*, a.account_name FROM crypto_positions cp
+        JOIN accounts a ON cp.account_id = a.id WHERE a.user_id = :user_id
+        """
+        results = await database.fetch_all(query=query, values={"user_id": user_id})
+        crypto_list = []
+        for row in results:
+            row_dict = dict(row)
+            quantity = float(row_dict.get("quantity", 0))
+            current_price = float(row_dict.get("current_price", 0))
+            purchase_price = float(row_dict.get("purchase_price", 0))
+            total_value = quantity * current_price
+            gain_loss = total_value - (quantity * purchase_price)
+            gain_loss_percent = ((current_price / purchase_price) - 1) * 100 if purchase_price > 0 else 0
+            tags_list = row_dict.get("tags")
+            if isinstance(tags_list, str) and tags_list.startswith('{') and tags_list.endswith('}'):
+                try: tags_list = [tag.strip('" ') for tag in tags_list[1:-1].split(',') if tag.strip()]
+                except Exception: tags_list = []
+            elif not isinstance(tags_list, list): tags_list = []
+
+            crypto_list.append(CryptoPositionDetail(
+                id=row_dict["id"], account_id=row_dict["account_id"], coin_type=row_dict.get("coin_type"),
+                coin_symbol=row_dict.get("coin_symbol"), quantity=quantity, purchase_price=purchase_price,
+                current_price=current_price, purchase_date=row_dict.get("purchase_date"),
+                storage_type=row_dict.get("storage_type"), exchange_name=row_dict.get("exchange_name"),
+                wallet_address=row_dict.get("wallet_address"), notes=row_dict.get("notes"), tags=tags_list,
+                is_favorite=row_dict.get("is_favorite", False), created_at=row_dict.get("created_at"),
+                updated_at=row_dict.get("updated_at"), account_name=row_dict["account_name"],
+                total_value=total_value, gain_loss=gain_loss, gain_loss_percent=gain_loss_percent
+            ))
+        return crypto_list
+    except Exception as e:
+        logger.error(f"Error in _get_detailed_crypto for user {user_id}: {e}")
+        return []
+
+async def _get_detailed_metals(user_id: str) -> List[MetalPositionDetail]:
+    try:
+        query = """
+        SELECT mp.*, a.account_name FROM metal_positions mp
+        JOIN accounts a ON mp.account_id = a.id WHERE a.user_id = :user_id
+        """
+        results = await database.fetch_all(query=query, values={"user_id": user_id})
+        metals_list = []
+        for row in results:
+            row_dict = dict(row)
+            quantity = float(row_dict.get("quantity", 0))
+            purchase_price = float(row_dict.get("purchase_price", 0))
+            cost_basis_per_unit = float(row_dict.get("cost_basis", purchase_price))
+            # TODO: Fetch actual current price per unit for metals
+            current_price_per_unit = purchase_price # Placeholder
+            total_value = quantity * current_price_per_unit
+            total_cost = quantity * cost_basis_per_unit
+            gain_loss = total_value - total_cost
+            gain_loss_percent = ((current_price_per_unit / cost_basis_per_unit) - 1) * 100 if cost_basis_per_unit > 0 else 0
+
+            metals_list.append(MetalPositionDetail(
+                id=row_dict["id"], account_id=row_dict["account_id"], metal_type=row_dict.get("metal_type"),
+                quantity=quantity, unit=row_dict.get("unit"), purity=row_dict.get("purity"),
+                purchase_price=purchase_price, cost_basis=cost_basis_per_unit, purchase_date=row_dict.get("purchase_date"),
+                storage_location=row_dict.get("storage_location"), description=row_dict.get("description"),
+                created_at=row_dict.get("created_at"), updated_at=row_dict.get("updated_at"),
+                account_name=row_dict["account_name"], current_price_per_unit=current_price_per_unit,
+                total_value=total_value, gain_loss=gain_loss, gain_loss_percent=gain_loss_percent
+            ))
+        return metals_list
+    except Exception as e:
+        logger.error(f"Error in _get_detailed_metals for user {user_id}: {e}")
+        return []
+
+async def _get_detailed_real_estate(user_id: str) -> List[RealEstatePositionDetail]:
+    try:
+        query = """
+        SELECT re.*, a.account_name FROM real_estate_positions re
+        JOIN accounts a ON re.account_id = a.id WHERE a.user_id = :user_id
+        """
+        results = await database.fetch_all(query=query, values={"user_id": user_id})
+        realestate_list = []
+        for row in results:
+             row_dict = dict(row)
+             purchase_price = float(row_dict.get("purchase_price", 0))
+             # TODO: Fetch actual estimated value for real estate
+             estimated_value = float(row_dict.get("estimated_value", purchase_price)) # Placeholder
+             gain_loss = estimated_value - purchase_price
+             gain_loss_percent = ((estimated_value / purchase_price) - 1) * 100 if purchase_price > 0 else 0
+
+             realestate_list.append(RealEstatePositionDetail(
+                 id=row_dict["id"], account_id=row_dict["account_id"], address=row_dict.get("address"),
+                 property_type=row_dict.get("property_type"), purchase_price=purchase_price,
+                 estimated_value=estimated_value, purchase_date=row_dict.get("purchase_date"),
+                 created_at=row_dict.get("created_at"), updated_at=row_dict.get("updated_at"),
+                 account_name=row_dict["account_name"], gain_loss=gain_loss, gain_loss_percent=gain_loss_percent
+             ))
+        return realestate_list
+    except Exception as e:
+        logger.error(f"Error in _get_detailed_real_estate for user {user_id}: {e}")
+        return []
+
+
+
 # API Endpoints
 @app.get("/")
 async def read_root():
     return {"message": "Welcome to NestEgg API!", "version": "1.0.0"}
+
+@app.get("/accounts/all/detailed", response_model=AccountsDetailedResponse)
+async def get_all_detailed_accounts(current_user: dict = Depends(get_current_user)):
+    """
+    Fetch all accounts for the logged-in user, enriched with calculated
+    metrics (value, cost basis, gain/loss) aggregated from all position types,
+    and includes a list of basic position info for each account.
+    """
+    try:
+        user_id = current_user["id"]
+        logger.info(f"Fetching all detailed accounts for user_id: {user_id}")
+
+        # 1. Fetch all basic account info
+        accounts_query = accounts.select().where(accounts.c.user_id == user_id).order_by(accounts.c.account_name)
+        user_accounts_raw = await database.fetch_all(accounts_query)
+
+        if not user_accounts_raw:
+            return AccountsDetailedResponse(accounts=[])
+
+        # 2. Fetch all detailed positions across all types (using internal helpers)
+        all_securities = await _get_detailed_securities(user_id)
+        all_crypto = await _get_detailed_crypto(user_id)
+        all_metals = await _get_detailed_metals(user_id)
+        all_real_estate = await _get_detailed_real_estate(user_id)
+
+        detailed_accounts_list = []
+
+        # 3. Process each account
+        for account_raw in user_accounts_raw:
+            account_id = account_raw["id"]
+            account_positions_basic_info = []
+            account_total_value = 0.0
+            account_total_cost_basis = 0.0
+            account_positions_count = 0
+
+            # Aggregate Securities
+            for pos in all_securities:
+                if pos.account_id == account_id:
+                    value = pos.value
+                    cost_total = float(pos.shares * pos.cost_basis)
+                    gain_loss_amount = value - cost_total
+                    gain_loss_percent = (gain_loss_amount / cost_total) * 100 if cost_total > 0 else 0
+
+                    account_total_value += value
+                    account_total_cost_basis += cost_total
+                    account_positions_count += 1
+                    account_positions_basic_info.append(PositionBasicInfo(
+                        id=pos.id, asset_type='security', ticker_or_name=pos.ticker,
+                        quantity_or_shares=pos.shares, value=value, cost_basis_total=cost_total,
+                        gain_loss_amount=gain_loss_amount, gain_loss_percent=gain_loss_percent
+                    ))
+
+            # Aggregate Crypto
+            for crypto in all_crypto:
+                 if crypto.account_id == account_id:
+                    value = crypto.total_value
+                    cost_total = float(crypto.quantity * crypto.purchase_price)
+                    # Use pre-calculated gain/loss if available, otherwise calculate
+                    gain_loss_amount = crypto.gain_loss if crypto.gain_loss is not None else (value - cost_total)
+                    gain_loss_percent = crypto.gain_loss_percent if crypto.gain_loss_percent is not None else ((value / cost_total) - 1) * 100 if cost_total > 0 else 0
+
+                    account_total_value += value
+                    account_total_cost_basis += cost_total
+                    account_positions_count += 1
+                    account_positions_basic_info.append(PositionBasicInfo(
+                        id=crypto.id, asset_type='crypto', ticker_or_name=crypto.coin_symbol or crypto.coin_type or 'Unknown',
+                        quantity_or_shares=crypto.quantity, value=value, cost_basis_total=cost_total,
+                        gain_loss_amount=gain_loss_amount, gain_loss_percent=gain_loss_percent
+                    ))
+
+            # Aggregate Metals
+            for metal in all_metals:
+                if metal.account_id == account_id:
+                    value = metal.total_value or 0 # Make sure it's not None
+                    cost_total = float(metal.quantity * metal.cost_basis)
+                    gain_loss_amount = metal.gain_loss if metal.gain_loss is not None else (value - cost_total)
+                    gain_loss_percent = metal.gain_loss_percent if metal.gain_loss_percent is not None else ((value / cost_total) - 1) * 100 if cost_total > 0 else 0
+
+                    account_total_value += value
+                    account_total_cost_basis += cost_total
+                    account_positions_count += 1
+                    account_positions_basic_info.append(PositionBasicInfo(
+                        id=metal.id, asset_type='metal', ticker_or_name=metal.metal_type or 'Unknown',
+                        quantity_or_shares=metal.quantity, value=value, cost_basis_total=cost_total,
+                        gain_loss_amount=gain_loss_amount, gain_loss_percent=gain_loss_percent
+                    ))
+
+            # Aggregate Real Estate
+            for re_pos in all_real_estate:
+                 if re_pos.account_id == account_id:
+                    value = re_pos.estimated_value or re_pos.purchase_price or 0 # Use purchase price if estimate is missing
+                    cost_total = float(re_pos.purchase_price or 0)
+                    gain_loss_amount = re_pos.gain_loss if re_pos.gain_loss is not None else (value - cost_total)
+                    gain_loss_percent = re_pos.gain_loss_percent if re_pos.gain_loss_percent is not None else ((value / cost_total) - 1) * 100 if cost_total > 0 else 0
+
+                    account_total_value += value
+                    account_total_cost_basis += cost_total
+                    account_positions_count += 1
+                    account_positions_basic_info.append(PositionBasicInfo(
+                        id=re_pos.id, asset_type='real_estate', ticker_or_name=re_pos.address or re_pos.property_type or 'Unknown',
+                        quantity_or_shares=1, # Typically 1 unit
+                        value=value, cost_basis_total=cost_total,
+                        gain_loss_amount=gain_loss_amount, gain_loss_percent=gain_loss_percent
+                    ))
+
+
+            # Calculate final account-level gain/loss
+            account_total_gain_loss = account_total_value - account_total_cost_basis
+            account_total_gain_loss_percent = (account_total_gain_loss / account_total_cost_basis) * 100 if account_total_cost_basis > 0 else 0
+
+            # Create AccountDetail object
+            account_detail = AccountDetail(
+                id=account_raw["id"],
+                user_id=account_raw["user_id"],
+                account_name=account_raw["account_name"],
+                institution=account_raw.get("institution"),
+                type=account_raw.get("type"),
+                # Decide if 'balance' should be original or calculated total_value
+                # Using calculated total_value seems more consistent for a summary view
+                balance=float(account_total_value),
+                created_at=account_raw.get("created_at"),
+                updated_at=account_raw.get("updated_at"),
+                # Calculated fields
+                total_value=float(account_total_value),
+                total_cost_basis=float(account_total_cost_basis),
+                total_gain_loss=float(account_total_gain_loss),
+                total_gain_loss_percent=float(account_total_gain_loss_percent),
+                positions_count=account_positions_count,
+                # Nested positions list
+                positions=account_positions_basic_info
+            )
+            detailed_accounts_list.append(account_detail)
+
+        logger.info(f"Returning {len(detailed_accounts_list)} detailed accounts for user_id: {user_id}")
+        return AccountsDetailedResponse(accounts=detailed_accounts_list)
+
+    except Exception as e:
+        logger.error(f"Error fetching all detailed accounts for user {user_id}: {str(e)}")
+        import traceback
+        logger.error(traceback.format_exc())
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to fetch detailed accounts: {str(e)}"
+        )
+
 
 # User Management
 @app.get("/users")
