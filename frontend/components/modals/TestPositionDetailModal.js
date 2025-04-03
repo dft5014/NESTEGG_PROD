@@ -1,7 +1,7 @@
 // nestegg/frontend/components/modals/TestPositionDetailModal.js
 import React from 'react';
 import { X, Settings, Trash } from 'lucide-react';
-import { formatCurrency, formatDate } from '@/utils/formatting'; // Assuming you have formatting utils
+import { formatCurrency, formatDate } from '@/utils/formatters';
 
 // Helper function for calculating Gain/Loss within the modal
 const calculateGainLoss = (position) => {

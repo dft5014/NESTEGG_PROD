@@ -6,7 +6,7 @@ import TestPositionDetailModal from '@/components/modals/TestPositionDetailModal
 // import SecurityPositionModal from '@/components/modals/SecurityPositionModal';
 // import DeleteConfirmationModal from '@/components/modals/DeleteConfirmationModal';
 import { BarChart4, Settings, Trash, TrendingUp, TrendingDown, Loader, Info, Search, SlidersHorizontal, Filter, X } from 'lucide-react';
-import { formatCurrency, formatDate } from '@/utils/formatting'; // Assuming you have formatting utils
+import { formatCurrency, formatDate } from '@/utils/formatters';
 
 // Helper function (can be moved to utils)
 const calculateGainLoss = (position) => {
