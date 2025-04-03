@@ -339,9 +339,9 @@ const SecurityPositionModal = ({ isOpen, onClose, accountId, onPositionSaved, po
       onClose={onClose}
       title={`${isEditMode ? 'Edit' : 'Add'} Security Position`}
     >
-      {/* Account Badge - Top Right Corner */}
+      {/* Account Badge at the top */}
       {accountName && (
-        <div className="absolute top-4 right-12">
+        <div className="mb-4">
           <div className="inline-flex items-center px-3 py-1.5 bg-blue-100 text-blue-800 rounded-full text-sm font-medium shadow-sm">
             <Tag className="w-4 h-4 mr-1.5" />
             {accountName}
