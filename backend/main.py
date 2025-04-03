@@ -136,7 +136,6 @@ metal_positions = sqlalchemy.Table(
     sqlalchemy.Column("description", sqlalchemy.Text, nullable=True),
     sqlalchemy.Column("created_at", sqlalchemy.DateTime, default=datetime.utcnow),
     sqlalchemy.Column("updated_at", sqlalchemy.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow),
-    sqlalchemy.Column("current_price_per_unit", sqlalchemy.Float, nullable=True), # ** Needs population **
     # --- End columns ---
 )
 
@@ -449,7 +448,6 @@ class MetalPositionDetail(BaseModel):
     updated_at: Optional[datetime] = None
     # Added fields
     account_name: str
-    current_price_per_unit: Optional[float] = None # Placeholder - Needs real data source
     total_value: Optional[float] = None # Calculated field
     gain_loss: Optional[float] = None # Calculated field
     gain_loss_percent: Optional[float] = None # Calculated field
@@ -1282,7 +1280,7 @@ async def get_all_detailed_realestate_positions(current_user: dict = Depends(get
         query = """
         SELECT
             re.id, re.account_id, re.address, re.property_type,
-            re.purchase_price, re.estimated_value, re.purchase_date,
+            re.purchase_price, re.purchase_date,
             re.created_at, re.updated_at,
             a.account_name
         FROM real_estate_positions re  -- Use alias 're'
@@ -1623,7 +1621,7 @@ async def get_portfolio_summary_all(current_user: dict = Depends(get_current_use
         # --- 3. Metals ---
         # Note: Requires accurate current_price_per_unit logic for metals
         met_query = """
-        SELECT COALESCE(SUM(mp.quantity * mp.current_price_per_unit), 0) as value, -- Requires current_price_per_unit
+        SELECT COALESCE(SUM(mp.quantity * mp.purchase_price), 0) as value, -- Requires current_price_per_unit
                COALESCE(SUM(mp.quantity * COALESCE(mp.cost_basis, mp.purchase_price)), 0) as cost,
                COUNT(mp.id) as count
         FROM metal_positions mp JOIN accounts a ON mp.account_id = a.id
@@ -1640,7 +1638,7 @@ async def get_portfolio_summary_all(current_user: dict = Depends(get_current_use
 
         # --- 4. Real Estate ---
         re_query = """
-        SELECT COALESCE(SUM(re.estimated_value), 0) as value,
+        SELECT COALESCE(SUM(re.purchase_price), 0) as value,
                COALESCE(SUM(re.purchase_price), 0) as cost,
                COUNT(re.id) as count
         FROM real_estate_positions re JOIN accounts a ON re.account_id = a.id
