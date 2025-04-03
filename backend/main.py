@@ -782,7 +782,7 @@ async def get_all_detailed_accounts(current_user: dict = Depends(get_current_use
             # The check for None
             if account_raw is None:
                 logger.warning(f"Account index {i} is None. Skipping.")
-                continue
+                continue # Skip this iteration if account_raw is None
 
             # Initialize aggregates (inside loop, reset for each account)
             account_positions_basic_info = []
@@ -790,15 +790,19 @@ async def get_all_detailed_accounts(current_user: dict = Depends(get_current_use
             account_total_cost_basis = 0.0
             account_positions_count = 0
             account_id = None # Initialize account_id
+            account_dict = None # Initialize account_dict
 
             try:
                 # --- Access required fields first ---
                 account_id = account_raw["id"] # Direct access - raises TypeError if None, KeyError if missing
                 logger.info(f"Account index {i}: ID {account_id} accessed successfully.")
 
+                # --- *** Convert Record to dict *** ---
+                account_dict = dict(account_raw)
+                logger.info(f"Account index {i}: Converted account_raw to dict.")
+                # --- *** Use account_dict below for accessing account fields *** ---
+
                 # --- Aggregate positions ---
-                # (Keep the inner loops for securities, crypto, metals, real_estate exactly as they were)
-                # ... (omitted for brevity - same aggregation logic as before) ...
                 # Aggregate Securities
                 for pos in all_securities:
                      if pos.account_id == account_id:
@@ -862,17 +866,17 @@ async def get_all_detailed_accounts(current_user: dict = Depends(get_current_use
                 account_total_gain_loss = account_total_value - account_total_cost_basis
                 account_total_gain_loss_percent = (account_total_gain_loss / account_total_cost_basis) * 100 if account_total_cost_basis > 0 else 0
 
-                # Create AccountDetail object - Use direct access for required fields first
-                logger.info(f"Account index {i}: Attempting to create AccountDetail object.")
+                # Create AccountDetail object - NOW USING account_dict
+                logger.info(f"Account index {i}: Attempting to create AccountDetail object from dict.")
                 account_detail = AccountDetail(
-                    id=account_raw["id"],             # Direct access
-                    user_id=account_raw["user_id"],       # Direct access
-                    account_name=account_raw.get("account_name", "Unknown Account"), # Use .get for optional/safer access
-                    institution=account_raw.get("institution"),
-                    type=account_raw.get("type"),
-                    balance=float(account_total_value),
-                    created_at=account_raw.get("created_at"),
-                    updated_at=account_raw.get("updated_at"),
+                    id=account_dict["id"],             # Use dict
+                    user_id=account_dict["user_id"],       # Use dict
+                    account_name=account_dict.get("account_name", "Unknown Account"), # Use dict.get
+                    institution=account_dict.get("institution"),                      # Use dict.get
+                    type=account_dict.get("type"),                                  # Use dict.get
+                    balance=float(account_total_value),                             # Use calculated
+                    created_at=account_dict.get("created_at"),                      # Use dict.get
+                    updated_at=account_dict.get("updated_at"),                      # Use dict.get
                     # Calculated fields
                     total_value=float(account_total_value),
                     total_cost_basis=float(account_total_cost_basis),
@@ -885,13 +889,17 @@ async def get_all_detailed_accounts(current_user: dict = Depends(get_current_use
                 logger.info(f"Account index {i}: Successfully created and added AccountDetail for account_id: {account_id}")
 
             except KeyError as ke:
-                logger.error(f"Account index {i}: KeyError accessing account data. Missing key: {ke}. Account data: {account_raw}", exc_info=False)
-                continue # Skip this account
+                # Use account_dict in log message if available, otherwise account_raw
+                log_data = account_dict if account_dict is not None else account_raw
+                logger.error(f"Account index {i}: KeyError accessing account data from dict. Missing key: {ke}. Account data: {log_data}", exc_info=False)
+                continue
             except TypeError as te:
-                logger.error(f"Account index {i}: TypeError accessing account data (possibly None or wrong type?). Error: {te}. Account data: {account_raw}", exc_info=True)
+                log_data = account_dict if account_dict is not None else account_raw
+                logger.error(f"Account index {i}: TypeError accessing account data. Error: {te}. Account data: {log_data}", exc_info=True)
                 continue # Skip this account
             except Exception as e:
-                logger.error(f"Account index {i}: Unexpected error processing account_id {account_id}. Error: {e}. Account data: {account_raw}", exc_info=True)
+                log_data = account_dict if account_dict is not None else account_raw
+                logger.error(f"Account index {i}: Unexpected error processing account_id {account_id}. Error: {e}. Account data: {log_data}", exc_info=True)
                 continue # Skip this account
 
         logger.info(f"Finished processing accounts. Returning {len(detailed_accounts_list)} detailed accounts for user_id: {user_id}")
