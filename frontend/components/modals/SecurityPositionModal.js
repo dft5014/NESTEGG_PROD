@@ -341,12 +341,12 @@ const SecurityPositionModal = ({ isOpen, onClose, accountId, onPositionSaved, po
     >  
       <form onSubmit={(e) => handleSubmit(e, false)} className="space-y-4">
       {/* Account Badge at the top */}
-      {accountName && (
+      {(
         <div className="mb-4 bg-blue-50 p-3 rounded-lg border border-blue-200">
           <div className="flex items-center">
             <Tag className="h-5 w-5 text-blue-600 mr-2" />
             <span className="font-medium text-blue-800">
-              Adding to: {accountName}
+              Adding to: Account
             </span>
           </div>
         </div>
