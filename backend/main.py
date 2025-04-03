@@ -759,7 +759,11 @@ async def get_all_detailed_accounts(current_user: dict = Depends(get_current_use
         accounts_query = accounts.select().where(accounts.c.user_id == user_id).order_by(accounts.c.account_name)
         user_accounts_raw = await database.fetch_all(accounts_query)
 
+        # Log the raw accounts fetched for debugging
+        logger.debug(f"Fetched user_accounts_raw for user {user_id}: {user_accounts_raw}")
+
         if not user_accounts_raw:
+            logger.warning(f"No accounts found for user {user_id}. Returning empty list.")
             return AccountsDetailedResponse(accounts=[])
 
         # 2. Fetch all detailed positions across all types (using internal helpers)
@@ -772,15 +776,35 @@ async def get_all_detailed_accounts(current_user: dict = Depends(get_current_use
 
         # 3. Process each account
         for account_raw in user_accounts_raw:
-            account_id = account_raw["id"]
+            # *** ADD THIS CHECK ***
+            if account_raw is None:
+                logger.warning(f"Skipping a None account entry found in user_accounts_raw for user {user_id}.")
+                continue # Skip this iteration if account_raw is None
+            # *** END OF CHECK ***
+
+            # Log the type and content of the current account_raw being processed
+            logger.debug(f"Processing account_raw (type: {type(account_raw)}): {account_raw}")
+
+            try: # Add inner try/except for robustness during processing
+                account_id = account_raw["id"] # This would fail if account_raw is None, but check above handles it
+            except KeyError:
+                 logger.error(f"Skipping account entry due to missing 'id'. Entry: {account_raw}")
+                 continue
+            except TypeError:
+                logger.error(f"Skipping account entry because it's not dictionary-like. Entry: {account_raw}")
+                continue
+
+
             account_positions_basic_info = []
             account_total_value = 0.0
             account_total_cost_basis = 0.0
             account_positions_count = 0
 
+            # --- Aggregate positions (Keep this logic the same) ---
             # Aggregate Securities
             for pos in all_securities:
                 if pos.account_id == account_id:
+                    # ... (keep aggregation logic) ...
                     value = pos.value
                     cost_total = float(pos.shares * pos.cost_basis)
                     gain_loss_amount = value - cost_total
@@ -798,9 +822,9 @@ async def get_all_detailed_accounts(current_user: dict = Depends(get_current_use
             # Aggregate Crypto
             for crypto in all_crypto:
                  if crypto.account_id == account_id:
+                    # ... (keep aggregation logic) ...
                     value = crypto.total_value
                     cost_total = float(crypto.quantity * crypto.purchase_price)
-                    # Use pre-calculated gain/loss if available, otherwise calculate
                     gain_loss_amount = crypto.gain_loss if crypto.gain_loss is not None else (value - cost_total)
                     gain_loss_percent = crypto.gain_loss_percent if crypto.gain_loss_percent is not None else ((value / cost_total) - 1) * 100 if cost_total > 0 else 0
 
@@ -816,7 +840,8 @@ async def get_all_detailed_accounts(current_user: dict = Depends(get_current_use
             # Aggregate Metals
             for metal in all_metals:
                 if metal.account_id == account_id:
-                    value = metal.total_value or 0 # Make sure it's not None
+                    # ... (keep aggregation logic) ...
+                    value = metal.total_value or 0
                     cost_total = float(metal.quantity * metal.cost_basis)
                     gain_loss_amount = metal.gain_loss if metal.gain_loss is not None else (value - cost_total)
                     gain_loss_percent = metal.gain_loss_percent if metal.gain_loss_percent is not None else ((value / cost_total) - 1) * 100 if cost_total > 0 else 0
@@ -833,7 +858,8 @@ async def get_all_detailed_accounts(current_user: dict = Depends(get_current_use
             # Aggregate Real Estate
             for re_pos in all_real_estate:
                  if re_pos.account_id == account_id:
-                    value = re_pos.estimated_value or re_pos.purchase_price or 0 # Use purchase price if estimate is missing
+                    # ... (keep aggregation logic) ...
+                    value = re_pos.estimated_value or re_pos.purchase_price or 0
                     cost_total = float(re_pos.purchase_price or 0)
                     gain_loss_amount = re_pos.gain_loss if re_pos.gain_loss is not None else (value - cost_total)
                     gain_loss_percent = re_pos.gain_loss_percent if re_pos.gain_loss_percent is not None else ((value / cost_total) - 1) * 100 if cost_total > 0 else 0
@@ -843,28 +869,26 @@ async def get_all_detailed_accounts(current_user: dict = Depends(get_current_use
                     account_positions_count += 1
                     account_positions_basic_info.append(PositionBasicInfo(
                         id=re_pos.id, asset_type='real_estate', ticker_or_name=re_pos.address or re_pos.property_type or 'Unknown',
-                        quantity_or_shares=1, # Typically 1 unit
+                        quantity_or_shares=1,
                         value=value, cost_basis_total=cost_total,
                         gain_loss_amount=gain_loss_amount, gain_loss_percent=gain_loss_percent
                     ))
-
+            # --- End Aggregate positions ---
 
             # Calculate final account-level gain/loss
             account_total_gain_loss = account_total_value - account_total_cost_basis
             account_total_gain_loss_percent = (account_total_gain_loss / account_total_cost_basis) * 100 if account_total_cost_basis > 0 else 0
 
-            # Create AccountDetail object
+            # Create AccountDetail object using .get() for safety
             account_detail = AccountDetail(
-                id=account_raw["id"],
-                user_id=account_raw["user_id"],
-                account_name=account_raw["account_name"],
-                institution=account_raw.get("institution"),
-                type=account_raw.get("type"),
-                # Decide if 'balance' should be original or calculated total_value
-                # Using calculated total_value seems more consistent for a summary view
-                balance=float(account_total_value),
-                created_at=account_raw.get("created_at"),
-                updated_at=account_raw.get("updated_at"),
+                id=account_raw["id"], # We know ID exists from checks above
+                user_id=account_raw.get("user_id", user_id), # Use .get as good practice
+                account_name=account_raw.get("account_name", "Unknown Account"), # Use .get
+                institution=account_raw.get("institution"), # Use .get
+                type=account_raw.get("type"), # Use .get
+                balance=float(account_total_value), # Use calculated value
+                created_at=account_raw.get("created_at"), # Use .get
+                updated_at=account_raw.get("updated_at"), # Use .get
                 # Calculated fields
                 total_value=float(account_total_value),
                 total_cost_basis=float(account_total_cost_basis),
@@ -882,12 +906,11 @@ async def get_all_detailed_accounts(current_user: dict = Depends(get_current_use
     except Exception as e:
         logger.error(f"Error fetching all detailed accounts for user {user_id}: {str(e)}")
         import traceback
-        logger.error(traceback.format_exc())
+        logger.error(traceback.format_exc()) # Log full traceback for server errors
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to fetch detailed accounts: {str(e)}"
         )
-
 
 # User Management
 @app.get("/users")
