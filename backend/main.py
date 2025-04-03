@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Optional, List
 from datetime import date
 from typing import Dict, Optional
+from uuid import UUID
 
 # Third-party imports
 import bcrypt
@@ -866,17 +867,19 @@ async def get_all_detailed_accounts(current_user: dict = Depends(get_current_use
                 account_total_gain_loss = account_total_value - account_total_cost_basis
                 account_total_gain_loss_percent = (account_total_gain_loss / account_total_cost_basis) * 100 if account_total_cost_basis > 0 else 0
 
-                # Create AccountDetail object - NOW USING account_dict
+                # Create AccountDetail object - Convert UUID to str
                 logger.info(f"Account index {i}: Attempting to create AccountDetail object from dict.")
                 account_detail = AccountDetail(
-                    id=account_dict["id"],             # Use dict
-                    user_id=account_dict["user_id"],       # Use dict
-                    account_name=account_dict.get("account_name", "Unknown Account"), # Use dict.get
-                    institution=account_dict.get("institution"),                      # Use dict.get
-                    type=account_dict.get("type"),                                  # Use dict.get
-                    balance=float(account_total_value),                             # Use calculated
-                    created_at=account_dict.get("created_at"),                      # Use dict.get
-                    updated_at=account_dict.get("updated_at"),                      # Use dict.get
+                    id=account_dict["id"],
+                    # *** Convert user_id UUID object to string HERE ***
+                    user_id=str(account_dict["user_id"]), # <--- CORRECTED LINE
+                    # *** ***
+                    account_name=account_dict.get("account_name", "Unknown Account"),
+                    institution=account_dict.get("institution"),
+                    type=account_dict.get("type"),
+                    balance=float(account_total_value), # Use calculated value
+                    created_at=account_dict.get("created_at"),
+                    updated_at=account_dict.get("updated_at"),
                     # Calculated fields
                     total_value=float(account_total_value),
                     total_cost_basis=float(account_total_cost_basis),
@@ -894,6 +897,8 @@ async def get_all_detailed_accounts(current_user: dict = Depends(get_current_use
                 logger.error(f"Account index {i}: KeyError accessing account data from dict. Missing key: {ke}. Account data: {log_data}", exc_info=False)
                 continue
             except TypeError as te:
+                 # This specific TypeError ('NoneType' not callable) should hopefully NOT happen now when using account_dict.get()
+                 # but might happen earlier if conversion to dict fails or on direct access if None check failed.
                 log_data = account_dict if account_dict is not None else account_raw
                 logger.error(f"Account index {i}: TypeError accessing account data. Error: {te}. Account data: {log_data}", exc_info=True)
                 continue # Skip this account

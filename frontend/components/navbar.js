@@ -187,7 +187,7 @@ const Navbar = () => {
         // The height here is py-3 * 2 + h-6 icon + mb-1 = roughly 55-60px? Measure button height. Let's estimate pb-16 needed on main content.
         <div className="sticky top-0 z-40">
             {/* Main Navbar */}
-            <nav className={`${scrolledDown ? 'bg-gray-900/95 backdrop-blur-sm shadow-lg' : 'bg-gradient-to-r from-gray-900 to-blue-900'} transition-all duration-300`}>
+            <nav className={`${scrolledDown ? 'bg-gray-900/95 shadow-lg' : 'bg-gradient-to-r from-gray-900 to-blue-900'} transition-all duration-300`}>
                 <div className="container mx-auto px-4">
                     <div className="h-16 flex justify-between items-center">
                         {/* Logo and App Name */}
