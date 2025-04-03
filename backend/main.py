@@ -82,7 +82,7 @@ accounts = sqlalchemy.Table(
     sqlalchemy.Column("updated_at", sqlalchemy.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow),
 )
 
-# Define Positions Table
+# Define Positions Tables
 positions = sqlalchemy.Table(
     "positions",
     metadata,
@@ -94,6 +94,67 @@ positions = sqlalchemy.Table(
     sqlalchemy.Column("cost_basis", sqlalchemy.Float, nullable=True),
     sqlalchemy.Column("purchase_date", sqlalchemy.Date, nullable=True),
     sqlalchemy.Column("date", sqlalchemy.DateTime, default=datetime.utcnow),
+)
+
+crypto_positions = sqlalchemy.Table(
+    "crypto_positions", # <-- VERIFY TABLE NAME
+    metadata,
+    sqlalchemy.Column("id", sqlalchemy.Integer, primary_key=True, autoincrement=True),
+    sqlalchemy.Column("account_id", sqlalchemy.Integer, sqlalchemy.ForeignKey("accounts.id", ondelete="CASCADE"), nullable=False),
+    # --- Add ALL columns from your crypto_positions table below ---
+    sqlalchemy.Column("coin_type", sqlalchemy.String),
+    sqlalchemy.Column("coin_symbol", sqlalchemy.String),
+    sqlalchemy.Column("quantity", sqlalchemy.Float),
+    sqlalchemy.Column("purchase_price", sqlalchemy.Float),
+    sqlalchemy.Column("current_price", sqlalchemy.Float),
+    sqlalchemy.Column("purchase_date", sqlalchemy.Date),
+    sqlalchemy.Column("storage_type", sqlalchemy.String),
+    sqlalchemy.Column("exchange_name", sqlalchemy.String, nullable=True),
+    sqlalchemy.Column("wallet_address", sqlalchemy.String, nullable=True),
+    sqlalchemy.Column("notes", sqlalchemy.Text, nullable=True),
+    sqlalchemy.Column("tags", sqlalchemy.ARRAY(sqlalchemy.String), nullable=True), # Adjust type if using JSON
+    sqlalchemy.Column("is_favorite", sqlalchemy.Boolean, default=False),
+    sqlalchemy.Column("created_at", sqlalchemy.DateTime, default=datetime.utcnow),
+    sqlalchemy.Column("updated_at", sqlalchemy.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow),
+    # --- End columns ---
+)
+
+metal_positions = sqlalchemy.Table(
+    "metal_positions", # <-- VERIFY TABLE NAME
+    metadata,
+    sqlalchemy.Column("id", sqlalchemy.Integer, primary_key=True, autoincrement=True),
+    sqlalchemy.Column("account_id", sqlalchemy.Integer, sqlalchemy.ForeignKey("accounts.id", ondelete="CASCADE"), nullable=False),
+    # --- Add ALL columns from your metal_positions table below ---
+    sqlalchemy.Column("metal_type", sqlalchemy.String),
+    sqlalchemy.Column("quantity", sqlalchemy.Float),
+    sqlalchemy.Column("unit", sqlalchemy.String),
+    sqlalchemy.Column("purity", sqlalchemy.String, nullable=True),
+    sqlalchemy.Column("purchase_price", sqlalchemy.Float),
+    sqlalchemy.Column("cost_basis", sqlalchemy.Float, nullable=True),
+    sqlalchemy.Column("purchase_date", sqlalchemy.Date),
+    sqlalchemy.Column("storage_location", sqlalchemy.String, nullable=True),
+    sqlalchemy.Column("description", sqlalchemy.Text, nullable=True),
+    sqlalchemy.Column("created_at", sqlalchemy.DateTime, default=datetime.utcnow),
+    sqlalchemy.Column("updated_at", sqlalchemy.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow),
+    sqlalchemy.Column("current_price_per_unit", sqlalchemy.Float, nullable=True), # ** Needs population **
+    # --- End columns ---
+)
+
+real_estate_positions = sqlalchemy.Table(
+    "real_estate_positions", # <-- VERIFY TABLE NAME
+    metadata,
+    sqlalchemy.Column("id", sqlalchemy.Integer, primary_key=True, autoincrement=True),
+    sqlalchemy.Column("account_id", sqlalchemy.Integer, sqlalchemy.ForeignKey("accounts.id", ondelete="CASCADE"), nullable=False),
+    # --- Add ALL columns from your real_estate_positions table below ---
+    sqlalchemy.Column("address", sqlalchemy.String),
+    sqlalchemy.Column("property_type", sqlalchemy.String),
+    sqlalchemy.Column("purchase_price", sqlalchemy.Float),
+    sqlalchemy.Column("estimated_value", sqlalchemy.Float, nullable=True),
+    sqlalchemy.Column("purchase_date", sqlalchemy.Date),
+    # Add other relevant columns...
+    sqlalchemy.Column("created_at", sqlalchemy.DateTime, default=datetime.utcnow),
+    sqlalchemy.Column("updated_at", sqlalchemy.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow),
+    # --- End columns ---
 )
 
 # Create Database Engine
@@ -334,11 +395,14 @@ class PositionDetail(BaseModel):
     price: float
     cost_basis: Optional[float] = None
     purchase_date: Optional[date] = None
-    date: Optional[datetime] = None # Or Optional[str] if you prefer ISO strings from backend
-    # Added fields from JOIN
+    date: Optional[datetime] = None # Timestamp of last update from DB
     account_name: str
     value: float # Calculated field
-
+    # Optional: Add other fields you might want from securities table via JOIN
+    name: Optional[str] = None
+    sector: Optional[str] = None
+    industry: Optional[str] = None
+    
 class PositionsDetailedResponse(BaseModel):
     positions: List[PositionDetail]
 
@@ -425,6 +489,91 @@ class PortfolioSummaryAllResponse(BaseModel):
     total_positions: int
     total_accounts: int # Or maybe filter for accounts with these asset types
     breakdown: Optional[List[PortfolioAssetSummary]] = None # Optional breakdown by asset
+
+# Model for Detailed Crypto Position
+class CryptoPositionDetail(BaseModel):
+    id: int
+    account_id: int
+    coin_type: Optional[str] = None
+    coin_symbol: Optional[str] = None
+    quantity: Optional[float] = None
+    purchase_price: Optional[float] = None
+    current_price: Optional[float] = None
+    purchase_date: Optional[date] = None
+    storage_type: Optional[str] = None
+    exchange_name: Optional[str] = None
+    wallet_address: Optional[str] = None
+    notes: Optional[str] = None
+    tags: Optional[List[str]] = None # Assuming stored as array/list
+    is_favorite: Optional[bool] = None
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+    account_name: str
+    total_value: float
+    gain_loss: Optional[float] = None
+    gain_loss_percent: Optional[float] = None
+
+class CryptoPositionsDetailedResponse(BaseModel):
+    crypto_positions: List[CryptoPositionDetail]
+
+# Model for Detailed Metal Position
+class MetalPositionDetail(BaseModel):
+    id: int
+    account_id: int
+    metal_type: Optional[str] = None
+    quantity: Optional[float] = None
+    unit: Optional[str] = None
+    purity: Optional[str] = None
+    purchase_price: Optional[float] = None
+    cost_basis: Optional[float] = None
+    purchase_date: Optional[date] = None
+    storage_location: Optional[str] = None
+    description: Optional[str] = None
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+    account_name: str
+    current_price_per_unit: Optional[float] = None # Needs real data source
+    total_value: Optional[float] = None
+    gain_loss: Optional[float] = None
+    gain_loss_percent: Optional[float] = None
+
+class MetalPositionsDetailedResponse(BaseModel):
+    metal_positions: List[MetalPositionDetail]
+
+# Model for Detailed Real Estate Position
+class RealEstatePositionDetail(BaseModel):
+    id: int
+    account_id: int
+    address: Optional[str] = None
+    property_type: Optional[str] = None
+    purchase_price: Optional[float] = None
+    estimated_value: Optional[float] = None
+    purchase_date: Optional[date] = None
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+    account_name: str
+    gain_loss: Optional[float] = None
+    gain_loss_percent: Optional[float] = None
+    # Add other relevant fields as needed
+
+class RealEstatePositionsDetailedResponse(BaseModel):
+    real_estate_positions: List[RealEstatePositionDetail]
+
+# Model for Portfolio Summary
+class PortfolioAssetSummary(BaseModel):
+    asset_type: str
+    total_value: float
+    total_cost_basis: float
+    count: int
+
+class PortfolioSummaryAllResponse(BaseModel):
+    total_value: float
+    total_cost_basis: float
+    total_gain_loss: float
+    total_gain_loss_percent: float
+    total_positions: int
+    total_accounts: int
+    breakdown: List[PortfolioAssetSummary] # Non-optional now
 
 
 # API Endpoints
