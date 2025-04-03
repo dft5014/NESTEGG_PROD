@@ -759,8 +759,8 @@ async def get_all_detailed_accounts(current_user: dict = Depends(get_current_use
         accounts_query = accounts.select().where(accounts.c.user_id == user_id).order_by(accounts.c.account_name)
         user_accounts_raw = await database.fetch_all(accounts_query)
 
-        # Log the raw accounts fetched for debugging
-        logger.debug(f"Fetched user_accounts_raw for user {user_id}: {user_accounts_raw}")
+        # Use INFO level for this crucial log
+        logger.info(f"Fetched user_accounts_raw for user {user_id}: {user_accounts_raw}")
 
         if not user_accounts_raw:
             logger.warning(f"No accounts found for user {user_id}. Returning empty list.")
@@ -775,138 +775,130 @@ async def get_all_detailed_accounts(current_user: dict = Depends(get_current_use
         detailed_accounts_list = []
 
         # 3. Process each account
-        for account_raw in user_accounts_raw:
-            # *** ADD THIS CHECK ***
+        for i, account_raw in enumerate(user_accounts_raw): # Add index for logging
+            # Log the raw object at the START of the loop iteration using INFO
+            logger.info(f"Processing account index {i} (type: {type(account_raw)}): {account_raw}")
+
+            # The check for None
             if account_raw is None:
-                logger.warning(f"Skipping a None account entry found in user_accounts_raw for user {user_id}.")
-                continue # Skip this iteration if account_raw is None
-            # *** END OF CHECK ***
-
-            # Log the type and content of the current account_raw being processed
-            logger.debug(f"Processing account_raw (type: {type(account_raw)}): {account_raw}")
-
-            try: # Add inner try/except for robustness during processing
-                account_id = account_raw["id"] # This would fail if account_raw is None, but check above handles it
-            except KeyError:
-                 logger.error(f"Skipping account entry due to missing 'id'. Entry: {account_raw}")
-                 continue
-            except TypeError:
-                logger.error(f"Skipping account entry because it's not dictionary-like. Entry: {account_raw}")
+                logger.warning(f"Account index {i} is None. Skipping.")
                 continue
 
-
+            # Initialize aggregates (inside loop, reset for each account)
             account_positions_basic_info = []
             account_total_value = 0.0
             account_total_cost_basis = 0.0
             account_positions_count = 0
+            account_id = None # Initialize account_id
 
-            # --- Aggregate positions (Keep this logic the same) ---
-            # Aggregate Securities
-            for pos in all_securities:
-                if pos.account_id == account_id:
-                    # ... (keep aggregation logic) ...
-                    value = pos.value
-                    cost_total = float(pos.shares * pos.cost_basis)
-                    gain_loss_amount = value - cost_total
-                    gain_loss_percent = (gain_loss_amount / cost_total) * 100 if cost_total > 0 else 0
+            try:
+                # --- Access required fields first ---
+                account_id = account_raw["id"] # Direct access - raises TypeError if None, KeyError if missing
+                logger.info(f"Account index {i}: ID {account_id} accessed successfully.")
 
-                    account_total_value += value
-                    account_total_cost_basis += cost_total
-                    account_positions_count += 1
-                    account_positions_basic_info.append(PositionBasicInfo(
-                        id=pos.id, asset_type='security', ticker_or_name=pos.ticker,
-                        quantity_or_shares=pos.shares, value=value, cost_basis_total=cost_total,
-                        gain_loss_amount=gain_loss_amount, gain_loss_percent=gain_loss_percent
-                    ))
+                # --- Aggregate positions ---
+                # (Keep the inner loops for securities, crypto, metals, real_estate exactly as they were)
+                # ... (omitted for brevity - same aggregation logic as before) ...
+                # Aggregate Securities
+                for pos in all_securities:
+                     if pos.account_id == account_id:
+                         value = pos.value
+                         cost_total = float(pos.shares * pos.cost_basis)
+                         gain_loss_amount = value - cost_total
+                         gain_loss_percent = (gain_loss_amount / cost_total) * 100 if cost_total > 0 else 0
+                         account_total_value += value
+                         account_total_cost_basis += cost_total
+                         account_positions_count += 1
+                         account_positions_basic_info.append(PositionBasicInfo(
+                             id=pos.id, asset_type='security', ticker_or_name=pos.ticker,
+                             quantity_or_shares=pos.shares, value=value, cost_basis_total=cost_total,
+                             gain_loss_amount=gain_loss_amount, gain_loss_percent=gain_loss_percent))
+                # Aggregate Crypto
+                for crypto in all_crypto:
+                      if crypto.account_id == account_id:
+                          value = crypto.total_value
+                          cost_total = float(crypto.quantity * crypto.purchase_price)
+                          gain_loss_amount = crypto.gain_loss if crypto.gain_loss is not None else (value - cost_total)
+                          gain_loss_percent = crypto.gain_loss_percent if crypto.gain_loss_percent is not None else ((value / cost_total) - 1) * 100 if cost_total > 0 else 0
+                          account_total_value += value
+                          account_total_cost_basis += cost_total
+                          account_positions_count += 1
+                          account_positions_basic_info.append(PositionBasicInfo(
+                              id=crypto.id, asset_type='crypto', ticker_or_name=crypto.coin_symbol or crypto.coin_type or 'Unknown',
+                              quantity_or_shares=crypto.quantity, value=value, cost_basis_total=cost_total,
+                              gain_loss_amount=gain_loss_amount, gain_loss_percent=gain_loss_percent))
+                # Aggregate Metals
+                for metal in all_metals:
+                     if metal.account_id == account_id:
+                         value = metal.total_value or 0
+                         cost_total = float(metal.quantity * metal.cost_basis)
+                         gain_loss_amount = metal.gain_loss if metal.gain_loss is not None else (value - cost_total)
+                         gain_loss_percent = metal.gain_loss_percent if metal.gain_loss_percent is not None else ((value / cost_total) - 1) * 100 if cost_total > 0 else 0
+                         account_total_value += value
+                         account_total_cost_basis += cost_total
+                         account_positions_count += 1
+                         account_positions_basic_info.append(PositionBasicInfo(
+                             id=metal.id, asset_type='metal', ticker_or_name=metal.metal_type or 'Unknown',
+                             quantity_or_shares=metal.quantity, value=value, cost_basis_total=cost_total,
+                             gain_loss_amount=gain_loss_amount, gain_loss_percent=gain_loss_percent))
+                # Aggregate Real Estate
+                for re_pos in all_real_estate:
+                       if re_pos.account_id == account_id:
+                           value = re_pos.estimated_value or re_pos.purchase_price or 0
+                           cost_total = float(re_pos.purchase_price or 0)
+                           gain_loss_amount = re_pos.gain_loss if re_pos.gain_loss is not None else (value - cost_total)
+                           gain_loss_percent = re_pos.gain_loss_percent if re_pos.gain_loss_percent is not None else ((value / cost_total) - 1) * 100 if cost_total > 0 else 0
+                           account_total_value += value
+                           account_total_cost_basis += cost_total
+                           account_positions_count += 1
+                           account_positions_basic_info.append(PositionBasicInfo(
+                               id=re_pos.id, asset_type='real_estate', ticker_or_name=re_pos.address or re_pos.property_type or 'Unknown',
+                               quantity_or_shares=1, value=value, cost_basis_total=cost_total,
+                               gain_loss_amount=gain_loss_amount, gain_loss_percent=gain_loss_percent))
+                # --- End Aggregate positions ---
 
-            # Aggregate Crypto
-            for crypto in all_crypto:
-                 if crypto.account_id == account_id:
-                    # ... (keep aggregation logic) ...
-                    value = crypto.total_value
-                    cost_total = float(crypto.quantity * crypto.purchase_price)
-                    gain_loss_amount = crypto.gain_loss if crypto.gain_loss is not None else (value - cost_total)
-                    gain_loss_percent = crypto.gain_loss_percent if crypto.gain_loss_percent is not None else ((value / cost_total) - 1) * 100 if cost_total > 0 else 0
 
-                    account_total_value += value
-                    account_total_cost_basis += cost_total
-                    account_positions_count += 1
-                    account_positions_basic_info.append(PositionBasicInfo(
-                        id=crypto.id, asset_type='crypto', ticker_or_name=crypto.coin_symbol or crypto.coin_type or 'Unknown',
-                        quantity_or_shares=crypto.quantity, value=value, cost_basis_total=cost_total,
-                        gain_loss_amount=gain_loss_amount, gain_loss_percent=gain_loss_percent
-                    ))
+                # Calculate final account-level gain/loss
+                account_total_gain_loss = account_total_value - account_total_cost_basis
+                account_total_gain_loss_percent = (account_total_gain_loss / account_total_cost_basis) * 100 if account_total_cost_basis > 0 else 0
 
-            # Aggregate Metals
-            for metal in all_metals:
-                if metal.account_id == account_id:
-                    # ... (keep aggregation logic) ...
-                    value = metal.total_value or 0
-                    cost_total = float(metal.quantity * metal.cost_basis)
-                    gain_loss_amount = metal.gain_loss if metal.gain_loss is not None else (value - cost_total)
-                    gain_loss_percent = metal.gain_loss_percent if metal.gain_loss_percent is not None else ((value / cost_total) - 1) * 100 if cost_total > 0 else 0
+                # Create AccountDetail object - Use direct access for required fields first
+                logger.info(f"Account index {i}: Attempting to create AccountDetail object.")
+                account_detail = AccountDetail(
+                    id=account_raw["id"],             # Direct access
+                    user_id=account_raw["user_id"],       # Direct access
+                    account_name=account_raw.get("account_name", "Unknown Account"), # Use .get for optional/safer access
+                    institution=account_raw.get("institution"),
+                    type=account_raw.get("type"),
+                    balance=float(account_total_value),
+                    created_at=account_raw.get("created_at"),
+                    updated_at=account_raw.get("updated_at"),
+                    # Calculated fields
+                    total_value=float(account_total_value),
+                    total_cost_basis=float(account_total_cost_basis),
+                    total_gain_loss=float(account_total_gain_loss),
+                    total_gain_loss_percent=float(account_total_gain_loss_percent),
+                    positions_count=account_positions_count,
+                    positions=account_positions_basic_info
+                )
+                detailed_accounts_list.append(account_detail)
+                logger.info(f"Account index {i}: Successfully created and added AccountDetail for account_id: {account_id}")
 
-                    account_total_value += value
-                    account_total_cost_basis += cost_total
-                    account_positions_count += 1
-                    account_positions_basic_info.append(PositionBasicInfo(
-                        id=metal.id, asset_type='metal', ticker_or_name=metal.metal_type or 'Unknown',
-                        quantity_or_shares=metal.quantity, value=value, cost_basis_total=cost_total,
-                        gain_loss_amount=gain_loss_amount, gain_loss_percent=gain_loss_percent
-                    ))
+            except KeyError as ke:
+                logger.error(f"Account index {i}: KeyError accessing account data. Missing key: {ke}. Account data: {account_raw}", exc_info=False)
+                continue # Skip this account
+            except TypeError as te:
+                logger.error(f"Account index {i}: TypeError accessing account data (possibly None or wrong type?). Error: {te}. Account data: {account_raw}", exc_info=True)
+                continue # Skip this account
+            except Exception as e:
+                logger.error(f"Account index {i}: Unexpected error processing account_id {account_id}. Error: {e}. Account data: {account_raw}", exc_info=True)
+                continue # Skip this account
 
-            # Aggregate Real Estate
-            for re_pos in all_real_estate:
-                 if re_pos.account_id == account_id:
-                    # ... (keep aggregation logic) ...
-                    value = re_pos.estimated_value or re_pos.purchase_price or 0
-                    cost_total = float(re_pos.purchase_price or 0)
-                    gain_loss_amount = re_pos.gain_loss if re_pos.gain_loss is not None else (value - cost_total)
-                    gain_loss_percent = re_pos.gain_loss_percent if re_pos.gain_loss_percent is not None else ((value / cost_total) - 1) * 100 if cost_total > 0 else 0
-
-                    account_total_value += value
-                    account_total_cost_basis += cost_total
-                    account_positions_count += 1
-                    account_positions_basic_info.append(PositionBasicInfo(
-                        id=re_pos.id, asset_type='real_estate', ticker_or_name=re_pos.address or re_pos.property_type or 'Unknown',
-                        quantity_or_shares=1,
-                        value=value, cost_basis_total=cost_total,
-                        gain_loss_amount=gain_loss_amount, gain_loss_percent=gain_loss_percent
-                    ))
-            # --- End Aggregate positions ---
-
-            # Calculate final account-level gain/loss
-            account_total_gain_loss = account_total_value - account_total_cost_basis
-            account_total_gain_loss_percent = (account_total_gain_loss / account_total_cost_basis) * 100 if account_total_cost_basis > 0 else 0
-
-            # Create AccountDetail object using .get() for safety
-            account_detail = AccountDetail(
-                id=account_raw["id"], # We know ID exists from checks above
-                user_id=account_raw.get("user_id", user_id), # Use .get as good practice
-                account_name=account_raw.get("account_name", "Unknown Account"), # Use .get
-                institution=account_raw.get("institution"), # Use .get
-                type=account_raw.get("type"), # Use .get
-                balance=float(account_total_value), # Use calculated value
-                created_at=account_raw.get("created_at"), # Use .get
-                updated_at=account_raw.get("updated_at"), # Use .get
-                # Calculated fields
-                total_value=float(account_total_value),
-                total_cost_basis=float(account_total_cost_basis),
-                total_gain_loss=float(account_total_gain_loss),
-                total_gain_loss_percent=float(account_total_gain_loss_percent),
-                positions_count=account_positions_count,
-                # Nested positions list
-                positions=account_positions_basic_info
-            )
-            detailed_accounts_list.append(account_detail)
-
-        logger.info(f"Returning {len(detailed_accounts_list)} detailed accounts for user_id: {user_id}")
+        logger.info(f"Finished processing accounts. Returning {len(detailed_accounts_list)} detailed accounts for user_id: {user_id}")
         return AccountsDetailedResponse(accounts=detailed_accounts_list)
 
     except Exception as e:
-        logger.error(f"Error fetching all detailed accounts for user {user_id}: {str(e)}")
-        import traceback
-        logger.error(traceback.format_exc()) # Log full traceback for server errors
+        logger.error(f"General error in get_all_detailed_accounts for user {user_id}: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to fetch detailed accounts: {str(e)}"
