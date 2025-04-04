@@ -14,8 +14,8 @@ import { arrayMove, SortableContext, verticalListSortingStrategy } from '@dnd-ki
 // Import the new components (assuming they are created in ./components/)
 import BenchmarkTable from '../components/tables/BenchmarkTable';
 import ChartModal from '../components/ChartModal';
-import { fetchDashboardData, fetchHistoricalData } from '../utils/apiMethods/marketDataMethods'; // Placeholder API methods
-import { fetchPortfolioSummary } from '../utils/apiMethods/portfolioMethods'; // Placeholder for NestEgg data
+import { fetchDashboardData, fetchHistoricalData } from '../utils/apimethods/marketDataMethods'; // Placeholder API methods
+import { fetchPortfolioSummary } from '../utils/apimethods/portfolioMethods'; // Placeholder for NestEgg data
 
 // Mock user data - in real app, this would come from authentication context
 const mockUser = {
