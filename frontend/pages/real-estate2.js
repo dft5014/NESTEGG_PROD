@@ -2,7 +2,7 @@
 import { useState, useEffect, useContext, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/router';
 import { AuthContext } from '@/context/AuthContext';
-import { WorkspaceAllRealEstateWithDetails } from '@/utils/apimethods/positionMethods'; // Adjust path if needed
+import { fetchAllRealEstateWithDetails } from '@/utils/apimethods/positionMethods'; // Adjust path if needed
 import RealEstateTable from '@/components/tables/RealEstateTable'; // Adjust path if needed
 import RealEstateDetailModal from '@/components/modals/RealEstateDetailModal'; // Adjust path if needed
 import { formatCurrency, formatDate, formatNumber } from '@/utils/formatters'; // Adjust path if needed
@@ -70,7 +70,7 @@ export default function RealEstate2() {
 
         try {
             // Replace mock data logic with API call
-            const response = await WorkspaceAllRealEstateWithDetails();
+            const response = await fetchAllRealEstateWithDetails();
             console.log("Real Estate API Response:", response); // DEBUG
 
             // Ensure response.real_estate_positions exists and is an array

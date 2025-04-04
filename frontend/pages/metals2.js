@@ -2,7 +2,7 @@
 import { useState, useEffect, useContext, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/router';
 import { AuthContext } from '@/context/AuthContext';
-import { WorkspaceAllMetalsWithDetails } from '@/utils/apimethods/positionMethods'; // Adjust path if needed
+import { fetchAllMetalsWithDetails } from '@/utils/apimethods/positionMethods'; // Adjust path if needed
 import MetalsTable from '@/components/tables/MetalsTable'; // Adjust path if needed
 import MetalDetailModal from '@/components/modals/MetalDetailModal'; // Adjust path if needed
 import { formatCurrency, formatDate, formatNumber } from '@/utils/formatters'; // Adjust path if needed
@@ -86,7 +86,7 @@ export default function Metals2() {
         setError(null);
 
         try {
-            const response = await WorkspaceAllMetalsWithDetails(); // Call the new API method
+            const response = await fetchAllMetalsWithDetails(); // Call the new API method
             console.log("Metals API Response:", response); // DEBUG
 
             // Ensure response.metal_positions exists and is an array

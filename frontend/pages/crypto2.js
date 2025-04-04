@@ -2,7 +2,7 @@
 import { useState, useEffect, useContext, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/router';
 import { AuthContext } from '@/context/AuthContext';
-import { WorkspaceAllCryptoWithDetails } from '@/utils/apimethods/positionMethods'; // Adjust path if needed
+import { fetchAllCryptoWithDetails } from '@/utils/apimethods/positionMethods'; // Adjust path if needed
 import CryptoTable from '@/components/tables/CryptoTable'; // Adjust path if needed
 import CryptoDetailModal from '@/components/modals/CryptoDetailModal'; // Adjust path if needed
 import { formatCurrency, formatDate, formatNumber } from '@/utils/formatters'; // Adjust path if needed
@@ -67,7 +67,7 @@ export default function Crypto2() {
         setError(null);
 
         try {
-            const response = await WorkspaceAllCryptoWithDetails(); // Call the new API method
+            const response = await fetchAllCryptoWithDetails(); // Call the new API method
             console.log("API Response:", response); // DEBUG: Log response
 
             if (response && response.crypto_positions) {
