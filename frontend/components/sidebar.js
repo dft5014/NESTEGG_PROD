@@ -71,7 +71,7 @@ const Sidebar = () => {
           <div className="space-y-1">
             {/* NestEgg (Portfolio) with Child Components Toggle */}
             <div className="flex items-center justify-between px-3">
-              <Link href="/portfolio" className={menuItemClasses(isActive('/portfolio'))}>
+              <Link href="/summary" className={menuItemClasses(isActive('/portfolio'))}>
                 <span className="text-xl">🥚</span>
                 {!sidebarCollapsed && <span className="ml-3">NestEgg</span>}
               </Link>
@@ -112,19 +112,19 @@ const Sidebar = () => {
                 </Link>
 
                 {/* Real Estate */}
-                <Link href="/real-estate" className={menuItemClasses(isActive('/real-estate'))}>
+                <Link href="/real-estate2" className={menuItemClasses(isActive('/real-estate'))}>
                   <Home size={24} className={iconClasses} />
                   <span>Real Estate</span>
                 </Link>
 
                 {/* Metals */}
-                <Link href="/metals" className={menuItemClasses(isActive('/metals'))}>
+                <Link href="/metals2" className={menuItemClasses(isActive('/metals'))}>
                   <Coins size={24} className={iconClasses} />
                   <span>Metals</span>
                 </Link>
 
                 {/* Crypto */}
-                <Link href="/crypto" className={menuItemClasses(isActive('/crypto'))}>
+                <Link href="/crypto2" className={menuItemClasses(isActive('/crypto'))}>
                   <Bitcoin size={24} className={iconClasses} />
                   <span>Crypto</span>
                 </Link>
@@ -140,17 +140,17 @@ const Sidebar = () => {
                 </Link>
 
                 {/* Real Estate */}
-                <Link href="/real-estate" className={menuItemClasses(isActive('/real-estate'))}>
+                <Link href="/real-estate2" className={menuItemClasses(isActive('/real-estate'))}>
                   <Home size={24} className={iconClasses} />
                 </Link>
 
                 {/* Metals */}
-                <Link href="/metals" className={menuItemClasses(isActive('/metals'))}>
+                <Link href="/metals2" className={menuItemClasses(isActive('/metals'))}>
                   <Coins size={24} className={iconClasses} />
                 </Link>
 
                 {/* Crypto */}
-                <Link href="/crypto" className={menuItemClasses(isActive('/crypto'))}>
+                <Link href="/crypto2" className={menuItemClasses(isActive('/crypto'))}>
                   <Bitcoin size={24} className={iconClasses} />
                 </Link>
               </div>
@@ -166,7 +166,10 @@ const Sidebar = () => {
               <CheckSquare size={24} className={iconClasses} />
               {!sidebarCollapsed && <span>To Do List</span>}
             </Link>
-
+            <Link href="/income" className={menuItemClasses(isActive('/test-combined'))}>
+                <Settings size={24} className={iconClasses} />
+                {!sidebarCollapsed && <span>Test 123</span>}
+              </Link>
             <Link href="/data-summary" className={menuItemClasses(isActive('/data-summary'))}>
               <Database size={24} className={iconClasses} />
               {!sidebarCollapsed && <span>Data Summary</span>}
@@ -186,30 +189,7 @@ const Sidebar = () => {
                 <Shield size={24} className={iconClasses} />
                 {!sidebarCollapsed && <span>Test Accounts</span>}
               </Link>
-              <Link href="/test-combined" className={menuItemClasses(isActive('/test-combined'))}>
-                <Settings size={24} className={iconClasses} />
-                {!sidebarCollapsed && <span>Test Combined</span>}
-              </Link>
-              <Link href="/summary" className={menuItemClasses(isActive('/test-combined'))}>
-                <Settings size={24} className={iconClasses} />
-                {!sidebarCollapsed && <span>Test 123</span>}
-              </Link>
-              <Link href="/crypto2" className={menuItemClasses(isActive('/test-combined'))}>
-                <Settings size={24} className={iconClasses} />
-                {!sidebarCollapsed && <span>Test 123</span>}
-              </Link>
-              <Link href="/metals2" className={menuItemClasses(isActive('/test-combined'))}>
-                <Settings size={24} className={iconClasses} />
-                {!sidebarCollapsed && <span>Test 123</span>}
-              </Link>
-              <Link href="/real-estate2" className={menuItemClasses(isActive('/test-combined'))}>
-                <Settings size={24} className={iconClasses} />
-                {!sidebarCollapsed && <span>Test 123</span>}
-              </Link>
-              <Link href="/income" className={menuItemClasses(isActive('/test-combined'))}>
-                <Settings size={24} className={iconClasses} />
-                {!sidebarCollapsed && <span>Test 123</span>}
-              </Link>
+
             </div>
           </div>
         </nav>
