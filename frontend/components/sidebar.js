@@ -206,6 +206,10 @@ const Sidebar = () => {
                 <Settings size={24} className={iconClasses} />
                 {!sidebarCollapsed && <span>Test 123</span>}
               </Link>
+              <Link href="/income" className={menuItemClasses(isActive('/test-combined'))}>
+                <Settings size={24} className={iconClasses} />
+                {!sidebarCollapsed && <span>Test 123</span>}
+              </Link>
             </div>
           </div>
         </nav>
