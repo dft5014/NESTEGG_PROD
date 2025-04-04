@@ -84,9 +84,7 @@ const AccountDetailModal = ({
         <div className="fixed inset-0 z-[60] overflow-y-auto"> {/* Increased z-index */}
             <div className="flex items-center justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
                 {/* Background overlay */}
-                <div className="fixed inset-0 transition-opacity z-[1000]" aria-hidden="true" onClick={onClose}>
-                    <div className="absolute inset-0 bg-black/80 backdrop-blur-sm"></div>
-                </div>
+
 
                 {/* Modal content */}
                 {/* Make sure modal content is above overlay */}
