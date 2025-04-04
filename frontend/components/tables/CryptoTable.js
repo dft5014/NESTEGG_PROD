@@ -2,7 +2,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { fetchAllCryptoWithDetails } from '@/utils/apimethods/positionMethods';
 import CryptoDetailModal from '@/components/modals/CryptoDetailModal';
-// Import other modals if testing edit/delete flow
 import { Bitcoin, Settings, Trash, TrendingUp, TrendingDown, Loader, Info, Search, SlidersHorizontal } from 'lucide-react'; // Use Crypto icon
 import { formatCurrency, formatDate, formatNumber } from '@/utils/formatters';
 
@@ -187,7 +186,6 @@ const CryptoTable = ({ initialSort = "total_value-high" }) => {
         // Add onEdit/onDelete props if implementing those actions
       />
 
-       {/* Render Edit/Delete Modals if testing */}
 
     </>
   );

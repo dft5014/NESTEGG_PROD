@@ -1,12 +1,11 @@
 // components/modals/AccountDetailModal.js
 import React from 'react';
-// *** Make sure all necessary icons are imported ***
+// Ensure all necessary icons are imported
 import { Briefcase, X, Settings, Trash, Plus, BarChart4, DollarSign, Percent, TrendingUp } from 'lucide-react';
 import { formatCurrency, formatDate, formatPercentage } from '@/utils/formatters';
 
-// ModalPositionTable component remains the same as before...
-const ModalPositionTable = ({ positions = [], onPositionClick }) => {
-    // ... (previous code for ModalPositionTable) ...
+// CHANGED: Pass totalAccountValue as a prop
+const ModalPositionTable = ({ positions = [], totalAccountValue = 0 }) => {
     if (!positions || positions.length === 0) {
         return <div className="p-4 text-center text-gray-400 text-sm">No positions found in this account.</div>;
     }
@@ -14,11 +13,13 @@ const ModalPositionTable = ({ positions = [], onPositionClick }) => {
     return (
         <div className="overflow-x-auto max-h-60"> {/* Limit height and allow scroll */}
             <table className="w-full text-sm">
-                <thead className="bg-gray-800 sticky top-0"> {/* Make header sticky within scroll */}
+                <thead className="bg-gray-800 sticky top-0 z-10"> {/* Added z-index */}
                     <tr>
                         <th className="px-3 py-2 text-left text-xs font-medium text-gray-400 uppercase">Asset/Ticker</th>
                         <th className="px-3 py-2 text-right text-xs font-medium text-gray-400 uppercase hidden sm:table-cell">Quantity/Shares</th>
                         <th className="px-3 py-2 text-right text-xs font-medium text-gray-400 uppercase">Value</th>
+                        {/* ADDED: % of Total column header */}
+                        <th className="px-3 py-2 text-right text-xs font-medium text-gray-400 uppercase">% of Total</th>
                         <th className="px-3 py-2 text-right text-xs font-medium text-gray-400 uppercase">Gain/Loss</th>
                     </tr>
                 </thead>
@@ -28,6 +29,8 @@ const ModalPositionTable = ({ positions = [], onPositionClick }) => {
                         const gainLossPercent = pos.gain_loss_percent ?? 0;
                         const value = pos.value ?? 0;
                         const quantityOrShares = pos.quantity_or_shares ?? 'N/A';
+                        // ADDED: Calculate weight
+                        const weight = totalAccountValue > 0 ? (value / totalAccountValue) * 100 : 0;
 
                         return (
                             <tr
@@ -42,6 +45,10 @@ const ModalPositionTable = ({ positions = [], onPositionClick }) => {
                                     {typeof quantityOrShares === 'number' ? quantityOrShares.toLocaleString(undefined, { maximumFractionDigits: 4 }) : quantityOrShares}
                                 </td>
                                 <td className="px-3 py-2 text-right whitespace-nowrap font-medium">{formatCurrency(value)}</td>
+                                {/* ADDED: % of Total cell */}
+                                <td className="px-3 py-2 text-right whitespace-nowrap text-gray-400">
+                                    {formatPercentage(weight, { maximumFractionDigits: 1 })} {/* Format % */}
+                                </td>
                                 <td className="px-3 py-2 text-right whitespace-nowrap">
                                     <div className={`font-medium text-xs ${gainLossAmount >= 0 ? 'text-green-500' : 'text-red-500'}`}>
                                         {gainLossAmount >= 0 ? '+' : ''}{formatCurrency(gainLossAmount)}
@@ -64,7 +71,6 @@ const AccountDetailModal = ({
     isOpen,
     onClose,
     account,
-    // Action handlers passed from the parent component
     onEditRequest,
     onDeleteRequest,
     onAddPositionRequest
@@ -73,30 +79,28 @@ const AccountDetailModal = ({
         return null;
     }
 
-    // Data calculation remains the same...
     const costBasis = account.total_cost_basis ?? 0;
     const gainLoss = account.total_gain_loss ?? 0;
     const gainLossPercent = account.total_gain_loss_percent ?? 0;
     const positionsCount = account.positions_count ?? account.positions?.length ?? 0;
-    const totalValue = account.total_value ?? 0;
+    const totalValue = account.total_value ?? 0; // Used for % calculation
 
     // --- Handler Functions specific to this modal calling parent handlers ---
+    // (These handlers remain the same, they correctly call the props)
     const handleAddPosition = (e) => {
-        e.stopPropagation(); // Prevent closing modal if needed
+        e.stopPropagation();
         if (onAddPositionRequest) {
-            onAddPositionRequest(account.id); // Pass account ID to parent
-            // Optional: Close this modal after triggering add? Or let parent handle?
-            // onClose();
+            onAddPositionRequest(account.id);
         } else {
             console.warn("AccountDetailModal: onAddPositionRequest prop not provided.");
-            alert("Add position functionality not available."); // Placeholder feedback
+            alert("Add position functionality not available.");
         }
     };
 
     const handleEditAccount = (e) => {
         e.stopPropagation();
         if (onEditRequest) {
-            onEditRequest(account); // Pass full account object to parent
+            onEditRequest(account);
              onClose(); // Close detail modal after triggering edit
         } else {
             console.warn("AccountDetailModal: onEditRequest prop not provided.");
@@ -107,7 +111,7 @@ const AccountDetailModal = ({
     const handleDeleteAccount = (e) => {
         e.stopPropagation();
         if (onDeleteRequest) {
-            onDeleteRequest(account); // Pass full account object to parent
+            onDeleteRequest(account);
              onClose(); // Close detail modal after triggering delete confirmation
         } else {
             console.warn("AccountDetailModal: onDeleteRequest prop not provided.");
@@ -118,16 +122,19 @@ const AccountDetailModal = ({
 
     return (
         // Using z-index values that worked previously
-        <div className="fixed inset-0 z-[60] overflow-y-auto">
+        <div className="fixed inset-0 z-[60] overflow-y-auto" onClick={onClose}> {/* Added onClick overlay close */}
+            {/* Backdrop */}
+            <div className="fixed inset-0 bg-black/60 transition-opacity" aria-hidden="true"></div>
+
             <div className="flex items-center justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
-                {/* Backdrop overlay (using the version without backdrop-blur) */}
-
-
-                {/* Centering span */}
+                 {/* Centering span */}
                 <span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
 
                 {/* Modal content window */}
-                <div className="inline-block align-bottom bg-gray-800 rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-3xl md:max-w-4xl lg:max-w-5xl sm:w-full z-[1010]">
+                <div
+                    className="inline-block align-bottom bg-gray-800 rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-3xl md:max-w-4xl lg:max-w-5xl sm:w-full z-[70]" // Increased z-index
+                    onClick={(e) => e.stopPropagation()} // Prevent closing when clicking inside modal
+                 >
                     {/* Header */}
                     <div className="flex justify-between items-start p-5 border-b border-gray-700 bg-gradient-to-r from-blue-900/80 to-blue-700/80">
                         {/* ... (header content remains the same) ... */}
@@ -145,16 +152,16 @@ const AccountDetailModal = ({
                                 </div>
                             </div>
                         </div>
-                        <button onClick={onClose} className="text-white hover:text-blue-200 transition-colors">
-                            <X className="h-5 w-5" />
-                        </button>
+                         <button onClick={onClose} className="text-white hover:text-blue-200 transition-colors">
+                             <X className="h-5 w-5" />
+                         </button>
                     </div>
 
                     {/* Body */}
                     <div className="p-6 bg-gray-800 space-y-6 max-h-[75vh] overflow-y-auto">
                         {/* Account Metrics */}
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                           {/* ... (metrics cards remain the same) ... */}
+                            {/* ... (metrics cards remain the same) ... */}
                             <div className="bg-gray-700/60 rounded-lg p-4"><div className="text-gray-400 text-xs mb-1 uppercase flex items-center"><DollarSign className='w-3 h-3 mr-1'/>Current Value</div><div className="text-lg font-bold">{formatCurrency(totalValue)}</div></div>
                             <div className="bg-gray-700/60 rounded-lg p-4"><div className="text-gray-400 text-xs mb-1 uppercase flex items-center"><DollarSign className='w-3 h-3 mr-1'/>Cost Basis</div><div className="text-lg font-bold">{formatCurrency(costBasis)}</div></div>
                             <div className="bg-gray-700/60 rounded-lg p-4"><div className="text-gray-400 text-xs mb-1 uppercase flex items-center"><TrendingUp className='w-3 h-3 mr-1'/>Gain/Loss</div><div className={`text-lg font-bold ${gainLoss >= 0 ? 'text-green-500' : 'text-red-500'}`}>{gainLoss >= 0 ? '+' : ''}{formatCurrency(gainLoss)}<span className="block text-xs font-normal">({gainLoss >= 0 ? '+' : ''}{formatPercentage(gainLossPercent)})</span></div></div>
@@ -163,53 +170,54 @@ const AccountDetailModal = ({
 
                         {/* Positions Table Section */}
                         <div className="bg-gray-700/60 rounded-lg overflow-hidden">
-                           {/* ... (table header remains the same) ... */}
-                           <div className="flex justify-between items-center px-4 py-3 bg-gray-700 border-b border-gray-600">
+                            <div className="flex justify-between items-center px-4 py-3 bg-gray-700 border-b border-gray-600">
                                 <h4 className="font-medium text-base">Account Holdings</h4>
-                                {/* Removed Add Position button from here, moved to footer */}
-                           </div>
+                                {/* Add Position button moved to footer */}
+                            </div>
+                            {/* CHANGED: Pass totalValue prop */}
                             <ModalPositionTable
                                 positions={account.positions || []}
+                                totalAccountValue={totalValue}
                             />
                         </div>
                     </div>
 
-                    {/* Footer with Actions *** MODIFIED HERE *** */}
-                     <div className="bg-gray-900/50 px-6 py-4 flex justify-end items-center space-x-3 border-t border-gray-700">
-                       {/* Add Position Button */}
-                       {onAddPositionRequest && (
+                    {/* Footer with Actions */}
+                     <div className="bg-gray-900/50 px-6 py-4 flex flex-wrap justify-end items-center space-x-3 border-t border-gray-700"> {/* Added flex-wrap */}
+                        {/* Add Position Button */}
+                        {onAddPositionRequest && (
                             <button
                                 title="Add Position to this Account"
                                 onClick={handleAddPosition}
-                                className="p-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center text-sm" // Use standard button style
+                                className="p-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center text-sm"
                             >
                                 <Plus className="w-4 h-4 mr-1" />
                                 Add Position
                             </button>
-                       )}
-                       {/* Edit Account Button */}
-                       {onEditRequest && (
+                        )}
+                        {/* Edit Account Button */}
+                        {onEditRequest && (
                             <button
                                 title="Edit this Account"
                                 onClick={handleEditAccount}
-                                className="p-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors flex items-center text-sm" // Use standard button style
+                                className="p-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors flex items-center text-sm"
                             >
                                 <Settings className="w-4 h-4 mr-1" />
                                 Edit Account
                             </button>
-                       )}
-                       {/* Delete Account Button */}
-                       {onDeleteRequest && (
+                        )}
+                        {/* Delete Account Button */}
+                        {onDeleteRequest && (
                             <button
                                 title="Delete this Account"
                                 onClick={handleDeleteAccount}
-                                className="p-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors flex items-center text-sm" // Use standard button style
+                                className="p-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors flex items-center text-sm"
                             >
                                 <Trash className="w-4 h-4 mr-1" />
                                 Delete Account
                             </button>
-                       )}
-                       {/* Existing Close Button */}
+                        )}
+                        {/* Close Button */}
                         <button
                             onClick={onClose}
                             className="px-4 py-2 border border-gray-600 rounded-lg hover:bg-gray-700 transition-colors text-sm"
