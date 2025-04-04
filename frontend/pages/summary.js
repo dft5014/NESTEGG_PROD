@@ -1,24 +1,29 @@
-// pages/NestEggPage.js  // <-- Renamed file recommended
+// pages/summary.js (or pages/NestEggPage.js)
 import React, { useState, useEffect } from 'react';
+// Tables & Cards
 import SecurityTableAccount from '@/components/tables/SecurityTableAccount';
 import CryptoTable from '@/components/tables/CryptoTable';
 import MetalsTable from '@/components/tables/MetalsTable';
 import RealEstateTable from '@/components/tables/RealEstateTable';
 import AccountTable from '@/components/tables/AccountTable';
 import KpiCard from '@/components/ui/KpiCard';
-// Placeholder for chart components - install a library like Recharts or Chart.js
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts'; // Example using Recharts
-import { fetchPortfolioSummary, fetchPortfolioHistory } from '@/utils/apimethods/positionMethods'; // Assuming fetchPortfolioHistory exists
-import { formatCurrency, formatPercentage } from '@/utils/formatters';
-import { DollarSign, BarChart4, Users, TrendingUp, TrendingDown, Percent, PieChart as PieIcon, List } from 'lucide-react'; // Added PieIcon, List
+// Charting Library (Ensure 'recharts' is installed!)
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
+// API Methods (Only need fetchPortfolioSummary now)
+import { fetchPortfolioSummary } from '@/utils/apimethods/positionMethods';
+// Utils
+import { formatCurrency, formatPercentage } from '@/utils/formatters'; // Ensure this path is correct
+import { DollarSign, BarChart4, Users, TrendingUp, TrendingDown, Percent, PieChart as PieIcon, List } from 'lucide-react';
+// Feedback
+import { toast } from 'react-hot-toast'; // Assuming react-hot-toast is installed and configured
 
 // --- Placeholder Chart Components ---
 const TrendChartPlaceholder = ({ data, isLoading, error }) => {
+  // This component remains the same - it will now receive the fake data
   if (isLoading) return <div className="p-4 bg-gray-800/50 rounded-lg text-center text-gray-400">Loading Trend Data...</div>;
   if (error) return <div className="p-4 bg-red-900/60 rounded-lg text-center text-red-200">Error loading trend: {error}</div>;
-  if (!data || data.length === 0) return <div className="p-4 bg-gray-800/50 rounded-lg text-center text-gray-400">No trend data available for the last 13 months.</div>;
+  if (!data || data.length === 0) return <div className="p-4 bg-gray-800/50 rounded-lg text-center text-gray-400">No trend data available.</div>;
 
-  // Simple placeholder structure, replace with actual Recharts/Chart.js implementation
    return (
     <div className="h-64 bg-gray-800/50 rounded-lg p-4">
         <ResponsiveContainer width="100%" height="100%">
@@ -38,9 +43,10 @@ const TrendChartPlaceholder = ({ data, isLoading, error }) => {
   );
 };
 
+// Other chart components (AllocationChart, TopPositionsList) - Assuming they are defined or imported correctly
 const AllocationChart = ({ data, isLoading }) => {
-    // Assuming data is like: [{ name: 'Stocks', value: 400 }, { name: 'Crypto', value: 300 }]
-    if (isLoading || !data) return <div className="p-4 h-64 bg-gray-800/50 rounded-lg flex items-center justify-center text-gray-400">Loading Allocation...</div>;
+    // Example implementation (Needs real data structure check)
+    if (isLoading || !data || data.length === 0) return <div className="p-4 h-64 bg-gray-800/50 rounded-lg flex items-center justify-center text-gray-400">Loading Allocation...</div>;
 
     const COLORS = ['#3B82F6', '#8B5CF6', '#EC4899', '#10B981', '#F59E0B']; // Example colors
 
@@ -67,11 +73,11 @@ const AllocationChart = ({ data, isLoading }) => {
             </ResponsiveContainer>
         </div>
     );
-}
+};
 
 const TopPositionsList = ({ data, isLoading }) => {
-    // Assuming data is like: [{ id: 1, name: 'AAPL', value: 10000 }, ...]
-     if (isLoading || !data) return <div className="p-4 bg-gray-800/50 rounded-lg text-gray-400">Loading Top Positions...</div>;
+     // Example implementation (Needs real data structure check)
+     if (isLoading || !data || data.length === 0) return <div className="p-4 bg-gray-800/50 rounded-lg text-gray-400">Loading Top Positions...</div>;
 
      return (
          <div className="bg-gray-800/50 rounded-lg p-4">
@@ -85,95 +91,113 @@ const TopPositionsList = ({ data, isLoading }) => {
              </ul>
          </div>
      );
-}
+};
+
+// --- FAKE DATA FOR TREND CHART ---
+const generateFakeTrendData = () => {
+    const data = [];
+    // Use the current date dynamically (e.g., April 4, 2025 based on context)
+    const currentDate = new Date("2025-04-04T12:00:00");
+    let currentValue = 125000; // Starting value Example
+
+    for (let i = 12; i >= 0; i--) { // Generate 13 months ending with the current month
+        const date = new Date(currentDate);
+        date.setMonth(currentDate.getMonth() - i);
+
+        const month = date.toLocaleString('default', { month: 'short' });
+        const year = date.getFullYear().toString().slice(-2);
+
+        // Simulate value fluctuation
+        const fluctuation = (Math.random() - 0.45) * 6000; // Example fluctuation
+        currentValue += fluctuation;
+        currentValue = Math.max(50000, currentValue); // Ensure minimum
+
+        data.push({
+            month: `${month} ${year}`,
+            value: Math.round(currentValue)
+        });
+    }
+     // Adjust last point slightly maybe
+     data[data.length-1].value = Math.max(50000, data[data.length-1].value + (Math.random() - 0.5) * 2000);
+
+    return data;
+};
+
+const fakeTrendData = generateFakeTrendData();
+// --- END FAKE DATA ---
+
 
 // --- Main Component ---
-export default function NestEggPage() { // <-- Renamed component
+// Ensure correct component name (NestEggPage or SummaryPage)
+export default function SummaryPage() { // Or NestEggPage
   const [summaryData, setSummaryData] = useState(null);
   const [isSummaryLoading, setIsSummaryLoading] = useState(true);
   const [summaryError, setSummaryError] = useState(null);
 
-  const [trendData, setTrendData] = useState(null);
-  const [isTrendLoading, setIsTrendLoading] = useState(true);
+  // Use fake data and set loading to false initially for trend chart
+  const [trendData, setTrendData] = useState(fakeTrendData);
+  const [isTrendLoading, setIsTrendLoading] = useState(false);
   const [trendError, setTrendError] = useState(null);
 
+
+  // useEffect now only loads summary data
   useEffect(() => {
     const loadSummary = async () => {
-      setIsSummaryLoading(true);
-      setSummaryError(null);
-      try {
-        const data = await fetchPortfolioSummary();
-        setSummaryData(data);
-      } catch (error) {
-        console.error("Error loading summary data:", error);
-        setSummaryError(error.message || "Failed to load summary");
-      } finally {
-        setIsSummaryLoading(false);
-      }
-    };
-
-    const loadHistory = async () => {
-        setIsTrendLoading(true);
-        setTrendError(null);
+        setIsSummaryLoading(true);
+        setSummaryError(null);
         try {
-            // *** ATTENTION: Needs API endpoint fetchPortfolioHistory() ***
-            // This endpoint should return data formatted like:
-            // [{ month: 'Jan 24', value: 100000 }, { month: 'Feb 24', value: 105000 }, ...]
-            // For the last 13 months.
-            const historyData = await fetchPortfolioHistory(); // Replace with actual API call
-            setTrendData(historyData);
+            const data = await fetchPortfolioSummary();
+            setSummaryData(data);
         } catch (error) {
-            console.error("Error loading portfolio history:", error);
-            setTrendError(error.message || "Failed to load trend data");
+            console.error("Error loading summary data:", error);
+            const msg = error.message || "Failed to load summary";
+            setSummaryError(msg);
+            toast.error(`Error loading summary: ${msg}`);
         } finally {
-             setIsTrendLoading(false);
+            setIsSummaryLoading(false);
         }
     };
 
     loadSummary();
-    loadHistory(); // Fetch history data as well
-  }, []);
+    // No call to loadHistory needed
+  }, []); // Empty dependency array is correct
 
   // Determine overall gain/loss icon and color
   const gainLossValue = summaryData?.total_gain_loss ?? 0;
   const gainLossPercentValue = summaryData?.total_gain_loss_percent ?? 0;
   const GainLossIcon = gainLossValue >= 0 ? TrendingUp : TrendingDown;
-  const gainLossColor = gainLossValue >= 0 ? 'green' : 'red';
+  const gainLossColor = gainLossValue >= 0 ? 'text-green-500' : 'text-red-500'; // Use Tailwind colors
+  const gainLossKpiColor = gainLossValue >= 0 ? 'green' : 'red'; // For KpiCard prop
 
-  // Prepare data for charts (example - adapt based on actual summaryData structure)
-  // You might get this directly from summaryData or need to compute it
-   const allocationData = summaryData?.allocation || [ // Example structure
-        { name: 'Securities', value: summaryData?.securities_value || 0 },
+  // Prepare data for other charts (adapt based on actual summaryData structure)
+   const allocationData = summaryData?.allocation || [
+        // Example: Fetch this structure from summaryData if available
+        // Otherwise, calculate from summaryData.securities_value etc.
+        { name: 'Stocks', value: summaryData?.securities_value || 0 },
         { name: 'Crypto', value: summaryData?.crypto_value || 0 },
         { name: 'Metals', value: summaryData?.metals_value || 0 },
         { name: 'Real Estate', value: summaryData?.realestate_value || 0 },
     ].filter(item => item.value > 0); // Filter out zero-value assets
 
-   const topPositionsData = summaryData?.top_positions || []; // Example structure [{id: 1, name: 'TSLA', value: 5000}, ...]
+   const topPositionsData = summaryData?.top_positions || []; // Example: Expects [{id: 1, name: 'TSLA', value: 5000}, ...]
 
 
   return (
-    // Added min-h-screen and bg gradient for overall page style
     <div className="min-h-screen bg-gradient-to-br from-gray-900 to-blue-900 text-white p-4 md:p-8">
       <div className="container mx-auto">
-        <header className="mb-10 text-center"> {/* Centered Header */}
-           {/* Increased font size, bold */}
+        <header className="mb-10 text-center">
           <h1 className="text-4xl md:text-5xl font-bold mb-2">NestEgg</h1>
-          {/* More engaging subtitle */}
           <p className="text-lg text-gray-400">Your comprehensive wealth overview and retirement readiness tracker.</p>
         </header>
 
         {/* --- KPI Section --- */}
         <section className="mb-10">
-           {/* Optional: Add a subtle title if needed, or let cards speak */}
-           {/* <h2 className="text-xl font-semibold mb-4 text-gray-300">Overall Summary</h2> */}
            {summaryError && (
-               <div className="bg-red-900/60 p-3 rounded-lg mb-4 text-red-200">
-                 Error loading summary: {summaryError}
+               <div className="bg-red-900/60 p-3 rounded-lg mb-4 text-red-200 text-center">
+                 Error loading summary data: {summaryError}
                </div>
              )}
-          {/* Using 6 columns for KPIs */}
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-10">
+           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-10">
              <KpiCard
                 title="Total Value"
                 value={summaryData?.total_value}
@@ -196,18 +220,19 @@ export default function NestEggPage() { // <-- Renamed component
                 icon={<GainLossIcon />}
                 isLoading={isSummaryLoading}
                 format={(v) => `${v >= 0 ? '+' : ''}${formatCurrency(v)}`}
-                color={gainLossColor}
+                color={gainLossKpiColor} // Use specific color variable
               />
               <KpiCard
-                  title="Total G/L %" // Shorter Title
+                  title="Total G/L %"
                   value={gainLossPercentValue}
                   icon={<Percent />}
                   isLoading={isSummaryLoading}
+                  // Ensure formatPercentage handles potential non-numeric values gracefully if needed
                   format={(v) => `${v >= 0 ? '+' : ''}${formatPercentage(v, {maximumFractionDigits: 2})}`}
-                  color={gainLossColor}
+                  color={gainLossKpiColor} // Use specific color variable
               />
              <KpiCard
-                title="Positions" // Shorter Title
+                title="Positions"
                 value={summaryData?.total_positions}
                 icon={<BarChart4 />}
                 isLoading={isSummaryLoading}
@@ -215,7 +240,7 @@ export default function NestEggPage() { // <-- Renamed component
                 color="amber"
              />
               <KpiCard
-                title="Accounts" // Shorter Title
+                title="Accounts"
                 value={summaryData?.total_accounts}
                 icon={<Users />}
                 isLoading={isSummaryLoading}
@@ -224,7 +249,7 @@ export default function NestEggPage() { // <-- Renamed component
               />
           </div>
         </section>
-         {/* --- End KPI Section --- */}
+        {/* --- End KPI Section --- */}
 
 
         {/* --- Charts & Insights Section --- */}
@@ -232,6 +257,7 @@ export default function NestEggPage() { // <-- Renamed component
              {/* Trend Chart */}
              <div className="lg:col-span-2 bg-gray-800/30 p-4 rounded-lg shadow-lg">
                 <h3 className="text-lg font-semibold mb-3 text-gray-300 flex items-center"><TrendingUp className="mr-2 h-5 w-5"/> NestEgg Value Trend (13 Months)</h3>
+                {/* TrendChartPlaceholder now receives fake data */}
                 <TrendChartPlaceholder data={trendData} isLoading={isTrendLoading} error={trendError}/>
              </div>
 
@@ -239,10 +265,12 @@ export default function NestEggPage() { // <-- Renamed component
             <div className="space-y-6">
                 <div className="bg-gray-800/30 p-4 rounded-lg shadow-lg">
                    <h3 className="text-lg font-semibold mb-3 text-gray-300 flex items-center"><PieIcon className="mr-2 h-5 w-5"/> Asset Allocation</h3>
+                   {/* Pass data derived from summaryData */}
                    <AllocationChart data={allocationData} isLoading={isSummaryLoading} />
                 </div>
                  <div className="bg-gray-800/30 p-4 rounded-lg shadow-lg">
                      <h3 className="text-lg font-semibold mb-3 text-gray-300 flex items-center"><List className="mr-2 h-5 w-5"/> Top Positions</h3>
+                      {/* Pass data derived from summaryData */}
                      <TopPositionsList data={topPositionsData} isLoading={isSummaryLoading} />
                  </div>
             </div>
@@ -251,8 +279,9 @@ export default function NestEggPage() { // <-- Renamed component
 
 
         {/* --- Detailed Tables Section --- */}
+        {/* Ensure these table components exist and receive necessary props or fetch their own data */}
          <section className="mb-12 bg-gray-800/30 p-4 rounded-lg shadow-lg">
-             <AccountTable title="Accounts Summary" /> {/* Assumes AccountTable fetches its own data now or receives filtered data */}
+             <AccountTable title="Accounts Summary" />
          </section>
 
          <section className="mb-12 bg-gray-800/30 p-4 rounded-lg shadow-lg">
@@ -267,7 +296,7 @@ export default function NestEggPage() { // <-- Renamed component
              <MetalsTable title="Precious Metal Positions" />
          </section>
 
-         <section className="bg-gray-800/30 p-4 rounded-lg shadow-lg"> {/* Last section */}
+         <section className="bg-gray-800/30 p-4 rounded-lg shadow-lg">
              <RealEstateTable title="Real Estate Holdings"/>
          </section>
          {/* --- End Detailed Tables Section --- */}
