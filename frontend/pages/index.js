@@ -1,204 +1,214 @@
-import { useEffect, useState } from "react";
-import { 
-  PiggyBank, 
-  ChartLine, 
-  PlusCircle,
-  TrendingUp,
-  TrendingDown,
-  BarChart2,
-  DollarSign,
-  X
+import { useEffect, useState, useCallback } from "react";
+import {
+    BarChartHorizontalBig, // Changed icon for page title
+    TrendingUp,
+    TrendingDown,
+    PlusCircle,
+    GripVertical, // Icon for drag handle
+    Trash2, // Icon for remove button
+    X
 } from 'lucide-react';
-import { Line } from "react-chartjs-2";
-import "chart.js/auto";
+import { DndContext, closestCenter, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
+import { arrayMove, SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
 
-export default function Home() {
+// Import the new components (assuming they are created in ./components/)
+import BenchmarkTable from '../components/tables/BenchmarkTable';
+import ChartModal from '../components/ChartModal';
+import { fetchDashboardData, fetchHistoricalData } from '../utils/apiMethods/marketDataMethods'; // Placeholder API methods
+import { fetchPortfolioSummary } from '../utils/apiMethods/portfolioMethods'; // Placeholder for NestEgg data
+
+// Mock user data - in real app, this would come from authentication context
+const mockUser = {
+    name: "Sarah Johnson",
+    email: "sarah.johnson@example.com",
+    profilePicture: null
+};
+
+// Initial state for dashboard items - REPLACE WITH ACTUAL FETCHED DATA
+const initialDashboardItems = [
+    {
+      id: "NEST_EGG", // Special ID for user's portfolio
+      symbol: "NEST_EGG",
+      name: "Your NestEgg",
+      price: "Loading...", // Will be fetched
+      change1d: 0, change1w: 0, changeYTD: 0, change1y: 0, change2y: 0, change3y: 0,
+      color: "#8B5CF6", // Example color
+      isUserPortfolio: true,
+      isRemovable: false,
+    },
+    {
+      id: "SPX",
+      symbol: "SPX",
+      name: "S&P 500",
+      price: "5,983.25",
+      change1d: -0.50, change1w: 1.25, changeYTD: 8.75, change1y: 22.45, change2y: 15.20, change3y: 35.80,
+      color: "#4A90E2",
+      isRemovable: true,
+    },
+    {
+      id: "DJI",
+      symbol: "DJI",
+      name: "Dow Jones",
+      price: "43,461.21",
+      change1d: 0.08, change1w: 0.95, changeYTD: 5.45, change1y: 15.80, change2y: 10.25, change3y: 28.40,
+      color: "#10B981",
+      isRemovable: true,
+    },
+    {
+      id: "BTC",
+      symbol: "BTC",
+      name: "Bitcoin",
+      price: "$93,356.18",
+      change1d: -2.45, change1w: 5.85, changeYTD: 38.75, change1y: 145.60, change2y: 85.25, change3y: 380.40,
+      color: "#F97316",
+      isRemovable: true,
+    },
+    {
+      id: "GOLD", // Added Gold
+      symbol: "GC=F", // Example symbol for Gold Futures
+      name: "Gold",
+      price: "$2,450.50",
+      change1d: 0.15, change1w: -0.50, changeYTD: 6.20, change1y: 18.90, change2y: 12.10, change3y: 25.50,
+      color: "#FACC15", // Gold color
+      isRemovable: true,
+    },
+    {
+      id: "TNX",
+      symbol: "TNX", // Or ^TNX depending on source
+      name: "10-Year Treasury",
+      price: "4.393%",
+      change1d: -0.03, change1w: 0.12, changeYTD: 0.45, change1y: -0.65, change2y: 1.25, change3y: 2.85,
+      color: "#F59E0B",
+      isRemovable: true,
+    },
+    // Add "Select Stocks" here if needed, or handle via Add button
+];
+
+// Time periods remain the same
+const timePeriods = [
+    { id: "1d", label: "1 Day", dataPoints: 24 },
+    { id: "1w", label: "1 Week", dataPoints: 7 },
+    { id: "ytd", label: "YTD", dataPoints: 12 }, // Simplified points for mock data
+    { id: "1y", label: "1 Year", dataPoints: 12 },
+    { id: "2y", label: "2 Year", dataPoints: 24 },
+    { id: "3y", label: "3 Year", dataPoints: 36 }
+];
+
+export default function PortfolioBenchmarking() {
+    const [user, setUser] = useState(mockUser); // Replace with auth context
+    const [dashboardItems, setDashboardItems] = useState(initialDashboardItems);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState(null);
-    const [chartModal, setChartModal] = useState({
+    const [chartModalData, setChartModalData] = useState({
         isOpen: false,
-        index: null,
+        symbol: null,
+        name: null,
         timeframe: null
     });
-    
-    // Mock user data - in real app, this would come from authentication context
-    const user = {
-        name: "Sarah Johnson",
-        email: "sarah.johnson@example.com",
-        profilePicture: null
-    };
 
-    // Market data
-    const [marketData, setMarketData] = useState([
-        {
-          name: "S&P 500",
-          symbol: "SPX",
-          price: "5,983.25",
-          change1d: -0.50,
-          change1w: 1.25,
-          changeYTD: 8.75,
-          change1y: 22.45,
-          change2y: 15.20,
-          change3y: 35.80,
-          color: "#4A90E2"
-        },
-        {
-          name: "Nasdaq",
-          symbol: "COMP",
-          price: "19,286.93",
-          change1d: -1.21,
-          change1w: -0.85,
-          changeYTD: 12.35,
-          change1y: 28.60,
-          change2y: 18.45,
-          change3y: 42.60,
-          color: "#7C3AED"
-        },
-        {
-          name: "Dow Jones",
-          symbol: "DJI",
-          price: "43,461.21",
-          change1d: 0.08,
-          change1w: 0.95,
-          changeYTD: 5.45,
-          change1y: 15.80,
-          change2y: 10.25,
-          change3y: 28.40,
-          color: "#10B981"
-        },
-        {
-          name: "10-Year Treasury",
-          symbol: "TNX",
-          price: "4.393%",
-          change1d: -0.03,
-          change1w: 0.12,
-          changeYTD: 0.45,
-          change1y: -0.65,
-          change2y: 1.25,
-          change3y: 2.85,
-          color: "#F59E0B"
-        },
-        {
-          name: "Bitcoin",
-          symbol: "BTC",
-          price: "$93,356.18",
-          change1d: -2.45,
-          change1w: 5.85,
-          changeYTD: 38.75,
-          change1y: 145.60,
-          change2y: 85.25,
-          change3y: 380.40,
-          color: "#F97316"
-        }
-    ]);
+    // --- Data Fetching ---
+    useEffect(() => {
+        const loadData = async () => {
+            setIsLoading(true);
+            setError(null);
+            try {
+                // 1. Fetch User's Portfolio Summary ("NestEgg") - Placeholder
+                // const portfolioSummary = await fetchPortfolioSummary(); // Needs implementation
+                const portfolioSummary = { price: "$123,456.78", change1d: 0.55, /* other changes */ }; // Mock
 
-    // Time periods
-    const timePeriods = [
-        { id: "1d", label: "1 Day", dataPoints: 24 },
-        { id: "1w", label: "1 Week", dataPoints: 7 },
-        { id: "ytd", label: "YTD", dataPoints: 12 },
-        { id: "1y", label: "1 Year", dataPoints: 12 },
-        { id: "2y", label: "2 Year", dataPoints: 24 },
-        { id: "3y", label: "3 Year", dataPoints: 36 }
-    ];
+                // 2. Fetch data for other benchmark symbols
+                const symbolsToFetch = initialDashboardItems
+                    .filter(item => !item.isUserPortfolio)
+                    .map(item => item.symbol);
 
-    // Function to generate mock chart data
-    const generateChartData = (index, timeframe) => {
-        const marketIndex = marketData.find(m => m.symbol === index);
-        if (!marketIndex) return null;
-        
-        const timeInfo = timePeriods.find(t => t.id === timeframe);
-        if (!timeInfo) return null;
-        
-        const labels = [];
-        const data = [];
-        let startValue = parseInt(marketIndex.price.replace(/[^0-9.]/g, ''));
-        let volatility = 0;
-        
-        // Set volatility based on time period
-        switch(timeframe) {
-            case "1d": volatility = 0.2; break;
-            case "1w": volatility = 0.5; break;
-            case "ytd": volatility = 2; break;
-            case "1y": volatility = 5; break;
-            case "2y": volatility = 8; break;
-            case "3y": volatility = 12; break;
-            default: volatility = 1;
-        }
-        
-        // Generate dates based on timeframe
-        for (let i = 0; i < timeInfo.dataPoints; i++) {
-            const date = new Date();
-            
-            switch(timeframe) {
-                case "1d":
-                    date.setHours(date.getHours() - (timeInfo.dataPoints - i - 1));
-                    labels.push(date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}));
-                    break;
-                case "1w":
-                    date.setDate(date.getDate() - (timeInfo.dataPoints - i - 1));
-                    labels.push(date.toLocaleDateString([], {weekday: 'short'}));
-                    break;
-                case "ytd":
-                    date.setMonth(i);
-                    labels.push(date.toLocaleDateString([], {month: 'short'}));
-                    break;
-                case "1y":
-                    date.setMonth(date.getMonth() - (timeInfo.dataPoints - i - 1));
-                    labels.push(date.toLocaleDateString([], {month: 'short'}));
-                    break;
-                case "2y":
-                    date.setMonth(date.getMonth() - (timeInfo.dataPoints - i - 1));
-                    labels.push(date.toLocaleDateString([], {month: 'short', year: '2-digit'}));
-                    break;
-                case "3y":
-                    date.setMonth(date.getMonth() - (timeInfo.dataPoints - i - 1));
-                    labels.push(date.toLocaleDateString([], {month: 'short', year: '2-digit'}));
-                    break;
-                default:
-                    labels.push(`Point ${i}`);
+                // const marketQuotes = await fetchDashboardData(symbolsToFetch); // Needs implementation
+                const marketQuotes = initialDashboardItems.reduce((acc, item) => { // Mock - Use API result instead
+                    if (!item.isUserPortfolio) acc[item.symbol] = { ...item };
+                    return acc;
+                }, {});
+
+                // 3. Update dashboard items state
+                setDashboardItems(prevItems =>
+                    prevItems.map(item => {
+                        if (item.isUserPortfolio) {
+                            return { ...item, ...portfolioSummary, price: portfolioSummary.price }; // Update NestEgg
+                        }
+                        if (marketQuotes[item.symbol]) {
+                            return { ...item, ...marketQuotes[item.symbol] }; // Update benchmark data
+                        }
+                        return item;
+                    })
+                );
+
+            } catch (err) {
+                console.error("Error loading dashboard data:", err);
+                setError("Failed to load benchmarking data. Please try again later.");
+                // Keep initial mock data on error? Or show an error message?
+                 setDashboardItems(initialDashboardItems); // Reset to mock on error for now
+            } finally {
+                setIsLoading(false);
             }
-        }
-        
-        // Generate data with a trend that matches the overall change percentage
-        const changeKey = timeframeToChangeKey(timeframe);
-        const targetChange = marketIndex[changeKey] || 0;
-        const targetEndValue = startValue * (1 + targetChange/100);
-        
-        // Generate fluctuating data that ends at the target value
-        for (let i = 0; i < timeInfo.dataPoints; i++) {
-            if (i === 0) {
-                data.push(startValue);
-            } else if (i === timeInfo.dataPoints - 1) {
-                data.push(targetEndValue);
-            } else {
-                // Calculate a point along the path from start to target with some randomness
-                const progress = i / (timeInfo.dataPoints - 1);
-                const trendValue = startValue + progress * (targetEndValue - startValue);
-                const randomFactor = (Math.random() - 0.5) * volatility * (startValue / 100);
-                data.push(trendValue + randomFactor);
-            }
-        }
-        
-        return {
-            labels,
-            datasets: [
-                {
-                    label: `${marketIndex.name} (${timeInfo.label})`,
-                    data,
-                    borderColor: marketIndex.color,
-                    backgroundColor: `${marketIndex.color}33`,
-                    borderWidth: 2,
-                    pointRadius: 1,
-                    pointHoverRadius: 5,
-                    tension: 0.3,
-                    fill: true
-                }
-            ]
         };
+
+        loadData();
+        // TODO: Add logic to fetch user's saved dashboard items/order if persistence is implemented
+    }, []); // Runs on mount
+
+    // --- Handlers ---
+    const handleChartOpen = useCallback((symbol, name, timeframe) => {
+        setChartModalData({ isOpen: true, symbol, name, timeframe });
+    }, []);
+
+    const handleChartClose = useCallback(() => {
+        setChartModalData({ isOpen: false, symbol: null, name: null, timeframe: null });
+    }, []);
+
+    const handleAddItemClick = () => {
+        // TODO: Implement Add Item Modal/Search functionality
+        alert("Placeholder: Open modal to search and add benchmarks/securities.");
+        // 1. Open Modal
+        // 2. User searches/selects item (needs backend search endpoint)
+        // 3. Fetch data for the new item (using fetchDashboardData or similar)
+        // 4. Add item to dashboardItems state
+        // 5. Optionally save the updated list to user preferences (backend)
     };
 
-    // Helper to map timeframe ID to change key in marketData
+    const handleRemoveItem = useCallback((idToRemove) => {
+        setDashboardItems(prevItems => prevItems.filter(item => item.id !== idToRemove));
+        // TODO: Save updated list to user preferences (backend)
+    }, []);
+
+    // --- Drag & Drop ---
+    const sensors = useSensors(
+        useSensor(PointerSensor, {
+            activationConstraint: {
+                 // Require pointer movement before starting drag
+                distance: 5,
+            },
+        })
+    );
+
+    const handleDragEnd = useCallback((event) => {
+        const { active, over } = event;
+        if (active.id !== over.id) {
+            setDashboardItems((items) => {
+                const oldIndex = items.findIndex((item) => item.id === active.id);
+                const newIndex = items.findIndex((item) => item.id === over.id);
+                // Ensure "Your NestEgg" always stays at the top if desired
+                // if (items[oldIndex]?.isUserPortfolio || items[newIndex]?.isUserPortfolio) {
+                //   // Optional: Prevent dragging NestEgg or dragging over it
+                //   // return items;
+                // }
+                 const reorderedItems = arrayMove(items, oldIndex, newIndex);
+                 // TODO: Save new order to user preferences (backend)
+                 return reorderedItems;
+
+            });
+        }
+    }, []);
+
+
+    // Helper to map timeframe ID to change key in dashboardItems
     const timeframeToChangeKey = (timeframe) => {
         switch(timeframe) {
             case "1d": return "change1d";
@@ -211,18 +221,19 @@ export default function Home() {
         }
     };
 
-    // Function to render trend arrow and proper styling based on change value
+    // Function to render trend (moved here, could be in BenchmarkTable or utils)
     const renderTrend = (change) => {
+        if (typeof change !== 'number') return <span className="text-gray-500">-</span>;
         if (change > 0) {
             return (
-                <div className="flex items-center text-green-500">
+                <div className="flex items-center justify-end text-green-500">
                     <TrendingUp className="h-4 w-4 mr-1" />
                     <span>+{change.toFixed(2)}%</span>
                 </div>
             );
         } else if (change < 0) {
             return (
-                <div className="flex items-center text-red-500">
+                <div className="flex items-center justify-end text-red-500">
                     <TrendingDown className="h-4 w-4 mr-1" />
                     <span>{change.toFixed(2)}%</span>
                 </div>
@@ -232,326 +243,81 @@ export default function Home() {
         }
     };
 
-    // Chart options
-    const chartOptions = {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-            legend: {
-                position: 'top',
-                labels: {
-                    color: 'rgba(255, 255, 255, 0.9)'
-                }
-            },
-            tooltip: {
-                mode: 'index',
-                intersect: false
-            }
-        },
-        scales: {
-            x: {
-                grid: {
-                    color: 'rgba(255, 255, 255, 0.1)'
-                },
-                ticks: {
-                    color: 'rgba(255, 255, 255, 0.7)'
-                }
-            },
-            y: {
-                grid: {
-                    color: 'rgba(255, 255, 255, 0.1)'
-                },
-                ticks: {
-                    color: 'rgba(255, 255, 255, 0.7)',
-                    callback: function(value) {
-                        if (chartModal.index === 'BTC') {
-                            return '$' + value.toLocaleString();
-                        } else if (chartModal.index === 'TNX') {
-                            return value.toFixed(2) + '%';
-                        } else {
-                            return value.toLocaleString();
-                        }
-                    }
-                }
-            }
-        },
-        interaction: {
-            mode: 'nearest',
-            axis: 'x',
-            intersect: false
-        }
-    };
-
-    // Mock function for position adding
-    const handleAddPosition = (symbol) => {
-        alert(`Add position for ${symbol}`);
-        // In a real implementation, this would open the position adding modal
-    };
-
-    // Open chart modal
-    const openChartModal = (index, timeframe) => {
-        setChartModal({
-            isOpen: true,
-            index: index,
-            timeframe: timeframe
-        });
-    };
-
-    // Close chart modal
-    const closeChartModal = () => {
-        setChartModal({
-            isOpen: false,
-            index: null,
-            timeframe: null
-        });
-    };
-
-    useEffect(() => {
-        // Mock loading state
-        setTimeout(() => {
-            setIsLoading(false);
-        }, 1000);
-    }, []);
-
     return (
-        <div className="min-h-screen bg-gradient-to-br from-gray-900 to-blue-900 text-white">
-            {/* Main Content Container */}
-            <div className="container mx-auto px-4 py-16">
+        <div className="min-h-screen bg-gradient-to-br from-gray-900 to-blue-900 text-white p-4 md:p-8">
+            <div className="container mx-auto">
                 {/* Header */}
-                <header className="text-center mb-16">
-                    <div className="flex items-center justify-center mb-6">
-                        <PiggyBank className="w-16 h-16 text-blue-400 mr-4" />
-                        <h1 className="text-5xl font-extrabold">NestEgg</h1>
-                    </div>
-                    <p className="text-xl text-gray-300 max-w-2xl mx-auto">
-                        Your comprehensive platform for tracking and growing your retirement investments
+                <header className="mb-8 md:mb-12">
+                    <h1 className="text-3xl md:text-4xl font-bold mb-2 flex items-center">
+                        <BarChartHorizontalBig className="w-8 h-8 mr-3 text-blue-400" />
+                        Portfolio Benchmarking Dashboard
+                    </h1>
+                    <p className="text-lg text-gray-300">
+                        Track your portfolio's performance against key market benchmarks and custom securities.
                     </p>
                 </header>
 
-                {/* Quick Actions */}
-                <div className="grid md:grid-cols-3 gap-6 mb-16">
-                    <div className="bg-gray-800 p-6 rounded-xl hover:bg-gray-700 transition-colors group">
-                        <DollarSign className="w-12 h-12 text-blue-400 mb-4 group-hover:animate-pulse" />
-                        <h3 className="text-xl font-semibold mb-2">Add Positions</h3>
-                        <p className="text-gray-400 mb-4">
-                            Track your favorite stocks and other investments
-                        </p>
-                        <button className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors">
-                            Add Positions
-                        </button>
-                    </div>
+                {/* Benchmarking Table Section */}
+                <div className="bg-gray-800/60 backdrop-blur-sm p-4 sm:p-6 md:p-8 rounded-xl shadow-xl">
+                    <h2 className="text-2xl font-semibold mb-4 text-gray-100">Your Dashboard</h2>
+                    <p className="text-gray-400 mb-6 text-sm">
+                        Drag <GripVertical className="inline h-4 w-4 mx-1 text-gray-500" /> to reorder. Click trend percentages to view charts.
+                    </p>
 
-                    <div className="bg-gray-800 p-6 rounded-xl hover:bg-gray-700 transition-colors group">
-                        <ChartLine className="w-12 h-12 text-green-400 mb-4 group-hover:animate-pulse" />
-                        <h3 className="text-xl font-semibold mb-2">Portfolio Overview</h3>
-                        <p className="text-gray-400 mb-4">
-                            Track your investments across multiple accounts
-                        </p>
-                        <button className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors">
-                            View Portfolio
-                        </button>
-                    </div>
-
-                    <div className="bg-gray-800 p-6 rounded-xl hover:bg-gray-700 transition-colors group">
-                        <PlusCircle className="w-12 h-12 text-purple-400 mb-4 group-hover:animate-pulse" />
-                        <h3 className="text-xl font-semibold mb-2">Add New Account</h3>
-                        <p className="text-gray-400 mb-4">
-                            Connect a new investment or retirement account
-                        </p>
-                        <button className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 transition-colors">
-                            Add Account
-                        </button>
-                    </div>
-                </div>
-
-                {/* Market Trends Section */}
-                <div className="bg-gray-800 p-8 rounded-xl mb-16">
-                    <h2 className="text-2xl font-semibold mb-6 flex items-center">
-                        <BarChart2 className="w-8 h-8 mr-4 text-blue-400" />
-                        Market Trends
-                    </h2>
-                    <p className="text-gray-400 mb-4">Click on any cell to view detailed performance charts</p>
-
-                    {isLoading ? (
-                        <div className="text-center text-gray-400">
-                            Loading market data...
-                        </div>
-                    ) : error ? (
-                        <div className="text-red-400 text-center">
+                    {error && (
+                         <div className="text-red-400 text-center mb-4 p-4 bg-red-900/30 rounded">
                             {error}
                         </div>
-                    ) : (
-                        <div className="overflow-x-auto">
-                            <table className="min-w-full">
-                                <thead>
-                                    <tr className="border-b border-gray-700">
-                                        <th className="py-3 px-4 text-left text-gray-300">Index</th>
-                                        <th className="py-3 px-4 text-right text-gray-300">Price</th>
-                                        <th className="py-3 px-4 text-right text-gray-300">1 Day</th>
-                                        <th className="py-3 px-4 text-right text-gray-300">1 Week</th>
-                                        <th className="py-3 px-4 text-right text-gray-300">YTD</th>
-                                        <th className="py-3 px-4 text-right text-gray-300">1 Year</th>
-                                        <th className="py-3 px-4 text-right text-gray-300">2 Year</th>
-                                        <th className="py-3 px-4 text-right text-gray-300">3 Year</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {marketData.map((item) => (
-                                        <tr 
-                                            key={item.symbol} 
-                                            className="border-b border-gray-700 hover:bg-gray-700/50 transition-colors"
-                                        >
-                                            <td className="py-4 px-4">
-                                                <div className="font-medium">{item.name}</div>
-                                                <div className="text-sm text-gray-400">{item.symbol}</div>
-                                            </td>
-                                            <td className="py-4 px-4 text-right font-medium">{item.price}</td>
-                                            <td 
-                                                className="py-4 px-4 text-right cursor-pointer hover:bg-blue-900/30 transition-colors" 
-                                                onClick={() => openChartModal(item.symbol, "1d")}
-                                            >
-                                                {renderTrend(item.change1d)}
-                                            </td>
-                                            <td 
-                                                className="py-4 px-4 text-right cursor-pointer hover:bg-blue-900/30 transition-colors" 
-                                                onClick={() => openChartModal(item.symbol, "1w")}
-                                            >
-                                                {renderTrend(item.change1w)}
-                                            </td>
-                                            <td 
-                                                className="py-4 px-4 text-right cursor-pointer hover:bg-blue-900/30 transition-colors" 
-                                                onClick={() => openChartModal(item.symbol, "ytd")}
-                                            >
-                                                {renderTrend(item.changeYTD)}
-                                            </td>
-                                            <td 
-                                                className="py-4 px-4 text-right cursor-pointer hover:bg-blue-900/30 transition-colors" 
-                                                onClick={() => openChartModal(item.symbol, "1y")}
-                                            >
-                                                {renderTrend(item.change1y)}
-                                            </td>
-                                            <td 
-                                                className="py-4 px-4 text-right cursor-pointer hover:bg-blue-900/30 transition-colors" 
-                                                onClick={() => openChartModal(item.symbol, "2y")}
-                                            >
-                                                {renderTrend(item.change2y)}
-                                            </td>
-                                            <td 
-                                                className="py-4 px-4 text-right cursor-pointer hover:bg-blue-900/30 transition-colors" 
-                                                onClick={() => openChartModal(item.symbol, "3y")}
-                                            >
-                                                {renderTrend(item.change3y)}
-                                            </td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
                     )}
-                </div>
 
-                {/* Popular Stocks Section */}
-                <div className="bg-gray-800 p-8 rounded-xl">
-                    <h2 className="text-2xl font-semibold mb-6 flex items-center">
-                        <TrendingUp className="w-8 h-8 mr-4 text-green-400" />
-                        Popular Stocks
-                    </h2>
+                    <DndContext
+                        sensors={sensors}
+                        collisionDetection={closestCenter}
+                        onDragEnd={handleDragEnd}
+                    >
+                        <SortableContext
+                            items={dashboardItems.map(item => item.id)}
+                            strategy={verticalListSortingStrategy}
+                        >
+                            <BenchmarkTable
+                                items={dashboardItems}
+                                timePeriods={timePeriods}
+                                isLoading={isLoading}
+                                onChartOpen={handleChartOpen}
+                                onRemoveItem={handleRemoveItem}
+                                renderTrend={renderTrend} // Pass render function
+                                timeframeToChangeKey={timeframeToChangeKey} // Pass helper
+                            />
+                        </SortableContext>
+                    </DndContext>
 
-                    <div className="grid md:grid-cols-3 gap-4">
-                        {["AAPL", "MSFT", "GOOGL", "AMZN", "META", "NVDA"].map((symbol) => (
-                            <div 
-                                key={symbol} 
-                                className="bg-gray-700 p-4 rounded-lg hover:bg-gray-600 transition-colors flex justify-between items-center"
-                            >
-                                <div>
-                                    <h3 className="font-medium">{symbol}</h3>
-                                    <p className="text-sm text-gray-400">Add to portfolio</p>
-                                </div>
-                                <button
-                                    onClick={() => handleAddPosition(symbol)}
-                                    className="p-2 bg-blue-500 rounded-full text-white hover:bg-blue-600 transition-colors"
-                                >
-                                    <PlusCircle className="w-5 h-5" />
-                                </button>
-                            </div>
-                        ))}
+                    {/* Add Item Button */}
+                    <div className="mt-6 text-center">
+                         <button
+                            onClick={handleAddItemClick}
+                            className="inline-flex items-center px-6 py-3 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition-colors shadow focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-gray-800"
+                         >
+                            <PlusCircle className="w-5 h-5 mr-2" />
+                            Add Benchmark/Security
+                         </button>
                     </div>
                 </div>
             </div>
 
             {/* Chart Modal */}
-            {chartModal.isOpen && (
-                <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4 overflow-auto">
-                    <div className="bg-gray-800 rounded-xl max-w-4xl w-full max-h-[90vh] overflow-auto">
-                        <div className="flex justify-between items-center p-4 border-b border-gray-700">
-                            <h3 className="text-xl font-semibold">
-                                {marketData.find(m => m.symbol === chartModal.index)?.name} - 
-                                {" " + timePeriods.find(t => t.id === chartModal.timeframe)?.label} Performance
-                            </h3>
-                            <button 
-                                onClick={closeChartModal}
-                                className="p-2 hover:bg-gray-700 rounded-full transition-colors"
-                            >
-                                <X className="w-6 h-6" />
-                            </button>
-                        </div>
-                        
-                        <div className="p-4">
-                            <div className="bg-gray-900 p-4 rounded-lg">
-                                <div className="h-80">
-                                    {chartModal.index && chartModal.timeframe && (
-                                        <Line 
-                                            data={generateChartData(chartModal.index, chartModal.timeframe)} 
-                                            options={chartOptions} 
-                                        />
-                                    )}
-                                </div>
-                            </div>
-                            
-                            {/* Additional Data Summary */}
-                            <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-4">
-                                <div className="bg-gray-900 p-4 rounded-lg">
-                                    <h4 className="text-gray-400 text-sm mb-1">Current Price</h4>
-                                    <p className="text-xl font-semibold">
-                                        {marketData.find(m => m.symbol === chartModal.index)?.price}
-                                    </p>
-                                </div>
-                                <div className="bg-gray-900 p-4 rounded-lg">
-                                    <h4 className="text-gray-400 text-sm mb-1">Period Change</h4>
-                                    <div className="text-xl font-semibold">
-                                        {renderTrend(
-                                            marketData.find(m => m.symbol === chartModal.index)?.[timeframeToChangeKey(chartModal.timeframe)] || 0
-                                        )}
-                                    </div>
-                                </div>
-                                <div className="bg-gray-900 p-4 rounded-lg">
-                                    <h4 className="text-gray-400 text-sm mb-1">Period Range</h4>
-                                    <p className="text-xl font-semibold">
-                                        {
-                                            (() => {
-                                                const chartData = generateChartData(chartModal.index, chartModal.timeframe);
-                                                if (!chartData || !chartData.datasets[0].data.length) return "N/A";
-                                                
-                                                const data = chartData.datasets[0].data;
-                                                const min = Math.min(...data);
-                                                const max = Math.max(...data);
-                                                
-                                                if (chartModal.index === 'BTC') {
-                                                    return `$${min.toLocaleString()} - $${max.toLocaleString()}`;
-                                                } else if (chartModal.index === 'TNX') {
-                                                    return `${min.toFixed(2)}% - ${max.toFixed(2)}%`;
-                                                } else {
-                                                    return `${min.toLocaleString()} - ${max.toLocaleString()}`;
-                                                }
-                                            })()
-                                        }
-                                    </p>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            )}
+            <ChartModal
+                isOpen={chartModalData.isOpen}
+                onClose={handleChartClose}
+                symbol={chartModalData.symbol}
+                name={chartModalData.name}
+                timeframe={chartModalData.timeframe}
+                timePeriods={timePeriods} // Pass timePeriods for label lookup
+                renderTrend={renderTrend} // Pass render function
+                timeframeToChangeKey={timeframeToChangeKey} // Pass helper
+                fetchHistoricalData={fetchHistoricalData} // Pass the actual fetch function
+                 // Pass existing static data as a fallback or for comparison
+                staticMarketData={dashboardItems} // Or pass the specific item if needed
+            />
         </div>
     );
 }

@@ -17,15 +17,15 @@ const Sidebar = () => {
   useEffect(() => {
     const handleResize = () => {
       if (window.innerWidth < 768) {
-        setSidebarCollapsed(false); // Collapse on mobile
+        setSidebarCollapsed(true); // *** FIXED: Set to TRUE to collapse on mobile ***
       } else {
         setSidebarCollapsed(false); // Expand on desktop
       }
     };
-    handleResize();
+    handleResize(); // Run on mount to set initial state
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
-  }, []);
+  }, []); // Empty dependency array ensures this runs only on mount and cleans up on unmount
 
   // Check if current route matches the given path
   const isActive = (path) => {
@@ -52,7 +52,7 @@ const Sidebar = () => {
           onClick={() => setSidebarCollapsed(true)}
         />
       )}
-    
+     
       <aside 
         className={`
           fixed inset-y-0 left-0 z-30
@@ -191,6 +191,18 @@ const Sidebar = () => {
                 {!sidebarCollapsed && <span>Test Combined</span>}
               </Link>
               <Link href="/summary" className={menuItemClasses(isActive('/test-combined'))}>
+                <Settings size={24} className={iconClasses} />
+                {!sidebarCollapsed && <span>Test 123</span>}
+              </Link>
+              <Link href="/crypto2" className={menuItemClasses(isActive('/test-combined'))}>
+                <Settings size={24} className={iconClasses} />
+                {!sidebarCollapsed && <span>Test 123</span>}
+              </Link>
+              <Link href="/metals2" className={menuItemClasses(isActive('/test-combined'))}>
+                <Settings size={24} className={iconClasses} />
+                {!sidebarCollapsed && <span>Test 123</span>}
+              </Link>
+              <Link href="/real-estate2" className={menuItemClasses(isActive('/test-combined'))}>
                 <Settings size={24} className={iconClasses} />
                 {!sidebarCollapsed && <span>Test 123</span>}
               </Link>
