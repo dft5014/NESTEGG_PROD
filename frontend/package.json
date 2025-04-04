@@ -12,6 +12,7 @@
     "@dnd-kit/core": "^6.1.0",
     "@dnd-kit/sortable": "^8.0.0",
     "canvas-confetti": "^1.9.3",
+    "react-hot-toast": "^2.4.1",
     "chart.js": "^4.4.8",
     "chartjs-plugin-zoom": "^2.2.0",
     "lodash.debounce": "^4.0.8",
