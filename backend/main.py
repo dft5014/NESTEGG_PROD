@@ -4484,6 +4484,215 @@ async def test_yahoo_clients_performance():
             "traceback": traceback.format_exc()
         }
 
+@app.get("/debug/test-metrics-update/{ticker}")
+async def test_metrics_update(ticker: str, client_type: str = "direct", current_user: dict = Depends(get_current_user)):
+    """
+    Test method to debug company metrics update for a specific ticker with different client types.
+    
+    Args:
+        ticker: The ticker symbol to test
+        client_type: The client to test (direct, yahooquery, yfinance, or all)
+        
+    Returns:
+        Detailed report of the metrics update operation
+    """
+    try:
+        # Uppercase the ticker
+        ticker = ticker.upper()
+        
+        # Get pre-update security data
+        pre_update_query = """
+        SELECT 
+            ticker, company_name, sector, industry, market_cap,
+            current_price, pe_ratio, forward_pe, beta,
+            dividend_rate, dividend_yield, eps, forward_eps,
+            last_metrics_update
+        FROM securities 
+        WHERE ticker = :ticker
+        """
+        pre_update_data = await database.fetch_one(pre_update_query, {"ticker": ticker})
+        
+        if not pre_update_data:
+            return {
+                "status": "error",
+                "message": f"Ticker {ticker} not found in the database"
+            }
+        
+        # Initialize clients based on type
+        clients = {}
+        
+        if client_type in ["direct", "all"]:
+            from backend.api_clients.direct_yahoo_client import DirectYahooFinanceClient
+            clients["direct_yahoo"] = DirectYahooFinanceClient()
+            
+        if client_type in ["yahooquery", "all"]:
+            from backend.api_clients.yahooquery_client import YahooQueryClient
+            clients["yahooquery"] = YahooQueryClient()
+            
+        if client_type in ["yfinance", "all"]:
+            from backend.api_clients.yahoo_finance_client import YahooFinanceClient
+            clients["yahoo_finance"] = YahooFinanceClient()
+            
+        if not clients:
+            return {
+                "status": "error",
+                "message": f"Invalid client type: {client_type}"
+            }
+        
+        results = {
+            "pre_update_data": dict(pre_update_data),
+            "clients_tested": list(clients.keys()),
+            "client_results": {},
+            "post_update_data": None,
+            "summary": {},
+            "timestamp": datetime.utcnow().isoformat()
+        }
+        
+        # Test each client
+        for client_name, client in clients.items():
+            logger.info(f"Testing {client_name} for ticker {ticker}")
+            
+            try:
+                # Get metrics from client
+                metrics = await client.get_company_metrics(ticker)
+                
+                # Skip if metrics not found
+                if not metrics or metrics.get("not_found"):
+                    results["client_results"][client_name] = {
+                        "status": "not_found",
+                        "message": f"Metrics not found for {ticker} using {client_name}"
+                    }
+                    continue
+                
+                # Record the raw metrics data from client
+                results["client_results"][client_name] = {
+                    "status": "success",
+                    "raw_metrics": metrics
+                }
+                
+                # Prepare data for database update with safe type handling
+                update_values = {
+                    "ticker": ticker,
+                    "metrics_source": client_name,
+                    "last_metrics_update": datetime.utcnow()
+                }
+                
+                # Fields to map and convert safely
+                column_mapping = {
+                    "company_name": (str, 255),  # Type, max length
+                    "sector": (str, 100),
+                    "industry": (str, 100),
+                    "market_cap": (float, None),
+                    "current_price": (float, None),
+                    "pe_ratio": (float, None),
+                    "forward_pe": (float, None),
+                    "beta": (float, None),
+                    "dividend_rate": (float, None),
+                    "dividend_yield": (float, None),
+                    "eps": (float, None),
+                    "forward_eps": (float, None)
+                }
+                
+                # Extract and convert fields
+                for db_field, (type_func, max_length) in column_mapping.items():
+                    value = None
+                    
+                    # Check if field exists in metrics (using various possible field name variations)
+                    possible_fields = [db_field]
+                    if db_field == "company_name":
+                        possible_fields.extend(["shortName", "longName", "name"])
+                        
+                    # Try all possible field names
+                    for field in possible_fields:
+                        if field in metrics and metrics[field] is not None:
+                            raw_value = metrics[field]
+                            
+                            # Handle case where value is in a 'raw' sub-object (common in Yahoo API)
+                            if isinstance(raw_value, dict) and 'raw' in raw_value:
+                                raw_value = raw_value['raw']
+                                
+                            # Try to convert to appropriate type
+                            try:
+                                if type_func == str:
+                                    value = str(raw_value)
+                                    if max_length and len(value) > max_length:
+                                        value = value[:max_length]
+                                elif type_func == float:
+                                    value = float(raw_value)
+                                # Add more type conversions as needed
+                            except (ValueError, TypeError):
+                                logger.warning(f"Could not convert {field} value '{raw_value}' to {type_func.__name__}")
+                                value = None
+                            
+                            # If we got a value, we're done looking for this field
+                            if value is not None:
+                                break
+                    
+                    # Only add to update values if not None
+                    if value is not None:
+                        update_values[db_field] = value
+                
+                # Log what we're going to update
+                results["client_results"][client_name]["update_values"] = update_values
+                
+                # Construct dynamic SQL update statement
+                set_clauses = []
+                for field, value in update_values.items():
+                    if field != "ticker":  # Skip the ticker as it's for the WHERE clause
+                        set_clauses.append(f"{field} = :{field}")
+                
+                update_query = f"""
+                UPDATE securities 
+                SET {", ".join(set_clauses)}
+                WHERE ticker = :ticker
+                """
+                
+                # Execute the update
+                await database.execute(update_query, update_values)
+                results["client_results"][client_name]["update_result"] = "success"
+                
+            except Exception as e:
+                logger.error(f"Error testing {client_name} for {ticker}: {str(e)}")
+                import traceback
+                trace = traceback.format_exc()
+                
+                results["client_results"][client_name] = {
+                    "status": "error",
+                    "error": str(e),
+                    "traceback": trace
+                }
+                
+        # Get post-update security data
+        post_update_data = await database.fetch_one(pre_update_query, {"ticker": ticker})
+        results["post_update_data"] = dict(post_update_data) if post_update_data else None
+        
+        # Compare pre and post data
+        if pre_update_data and post_update_data:
+            changes = {}
+            for field in pre_update_data.keys():
+                pre_value = pre_update_data[field]
+                post_value = post_update_data[field]
+                
+                if pre_value != post_value:
+                    changes[field] = {
+                        "before": pre_value,
+                        "after": post_value
+                    }
+            
+            results["summary"]["changes"] = changes
+            results["summary"]["changed_fields_count"] = len(changes)
+            
+        return results
+                
+    except Exception as e:
+        logger.error(f"Error in metrics update test: {str(e)}")
+        import traceback
+        return {
+            "status": "error",
+            "message": str(e),
+            "traceback": traceback.format_exc()
+        }
+
 @app.get("/debug/test-yahoo-direct")
 async def test_yahoo_direct():
     """
