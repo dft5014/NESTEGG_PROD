@@ -272,7 +272,7 @@ const SecurityTableAccount = ({ initialSort = "value-high", title = "Security Po
                         {/* Account */}
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300 hidden md:table-cell">{position.account_name}</td>
                         {/* Shares */}
-                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm">{formatCurrency(position.shares, { minimumFractionDigits: 2, maximumFractionDigits: 4 })}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm">{parseFloat(position.shares)}</td>
                         {/* Price */}
                         <td className="px-6 py-4 whitespace-nowrap text-right text-sm hidden sm:table-cell">{formatCurrency(position.price)}</td>
                         {/* Cost Basis/Share */}

@@ -270,6 +270,7 @@ const AccountModal = ({ isOpen, onClose, onAccountAdded, editAccount = null }) =
               value={accountName}
               onChange={(e) => setAccountName(e.target.value)}
               placeholder="e.g., My Retirement, Crypto Portfolio"
+              style={{ color: '#1f2937' }}
               className="w-full px-4 py-3 bg-gray-50 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all text-gray-900"
               required
             />
