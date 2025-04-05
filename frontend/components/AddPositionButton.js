@@ -1,4 +1,4 @@
-// Modified AddPositionButton.js
+// components/AddPositionButton.js
 import { useState, useEffect, useContext } from 'react';
 import { AuthContext } from '@/context/AuthContext';
 import { DollarSign } from 'lucide-react';
@@ -7,15 +7,11 @@ import PositionTypeModal from '@/components/modals/PositionTypeModal';
 import SecurityPositionModal from '@/components/modals/SecurityPositionModal';
 import CryptoPositionModal from '@/components/modals/CryptoPositionModal';
 import MetalPositionModal from '@/components/modals/MetalPositionModal';
-import RealEstatePositionModal from '@/components/modals/RealEstatePositionModal';
+import RealEstatePositionModal from '@/components/modals/RealEstatePositionModal'; // Check path
 import { fetchAccounts } from '@/utils/apimethods/accountMethods';
 
-const AddPositionButton = ({ 
-    className = "", 
-    onPositionAdded = () => {},
-    accountId = null, // NEW: Allow passing direct accountId
-    buttonContent = null // NEW: Allow custom button content
-}) => {
+const AddPositionButton = ({ className = "", onPositionAdded = () => {} }) => {
+    // ... (keep all state variables, useEffect, loadAccounts, handleAddPosition, handleAccountSelected as before) ...
     const { user } = useContext(AuthContext);
     const [accounts, setAccounts] = useState([]);
     const [selectedAccount, setSelectedAccount] = useState(null);
@@ -35,16 +31,6 @@ const AddPositionButton = ({
         }
     }, [user]);
 
-    // NEW: If accountId is provided, set it as selected account when accounts are loaded
-    useEffect(() => {
-        if (accountId && accounts.length > 0) {
-            const account = accounts.find(acc => acc.id === accountId);
-            if (account) {
-                setSelectedAccount(account);
-            }
-        }
-    }, [accountId, accounts]);
-
     const loadAccounts = async () => {
         try {
             const accountsData = await fetchAccounts();
@@ -55,20 +41,15 @@ const AddPositionButton = ({
         }
     };
 
-    const handleAddPosition = (e) => {
-        if (e) e.stopPropagation(); // Stop event propagation for row clicks
-        
+     const handleAddPosition = () => {
         setError(null);
         if (accounts.length === 0) {
             setError('Please add an account first before adding positions.');
             return;
         }
-        
-        // If accountId is provided or we have a single account, skip account selection
-        if (selectedAccount) {
-            console.log("AddPositionButton: Account already selected:", selectedAccount);
-            setIsPositionTypeModalOpen(true);
-        } else if (accounts.length === 1) {
+        setSelectedAccount(null);
+        setSelectedPositionType(null);
+        if (accounts.length === 1) {
             console.log("AddPositionButton: Single account detected, selecting:", accounts[0]);
             setSelectedAccount(accounts[0]);
             setIsPositionTypeModalOpen(true);
@@ -78,35 +59,40 @@ const AddPositionButton = ({
         }
     };
 
-    const handleAccountSelected = (accountId) => {
+     const handleAccountSelected = (accountId) => {
         const account = accounts.find(acc => acc.id === accountId);
         console.log("AddPositionButton: Account selected:", account);
         if (account) {
             setSelectedAccount(account);
             setIsAccountSelectModalOpen(false);
             if (selectedPositionType) {
-                console.log("AddPositionButton: Position type already selected:", selectedPositionType, "Opening specific modal.");
-                openPositionModal(selectedPositionType);
+                 console.log("AddPositionButton: Position type already selected:", selectedPositionType, "Opening specific modal.");
+                 openPositionModal(selectedPositionType);
             } else {
-                console.log("AddPositionButton: Opening PositionTypeModal");
-                setIsPositionTypeModalOpen(true);
+                 console.log("AddPositionButton: Opening PositionTypeModal");
+                 setIsPositionTypeModalOpen(true);
             }
         } else {
-            console.error("AddPositionButton: Selected account ID not found:", accountId);
-            setError("Could not find the selected account.");
+             console.error("AddPositionButton: Selected account ID not found:", accountId);
+             setError("Could not find the selected account.");
         }
     };
 
+
     const handlePositionTypeSelected = (type) => {
+        // *** DEBUG LOG 1 ***
         console.log('AddPositionButton: handlePositionTypeSelected called with type:', type);
         setSelectedPositionType(type);
         setIsPositionTypeModalOpen(false);
+        // Ensure this function call is exactly correct
         openPositionModal(type);
+        console.log('AddPositionButton: Called openPositionModal(type)'); // Log after the call
     };
 
     const openPositionModal = (type) => {
+        // *** MOVED DEBUG LOG 2 & WRAPPED IN TRY/CATCH ***
         try {
-            console.log('AddPositionButton: Entered openPositionModal function with type:', type);
+            console.log('AddPositionButton: Entered openPositionModal function with type:', type); // Now the very first line
 
             switch (type) {
                 case 'security':
@@ -122,18 +108,22 @@ const AddPositionButton = ({
                     setIsMetalModalOpen(true);
                     break;
                 case 'realestate':
+                    // *** DEBUG LOG 3 ***
                     console.log('AddPositionButton: Setting isRealEstateModalOpen = true');
                     setIsRealEstateModalOpen(true);
                     break;
                 default:
-                    console.warn(`AddPositionButton: Unknown position type in openPositionModal switch: ->${type}<-`);
+                    // *** ADDED DEBUG LOG 4 ***
+                    console.warn(`AddPositionButton: Unknown position type in openPositionModal switch: ->${type}<-`); // Log type with delimiters
             }
         } catch (err) {
+             // *** ADDED DEBUG LOG 5 ***
             console.error("AddPositionButton: Error occurred INSIDE openPositionModal function:", err);
-            setError(`An error occurred while trying to open the modal for type "${type}".`);
+            setError(`An error occurred while trying to open the modal for type "${type}".`); // Show error to user
         }
     };
 
+    // ... (keep handlePositionSaved, handleCloseModal, and return statement as before) ...
     const handlePositionSaved = () => {
         console.log("AddPositionButton: Position saved, closing all modals and resetting state.");
         setIsSecurityModalOpen(false);
@@ -142,37 +132,27 @@ const AddPositionButton = ({
         setIsRealEstateModalOpen(false);
         setSuccessMessage(`${selectedPositionType || 'Unknown'} position added successfully!`);
         setTimeout(() => setSuccessMessage(""), 3000);
-        
-        // Don't reset selectedAccount if it was directly provided via accountId prop
-        if (!accountId) {
-            setSelectedAccount(null);
-        }
-        
         setSelectedPositionType(null);
+        setSelectedAccount(null);
         onPositionAdded();
     };
 
     const handleCloseModal = (modalSetStateFunction) => {
-        console.log(`AddPositionButton: Closing modal via handleCloseModal for ${modalSetStateFunction.name}`);
-        modalSetStateFunction(false);
+         console.log(`AddPositionButton: Closing modal via handleCloseModal for ${modalSetStateFunction.name}`);
+         modalSetStateFunction(false);
+         // Step 5 will add state reset logic here:
+         // resetSelection();
     };
-
-    // Use custom button content or default
-    const displayButtonContent = buttonContent || (
-        <>
-            <DollarSign className="w-6 h-6 mr-2 text-white group-hover:text-blue-300" />
-            <span className="text-sm text-gray-200 group-hover:text-white">Add Position</span>
-        </>
-    );
 
     return (
         <>
             {/* Add Positions Button */}
             <button
                 onClick={handleAddPosition}
-                className={`flex items-center transition-colors ${className}`}
+                className={`flex items-center text-white py-1 px-4 transition-colors group ${className}`}
             >
-                {displayButtonContent}
+                <DollarSign className="w-6 h-6 mr-2 text-white group-hover:text-blue-300" />
+                <span className="text-sm text-gray-200 group-hover:text-white">Add Position</span>
             </button>
 
             {/* Error Message */}
@@ -195,7 +175,7 @@ const AddPositionButton = ({
                 </div>
             )}
 
-            {/* Modals - Ensure they are full-sized and not constrained */}
+            {/* Modals */}
             <AccountSelectModal
                 isOpen={isAccountSelectModalOpen}
                 onClose={() => setIsAccountSelectModalOpen(false)}
