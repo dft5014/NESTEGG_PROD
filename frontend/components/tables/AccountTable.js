@@ -204,6 +204,7 @@ const AccountTable = ({
         setAccountForPosition(account);
         setIsAddPositionFlowOpen(true);
     };
+     // This is called by AddPositionFlow's onClose(didSave)
     const handleCloseAddPositionFlow = (didSave) => {
         const accountName = accountForPosition?.account_name;
         setIsAddPositionFlowOpen(false);
@@ -230,16 +231,13 @@ const AccountTable = ({
          );
      }
 
-     // Error display is handled by the fixed position element below
-
-     console.log("AccountTable: Rendering Table Content, accounts count:", accounts.length);
+    console.log("AccountTable: Rendering Table Content, accounts count:", accounts.length);
 
     // Main Table Render
      return (
          <>
              {/* --- Fixed Position UI Feedback --- */}
              {successMessage && ( <div className="fixed bottom-4 right-4 p-4 bg-green-600 text-white rounded-lg shadow-lg z-[100]">{successMessage}</div> )}
-             {/* Show fetch error state if not loading */}
              {error && !isLoading && ( <div className="fixed bottom-4 right-4 p-4 bg-red-600 text-white rounded-lg shadow-lg z-[100]">Error: {error}<button onClick={()=>setError(null)} className="ml-2 text-xs underline font-semibold">Dismiss</button></div> )}
 
             {/* --- Table Section --- */}
@@ -257,7 +255,6 @@ const AccountTable = ({
                          <div className="relative">
                              <SlidersHorizontal className="absolute h-4 w-4 text-gray-400 left-3 inset-y-0 my-auto" />
                              <select className="bg-gray-700 text-white pl-9 pr-8 py-2 rounded-lg text-sm focus:ring-1 focus:ring-blue-500 focus:outline-none appearance-none" value={sortOption} onChange={(e) => setSortOption(e.target.value)}>
-                                 {/* Add all sort options back */}
                                  <option value="value-high">Sort: Value (High-Low)</option>
                                  <option value="value-low">Sort: Value (Low-High)</option>
                                  <option value="name">Sort: Name (A-Z)</option>
@@ -306,14 +303,48 @@ const AccountTable = ({
                                     return (
                                         <tr key={account.id} className="hover:bg-gray-700/50 transition-colors cursor-pointer" onClick={() => handleRowClick(account)}>
                                             {/* Account Name */}
-                                            <td className="px-6 py-4 align-top"> <div className="flex items-start"> {/* ... Avatar ... */} <div className="max-w-xs"> {/* ... Name & Small Screen Info ... */} </div> </div> </td>
+                                            <td className="px-6 py-4 align-top">
+                                                 <div className="flex items-start">
+                                                     <div className="flex-shrink-0 h-8 w-8 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center mr-3 mt-0.5">
+                                                         <span className="font-bold text-xs">{account.account_name?.charAt(0) || '?'}</span>
+                                                     </div>
+                                                     <div className="max-w-xs">
+                                                         <div className="text-sm font-medium break-words whitespace-normal">{account.account_name}</div>
+                                                         <div className="text-xs text-gray-400 md:hidden break-words whitespace-normal">
+                                                             {account.institution || 'N/A'} {account.type && `(${account.type})`}
+                                                         </div>
+                                                     </div>
+                                                 </div>
+                                            </td>
                                             {/* Institution */}
-                                            <td className="px-6 py-4 align-top text-sm text-gray-300 hidden md:table-cell"> <div className="flex items-center max-w-xs"> {typeof LogoComponent === 'string' ? <img src={LogoComponent} alt={account.institution || ''} className="w-6 h-6 object-contain mr-2 rounded-sm flex-shrink-0"/> : LogoComponent ? <div className="w-6 h-6 mr-2 flex items-center justify-center"><LogoComponent /></div> : /* ... Fallback Initial ... */ } <span className="break-words whitespace-normal">{account.institution || "N/A"}</span> </div> </td>
+                                            <td className="px-6 py-4 align-top text-sm text-gray-300 hidden md:table-cell">
+                                                <div className="flex items-center max-w-xs">
+                                                    {/* --- CORRECTED LOGO LOGIC --- */}
+                                                    {typeof LogoComponent === 'string'
+                                                        ? <img src={LogoComponent} alt={account.institution || ''} className="w-6 h-6 object-contain mr-2 rounded-sm flex-shrink-0"/>
+                                                        : LogoComponent // Check if it's a component/element
+                                                            ? <div className="w-6 h-6 mr-2 flex items-center justify-center"><LogoComponent /></div>
+                                                            : (account.institution && // Render initial div ONLY if institution name exists
+                                                                <div className="flex-shrink-0 h-6 w-6 rounded-sm bg-gray-600 flex items-center justify-center mr-2 text-xs font-medium text-gray-300">
+                                                                    {account.institution.charAt(0).toUpperCase()}
+                                                                </div>
+                                                              )
+                                                    }
+                                                    {/* --- END CORRECTION --- */}
+                                                    <span className="break-words whitespace-normal">{account.institution || "N/A"}</span>
+                                                </div>
+                                            </td>
                                             {/* Type */} <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300 hidden lg:table-cell">{account.type || "N/A"}</td>
                                             {/* Positions Count */} <td className="px-6 py-4 whitespace-nowrap text-right text-sm hidden sm:table-cell">{positionsCount}</td>
                                             {/* Cost Basis */} <td className="px-6 py-4 whitespace-nowrap text-right text-sm hidden md:table-cell">{formatCurrency(costBasis)}</td>
                                             {/* Value */} <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">{formatCurrency(totalValue)}</td>
-                                            {/* Gain/Loss */} <td className="px-6 py-4 whitespace-nowrap text-right"> <div className="flex flex-col items-end"> <div className={`text-sm font-medium ${gainLoss >= 0 ? 'text-green-500' : 'text-red-500'}`}>{gainLoss >= 0 ? '+' : ''}{formatCurrency(gainLoss)}</div> <div className={`text-xs ${gainLoss >= 0 ? 'text-green-500' : 'text-red-500'}`}>({gainLoss >= 0 ? '+' : ''}{formatPercentage(gainLossPercent)})</div> </div> </td>
+                                            {/* Gain/Loss */}
+                                            <td className="px-6 py-4 whitespace-nowrap text-right">
+                                                <div className="flex flex-col items-end">
+                                                    <div className={`text-sm font-medium ${gainLoss >= 0 ? 'text-green-500' : 'text-red-500'}`}>{gainLoss >= 0 ? '+' : ''}{formatCurrency(gainLoss)}</div>
+                                                    <div className={`text-xs ${gainLoss >= 0 ? 'text-green-500' : 'text-red-500'}`}>({gainLoss >= 0 ? '+' : ''}{formatPercentage(gainLossPercent)})</div>
+                                                </div>
+                                            </td>
                                             {/* Actions Cell */}
                                             <td className="px-6 py-4 whitespace-nowrap text-center">
                                                  <div className="flex items-center justify-center space-x-2">
