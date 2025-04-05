@@ -320,16 +320,18 @@ const AccountTable = ({ initialSort = "value-high", title = "Your Accounts" }) =
                         {/* Actions Cell */}
                         <td className="px-6 py-4 whitespace-nowrap text-center">
                             <div className="flex items-center justify-center space-x-2">
-                                {/* Use AddPositionButton component */}
+                                {/* Plus button that uses AddPositionButton functionality but keeps original appearance */}
                                 <AddPositionButton 
-                                  className="p-1.5 bg-green-600/20 text-green-400 rounded-full hover:bg-green-600/40 transition-colors"
-                                  onPositionAdded={() => fetchData()}
+                                    accountId={account.id}  // Pass the specific account ID directly
+                                    className="p-1.5 bg-green-600/20 text-green-400 rounded-full hover:bg-green-600/40 transition-colors"
+                                    onPositionAdded={() => fetchData()}
+                                    buttonContent={<Plus className="h-4 w-4" />}  // Use the simple + icon
                                 />
                                 {/* Use EditAccountButton component */}
                                 <EditAccountButton
-                                  account={account}
-                                  onAccountEdited={fetchData}
-                                  className="p-1.5 bg-purple-600/20 text-purple-400 rounded-full hover:bg-purple-600/40 transition-colors"
+                                    account={account}
+                                    onAccountEdited={fetchData}
+                                    className="p-1.5 bg-purple-600/20 text-purple-400 rounded-full hover:bg-purple-600/40 transition-colors"
                                 />
                                 {/* Delete Account Button */}
                                 <button

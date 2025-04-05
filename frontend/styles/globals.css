@@ -214,11 +214,13 @@ body {
 
 .modal-content {
   @apply p-6 rounded-xl shadow-md;
-  width: 55%; /* Takes up 80% of the screen width */
-  max-width: 1200px; /* But never gets wider than 1200px */
+  width: 80%; /* Increased from 55% to ensure more space */
+  max-width: 800px; /* Adjusted to accommodate forms better */
+  min-width: 350px; /* Ensure minimum size on small screens */
   background: var(--card-bg);
   border: 1px solid var(--border-color);
   animation: slideUp 0.3s ease;
+  margin: 0 auto; /* Center horizontally */
 }
 
 .modal-title {
@@ -872,5 +874,26 @@ body {
 @media (max-width: 768px) {
   .sidebar-icon {
     margin: 0 auto;
+  }
+}
+
+/* Add these styles to ensure modals are properly positioned and sized */
+.modal-container {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 50;
+}
+
+/* Add more responsive handling for small screens */
+@media (max-width: 640px) {
+  .modal-content {
+    width: 95%;
+    min-height: 300px;
   }
 }
