@@ -270,7 +270,7 @@ const AccountModal = ({ isOpen, onClose, onAccountAdded, editAccount = null }) =
               value={accountName}
               onChange={(e) => setAccountName(e.target.value)}
               placeholder="e.g., My Retirement, Crypto Portfolio"
-              className="w-full px-4 py-3 bg-gray-50 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
+              className="w-full px-4 py-3 bg-gray-50 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all text-gray-900"
               required
             />
             <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none text-gray-400">
@@ -331,7 +331,7 @@ const AccountModal = ({ isOpen, onClose, onAccountAdded, editAccount = null }) =
               value={institution}
               onChange={(e) => handleInstitutionInput(e.target.value)}
               placeholder="e.g., Vanguard, Fidelity (Optional)"
-              className="w-full px-4 py-3 bg-gray-50 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
+              className="w-full px-4 py-3 bg-gray-50 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all text-gray-900"
               autoComplete="off"
             />
             <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none text-gray-400">
@@ -353,7 +353,7 @@ const AccountModal = ({ isOpen, onClose, onAccountAdded, editAccount = null }) =
                       <img src={brokerage.logo} alt={brokerage.name} className="w-full h-full object-contain"/>
                     </div>
                   )}
-                  <span className="font-medium">{brokerage.name}</span>
+                  <span className="font-medium text-gray-900">{brokerage.name}</span>
                 </div>
               ))}
             </div>
@@ -368,7 +368,7 @@ const AccountModal = ({ isOpen, onClose, onAccountAdded, editAccount = null }) =
               id="accountType"
               value={accountType}
               onChange={(e) => setAccountType(e.target.value)}
-              className="w-full px-4 py-3 bg-gray-50 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all appearance-none"
+              className="w-full px-4 py-3 bg-gray-50 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all appearance-none text-gray-900"
               disabled={!accountCategory}
               required
             >
