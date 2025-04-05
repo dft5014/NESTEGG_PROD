@@ -32,9 +32,8 @@ const FixedModal = ({ isOpen, onClose, title, children }) => {
       style={{ backdropFilter: 'blur(4px)' }}
     >
       <div 
-        className="bg-white rounded-lg shadow-lg w-full max-w-xl"
+        className="bg-white rounded-lg shadow-lg w-full max-w-md"
         onClick={e => e.stopPropagation()}
-        style={{ maxHeight: '90vh' }} // Ensure modal doesn't exceed viewport height
       >
         <div className="flex justify-between items-center p-4 border-b border-gray-200">
           <h2 className="text-xl font-semibold">{title}</h2>
