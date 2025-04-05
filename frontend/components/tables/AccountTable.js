@@ -24,7 +24,7 @@ const DeleteConfirmationModal = ({ isOpen, onClose, onConfirm, itemName, itemTyp
 };
 
 // Icons
-import { Briefcase, Loader, Plus, Search, SlidersHorizontal, Trash } from 'lucide-react'
+import { Briefcase, Loader, Search, Plus, SlidersHorizontal, Trash } from 'lucide-react';
 // Formatting and Data
 import { formatCurrency, formatDate, formatPercentage } from '@/utils/formatters';
 import { popularBrokerages } from '@/utils/constants';
