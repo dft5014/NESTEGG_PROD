@@ -5,7 +5,7 @@ import SecurityTableAccount from '@/components/tables/SecurityTableAccount';
 import CryptoTable from '@/components/tables/CryptoTable';
 import MetalsTable from '@/components/tables/MetalsTable';
 import RealEstateTable from '@/components/tables/RealEstateTable';
-import SecurityTableTicker from '@/components/tables/SecurityTableTicker'; 
+import GroupedTickerTable from '@/components/tables/GroupedTickerTable'; 
 import AccountTable from '@/components/tables/AccountTable'; // Import AccountTable
 import KpiCard from '@/components/ui/KpiCard';
 import { fetchPortfolioSummary } from '@/utils/apimethods/positionMethods';
@@ -117,7 +117,7 @@ export default function SummaryPage() {
         </section>
 
         <section className="mb-12">
-             <SecurityTableTicker title="Positions" />
+             <GroupedTickerTable title="Positions" />
         </section>        
 
         <section className="mb-12">

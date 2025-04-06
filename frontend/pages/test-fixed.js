@@ -3,7 +3,7 @@ import { AuthContext } from '@/context/AuthContext'; // Keep for auth check
 import { useRouter } from 'next/router'; // Keep for auth check
 
 // Import only the SecurityTableTicker component
-import SecurityTableTicker from '@/components/tables/SecurityTableTicker';
+import GroupedTickerTable from '@/components/tables/GroupedTickerTable';
 
 // Import necessary formatters if they are used OUTSIDE SecurityTableTicker (likely not needed now)
 // import { formatCurrency, formatDate, formatPercentage } from '@/utils/formatters';
@@ -47,7 +47,7 @@ export default function TestFixedPage() {
        {/* Render the SecurityTableTicker component */}
        {/* It handles its own data fetching, loading, and error states internally */}
        {user ? ( // Only render the table if the user context is loaded (not null/undefined)
-         <SecurityTableTicker />
+         <GroupedTickerTable />
        ) : (
          // Optional: Show a loading indicator while user context is resolving
          <div className="flex items-center justify-center h-60 bg-white rounded-xl text-gray-500 shadow-md border border-gray-200">
