@@ -348,13 +348,24 @@ const AccountTable = ({
                                             {/* Actions Cell */}
                                             <td className="px-6 py-4 whitespace-nowrap text-center">
                                                  <div className="flex items-center justify-center space-x-2">
-                                                     <AddPositionButton onClick={(e) => { e.stopPropagation(); handleAddPositionClick(account); }} className="p-1.5 bg-green-600/20 text-green-400 rounded-full hover:bg-green-600/40" buttonContent={<Plus className="h-4 w-4" />} />
+                                                    <AddPositionButton 
+                                                        accountId={account.id}  // Pass accountId directly
+                                                        className="p-1.5 bg-green-600/20 text-green-400 rounded-full hover:bg-green-600/40"
+                                                        buttonContent={<Plus className="h-4 w-4" />}
+                                                        onPositionAdded={() => onDataChanged()}  // Add callback to refresh after adding
+                                                        />
                                                      <EditAccountButton 
                                                         account={account}  // Pass account directly to EditAccountButton
                                                         className="p-1.5 bg-purple-600/20 text-purple-400 rounded-full hover:bg-purple-600/40" 
-                                                        onAccountEdited={() => fetchData()}  // Optional callback to refresh data after edit
+                                                        onAccountEdited={() => onDataChanged()}  // Optional callback to refresh data after edit
                                                         />
-                                                     <button onClick={(e) => { e.stopPropagation(); handleDeleteClick(account); }} className="p-1.5 bg-red-600/20 text-red-400 rounded-full hover:bg-red-600/40" title="Delete Account"> <Trash className="h-4 w-4" /> </button>
+                                                    <button 
+                                                    onClick={(e) => { e.stopPropagation(); handleDeleteClick(account); }} 
+                                                    className="p-1.5 bg-red-600/20 text-red-400 rounded-full hover:bg-red-600/40" 
+                                                    title="Delete Account"
+                                                    >
+                                                    <Trash className="h-4 w-4" />
+                                                    </button>
                                                  </div>
                                              </td>
                                         </tr>
