@@ -185,7 +185,7 @@ const Sidebar = () => {
 
             {/* Test Pages */}
             <div className="pt-4 space-y-1">
-              <Link href="/test-fixed" className={menuItemClasses(isActive('/test-fixed'))}>
+              <Link href="/test" className={menuItemClasses(isActive('/test-fixed'))}>
                 <Shield size={24} className={iconClasses} />
                 {!sidebarCollapsed && <span>Test Accounts</span>}
               </Link>
