@@ -4,7 +4,7 @@ import {
     deletePosition 
 } from '@/utils/apimethods/positionMethods';
 import SecurityPositionModal from '@/components/modals/SecurityPositionModal';
-import DeleteConfirmationModal from '@/components/modals/DeleteConfirmationModal';
+import ConfirmationModal from '@/components/modals/ConfirmationModal';
 import { formatCurrency, formatNumber, formatPercentage } from '@/utils/formatters';
 import { 
     BarChart4, 
@@ -443,7 +443,7 @@ const SecurityTableTicker = ({
             )}
 
             {isDeleteModalOpen && positionToDelete && (
-                <DeleteConfirmationModal
+                <ConfirmationModal
                     isOpen={isDeleteModalOpen}
                     onClose={() => { 
                         setIsDeleteModalOpen(false); 
@@ -460,11 +460,14 @@ const SecurityTableTicker = ({
                             // Optionally show an error message
                         }
                     }}
-                    itemName={`${positionToDelete.ticker} position`}
-                    itemType="position"
+                    title="Delete Position"
+                    message={`Are you sure you want to delete the position for ${positionToDelete.ticker}? This action cannot be undone.`}
+                    confirmText="Delete Position"
+                    cancelText="Cancel"
+                    confirmVariant="danger"
                 />
             )}
-
+            
             {/* Ticker Breakdown Modal */}
             <TickerBreakdownModal
                 isOpen={isDetailModalOpen}
