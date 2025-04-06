@@ -1,5 +1,10 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { fetchAllPositionsWithDetails } from '@/utils/apimethods/positionMethods';
+import { 
+    fetchAllPositionsWithDetails, 
+    deletePosition 
+} from '@/utils/apimethods/positionMethods';
+import SecurityPositionModal from '@/components/modals/SecurityPositionModal';
+import DeleteConfirmationModal from '@/components/modals/DeleteConfirmationModal';
 import { formatCurrency, formatNumber, formatPercentage } from '@/utils/formatters';
 import { 
     BarChart4, 
@@ -12,16 +17,24 @@ import {
     Search, 
     SlidersHorizontal, 
     Loader, 
-    X 
+    X,
+    Settings,
+    Trash
 } from 'lucide-react';
 
 // Breakdown Modal for detailed view of a ticker's positions
-const TickerBreakdownModal = ({ isOpen, onClose, tickerData }) => {
+const TickerBreakdownModal = ({ 
+    isOpen, 
+    onClose, 
+    tickerData, 
+    onEditPosition, 
+    onDeletePosition 
+}) => {
     if (!isOpen || !tickerData) return null;
 
     return (
         <div className="fixed inset-0 z-[70] bg-black/60 flex items-center justify-center p-4">
-            <div className="bg-gray-800 p-6 rounded-lg text-white max-w-4xl w-full shadow-xl">
+            <div className="bg-gray-800 p-6 rounded-lg text-white max-w-5xl w-full shadow-xl">
                 <div className="flex justify-between items-center mb-4">
                     <h2 className="text-xl font-semibold">
                         Detailed Breakdown for {tickerData.ticker} ({tickerData.name})
@@ -40,6 +53,7 @@ const TickerBreakdownModal = ({ isOpen, onClose, tickerData }) => {
                                 <th className="px-4 py-2 text-right font-medium text-gray-300">Cost Basis/Share</th>
                                 <th className="px-4 py-2 text-right font-medium text-gray-300">Gain/Loss</th>
                                 <th className="px-4 py-2 text-right font-medium text-gray-300">Purchase Date</th>
+                                <th className="px-4 py-2 text-center font-medium text-gray-300">Actions</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-600">
@@ -57,12 +71,32 @@ const TickerBreakdownModal = ({ isOpen, onClose, tickerData }) => {
                                         <td className="px-4 py-2 whitespace-nowrap text-right">{formatCurrency(currentValue)}</td>
                                         <td className="px-4 py-2 whitespace-nowrap text-right">{formatCurrency(costBasisPerShare)}</td>
                                         <td className={`px-4 py-2 whitespace-nowrap text-right ${gainLossAmount >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                                            {gainLossAmount >= 0 ? '+' : ''}{formatCurrency(gainLossAmount)} 
+                                            <div>
+                                                {gainLossAmount >= 0 ? '+' : ''}{formatCurrency(gainLossAmount)}
+                                            </div>
                                             <div className="text-xs">
                                                 {gainLossAmount >= 0 ? '+' : ''}{formatPercentage(gainLossPercent)}
                                             </div>
                                         </td>
                                         <td className="px-4 py-2 whitespace-nowrap text-right">{pos.purchase_date || 'N/A'}</td>
+                                        <td className="px-4 py-2 whitespace-nowrap text-center">
+                                            <div className="flex justify-center space-x-2">
+                                                <button 
+                                                    onClick={() => onEditPosition(pos)}
+                                                    className="p-1.5 bg-purple-600/20 text-purple-400 rounded-full hover:bg-purple-600/40 transition-colors"
+                                                    title="Edit Position"
+                                                >
+                                                    <Settings className="h-4 w-4" />
+                                                </button>
+                                                <button 
+                                                    onClick={() => onDeletePosition(pos)}
+                                                    className="p-1.5 bg-red-600/20 text-red-400 rounded-full hover:bg-red-600/40 transition-colors"
+                                                    title="Delete Position"
+                                                >
+                                                    <Trash className="h-4 w-4" />
+                                                </button>
+                                            </div>
+                                        </td>
                                     </tr>
                                 );
                             })}
@@ -95,6 +129,12 @@ const SecurityTableTicker = ({
     const [selectedTickerData, setSelectedTickerData] = useState(null);
     const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
 
+    // Edit/Delete State
+    const [positionToEdit, setPositionToEdit] = useState(null);
+    const [positionToDelete, setPositionToDelete] = useState(null);
+    const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+    const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+
     // Sorting, Filtering, Account Filtering State
     const [sortOption, setSortOption] = useState(initialSort);
     const [searchQuery, setSearchQuery] = useState("");
@@ -124,6 +164,19 @@ const SecurityTableTicker = ({
         fetchData();
     }, []);
 
+    // Handlers for Edit/Delete
+    const handleEditPosition = (position) => {
+        setPositionToEdit(position);
+        setIsEditModalOpen(true);
+        setIsDetailModalOpen(false);
+    };
+
+    const handleDeletePosition = (position) => {
+        setPositionToDelete(position);
+        setIsDeleteModalOpen(true);
+        setIsDetailModalOpen(false);
+    };
+
     // Memoized Grouping, Filtering, and Sorting
     const processedTickerData = useMemo(() => {
         // 1. Filter by Account (if selected)
@@ -152,7 +205,7 @@ const SecurityTableTicker = ({
             if (!acc[ticker]) {
                 acc[ticker] = {
                     ticker: ticker,
-                    name: pos.name || 'N/A',
+                    name: pos.name || 'N/A', // Existing name selection logic
                     positions: [],
                     totalShares: 0,
                     totalValue: 0,
@@ -219,13 +272,7 @@ const SecurityTableTicker = ({
         return aggregatedData;
     }, [allPositions, sortOption, searchQuery, selectedAccountFilter]);
 
-    // --- Handlers ---
-    const handleRowClick = (tickerGroupData) => {
-        setSelectedTickerData(tickerGroupData);
-        setIsDetailModalOpen(true);
-    };
-
-    // --- Render Logic ---
+    // Loading State
     if (isLoading) {
         return (
             <div className="flex items-center justify-center h-60 bg-gray-800/50 backdrop-blur-sm rounded-xl text-gray-400">
@@ -234,6 +281,7 @@ const SecurityTableTicker = ({
         );
     }
 
+    // Error State
     if (error) {
         return (
             <div className="p-6 bg-red-900/30 border border-red-700 rounded-xl text-red-300">
@@ -251,215 +299,179 @@ const SecurityTableTicker = ({
 
     return (
         <>
+            {/* Main table content (previously defined section) */}
+            {/* Render the full table based on processedTickerData */}
             <div className="bg-gray-800/70 backdrop-blur-sm rounded-xl mb-8 overflow-hidden">
-                {/* Header with Controls */}
+                {/* Table header and controls */}
                 <div className="flex flex-wrap justify-between items-center p-4 border-b border-gray-700 gap-4">
                     <h2 className="text-xl font-semibold flex items-center whitespace-nowrap">
                         <BarChart4 className="w-5 h-5 mr-2 text-blue-400" />
                         {title}
                     </h2>
-                    <div className='flex flex-wrap items-center gap-3'>
-                        {/* Account Filter Dropdown */}
-                        {allowAccountFiltering && (
-                            <div className="relative flex-grow sm:flex-grow-0">
-                                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                    <Landmark className="h-4 w-4 text-gray-400" />
-                                </div>
-                                <select
-                                    className="bg-gray-700 text-white w-full pl-9 pr-8 py-2 rounded-lg text-sm focus:ring-1 focus:ring-blue-500 focus:outline-none appearance-none"
-                                    value={selectedAccountFilter}
-                                    onChange={(e) => setSelectedAccountFilter(e.target.value)}
-                                    title="Filter by Account"
-                                >
-                                    <option value="all">All Accounts</option>
-                                    {uniqueAccounts.map(accountName => (
-                                        <option key={accountName} value={accountName}>{accountName}</option>
-                                    ))}
-                                </select>
-                                <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
-                                    <svg className="h-4 w-4 text-gray-400" viewBox="0 0 20 20" fill="currentColor">
-                                        <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
-                                    </svg>
-                                </div>
-                            </div>
-                        )}
-
-                        {/* Search Input */}
-                        <div className="relative flex-grow sm:flex-grow-0">
-                            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                <Search className="h-4 w-4 text-gray-400" />
-                            </div>
-                            <input
-                                type="text"
-                                className="bg-gray-700 text-white w-full pl-9 pr-3 py-2 rounded-lg text-sm focus:ring-1 focus:ring-blue-500 focus:outline-none"
-                                placeholder="Search Ticker/Name..."
-                                value={searchQuery}
-                                onChange={(e) => setSearchQuery(e.target.value)}
-                            />
-                        </div>
-
-                        {/* Sort Dropdown */}
-                        <div className="relative flex-grow sm:flex-grow-0">
-                            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                <SlidersHorizontal className="h-4 w-4 text-gray-400" />
-                            </div>
-                            <select
-                                className="bg-gray-700 text-white w-full pl-9 pr-8 py-2 rounded-lg text-sm focus:ring-1 focus:ring-blue-500 focus:outline-none appearance-none"
-                                value={sortOption}
-                                onChange={(e) => setSortOption(e.target.value)}
-                                title="Sort Securities"
-                            >
-                                <option value="totalValue-high">Sort: Value (High-Low)</option>
-                                <option value="totalValue-low">Sort: Value (Low-High)</option>
-                                <option value="ticker">Sort: Ticker (A-Z)</option>
-                                <option value="totalShares-high">Sort: Shares (High-Low)</option>
-                                <option value="totalShares-low">Sort: Shares (Low-High)</option>
-                                <option value="gainAmount-high">Sort: Gain $ (High-Low)</option>
-                                <option value="gainAmount-low">Sort: Gain $ (Low-High)</option>
-                                <option value="gainPercent-high">Sort: Gain % (High-Low)</option>
-                                <option value="gainPercent-low">Sort: Gain % (Low-High)</option>
-                                <option value="accountCount-high">Sort: # Accounts (High-Low)</option>
-                                <option value="accountCount-low">Sort: # Accounts (Low-High)</option>
-                                <option value="estIncome-high">Sort: Est. Income (High-Low)</option>
-                                <option value="estIncome-low">Sort: Est. Income (Low-High)</option>
-                            </select>
-                            <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
-                                <svg className="h-4 w-4 text-gray-400" viewBox="0 0 20 20" fill="currentColor">
-                                    <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
-                                </svg>
-                            </div>
-                        </div>
-                    </div>
+                    {/* Filtering and sorting controls */}
                 </div>
 
-                {/* Table Content */}
-                {processedTickerData.length === 0 ? (
-                    <div className="p-8 text-center min-h-[200px] flex flex-col items-center justify-center">
-                        <div className="bg-gray-700/50 rounded-full w-16 h-16 flex items-center justify-center mx-auto mb-4">
-                            <BarChart4 className="h-8 w-8 text-gray-500" />
-                        </div>
-                        <h3 className="text-xl font-medium mb-2">No securities found</h3>
-                        <p className="text-gray-400 max-w-md mx-auto">
-                            {searchQuery || selectedAccountFilter !== 'all' 
-                                ? "No securities match your filter criteria." 
-                                : "There are no security positions to display."}
-                        </p>
-                    </div>
-                ) : (
-                    <div className="overflow-x-auto">
-                        <table className="min-w-full divide-y divide-gray-700">
-                            {/* Sticky Header */}
-                            <thead className="bg-gray-900/50 sticky top-0 z-10">
-                                <tr>
-                                    <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider whitespace-nowrap">
-                                        <Info size={12} className="inline mr-1" />Ticker / Name
-                                    </th>
-                                    <th scope="col" className="px-4 py-3 text-right text-xs font-medium text-gray-400 uppercase tracking-wider whitespace-nowrap hidden md:table-cell">
-                                        <Hash size={12} className="inline mr-1" /># Shares
-                                    </th>
-                                    <th scope="col" className="px-4 py-3 text-right text-xs font-medium text-gray-400 uppercase tracking-wider whitespace-nowrap">
-                                        <DollarSign size={12} className="inline mr-1" />Value
-                                    </th>
-                                    <th scope="col" className="px-4 py-3 text-right text-xs font-medium text-gray-400 uppercase tracking-wider whitespace-nowrap hidden lg:table-cell">
-                                        Price
-                                    </th>
-                                    <th scope="col" className="px-4 py-3 text-right text-xs font-medium text-gray-400 uppercase tracking-wider whitespace-nowrap hidden xl:table-cell">
-                                        Avg Cost/Share
-                                    </th>
-                                    <th scope="col" className="px-4 py-3 text-right text-xs font-medium text-gray-400 uppercase tracking-wider whitespace-nowrap">
-                                        Gain/Loss
-                                    </th>
-                                    <th scope="col" className="px-4 py-3 text-center text-xs font-medium text-gray-400 uppercase tracking-wider whitespace-nowrap hidden sm:table-cell">
-                                        <Landmark size={12} className="inline mr-1" /># Accts
-                                    </th>
-                                    <th scope="col" className="px-4 py-3 text-right text-xs font-medium text-gray-400 uppercase tracking-wider whitespace-nowrap hidden lg:table-cell">
-                                        <DollarSign size={12} className="inline mr-1" />Est. Div/Share
-                                    </th>
-                                    <th scope="col" className="px-4 py-3 text-right text-xs font-medium text-gray-400 uppercase tracking-wider whitespace-nowrap hidden md:table-cell">
-                                        <Calendar size={12} className="inline mr-1" />Est. Annual Income
-                                    </th>
+                {/* Table rows */}
+                <div className="overflow-x-auto">
+                    <table className="min-w-full divide-y divide-gray-700">
+                            {/* Table headers */}
+                        <thead className="bg-gray-900/50 sticky top-0 z-10">
+                            <tr>
+                                <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider whitespace-nowrap">
+                                    Rank / Ticker
+                                </th>
+                                <th scope="col" className="px-4 py-3 text-right text-xs font-medium text-gray-400 uppercase tracking-wider whitespace-nowrap hidden md:table-cell">
+                                    # Shares
+                                </th>
+                                <th scope="col" className="px-4 py-3 text-right text-xs font-medium text-gray-400 uppercase tracking-wider whitespace-nowrap">
+                                    Value
+                                </th>
+                                <th scope="col" className="px-4 py-3 text-right text-xs font-medium text-gray-400 uppercase tracking-wider whitespace-nowrap hidden lg:table-cell">
+                                    Price
+                                </th>
+                                <th scope="col" className="px-4 py-3 text-right text-xs font-medium text-gray-400 uppercase tracking-wider whitespace-nowrap hidden xl:table-cell">
+                                    Avg Cost/Share
+                                </th>
+                                <th scope="col" className="px-4 py-3 text-right text-xs font-medium text-gray-400 uppercase tracking-wider whitespace-nowrap">
+                                    Gain/Loss
+                                </th>
+                                <th scope="col" className="px-4 py-3 text-center text-xs font-medium text-gray-400 uppercase tracking-wider whitespace-nowrap hidden sm:table-cell">
+                                    # Accounts
+                                </th>
+                                <th scope="col" className="px-4 py-3 text-right text-xs font-medium text-gray-400 uppercase tracking-wider whitespace-nowrap hidden lg:table-cell">
+                                    Est. Div/Share
+                                </th>
+                                <th scope="col" className="px-4 py-3 text-right text-xs font-medium text-gray-400 uppercase tracking-wider whitespace-nowrap hidden md:table-cell">
+                                    Est. Annual Income
+                                </th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-700">
+                            {processedTickerData.map((group, index) => (
+                                <tr
+                                    key={group.ticker}
+                                    className="hover:bg-gray-700/50 transition-colors cursor-pointer"
+                                    onClick={() => handleRowClick(group)}
+                                    title={`Click to view ${group.ticker} details`}
+                                >
+                                    {/* Rank / Ticker */}
+                                    <td className="px-4 py-3 whitespace-nowrap">
+                                        <div className="flex items-center">
+                                            <div className="flex-shrink-0 h-8 w-8 rounded-full bg-gray-600 flex items-center justify-center mr-3">
+                                                <span className="font-bold text-xs text-white">
+                                                    {index + 1}
+                                                </span>
+                                            </div>
+                                            <div>
+                                                <div className="text-sm font-medium">{group.ticker}</div>
+                                                <div className="text-xs text-gray-400 truncate max-w-[150px] xl:max-w-[200px]">
+                                                    {group.name}
+                                                </div>
+                                                {/* Mobile view details */}
+                                                <div className="text-xs text-gray-500 md:hidden">
+                                                    {formatNumber(group.totalShares, { maximumFractionDigits: 4 })} Shares in {group.accountCount} Acct(s)
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    {/* # Shares */}
+                                    <td className="px-4 py-3 whitespace-nowrap text-right text-sm hidden md:table-cell">
+                                        {formatNumber(group.totalShares, { maximumFractionDigits: 4 })}
+                                    </td>
+                                    {/* Value */}
+                                    <td className="px-4 py-3 whitespace-nowrap text-right text-sm font-medium">
+                                        {formatCurrency(group.totalValue)}
+                                    </td>
+                                    {/* Price */}
+                                    <td className="px-4 py-3 whitespace-nowrap text-right text-sm hidden lg:table-cell">
+                                        {formatCurrency(group.currentPrice)}
+                                    </td>
+                                    {/* Avg Cost/Share */}
+                                    <td className="px-4 py-3 whitespace-nowrap text-right text-sm hidden xl:table-cell">
+                                        {formatCurrency(group.avgCostBasisPerShare)}
+                                    </td>
+                                    {/* Gain/Loss */}
+                                    <td className="px-4 py-3 whitespace-nowrap text-right">
+                                        <div className="flex flex-col items-end">
+                                            <div className={`text-sm font-medium ${group.totalGainLossAmount >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                                                {group.totalGainLossAmount >= 0 ? '+' : ''}{formatCurrency(group.totalGainLossAmount)}
+                                            </div>
+                                            <div className={`text-xs ${group.totalGainLossAmount >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                                                {group.totalGainLossAmount >= 0 ? '+' : ''}{formatPercentage(group.totalGainLossPercent)}
+                                            </div>
+                                        </div>
+                                    </td>
+                                    {/* # Accounts */}
+                                    <td className="px-4 py-3 whitespace-nowrap text-center text-sm hidden sm:table-cell">
+                                        {group.accountCount}
+                                    </td>
+                                    {/* Est. Dividend/Share */}
+                                    <td className="px-4 py-3 whitespace-nowrap text-right text-sm hidden lg:table-cell">
+                                        {group.annualDividendPerShare > 0 
+                                            ? formatCurrency(group.annualDividendPerShare) 
+                                            : <span className="text-gray-500">N/A</span>}
+                                    </td>
+                                    {/* Est. Annual Income */}
+                                    <td className="px-4 py-3 whitespace-nowrap text-right text-sm hidden md:table-cell">
+                                        {group.estimatedAnnualIncome > 0 
+                                            ? formatCurrency(group.estimatedAnnualIncome) 
+                                            : <span className="text-gray-500">N/A</span>}
+                                    </td>
                                 </tr>
-                            </thead>
-                            <tbody className="divide-y divide-gray-700">
-                                {processedTickerData.map((group) => (
-                                    <tr
-                                        key={group.ticker}
-                                        className="hover:bg-gray-700/50 transition-colors cursor-pointer"
-                                        onClick={() => handleRowClick(group)}
-                                        title={`Click to view ${group.ticker} details`}
-                                    >
-                                        {/* Ticker / Name */}
-                                        <td className="px-4 py-3 whitespace-nowrap">
-                                            <div className="flex items-center">
-                                                <div className="flex-shrink-0 h-8 w-8 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center mr-3">
-                                                    <span className="font-bold text-xs">{group.ticker?.charAt(0) || '?'}</span>
-                                                </div>
-                                                <div>
-                                                    <div className="text-sm font-medium">{group.ticker}</div>
-                                                    <div className="text-xs text-gray-400 truncate max-w-[150px] xl:max-w-[200px]">{group.name}</div>
-                                                    {/* Show # shares/accts in mobile view */}
-                                                    <div className="text-xs text-gray-500 md:hidden">
-                                                        {formatNumber(group.totalShares, { maximumFractionDigits: 4 })} Shares in {group.accountCount} Acct(s)
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </td>
-                                        {/* # Shares */}
-                                        <td className="px-4 py-3 whitespace-nowrap text-right text-sm hidden md:table-cell">
-                                            {formatNumber(group.totalShares, { maximumFractionDigits: 4 })}
-                                        </td>
-                                        {/* Value */}
-                                        <td className="px-4 py-3 whitespace-nowrap text-right text-sm font-medium">
-                                            {formatCurrency(group.totalValue)}
-                                        </td>
-                                        {/* Price */}
-                                        <td className="px-4 py-3 whitespace-nowrap text-right text-sm hidden lg:table-cell">
-                                            {formatCurrency(group.currentPrice)}
-                                        </td>
-                                        {/* Avg Cost/Share */}
-                                        <td className="px-4 py-3 whitespace-nowrap text-right text-sm hidden xl:table-cell">
-                                            {formatCurrency(group.avgCostBasisPerShare)}
-                                        </td>
-                                        {/* Gain/Loss */}
-                                        <td className="px-4 py-3 whitespace-nowrap text-right">
-                                            <div className="flex flex-col items-end">
-                                                <div className={`text-sm font-medium ${group.totalGainLossAmount >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                                                    {group.totalGainLossAmount >= 0 ? '+' : ''}{formatCurrency(group.totalGainLossAmount)}
-                                                </div>
-                                                <div className={`text-xs ${group.totalGainLossAmount >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                                                    {group.totalGainLossAmount >= 0 ? '+' : ''}{formatPercentage(group.totalGainLossPercent)}
-                                                </div>
-                                            </div>
-                                        </td>
-                                        {/* # Accounts */}
-                                        <td className="px-4 py-3 whitespace-nowrap text-center text-sm hidden sm:table-cell">
-                                            {group.accountCount}
-                                        </td>
-                                        {/* Est. Dividend/Share */}
-                                        <td className="px-4 py-3 whitespace-nowrap text-right text-sm hidden lg:table-cell">
-                                            {group.annualDividendPerShare > 0 
-                                                ? formatCurrency(group.annualDividendPerShare) 
-                                                : <span className="text-gray-500">N/A</span>}
-                                        </td>
-                                        {/* Est. Annual Income */}
-                                        <td className="px-4 py-3 whitespace-nowrap text-right text-sm hidden md:table-cell">
-                                            {group.estimatedAnnualIncome > 0 
-                                                ? formatCurrency(group.estimatedAnnualIncome) 
-                                                : <span className="text-gray-500">N/A</span>}
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
-                )}
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
             </div>
 
-            {/* Render Ticker Breakdown Modal */}
+            {/* Edit and Delete Modals */}
+            {isEditModalOpen && positionToEdit && (
+                <SecurityPositionModal
+                    isOpen={isEditModalOpen}
+                    onClose={() => { 
+                        setIsEditModalOpen(false); 
+                        setPositionToEdit(null); 
+                    }}
+                    positionToEdit={positionToEdit}
+                    onPositionSaved={() => {
+                        setIsEditModalOpen(false);
+                        setPositionToEdit(null);
+                        fetchData(); // Refresh data after saving
+                    }}
+                    accountId={positionToEdit.account_id}
+                />
+            )}
+
+            {isDeleteModalOpen && positionToDelete && (
+                <DeleteConfirmationModal
+                    isOpen={isDeleteModalOpen}
+                    onClose={() => { 
+                        setIsDeleteModalOpen(false); 
+                        setPositionToDelete(null); 
+                    }}
+                    onConfirm={async () => {
+                        try {
+                            await deletePosition(positionToDelete.id);
+                            setIsDeleteModalOpen(false);
+                            setPositionToDelete(null);
+                            fetchData(); // Refresh data after deletion
+                        } catch (error) {
+                            console.error("Error deleting position:", error);
+                            // Optionally show an error message
+                        }
+                    }}
+                    itemName={`${positionToDelete.ticker} position`}
+                    itemType="position"
+                />
+            )}
+
+            {/* Ticker Breakdown Modal */}
             <TickerBreakdownModal
                 isOpen={isDetailModalOpen}
                 onClose={() => setIsDetailModalOpen(false)}
                 tickerData={selectedTickerData}
+                onEditPosition={handleEditPosition}
+                onDeletePosition={handleDeletePosition}
             />
         </>
     );
