@@ -18,7 +18,15 @@ import {
   Plus
 } from 'lucide-react';
 
-const SecurityPositionModal = ({ isOpen, onClose, accountId, onPositionSaved, positionToEdit = null, accountName = '' }) => {
+  const SecurityPositionModal = ({ 
+    isOpen, 
+    onClose, 
+    accountId, 
+    accountName = '',  // Add default empty string
+    onPositionSaved, 
+    positionToEdit = null 
+  }) => {  
+  
   // State for form fields
   const [ticker, setTicker] = useState('');
   const [shares, setShares] = useState('');
@@ -190,6 +198,20 @@ const SecurityPositionModal = ({ isOpen, onClose, accountId, onPositionSaved, po
     // Make sure we're storing all fields from the security object
     console.log("Selected security details:", security); // For debugging
   
+      // Debug log with explicit property checks
+    console.log("Security details properties:", {
+      ticker: security.ticker,
+      name: security.name,
+      price: security.price,
+      sector: security.sector,
+      industry: security.industry,
+      market_cap: security.market_cap,
+      pe_ratio: security.pe_ratio,
+      dividend_yield: security.dividend_yield,
+      fifty_two_week_high: security.fifty_two_week_high,
+      fifty_two_week_low: security.fifty_two_week_low,
+      avg_volume: security.avg_volume
+    });
     
     // Round to 2 decimal places for display and input
     const roundedPrice = parseFloat(security.price || 0).toFixed(2);
@@ -361,8 +383,8 @@ const SecurityPositionModal = ({ isOpen, onClose, accountId, onPositionSaved, po
           <span className="font-medium text-blue-800">
             {isEditMode ? 'Editing position on:' : 'Adding to:'} {accountName || 'Account'}
           </span>
-          </div>
         </div>
+      </div>
       )}
 
 

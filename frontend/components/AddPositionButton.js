@@ -216,6 +216,7 @@ const AddPositionButton = ({
                 isOpen={isSecurityModalOpen}
                 onClose={() => setIsSecurityModalOpen(false)}
                 accountId={selectedAccount?.id}
+                accountName={selectedAccount?.account_name}
                 onPositionSaved={handlePositionSaved}
             />
             <CryptoPositionModal
