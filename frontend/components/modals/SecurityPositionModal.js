@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import FixedModal from './FixedModal';
 import { addSecurityPosition, searchSecurities, updatePosition } from '@/utils/apimethods/positionMethods';
+import { fetchAccountById } from '@/utils/apimethods/accountMethods';
 import debounce from 'lodash.debounce';
 import { 
   Search, 
@@ -44,7 +45,15 @@ const SecurityPositionModal = ({ isOpen, onClose, accountId, onPositionSaved, po
 
   // Reset form when modal opens/closes
   useEffect(() => {
-    if (isOpen) {
+      if (isOpen) {
+        // Get account name if provided
+        if (accountId) {
+          fetchAccountById(accountId)
+            .then(account => {
+              setAccountName(account.account_name || '');
+            })
+            .catch(err => console.error("Error fetching account name:", err));
+        }
       if (positionToEdit) {
         // Edit mode - pre-fill form with position data
         setIsEditMode(true);
@@ -177,6 +186,10 @@ const SecurityPositionModal = ({ isOpen, onClose, accountId, onPositionSaved, po
     setSelectedSecurity(security);
     setSecurityDetails(security);
     setTicker(security.ticker);
+    
+    // Make sure we're storing all fields from the security object
+    console.log("Selected security details:", security); // For debugging
+  
     
     // Round to 2 decimal places for display and input
     const roundedPrice = parseFloat(security.price || 0).toFixed(2);
@@ -342,12 +355,12 @@ const SecurityPositionModal = ({ isOpen, onClose, accountId, onPositionSaved, po
       <form onSubmit={(e) => handleSubmit(e, false)} className="space-y-4">
       {/* Account Badge at the top */}
       {(
-        <div className="mb-4 bg-blue-50 p-3 rounded-lg border border-blue-200">
-          <div className="flex items-center">
-            <Tag className="h-5 w-5 text-blue-600 mr-2" />
-            <span className="font-medium text-blue-800">
-              Adding to: Account
-            </span>
+      <div className="mb-4 bg-blue-50 p-3 rounded-lg border border-blue-200">
+        <div className="flex items-center">
+          <Tag className="h-5 w-5 text-blue-600 mr-2" />
+          <span className="font-medium text-blue-800">
+            {isEditMode ? 'Editing position on:' : 'Adding to:'} {accountName || 'Account'}
+          </span>
           </div>
         </div>
       )}
@@ -563,23 +576,37 @@ const SecurityPositionModal = ({ isOpen, onClose, accountId, onPositionSaved, po
         </div>
         
         {/* Purchase Date */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Purchase Date*
-          </label>
-          <div className="relative">
-            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-              <Clock className="h-4 w-4 text-gray-400" />
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Purchase Date*
+            </label>
+            <div className="relative">
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <Clock className="h-4 w-4 text-gray-400" />
+              </div>
+              <input
+                type="date"
+                value={purchaseDate}
+                onChange={(e) => setPurchaseDate(e.target.value)}
+                onPaste={(e) => {
+                  // Allow pasting dates
+                  e.preventDefault();
+                  const pastedText = e.clipboardData.getData('text');
+                  // Try to parse the pasted text as a date
+                  try {
+                    const date = new Date(pastedText);
+                    if (!isNaN(date.getTime())) {
+                      setPurchaseDate(date.toISOString().split('T')[0]);
+                    }
+                  } catch (err) {
+                    console.error("Error parsing pasted date:", err);
+                  }
+                }}
+                className="w-full pl-10 pr-4 py-2 border rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                max={new Date().toISOString().split('T')[0]}
+                required
+              />
             </div>
-            <input
-              type="date"
-              value={purchaseDate}
-              onChange={(e) => setPurchaseDate(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              max={new Date().toISOString().split('T')[0]}
-              required
-            />
-          </div>
           
           {/* Date Helper Buttons */}
           <div className="flex flex-wrap gap-2 mt-2">
