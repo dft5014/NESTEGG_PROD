@@ -13,7 +13,7 @@ import { AccountsTableSkeleton } from '@/components/skeletons/PortfolioSkeleton'
 import { SecurityTableSkeleton, CryptoTableSkeleton, MetalTableSkeleton, RealEstateTableSkeleton } from '@/components/skeletons/PositionTableSkeletons';
 
 // Import the new table component
-import SecurityTableTicker from '@/components/tables/SecurityTableTicker';
+import GroupedTickerTable from '@/components/tables/GroupedTickerTable';
 // Import the original security table component (assuming it exists and might be needed)
 import SecurityTableAccount from '@/components/tables/SecurityTableAccount'; // Assuming this is the original table
 
@@ -403,7 +403,7 @@ export default function TestFixedPage() {
       <div className="mb-8">
          {/* No extra light-themed wrapper needed, the component handles its own styling */}
          {/* SecurityTableTicker fetches its own data and shows its own loading/error states */}
-         <SecurityTableTicker />
+         <GroupedTickerTable />
       </div>
       {/* --- End NEW Section --- */}
 
