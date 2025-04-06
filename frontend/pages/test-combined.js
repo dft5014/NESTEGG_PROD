@@ -1,62 +1,57 @@
-// pages/test-combined.js
 import { useState, useEffect, useContext } from 'react';
 import { AuthContext } from '@/context/AuthContext';
 import { useRouter } from 'next/router';
-import { fetchAccounts, createAccount, updateAccount, deleteAccount } from '@/utils/apimethods/accountMethods';
-import { fetchPositions } from '@/utils/apimethods/positionMethods';
-import { SecurityTableSkeleton, CryptoTableSkeleton, MetalTableSkeleton, RealEstateTableSkeleton } from '@/components/skeletons/PositionTableSkeletons';
-import { AccountsTableSkeleton } from '@/components/skeletons/PortfolioSkeleton';
-
-// Import modal components
 import AccountModal from '@/components/modals/AccountModal';
-import PositionTypeModal from '@/components/modals/PositionTypeModal';
-import AccountSelectModal from '@/components/modals/AccountSelectModal';
 import SecurityPositionModal from '@/components/modals/SecurityPositionModal';
 import CryptoPositionModal from '@/components/modals/CryptoPositionModal';
 import MetalPositionModal from '@/components/modals/MetalPositionModal';
 import RealEstatePositionModal from '@/components/modals/RealEstatePositionModal';
+import AddPositionButton from '@/components/AddPositionButton';
+import { fetchAccounts, deleteAccount } from '@/utils/apimethods/accountMethods';
+import { fetchPositionsByType, fetchAllPositionTypes, fetchAllPositionsWithDetails } from '@/utils/apimethods/positionMethods'; // Ensure fetchAllPositionsWithDetails is imported if needed elsewhere, though SecurityTableTicker uses it internally
+import { AccountsTableSkeleton } from '@/components/skeletons/PortfolioSkeleton';
+import { SecurityTableSkeleton, CryptoTableSkeleton, MetalTableSkeleton, RealEstateTableSkeleton } from '@/components/skeletons/PositionTableSkeletons';
 
-export default function TestCombinedPage() {
+// Import the new table component
+import SecurityTableTicker from '@/components/tables/SecurityTableTicker';
+// Import the original security table component (assuming it exists and might be needed)
+import SecurityTableAccount from '@/components/tables/SecurityTableAccount'; // Assuming this is the original table
+
+export default function TestFixedPage() {
   const { user } = useContext(AuthContext);
   const router = useRouter();
-  
+
   // Account state
-  const [accounts, setAccounts] = useState([]);
-  const [loadingAccounts, setLoadingAccounts] = useState(true);
   const [isAccountModalOpen, setIsAccountModalOpen] = useState(false);
   const [accountToEdit, setAccountToEdit] = useState(null);
-  
-  // Position states
-  const [positions, setPositions] = useState({});
+  const [accounts, setAccounts] = useState([]);
+  const [loadingAccounts, setLoadingAccounts] = useState(true);
+  const [error, setError] = useState(null);
+  const [successMessage, setSuccessMessage] = useState("");
+
+  // Position states (for individual tables if kept)
+  // Note: SecurityTableTicker fetches its own data, so securityPositions might only be needed for SecurityTableAccount
   const [securityPositions, setSecurityPositions] = useState([]);
   const [cryptoPositions, setCryptoPositions] = useState([]);
   const [metalPositions, setMetalPositions] = useState([]);
   const [realEstatePositions, setRealEstatePositions] = useState([]);
-  const [loadingPositions, setLoadingPositions] = useState(false);
-  
-  // Selected states for position management
-  const [selectedAccount, setSelectedAccount] = useState(null);
-  const [selectedPositionType, setSelectedPositionType] = useState(null);
-  
-  // Position modal states
-  const [isPositionTypeModalOpen, setIsPositionTypeModalOpen] = useState(false);
-  const [isAccountSelectModalOpen, setIsAccountSelectModalOpen] = useState(false);
+  const [loadingPositions, setLoadingPositions] = useState({
+    securities: false, // May not be needed if only using SecurityTableTicker
+    crypto: false,
+    metals: false,
+    realestate: false
+  });
+
+  // Position modal states (for editing)
   const [isSecurityModalOpen, setIsSecurityModalOpen] = useState(false);
   const [isCryptoModalOpen, setIsCryptoModalOpen] = useState(false);
   const [isMetalModalOpen, setIsMetalModalOpen] = useState(false);
   const [isRealEstateModalOpen, setIsRealEstateModalOpen] = useState(false);
-  
-  // Position to edit
+
+  // Selected states for position management
+  const [selectedAccount, setSelectedAccount] = useState(null);
+  const [selectedPositionType, setSelectedPositionType] = useState(null);
   const [positionToEdit, setPositionToEdit] = useState(null);
-  
-  // Messages
-  const [successMessage, setSuccessMessage] = useState('');
-  const [error, setError] = useState(null);
-  
-  // Tab state (accounts, securities, crypto, metals, realestate)
-  const [activeTab, setActiveTab] = useState('accounts');
-  const [loadingProgress, setLoadingProgress] = useState(0);
-  const [loadingMessage, setLoadingMessage] = useState('');
 
   // Check authentication
   useEffect(() => {
@@ -65,55 +60,34 @@ export default function TestCombinedPage() {
     }
   }, [user, router]);
 
-    // Prefetch data for other tabs in the background after accounts are loaded
+  // Load accounts and potentially other positions on mount
   useEffect(() => {
-    if (user && accounts.length > 0 && !loadingPositions) {
-      // Determine which tab data to load first based on active tab
-      const prefetchOrder = ['securities', 'crypto', 'metals', 'realestate'].filter(t => t !== activeTab);
-      
-      // Start prefetching the first non-active tab
-      if (prefetchOrder.length > 0) {
-        const tabToType = {
-          'securities': 'security',
-          'crypto': 'crypto',
-          'metals': 'metal',
-          'realestate': 'realestate'
-        };
-        
-        // Check if this tab's data is already loaded
-        const isDataLoaded = {
-          'securities': securityPositions.length > 0,
-          'crypto': cryptoPositions.length > 0,
-          'metals': metalPositions.length > 0,
-          'realestate': realEstatePositions.length > 0
-        };
-        
-        // Find the first tab that needs data
-        const tabToLoad = prefetchOrder.find(tab => !isDataLoaded[tab]);
-        
-        if (tabToLoad) {
-          console.log(`Prefetching data for ${tabToLoad} tab in the background`);
-          // Load in the background without setting loading state
-          prefetchPositionData(tabToType[tabToLoad]);
-        }
-      }
+    if (user) {
+      loadAccounts();
     }
-  }, [accounts, activeTab, loadingPositions]);
+  }, [user]);
 
   // Load accounts
   const loadAccounts = async () => {
     setLoadingAccounts(true);
     setError(null);
-    
+
     try {
       console.log("Fetching accounts...");
       const accountsData = await fetchAccounts();
       console.log("Accounts fetched:", accountsData);
       setAccounts(accountsData);
-      
-      // If we have accounts, load all positions
+
+      // Load non-security positions after accounts are loaded
+      // SecurityTableTicker handles its own loading.
+      // If you keep SecurityTableAccount, you might load its data here too.
       if (accountsData.length > 0) {
-        await loadAllPositions(accountsData);
+        // Load other position types if needed for other tables
+        loadPositionsByType('crypto', accountsData);
+        loadPositionsByType('metal', accountsData);
+        loadPositionsByType('realestate', accountsData);
+        // Optionally load for SecurityTableAccount if used:
+        // loadPositionsByType('security', accountsData);
       }
     } catch (error) {
       console.error("Error fetching accounts:", error);
@@ -123,306 +97,146 @@ export default function TestCombinedPage() {
     }
   };
 
-  // Load data based on selected tab
-  const loadTabData = (tabName) => {
-    setActiveTab(tabName);
-    
-    // Reset error state when changing tabs
-    setError(null);
-    
-    // Only load data for the selected tab if not already loaded
-    switch(tabName) {
-      case 'accounts':
-        if (!loadingAccounts) {
-          loadAccounts();
-        }
-        break;
-      case 'securities':
-        if (securityPositions.length === 0 && !loadingPositions) {
-          loadPositionsByType('security');
-        }
-        break;
-      case 'crypto':
-        if (cryptoPositions.length === 0 && !loadingPositions) {
-          loadPositionsByType('crypto');
-        }
-        break;
-      case 'metals':
-        if (metalPositions.length === 0 && !loadingPositions) {
-          loadPositionsByType('metal');
-        }
-        break;
-      case 'realestate':
-        if (realEstatePositions.length === 0 && !loadingPositions) {
-          loadPositionsByType('realestate');
-        }
-        break;
-    }
-  };
+  // Load positions by type (for individual tables, excluding SecurityTableTicker)
+  const loadPositionsByType = async (type, accountsList) => {
+    // Skip loading securities here if only SecurityTableTicker is used for securities
+    // if (type === 'security') return; // Uncomment if SecurityTableAccount is removed
 
-// Silently prefetch position data without showing loading state
-  const prefetchPositionData = async (type) => {
+    const accountsToUse = accountsList || accounts;
+    if (accountsToUse.length === 0) return;
+
+    const stateKey = getPositionStateKey(type);
+    if (!stateKey) return; // Unknown type
+
+    setLoadingPositions(prev => ({ ...prev, [stateKey]: true }));
+
     try {
-      const { fetchPositionsByType } = require('@/utils/apimethods/positionMethods');
-      let positionsWithAccounts = [];
-      
-      // Load positions for each account
-      for (const account of accounts) {
+      let allPositions = [];
+      // Using fetchAllPositionsWithDetails and filtering might be more efficient than looping if API supports it
+      // Example: const allOfType = await fetchAllPositionsWithDetails(type);
+      // setAppropriateState(allOfType);
+
+      // Current approach: Loop through accounts
+      for (const account of accountsToUse) {
         try {
+          console.log(`Fetching ${type} positions for account ${account.id}...`);
+          // Assuming fetchPositionsByType exists and works per account
           const positions = await fetchPositionsByType(account.id, type);
-          
+          console.log(`Received ${type} positions for account ${account.id}:`, positions);
+
           if (positions && Array.isArray(positions)) {
-            // Enrich with account info
             const enrichedPositions = positions.map(position => ({
               ...position,
               account_name: account.account_name,
               account_id: account.id
             }));
-            
-            positionsWithAccounts = [...positionsWithAccounts, ...enrichedPositions];
+            allPositions = [...allPositions, ...enrichedPositions];
           }
-        } catch (error) {
-          console.error(`Error prefetching ${type} for account ${account.id}:`, error);
-        }
-      }
-      
-      // Update appropriate state based on type
-      switch(type) {
-        case 'security':
-          if (securityPositions.length === 0) {
-            setSecurityPositions(positionsWithAccounts);
-          }
-          break;
-        case 'crypto':
-          if (cryptoPositions.length === 0) {
-            setCryptoPositions(positionsWithAccounts);
-          }
-          break;
-        case 'metal':
-          if (metalPositions.length === 0) {
-            setMetalPositions(positionsWithAccounts);
-          }
-          break;
-        case 'realestate':
-          if (realEstatePositions.length === 0) {
-            setRealEstatePositions(positionsWithAccounts);
-          }
-          break;
-      }
-      
-      console.log(`Successfully prefetched ${positionsWithAccounts.length} ${type} positions`);
-    } catch (error) {
-      console.error(`Error prefetching ${type} positions:`, error);
-      // No UI error for prefetching
-    }
-  };
-
-  // Load positions for a specific type
-  const loadPositionsByType = async (type) => {
-    setLoadingPositions(true);
-    setLoadingProgress(10);
-    setLoadingMessage(`Loading ${type} positions...`);
-    setError(null);
-    
-    try {
-      const { fetchPositionsByType } = require('@/utils/apimethods/positionMethods');
-      let positionsWithAccounts = [];
-      
-      setLoadingProgress(30);
-      
-      // Load positions for each account
-      for (let i = 0; i < accounts.length; i++) {
-        const account = accounts[i];
-        try {
-          const positions = await fetchPositionsByType(account.id, type);
-          
-          if (positions && Array.isArray(positions)) {
-            // Enrich with account info
-            const enrichedPositions = positions.map(position => ({
-              ...position,
-              account_name: account.account_name,
-              account_id: account.id
-            }));
-            
-            positionsWithAccounts = [...positionsWithAccounts, ...enrichedPositions];
-          }
-          
-          // Update progress
-          setLoadingProgress(30 + Math.floor(60 * (i + 1) / accounts.length));
-          setLoadingMessage(`Loading ${type} positions from ${account.account_name}...`);
-          
         } catch (error) {
           console.error(`Error fetching ${type} for account ${account.id}:`, error);
+          // Potentially set an error state per position type
         }
       }
-      
+
+      console.log(`Successfully processed ${allPositions.length} ${type} positions`);
+
       // Update appropriate state based on type
-      setLoadingProgress(95);
       switch(type) {
         case 'security':
-          setSecurityPositions(positionsWithAccounts);
+          // Only set if SecurityTableAccount is used
+          // setSecurityPositions(allPositions);
           break;
         case 'crypto':
-          setCryptoPositions(positionsWithAccounts);
+          setCryptoPositions(allPositions);
           break;
         case 'metal':
-          setMetalPositions(positionsWithAccounts);
+          setMetalPositions(allPositions);
           break;
         case 'realestate':
-          setRealEstatePositions(positionsWithAccounts);
+          setRealEstatePositions(allPositions);
           break;
       }
-      
-      setLoadingProgress(100);
-      setLoadingMessage('Loading complete!');
-      
     } catch (error) {
       console.error(`Error loading ${type} positions:`, error);
-      setError(`Failed to load ${type} positions: ${error.message}`);
+      // Set general error or specific type error
     } finally {
-      setTimeout(() => {
-        setLoadingPositions(false);
-      }, 500); // Short delay to show 100% completion
+      setLoadingPositions(prev => ({ ...prev, [stateKey]: false }));
     }
   };
 
-// Load initial data for accounts tab only, other data will be loaded on tab selection
-  const loadAllPositions = async (accountsList) => {
-    setLoadingPositions(true);
-    setLoadingProgress(0);
-    setLoadingMessage('Preparing to load account data...');
-    
-    try {
-      // We'll only preload the account positions initially
-      const allPositions = {};
-      setLoadingProgress(50);
-      setLoadingMessage('Loading account positions...');
-      
-      // If we're on the accounts tab, we don't need to load specific position types yet
-      if (activeTab === 'accounts') {
-        setPositions(allPositions);
-        setLoadingProgress(100);
-        setLoadingMessage('Account data loaded!');
-        return;
-      }
-      
-      // If specific tab is already selected, load that data type
-      await loadPositionsByType(activeTab);
-      
-    } catch (error) {
-      console.error('Error loading positions:', error);
-      setError('Failed to load positions. Please try again.');
-    } finally {
-      setLoadingPositions(false);
+
+  // Helper to get state key for position type
+  const getPositionStateKey = (type) => {
+    switch(type) {
+      case 'security': return 'securities';
+      case 'crypto': return 'crypto';
+      case 'metal': return 'metals';
+      case 'realestate': return 'realestate';
+      default: return null; // Handle unknown type
     }
   };
-  // Load accounts and positions on mount
-  useEffect(() => {
-    if (user) {
-      loadAccounts();
-    }
-  }, [user]);
 
-  // Account management handlers
+  // Handle account saved (added or updated)
   const handleAccountSaved = (savedAccount) => {
     console.log('Account saved:', savedAccount);
     loadAccounts(); // Refresh accounts and positions
-    
-    // Show success message
+
     const action = accountToEdit ? "updated" : "added";
     setSuccessMessage(`Account ${action} successfully!`);
-    
-    // Clear success message after 3 seconds
-    setTimeout(() => {
-      setSuccessMessage("");
-    }, 3000);
+    setTimeout(() => setSuccessMessage(""), 3000);
   };
 
+  // Open modal for adding a new account
   const handleAddAccount = () => {
-    setAccountToEdit(null); // Ensure we're in "add" mode
+    setAccountToEdit(null);
     setIsAccountModalOpen(true);
   };
 
-  const handleAccountAndTypeSelected = (positionType, accountId) => {
-    setSelectedPositionType(positionType);
-    setSelectedAccount(accountId);
-    
-    // Open appropriate modal based on type
-    switch (positionType) {
-      case 'security':
-        setIsSecurityModalOpen(true);
-        break;
-      case 'crypto':
-        setIsCryptoModalOpen(true);
-        break;
-      case 'metal':
-        setIsMetalModalOpen(true);
-        break;
-      case 'realestate':
-        setIsRealEstateModalOpen(true);
-        break;
-      default:
-        console.warn(`Unknown position type: ${positionType}`);
-    }
-  };
-
+  // Open modal for editing an existing account
   const handleEditAccount = (account) => {
     setAccountToEdit(account);
     setIsAccountModalOpen(true);
   };
 
+  // Handle account deletion
   const handleDeleteAccount = async (accountId) => {
-    if (!window.confirm("Are you sure you want to delete this account?")) {
+    if (!window.confirm("Are you sure you want to delete this account and all its positions?")) { // Added warning about positions
       return;
     }
-    
+
     try {
       await deleteAccount(accountId);
-      loadAccounts(); // Refresh accounts and positions
+      loadAccounts(); // Refresh accounts list and positions
       setSuccessMessage("Account deleted successfully!");
-      
-      // Clear success message after 3 seconds
-      setTimeout(() => {
-        setSuccessMessage("");
-      }, 3000);
+      setTimeout(() => setSuccessMessage(""), 3000);
     } catch (error) {
       console.error("Error deleting account:", error);
       setError("Failed to delete account: " + error.message);
     }
   };
 
-  // Position management handlers
-  const handleAddPosition = () => {
-    if (accounts.length === 0) {
-      setError('Please add an account first before adding positions.');
-      return;
-    }
-    
-    // If we only have one account, skip account selection
-    if (accounts.length === 1) {
-      setSelectedAccount(accounts[0]);
-      setIsPositionTypeModalOpen(true);
-    } else {
-      // Show account selection modal
-      setIsAccountSelectModalOpen(true);
-    }
+  // Handle adding a specific position type (sets type for refresh logic)
+  const handleAddSpecificPosition = (type) => {
+    setSelectedPositionType(type);
+    // The AddPositionButton component likely handles opening the correct modal
   };
 
-  const handleAccountSelected = (accountId) => {
-    const account = accounts.find(acc => acc.id === accountId);
-    
+  // Handle edit position (opens the correct modal)
+  const handleEditPosition = (position, type) => {
+    const account = accounts.find(acc => acc.id === position.account_id);
     if (account) {
       setSelectedAccount(account);
-      setIsAccountSelectModalOpen(false);
-      setIsPositionTypeModalOpen(true);
+      setSelectedPositionType(type);
+      setPositionToEdit(position);
+      openPositionModal(type);
+    } else {
+        console.error("Could not find account for position:", position);
+        setError("Could not find the account associated with this position.");
     }
   };
 
-  const handlePositionTypeSelected = (type) => {
-    setSelectedPositionType(type);
-    setIsPositionTypeModalOpen(false);
-    
-    // Open appropriate modal based on type
+  // Open the appropriate position modal for editing
+  const openPositionModal = (type) => {
     switch (type) {
       case 'security':
         setIsSecurityModalOpen(true);
@@ -441,582 +255,505 @@ export default function TestCombinedPage() {
     }
   };
 
-  const handlePositionSaved = () => {
-    // Refresh positions for all accounts
-    loadAccounts();
-    
-    // Show success message
-    setSuccessMessage(`${selectedPositionType} position saved successfully!`);
-    
-    // Clear message after 3 seconds
-    setTimeout(() => {
-      setSuccessMessage("");
-    }, 3000);
-    
-    // Reset state
-    setSelectedPositionType(null);
-    setPositionToEdit(null);
+  // Handle position saved (refreshes the relevant table/data)
+  const handlePositionSaved = (type) => {
+      console.log(`${type} position saved. Refreshing...`);
+      // Close all potentially open position modals
+      setIsSecurityModalOpen(false);
+      setIsCryptoModalOpen(false);
+      setIsMetalModalOpen(false);
+      setIsRealEstateModalOpen(false);
+      setPositionToEdit(null); // Clear edit state
+      setSelectedAccount(null); // Clear selected account
+
+      // Refresh data
+      if (type === 'security') {
+          // SecurityTableTicker refreshes internally on its next load cycle or if triggered
+          // If using SecurityTableAccount, refresh its data:
+          // loadPositionsByType('security');
+          // For now, we might need a way to explicitly tell SecurityTableTicker to refresh,
+          // or rely on its internal fetch cycle. A simple page reload or component remount
+          // would also work but isn't ideal UX.
+          // Option: Pass a 'refreshKey' prop to SecurityTableTicker that changes on save.
+          console.log("Security position saved - SecurityTableTicker will refresh on its own or needs a trigger.");
+
+      } else {
+          loadPositionsByType(type); // Refresh data for other types
+      }
+
+      setSuccessMessage(`${type.charAt(0).toUpperCase() + type.slice(1)} position saved successfully!`);
+      setTimeout(() => setSuccessMessage(""), 3000);
   };
 
-  const handleEditPosition = (position, type) => {
-    setPositionToEdit(position);
-    setSelectedPositionType(type);
-    
-    switch (type) {
-      case 'security':
-        setIsSecurityModalOpen(true);
-        break;
-      case 'crypto':
-        setIsCryptoModalOpen(true);
-        break;
-      case 'metal':
-        setIsMetalModalOpen(true);
-        break;
-      case 'realestate':
-        setIsRealEstateModalOpen(true);
-        break;
-    }
-  };
 
   return (
-    <div className="container mx-auto p-6">
-      <h1 className="text-2xl font-bold mb-4">NestEgg Comprehensive Test</h1>
-      
-      {/* Success Message (for both accounts and positions) */}
+    // Changed background to light gray for better contrast with dark table component
+    <div className="container mx-auto p-4 md:p-6 bg-gray-50 min-h-screen">
+      <h1 className="text-3xl font-bold mb-6 text-gray-800">NestEgg Portfolio Management</h1>
+
+      {/* Success Message */}
       {successMessage && (
-        <div className="mb-6 p-4 bg-green-100 text-green-700 rounded-lg">
+        <div className="mb-6 p-4 bg-green-100 border border-green-300 text-green-800 rounded-lg shadow-sm">
           {successMessage}
         </div>
       )}
-      
+
       {/* Error Message */}
       {error && (
-        <div className="mb-6 p-4 bg-red-100 text-red-700 rounded-lg">
+        <div className="mb-6 p-4 bg-red-100 border border-red-300 text-red-800 rounded-lg shadow-sm">
           {error}
-          <button 
-            className="ml-2 underline" 
+          <button
+            className="ml-4 px-2 py-1 bg-red-600 text-white text-xs rounded hover:bg-red-700"
             onClick={() => {
               setError(null);
-              loadAccounts();
+              loadAccounts(); // Retry loading
             }}
           >
             Retry
           </button>
         </div>
       )}
-      
+
       {/* Action Buttons */}
-      <div className="flex flex-wrap gap-4 mb-6">
+      <div className="flex flex-wrap gap-3 mb-8">
         <button
           onClick={handleAddAccount}
-          className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg shadow-md flex items-center"
+          className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg shadow transition duration-150 ease-in-out flex items-center"
         >
-          <span className="mr-2">+</span> Add Account
+          {/* Using a simple + icon for consistency */}
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
+            <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
+          </svg>
+          Add Account
         </button>
-        
-        <button
-          onClick={handleAddPosition}
-          className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg shadow-md flex items-center"
-        >
-          <span className="mr-2">+</span> Add Position
-        </button>
+
+        <AddPositionButton
+          className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg shadow transition duration-150 ease-in-out flex items-center"
+          // Pass accounts for the dropdown in AddPositionButton
+          accounts={accounts}
+          // Update the handler to call the new save handler
+          onPositionAdded={(type) => handlePositionSaved(type)}
+          // Trigger setting the type when a selection is made *before* modal opens
+          onTypeSelected={handleAddSpecificPosition}
+        />
       </div>
-      
-      {/* Tab Navigation */}
-      <div className="mb-6 border-b border-gray-200">
-        <ul className="flex flex-wrap -mb-px">
-          <li className="mr-2">
+
+      {/* Accounts Section - Light Theme */}
+      <div className="bg-white shadow-lg rounded-lg p-4 md:p-6 mb-8 border border-gray-200">
+        <h2 className="text-xl font-semibold mb-4 text-gray-700">Your Accounts</h2>
+        {loadingAccounts ? (
+          <AccountsTableSkeleton />
+        ) : accounts.length > 0 ? (
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Account Name</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden sm:table-cell">Institution</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden md:table-cell">Type</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden lg:table-cell">Category</th>
+                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Balance</th>
+                  <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {accounts.map((account) => (
+                  <tr key={account.id} className="hover:bg-gray-50 transition duration-150 ease-in-out">
+                    <td className="px-4 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{account.account_name}</td>
+                    <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500 hidden sm:table-cell">{account.institution || "N/A"}</td>
+                    <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500 hidden md:table-cell">{account.type || "N/A"}</td>
+                    <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500 hidden lg:table-cell">{account.account_category || "N/A"}</td>
+                    <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-700 text-right font-medium">{formatCurrency(account.balance)}</td>
+                    <td className="px-4 py-4 whitespace-nowrap text-center text-sm font-medium">
+                      <button
+                        onClick={() => handleEditAccount(account)}
+                        className="text-indigo-600 hover:text-indigo-900 mr-3 transition duration-150 ease-in-out"
+                        title="Edit Account"
+                      >
+                        Edit
+                      </button>
+                      <button
+                        onClick={() => handleDeleteAccount(account.id)}
+                        className="text-red-600 hover:text-red-900 transition duration-150 ease-in-out"
+                        title="Delete Account"
+                      >
+                        Delete
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div className="text-center py-8 border border-dashed border-gray-300 rounded-lg bg-gray-50">
+            <p className="text-gray-500 mb-4">No accounts found. Add an account to get started!</p>
             <button
-              className={`inline-block p-4 rounded-t-lg ${activeTab === 'accounts' 
-                ? 'border-b-2 border-blue-600 text-blue-600'
-                : 'border-transparent hover:text-gray-600 hover:border-gray-300'}`}
-              onClick={() => loadTabData('accounts')}
+              onClick={handleAddAccount}
+              className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2 rounded-md shadow transition duration-150 ease-in-out"
             >
-              Accounts
+              Add Your First Account
             </button>
-          </li>
-          <li className="mr-2">
-            <button
-              className={`inline-block p-4 rounded-t-lg ${activeTab === 'securities' 
-                ? 'border-b-2 border-blue-600 text-blue-600'
-                : 'border-transparent hover:text-gray-600 hover:border-gray-300'}`}
-              onClick={() => loadTabData('securities')}
-            >
-              Securities
-            </button>
-          </li>
-          <li className="mr-2">
-            <button
-              className={`inline-block p-4 rounded-t-lg ${activeTab === 'crypto' 
-                ? 'border-b-2 border-blue-600 text-blue-600'
-                : 'border-transparent hover:text-gray-600 hover:border-gray-300'}`}
-              onClick={() => loadTabData('crypto')}
-            >
-              Cryptocurrency
-            </button>
-          </li>
-          <li className="mr-2">
-            <button
-              className={`inline-block p-4 rounded-t-lg ${activeTab === 'metals' 
-                ? 'border-b-2 border-blue-600 text-blue-600'
-                : 'border-transparent hover:text-gray-600 hover:border-gray-300'}`}
-              onClick={() => loadTabData('metals')}
-            >
-              Precious Metals
-            </button>
-          </li>
-          <li>
-              <button
-                className={`inline-block p-4 rounded-t-lg ${activeTab === 'realestate' 
-                  ? 'border-b-2 border-blue-600 text-blue-600'
-                  : 'border-transparent hover:text-gray-600 hover:border-gray-300'}`}
-                onClick={() => loadTabData('realestate')}
-              >
-                Real Estate
-              </button>
-          </li>
-        </ul>
+          </div>
+        )}
       </div>
-      
-      {/* Tab Content */}
-      <div className="bg-white shadow-md rounded-lg p-6">
-        {/* Accounts Tab */}
-        {activeTab === 'accounts' && (
-          <>
-            <h2 className="text-xl font-bold mb-4">Your Accounts</h2>
-            {loadingAccounts ? (
-              <AccountsTableSkeleton />
-            ) : accounts.length > 0 ? (
-              <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-gray-200">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Account Name</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Institution</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Category</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Balance</th>
-                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
-                    {accounts.map((account) => (
-                      <tr key={account.id} className="hover:bg-gray-50">
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{account.account_name}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{account.institution || "N/A"}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{account.type || "N/A"}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{account.account_category || "N/A"}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${account.balance.toLocaleString()}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                          <button
-                            onClick={() => handleEditAccount(account)}
-                            className="text-blue-600 hover:text-blue-900 mr-4"
-                          >
-                            Edit
-                          </button>
-                          <button
-                            onClick={() => handleDeleteAccount(account.id)}
-                            className="text-red-600 hover:text-red-900"
-                          >
-                            Delete
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            ) : (
-              <div className="text-center py-8 border border-gray-200 rounded-lg">
-                <p className="text-gray-500 mb-4">No accounts found. Add an account to get started!</p>
-                <button
-                  onClick={handleAddAccount}
-                  className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md"
-                >
-                  Add Your First Account
-                </button>
-              </div>
-            )}
-          </>
-        )}
-        
-        {/* Securities Tab */}
-        {activeTab === 'securities' && (
-          <>
-            <h2 className="text-xl font-bold mb-4">Your Securities</h2>
-            {loadingPositions ? (
-              <div className="space-y-4">
-              {/* Progress Bar */}
-              <div className="w-full bg-gray-200 rounded-full h-2.5 mb-2">
-                <div 
-                  className="bg-blue-600 h-2.5 rounded-full transition-all duration-300" 
-                  style={{ width: `${loadingProgress}%` }}
-                ></div>
-              </div>
-              <p className="text-sm text-gray-500 text-center mb-4">{loadingMessage}</p>
-              
-              {/* Specialized skeleton for securities */}
-              <SecurityTableSkeleton />
-            </div>
-            ) : securityPositions.length > 0 ? (
-              <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-gray-200">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Ticker</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Account</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Shares</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Price</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Value</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Purchase Date</th>
-                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
-                    {securityPositions.map((position) => (
-                      <tr key={position.id} className="hover:bg-gray-50">
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{position.ticker}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{position.account_name}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{position.shares.toLocaleString()}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${position.price.toLocaleString()}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                          ${(position.shares * position.price).toLocaleString()}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                          {position.purchase_date ? new Date(position.purchase_date).toLocaleDateString() : 'N/A'}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                          <button
-                            onClick={() => handleEditPosition(position, 'security')}
-                            className="text-blue-600 hover:text-blue-900"
-                          >
-                            Edit
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            ) : (
-              <div className="text-center py-8 border border-gray-200 rounded-lg">
-                <p className="text-gray-500 mb-4">No security positions found.</p>
-                <button
-                  onClick={() => {
-                    setSelectedPositionType('security');
-                    handleAddPosition();
-                  }}
-                  className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md"
-                >
-                  Add Your First Security
-                </button>
-              </div>
-            )}
-          </>
-        )}
-        
-        {/* Crypto Tab */}
-        {activeTab === 'crypto' && (
-          <>
-            <h2 className="text-xl font-bold mb-4">Your Cryptocurrencies</h2>
-            {loadingPositions ? (
-              <div className="space-y-4">
-              {/* Progress Bar */}
-              <div className="w-full bg-gray-200 rounded-full h-2.5 mb-2">
-                <div 
-                  className="bg-blue-600 h-2.5 rounded-full transition-all duration-300" 
-                  style={{ width: `${loadingProgress}%` }}
-                ></div>
-              </div>
-              <p className="text-sm text-gray-500 text-center mb-4">{loadingMessage}</p>
-              
-              {/* Specialized skeleton for crypto */}
-              <CryptoTableSkeleton />
-            </div>
-            ) : cryptoPositions.length > 0 ? (
-              <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-gray-200">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Coin</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Account</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Quantity</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Current Price</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Value</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Storage</th>
-                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
-                    {cryptoPositions.map((position) => (
-                      <tr key={position.id} className="hover:bg-gray-50">
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                          {position.coin_symbol}
-                          <div className="text-xs text-gray-500">{position.coin_type}</div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{position.account_name}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{position.quantity.toLocaleString()}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${position.current_price.toLocaleString()}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                          ${(position.quantity * position.current_price).toLocaleString()}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                          {position.storage_type}
-                          <div className="text-xs text-gray-500">
-                            {position.storage_type === 'Exchange' ? position.exchange_name : position.wallet_address}
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                          <button
-                            onClick={() => handleEditPosition(position, 'crypto')}
-                            className="text-blue-600 hover:text-blue-900"
-                          >
-                            Edit
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            ) : (
-              <div className="text-center py-8 border border-gray-200 rounded-lg">
-                <p className="text-gray-500 mb-4">No cryptocurrency positions found.</p>
-                <button
-                  onClick={() => {
-                    setSelectedPositionType('crypto');
-                    handleAddPosition();
-                  }}
-                  className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md"
-                >
-                  Add Your First Cryptocurrency
-                </button>
-              </div>
-            )}
-          </>
-        )}
-        
-        {/* Metals Tab */}
-        {activeTab === 'metals' && (
-          <>
-            <h2 className="text-xl font-bold mb-4">Your Precious Metals</h2>
-            {loadingPositions ? (
-              <div className="space-y-4">
-              {/* Progress Bar */}
-              <div className="w-full bg-gray-200 rounded-full h-2.5 mb-2">
-                <div 
-                  className="bg-blue-600 h-2.5 rounded-full transition-all duration-300" 
-                  style={{ width: `${loadingProgress}%` }}
-                ></div>
-              </div>
-              <p className="text-sm text-gray-500 text-center mb-4">{loadingMessage}</p>
-              
-              {/* Specialized skeleton for metals */}
-              <MetalTableSkeleton />
-            </div>
-            ) : metalPositions.length > 0 ? (
-              <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-gray-200">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Metal</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Account</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Quantity</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Unit</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Purity</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Purchase Price</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Value</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Storage</th>
-                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
-                    {metalPositions.map((position) => (
-                      <tr key={position.id} className="hover:bg-gray-50">
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{position.metal_type}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{position.account_name}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{position.quantity.toLocaleString()}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{position.unit}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{position.purity || 'N/A'}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${position.purchase_price.toLocaleString()}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                          ${(position.quantity * position.purchase_price).toLocaleString()}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{position.storage_location || 'N/A'}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                          <button
-                            onClick={() => handleEditPosition(position, 'metal')}
-                            className="text-blue-600 hover:text-blue-900"
-                          >
-                            Edit
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            ) : (
-              <div className="text-center py-8 border border-gray-200 rounded-lg">
-                <p className="text-gray-500 mb-4">No precious metal positions found.</p>
-                <button
-                  onClick={() => {
-                    setSelectedPositionType('metal');
-                    handleAddPosition();
-                  }}
-                  className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md"
-                >
-                  Add Your First Precious Metal
-                </button>
-              </div>
-            )}
-          </>
-        )}
-        
-        {/* Real Estate Tab */}
-        {activeTab === 'realestate' && (
-          <>
-            <h2 className="text-xl font-bold mb-4">Your Real Estate</h2>
-            {loadingPositions ? (
-              <div className="space-y-4">
-              {/* Progress Bar */}
-              <div className="w-full bg-gray-200 rounded-full h-2.5 mb-2">
-                <div 
-                  className="bg-blue-600 h-2.5 rounded-full transition-all duration-300" 
-                  style={{ width: `${loadingProgress}%` }}
-                ></div>
-              </div>
-              <p className="text-sm text-gray-500 text-center mb-4">{loadingMessage}</p>
-              
-              {/* Specialized skeleton for real estate */}
-              <RealEstateTableSkeleton />
-            </div>
-              ) : realEstatePositions.length > 0 ? (
-                <div className="overflow-x-auto">
-                  <table className="min-w-full divide-y divide-gray-200">
-                    <thead className="bg-gray-50">
-                      <tr>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Property</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Account</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Purchase Price</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Current Value</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Gain/Loss</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Purchase Date</th>
-                        <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody className="bg-white divide-y divide-gray-200">
-                      {realEstatePositions.map((position) => {
-                        const gainLoss = position.estimated_market_value - position.purchase_price;
-                        const gainLossPercent = position.purchase_price > 0 
-                          ? (gainLoss / position.purchase_price) * 100 
-                          : 0;
-                        
-                        return (
-                          <tr key={position.id} className="hover:bg-gray-50">
-                            <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                              {position.address}
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{position.account_name}</td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{position.property_type}</td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${position.purchase_price.toLocaleString()}</td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${position.estimated_market_value.toLocaleString()}</td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm">
-                              <span className={gainLoss >= 0 ? 'text-green-600' : 'text-red-600'}>
-                                {gainLoss >= 0 ? '+' : ''}${gainLoss.toLocaleString()} 
-                                ({gainLoss >= 0 ? '+' : ''}{gainLossPercent.toFixed(2)}%)
-                              </span>
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                              {position.purchase_date ? new Date(position.purchase_date).toLocaleDateString() : 'N/A'}
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                              <button
-                                onClick={() => handleEditPosition(position, 'realestate')}
-                                className="text-blue-600 hover:text-blue-900"
-                              >
-                                Edit
-                              </button>
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              ) : (
-                <div className="text-center py-8 border border-gray-200 rounded-lg">
-                  <p className="text-gray-500 mb-4">No real estate positions found.</p>
-                  <button
-                    onClick={() => {
-                      setSelectedPositionType('realestate');
-                      handleAddPosition();
-                    }}
-                    className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md"
-                  >
-                    Add Your First Property
-                  </button>
-                </div>
-              )}
-            </>
-          )}
+
+      {/* --- NEW: Securities by Ticker Section --- */}
+      {/* This section uses the dark-themed SecurityTableTicker component */}
+      <div className="mb-8">
+         {/* No extra light-themed wrapper needed, the component handles its own styling */}
+         {/* SecurityTableTicker fetches its own data and shows its own loading/error states */}
+         <SecurityTableTicker />
+      </div>
+      {/* --- End NEW Section --- */}
+
+
+      {/* --- OLD: Securities by Account Section (Optional) --- */}
+      {/* You might want to remove this section if SecurityTableTicker replaces it */}
+      {/*
+      <div className="bg-white shadow-lg rounded-lg p-4 md:p-6 mb-8 border border-gray-200">
+        <div className="flex justify-between items-center mb-4">
+          <h2 className="text-xl font-semibold text-gray-700">Your Securities (by Account)</h2>
+           <AddPositionButton
+             accounts={accounts}
+             onPositionAdded={() => handlePositionSaved('security')}
+             onTypeSelected={() => handleAddSpecificPosition('security')}
+             buttonText="Add Security"
+             className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded text-sm flex items-center"
+           />
         </div>
-        
-        {/* All Modals */}
-        {/* Account Modal */}
-        <AccountModal
-          isOpen={isAccountModalOpen}
-          onClose={() => setIsAccountModalOpen(false)}
-          onAccountAdded={handleAccountSaved}
-          editAccount={accountToEdit}
-        />
-        
-        {/* Position Modals */}
-        <AccountSelectModal 
-          isOpen={isAccountSelectModalOpen}
-          onClose={() => setIsAccountSelectModalOpen(false)}
-          onAccountSelected={handleAccountSelected}
-        />
-        
-        <PositionTypeModal 
-        isOpen={isPositionTypeModalOpen}
-        onClose={() => setIsPositionTypeModalOpen(false)}
-        onTypeSelected={handlePositionTypeSelected}
-        onAccountAndTypeSelected={handleAccountAndTypeSelected}
-        />
-        
-        <SecurityPositionModal 
-          isOpen={isSecurityModalOpen}
-          onClose={() => setIsSecurityModalOpen(false)}
-          accountId={selectedAccount?.id}
-          onPositionSaved={handlePositionSaved}
-          positionToEdit={selectedPositionType === 'security' ? positionToEdit : null}
-        />
-        
-        <CryptoPositionModal 
-          isOpen={isCryptoModalOpen}
-          onClose={() => setIsCryptoModalOpen(false)}
-          accountId={selectedAccount?.id}
-          onPositionSaved={handlePositionSaved}
-          positionToEdit={selectedPositionType === 'crypto' ? positionToEdit : null}
-        />
-        
-        <MetalPositionModal 
-          isOpen={isMetalModalOpen}
-          onClose={() => setIsMetalModalOpen(false)}
-          accountId={selectedAccount?.id}
-          onPositionSaved={handlePositionSaved}
-          positionToEdit={selectedPositionType === 'metal' ? positionToEdit : null}
-        />
-        
-        <RealEstatePositionModal 
-          isOpen={isRealEstateModalOpen}
-          onClose={() => setIsRealEstateModalOpen(false)}
-          accountId={selectedAccount?.id}
-          onPositionSaved={handlePositionSaved}
-          positionToEdit={selectedPositionType === 'realestate' ? positionToEdit : null}
-        />
+
+        {loadingPositions.securities ? (
+          <SecurityTableSkeleton />
+        ) : securityPositions.length > 0 ? (
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Ticker</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Account</th>
+                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Shares</th>
+                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider hidden sm:table-cell">Price</th>
+                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Value</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden md:table-cell">Purchase Date</th>
+                  <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {securityPositions.map((position) => (
+                  <tr key={position.id} className="hover:bg-gray-50 transition duration-150 ease-in-out">
+                    <td className="px-4 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{position.ticker}</td>
+                    <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">{position.account_name}</td>
+                    <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-700 text-right">{position.shares.toLocaleString(undefined, { maximumFractionDigits: 4 })}</td>
+                    <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500 text-right hidden sm:table-cell">{formatCurrency(position.price)}</td>
+                    <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-700 text-right font-medium">{formatCurrency(position.shares * position.price)}</td>
+                    <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500 hidden md:table-cell">
+                      {position.purchase_date ? formatDate(position.purchase_date) : 'N/A'}
+                    </td>
+                    <td className="px-4 py-4 whitespace-nowrap text-center text-sm font-medium">
+                      <button
+                        onClick={() => handleEditPosition(position, 'security')}
+                        className="text-indigo-600 hover:text-indigo-900"
+                        title="Edit Security"
+                      >
+                        Edit
+                      </button>
+                       {/* Add Delete Button Here if needed for SecurityTableAccount */ }
+      {/*
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+           <div className="text-center py-8 border border-dashed border-gray-300 rounded-lg bg-gray-50">
+             <p className="text-gray-500 mb-4">No security positions found.</p>
+             <AddPositionButton
+               accounts={accounts}
+               onPositionAdded={() => handlePositionSaved('security')}
+               onTypeSelected={() => handleAddSpecificPosition('security')}
+               buttonText="Add Your First Security"
+               className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md"
+             />
+           </div>
+        )}
       </div>
-    );
-  }
+      */}
+      {/* --- End OLD Section --- */}
+
+
+      {/* Cryptocurrency Section - Light Theme */}
+      <div className="bg-white shadow-lg rounded-lg p-4 md:p-6 mb-8 border border-gray-200">
+        <div className="flex justify-between items-center mb-4">
+          <h2 className="text-xl font-semibold text-gray-700">Your Cryptocurrencies</h2>
+          {/* Use AddPositionButton for consistency */}
+           <AddPositionButton
+             accounts={accounts}
+             onPositionAdded={() => handlePositionSaved('crypto')}
+             onTypeSelected={() => handleAddSpecificPosition('crypto')}
+             buttonText="Add Crypto"
+             className="bg-purple-600 hover:bg-purple-700 text-white px-3 py-1 rounded text-sm flex items-center" // Changed color
+           />
+        </div>
+
+        {loadingPositions.crypto ? (
+          <CryptoTableSkeleton />
+        ) : cryptoPositions.length > 0 ? (
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Coin</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Account</th>
+                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Quantity</th>
+                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider hidden sm:table-cell">Price</th>
+                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Value</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden md:table-cell">Storage</th>
+                  <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {cryptoPositions.map((position) => (
+                  <tr key={position.id} className="hover:bg-gray-50 transition duration-150 ease-in-out">
+                    <td className="px-4 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                      {position.coin_symbol}
+                      <div className="text-xs text-gray-500">{position.coin_type}</div>
+                    </td>
+                    <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">{position.account_name}</td>
+                    <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-700 text-right">{position.quantity.toLocaleString(undefined, { maximumFractionDigits: 8 })}</td>
+                    <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500 text-right hidden sm:table-cell">{formatCurrency(position.current_price)}</td>
+                    <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-700 text-right font-medium">{formatCurrency(position.quantity * position.current_price)}</td>
+                    <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500 hidden md:table-cell">
+                      {position.storage_type}
+                      <div className="text-xs text-gray-400 truncate max-w-[150px]">
+                        {position.storage_type === 'Exchange' ? position.exchange_name : position.wallet_address}
+                      </div>
+                    </td>
+                    <td className="px-4 py-4 whitespace-nowrap text-center text-sm font-medium">
+                      <button
+                        onClick={() => handleEditPosition(position, 'crypto')}
+                        className="text-indigo-600 hover:text-indigo-900"
+                        title="Edit Crypto"
+                      >
+                        Edit
+                      </button>
+                      {/* Add Delete Button Here if needed */}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div className="text-center py-8 border border-dashed border-gray-300 rounded-lg bg-gray-50">
+            <p className="text-gray-500 mb-4">No cryptocurrency positions found.</p>
+             <AddPositionButton
+               accounts={accounts}
+               onPositionAdded={() => handlePositionSaved('crypto')}
+               onTypeSelected={() => handleAddSpecificPosition('crypto')}
+               buttonText="Add Your First Crypto"
+               className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-md" // Changed color
+             />
+          </div>
+        )}
+      </div>
+
+      {/* Precious Metals Section - Light Theme */}
+      <div className="bg-white shadow-lg rounded-lg p-4 md:p-6 mb-8 border border-gray-200">
+         <div className="flex justify-between items-center mb-4">
+          <h2 className="text-xl font-semibold text-gray-700">Your Precious Metals</h2>
+           <AddPositionButton
+             accounts={accounts}
+             onPositionAdded={() => handlePositionSaved('metal')}
+             onTypeSelected={() => handleAddSpecificPosition('metal')}
+             buttonText="Add Metal"
+             className="bg-yellow-600 hover:bg-yellow-700 text-white px-3 py-1 rounded text-sm flex items-center" // Changed color
+           />
+        </div>
+        {loadingPositions.metals ? (
+          <MetalTableSkeleton />
+        ) : metalPositions.length > 0 ? (
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Metal</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Account</th>
+                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Quantity</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden sm:table-cell">Unit</th>
+                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider hidden md:table-cell">Purchase Price/Unit</th>
+                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Total Value</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden lg:table-cell">Storage</th>
+                  <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {metalPositions.map((position) => (
+                  <tr key={position.id} className="hover:bg-gray-50 transition duration-150 ease-in-out">
+                    <td className="px-4 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{position.metal_type}</td>
+                    <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">{position.account_name}</td>
+                    <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-700 text-right">{position.quantity.toLocaleString()}</td>
+                    <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500 hidden sm:table-cell">{position.unit}</td>
+                    <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500 text-right hidden md:table-cell">{formatCurrency(position.purchase_price)}</td>
+                    <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-700 text-right font-medium">{formatCurrency(position.quantity * position.purchase_price)}</td>
+                    <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500 hidden lg:table-cell">{position.storage_location || 'N/A'}</td>
+                    <td className="px-4 py-4 whitespace-nowrap text-center text-sm font-medium">
+                      <button
+                        onClick={() => handleEditPosition(position, 'metal')}
+                        className="text-indigo-600 hover:text-indigo-900"
+                         title="Edit Metal"
+                      >
+                        Edit
+                      </button>
+                      {/* Add Delete Button Here if needed */}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div className="text-center py-8 border border-dashed border-gray-300 rounded-lg bg-gray-50">
+            <p className="text-gray-500 mb-4">No precious metal positions found.</p>
+             <AddPositionButton
+               accounts={accounts}
+               onPositionAdded={() => handlePositionSaved('metal')}
+               onTypeSelected={() => handleAddSpecificPosition('metal')}
+               buttonText="Add Your First Metal"
+               className="bg-yellow-600 hover:bg-yellow-700 text-white px-4 py-2 rounded-md" // Changed color
+             />
+          </div>
+        )}
+      </div>
+
+      {/* Real Estate Section - Light Theme */}
+      <div className="bg-white shadow-lg rounded-lg p-4 md:p-6 mb-8 border border-gray-200">
+         <div className="flex justify-between items-center mb-4">
+          <h2 className="text-xl font-semibold text-gray-700">Your Real Estate</h2>
+           <AddPositionButton
+             accounts={accounts}
+             onPositionAdded={() => handlePositionSaved('realestate')}
+             onTypeSelected={() => handleAddSpecificPosition('realestate')}
+             buttonText="Add Property"
+             className="bg-teal-600 hover:bg-teal-700 text-white px-3 py-1 rounded text-sm flex items-center" // Changed color
+           />
+        </div>
+        {loadingPositions.realestate ? (
+          <RealEstateTableSkeleton />
+        ) : realEstatePositions.length > 0 ? (
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Property</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Account</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden sm:table-cell">Type</th>
+                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider hidden md:table-cell">Purchase Price</th>
+                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Current Value</th>
+                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Gain/Loss</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden lg:table-cell">Purchase Date</th>
+                  <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {realEstatePositions.map((position) => {
+                  const gainLoss = position.estimated_market_value - position.purchase_price;
+                  const gainLossPercent = position.purchase_price > 0
+                    ? (gainLoss / position.purchase_price) * 100
+                    : 0;
+
+                  return (
+                    <tr key={position.id} className="hover:bg-gray-50 transition duration-150 ease-in-out">
+                      <td className="px-4 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                        {position.address}
+                        <div className="text-xs text-gray-500">{position.city}, {position.state}</div>
+                      </td>
+                      <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">{position.account_name}</td>
+                      <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500 hidden sm:table-cell">{position.property_type}</td>
+                      <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500 text-right hidden md:table-cell">{formatCurrency(position.purchase_price)}</td>
+                      <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-700 text-right font-medium">{formatCurrency(position.estimated_market_value)}</td>
+                      <td className="px-4 py-4 whitespace-nowrap text-sm text-right">
+                        <span className={gainLoss >= 0 ? 'text-green-600' : 'text-red-600'}>
+                          {gainLoss >= 0 ? '+' : ''}{formatCurrency(gainLoss)}
+                        </span>
+                        <div className={`text-xs ${gainLoss >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                            ({gainLoss >= 0 ? '+' : ''}{formatPercentage(gainLossPercent)})
+                        </div>
+                      </td>
+                      <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500 hidden lg:table-cell">
+                        {position.purchase_date ? formatDate(position.purchase_date) : 'N/A'}
+                      </td>
+                      <td className="px-4 py-4 whitespace-nowrap text-center text-sm font-medium">
+                        <button
+                          onClick={() => handleEditPosition(position, 'realestate')}
+                          className="text-indigo-600 hover:text-indigo-900"
+                           title="Edit Property"
+                        >
+                          Edit
+                        </button>
+                         {/* Add Delete Button Here if needed */}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div className="text-center py-8 border border-dashed border-gray-300 rounded-lg bg-gray-50">
+            <p className="text-gray-500 mb-4">No real estate positions found.</p>
+             <AddPositionButton
+               accounts={accounts}
+               onPositionAdded={() => handlePositionSaved('realestate')}
+               onTypeSelected={() => handleAddSpecificPosition('realestate')}
+               buttonText="Add Your First Property"
+               className="bg-teal-600 hover:bg-teal-700 text-white px-4 py-2 rounded-md" // Changed color
+             />
+          </div>
+        )}
+      </div>
+
+      {/* Modals */}
+      <AccountModal
+        isOpen={isAccountModalOpen}
+        onClose={() => setIsAccountModalOpen(false)}
+        onAccountSaved={handleAccountSaved} // Changed prop name for clarity
+        accountToEdit={accountToEdit} // Changed prop name for clarity
+      />
+
+      {/* Security Position Modal (Only for Edit if SecurityTableAccount is used, or potentially via TickerBreakdownModal) */}
+      <SecurityPositionModal
+        isOpen={isSecurityModalOpen}
+        onClose={() => { setIsSecurityModalOpen(false); setPositionToEdit(null); setSelectedAccount(null); }}
+        accountId={selectedAccount?.id}
+        onPositionSaved={() => handlePositionSaved('security')}
+        positionToEdit={selectedPositionType === 'security' ? positionToEdit : null}
+      />
+
+      <CryptoPositionModal
+        isOpen={isCryptoModalOpen}
+        onClose={() => { setIsCryptoModalOpen(false); setPositionToEdit(null); setSelectedAccount(null); }}
+        accountId={selectedAccount?.id}
+        onPositionSaved={() => handlePositionSaved('crypto')}
+        positionToEdit={selectedPositionType === 'crypto' ? positionToEdit : null}
+      />
+
+      <MetalPositionModal
+        isOpen={isMetalModalOpen}
+        onClose={() => { setIsMetalModalOpen(false); setPositionToEdit(null); setSelectedAccount(null); }}
+        accountId={selectedAccount?.id}
+        onPositionSaved={() => handlePositionSaved('metal')}
+        positionToEdit={selectedPositionType === 'metal' ? positionToEdit : null}
+      />
+
+      <RealEstatePositionModal
+        isOpen={isRealEstateModalOpen}
+        onClose={() => { setIsRealEstateModalOpen(false); setPositionToEdit(null); setSelectedAccount(null); }}
+        accountId={selectedAccount?.id}
+        onPositionSaved={() => handlePositionSaved('realestate')}
+        positionToEdit={selectedPositionType === 'realestate' ? positionToEdit : null}
+      />
+    </div>
+  );
+}
