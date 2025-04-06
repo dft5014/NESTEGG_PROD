@@ -459,53 +459,47 @@ import {
             </div>
             
             {/* Additional Details */}
-            {securityDetails && (
-              <div className="mt-3 pt-3 border-t border-blue-200">
-                <div className="grid grid-cols-3 gap-4 mb-2">
-                  <div className="text-center">
-                    <div className="text-xs text-gray-500">Market Cap</div>
-                    <div className="font-medium text-blue-800">{formatMarketCap(securityDetails.market_cap)}</div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-xs text-gray-500">P/E Ratio</div>
-                    <div className="font-medium text-blue-800">{securityDetails.pe_ratio ? securityDetails.pe_ratio.toFixed(2) : 'N/A'}</div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-xs text-gray-500">Dividend Yield</div>
-                    <div className="font-medium text-blue-800">
-                      {securityDetails.dividend_yield 
-                        ? `${(securityDetails.dividend_yield * 100).toFixed(2)}%` 
-                        : 'N/A'}
-                    </div>
+            <div className="mt-3 pt-3 border-t border-blue-200">
+              {/* First row */}
+              <div className="grid grid-cols-3 gap-4 mb-2">
+                <div className="text-center">
+                  <div className="text-xs text-gray-500">Sector</div>
+                  <div className="font-medium text-blue-800">{selectedSecurity.sector || 'N/A'}</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-xs text-gray-500">Industry</div>
+                  <div className="font-medium text-blue-800">{selectedSecurity.industry || 'N/A'}</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-xs text-gray-500">Market Cap</div>
+                  <div className="font-medium text-blue-800">{formatMarketCap(selectedSecurity.market_cap)}</div>
+                </div>
+              </div>
+              
+              {/* Second row */}
+              <div className="grid grid-cols-3 gap-4">
+                <div className="text-center">
+                  <div className="text-xs text-gray-500">P/E Ratio</div>
+                  <div className="font-medium text-blue-800">
+                    {selectedSecurity.pe_ratio ? selectedSecurity.pe_ratio.toFixed(2) : 'N/A'}
                   </div>
                 </div>
-                
-                <div className="grid grid-cols-3 gap-4">
-                  <div className="text-center">
-                    <div className="text-xs text-gray-500">52w High</div>
-                    <div className="font-medium text-blue-800">
-                      ${securityDetails.fifty_two_week_high?.toFixed(2) || 'N/A'}
-                    </div>
+                <div className="text-center">
+                  <div className="text-xs text-gray-500">Dividend Yield</div>
+                  <div className="font-medium text-blue-800">
+                    {selectedSecurity.dividend_yield 
+                      ? `${(selectedSecurity.dividend_yield * 100).toFixed(2)}%` 
+                      : 'N/A'}
                   </div>
-                  <div className="text-center">
-                    <div className="text-xs text-gray-500">52w Low</div>
-                    <div className="font-medium text-blue-800">
-                      ${securityDetails.fifty_two_week_low?.toFixed(2) || 'N/A'}
-                    </div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-xs text-gray-500">Avg Volume</div>
-                    <div className="font-medium text-blue-800">
-                      {securityDetails.avg_volume 
-                        ? (securityDetails.avg_volume >= 1000000 
-                            ? `${(securityDetails.avg_volume / 1000000).toFixed(1)}M` 
-                            : `${(securityDetails.avg_volume / 1000).toFixed(0)}K`)
-                        : 'N/A'}
-                    </div>
+                </div>
+                <div className="text-center">
+                  <div className="text-xs text-gray-500">Price As Of</div>
+                  <div className="font-medium text-blue-800">
+                    {new Date().toLocaleDateString()}
                   </div>
                 </div>
               </div>
-            )}
+            </div>
           </div>
         )}
         
