@@ -1,8 +1,9 @@
-// Modified PositionTypeModal.js
+// Modified PositionTypeModal.js with Cash type added
 import React, { useContext } from 'react';
 import FixedModal from './FixedModal';
 import { getDefaultAccountForPositionType } from '@/utils/apimethods/positionMethods';
 import { AuthContext } from '@/context/AuthContext';
+import { DollarSign } from 'lucide-react'; // Optional - if you're using Lucide icons
 
 const PositionTypeModal = ({ isOpen, onClose, onTypeSelected, onAccountAndTypeSelected }) => {
   const { user } = useContext(AuthContext);
@@ -43,6 +44,16 @@ const PositionTypeModal = ({ isOpen, onClose, onTypeSelected, onAccountAndTypeSe
       bgColor: 'bg-green-100',
       textColor: 'text-green-800',
       needsAccountSelection: false // Does not need user to select account
+    },
+    // Adding new Cash position type
+    { 
+      id: 'cash', 
+      name: 'Cash',
+      description: 'Savings, CDs, Money Market Accounts',
+      icon: '💵', 
+      bgColor: 'bg-emerald-100',
+      textColor: 'text-emerald-800',
+      needsAccountSelection: true // Assuming cash positions need account selection like most others
     }
   ];
 

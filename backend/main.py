@@ -609,6 +609,44 @@ class PortfolioSummaryAllResponse(BaseModel):
     total_accounts: int
     breakdown: List[PortfolioAssetSummary] # Non-optional now
 
+# Cash Models
+class CashPositionCreate(BaseModel):
+    cash_type: str  # "Savings", "CD", "Money Market", etc.
+    name: str
+    amount: float
+    interest_rate: Optional[float] = None
+    interest_period: Optional[str] = None
+    maturity_date: Optional[str] = None  # Format: YYYY-MM-DD
+    notes: Optional[str] = None
+
+class CashPositionUpdate(BaseModel):
+    cash_type: Optional[str] = None
+    name: Optional[str] = None
+    amount: Optional[float] = None
+    interest_rate: Optional[float] = None
+    interest_period: Optional[str] = None
+    maturity_date: Optional[str] = None
+    notes: Optional[str] = None
+
+class CashPositionDetail(BaseModel):
+    id: int
+    account_id: int
+    cash_type: str
+    name: str
+    amount: float
+    interest_rate: Optional[float] = None
+    interest_period: Optional[str] = None
+    maturity_date: Optional[date] = None
+    notes: Optional[str] = None
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+    account_name: str
+    monthly_interest: Optional[float] = None
+    annual_interest: Optional[float] = None
+
+class CashPositionsDetailedResponse(BaseModel):
+    cash_positions: List[CashPositionDetail]
+
 
 async def _get_detailed_securities(user_id: str) -> List[PositionDetail]:
     try:
@@ -2240,6 +2278,274 @@ async def add_security(security: SecurityCreate, current_user: dict = Depends(ge
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to add security: {str(e)}"
+        )
+
+# GET endpoint - Get all cash positions for an account
+@app.get("/cash/{account_id}")
+async def get_cash_positions(account_id: int, current_user: dict = Depends(get_current_user)):
+    try:
+        # Check if the account belongs to the user
+        account_query = accounts.select().where(
+            (accounts.c.id == account_id) & 
+            (accounts.c.user_id == current_user["id"])
+        )
+        account = await database.fetch_one(account_query)
+        
+        if not account:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Account not found or access denied")
+        
+        # Get cash positions for the account
+        query = """
+        SELECT * FROM cash_positions 
+        WHERE account_id = :account_id
+        ORDER BY name ASC
+        """
+        result = await database.fetch_all(query=query, values={"account_id": account_id})
+        
+        cash_positions = []
+        for row in dict(row):
+            position = dict(row)
+            
+            # Calculate interest metrics
+            amount = float(position.get("amount", 0))
+            interest_rate = float(position.get("interest_rate") or 0)
+            annual_interest = amount * interest_rate
+            monthly_interest = annual_interest / 12
+            
+            position["annual_interest"] = annual_interest
+            position["monthly_interest"] = monthly_interest
+            
+            # Format dates as ISO strings
+            if "maturity_date" in position and position["maturity_date"]:
+                position["maturity_date"] = position["maturity_date"].isoformat()
+            if "created_at" in position and position["created_at"]:
+                position["created_at"] = position["created_at"].isoformat()
+            if "updated_at" in position and position["updated_at"]:
+                position["updated_at"] = position["updated_at"].isoformat()
+                
+            cash_positions.append(position)
+            
+        return {"cash_positions": cash_positions}
+    except Exception as e:
+        logger.error(f"Error fetching cash positions: {str(e)}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Failed to fetch cash positions: {str(e)}")
+
+# POST endpoint - Add new cash position
+@app.post("/cash/{account_id}", status_code=status.HTTP_201_CREATED)
+async def add_cash_position(account_id: int, position: CashPositionCreate, current_user: dict = Depends(get_current_user)):
+    try:
+        # Check if the account belongs to the user
+        account_query = accounts.select().where(
+            (accounts.c.id == account_id) & 
+            (accounts.c.user_id == current_user["id"])
+        )
+        account = await database.fetch_one(account_query)
+        
+        if not account:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Account not found or access denied")
+        
+        # Add cash position
+        query = """
+        INSERT INTO cash_positions (
+            account_id, cash_type, name, amount, interest_rate, interest_period, 
+            maturity_date, institution, notes
+        ) VALUES (
+            :account_id, :cash_type, :name, :amount, :interest_rate, :interest_period,
+            :maturity_date, :institution, :notes
+        ) RETURNING id
+        """
+        values = {
+            "account_id": account_id,
+            "cash_type": position.cash_type,
+            "name": position.name,
+            "amount": position.amount,
+            "interest_rate": position.interest_rate,
+            "interest_period": position.interest_period,
+            "maturity_date": datetime.strptime(position.maturity_date, "%Y-%m-%d").date() if position.maturity_date else None,
+            "notes": position.notes
+        }
+        
+        result = await database.fetch_one(query=query, values=values)
+        position_id = result["id"]
+        
+        # Update account balance if needed
+        update_query = accounts.update().where(
+            accounts.c.id == account_id
+        ).values(
+            balance=account["balance"] + position.amount,
+            updated_at=datetime.utcnow()
+        )
+        await database.execute(update_query)
+        
+        return {
+            "message": "Cash position added successfully",
+            "position_id": position_id,
+            "position_value": position.amount
+        }
+    except Exception as e:
+        logger.error(f"Error adding cash position: {str(e)}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Failed to add cash position: {str(e)}")
+
+# PUT endpoint - Update cash position
+@app.put("/cash/{position_id}")
+async def update_cash_position(position_id: int, position: CashPositionUpdate, current_user: dict = Depends(get_current_user)):
+    try:
+        # Get position and check if it belongs to the user
+        check_query = """
+        SELECT cp.*, a.user_id, a.balance, a.id as account_id
+        FROM cash_positions cp
+        JOIN accounts a ON cp.account_id = a.id
+        WHERE cp.id = :position_id
+        """
+        position_data = await database.fetch_one(query=check_query, values={"position_id": position_id})
+        
+        if not position_data or position_data["user_id"] != current_user["id"]:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Position not found or access denied")
+        
+        # Calculate old and new values for account balance update
+        old_value = position_data["amount"]
+        new_value = position.amount if position.amount is not None else old_value
+        value_difference = new_value - old_value
+        
+        # Build update dictionary with only provided fields
+        update_values = {}
+        for key, value in position.dict(exclude_unset=True).items():
+            if key == 'maturity_date' and value is not None:
+                update_values[key] = datetime.strptime(value, "%Y-%m-%d").date()
+            else:
+                update_values[key] = value
+        
+        # Only update if there are values to update
+        if update_values:
+            # Construct dynamic query with only the fields that need updating
+            set_clause = ", ".join([f"{key} = :{key}" for key in update_values.keys()])
+            query = f"""
+            UPDATE cash_positions 
+            SET {set_clause}, updated_at = :updated_at
+            WHERE id = :position_id
+            RETURNING id
+            """
+            
+            # Add position_id and timestamp to values
+            update_values["position_id"] = position_id
+            update_values["updated_at"] = datetime.utcnow()
+            
+            await database.execute(query=query, values=update_values)
+            
+            # Update account balance if amount changed
+            if value_difference != 0:
+                account_id = position_data["account_id"]
+                account_balance = position_data["balance"]
+                
+                update_account_query = accounts.update().where(
+                    accounts.c.id == account_id
+                ).values(
+                    balance=account_balance + value_difference,
+                    updated_at=datetime.utcnow()
+                )
+                await database.execute(update_account_query)
+        
+        return {"message": "Cash position updated successfully"}
+    except Exception as e:
+        logger.error(f"Error updating cash position: {str(e)}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Failed to update cash position: {str(e)}")
+
+# DELETE endpoint - Delete cash position
+@app.delete("/cash/{position_id}")
+async def delete_cash_position(position_id: int, current_user: dict = Depends(get_current_user)):
+    try:
+        # Get position and check if it belongs to the user
+        check_query = """
+        SELECT cp.*, a.user_id, a.balance, a.id as account_id
+        FROM cash_positions cp
+        JOIN accounts a ON cp.account_id = a.id
+        WHERE cp.id = :position_id
+        """
+        position_data = await database.fetch_one(query=check_query, values={"position_id": position_id})
+        
+        if not position_data or position_data["user_id"] != current_user["id"]:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Position not found or access denied")
+        
+        # Calculate value for account balance adjustment
+        position_value = position_data["amount"]
+        
+        # Delete the position
+        delete_query = """
+        DELETE FROM cash_positions WHERE id = :position_id
+        """
+        await database.execute(query=delete_query, values={"position_id": position_id})
+        
+        # Update account balance
+        account_id = position_data["account_id"]
+        account_balance = position_data["balance"]
+        
+        update_account_query = accounts.update().where(
+            accounts.c.id == account_id
+        ).values(
+            balance=account_balance - position_value,
+            updated_at=datetime.utcnow()
+        )
+        await database.execute(update_account_query)
+        
+        return {"message": "Cash position deleted successfully"}
+    except Exception as e:
+        logger.error(f"Error deleting cash position: {str(e)}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Failed to delete cash position: {str(e)}")
+
+# GET all detailed cash positions 
+@app.get("/cash/all/detailed", response_model=CashPositionsDetailedResponse)
+async def get_all_detailed_cash_positions(current_user: dict = Depends(get_current_user)):
+    try:
+        user_id = current_user["id"]
+        logger.info(f"Fetching all detailed cash positions for user_id: {user_id}")
+
+        query = """
+        SELECT cp.*, a.account_name 
+        FROM cash_positions cp
+        JOIN accounts a ON cp.account_id = a.id
+        WHERE a.user_id = :user_id
+        ORDER BY a.account_name, cp.name
+        """
+        results = await database.fetch_all(query=query, values={"user_id": user_id})
+
+        cash_positions_list = []
+        for row in results:
+            row_dict = dict(row)
+            
+            # Calculate interest values
+            amount = float(row_dict.get("amount") or 0)
+            interest_rate = float(row_dict.get("interest_rate") or 0)
+            annual_interest = amount * interest_rate
+            monthly_interest = annual_interest / 12
+            
+            cash_positions_list.append(CashPositionDetail(
+                id=row_dict["id"],
+                account_id=row_dict["account_id"],
+                cash_type=row_dict["cash_type"],
+                name=row_dict["name"],
+                amount=amount,
+                interest_rate=interest_rate,
+                interest_period=row_dict.get("interest_period"),
+                maturity_date=row_dict.get("maturity_date"),
+                institution=row_dict.get("institution"),
+                notes=row_dict.get("notes"),
+                created_at=row_dict.get("created_at"),
+                updated_at=row_dict.get("updated_at"),
+                account_name=row_dict["account_name"],
+                monthly_interest=monthly_interest,
+                annual_interest=annual_interest
+            ))
+
+        logger.info(f"Returning {len(cash_positions_list)} detailed cash positions for user_id: {user_id}")
+        return CashPositionsDetailedResponse(cash_positions=cash_positions_list)
+
+    except Exception as e:
+        logger.error(f"Error in get_all_detailed_cash_positions for user {user_id}: {str(e)}")
+        import traceback
+        logger.error(traceback.format_exc())
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to fetch detailed cash positions: {str(e)}"
         )
 
 @app.get("/securities/{ticker}/details")

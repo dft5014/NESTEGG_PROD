@@ -51,6 +51,9 @@ export const fetchPositionsByType = async (accountId, type = 'security') => {
       case 'realestate':
         endpoint = `/realestate/${accountId}`;
         break;
+      case 'cash':  
+        endpoint = `/cash/${accountId}`;
+        break;
       case 'security':
       default:
         endpoint = `/positions/${accountId}`;
@@ -73,6 +76,8 @@ export const fetchPositionsByType = async (accountId, type = 'security') => {
       return data.positions || [];
     } else if (type === 'realestate' && data.positions) {
       return data.positions || [];
+    } else if (type === 'cash' && data.positions) {
+      return data.positions || [];
     } else if (data.positions) {
       return data.positions || [];
     } else if (Array.isArray(data)) {
@@ -91,10 +96,11 @@ export const fetchPositionsByType = async (accountId, type = 'security') => {
 // Add this as a utility function to the positionMethods.js file
 export const fetchAllPositionTypes = async (accountId) => {
   try {
-    const [securities, crypto, metals, realEstate] = await Promise.allSettled([
+    const [securities, crypto, metals, cash, realEstate] = await Promise.allSettled([
       fetchPositionsByType(accountId, 'security'),
       fetchPositionsByType(accountId, 'crypto'),
       fetchPositionsByType(accountId, 'metal'),
+      fetchPositionsByType(accountId, 'cash'),
       fetchPositionsByType(accountId, 'realestate')
     ]);
     
@@ -102,7 +108,9 @@ export const fetchAllPositionTypes = async (accountId) => {
       securities: securities.status === 'fulfilled' ? securities.value : [],
       crypto: crypto.status === 'fulfilled' ? crypto.value : [],
       metals: metals.status === 'fulfilled' ? metals.value : [],
+      cash: cash.status === 'fulfilled' ? cash.value : [],
       realEstate: realEstate.status === 'fulfilled' ? realEstate.value : []
+      
     };
   } catch (error) {
     console.error(`Error fetching all position types for account ${accountId}:`, error);
@@ -226,6 +234,9 @@ export const updatePosition = async (positionId, positionData, type = 'security'
       case 'realestate':
         endpoint = `/realestate/${positionId}`;
         break;
+      case 'cash':  
+        endpoint = `/cash/${positionId}`;
+        break;
       case 'security':
       default:
         endpoint = `/positions/${positionId}`;
@@ -269,6 +280,9 @@ export const deletePosition = async (positionId, type = 'security') => {
         break;
       case 'realestate':
         endpoint = `/realestate/${positionId}`;
+        break;
+      case 'cash':
+        endpoint = `/cash/${positionId}`;
         break;
       case 'security':
       default:
@@ -577,3 +591,125 @@ export const fetchPortfolioSummary = async () => {
       throw error;
     }
   };
+
+  /**
+ * Fetch cash positions for a specific account
+ * @param {number} accountId - ID of the account to fetch cash positions for
+ * @returns {Promise} - Promise resolving to an array of cash position objects
+ */
+export const fetchCashPositions = async (accountId) => {
+  try {
+    const response = await fetchWithAuth(`/cash/${accountId}`);
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(errorText || `Failed to fetch cash positions for account ${accountId}`);
+    }
+    
+    const data = await response.json();
+    return data.cash_positions || [];
+  } catch (error) {
+    console.error(`Error fetching cash positions for account ${accountId}:`, error);
+    throw error;
+  }
+};
+
+/**
+ * Add a cash position to an account
+ * @param {number} accountId - ID of the account to add position to
+ * @param {Object} cashData - Cash position data
+ * @returns {Promise} - Promise resolving to the created position object
+ */
+export const addCashPosition = async (accountId, cashData) => {
+  try {
+    const response = await fetchWithAuth(`/cash/${accountId}`, {
+      method: 'POST',
+      body: JSON.stringify(cashData)
+    });
+    
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.detail || 'Failed to add cash position');
+    }
+    
+    return await response.json();
+  } catch (error) {
+    console.error('Error adding cash position:', error);
+    throw error;
+  }
+};
+
+/**
+ * Update an existing cash position
+ * @param {number} positionId - ID of the position to update
+ * @param {Object} cashData - Updated cash position data
+ * @returns {Promise} - Promise resolving to the updated position object
+ */
+export const updateCashPosition = async (positionId, cashData) => {
+  try {
+    const response = await fetchWithAuth(`/cash/${positionId}`, {
+      method: 'PUT',
+      body: JSON.stringify(cashData)
+    });
+    
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.detail || 'Failed to update cash position');
+    }
+    
+    return await response.json();
+  } catch (error) {
+    console.error('Error updating cash position:', error);
+    throw error;
+  }
+};
+
+/**
+ * Delete a cash position
+ * @param {number} positionId - ID of the position to delete
+ * @returns {Promise} - Promise resolving when position is deleted
+ */
+export const deleteCashPosition = async (positionId) => {
+  try {
+    const response = await fetchWithAuth(`/cash/${positionId}`, {
+      method: 'DELETE'
+    });
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(errorText || 'Failed to delete cash position');
+    }
+    
+    return true;
+  } catch (error) {
+    console.error('Error deleting cash position:', error);
+    throw error;
+  }
+};
+
+/**
+ * Fetch all cash positions for the user, enriched with account details
+ * @returns {Promise<Array>} - Promise resolving to array of enriched cash positions
+ */
+export const fetchAllCashWithDetails = async () => {
+  try {
+    const response = await fetchWithAuth('/cash/all/detailed');
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Failed to fetch all cash positions: ${response.status} ${errorText}`);
+    }
+    
+    const data = await response.json();
+    
+    if (data && Array.isArray(data.cash_positions)) {
+      return data.cash_positions;
+    } else {
+      console.warn("fetchAllCashWithDetails: Unexpected data format received:", data);
+      return [];
+    }
+  } catch (error) {
+    console.error('Error in fetchAllCashWithDetails:', error);
+    throw error;
+  }
+};
