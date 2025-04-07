@@ -28,6 +28,7 @@ const AddPositionButton = ({
     const [isCryptoModalOpen, setIsCryptoModalOpen] = useState(false);
     const [isMetalModalOpen, setIsMetalModalOpen] = useState(false);
     const [isRealEstateModalOpen, setIsRealEstateModalOpen] = useState(false);
+    const [isCashModalOpen, setIsCashModalOpen] = useState(false);
 
     useEffect(() => {
         if (user) {
@@ -215,6 +216,12 @@ const AddPositionButton = ({
                 onClose={() => setIsRealEstateModalOpen(false)}
                 accountId={selectedAccount?.id}
                 onPositionSaved={handlePositionSaved}
+            />
+            <CashPositionModal
+            isOpen={isCashModalOpen}
+            onClose={() => setIsCashModalOpen(false)}
+            accountId={selectedAccount?.id}
+            onPositionSaved={handlePositionSaved}
             />
             <SecurityPositionModal
                 isOpen={isSecurityModalOpen}
