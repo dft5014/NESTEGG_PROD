@@ -2348,10 +2348,10 @@ async def add_cash_position(account_id: int, position: CashPositionCreate, curre
         query = """
         INSERT INTO cash_positions (
             account_id, cash_type, name, amount, interest_rate, interest_period, 
-            maturity_date, institution, notes
+            maturity_date, notes
         ) VALUES (
             :account_id, :cash_type, :name, :amount, :interest_rate, :interest_period,
-            :maturity_date, :institution, :notes
+            :maturity_date, :notes
         ) RETURNING id
         """
         values = {
@@ -2527,7 +2527,6 @@ async def get_all_detailed_cash_positions(current_user: dict = Depends(get_curre
                 interest_rate=interest_rate,
                 interest_period=row_dict.get("interest_period"),
                 maturity_date=row_dict.get("maturity_date"),
-                institution=row_dict.get("institution"),
                 notes=row_dict.get("notes"),
                 created_at=row_dict.get("created_at"),
                 updated_at=row_dict.get("updated_at"),
