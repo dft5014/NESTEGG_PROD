@@ -8,6 +8,7 @@ import SecurityPositionModal from '@/components/modals/SecurityPositionModal';
 import CryptoPositionModal from '@/components/modals/CryptoPositionModal';
 import MetalPositionModal from '@/components/modals/MetalPositionModal';
 import RealEstatePositionModal from '@/components/modals/RealEstatePositionModal';
+import CashPositionModal from '@/components/modals/CashPositionModal';
 import { fetchAccounts } from '@/utils/apimethods/accountMethods';
 
 const AddPositionButton = ({ 
