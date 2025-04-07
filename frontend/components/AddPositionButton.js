@@ -125,6 +125,10 @@ const AddPositionButton = ({
                     console.log('AddPositionButton: Setting isRealEstateModalOpen = true');
                     setIsRealEstateModalOpen(true);
                     break;
+                case 'cash': 
+                    console.log('AddPositionButton: Setting isCashModalOpen = true');
+                    setIsCashModalOpen(true);
+                    break;
                 default:
                     console.warn(`AddPositionButton: Unknown position type in openPositionModal switch: ->${type}<-`);
             }
