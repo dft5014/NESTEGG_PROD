@@ -176,3 +176,29 @@ export const triggerPriceUpdate = async () => {
       throw error;
     }
   };
+
+  /**
+ * Add a new security to track
+ * @param {Object} securityData - Security data object
+ * @param {string} securityData.ticker - Ticker symbol to add
+ * @returns {Promise} - Promise resolving to the created security object
+ */
+export const addSecurity = async (securityData) => {
+    try {
+      console.log("API CALL: Adding security", securityData);
+      const response = await fetchWithAuth('/securities', {
+        method: 'POST',
+        body: JSON.stringify(securityData)
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || 'Failed to add security');
+      }
+      
+      return await response.json();
+    } catch (error) {
+      console.error('Error adding security:', error);
+      throw error;
+    }
+  };

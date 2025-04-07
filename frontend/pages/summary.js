@@ -9,6 +9,7 @@ import GroupedTickerTable from '@/components/tables/GroupedTickerTable';
 import AccountTable from '@/components/tables/AccountTable'; // Import AccountTable
 import KpiCard from '@/components/ui/KpiCard';
 import UpdateMarketDataButton from '@/components/UpdateMarketDataButton'; 
+import AddSecurityButton from '@/components/AddSecurityButton';
 import { fetchPortfolioSummary } from '@/utils/apimethods/positionMethods';
 import { formatCurrency, formatPercentage } from '@/utils/formatters';
 import { DollarSign, BarChart4, Users, TrendingUp, TrendingDown, Percent } from 'lucide-react';
@@ -52,6 +53,7 @@ export default function SummaryPage() {
         <section className="mb-10">
          <div className="flex space-x-4">
          <UpdateMarketDataButton className="bg-blue-600 hover:bg-blue-700 text-white rounded-lg" />
+         <AddSecurityButton className="bg-green-600 hover:bg-green-700 text-white rounded-lg" />
          </div>
         </section>
 
