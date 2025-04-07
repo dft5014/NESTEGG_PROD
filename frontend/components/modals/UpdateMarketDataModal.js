@@ -11,7 +11,7 @@ import {
 
 const UpdateMarketDataModal = ({ isOpen, onClose }) => {
   // State for form fields
-  const [updateType, setUpdateType] = useState('prices');
+  const [updateType, setUpdateType] = useState('current_price');
   const [scope, setScope] = useState('all');
   const [ticker, setTicker] = useState('');
   const [days, setDays] = useState(30);
@@ -76,7 +76,7 @@ const UpdateMarketDataModal = ({ isOpen, onClose }) => {
           <div className="mb-4 p-4 bg-green-100 text-green-800 rounded-md">
             <h3 className="font-medium">Update Completed Successfully</h3>
             <p className="text-sm mt-1">
-              {updateType === 'prices' && 'Security prices have been updated.'}
+              {updateType === 'current_price' && 'Security prices have been updated.'}
               {updateType === 'metrics' && 'Company metrics have been updated.'}
               {updateType === 'history' && `Historical data for the last ${days} days has been updated.`}
               {scope === 'specific' && ` Updated ${ticker.toUpperCase()}.`}
@@ -115,9 +115,9 @@ const UpdateMarketDataModal = ({ isOpen, onClose }) => {
                     id="update-prices"
                     name="update-type"
                     type="radio"
-                    value="prices"
-                    checked={updateType === 'prices'}
-                    onChange={() => setUpdateType('prices')}
+                    value="current_price"
+                    checked={updateType === 'current_price'}
+                    onChange={() => setUpdateType('current_price')}
                     className="h-4 w-4 text-blue-600 border-gray-300 focus:ring-blue-500"
                   />
                   <label htmlFor="update-prices" className="ml-3 block text-sm text-gray-700">
