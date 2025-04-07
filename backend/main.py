@@ -851,8 +851,6 @@ async def get_all_detailed_accounts(current_user: dict = Depends(get_current_use
         all_metals = await _get_detailed_metals(user_id)
         all_real_estate = await _get_detailed_real_estate(user_id)
         all_cash = await _get_detailed_cash(user_id)
-        cash_balance = sum(cash_pos.amount for cash_pos in all_cash if cash_pos.account_id == account_id)
-
 
         detailed_accounts_list = []
 
@@ -974,14 +972,12 @@ async def get_all_detailed_accounts(current_user: dict = Depends(get_current_use
                 logger.info(f"Account index {i}: Attempting to create AccountDetail object from dict.")
                 account_detail = AccountDetail(
                     id=account_dict["id"],
-                    # *** Convert user_id UUID object to string HERE ***
-                    user_id=str(account_dict["user_id"]), # <--- CORRECTED LINE
-                    # *** ***
+                    user_id=str(account_dict["user_id"]),
                     account_name=account_dict.get("account_name", "Unknown Account"),
                     institution=account_dict.get("institution"),
                     type=account_dict.get("type"),
                     balance=float(account_total_value), # Use calculated value
-                    cash_balance=cash_balance
+                    cash_balance=sum(cash_pos.amount for cash_pos in all_cash if cash_pos.account_id == account_id),  # Add the missing comma here
                     created_at=account_dict.get("created_at"),
                     updated_at=account_dict.get("updated_at"),
                     # Calculated fields
