@@ -8,6 +8,7 @@ import RealEstateTable from '@/components/tables/RealEstateTable';
 import GroupedTickerTable from '@/components/tables/GroupedTickerTable'; 
 import AccountTable from '@/components/tables/AccountTable'; // Import AccountTable
 import KpiCard from '@/components/ui/KpiCard';
+import UpdateMarketDataButton from '@/components/UpdateMarketDataButton'; 
 import { fetchPortfolioSummary } from '@/utils/apimethods/positionMethods';
 import { formatCurrency, formatPercentage } from '@/utils/formatters';
 import { DollarSign, BarChart4, Users, TrendingUp, TrendingDown, Percent } from 'lucide-react';
@@ -45,9 +46,15 @@ export default function SummaryPage() {
     <div className="min-h-screen bg-gradient-to-br from-gray-900 to-blue-900 text-white p-4 md:p-8">
       <div className="container mx-auto">
         <header className="mb-8">
-           <h1 className="text-3xl font-bold">Portfolio Summary</h1>
+           <h1 className="text-3xl font-bold">NestEgg Summary</h1>
            <p className="text-gray-400 mt-2">Overview of your accounts and positions across all asset classes.</p>
         </header>
+        <section className="mb-10">
+         <div className="flex space-x-4">
+         <UpdateMarketDataButton className="bg-blue-600 hover:bg-blue-700 text-white rounded-lg" />
+         </div>
+        </section>
+
 
         {/* --- KPI Section --- */}
         <section className="mb-10">

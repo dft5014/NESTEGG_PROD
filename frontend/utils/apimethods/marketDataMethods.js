@@ -1,5 +1,6 @@
-// Placeholder functions for fetching market data
-// Replace with actual API calls to your backend
+// utils/apimethods/marketDataMethods.js
+import { fetchWithAuth } from '@/utils/api';
+
 
 export const fetchDashboardData = async (symbols) => {
     console.log("API CALL (mock): fetchDashboardData for symbols:", symbols);
@@ -77,3 +78,101 @@ export const searchMarketData = async (query) => {
     return mockResults;
     // --- End Mock ---
 }
+
+/**
+ * Trigger an update of all security prices
+ * @returns {Promise} - Promise resolving to the update result
+ */
+export const triggerPriceUpdate = async () => {
+    try {
+      console.log("API CALL: Triggering price update");
+      const response = await fetchWithAuth('/market/update-prices-v2', {
+        method: 'POST'
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || 'Failed to update prices');
+      }
+      
+      return await response.json();
+    } catch (error) {
+      console.error('Error updating prices:', error);
+      throw error;
+    }
+  };
+  
+  /**
+   * Trigger an update of all company metrics
+   * @returns {Promise} - Promise resolving to the update result
+   */
+  export const triggerMetricsUpdate = async () => {
+    try {
+      console.log("API CALL: Triggering metrics update");
+      const response = await fetchWithAuth('/market/update-metrics', {
+        method: 'POST'
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || 'Failed to update metrics');
+      }
+      
+      return await response.json();
+    } catch (error) {
+      console.error('Error updating metrics:', error);
+      throw error;
+    }
+  };
+  
+  /**
+   * Trigger an update of historical prices
+   * @param {number} days - Number of days of history to update
+   * @returns {Promise} - Promise resolving to the update result
+   */
+  export const triggerHistoryUpdate = async (days = 30) => {
+    try {
+      console.log(`API CALL: Triggering history update for ${days} days`);
+      const response = await fetchWithAuth(`/market/update-history?days=${days}`, {
+        method: 'POST'
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || 'Failed to update historical prices');
+      }
+      
+      return await response.json();
+    } catch (error) {
+      console.error('Error updating historical prices:', error);
+      throw error;
+    }
+  };
+  
+  /**
+   * Update a specific security
+   * @param {string} ticker - The ticker symbol to update
+   * @param {Object} updateData - Update parameters
+   * @param {string} updateData.update_type - Type of update: 'metrics', 'current_price', or 'history'
+   * @param {number} [updateData.days] - Days of history to update (for 'history' type)
+   * @returns {Promise} - Promise resolving to the update result
+   */
+  export const updateSpecificSecurity = async (ticker, updateData) => {
+    try {
+      console.log(`API CALL: Updating specific security ${ticker} with type ${updateData.update_type}`);
+      const response = await fetchWithAuth(`/securities/${ticker}/update`, {
+        method: 'POST',
+        body: JSON.stringify(updateData)
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || `Failed to update ${ticker}`);
+      }
+      
+      return await response.json();
+    } catch (error) {
+      console.error(`Error updating security ${ticker}:`, error);
+      throw error;
+    }
+  };
