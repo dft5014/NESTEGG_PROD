@@ -144,6 +144,8 @@ const AccountTable = ({
                  case "institution": return institutionA.localeCompare(institutionB);
                  case "positions-high": return positionsCountB - positionsCountA;
                  case "positions-low": return positionsCountA - positionsCountB;
+                 case "cash-high": return (b.cash_balance ?? 0) - (a.cash_balance ?? 0);
+                 case "cash-low": return (a.cash_balance ?? 0) - (b.cash_balance ?? 0);
                  default: return 0;
              }
          });
@@ -265,6 +267,8 @@ const AccountTable = ({
                                  <option value="gain_loss-low">Sort: Gain $ (Low-High)</option>
                                  <option value="positions-high">Sort: Positions (High-Low)</option>
                                  <option value="positions-low">Sort: Positions (Low-High)</option>
+                                 <option value="cash-high">Sort: Cash (High-Low)</option>
+                                 <option value="cash-low">Sort: Cash (Low-High)</option>
                              </select>
                              <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none"><svg className="h-4 w-4 text-gray-400" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" /></svg></div>
                          </div>
@@ -285,8 +289,9 @@ const AccountTable = ({
                                     <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider hidden md:table-cell">Institution</th>
                                     <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider hidden lg:table-cell">Type</th>
                                     <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-400 uppercase tracking-wider hidden sm:table-cell">Positions</th>
-                                    <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-400 uppercase tracking-wider hidden md:table-cell">Cost Basis</th>
                                     <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-400 uppercase tracking-wider">Value</th>
+                                    <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-400 uppercase tracking-wider hidden md:table-cell">Cash</th>
+                                    <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-400 uppercase tracking-wider hidden md:table-cell">Cost Basis</th>
                                     <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-400 uppercase tracking-wider">Gain/Loss</th>
                                     <th scope="col" className="px-6 py-3 text-center text-xs font-medium text-gray-400 uppercase tracking-wider">Actions</th>
                                 </tr>
@@ -336,8 +341,9 @@ const AccountTable = ({
                                             </td>
                                             {/* Type */} <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300 hidden lg:table-cell">{account.type || "N/A"}</td>
                                             {/* Positions Count */} <td className="px-6 py-4 whitespace-nowrap text-right text-sm hidden sm:table-cell">{positionsCount}</td>
-                                            {/* Cost Basis */} <td className="px-6 py-4 whitespace-nowrap text-right text-sm hidden md:table-cell">{formatCurrency(costBasis)}</td>
                                             {/* Value */} <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">{formatCurrency(totalValue)}</td>
+                                            {/* Cash Balance */} <td className="px-6 py-4 whitespace-nowrap text-right text-sm hidden md:table-cell"> {formatCurrency(account.cash_balance ?? 0)}</td>
+                                            {/* Cost Basis */} <td className="px-6 py-4 whitespace-nowrap text-right text-sm hidden md:table-cell">{formatCurrency(costBasis)}</td>
                                             {/* Gain/Loss */}
                                             <td className="px-6 py-4 whitespace-nowrap text-right">
                                                 <div className="flex flex-col items-end">

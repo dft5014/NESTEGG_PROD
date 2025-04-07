@@ -289,6 +289,7 @@ class AccountDetail(BaseModel):
     institution: Optional[str] = None
     type: Optional[str] = None
     balance: float = 0.0 # This might represent cash balance or total calculated value depending on usage
+    cash_balance: float = 0.0 
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
     # Calculated Fields
@@ -776,7 +777,46 @@ async def _get_detailed_real_estate(user_id: str) -> List[RealEstatePositionDeta
         logger.error(f"Error in _get_detailed_real_estate for user {user_id}: {e}")
         return []
 
+async def _get_detailed_cash(user_id: str) -> List[CashPositionDetail]:
+    try:
+        query = """
+        SELECT cp.*, a.account_name FROM cash_positions cp
+        JOIN accounts a ON cp.account_id = a.id WHERE a.user_id = :user_id
+        ORDER BY a.account_name, cp.name
+        """
+        results = await database.fetch_all(query=query, values={"user_id": user_id})
+        
+        cash_positions_list = []
+        for row in results:
+            row_dict = dict(row)
+            
+            # Calculate interest values
+            amount = float(row_dict.get("amount") or 0)
+            interest_rate = float(row_dict.get("interest_rate") or 0)
+            annual_interest = amount * interest_rate
+            monthly_interest = annual_interest / 12
+            
+            cash_positions_list.append(CashPositionDetail(
+                id=row_dict["id"],
+                account_id=row_dict["account_id"],
+                cash_type=row_dict["cash_type"],
+                name=row_dict["name"],
+                amount=amount,
+                interest_rate=interest_rate,
+                interest_period=row_dict.get("interest_period"),
+                maturity_date=row_dict.get("maturity_date"),
+                notes=row_dict.get("notes"),
+                created_at=row_dict.get("created_at"),
+                updated_at=row_dict.get("updated_at"),
+                account_name=row_dict["account_name"],
+                monthly_interest=monthly_interest,
+                annual_interest=annual_interest
+            ))
 
+        return cash_positions_list
+    except Exception as e:
+        logger.error(f"Error in _get_detailed_cash for user {user_id}: {str(e)}")
+        return []
 
 # API Endpoints
 @app.get("/")
@@ -810,6 +850,9 @@ async def get_all_detailed_accounts(current_user: dict = Depends(get_current_use
         all_crypto = await _get_detailed_crypto(user_id)
         all_metals = await _get_detailed_metals(user_id)
         all_real_estate = await _get_detailed_real_estate(user_id)
+        all_cash = await _get_detailed_cash(user_id)
+        cash_balance = sum(cash_pos.amount for cash_pos in all_cash if cash_pos.account_id == account_id)
+
 
         detailed_accounts_list = []
 
@@ -898,6 +941,28 @@ async def get_all_detailed_accounts(current_user: dict = Depends(get_current_use
                                id=re_pos.id, asset_type='real_estate', ticker_or_name=re_pos.address or re_pos.property_type or 'Unknown',
                                quantity_or_shares=1, value=value, cost_basis_total=cost_total,
                                gain_loss_amount=gain_loss_amount, gain_loss_percent=gain_loss_percent))
+
+                # Aggregate Cash
+                for cash_pos in all_cash:
+                        if cash_pos.account_id == account_id:
+                            value = cash_pos.amount
+                            cost_total = cash_pos.amount  # For cash, cost basis is typically the same as current value
+                            gain_loss_amount = 0  # Typically zero for cash
+                            gain_loss_percent = 0
+                            account_total_value += value
+                            account_total_cost_basis += cost_total
+                            account_positions_count += 1
+                            account_positions_basic_info.append(PositionBasicInfo(
+                                id=cash_pos.id, 
+                                asset_type='cash', 
+                                ticker_or_name=cash_pos.name or cash_pos.cash_type,
+                                quantity_or_shares=1,  # Treat cash as a single position
+                                value=value, 
+                                cost_basis_total=cost_total,
+                                gain_loss_amount=gain_loss_amount, 
+                                gain_loss_percent=gain_loss_percent
+                            ))
+
                 # --- End Aggregate positions ---
 
 
@@ -916,6 +981,7 @@ async def get_all_detailed_accounts(current_user: dict = Depends(get_current_use
                     institution=account_dict.get("institution"),
                     type=account_dict.get("type"),
                     balance=float(account_total_value), # Use calculated value
+                    cash_balance=cash_balance
                     created_at=account_dict.get("created_at"),
                     updated_at=account_dict.get("updated_at"),
                     # Calculated fields
