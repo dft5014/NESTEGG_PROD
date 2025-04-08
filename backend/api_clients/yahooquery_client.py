@@ -306,122 +306,122 @@ class YahooQueryClient(MarketDataSource):
         return results
     
     async def get_company_metrics(self, ticker: str) -> Optional[Dict[str, Any]]:
-    """
-    Get company metrics for a ticker
-    """
-    # Check cache first
-    cache_key = f"metrics_{ticker}"
-    cached_data = self._get_from_cache(cache_key, "company_metrics")
-    if cached_data:
-        return cached_data
-        
-    retries = 3
-    delay = 2
-    for attempt in range(retries):
-        try:
-            logger.info(f"Fetching company info for {ticker} using yahooquery (attempt {attempt+1}/{retries})")
+        """
+        Get company metrics for a ticker
+        """
+        # Check cache first
+        cache_key = f"metrics_{ticker}"
+        cached_data = self._get_from_cache(cache_key, "company_metrics")
+        if cached_data:
+            return cached_data
             
-            # Use yahooquery to get company information
-            loop = asyncio.get_event_loop()
-            ticker_obj = await loop.run_in_executor(None, lambda: yq.Ticker(ticker))
-            
-            # Get summary and financial data
-            asset_profile = await loop.run_in_executor(None, lambda: ticker_obj.asset_profile)
-            financial_data = await loop.run_in_executor(None, lambda: ticker_obj.financial_data)
-            key_stats = await loop.run_in_executor(None, lambda: ticker_obj.key_stats)
-            summary_detail = await loop.run_in_executor(None, lambda: ticker_obj.summary_detail)
-            price_data = await loop.run_in_executor(None, lambda: ticker_obj.price)
-            quote_data = await loop.run_in_executor(None, lambda: ticker_obj.quote_type)
-            
-            # Check if we got valid data
-            if (ticker not in asset_profile or 
-                ticker not in financial_data or 
-                ticker not in key_stats or 
-                ticker not in summary_detail or
-                ticker not in price_data):
-                logger.warning(f"Incomplete data for {ticker}")
+        retries = 3
+        delay = 2
+        for attempt in range(retries):
+            try:
+                logger.info(f"Fetching company info for {ticker} using yahooquery (attempt {attempt+1}/{retries})")
+                
+                # Use yahooquery to get company information
+                loop = asyncio.get_event_loop()
+                ticker_obj = await loop.run_in_executor(None, lambda: yq.Ticker(ticker))
+                
+                # Get summary and financial data
+                asset_profile = await loop.run_in_executor(None, lambda: ticker_obj.asset_profile)
+                financial_data = await loop.run_in_executor(None, lambda: ticker_obj.financial_data)
+                key_stats = await loop.run_in_executor(None, lambda: ticker_obj.key_stats)
+                summary_detail = await loop.run_in_executor(None, lambda: ticker_obj.summary_detail)
+                price_data = await loop.run_in_executor(None, lambda: ticker_obj.price)
+                quote_data = await loop.run_in_executor(None, lambda: ticker_obj.quote_type)
+                
+                # Check if we got valid data
+                if (ticker not in asset_profile or 
+                    ticker not in financial_data or 
+                    ticker not in key_stats or 
+                    ticker not in summary_detail or
+                    ticker not in price_data):
+                    logger.warning(f"Incomplete data for {ticker}")
+                    if attempt < retries - 1:
+                        await asyncio.sleep(delay * (2 ** attempt))
+                        continue
+                    return {"not_found": True, "source": self.source_name}
+                
+                # Extract asset profile data
+                profile = asset_profile[ticker]
+                finance = financial_data[ticker]
+                stats = key_stats[ticker]
+                details = summary_detail[ticker]
+                price = price_data[ticker]
+                quote = quote_data[ticker] if ticker in quote_data else {}
+                
+                # Get company name from the price or quote_type object instead of profile
+                company_name = None
+                if "shortName" in price:
+                    company_name = price.get("shortName")
+                elif "longName" in price:
+                    company_name = price.get("longName")
+                elif "shortName" in quote:
+                    company_name = quote.get("shortName")
+                elif "longName" in quote:
+                    company_name = quote.get("longName")
+                
+                # Construct metrics dictionary
+                metrics = {
+                    "ticker": ticker,
+                    "company_name": company_name,  # Updated to use the name from price data
+                    "sector": profile.get("sector", ""),
+                    "industry": profile.get("industry", ""),
+                    "source": self.source_name,
+                    
+                    # Price data
+                    "current_price": price.get("regularMarketPrice"),
+                    "previous_close": price.get("regularMarketPreviousClose"),
+                    "day_open": price.get("regularMarketOpen"),
+                    "day_high": price.get("regularMarketDayHigh"),
+                    "day_low": price.get("regularMarketDayLow"),
+                    "volume": price.get("regularMarketVolume"),
+                    
+                    # Financial metrics
+                    "market_cap": stats.get("marketCap"),
+                    "pe_ratio": details.get("trailingPE"),
+                    "forward_pe": details.get("forwardPE"),
+                    "dividend_rate": details.get("dividendRate"),
+                    "dividend_yield": details.get("dividendYield"),
+                    "beta": details.get("beta"),
+                    "fifty_two_week_low": details.get("fiftyTwoWeekLow"),
+                    "fifty_two_week_high": details.get("fiftyTwoWeekHigh"),
+                    "eps": stats.get("trailingEps"),
+                    "forward_eps": stats.get("forwardEps"),
+                    "average_volume": details.get("averageVolume"),
+                    # Additional fields to match other clients
+                    "target_high_price": stats.get("targetHighPrice"),
+                    "target_low_price": stats.get("targetLowPrice"),
+                    "target_mean_price": stats.get("targetMeanPrice"),
+                    "target_median_price": stats.get("targetMedianPrice"),
+                    "bid_price": details.get("bid"),
+                    "ask_price": details.get("ask"),
+                }
+                
+                # Calculate fifty_two_week_range
+                if metrics.get("fifty_two_week_low") is not None and metrics.get("fifty_two_week_high") is not None:
+                    metrics["fifty_two_week_range"] = f"{metrics['fifty_two_week_low']}-{metrics['fifty_two_week_high']}"
+                
+                # Filter out None values
+                metrics = {k: v for k, v in metrics.items() if v is not None}
+                
+                # Cache the metrics
+                self._set_in_cache(cache_key, "company_metrics", metrics)
+                
+                logger.info(f"Metrics for {ticker}: {metrics}")
+                return metrics
+                
+            except Exception as e:
+                logger.error(f"Attempt {attempt + 1}/{retries} failed for {ticker} metrics: {str(e)}")
                 if attempt < retries - 1:
                     await asyncio.sleep(delay * (2 ** attempt))
-                    continue
-                return {"not_found": True, "source": self.source_name}
-            
-            # Extract asset profile data
-            profile = asset_profile[ticker]
-            finance = financial_data[ticker]
-            stats = key_stats[ticker]
-            details = summary_detail[ticker]
-            price = price_data[ticker]
-            quote = quote_data[ticker] if ticker in quote_data else {}
-            
-            # Get company name from the price or quote_type object instead of profile
-            company_name = None
-            if "shortName" in price:
-                company_name = price.get("shortName")
-            elif "longName" in price:
-                company_name = price.get("longName")
-            elif "shortName" in quote:
-                company_name = quote.get("shortName")
-            elif "longName" in quote:
-                company_name = quote.get("longName")
-            
-            # Construct metrics dictionary
-            metrics = {
-                "ticker": ticker,
-                "company_name": company_name,  # Updated to use the name from price data
-                "sector": profile.get("sector", ""),
-                "industry": profile.get("industry", ""),
-                "source": self.source_name,
-                
-                # Price data
-                "current_price": price.get("regularMarketPrice"),
-                "previous_close": price.get("regularMarketPreviousClose"),
-                "day_open": price.get("regularMarketOpen"),
-                "day_high": price.get("regularMarketDayHigh"),
-                "day_low": price.get("regularMarketDayLow"),
-                "volume": price.get("regularMarketVolume"),
-                
-                # Financial metrics
-                "market_cap": stats.get("marketCap"),
-                "pe_ratio": details.get("trailingPE"),
-                "forward_pe": details.get("forwardPE"),
-                "dividend_rate": details.get("dividendRate"),
-                "dividend_yield": details.get("dividendYield"),
-                "beta": details.get("beta"),
-                "fifty_two_week_low": details.get("fiftyTwoWeekLow"),
-                "fifty_two_week_high": details.get("fiftyTwoWeekHigh"),
-                "eps": stats.get("trailingEps"),
-                "forward_eps": stats.get("forwardEps"),
-                "average_volume": details.get("averageVolume"),
-                # Additional fields to match other clients
-                "target_high_price": stats.get("targetHighPrice"),
-                "target_low_price": stats.get("targetLowPrice"),
-                "target_mean_price": stats.get("targetMeanPrice"),
-                "target_median_price": stats.get("targetMedianPrice"),
-                "bid_price": details.get("bid"),
-                "ask_price": details.get("ask"),
-            }
-            
-            # Calculate fifty_two_week_range
-            if metrics.get("fifty_two_week_low") is not None and metrics.get("fifty_two_week_high") is not None:
-                metrics["fifty_two_week_range"] = f"{metrics['fifty_two_week_low']}-{metrics['fifty_two_week_high']}"
-            
-            # Filter out None values
-            metrics = {k: v for k, v in metrics.items() if v is not None}
-            
-            # Cache the metrics
-            self._set_in_cache(cache_key, "company_metrics", metrics)
-            
-            logger.info(f"Metrics for {ticker}: {metrics}")
-            return metrics
-            
-        except Exception as e:
-            logger.error(f"Attempt {attempt + 1}/{retries} failed for {ticker} metrics: {str(e)}")
-            if attempt < retries - 1:
-                await asyncio.sleep(delay * (2 ** attempt))
-            else:
-                logger.error(f"All retries exhausted for {ticker} metrics")
-                return {"not_found": True, "source": self.source_name, "error": str(e)}
-                
+                else:
+                    logger.error(f"All retries exhausted for {ticker} metrics")
+                    return {"not_found": True, "source": self.source_name, "error": str(e)}
+
     async def get_historical_prices(self, ticker: str, start_date: datetime, end_date: Optional[datetime] = None) -> List[Dict[str, Any]]:
         """
         Get historical prices for a single ticker
