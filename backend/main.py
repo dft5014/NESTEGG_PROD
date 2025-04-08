@@ -3490,6 +3490,80 @@ async def get_table_details(table_name: str, limit: int = 10, current_user: dict
             detail=f"Failed to fetch table details: {str(e)}"
         )
 
+@app.get("/debug/raw-yahoo-test/{ticker}")
+async def test_raw_yahoo_data(ticker: str, current_user: dict = Depends(get_current_user)):
+    """
+    Test endpoint to fetch raw data directly from yahooquery for a specific ticker
+    with minimal processing to debug field extraction issues
+    """
+    try:
+        import yahooquery as yq
+        
+        results = {
+            "ticker": ticker,
+            "timestamp": datetime.utcnow().isoformat(),
+            "raw_data": {}
+        }
+        
+        # Create the Ticker object
+        ticker_obj = yq.Ticker(ticker)
+        
+        # Collect all available data modules directly
+        modules = [
+            'asset_profile', 
+            'summary_detail', 
+            'financial_data', 
+            'key_stats', 
+            'price', 
+            'earnings', 
+            'quote_type', 
+            'summary_profile'
+        ]
+        
+        for module in modules:
+            try:
+                # Get the raw data directly
+                data = getattr(ticker_obj, module)
+                # Store it without any transformation
+                results["raw_data"][module] = data
+            except Exception as e:
+                results["raw_data"][module] = {"error": str(e)}
+        
+        # Add specific checks for the problematic fields
+        results["specific_checks"] = {}
+        
+        # Check for company name specifically
+        try:
+            profile = ticker_obj.asset_profile.get(ticker, {})
+            results["specific_checks"]["company_name_fields"] = {
+                "shortName_exists": "shortName" in profile,
+                "shortName_value": profile.get("shortName"),
+                "longName_exists": "longName" in profile,
+                "longName_value": profile.get("longName")
+            }
+        except Exception as e:
+            results["specific_checks"]["company_name_fields"] = {"error": str(e)}
+        
+        # Check for PE ratio specifically
+        try:
+            details = ticker_obj.summary_detail.get(ticker, {})
+            results["specific_checks"]["pe_ratio_fields"] = {
+                "trailingPE_exists": "trailingPE" in details,
+                "trailingPE_value": details.get("trailingPE"),
+                "forwardPE_exists": "forwardPE" in details,
+                "forwardPE_value": details.get("forwardPE")
+            }
+        except Exception as e:
+            results["specific_checks"]["pe_ratio_fields"] = {"error": str(e)}
+        
+        return results
+    except Exception as e:
+        logger.error(f"Error in raw yahoo test for {ticker}: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to fetch raw Yahoo data: {str(e)}"
+        )
+
 @app.get("/debug/direct-yahoo-test")
 async def test_direct_yahoo():
     """
