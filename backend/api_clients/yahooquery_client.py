@@ -364,6 +364,15 @@ class YahooQueryClient(MarketDataSource):
                 elif "longName" in quote:
                     company_name = quote.get("longName")
                 
+                # Get market cap from multiple possible locations
+                market_cap = None
+                if "marketCap" in stats:
+                    market_cap = stats.get("marketCap")
+                elif "marketCap" in price:
+                    market_cap = price.get("marketCap")
+                elif "marketCap" in details:
+                    market_cap = details.get("marketCap")
+
                 # Construct metrics dictionary
                 metrics = {
                     "ticker": ticker,
@@ -381,7 +390,7 @@ class YahooQueryClient(MarketDataSource):
                     "volume": price.get("regularMarketVolume"),
                     
                     # Financial metrics
-                    "market_cap": stats.get("marketCap"),
+                    "market_cap": market_cap,
                     "pe_ratio": details.get("trailingPE"),
                     "forward_pe": details.get("forwardPE"),
                     "dividend_rate": details.get("dividendRate"),
