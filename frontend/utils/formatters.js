@@ -129,3 +129,23 @@ export const formatNumber = (value, options = {}) => {
     useGrouping: useGrouping,
   }).format(Number(value));
 };
+
+/**
+ * Formats a numeric value as a share price with exactly two decimal places.
+ * Always displays the dollar sign and two decimal places (e.g., $X.XX)
+ * @param {number | null | undefined} value - The numeric value to format.
+ * @returns {string} - The formatted share price string (e.g., "$12.34").
+ */
+export const formatSharePrice = (value) => {
+  if (value === undefined || value === null || isNaN(Number(value))) {
+    // Return $0.00 for invalid inputs
+    return '$0.00';
+  }
+
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(Number(value));
+};
