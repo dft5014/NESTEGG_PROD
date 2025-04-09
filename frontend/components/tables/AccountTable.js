@@ -283,19 +283,19 @@ const AccountTable = ({
                  ) : (
                     <div className="overflow-x-auto">
                         <table className="min-w-full divide-y divide-gray-700 text-white">
-                            <thead className="bg-gray-900/50 sticky top-0 z-10">
-                                <tr>
-                                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Account Name</th>
-                                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider hidden md:table-cell">Institution</th>
-                                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider hidden lg:table-cell">Type</th>
-                                    <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-400 uppercase tracking-wider hidden sm:table-cell">Positions</th>
-                                    <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-400 uppercase tracking-wider">Value</th>
-                                    <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-400 uppercase tracking-wider hidden md:table-cell">Cash</th>
-                                    <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-400 uppercase tracking-wider hidden md:table-cell">Cost Basis</th>
-                                    <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-400 uppercase tracking-wider">Gain/Loss</th>
-                                    <th scope="col" className="px-6 py-3 text-center text-xs font-medium text-gray-400 uppercase tracking-wider">Actions</th>
-                                </tr>
-                            </thead>
+                        <thead className="bg-gray-900/50 sticky top-0 z-10 shadow-sm">
+                            <tr>
+                                <th scope="col" className="px-3 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Account Name</th>
+                                <th scope="col" className="px-3 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider hidden md:table-cell">Institution</th>
+                                <th scope="col" className="px-3 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider hidden lg:table-cell w-24">Type</th>
+                                <th scope="col" className="px-3 py-3 text-right text-xs font-medium text-gray-400 uppercase tracking-wider hidden sm:table-cell w-20">Positions</th>
+                                <th scope="col" className="px-3 py-3 text-right text-xs font-medium text-gray-400 uppercase tracking-wider w-28">Value</th>
+                                <th scope="col" className="px-3 py-3 text-right text-xs font-medium text-gray-400 uppercase tracking-wider hidden md:table-cell w-28">Cash</th>
+                                <th scope="col" className="px-3 py-3 text-right text-xs font-medium text-gray-400 uppercase tracking-wider hidden md:table-cell w-28">Cost Basis</th>
+                                <th scope="col" className="px-3 py-3 text-right text-xs font-medium text-gray-400 uppercase tracking-wider w-28">Gain/Loss</th>
+                                <th scope="col" className="px-3 py-3 text-center text-xs font-medium text-gray-400 uppercase tracking-wider w-20">Actions</th>
+                            </tr>
+                        </thead>
                             <tbody className="divide-y divide-gray-700">
                                 {filteredAndSortedAccounts.map((account) => {
                                     const costBasis = account.total_cost_basis ?? 0;

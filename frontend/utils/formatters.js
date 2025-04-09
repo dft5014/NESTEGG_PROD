@@ -6,16 +6,16 @@
  * Allows overriding default fraction digits.
  * @param {number | null | undefined} value - The numeric value to format.
  * @param {object} [options] - Formatting options.
- * @param {number} [options.minimumFractionDigits=2] - Minimum decimal places.
- * @param {number} [options.maximumFractionDigits=2] - Maximum decimal places.
- * @returns {string} - The formatted currency string (e.g., "$1,234.56").
+ * @param {number} [options.minimumFractionDigits=0] - Minimum decimal places.
+ * @param {number} [options.maximumFractionDigits=0] - Maximum decimal places.
+ * @returns {string} - The formatted currency string (e.g., "$1,234").
  */
 export const formatCurrency = (value, options = {}) => {
-  const { minimumFractionDigits = 2, maximumFractionDigits = 2 } = options;
+  const { minimumFractionDigits = 0, maximumFractionDigits = 0 } = options;
 
   if (value === undefined || value === null || isNaN(Number(value))) {
-    // Return $0.00 for invalid inputs, adjusting decimals based on minimum required
-    return `$0.${'0'.repeat(minimumFractionDigits)}`;
+    // Return $0 for invalid inputs, adjusting decimals based on minimum required
+    return `$0${minimumFractionDigits > 0 ? '.' + '0'.repeat(minimumFractionDigits) : ''}`;
   }
 
   return new Intl.NumberFormat('en-US', {
