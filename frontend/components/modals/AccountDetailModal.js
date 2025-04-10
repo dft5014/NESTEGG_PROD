@@ -5,7 +5,7 @@ import { formatCurrency, formatDate, formatPercentage, formatNumber } from '@/ut
 import AddPositionButton from '@/components/AddPositionButton';
 import EditAccountButton from '@/components/EditAccountButton';
 
-// Tax Lot Detail Modal Component - Nested inside AccountDetailModal
+// Tax Lot Detail Modal Component
 const TaxLotDetailModal = ({ isOpen, onClose, ticker, positions }) => {
   if (!isOpen || !positions || positions.length === 0) return null;
   
@@ -112,7 +112,7 @@ const TaxLotDetailModal = ({ isOpen, onClose, ticker, positions }) => {
   );
 };
 
-// Position Modify Modal Component - Nested inside AccountDetailModal
+// Position Modify Modal Component
 const PositionModifyModal = ({ isOpen, onClose, ticker, positions }) => {
   if (!isOpen || !positions || positions.length === 0) return null;
   
@@ -228,18 +228,67 @@ const AccountDetailModal = ({
     const costBasis = account?.total_cost_basis ?? 0;
     const gainLoss = account?.total_gain_loss ?? 0;
     const gainLossPercent = account?.total_gain_loss_percent ?? 0;
-    const positionsCount = account?.positions_count ?? account?.positions?.length ?? 0;
+    const positionsCount = account?.positions_count ?? (account?.positions?.length ?? 0);
     const totalValue = account?.total_value ?? 0;
+
+    // Handle position view details
+    const handleViewPositionClick = (e, position) => {
+        e.stopPropagation(); // Prevent row click event
+        setSelectedTickerForDetail(position.ticker);
+        setIsTaxLotModalOpen(true);
+    };
+
+    // Handle position modify
+    const handleModifyPositionClick = (e, position) => {
+        e.stopPropagation(); // Prevent row click event
+        setSelectedTickerForModify(position.ticker);
+        setIsModifyModalOpen(true);
+    };
+
+    // Handle closing nested modals
+    const handleCloseTaxLotModal = useCallback(() => {
+        setIsTaxLotModalOpen(false);
+        setTimeout(() => setSelectedTickerForDetail(null), 300);
+    }, []);
+
+    const handleCloseModifyModal = useCallback(() => {
+        setIsModifyModalOpen(false);
+        setTimeout(() => setSelectedTickerForModify(null), 300);
+    }, []);
+
+    // Find positions for selected ticker
+    const getPositionsForTicker = useCallback((ticker) => {
+        if (!account?.positions || !Array.isArray(account.positions) || !ticker) return [];
+        return account.positions.filter(p => (p.ticker || p.name) === ticker);
+    }, [account]);
+
+    // Sorting handler
+    const handleSort = (field) => {
+        if (sortField === field) {
+            setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+        } else {
+            setSortField(field);
+            setSortDirection('desc'); // Default to descending when changing fields
+        }
+    };
+
+    // Get sort icon
+    const getSortIcon = (field) => {
+        if (sortField !== field) return null;
+        return sortDirection === 'asc' ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />;
+    };
 
     // Group positions by ticker
     const groupedPositions = useMemo(() => {
         if (!account?.positions || !Array.isArray(account.positions)) return [];
         
         // Group by ticker (or name if ticker is not available)
-        const groupedByTicker = account.positions.reduce((groups, position) => {
+        const groupedByTicker = {};
+        for (const position of account.positions) {
             const tickerKey = position.ticker || position.name || 'Unknown';
-            if (!groups[tickerKey]) {
-                groups[tickerKey] = {
+            
+            if (!groupedByTicker[tickerKey]) {
+                groupedByTicker[tickerKey] = {
                     ticker: tickerKey,
                     positions: [],
                     name: position.name || tickerKey,
@@ -252,23 +301,24 @@ const AccountDetailModal = ({
             }
             
             // Add position to group and update totals
-            groups[tickerKey].positions.push(position);
-            groups[tickerKey].totalShares += parseFloat(position.shares || position.quantity || 0);
-            groups[tickerKey].totalValue += parseFloat(position.value || 0);
+            groupedByTicker[tickerKey].positions.push(position);
+            
+            const shares = parseFloat(position.shares || position.quantity || 0);
+            groupedByTicker[tickerKey].totalShares += shares;
+            
+            const value = parseFloat(position.value || 0);
+            groupedByTicker[tickerKey].totalValue += value;
             
             // Calculate cost basis for position
-            const positionShares = parseFloat(position.shares || position.quantity || 0);
-            const positionCostPerShare = parseFloat(position.cost_basis || position.price || 0);
-            const positionCostBasis = positionShares * positionCostPerShare;
-            groups[tickerKey].totalCostBasis += positionCostBasis;
+            const costPerShare = parseFloat(position.cost_basis || position.price || 0);
+            const positionCostBasis = shares * costPerShare;
+            groupedByTicker[tickerKey].totalCostBasis += positionCostBasis;
             
             // Use latest price as current price
             if (position.current_price || position.price) {
-                groups[tickerKey].currentPrice = position.current_price || position.price;
+                groupedByTicker[tickerKey].currentPrice = position.current_price || position.price;
             }
-            
-            return groups;
-        }, {});
+        }
         
         // Convert to array and calculate additional metrics
         return Object.values(groupedByTicker).map(group => {
@@ -308,7 +358,7 @@ const AccountDetailModal = ({
                     bValue = b.currentPrice || 0;
                     break;
                 case 'ticker':
-                    return a.ticker.localeCompare(b.ticker);
+                    return (a.ticker || '').localeCompare(b.ticker || '');
                 default:
                     aValue = a.totalValue || 0;
                     bValue = b.totalValue || 0;
@@ -327,53 +377,6 @@ const AccountDetailModal = ({
             accountPercentage: (pos.totalValue / totalValue) * 100
         }));
     }, [sortedGroupedPositions, totalValue]);
-
-    // Sorting handler
-    const handleSort = (field) => {
-        if (sortField === field) {
-            setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
-        } else {
-            setSortField(field);
-            setSortDirection('desc'); // Default to descending when changing fields
-        }
-    };
-
-    // Get sort icon
-    const getSortIcon = (field) => {
-        if (sortField !== field) return null;
-        return sortDirection === 'asc' ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />;
-    };
-
-    // Handle position view details
-    const handleViewPositionClick = (e, position) => {
-        e.stopPropagation(); // Prevent row click event
-        setSelectedTickerForDetail(position.ticker);
-        setIsTaxLotModalOpen(true);
-    };
-
-    // Handle position modify
-    const handleModifyPositionClick = (e, position) => {
-        e.stopPropagation(); // Prevent row click event
-        setSelectedTickerForModify(position.ticker);
-        setIsModifyModalOpen(true);
-    };
-
-    // Handle closing nested modals
-    const handleCloseTaxLotModal = useCallback(() => {
-        setIsTaxLotModalOpen(false);
-        setTimeout(() => setSelectedTickerForDetail(null), 300);
-    }, []);
-
-    const handleCloseModifyModal = useCallback(() => {
-        setIsModifyModalOpen(false);
-        setTimeout(() => setSelectedTickerForModify(null), 300);
-    }, []);
-
-    // Find positions for selected ticker
-    const getPositionsForTicker = useCallback((ticker) => {
-        if (!account?.positions || !Array.isArray(account.positions) || !ticker) return [];
-        return account.positions.filter(p => (p.ticker || p.name) === ticker);
-    }, [account]);
 
     if (!isOpen) return null;
 
@@ -516,67 +519,70 @@ const AccountDetailModal = ({
                                     </thead>
                                     <tbody className="divide-y divide-gray-700 bg-opacity-50">
                                         {positionsWithPercentage.length > 0 ? (
-                                            positionsWithPercentage.map((position, index) => {
-                                                return (
-                                                    <tr key={`${position.ticker}-${index}`} 
-                                                        className="hover:bg-[#172234] transition-colors cursor-pointer"
-                                                        onClick={(e) => handleViewPositionClick(e, position)}>
-                                                        <td className="px-2 py-3 text-center whitespace-nowrap text-gray-400 font-medium">
-                                                            {index + 1}
-                                                        </td>
-                                                        <td className="px-3 py-3 whitespace-nowrap text-white">
-                                                            <div className="font-medium">{position.ticker}</div>
-                                                            <div className="text-xs text-gray-400 capitalize">
-                                                                {position.name !== position.ticker ? position.name : (position.asset_type || '').replace('_', ' ') || 'Security'}
-                                                            </div>
-                                                        </td>
-                                                        <td className="px-3 py-3 text-right whitespace-nowrap text-gray-300">
-                                                            {formatNumber(position.totalShares, { maximumFractionDigits: 6 })}
-                                                        </td>
-                                                        <td className="px-3 py-3 text-right whitespace-nowrap text-gray-300">
-                                                            {formatCurrency(position.currentPrice)}
-                                                        </td>
-                                                        <td className="px-3 py-3 text-right whitespace-nowrap font-medium text-white">
-                                                            {formatCurrency(position.totalValue)}
-                                                        </td>
-                                                        <td className="px-3 py-3 text-right whitespace-nowrap text-gray-300">
-                                                            {position.accountPercentage ? position.accountPercentage.toFixed(2) + '%' : 'N/A'}
-                                                        </td>
-                                                        <td className="px-3 py-3 text-right whitespace-nowrap text-gray-300">
-                                                            {formatCurrency(position.avgCostPerShare)}
-                                                        </td>
-                                                        <td className="px-3 py-3 text-right whitespace-nowrap text-gray-300">
-                                                            {formatCurrency(position.totalCostBasis)}
-                                                        </td>
-                                                        <td className="px-3 py-3 text-right whitespace-nowrap">
-                                                            <div className={`font-medium ${position.gainLoss >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                                                                {position.gainLoss >= 0 ? '+' : ''}{formatCurrency(position.gainLoss)}
-                                                            </div>
-                                                            <div className={`text-xs ${position.gainLoss >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                                                                ({position.gainLoss >= 0 ? '+' : ''}{formatPercentage(position.gainLossPercent/100)})
-                                                            </div>
-                                                        </td>
-                                                        <td className="px-3 py-3 text-center whitespace-nowrap">
-                                                            <div className="flex items-center justify-center space-x-1.5">
-                                                                <button
-                                                                    onClick={(e) => handleViewPositionClick(e, position)}
-                                                                    className="p-1.5 bg-blue-600/20 text-blue-400 rounded-full hover:bg-blue-600/40 transition-colors"
-                                                                    title="View Tax Lots"
-                                                                >
-                                                                    <Eye className="w-3.5 h-3.5" />
-                                                                </button>
-                                                                <button
-                                                                    onClick={(e) => handleModifyPositionClick(e, position)}
-                                                                    className="p-1.5 bg-purple-600/20 text-purple-400 rounded-full hover:bg-purple-600/40 transition-colors"
-                                                                    title="Modify Position"
-                                                                >
-                                                                    <List className="w-3.5 h-3.5" />
-                                                                </button>
-                                                            </div>
-                                                        </td>
-                                                    </tr>
-                                                );
-                                            })
+                                            positionsWithPercentage.map((position, index) => (
+                                                <tr key={`${position.ticker}-${index}`} 
+                                                    className="hover:bg-[#172234] transition-colors cursor-pointer"
+                                                    onClick={(e) => handleViewPositionClick(e, position)}>
+                                                    <td className="px-2 py-3 text-center whitespace-nowrap text-gray-400 font-medium">
+                                                        {index + 1}
+                                                    </td>
+                                                    <td className="px-3 py-3 whitespace-nowrap text-white">
+                                                        <div className="font-medium">{position.ticker}</div>
+                                                        <div className="text-xs text-gray-400 capitalize">
+                                                            {position.name !== position.ticker ? position.name : (position.asset_type || '').replace('_', ' ') || 'Security'}
+                                                        </div>
+                                                    </td>
+                                                    <td className="px-3 py-3 text-right whitespace-nowrap text-gray-300">
+                                                        {formatNumber(position.totalShares, { maximumFractionDigits: 6 })}
+                                                    </td>
+                                                    <td className="px-3 py-3 text-right whitespace-nowrap text-gray-300">
+                                                        {formatCurrency(position.currentPrice)}
+                                                    </td>
+                                                    <td className="px-3 py-3 text-right whitespace-nowrap font-medium text-white">
+                                                        {formatCurrency(position.totalValue)}
+                                                    </td>
+                                                    <td className="px-3 py-3 text-right whitespace-nowrap text-gray-300">
+                                                        {position.accountPercentage ? position.accountPercentage.toFixed(2) + '%' : 'N/A'}
+                                                    </td>
+                                                    <td className="px-3 py-3 text-right whitespace-nowrap text-gray-300">
+                                                        {formatCurrency(position.avgCostPerShare)}
+                                                    </td>
+                                                    <td className="px-3 py-3 text-right whitespace-nowrap text-gray-300">
+                                                        {formatCurrency(position.totalCostBasis)}
+                                                    </td>
+                                                    <td className="px-3 py-3 text-right whitespace-nowrap">
+                                                        <div className={`font-medium ${position.gainLoss >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                                            {position.gainLoss >= 0 ? '+' : ''}{formatCurrency(position.gainLoss)}
+                                                        </div>
+                                                        <div className={`text-xs ${position.gainLoss >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                                            ({position.gainLoss >= 0 ? '+' : ''}{formatPercentage(position.gainLossPercent/100)})
+                                                        </div>
+                                                    </td>
+                                                    <td
+
+Continuing with the rest of the AccountDetailModal component:
+
+```jsx
+                                                    <td className="px-3 py-3 text-center whitespace-nowrap">
+                                                        <div className="flex items-center justify-center space-x-1.5">
+                                                            <button
+                                                                onClick={(e) => handleViewPositionClick(e, position)}
+                                                                className="p-1.5 bg-blue-600/20 text-blue-400 rounded-full hover:bg-blue-600/40 transition-colors"
+                                                                title="View Tax Lots"
+                                                            >
+                                                                <Eye className="w-3.5 h-3.5" />
+                                                            </button>
+                                                            <button
+                                                                onClick={(e) => handleModifyPositionClick(e, position)}
+                                                                className="p-1.5 bg-purple-600/20 text-purple-400 rounded-full hover:bg-purple-600/40 transition-colors"
+                                                                title="Modify Position"
+                                                            >
+                                                                <List className="w-3.5 h-3.5" />
+                                                            </button>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            ))
                                         ) : (
                                             <tr>
                                                 <td colSpan="10" className="px-4 py-4 text-center text-gray-400">
