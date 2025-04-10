@@ -233,7 +233,7 @@ const AccountDetailModal = ({
 
     // Group positions by ticker
     const groupedPositions = useMemo(() => {
-        if (!account?.positions) return [];
+        if (!account?.positions || !Array.isArray(account.positions)) return [];
         
         // Group by ticker (or name if ticker is not available)
         const groupedByTicker = account.positions.reduce((groups, position) => {
@@ -371,7 +371,7 @@ const AccountDetailModal = ({
 
     // Find positions for selected ticker
     const getPositionsForTicker = useCallback((ticker) => {
-        if (!account?.positions || !ticker) return [];
+        if (!account?.positions || !Array.isArray(account.positions) || !ticker) return [];
         return account.positions.filter(p => (p.ticker || p.name) === ticker);
     }, [account]);
 
