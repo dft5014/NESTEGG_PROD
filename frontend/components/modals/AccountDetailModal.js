@@ -1,7 +1,9 @@
 // components/modals/AccountDetailModal.js
 import React, { useState, useMemo } from 'react';
-import { BarChart4, ChevronDown, ChevronUp, DollarSign, TrendingUp, Plus, Settings, Trash } from 'lucide-react';
+import { BarChart4, ChevronDown, ChevronUp, DollarSign, TrendingUp, Plus, Settings, Trash, Edit, Eye } from 'lucide-react';
 import { formatCurrency, formatDate, formatPercentage, formatNumber } from '@/utils/formatters';
+import AddPositionButton from '@/components/AddPositionButton';
+import EditAccountButton from '@/components/EditAccountButton';
 
 const AccountDetailModal = ({
     isOpen,
@@ -10,7 +12,11 @@ const AccountDetailModal = ({
     // These props trigger handlers in AccountTable
     onTriggerEdit = () => {},
     onTriggerDelete = () => {},
-    onTriggerAddPosition = () => {}
+    onTriggerAddPosition = () => {},
+    // New props for position actions
+    onEditPosition = () => {},
+    onDeletePosition = () => {},
+    onViewPositionDetails = () => {}
 }) => {
     // Sorting state
     const [sortField, setSortField] = useState('value');
@@ -47,6 +53,12 @@ const AccountDetailModal = ({
                     aValue = a.gain_loss_amount || a.gain_loss || 0;
                     bValue = b.gain_loss_amount || b.gain_loss || 0;
                     break;
+                case 'price':
+                    aValue = a.current_price || a.price || 0;
+                    bValue = b.current_price || b.price || 0;
+                    break;
+                case 'ticker':
+                    return (a.ticker || a.ticker_or_name || '').localeCompare(b.ticker || b.ticker_or_name || '');
                 default:
                     aValue = a.value || 0;
                     bValue = b.value || 0;
@@ -55,6 +67,16 @@ const AccountDetailModal = ({
             return sortDirection === 'asc' ? aValue - bValue : bValue - aValue;
         });
     }, [account?.positions, sortField, sortDirection]);
+
+    // Calculate account percentages
+    const positionsWithPercentage = useMemo(() => {
+        if (!sortedPositions.length || totalValue <= 0) return sortedPositions;
+        
+        return sortedPositions.map(pos => ({
+            ...pos,
+            accountPercentage: ((pos.value || 0) / totalValue) * 100
+        }));
+    }, [sortedPositions, totalValue]);
 
     // Sorting handler
     const handleSort = (field) => {
@@ -70,6 +92,22 @@ const AccountDetailModal = ({
     const getSortIcon = (field) => {
         if (sortField !== field) return null;
         return sortDirection === 'asc' ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />;
+    };
+
+    // Handle position actions
+    const handleEditPositionClick = (e, position) => {
+        e.stopPropagation(); // Prevent row click event
+        onEditPosition(position);
+    };
+
+    const handleDeletePositionClick = (e, position) => {
+        e.stopPropagation(); // Prevent row click event
+        onDeletePosition(position);
+    };
+
+    const handleViewPositionClick = (e, position) => {
+        e.stopPropagation(); // Prevent row click event
+        onViewPositionDetails(position);
     };
 
     if (!isOpen) return null;
@@ -133,34 +171,65 @@ const AccountDetailModal = ({
 
                         {/* Positions Table Section */}
                         <div className="bg-[#1e293b]/80 rounded-lg overflow-hidden">
-                            <div className="px-4 py-3 border-b border-gray-700">
+                            <div className="px-4 py-3 border-b border-gray-700 flex justify-between items-center">
                                 <h3 className="font-medium text-base text-white">Account Holdings</h3>
+                                <AddPositionButton 
+                                    accountId={account?.id}
+                                    className="text-sm bg-blue-600 hover:bg-blue-700 py-1 px-3 rounded"
+                                    buttonContent={<div className="flex items-center"><Plus className="w-3.5 h-3.5 mr-1.5" /> Add Position</div>}
+                                    onPositionAdded={() => {
+                                        onClose();
+                                        onTriggerAddPosition(account);
+                                    }}
+                                />
                             </div>
                             <div className="overflow-x-auto">
                                 <table className="w-full min-w-full divide-y divide-gray-700">
                                     <thead className="bg-[#111827]">
                                         <tr>
-                                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
-                                                ASSET/TICKER
+                                            <th className="px-2 py-3 text-center text-xs font-medium text-gray-400 uppercase tracking-wider w-10">
+                                                #
                                             </th>
                                             <th 
-                                                className="px-4 py-3 text-right text-xs font-medium text-gray-400 uppercase tracking-wider cursor-pointer hover:text-white"
-                                                onClick={() => handleSort('quantity')}
+                                                className="px-3 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider cursor-pointer hover:text-white"
+                                                onClick={() => handleSort('ticker')}
                                             >
-                                                <div className="flex items-center justify-end">
-                                                    QUANTITY/SHARES {getSortIcon('quantity')}
+                                                <div className="flex items-center">
+                                                    TICKER/NAME {getSortIcon('ticker')}
                                                 </div>
                                             </th>
                                             <th 
-                                                className="px-4 py-3 text-right text-xs font-medium text-gray-400 uppercase tracking-wider cursor-pointer hover:text-white"
+                                                className="px-3 py-3 text-right text-xs font-medium text-gray-400 uppercase tracking-wider cursor-pointer hover:text-white"
+                                                onClick={() => handleSort('quantity')}
+                                            >
+                                                <div className="flex items-center justify-end">
+                                                    SHARES {getSortIcon('quantity')}
+                                                </div>
+                                            </th>
+                                            <th 
+                                                className="px-3 py-3 text-right text-xs font-medium text-gray-400 uppercase tracking-wider cursor-pointer hover:text-white"
+                                                onClick={() => handleSort('price')}
+                                            >
+                                                <div className="flex items-center justify-end">
+                                                    PRICE {getSortIcon('price')}
+                                                </div>
+                                            </th>
+                                            <th 
+                                                className="px-3 py-3 text-right text-xs font-medium text-gray-400 uppercase tracking-wider cursor-pointer hover:text-white"
                                                 onClick={() => handleSort('value')}
                                             >
                                                 <div className="flex items-center justify-end">
                                                     VALUE {getSortIcon('value')}
                                                 </div>
                                             </th>
+                                            <th className="px-3 py-3 text-right text-xs font-medium text-gray-400 uppercase tracking-wider">
+                                                ACCT %
+                                            </th>
+                                            <th className="px-3 py-3 text-right text-xs font-medium text-gray-400 uppercase tracking-wider">
+                                                COST/SHARE
+                                            </th>
                                             <th 
-                                                className="px-4 py-3 text-right text-xs font-medium text-gray-400 uppercase tracking-wider cursor-pointer hover:text-white"
+                                                className="px-3 py-3 text-right text-xs font-medium text-gray-400 uppercase tracking-wider cursor-pointer hover:text-white"
                                                 onClick={() => handleSort('cost_basis')}
                                             >
                                                 <div className="flex items-center justify-end">
@@ -168,46 +237,66 @@ const AccountDetailModal = ({
                                                 </div>
                                             </th>
                                             <th 
-                                                className="px-4 py-3 text-right text-xs font-medium text-gray-400 uppercase tracking-wider cursor-pointer hover:text-white"
+                                                className="px-3 py-3 text-right text-xs font-medium text-gray-400 uppercase tracking-wider cursor-pointer hover:text-white"
                                                 onClick={() => handleSort('gain_loss')}
                                             >
                                                 <div className="flex items-center justify-end">
                                                     GAIN/LOSS {getSortIcon('gain_loss')}
                                                 </div>
                                             </th>
+                                            <th className="px-3 py-3 text-center text-xs font-medium text-gray-400 uppercase tracking-wider">
+                                                ACTIONS
+                                            </th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-gray-700 bg-opacity-50">
-                                        {sortedPositions.length > 0 ? (
-                                            sortedPositions.map((pos, index) => {
+                                        {positionsWithPercentage.length > 0 ? (
+                                            positionsWithPercentage.map((pos, index) => {
                                                 const gainLossAmount = pos.gain_loss_amount ?? pos.gain_loss ?? 0;
                                                 const gainLossPercent = pos.gain_loss_percent ?? 0;
                                                 const value = pos.value ?? 0;
                                                 const costBasisTotal = pos.cost_basis_total ?? 
                                                     (pos.cost_basis * (pos.shares || pos.quantity || 1)) ?? 0;
                                                 const quantityOrShares = pos.quantity_or_shares ?? 
-                                                    pos.shares ?? pos.quantity ?? 'N/A';
+                                                    pos.shares ?? pos.quantity ?? 0;
+                                                const costPerShare = quantityOrShares > 0 ? 
+                                                    (costBasisTotal / quantityOrShares) : 0;
+                                                const currentPrice = pos.current_price ?? pos.price ?? 0;
                                                 
                                                 return (
-                                                    <tr key={`${pos.asset_type}-${pos.id}-${index}`} className="hover:bg-[#172234] transition-colors">
-                                                        <td className="px-4 py-3 whitespace-nowrap text-white">
-                                                            <div className="font-medium">{pos.ticker_or_name || pos.ticker || pos.name}</div>
+                                                    <tr key={`${pos.asset_type}-${pos.id}-${index}`} 
+                                                        className="hover:bg-[#172234] transition-colors cursor-pointer"
+                                                        onClick={(e) => handleViewPositionClick(e, pos)}>
+                                                        <td className="px-2 py-3 text-center whitespace-nowrap text-gray-400 font-medium">
+                                                            {index + 1}
+                                                        </td>
+                                                        <td className="px-3 py-3 whitespace-nowrap text-white">
+                                                            <div className="font-medium">{pos.ticker || pos.ticker_or_name || pos.name}</div>
                                                             <div className="text-xs text-gray-400 capitalize">
-                                                                {(pos.asset_type || '').replace('_', ' ') || 'Security'}
+                                                                {pos.name || (pos.asset_type || '').replace('_', ' ') || 'Security'}
                                                             </div>
                                                         </td>
-                                                        <td className="px-4 py-3 text-right whitespace-nowrap text-gray-300">
+                                                        <td className="px-3 py-3 text-right whitespace-nowrap text-gray-300">
                                                             {typeof quantityOrShares === 'number' 
                                                                 ? formatNumber(quantityOrShares, { maximumFractionDigits: 6 }) 
                                                                 : quantityOrShares}
                                                         </td>
-                                                        <td className="px-4 py-3 text-right whitespace-nowrap font-medium text-white">
+                                                        <td className="px-3 py-3 text-right whitespace-nowrap text-gray-300">
+                                                            {formatCurrency(currentPrice)}
+                                                        </td>
+                                                        <td className="px-3 py-3 text-right whitespace-nowrap font-medium text-white">
                                                             {formatCurrency(value)}
                                                         </td>
-                                                        <td className="px-4 py-3 text-right whitespace-nowrap text-gray-300">
+                                                        <td className="px-3 py-3 text-right whitespace-nowrap text-gray-300">
+                                                            {pos.accountPercentage ? pos.accountPercentage.toFixed(2) + '%' : 'N/A'}
+                                                        </td>
+                                                        <td className="px-3 py-3 text-right whitespace-nowrap text-gray-300">
+                                                            {formatCurrency(costPerShare)}
+                                                        </td>
+                                                        <td className="px-3 py-3 text-right whitespace-nowrap text-gray-300">
                                                             {formatCurrency(costBasisTotal)}
                                                         </td>
-                                                        <td className="px-4 py-3 text-right whitespace-nowrap">
+                                                        <td className="px-3 py-3 text-right whitespace-nowrap">
                                                             <div className={`font-medium ${gainLossAmount >= 0 ? 'text-green-400' : 'text-red-400'}`}>
                                                                 {gainLossAmount >= 0 ? '+' : ''}{formatCurrency(gainLossAmount)}
                                                             </div>
@@ -215,12 +304,37 @@ const AccountDetailModal = ({
                                                                 ({gainLossAmount >= 0 ? '+' : ''}{formatPercentage(gainLossPercent/100)})
                                                             </div>
                                                         </td>
+                                                        <td className="px-3 py-3 text-center whitespace-nowrap">
+                                                            <div className="flex items-center justify-center space-x-1.5">
+                                                                <button
+                                                                    onClick={(e) => handleViewPositionClick(e, pos)}
+                                                                    className="p-1.5 bg-blue-600/20 text-blue-400 rounded-full hover:bg-blue-600/40 transition-colors"
+                                                                    title="View Details"
+                                                                >
+                                                                    <Eye className="w-3.5 h-3.5" />
+                                                                </button>
+                                                                <button
+                                                                    onClick={(e) => handleEditPositionClick(e, pos)}
+                                                                    className="p-1.5 bg-purple-600/20 text-purple-400 rounded-full hover:bg-purple-600/40 transition-colors"
+                                                                    title="Edit Position"
+                                                                >
+                                                                    <Edit className="w-3.5 h-3.5" />
+                                                                </button>
+                                                                <button
+                                                                    onClick={(e) => handleDeletePositionClick(e, pos)}
+                                                                    className="p-1.5 bg-red-600/20 text-red-400 rounded-full hover:bg-red-600/40 transition-colors"
+                                                                    title="Delete Position"
+                                                                >
+                                                                    <Trash className="w-3.5 h-3.5" />
+                                                                </button>
+                                                            </div>
+                                                        </td>
                                                     </tr>
                                                 );
                                             })
                                         ) : (
                                             <tr>
-                                                <td colSpan="5" className="px-4 py-4 text-center text-gray-400">
+                                                <td colSpan="10" className="px-4 py-4 text-center text-gray-400">
                                                     No positions found in this account.
                                                 </td>
                                             </tr>
@@ -231,26 +345,28 @@ const AccountDetailModal = ({
                         </div>
                     </div>
 
-                    {/* Footer with Actions - Using exact methodology from AccountTable */}
+                    {/* Footer with Actions - Using existing component references */}
                     <div className="bg-[#111827] px-6 py-4 border-t border-gray-700 flex justify-end space-x-3">
-                        <button 
-                            onClick={() => {
+                        <AddPositionButton 
+                            accountId={account?.id}
+                            className="bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded-lg text-sm transition-colors"
+                            buttonContent={<div className="flex items-center"><Plus className="w-4 h-4 mr-1.5" /> Add Position</div>}
+                            onPositionAdded={() => {
                                 onClose();
                                 onTriggerAddPosition(account);
-                            }} 
-                            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg flex items-center text-sm transition-colors"
-                        >
-                            <Plus className="w-4 h-4 mr-1.5" /> Add Position
-                        </button>
-                        <button 
-                            onClick={() => {
+                            }}
+                        />
+                        
+                        <EditAccountButton 
+                            account={account}
+                            className="bg-purple-600 hover:bg-purple-700 text-white py-2 px-4 rounded-lg text-sm transition-colors flex items-center"
+                            onAccountEdited={() => {
                                 onClose();
                                 onTriggerEdit(account);
-                            }} 
-                            className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg flex items-center text-sm transition-colors"
-                        >
-                            <Settings className="w-4 h-4 mr-1.5" /> Edit Account
-                        </button>
+                            }}
+                            buttonContent={<div className="flex items-center"><Settings className="w-4 h-4 mr-1.5" /> Edit Account</div>}
+                        />
+                        
                         <button 
                             onClick={() => {
                                 onClose();
@@ -260,6 +376,7 @@ const AccountDetailModal = ({
                         >
                             <Trash className="w-4 h-4 mr-1.5" /> Delete Account
                         </button>
+                        
                         <button 
                             onClick={onClose} 
                             className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg text-sm transition-colors"
