@@ -648,6 +648,15 @@ class CashPositionDetail(BaseModel):
 class CashPositionsDetailedResponse(BaseModel):
     cash_positions: List[CashPositionDetail]
 
+# FX Prices Models
+class FXAssetCreate(BaseModel):
+    symbol: str
+    asset_type: str  # "crypto", "metal", or "currency"
+    name: str
+
+class FXAssetUpdate(BaseModel):
+    active: Optional[bool] = None
+    name: Optional[str] = None
 
 async def _get_detailed_securities(user_id: str) -> List[PositionDetail]:
     try:
@@ -2911,6 +2920,459 @@ async def trigger_history_update(days: int = 30, current_user: dict = Depends(ge
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
             detail=f"Failed to update historical prices: {str(e)}"
+        )
+
+# Add to your imports
+from backend.api_clients.yahoo_data import Yahoo_Data
+
+# FX Prices Models
+class FXAssetCreate(BaseModel):
+    symbol: str
+    asset_type: str  # "crypto", "metal", or "currency"
+    name: str
+
+class FXAssetUpdate(BaseModel):
+    active: Optional[bool] = None
+    name: Optional[str] = None
+
+# ----- FX Prices Endpoints -----
+
+@app.get("/fx/list")
+async def get_fx_assets(
+    asset_type: Optional[str] = None,
+    active_only: bool = True,
+    current_user: dict = Depends(get_current_user)
+):
+    """Get list of all tracked FX assets (crypto, metals, etc.)"""
+    try:
+        query = """
+        SELECT 
+            symbol, asset_type, name, current_price, price_updated_at, price_as_of_date, source,
+            active, market_cap, volume_24h, price_change_24h, price_change_percentage_24h,
+            high_24h, low_24h
+        FROM fx_prices
+        WHERE (asset_type = :asset_type OR :asset_type IS NULL)
+          AND (:active_only = FALSE OR active = TRUE)
+        ORDER BY asset_type, name
+        """
+        
+        result = await database.fetch_all(
+            query=query, 
+            values={
+                "asset_type": asset_type, 
+                "active_only": active_only
+            }
+        )
+        
+        assets = []
+        for row in result:
+            asset = dict(row)
+            
+            # Format timestamps if present
+            if "price_updated_at" in asset and asset["price_updated_at"]:
+                asset["price_updated_at"] = asset["price_updated_at"].isoformat()
+            
+            if "price_as_of_date" in asset and asset["price_as_of_date"]:
+                asset["price_as_of_date"] = asset["price_as_of_date"].isoformat()
+                
+            # Calculate age of price data in minutes
+            if asset["price_updated_at"]:
+                price_time = datetime.fromisoformat(asset["price_updated_at"].replace('Z', '+00:00'))
+                asset["price_age_minutes"] = (datetime.now(price_time.tzinfo) - price_time).total_seconds() / 60
+                asset["price_is_stale"] = asset["price_age_minutes"] > 60  # Consider prices older than 1 hour stale
+            
+            assets.append(asset)
+        
+        return {
+            "assets": assets,
+            "count": len(assets),
+            "asset_types": [row["asset_type"] for row in assets] if not asset_type else None
+        }
+    except Exception as e:
+        logger.error(f"Error fetching FX assets: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to fetch FX assets: {str(e)}"
+        )
+
+@app.post("/fx/add", status_code=status.HTTP_201_CREATED)
+async def add_fx_asset(
+    asset: FXAssetCreate,
+    current_user: dict = Depends(get_current_user)
+):
+    """Add a new FX asset to track"""
+    try:
+        # Validate asset type
+        if asset.asset_type not in ["crypto", "metal", "currency"]:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Invalid asset type: {asset.asset_type}. Must be 'crypto', 'metal', or 'currency'."
+            )
+        
+        # Check if asset already exists
+        existing = await database.fetch_one(
+            "SELECT symbol FROM fx_prices WHERE symbol = :symbol",
+            {"symbol": asset.symbol}
+        )
+        
+        if existing:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"Asset with symbol '{asset.symbol}' already exists"
+            )
+        
+        # Insert new asset
+        query = """
+        INSERT INTO fx_prices (symbol, asset_type, name, active, created_at, updated_at)
+        VALUES (:symbol, :asset_type, :name, TRUE, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        RETURNING symbol
+        """
+        
+        result = await database.execute(
+            query=query,
+            values={
+                "symbol": asset.symbol,
+                "asset_type": asset.asset_type,
+                "name": asset.name
+            }
+        )
+        
+        # Attempt to fetch initial price data
+        try:
+            client = Yahoo_Data()
+            price_data = await client.get_price_batch([asset.symbol])
+            await client.close()
+            
+            if asset.symbol in price_data:
+                # Extract price data for this asset
+                asset_price_data = price_data[asset.symbol]
+                
+                # Update with initial price data
+                update_query = """
+                UPDATE fx_prices
+                SET current_price = :price,
+                    price_updated_at = :updated_at,
+                    price_as_of_date = :price_as_of_date,
+                    source = :source,
+                    market_cap = :market_cap,
+                    volume_24h = :volume,
+                    high_24h = :high,
+                    low_24h = :low,
+                    price_change_24h = :change,
+                    price_change_percentage_24h = :change_pct,
+                    metadata = :metadata
+                WHERE symbol = :symbol
+                """
+                
+                await database.execute(
+                    query=update_query,
+                    values={
+                        "symbol": asset.symbol,
+                        "price": asset_price_data.get("current_price"),
+                        "updated_at": datetime.now(),
+                        "price_as_of_date": asset_price_data.get("price_as_of_date"),
+                        "source": asset_price_data.get("source", "yahoo_finance"),
+                        "market_cap": asset_price_data.get("market_cap"),
+                        "volume": asset_price_data.get("volume_24h"),
+                        "high": asset_price_data.get("high_24h"),
+                        "low": asset_price_data.get("low_24h"),
+                        "change": asset_price_data.get("price_change_24h"),
+                        "change_pct": asset_price_data.get("price_change_percentage_24h"),
+                        "metadata": json.dumps({
+                            "exchange": asset_price_data.get("exchange"),
+                            "currency": asset_price_data.get("currency"),
+                            "price_timestamp": asset_price_data.get("price_timestamp_str")
+                        })
+                    }
+                )
+        except Exception as price_error:
+            logger.warning(f"Could not fetch initial price for {asset.symbol}: {str(price_error)}")
+        
+        return {
+            "message": f"Successfully added {asset.asset_type} asset: {asset.symbol}",
+            "symbol": asset.symbol
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error adding FX asset: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to add FX asset: {str(e)}"
+        )
+
+@app.put("/fx/{symbol}")
+async def update_fx_asset(
+    symbol: str,
+    asset_update: FXAssetUpdate,
+    current_user: dict = Depends(get_current_user)
+):
+    """Update an existing FX asset's metadata"""
+    try:
+        # Check if asset exists
+        existing = await database.fetch_one(
+            "SELECT symbol FROM fx_prices WHERE symbol = :symbol",
+            {"symbol": symbol}
+        )
+        
+        if not existing:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Asset with symbol '{symbol}' not found"
+            )
+        
+        # Build update dictionary with only provided fields
+        update_values = {k: v for k, v in asset_update.dict().items() if v is not None}
+        
+        if not update_values:
+            return {"message": "No updates provided"}
+        
+        # Construct dynamic query
+        set_clause = ", ".join([f"{key} = :{key}" for key in update_values.keys()])
+        query = f"""
+        UPDATE fx_prices
+        SET {set_clause}
+        WHERE symbol = :symbol
+        """
+        
+        # Add symbol to values
+        update_values["symbol"] = symbol
+        
+        await database.execute(query=query, values=update_values)
+        
+        return {"message": f"Successfully updated asset: {symbol}"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error updating FX asset: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to update FX asset: {str(e)}"
+        )
+
+@app.post("/fx/update-all")
+async def update_all_fx_prices(current_user: dict = Depends(get_current_user)):
+    """Update prices for all active FX assets using batch processing"""
+    try:
+        # Get list of all active assets
+        query = "SELECT symbol FROM fx_prices WHERE active = TRUE"
+        assets = await database.fetch_all(query)
+        
+        if not assets:
+            return {"message": "No active FX assets to update", "updated_count": 0}
+        
+        symbols = [asset["symbol"] for asset in assets]
+        
+        # Record start of update
+        event_id = await record_system_event(
+            database,
+            "fx_prices_update",
+            "started",
+            {"symbols_count": len(symbols)}
+        )
+        
+        # Create Yahoo Data client
+        client = Yahoo_Data()
+        
+        try:
+            # Batch update all symbols
+            results = await client.get_price_batch(symbols)
+            
+            # Update database with results
+            updated_count = 0
+            failed_symbols = []
+            
+            for symbol, price_data in results.items():
+                try:
+                    update_query = """
+                    UPDATE fx_prices
+                    SET current_price = :price,
+                        price_updated_at = :updated_at,
+                        price_as_of_date = :price_as_of_date,
+                        source = :source,
+                        market_cap = :market_cap,
+                        volume_24h = :volume,
+                        high_24h = :high,
+                        low_24h = :low,
+                        price_change_24h = :change,
+                        price_change_percentage_24h = :change_pct,
+                        metadata = jsonb_set(
+                            COALESCE(metadata, '{}'::jsonb), 
+                            '{last_update}', 
+                            to_jsonb(:metadata::text)
+                        )
+                    WHERE symbol = :symbol
+                    """
+                    
+                    await database.execute(
+                        query=update_query,
+                        values={
+                            "symbol": symbol,
+                            "price": price_data.get("current_price"),
+                            "updated_at": datetime.now(),
+                            "price_as_of_date": price_data.get("price_as_of_date"),
+                            "source": price_data.get("source", "yahoo_finance"),
+                            "market_cap": price_data.get("market_cap"),
+                            "volume": price_data.get("volume_24h"),
+                            "high": price_data.get("high_24h"),
+                            "low": price_data.get("low_24h"),
+                            "change": price_data.get("price_change_24h"),
+                            "change_pct": price_data.get("price_change_percentage_24h"),
+                            "metadata": json.dumps({
+                                "timestamp": datetime.now().isoformat(),
+                                "price_timestamp": price_data.get("price_timestamp_str"),
+                                "exchange": price_data.get("exchange"),
+                                "currency": price_data.get("currency")
+                            })
+                        }
+                    )
+                    
+                    updated_count += 1
+                except Exception as update_error:
+                    logger.error(f"Error updating price data for {symbol}: {str(update_error)}")
+                    failed_symbols.append(symbol)
+            
+            # Update tracking
+            await update_system_event(
+                database,
+                event_id,
+                "completed",
+                {
+                    "updated_count": updated_count,
+                    "failed_count": len(failed_symbols),
+                    "failed_symbols": failed_symbols
+                }
+            )
+            
+            return {
+                "message": "FX prices update completed",
+                "total_assets": len(symbols),
+                "updated_count": updated_count,
+                "failed_count": len(failed_symbols),
+                "failed_symbols": failed_symbols if failed_symbols else None
+            }
+        finally:
+            # Ensure client is closed
+            await client.close()
+            
+    except Exception as e:
+        logger.error(f"Error updating FX prices: {str(e)}")
+        
+        # Update event status if we have an event_id
+        if 'event_id' in locals():
+            await update_system_event(
+                database,
+                event_id,
+                "failed",
+                {"error": str(e)}
+            )
+        
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to update FX prices: {str(e)}"
+        )
+
+@app.post("/fx/update/{symbol}")
+async def update_single_fx_price(
+    symbol: str,
+    current_user: dict = Depends(get_current_user)
+):
+    """Update price for a specific FX asset"""
+    try:
+        # Check if asset exists
+        existing = await database.fetch_one(
+            "SELECT symbol, active FROM fx_prices WHERE symbol = :symbol",
+            {"symbol": symbol}
+        )
+        
+        if not existing:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Asset with symbol '{symbol}' not found"
+            )
+        
+        if not existing["active"]:
+            return {
+                "message": f"Asset {symbol} is inactive",
+                "updated": False
+            }
+        
+        # Create Yahoo Data client
+        client = Yahoo_Data()
+        
+        try:
+            # Get price data
+            price_data_dict = await client.get_price_batch([symbol])
+            
+            # Check if we got data for this symbol
+            if symbol not in price_data_dict:
+                return {
+                    "message": f"Could not retrieve price data for {symbol}",
+                    "updated": False
+                }
+                
+            price_data = price_data_dict[symbol]
+            
+            # Update database
+            update_query = """
+            UPDATE fx_prices
+            SET current_price = :price,
+                price_updated_at = :updated_at,
+                price_as_of_date = :price_as_of_date,
+                source = :source,
+                market_cap = :market_cap,
+                volume_24h = :volume,
+                high_24h = :high,
+                low_24h = :low,
+                price_change_24h = :change,
+                price_change_percentage_24h = :change_pct,
+                metadata = jsonb_set(
+                    COALESCE(metadata, '{}'::jsonb), 
+                    '{last_update}', 
+                    to_jsonb(:metadata::text)
+                )
+            WHERE symbol = :symbol
+            """
+            
+            await database.execute(
+                query=update_query,
+                values={
+                    "symbol": symbol,
+                    "price": price_data.get("current_price"),
+                    "updated_at": datetime.now(),
+                    "price_as_of_date": price_data.get("price_as_of_date"),
+                    "source": price_data.get("source", "yahoo_finance"),
+                    "market_cap": price_data.get("market_cap"),
+                    "volume": price_data.get("volume_24h"),
+                    "high": price_data.get("high_24h"),
+                    "low": price_data.get("low_24h"),
+                    "change": price_data.get("price_change_24h"),
+                    "change_pct": price_data.get("price_change_percentage_24h"),
+                    "metadata": json.dumps({
+                        "timestamp": datetime.now().isoformat(),
+                        "price_timestamp": price_data.get("price_timestamp_str"),
+                        "exchange": price_data.get("exchange"),
+                        "currency": price_data.get("currency")
+                    })
+                }
+            )
+            
+            return {
+                "message": f"Successfully updated price for {symbol}",
+                "updated": True,
+                "current_price": price_data.get("current_price"),
+                "price_updated_at": datetime.now().isoformat(),
+                "price_as_of_date": price_data.get("price_as_of_date").isoformat() if price_data.get("price_as_of_date") else None
+            }
+        finally:
+            # Ensure client is closed
+            await client.close()
+            
+    except Exception as e:
+        logger.error(f"Error updating FX price for {symbol}: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to update FX price: {str(e)}"
         )
 
 @app.get("/system/database-status")
