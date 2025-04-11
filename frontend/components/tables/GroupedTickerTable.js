@@ -188,6 +188,32 @@ const GroupedTickerTable = ({ initialSort = "value-high", title = "Consolidated 
     });
   }, [filteredPositions, sortOption]);
 
+  // Calculate portfolio totals
+  const portfolioTotals = useMemo(() => {
+    return filteredPositions.reduce((acc, position) => {
+      acc.totalShares += position.totalShares || 0;
+      acc.totalValue += position.totalValue || 0;
+      acc.totalCostBasis += position.totalCostBasis || 0;
+      acc.totalGainLoss += position.totalGainLoss || 0;
+      acc.estimatedAnnualDividend += position.estimatedAnnualDividend || 0;
+      // Count unique positions
+      acc.positionCount++;
+      return acc;
+    }, {
+      totalShares: 0,
+      totalValue: 0,
+      totalCostBasis: 0,
+      totalGainLoss: 0,
+      estimatedAnnualDividend: 0,
+      positionCount: 0
+    });
+  }, [filteredPositions]);
+
+  // Calculate total gain/loss percent
+  const totalGainLossPercent = portfolioTotals.totalCostBasis > 0 
+    ? (portfolioTotals.totalGainLoss / portfolioTotals.totalCostBasis) * 100 
+    : 0;
+
   // Handle row click to show detail modal
   const handleRowClick = (groupedPosition) => {
     setSelectedTickerDetail(groupedPosition);
@@ -197,9 +223,9 @@ const GroupedTickerTable = ({ initialSort = "value-high", title = "Consolidated 
   // Loading state
   if (isLoading) {
     return (
-      <div className="bg-gray-800/70 backdrop-blur-sm rounded-xl p-8 text-center min-h-[300px] flex items-center justify-center">
+      <div className="bg-gray-800/70 backdrop-blur-sm rounded-xl p-6 text-center min-h-[180px] flex items-center justify-center">
         <div>
-          <Loader className="inline-block w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mb-4" />
+          <Loader className="inline-block w-6 h-6 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mb-3" />
           <p className="text-gray-400">Loading positions...</p>
         </div>
       </div>
@@ -223,7 +249,7 @@ const GroupedTickerTable = ({ initialSort = "value-high", title = "Consolidated 
     <>
       <div className="bg-gray-800/70 backdrop-blur-sm rounded-xl mb-8 overflow-hidden">
         {/* Header with Controls */}
-        <div className="flex flex-wrap justify-between items-center p-4 border-b border-gray-700 gap-4">
+        <div className="flex flex-wrap justify-between items-center p-3 border-b border-gray-700 gap-4">
           <h2 className="text-xl font-semibold flex items-center whitespace-nowrap">
             <BarChart4 className="w-5 h-5 mr-2 text-purple-400" />
             {title}
@@ -315,7 +341,7 @@ const GroupedTickerTable = ({ initialSort = "value-high", title = "Consolidated 
 
         {/* Table */}
         {sortedPositions.length === 0 ? (
-          <div className="p-8 text-center min-h-[200px] flex flex-col items-center justify-center">
+          <div className="p-6 text-center min-h-[180px] flex flex-col items-center justify-center">
             <div className="bg-gray-700/50 rounded-full w-16 h-16 flex items-center justify-center mx-auto mb-4">
               <BarChart4 className="h-8 w-8 text-gray-500" />
             </div>
@@ -327,83 +353,125 @@ const GroupedTickerTable = ({ initialSort = "value-high", title = "Consolidated 
         ) : (
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-700">
-              <thead className="bg-gray-900/50 sticky top-0 z-10">
+              <thead className="bg-gray-900/50 sticky top-0 z-10 shadow-sm">
                 <tr>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Ticker / Name</th>
-                  <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-400 uppercase tracking-wider">Shares</th>
-                  <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-400 uppercase tracking-wider">Current Price</th>
-                  <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-400 uppercase tracking-wider">Current Value</th>
-                  <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-400 uppercase tracking-wider hidden md:table-cell">Avg Cost/Share</th>
-                  <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-400 uppercase tracking-wider hidden lg:table-cell">Total Cost</th>
-                  <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-400 uppercase tracking-wider">Gain/Loss</th>
-                  <th scope="col" className="px-6 py-3 text-center text-xs font-medium text-gray-400 uppercase tracking-wider hidden sm:table-cell">Accounts</th>
-                  <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-400 uppercase tracking-wider hidden xl:table-cell">Est. Annual Income</th>
+                  <th scope="col" className="px-3 py-2 text-center text-xs font-medium text-gray-400 uppercase tracking-wider w-10">#</th>
+                  <th scope="col" className="px-3 py-2 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Ticker / Name</th>
+                  <th scope="col" className="px-3 py-2 text-right text-xs font-medium text-gray-400 uppercase tracking-wider">Shares</th>
+                  <th scope="col" className="px-3 py-2 text-right text-xs font-medium text-gray-400 uppercase tracking-wider">Current Price</th>
+                  <th scope="col" className="px-3 py-2 text-right text-xs font-medium text-gray-400 uppercase tracking-wider">Current Value</th>
+                  <th scope="col" className="px-3 py-2 text-right text-xs font-medium text-gray-400 uppercase tracking-wider hidden md:table-cell">Avg Cost/Share</th>
+                  <th scope="col" className="px-3 py-2 text-right text-xs font-medium text-gray-400 uppercase tracking-wider hidden lg:table-cell">Total Cost</th>
+                  <th scope="col" className="px-3 py-2 text-right text-xs font-medium text-gray-400 uppercase tracking-wider">Gain/Loss</th>
+                  <th scope="col" className="px-3 py-2 text-center text-xs font-medium text-gray-400 uppercase tracking-wider hidden sm:table-cell">Accounts</th>
+                  <th scope="col" className="px-3 py-2 text-right text-xs font-medium text-gray-400 uppercase tracking-wider hidden xl:table-cell">Est. Annual Income</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-700">
-                {sortedPositions.map((group) => (
+                {/* Portfolio Summary Row */}
+                <tr className="bg-purple-900/30 font-medium border-b-2 border-purple-700">
+                  <td className="px-3 py-2 text-center whitespace-nowrap">
+                    <span className="font-bold">•</span>
+                  </td>
+                  <td className="px-3 py-2 whitespace-nowrap">
+                    <div className="font-medium text-white">Total Portfolio</div>
+                    <div className="text-xs text-gray-400">{portfolioTotals.positionCount} unique positions</div>
+                  </td>
+                  <td className="px-3 py-2 text-right whitespace-nowrap text-gray-300">
+                    {formatNumber(portfolioTotals.totalShares, { maximumFractionDigits: 4 })}
+                  </td>
+                  <td className="px-3 py-2 text-right whitespace-nowrap text-gray-300">
+                    {/* Cannot calculate avg price */}
+                  </td>
+                  <td className="px-3 py-2 text-right whitespace-nowrap font-medium text-white">
+                    {formatCurrency(portfolioTotals.totalValue)}
+                  </td>
+                  <td className="px-3 py-2 text-right whitespace-nowrap text-gray-300 hidden md:table-cell">
+                    {/* Cannot calculate avg cost/share for portfolio */}
+                  </td>
+                  <td className="px-3 py-2 text-right whitespace-nowrap text-gray-300 hidden lg:table-cell">
+                    {formatCurrency(portfolioTotals.totalCostBasis)}
+                  </td>
+                  <td className="px-3 py-2 text-right whitespace-nowrap">
+                    <div className="flex flex-col items-end">
+                      <div className={`font-medium ${portfolioTotals.totalGainLoss >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                        {portfolioTotals.totalGainLoss >= 0 ? '+' : ''}{formatCurrency(portfolioTotals.totalGainLoss)}
+                      </div>
+                      <div className={`text-xs ${portfolioTotals.totalGainLoss >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                        ({portfolioTotals.totalGainLoss >= 0 ? '+' : ''}{formatPercentage(totalGainLossPercent)})
+                      </div>
+                    </div>
+                  </td>
+                  <td className="px-3 py-2 text-center whitespace-nowrap text-sm hidden sm:table-cell">
+                    {/* Leave accounts cell empty */}
+                  </td>
+                  <td className="px-3 py-2 text-right whitespace-nowrap text-gray-300 hidden xl:table-cell">
+                    {formatCurrency(portfolioTotals.estimatedAnnualDividend)}
+                  </td>
+                </tr>
+
+                {/* Individual position rows */}
+                {sortedPositions.map((group, index) => (
                   <tr
-                    key={group.ticker}
+                    key={`${group.ticker}-${index}`}
                     className="hover:bg-gray-700/50 transition-colors cursor-pointer"
                     onClick={() => handleRowClick(group)}
                   >
+                    {/* Rank # */}
+                    <td className="px-3 py-2 text-center whitespace-nowrap">
+                      <span className="text-sm text-gray-300">{index + 1}</span>
+                    </td>
+                    
                     {/* Ticker/Name */}
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center">
-                        <div className="flex-shrink-0 h-8 w-8 rounded-full bg-gradient-to-br from-green-500 to-blue-600 flex items-center justify-center mr-3">
-                          <span className="font-bold text-xs">{group.ticker?.charAt(0) || '?'}</span>
-                        </div>
-                        <div>
-                          <div className="text-sm font-medium">{group.ticker}</div>
-                          <div className="text-xs text-gray-400">{group.name}</div>
-                        </div>
-                      </div>
+                    <td className="px-3 py-2 whitespace-nowrap">
+                      <div className="font-medium text-white">{group.ticker}</div>
+                      <div className="text-xs text-gray-400">{group.name}</div>
                     </td>
                     
                     {/* Shares */}
-                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm">
+                    <td className="px-3 py-2 text-right whitespace-nowrap text-gray-300">
                       {formatNumber(group.totalShares, { maximumFractionDigits: 4 })}
                     </td>
                     
                     {/* Current Price */}
-                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm">
+                    <td className="px-3 py-2 text-right whitespace-nowrap text-gray-300">
                       {formatCurrency(group.currentPrice)}
                     </td>
                     
                     {/* Current Value */}
-                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                    <td className="px-3 py-2 text-right whitespace-nowrap font-medium text-white">
                       {formatCurrency(group.totalValue)}
                     </td>
                     
                     {/* Avg Cost/Share */}
-                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm hidden md:table-cell">
+                    <td className="px-3 py-2 text-right whitespace-nowrap text-gray-300 hidden md:table-cell">
                       {formatCurrency(group.avgCostBasis)}
                     </td>
                     
                     {/* Total Cost */}
-                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm hidden lg:table-cell">
+                    <td className="px-3 py-2 text-right whitespace-nowrap text-gray-300 hidden lg:table-cell">
                       {formatCurrency(group.totalCostBasis)}
                     </td>
                     
                     {/* Gain/Loss */}
-                    <td className="px-6 py-4 whitespace-nowrap text-right">
+                    <td className="px-3 py-2 text-right whitespace-nowrap">
                       <div className="flex flex-col items-end">
                         <div className={`text-sm font-medium ${group.totalGainLoss >= 0 ? 'text-green-500' : 'text-red-500'}`}>
                           {group.totalGainLoss >= 0 ? '+' : ''}{formatCurrency(group.totalGainLoss)}
                         </div>
                         <div className={`text-xs ${group.totalGainLoss >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                          {group.totalGainLoss >= 0 ? '+' : ''}{formatPercentage(group.totalGainLossPercent)}
+                          ({group.totalGainLoss >= 0 ? '+' : ''}{formatPercentage(group.totalGainLossPercent)})
                         </div>
                       </div>
                     </td>
                     
                     {/* # Accounts */}
-                    <td className="px-6 py-4 whitespace-nowrap text-center text-sm hidden sm:table-cell">
+                    <td className="px-3 py-2 text-center whitespace-nowrap text-sm hidden sm:table-cell">
                       {group.accountsCount}
                     </td>
                     
                     {/* Est. Annual Income */}
-                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm hidden xl:table-cell">
+                    <td className="px-3 py-2 text-right whitespace-nowrap text-sm hidden xl:table-cell">
                       {formatCurrency(group.estimatedAnnualDividend)}
                     </td>
                   </tr>
@@ -414,7 +482,7 @@ const GroupedTickerTable = ({ initialSort = "value-high", title = "Consolidated 
         )}
       </div>
 
-      {/* Create a custom detail modal for grouped positions */}
+      {/* Detail Modal */}
       {isDetailModalOpen && selectedTickerDetail && (
         <div className="fixed inset-0 z-[100] overflow-y-auto">
           <div className="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
@@ -453,10 +521,6 @@ const GroupedTickerTable = ({ initialSort = "value-high", title = "Consolidated 
                   <div className="bg-gray-700 rounded-lg p-3">
                     <div className="text-gray-400 text-xs mb-1 uppercase tracking-wider">Current Value</div>
                     <div className="text-lg font-semibold truncate text-white">{formatCurrency(selectedTickerDetail.totalValue)}</div>
-                  </div>
-                  <div className="bg-gray-700 rounded-lg p-3">
-                    <div className="text-gray-400 text-xs mb-1 uppercase tracking-wider">Total Cost</div>
-                    <div className="text-lg font-semibold truncate text-white">{formatCurrency(selectedTickerDetail.totalCostBasis)}</div>
                   </div>
                   <div className="bg-gray-700 rounded-lg p-3">
                     <div className="text-gray-400 text-xs mb-1 uppercase tracking-wider">Gain/Loss ($)</div>
@@ -503,11 +567,11 @@ const GroupedTickerTable = ({ initialSort = "value-high", title = "Consolidated 
                     <table className="min-w-full divide-y divide-gray-600">
                       <thead className="bg-gray-800">
                         <tr>
-                          <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Account</th>
-                          <th scope="col" className="px-4 py-3 text-right text-xs font-medium text-gray-400 uppercase tracking-wider">Shares</th>
-                          <th scope="col" className="px-4 py-3 text-right text-xs font-medium text-gray-400 uppercase tracking-wider">Cost/Share</th>
-                          <th scope="col" className="px-4 py-3 text-right text-xs font-medium text-gray-400 uppercase tracking-wider">Value</th>
-                          <th scope="col" className="px-4 py-3 text-right text-xs font-medium text-gray-400 uppercase tracking-wider">Gain/Loss</th>
+                          <th scope="col" className="px-3 py-2 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Account</th>
+                          <th scope="col" className="px-3 py-2 text-right text-xs font-medium text-gray-400 uppercase tracking-wider">Shares</th>
+                          <th scope="col" className="px-3 py-2 text-right text-xs font-medium text-gray-400 uppercase tracking-wider">Cost/Share</th>
+                          <th scope="col" className="px-3 py-2 text-right text-xs font-medium text-gray-400 uppercase tracking-wider">Value</th>
+                          <th scope="col" className="px-3 py-2 text-right text-xs font-medium text-gray-400 uppercase tracking-wider">Gain/Loss</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-600">
@@ -519,17 +583,17 @@ const GroupedTickerTable = ({ initialSort = "value-high", title = "Consolidated 
                           
                           return (
                             <tr key={position.id} className="hover:bg-gray-600/50">
-                              <td className="px-4 py-3 whitespace-nowrap text-sm">{position.account_name}</td>
-                              <td className="px-4 py-3 whitespace-nowrap text-sm text-right">
+                              <td className="px-3 py-2 whitespace-nowrap text-sm">{position.account_name}</td>
+                              <td className="px-3 py-2 whitespace-nowrap text-sm text-right">
                                 {formatNumber(position.shares, { maximumFractionDigits: 4 })}
                               </td>
-                              <td className="px-4 py-3 whitespace-nowrap text-sm text-right">
+                              <td className="px-3 py-2 whitespace-nowrap text-sm text-right">
                                 {formatCurrency(position.cost_basis || position.price)}
                               </td>
-                              <td className="px-4 py-3 whitespace-nowrap text-sm text-right">
+                              <td className="px-3 py-2 whitespace-nowrap text-sm text-right">
                                 {formatCurrency(positionValue)}
                               </td>
-                              <td className="px-4 py-3 whitespace-nowrap text-sm text-right">
+                              <td className="px-3 py-2 whitespace-nowrap text-sm text-right">
                                 <div className={`${positionGainLoss >= 0 ? 'text-green-400' : 'text-red-400'}`}>
                                   {positionGainLoss >= 0 ? '+' : ''}{formatCurrency(positionGainLoss)}
                                   <div className="text-xs">
