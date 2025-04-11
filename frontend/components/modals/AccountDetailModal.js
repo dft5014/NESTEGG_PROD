@@ -558,11 +558,7 @@ const AccountDetailModal = ({
                                                             ({position.gainLoss >= 0 ? '+' : ''}{formatPercentage(position.gainLossPercent/100)})
                                                         </div>
                                                     </td>
-                                                    <td
 
-Continuing with the rest of the AccountDetailModal component:
-
-```jsx
                                                     <td className="px-3 py-3 text-center whitespace-nowrap">
                                                         <div className="flex items-center justify-center space-x-1.5">
                                                             <button
