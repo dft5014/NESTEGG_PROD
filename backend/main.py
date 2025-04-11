@@ -49,6 +49,7 @@ from backend.services.data_consistency_monitor import DataConsistencyMonitor
 from backend.services.portfolio_calculator import PortfolioCalculator
 from backend.utils.common import record_system_event, update_system_event
 from backend.api_clients.market_data_manager import MarketDataManager
+from backend.api_clients.yahoo_data import Yahoo_Data
 
 # Initialize Database Connection
 database = databases.Database(
