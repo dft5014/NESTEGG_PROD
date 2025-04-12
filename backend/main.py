@@ -3376,6 +3376,215 @@ async def update_single_fx_price(
             detail=f"Failed to update FX price: {str(e)}"
         )
 
+@app.post("/fx/update-with-existing-components")
+async def update_fx_with_existing_components(current_user: dict = Depends(get_current_user)):
+    """Update FX prices using existing market data components"""
+    try:
+        # Get list of all active FX assets to update
+        query = "SELECT symbol FROM fx_prices WHERE active = TRUE"
+        assets = await database.fetch_all(query)
+        
+        if not assets:
+            return {"message": "No active FX assets to update", "updated_count": 0}
+        
+        # Extract symbols and format them correctly for Yahoo Finance
+        symbols = [asset["symbol"] for asset in assets]
+        
+        # Record start of update
+        event_id = await record_system_event(
+            database,
+            "fx_prices_update",
+            "started",
+            {"symbols_count": len(symbols)}
+        )
+        
+        # Initialize MarketDataManager (already handles multiple sources)
+        market_data = MarketDataManager()
+        
+        # Batch update all symbols (MarketDataManager handles fallbacks if one source fails)
+        results = await market_data.get_batch_prices(symbols)
+        
+        # Update database with results
+        updated_count = 0
+        failed_symbols = []
+        
+        for symbol, price_data in results.items():
+            try:
+                update_query = """
+                UPDATE fx_prices
+                SET current_price = :price,
+                    price_updated_at = :updated_at,
+                    price_as_of_date = :price_as_of_date,
+                    source = :source,
+                    market_cap = :market_cap,
+                    volume_24h = :volume,
+                    high_24h = :high,
+                    low_24h = :low,
+                    price_change_24h = :change,
+                    price_change_percentage_24h = :change_pct,
+                    metadata = jsonb_set(
+                        COALESCE(metadata, '{}'::jsonb), 
+                        '{last_update}', 
+                        to_jsonb(:metadata::text)
+                    )
+                WHERE symbol = :symbol
+                """
+                
+                await database.execute(
+                    query=update_query,
+                    values={
+                        "symbol": symbol,
+                        "price": price_data.get("price"),
+                        "updated_at": datetime.now(),
+                        "price_as_of_date": price_data.get("price_timestamp"),
+                        "source": price_data.get("source", "market_data_manager"),
+                        "market_cap": None,  # MarketDataManager doesn't return this by default
+                        "volume": price_data.get("volume"),
+                        "high": price_data.get("day_high"),
+                        "low": price_data.get("day_low"),
+                        "change": None,  # Would need to calculate from previous prices
+                        "change_pct": None,  # Would need to calculate from previous prices
+                        "metadata": json.dumps({
+                            "timestamp": datetime.now().isoformat(),
+                            "price_timestamp": price_data.get("price_timestamp_str") if "price_timestamp_str" in price_data else None
+                        })
+                    }
+                )
+                
+                updated_count += 1
+            except Exception as update_error:
+                logger.error(f"Error updating price data for {symbol}: {str(update_error)}")
+                failed_symbols.append(symbol)
+        
+        # Update tracking
+        await update_system_event(
+            database,
+            event_id,
+            "completed",
+            {
+                "updated_count": updated_count,
+                "failed_count": len(failed_symbols),
+                "failed_symbols": failed_symbols
+            }
+        )
+        
+        return {
+            "message": "FX prices update completed using existing components",
+            "total_assets": len(symbols),
+            "updated_count": updated_count,
+            "failed_count": len(failed_symbols),
+            "failed_symbols": failed_symbols if failed_symbols else None
+        }
+        
+    except Exception as e:
+        logger.error(f"Error updating FX prices with existing components: {str(e)}")
+        
+        # Update event status if we have an event_id
+        if 'event_id' in locals():
+            await update_system_event(
+                database,
+                event_id,
+                "failed",
+                {"error": str(e)}
+            )
+        
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to update FX prices: {str(e)}"
+        )
+
+@app.post("/fx/update-single/{symbol}")
+async def update_single_fx_with_existing_components(
+    symbol: str,
+    current_user: dict = Depends(get_current_user)
+):
+    """Update a single FX asset price using existing components"""
+    try:
+        # Check if asset exists
+        existing = await database.fetch_one(
+            "SELECT symbol, active FROM fx_prices WHERE symbol = :symbol",
+            {"symbol": symbol}
+        )
+        
+        if not existing:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Asset with symbol '{symbol}' not found"
+            )
+        
+        if not existing["active"]:
+            return {
+                "message": f"Asset {symbol} is inactive",
+                "updated": False
+            }
+        
+        # Initialize MarketDataManager
+        market_data = MarketDataManager()
+        
+        # Get price data for this symbol
+        price_data = await market_data.get_current_price(symbol)
+        
+        # Check if we got data
+        if not price_data:
+            return {
+                "message": f"Could not retrieve price data for {symbol}",
+                "updated": False
+            }
+            
+        # Update database
+        update_query = """
+        UPDATE fx_prices
+        SET current_price = :price,
+            price_updated_at = :updated_at,
+            price_as_of_date = :price_as_of_date,
+            source = :source,
+            volume_24h = :volume,
+            high_24h = :high,
+            low_24h = :low,
+            metadata = jsonb_set(
+                COALESCE(metadata, '{}'::jsonb), 
+                '{last_update}', 
+                to_jsonb(:metadata::text)
+            )
+        WHERE symbol = :symbol
+        """
+        
+        await database.execute(
+            query=update_query,
+            values={
+                "symbol": symbol,
+                "price": price_data.get("price"),
+                "updated_at": datetime.now(),
+                "price_as_of_date": price_data.get("price_timestamp"),
+                "source": price_data.get("source", "market_data_manager"),
+                "volume": price_data.get("volume"),
+                "high": price_data.get("day_high"),
+                "low": price_data.get("day_low"),
+                "metadata": json.dumps({
+                    "timestamp": datetime.now().isoformat(),
+                    "price_timestamp": price_data.get("price_timestamp_str") if "price_timestamp_str" in price_data else None
+                })
+            }
+        )
+        
+        return {
+            "message": f"Successfully updated price for {symbol} using existing components",
+            "updated": True,
+            "current_price": price_data.get("price"),
+            "price_updated_at": datetime.now().isoformat(),
+            "source": price_data.get("source", "market_data_manager")
+        }
+            
+    except Exception as e:
+        logger.error(f"Error updating FX price for {symbol}: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to update FX price: {str(e)}"
+        )
+
+
+
+
 @app.get("/system/database-status")
 async def get_database_status(current_user: dict = Depends(get_current_user)):
     """Get database health and statistics"""
