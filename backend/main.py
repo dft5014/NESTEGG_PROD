@@ -3153,10 +3153,10 @@ async def update_fx_asset(
 
 @app.post("/fx/update-all")
 async def update_all_fx_prices(current_user: dict = Depends(get_current_user)):
-    """Update prices for all active FX assets using batch processing"""
+    """Update prices for all active FX assets using DirectYahooFinanceClient"""
     try:
-        # Get list of all active assets
-        query = "SELECT symbol FROM fx_prices WHERE active = TRUE"
+        # Get list of all active FX assets to update
+        query = "SELECT symbol, asset_type FROM fx_prices WHERE active = TRUE"
         assets = await database.fetch_all(query)
         
         if not assets:
@@ -3172,18 +3172,24 @@ async def update_all_fx_prices(current_user: dict = Depends(get_current_user)):
             {"symbols_count": len(symbols)}
         )
         
-        # Create Yahoo Data client
-        client = Yahoo_Data()
+        # Initialize DirectYahooFinanceClient since it works best for FX
+        from backend.api_clients.direct_yahoo_client import DirectYahooFinanceClient
+        client = DirectYahooFinanceClient()
         
-        try:
-            # Batch update all symbols
-            results = await client.get_price_batch(symbols)
+        # Process in batches of 10 to avoid overwhelming the API
+        batch_size = 10
+        updated_count = 0
+        failed_symbols = []
+        
+        for i in range(0, len(symbols), batch_size):
+            batch = symbols[i:i + batch_size]
+            logger.info(f"Processing batch {i//batch_size + 1}/{(len(symbols) + batch_size - 1)//batch_size}: {batch}")
+            
+            # Get batch data
+            batch_results = await client.get_batch_prices(batch)
             
             # Update database with results
-            updated_count = 0
-            failed_symbols = []
-            
-            for symbol, price_data in results.items():
+            for symbol, price_data in batch_results.items():
                 try:
                     update_query = """
                     UPDATE fx_prices
@@ -3191,7 +3197,6 @@ async def update_all_fx_prices(current_user: dict = Depends(get_current_user)):
                         price_updated_at = :updated_at,
                         price_as_of_date = :price_as_of_date,
                         source = :source,
-                        market_cap = :market_cap,
                         volume_24h = :volume,
                         high_24h = :high,
                         low_24h = :low,
@@ -3205,25 +3210,38 @@ async def update_all_fx_prices(current_user: dict = Depends(get_current_user)):
                     WHERE symbol = :symbol
                     """
                     
+                    # Calculate price change if possible (if price was previously stored)
+                    previous_price_query = "SELECT current_price FROM fx_prices WHERE symbol = :symbol"
+                    prev_result = await database.fetch_one(previous_price_query, {"symbol": symbol})
+                    
+                    prev_price = None
+                    price_change = None
+                    price_change_pct = None
+                    
+                    if prev_result and prev_result["current_price"] is not None:
+                        prev_price = float(prev_result["current_price"])
+                        current_price = price_data.get("price")
+                        
+                        if current_price is not None and prev_price > 0:
+                            price_change = current_price - prev_price
+                            price_change_pct = (price_change / prev_price) * 100
+                    
                     await database.execute(
                         query=update_query,
                         values={
                             "symbol": symbol,
-                            "price": price_data.get("current_price"),
+                            "price": price_data.get("price"),
                             "updated_at": datetime.now(),
-                            "price_as_of_date": price_data.get("price_as_of_date"),
-                            "source": price_data.get("source", "yahoo_finance"),
-                            "market_cap": price_data.get("market_cap"),
-                            "volume": price_data.get("volume_24h"),
-                            "high": price_data.get("high_24h"),
-                            "low": price_data.get("low_24h"),
-                            "change": price_data.get("price_change_24h"),
-                            "change_pct": price_data.get("price_change_percentage_24h"),
+                            "price_as_of_date": price_data.get("price_timestamp"),
+                            "source": price_data.get("source", "direct_yahoo"),
+                            "volume": price_data.get("volume"),
+                            "high": price_data.get("day_high"),
+                            "low": price_data.get("day_low"),
+                            "change": price_change,
+                            "change_pct": price_change_pct,
                             "metadata": json.dumps({
                                 "timestamp": datetime.now().isoformat(),
-                                "price_timestamp": price_data.get("price_timestamp_str"),
-                                "exchange": price_data.get("exchange"),
-                                "currency": price_data.get("currency")
+                                "price_timestamp": price_data.get("price_timestamp_str")
                             })
                         }
                     )
@@ -3233,28 +3251,33 @@ async def update_all_fx_prices(current_user: dict = Depends(get_current_user)):
                     logger.error(f"Error updating price data for {symbol}: {str(update_error)}")
                     failed_symbols.append(symbol)
             
-            # Update tracking
-            await update_system_event(
-                database,
-                event_id,
-                "completed",
-                {
-                    "updated_count": updated_count,
-                    "failed_count": len(failed_symbols),
-                    "failed_symbols": failed_symbols
-                }
-            )
-            
-            return {
-                "message": "FX prices update completed",
-                "total_assets": len(symbols),
-                "updated_count": updated_count,
-                "failed_count": len(failed_symbols),
-                "failed_symbols": failed_symbols if failed_symbols else None
-            }
-        finally:
-            # Ensure client is closed
-            await client.close()
+            # Add a small delay between batches to avoid rate limiting
+            if i + batch_size < len(symbols):
+                await asyncio.sleep(1)
+        
+        # Calculate success rate
+        success_rate = (updated_count / len(symbols)) * 100 if symbols else 0
+        
+        # Update tracking
+        result = {
+            "updated_count": updated_count,
+            "failed_count": len(failed_symbols),
+            "failed_symbols": failed_symbols,
+            "success_rate": round(success_rate, 2)
+        }
+        
+        await update_system_event(
+            database,
+            event_id,
+            "completed",
+            result
+        )
+        
+        return {
+            "message": "FX prices update completed",
+            "total_assets": len(symbols),
+            **result
+        }
             
     except Exception as e:
         logger.error(f"Error updating FX prices: {str(e)}")
