@@ -3156,6 +3156,11 @@ async def update_fx_asset(
 async def update_all_fx_prices(current_user: dict = Depends(get_current_user)):
     """Update prices for all active FX assets using DirectYahooFinanceClient"""
     try:
+        import asyncio
+        import json
+        from datetime import datetime
+        from backend.api_clients.direct_yahoo_client import DirectYahooFinanceClient
+        
         # Get list of all active FX assets to update
         query = "SELECT symbol, asset_type FROM fx_prices WHERE active = TRUE"
         assets = await database.fetch_all(query)
@@ -3174,7 +3179,6 @@ async def update_all_fx_prices(current_user: dict = Depends(get_current_user)):
         )
         
         # Initialize DirectYahooFinanceClient since it works best for FX
-        from backend.api_clients.direct_yahoo_client import DirectYahooFinanceClient
         client = DirectYahooFinanceClient()
         
         # Process in batches of 10 to avoid overwhelming the API
@@ -3192,6 +3196,7 @@ async def update_all_fx_prices(current_user: dict = Depends(get_current_user)):
             # Update database with results
             for symbol, price_data in batch_results.items():
                 try:
+                    # Remove the problematic jsonb_set function and use a simpler approach
                     update_query = """
                     UPDATE fx_prices
                     SET current_price = :price,
@@ -3202,12 +3207,7 @@ async def update_all_fx_prices(current_user: dict = Depends(get_current_user)):
                         high_24h = :high,
                         low_24h = :low,
                         price_change_24h = :change,
-                        price_change_percentage_24h = :change_pct,
-                        metadata = jsonb_set(
-                            COALESCE(metadata, '{}'::jsonb), 
-                            '{last_update}', 
-                            to_jsonb(:metadata::text)
-                        )
+                        price_change_percentage_24h = :change_pct
                     WHERE symbol = :symbol
                     """
                     
@@ -3239,11 +3239,7 @@ async def update_all_fx_prices(current_user: dict = Depends(get_current_user)):
                             "high": price_data.get("day_high"),
                             "low": price_data.get("day_low"),
                             "change": price_change,
-                            "change_pct": price_change_pct,
-                            "metadata": json.dumps({
-                                "timestamp": datetime.now().isoformat(),
-                                "price_timestamp": price_data.get("price_timestamp_str")
-                            })
+                            "change_pct": price_change_pct
                         }
                     )
                     
