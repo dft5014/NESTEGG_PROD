@@ -265,7 +265,7 @@ class Yahoo_Data:
             "currency": meta.get("currency")
         }
     
-    async def get_price_batch(self, symbols: List[str], max_batch_size: int = 50) -> Dict[str, Dict[str, Any]]:
+    async def get_price_batch(self, symbols: List[str], max_batch_size: int = 10) -> Dict[str, Dict[str, Any]]:
         """
         Get current prices for multiple assets in efficient batches
         
