@@ -3493,6 +3493,116 @@ async def update_fx_with_existing_components(current_user: dict = Depends(get_cu
             detail=f"Failed to update FX prices: {str(e)}"
         )
 
+@app.post("/fx/update-debug")
+async def update_fx_with_debug(current_user: dict = Depends(get_current_user)):
+    """Update FX prices using existing components with detailed debugging"""
+    try:
+        # Get list of all active FX assets to update
+        query = "SELECT symbol, asset_type FROM fx_prices WHERE active = TRUE LIMIT 5"  # Just try 5 symbols first
+        assets = await database.fetch_all(query)
+        
+        if not assets:
+            return {"message": "No active FX assets to update", "updated_count": 0}
+        
+        # Initialize debug results
+        debug_results = {}
+        updated_count = 0
+        failed_symbols = []
+        
+        # Try each client directly for better debugging
+        from backend.api_clients.direct_yahoo_client import DirectYahooFinanceClient
+        from backend.api_clients.yahooquery_client import YahooQueryClient
+        from backend.api_clients.yahoo_finance_client import YahooFinanceClient
+        
+        clients = {
+            "direct_yahoo": DirectYahooFinanceClient(),
+            "yahooquery": YahooQueryClient(),
+            "yahoo_finance": YahooFinanceClient()
+        }
+        
+        # Detailed debug test for each symbol with each client
+        for asset in assets:
+            symbol = asset["symbol"]
+            asset_type = asset["asset_type"]
+            debug_results[symbol] = {"asset_type": asset_type, "client_results": {}}
+            
+            # Try each client separately
+            for client_name, client in clients.items():
+                try:
+                    price_data = await client.get_current_price(symbol)
+                    if price_data and price_data.get("price") is not None:
+                        debug_results[symbol]["client_results"][client_name] = {
+                            "success": True,
+                            "price": price_data.get("price"),
+                            "data": price_data
+                        }
+                        
+                        # Use the first successful client to update the database
+                        if "successful_client" not in debug_results[symbol]:
+                            update_query = """
+                            UPDATE fx_prices
+                            SET current_price = :price,
+                                price_updated_at = :updated_at,
+                                price_as_of_date = :price_as_of_date,
+                                source = :source,
+                                volume_24h = :volume,
+                                high_24h = :high,
+                                low_24h = :low
+                            WHERE symbol = :symbol
+                            """
+                            
+                            await database.execute(
+                                query=update_query,
+                                values={
+                                    "symbol": symbol,
+                                    "price": price_data.get("price"),
+                                    "updated_at": datetime.now(),
+                                    "price_as_of_date": price_data.get("price_timestamp"),
+                                    "source": client_name,
+                                    "volume": price_data.get("volume"),
+                                    "high": price_data.get("day_high"),
+                                    "low": price_data.get("day_low")
+                                }
+                            )
+                            updated_count += 1
+                            debug_results[symbol]["successful_client"] = client_name
+                            debug_results[symbol]["update_status"] = "success"
+                    else:
+                        debug_results[symbol]["client_results"][client_name] = {
+                            "success": False,
+                            "reason": "No price data returned or price is None"
+                        }
+                except Exception as e:
+                    debug_results[symbol]["client_results"][client_name] = {
+                        "success": False,
+                        "error": str(e)
+                    }
+            
+            # If no client succeeded, add to failed symbols
+            if "successful_client" not in debug_results[symbol]:
+                failed_symbols.append(symbol)
+                debug_results[symbol]["update_status"] = "failed"
+        
+        return {
+            "message": "FX prices debug update completed",
+            "total_assets": len(assets),
+            "updated_count": updated_count,
+            "failed_count": len(failed_symbols),
+            "failed_symbols": failed_symbols,
+            "debug_results": debug_results
+        }
+            
+    except Exception as e:
+        logger.error(f"Error in FX debug update: {str(e)}")
+        import traceback
+        tb = traceback.format_exc()
+        
+        return {
+            "status": "error",
+            "message": str(e),
+            "traceback": tb
+        }
+
 @app.post("/fx/update-single/{symbol}")
 async def update_single_fx_with_existing_components(
     symbol: str,
