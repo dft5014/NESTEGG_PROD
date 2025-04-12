@@ -111,7 +111,6 @@ crypto_positions = sqlalchemy.Table(
     sqlalchemy.Column("coin_symbol", sqlalchemy.String),
     sqlalchemy.Column("quantity", sqlalchemy.Float),
     sqlalchemy.Column("purchase_price", sqlalchemy.Float),
-    sqlalchemy.Column("current_price", sqlalchemy.Float),
     sqlalchemy.Column("purchase_date", sqlalchemy.Date),
     sqlalchemy.Column("storage_type", sqlalchemy.String),
     sqlalchemy.Column("exchange_name", sqlalchemy.String, nullable=True),
@@ -6261,10 +6260,9 @@ async def add_crypto_position(account_id: int, position: CryptoPositionCreate, c
         # Add crypto position
         query = """
         INSERT INTO crypto_positions (
-            account_id, coin_type, coin_symbol, quantity, purchase_price, current_price, 
-            purchase_date, storage_type, exchange_name, wallet_address, notes, tags, is_favorite
+            account_id, coin_type, coin_symbol, quantity, purchase_price, purchase_date, storage_type, exchange_name, wallet_address, notes, tags, is_favorite
         ) VALUES (
-            :account_id, :coin_type, :coin_symbol, :quantity, :purchase_price, :current_price,
+            :account_id, :coin_type, :coin_symbol, :quantity, :purchase_price,
             :purchase_date, :storage_type, :exchange_name, :wallet_address, :notes, :tags, :is_favorite
         ) RETURNING id
         """
@@ -6274,7 +6272,6 @@ async def add_crypto_position(account_id: int, position: CryptoPositionCreate, c
             "coin_symbol": position.coin_symbol,
             "quantity": position.quantity,
             "purchase_price": position.purchase_price,
-            "current_price": position.current_price,
             "purchase_date": datetime.strptime(position.purchase_date, "%Y-%m-%d").date() if position.purchase_date else None,
             "storage_type": position.storage_type,
             "exchange_name": position.exchange_name if position.storage_type == "Exchange" else None,
