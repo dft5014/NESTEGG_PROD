@@ -542,7 +542,7 @@ const UnifiedGroupedPositionsTable = ({ initialSort = "value-high", title = "Con
                         </div>
                       )}
                     </td>
-                    
+
                     {/* # Accounts */}
                     <td className="px-3 py-2 text-center whitespace-nowrap text-sm hidden sm:table-cell">
                       {group.accountsCount}
@@ -650,37 +650,61 @@ const UnifiedGroupedPositionsTable = ({ initialSort = "value-high", title = "Con
                   )}
                 </div>
 
-                {/* Additional Details */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4 bg-gray-700/50 p-4 rounded-lg mb-6">
-                  <div>
-                    <div className="text-gray-400 text-xs uppercase tracking-wider">Accounts</div>
-                    <div className="font-medium text-white break-words">{selectedPositionDetail.accountsCount}</div>
-                  </div>
-                  
-                  {selectedPositionDetail.assetType !== 'cash' && (
+                  {/* Additional Details */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4 bg-gray-700/50 p-4 rounded-lg mb-6">
                     <div>
-                      <div className="text-gray-400 text-xs uppercase tracking-wider">Avg Cost Basis / Unit</div>
-                      <div className="font-medium text-white break-words">{formatCurrency(selectedPositionDetail.avgCostBasisPerUnit)}</div>
+                      <div className="text-gray-400 text-xs uppercase tracking-wider">Accounts</div>
+                      <div className="font-medium text-white break-words">{selectedPositionDetail.accountsCount}</div>
                     </div>
-                  )}
-                  
-                  {selectedPositionDetail.estimatedAnnualIncome > 0 && (
-                    <>
-                      <div>
-                        <div className="text-gray-400 text-xs uppercase tracking-wider">Est. Annual Income</div>
-                        <div className="font-medium text-white break-words">{formatCurrency(selectedPositionDetail.estimatedAnnualIncome)}</div>
-                      </div>
-                      <div>
-                        <div className="text-gray-400 text-xs uppercase tracking-wider">Est. Yield</div>
-                        <div className="font-medium text-white break-words">
-                          {selectedPositionDetail.totalValue > 0
-                            ? ((selectedPositionDetail.estimatedAnnualIncome / selectedPositionDetail.totalValue) * 100).toFixed(2) + '%'
-                            : 'N/A'}
+                    
+                    {selectedPositionDetail.assetType !== 'cash' ? (
+                      <>
+                        <div>
+                          <div className="text-gray-400 text-xs uppercase tracking-wider">Avg Cost Basis / Unit</div>
+                          <div className="font-medium text-white break-words">{formatCurrency(selectedPositionDetail.avgCostBasisPerUnit)}</div>
                         </div>
-                      </div>
-                    </>
-                  )}
-                </div>
+                        <div>
+                          <div className="text-gray-400 text-xs uppercase tracking-wider">Total Cost Basis</div>
+                          <div className="font-medium text-white break-words">{formatCurrency(selectedPositionDetail.totalCostBasis)}</div>
+                        </div>
+                        <div>
+                          <div className="text-gray-400 text-xs uppercase tracking-wider">Current Price Per Unit</div>
+                          <div className="font-medium text-white break-words">{formatCurrency(selectedPositionDetail.currentPricePerUnit)}</div>
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <div>
+                          <div className="text-gray-400 text-xs uppercase tracking-wider">Interest Rate</div>
+                          <div className="font-medium text-white break-words">
+                            {selectedPositionDetail.positions[0]?.dividend_rate ? 
+                              `${selectedPositionDetail.positions[0].dividend_rate.toFixed(2)}%` : 'N/A'}
+                          </div>
+                        </div>
+                        <div>
+                          <div className="text-gray-400 text-xs uppercase tracking-wider">Est. Annual Income</div>
+                          <div className="font-medium text-white break-words">{formatCurrency(selectedPositionDetail.estimatedAnnualIncome)}</div>
+                        </div>
+                      </>
+                    )}
+                    
+                    {selectedPositionDetail.estimatedAnnualIncome > 0 && selectedPositionDetail.assetType !== 'cash' && (
+                      <>
+                        <div>
+                          <div className="text-gray-400 text-xs uppercase tracking-wider">Est. Annual Income</div>
+                          <div className="font-medium text-white break-words">{formatCurrency(selectedPositionDetail.estimatedAnnualIncome)}</div>
+                        </div>
+                        <div>
+                          <div className="text-gray-400 text-xs uppercase tracking-wider">Est. Yield</div>
+                          <div className="font-medium text-white break-words">
+                            {selectedPositionDetail.totalValue > 0
+                              ? ((selectedPositionDetail.estimatedAnnualIncome / selectedPositionDetail.totalValue) * 100).toFixed(2) + '%'
+                              : 'N/A'}
+                          </div>
+                        </div>
+                      </>
+                    )}
+                  </div>
 
                 {/* Individual Positions */}
                 <div>
