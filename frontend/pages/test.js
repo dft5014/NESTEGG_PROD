@@ -1,7 +1,7 @@
 // pages/portfolio.js
 import React, { useState, useEffect } from 'react';
 import UnifiedGroupedPositionsTable from '@/components/tables/UnifiedGroupedPositionsTable';
-import UnifiedAccountTable from '@/components/tables/UnifiedAccountTable';
+import AccountTable from '@/components/tables/UnifiedAccountTable';
 import KpiCard from '@/components/ui/KpiCard';
 import UpdateMarketDataButton from '@/components/UpdateMarketDataButton'; 
 import AddSecurityButton from '@/components/AddSecurityButton';
@@ -116,7 +116,7 @@ export default function PortfolioPage() {
 
         {/* Account Table Section - Using new UnifiedAccountTable */}
         <section className="mb-12">
-            <UnifiedAccountTable title="Accounts Summary" />
+            <AccountTable title="Accounts Summary" />
         </section>
 
         {/* Unified Positions Table - Using new UnifiedGroupedPositionsTable */}
