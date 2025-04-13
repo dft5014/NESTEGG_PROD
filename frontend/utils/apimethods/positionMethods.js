@@ -713,3 +713,102 @@ export const fetchAllCashWithDetails = async () => {
     throw error;
   }
 };
+
+/**
+ * Fetch all positions from the unified view for the authenticated user
+ * Optional filtering by asset type or account
+ * @param {string} assetType - Optional filter for asset type ('security', 'crypto', 'metal', 'cash')
+ * @param {number} accountId - Optional filter for a specific account
+ * @returns {Promise<Array>} - Promise resolving to an array of position objects
+ */
+export const fetchUnifiedPositions = async (assetType = null, accountId = null) => {
+  try {
+    // Build the query string for optional filters
+    let queryParams = [];
+    if (assetType) {
+      queryParams.push(`asset_type=${encodeURIComponent(assetType)}`);
+    }
+    if (accountId) {
+      queryParams.push(`account_id=${encodeURIComponent(accountId)}`);
+    }
+    
+    const queryString = queryParams.length > 0 ? `?${queryParams.join('&')}` : '';
+    const response = await fetchWithAuth(`/positions/unified${queryString}`);
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(errorText || 'Failed to fetch unified positions');
+    }
+    
+    const data = await response.json();
+    return data.positions || [];
+  } catch (error) {
+    console.error('Error fetching unified positions:', error);
+    // Return empty array instead of throwing to improve resilience
+    return [];
+  }
+};
+
+/**
+ * Fetch all positions from all asset types using the unified view
+ * Groups results by asset type for easier handling in components
+ * @returns {Promise<Object>} - Promise resolving to an object with positions grouped by asset type
+ */
+export const fetchAllUnifiedPositionsByType = async () => {
+  try {
+    const allPositions = await fetchUnifiedPositions();
+    
+    // Group positions by asset type
+    const grouped = {
+      securities: allPositions.filter(pos => pos.asset_type === 'security'),
+      crypto: allPositions.filter(pos => pos.asset_type === 'crypto'),
+      metals: allPositions.filter(pos => pos.asset_type === 'metal'),
+      cash: allPositions.filter(pos => pos.asset_type === 'cash'),
+      // Add other types as needed
+    };
+    
+    return grouped;
+  } catch (error) {
+    console.error('Error fetching all unified positions by type:', error);
+    return {
+      securities: [],
+      crypto: [],
+      metals: [],
+      cash: []
+    };
+  }
+};
+
+/**
+ * Fetch all positions for a specific account using the unified view
+ * @param {number} accountId - ID of the account to fetch positions for
+ * @returns {Promise<Array>} - Promise resolving to an array of position objects
+ */
+export const fetchUnifiedPositionsForAccount = async (accountId) => {
+  if (!accountId) {
+    console.error('Account ID is required for fetchUnifiedPositionsForAccount');
+    return [];
+  }
+  
+  return await fetchUnifiedPositions(null, accountId);
+};
+
+/**
+ * Fetch positions of a specific type for a specific account using the unified view
+ * @param {number} accountId - ID of the account 
+ * @param {string} assetType - Type of position ('security', 'crypto', 'metal', 'cash')
+ * @returns {Promise<Array>} - Promise resolving to an array of position objects
+ */
+export const fetchUnifiedPositionsByTypeForAccount = async (accountId, assetType) => {
+  if (!accountId) {
+    console.error('Account ID is required for fetchUnifiedPositionsByTypeForAccount');
+    return [];
+  }
+  
+  if (!assetType) {
+    console.error('Asset type is required for fetchUnifiedPositionsByTypeForAccount');
+    return [];
+  }
+  
+  return await fetchUnifiedPositions(assetType, accountId);
+};

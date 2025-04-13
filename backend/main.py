@@ -1479,6 +1479,77 @@ async def delete_account(account_id: int, current_user: dict = Depends(get_curre
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Server error: {str(e)}")
 
 # Position Management
+
+@app.get("/positions/unified")
+async def get_unified_positions(
+    asset_type: Optional[str] = None,
+    account_id: Optional[int] = None,
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Get all positions for the current user from the unified positions view.
+    
+    Args:
+        asset_type: Optional filter for specific asset types
+                   (security, crypto, metal, cash)
+        account_id: Optional filter for a specific account
+                  
+    Returns:
+        All positions data from the unified view with optional filtering
+    """
+    try:
+        user_id = current_user["id"]
+        
+        # Build dynamic query with parameterized filters
+        query = """
+        SELECT * FROM all_positions_unified 
+        WHERE user_id = :user_id
+        """
+        
+        params = {"user_id": user_id}
+        
+        # Add optional filters if provided
+        if asset_type:
+            query += " AND asset_type = :asset_type"
+            params["asset_type"] = asset_type
+            
+        if account_id:
+            query += " AND account_id = :account_id"
+            params["account_id"] = account_id
+            
+        # Add ordering for consistent results
+        query += " ORDER BY asset_type, account_id, name"
+        
+        # Execute query
+        results = await database.fetch_all(query=query, values=params)
+        
+        if not results:
+            return {"positions": []}
+        
+        # Process results to handle data type conversion for JSON response
+        positions = []
+        for row in results:
+            position = dict(row)
+            
+            # Handle timestamp formatting
+            for field in ['created_at', 'updated_at', 'price_updated_at', 'purchase_date']:
+                if field in position and position[field] is not None:
+                    if hasattr(position[field], 'isoformat'):
+                        position[field] = position[field].isoformat()
+            
+            positions.append(position)
+        
+        return {"positions": positions}
+        
+    except Exception as e:
+        logger.error(f"Error fetching unified positions: {str(e)}")
+        import traceback
+        logger.error(traceback.format_exc())
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to fetch positions: {str(e)}"
+        )
+
 @app.get("/positions/all/detailed", response_model=PositionsDetailedResponse)
 async def get_all_detailed_positions(current_user: dict = Depends(get_current_user)):
     """
