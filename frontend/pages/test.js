@@ -1,85 +1,129 @@
-import { useState, useEffect, useContext } from 'react';
-import { AuthContext } from '@/context/AuthContext'; // Keep for auth check
-import { useRouter } from 'next/router'; // Keep for auth check
-
-// Import only the SecurityTableTicker component
-import GroupedTickerTable from '@/components/tables/GroupedTickerTable';
+// pages/portfolio.js
+import React, { useState, useEffect } from 'react';
 import UnifiedGroupedPositionsTable from '@/components/tables/UnifiedGroupedPositionsTable';
-import UnifiedAccountTable from '@/components/tables/UnifiedAccountTable'
+import UnifiedAccountTable from '@/components/tables/UnifiedAccountTable';
+import KpiCard from '@/components/ui/KpiCard';
+import UpdateMarketDataButton from '@/components/UpdateMarketDataButton'; 
+import AddSecurityButton from '@/components/AddSecurityButton';
+import UpdateOtherDataButton from '@/components/UpdateOtherDataButton';
+import { fetchPortfolioSummary } from '@/utils/apimethods/positionMethods';
+import { formatCurrency, formatPercentage } from '@/utils/formatters';
+import { DollarSign, BarChart4, Users, TrendingUp, TrendingDown, Percent } from 'lucide-react';
 
-// Import necessary formatters if they are used OUTSIDE SecurityTableTicker (likely not needed now)
-// import { formatCurrency, formatDate, formatPercentage } from '@/utils/formatters';
+export default function PortfolioPage() {
+  const [summaryData, setSummaryData] = useState(null);
+  const [isSummaryLoading, setIsSummaryLoading] = useState(true);
+  const [summaryError, setSummaryError] = useState(null);
 
-export default function TestFixedPage() {
-  const { user } = useContext(AuthContext);
-  const router = useRouter();
-  const [error, setError] = useState(null); // Keep basic error state if needed for page-level errors
-
-  // Check authentication - Keep this
   useEffect(() => {
-    if (user === null) { // Check explicitly for null after initial loading state
-        console.log("User not logged in, redirecting to login.");
-        router.push('/login');
-    }
-   }, [user, router]); // Rerun when user or router changes
+    const loadSummary = async () => {
+      setIsSummaryLoading(true);
+      setSummaryError(null);
+      try {
+        const data = await fetchPortfolioSummary();
+        setSummaryData(data);
+      } catch (error) {
+        console.error("Error loading summary data:", error);
+        setSummaryError(error.message || "Failed to load summary");
+      } finally {
+        setIsSummaryLoading(false);
+      }
+    };
+    loadSummary();
+  }, []);
 
+  // Determine overall gain/loss icon and color
+  const gainLossValue = summaryData?.total_gain_loss ?? 0;
+  const gainLossPercentValue = summaryData?.total_gain_loss_percent ?? 0;
+  const GainLossIcon = gainLossValue >= 0 ? TrendingUp : TrendingDown;
+  const gainLossColor = gainLossValue >= 0 ? 'green' : 'red';
 
-  // All other state variables (accounts, positions, modals, loading states) are removed.
-  // All other functions (loadAccounts, loadPositionsByType, handlers) are removed.
-
-  // Render only the main container and the SecurityTableTicker
   return (
-    // Using a light gray background for the page
-    <div className="container mx-auto p-4 md:p-6 bg-gray-50 min-h-screen">
-      <h1 className="text-3xl font-bold mb-6 text-gray-800">NestEgg Portfolio - Ticker View</h1>
+    <div className="min-h-screen bg-gradient-to-br from-gray-900 to-blue-900 text-white p-4 md:p-8">
+      <div className="container mx-auto">
+        <header className="mb-8">
+           <h1 className="text-3xl font-bold">NestEgg Portfolio</h1>
+           <p className="text-gray-400 mt-2">Consolidated view of your investment portfolio across all asset classes.</p>
+        </header>
+        
+        <section className="mb-10">
+          <div className="flex space-x-4">
+            <UpdateMarketDataButton className="bg-blue-600 hover:bg-blue-700 text-white rounded-lg" />
+            <AddSecurityButton className="bg-green-600 hover:bg-green-700 text-white rounded-lg" />
+            <UpdateOtherDataButton className="bg-purple-600 hover:bg-purple-700 text-white rounded-lg" />
+          </div>
+        </section>
 
-      {/* Optional: Display page-level errors if any */}
-      {error && (
-        <div className="mb-6 p-4 bg-red-100 border border-red-300 text-red-800 rounded-lg shadow-sm">
-          {error}
-           <button
-            className="ml-4 px-2 py-1 bg-red-600 text-white text-xs rounded hover:bg-red-700"
-            onClick={() => setError(null)} // Simple clear error button
-          >
-            Dismiss
-          </button>
-        </div>
-      )}
+        {/* KPI Section */}
+        <section className="mb-10">
+           <h2 className="text-xl font-semibold mb-4 text-gray-300">Portfolio Summary</h2>
+            {summaryError && (
+                 <div className="bg-red-900/60 p-3 rounded-lg mb-4 text-red-200">
+                    Error loading summary: {summaryError}
+                 </div>
+             )}
+           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+             <KpiCard
+                title="Total Value"
+                value={summaryData?.total_value}
+                icon={<DollarSign />}
+                isLoading={isSummaryLoading}
+                format={(v) => formatCurrency(v)}
+                color="blue"
+             />
+             <KpiCard
+                 title="Cost Basis"
+                 value={summaryData?.total_cost_basis}
+                 icon={<DollarSign />}
+                 isLoading={isSummaryLoading}
+                 format={(v) => formatCurrency(v)}
+                 color="purple"
+             />
+             <KpiCard
+                title="Total Gain/Loss"
+                value={gainLossValue}
+                icon={<GainLossIcon />}
+                isLoading={isSummaryLoading}
+                format={(v) => `${v >= 0 ? '+' : ''}${formatCurrency(v)}`}
+                color={gainLossColor}
+             />
+             <KpiCard
+                title="Total Gain/Loss %"
+                value={gainLossPercentValue}
+                icon={<Percent />}
+                isLoading={isSummaryLoading}
+                format={(v) => `${v >= 0 ? '+' : ''}${formatPercentage(v, {maximumFractionDigits: 2})}`}
+                color={gainLossColor}
+             />
+              <KpiCard
+                title="Total Positions"
+                value={summaryData?.total_positions}
+                icon={<BarChart4 />}
+                isLoading={isSummaryLoading}
+                format={(v) => v?.toLocaleString() ?? '0'}
+                color="amber"
+             />
+              <KpiCard
+                title="Total Accounts"
+                value={summaryData?.total_accounts}
+                icon={<Users />}
+                isLoading={isSummaryLoading}
+                format={(v) => v?.toLocaleString() ?? '0'}
+                color="indigo"
+             />
+           </div>
+        </section>
 
-       {/* Render the SecurityTableTicker component */}
-       {/* It handles its own data fetching, loading, and error states internally */}
-       {user ? ( // Only render the table if the user context is loaded (not null/undefined)
-         <GroupedTickerTable />
-       ) : (
-         // Optional: Show a loading indicator while user context is resolving
-         <div className="flex items-center justify-center h-60 bg-white rounded-xl text-gray-500 shadow-md border border-gray-200">
-             Checking authentication...
-         </div>
-       )}
+        {/* Account Table Section - Using new UnifiedAccountTable */}
+        <section className="mb-12">
+            <UnifiedAccountTable title="Accounts Summary" />
+        </section>
 
-       {/* Render the SecurityTableTicker component */}
-       {/* It handles its own data fetching, loading, and error states internally */}
-       {user ? ( // Only render the table if the user context is loaded (not null/undefined)
-         <UnifiedGroupedPositionsTable />
-       ) : (
-         // Optional: Show a loading indicator while user context is resolving
-         <div className="flex items-center justify-center h-60 bg-white rounded-xl text-gray-500 shadow-md border border-gray-200">
-             Checking authentication...
-         </div>
-       )}
-
-       {/* Render the SecurityTableTicker component */}
-       {/* It handles its own data fetching, loading, and error states internally */}
-       {user ? ( // Only render the table if the user context is loaded (not null/undefined)
-         <UnifiedAccountTable />
-       ) : (
-         // Optional: Show a loading indicator while user context is resolving
-         <div className="flex items-center justify-center h-60 bg-white rounded-xl text-gray-500 shadow-md border border-gray-200">
-             Checking authentication...
-         </div>
-       )}
-
-      {/* All other sections (Accounts, Crypto, Metals, Real Estate) and Modals are removed. */}
+        {/* Unified Positions Table - Using new UnifiedGroupedPositionsTable */}
+        <section className="mb-12">
+             <UnifiedGroupedPositionsTable title="Consolidated Portfolio" />
+        </section>        
+      </div>
     </div>
   );
 }
