@@ -22,6 +22,8 @@ const UnifiedGroupedPositionsTable = ({ initialSort = "value-high", title = "Con
   const [assetTypeFilter, setAssetTypeFilter] = useState("all");
   const [accounts, setAccounts] = useState([]);
   const [assetTypes, setAssetTypes] = useState([]);
+  const [detailSortOption, setDetailSortOption] = useState("value-high");
+  const [detailSortOrder, setDetailSortOrder] = useState("desc");
 
   // Fetch data
   const fetchData = async () => {
@@ -95,17 +97,15 @@ const UnifiedGroupedPositionsTable = ({ initialSort = "value-high", title = "Con
         acc[groupKey].currentPricePerUnit = position.current_price_per_unit;
       }
       
-      // Calculate estimated income based on asset type
-      if (position.asset_type === 'security' && position.dividend_yield) {
-        // For securities, use dividend yield
-        const annualDividend = parseFloat(position.current_value || 0) * 
-          parseFloat(position.dividend_yield || 0) / 100;
-        acc[groupKey].estimatedAnnualIncome = (acc[groupKey].estimatedAnnualIncome || 0) + annualDividend;
-      } else if (position.asset_type === 'cash' && position.dividend_rate) {
-        // For cash, use interest rate
-        const annualInterest = parseFloat(position.current_value || 0) * 
-          parseFloat(position.dividend_rate || 0) / 100;
-        acc[groupKey].estimatedAnnualIncome = (acc[groupKey].estimatedAnnualIncome || 0) + annualInterest;
+      // Calculate estimated annual income based on dividend_rate/yield
+      if (position.current_value) {
+        let annualIncome = 0;
+        if (position.asset_type === 'cash' && position.dividend_rate) {
+          annualIncome = parseFloat(position.current_value) * (parseFloat(position.dividend_rate) / 100);
+        } else if (position.dividend_yield) {
+          annualIncome = parseFloat(position.current_value) * (parseFloat(position.dividend_yield) / 100);
+        }
+        acc[groupKey].estimatedAnnualIncome += annualIncome;
       }
       
       return acc;
@@ -204,6 +204,51 @@ const UnifiedGroupedPositionsTable = ({ initialSort = "value-high", title = "Con
       }
     });
   }, [filteredPositions, sortOption]);
+
+  const handleDetailSortChange = (column) => {
+    if (detailSortOption === column) {
+      // Toggle sort order if clicking the same column
+      setDetailSortOrder(detailSortOrder === "asc" ? "desc" : "asc");
+    } else {
+      // Set new column and default to descending
+      setDetailSortOption(column);
+      setDetailSortOrder("desc");
+    }
+  };
+  
+  // Add this function to get sorted positions for the detail modal
+  const getSortedDetailPositions = () => {
+    if (!selectedPositionDetail) return [];
+    
+    return [...selectedPositionDetail.positions].sort((a, b) => {
+      let comparison = 0;
+      
+      switch (detailSortOption) {
+        case "account":
+          comparison = a.account_name.localeCompare(b.account_name);
+          break;
+        case "quantity":
+          comparison = parseFloat(a.quantity || 0) - parseFloat(b.quantity || 0);
+          break;
+        case "cost":
+          comparison = (parseFloat(a.cost_basis || 0) || parseFloat(a.current_price_per_unit || 0)) - 
+                       (parseFloat(b.cost_basis || 0) || parseFloat(b.current_price_per_unit || 0));
+          break;
+        case "value":
+          comparison = parseFloat(a.current_value || 0) - parseFloat(b.current_value || 0);
+          break;
+        case "gain":
+          const aGain = parseFloat(a.current_value || 0) - parseFloat(a.total_cost_basis || 0);
+          const bGain = parseFloat(b.current_value || 0) - parseFloat(b.total_cost_basis || 0);
+          comparison = aGain - bGain;
+          break;
+        default:
+          comparison = 0;
+      }
+      
+      return detailSortOrder === "asc" ? comparison : -comparison;
+    });
+  };
 
   // Calculate portfolio totals
   const portfolioTotals = useMemo(() => {
@@ -650,61 +695,62 @@ const UnifiedGroupedPositionsTable = ({ initialSort = "value-high", title = "Con
                   )}
                 </div>
 
-                  {/* Additional Details */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4 bg-gray-700/50 p-4 rounded-lg mb-6">
-                    <div>
-                      <div className="text-gray-400 text-xs uppercase tracking-wider">Accounts</div>
-                      <div className="font-medium text-white break-words">{selectedPositionDetail.accountsCount}</div>
-                    </div>
-                    
-                    {selectedPositionDetail.assetType !== 'cash' ? (
-                      <>
-                        <div>
-                          <div className="text-gray-400 text-xs uppercase tracking-wider">Avg Cost Basis / Unit</div>
-                          <div className="font-medium text-white break-words">{formatCurrency(selectedPositionDetail.avgCostBasisPerUnit)}</div>
-                        </div>
-                        <div>
-                          <div className="text-gray-400 text-xs uppercase tracking-wider">Total Cost Basis</div>
-                          <div className="font-medium text-white break-words">{formatCurrency(selectedPositionDetail.totalCostBasis)}</div>
-                        </div>
-                        <div>
-                          <div className="text-gray-400 text-xs uppercase tracking-wider">Current Price Per Unit</div>
-                          <div className="font-medium text-white break-words">{formatCurrency(selectedPositionDetail.currentPricePerUnit)}</div>
-                        </div>
-                      </>
-                    ) : (
-                      <>
-                        <div>
-                          <div className="text-gray-400 text-xs uppercase tracking-wider">Interest Rate</div>
-                          <div className="font-medium text-white break-words">
-                            {selectedPositionDetail.positions[0]?.dividend_rate ? 
-                              `${selectedPositionDetail.positions[0].dividend_rate.toFixed(2)}%` : 'N/A'}
-                          </div>
-                        </div>
-                        <div>
-                          <div className="text-gray-400 text-xs uppercase tracking-wider">Est. Annual Income</div>
-                          <div className="font-medium text-white break-words">{formatCurrency(selectedPositionDetail.estimatedAnnualIncome)}</div>
-                        </div>
-                      </>
-                    )}
-                    
-                    {selectedPositionDetail.estimatedAnnualIncome > 0 && selectedPositionDetail.assetType !== 'cash' && (
-                      <>
-                        <div>
-                          <div className="text-gray-400 text-xs uppercase tracking-wider">Est. Annual Income</div>
-                          <div className="font-medium text-white break-words">{formatCurrency(selectedPositionDetail.estimatedAnnualIncome)}</div>
-                        </div>
-                        <div>
-                          <div className="text-gray-400 text-xs uppercase tracking-wider">Est. Yield</div>
-                          <div className="font-medium text-white break-words">
-                            {selectedPositionDetail.totalValue > 0
-                              ? ((selectedPositionDetail.estimatedAnnualIncome / selectedPositionDetail.totalValue) * 100).toFixed(2) + '%'
-                              : 'N/A'}
-                          </div>
-                        </div>
-                      </>
-                    )}
+                {/* Additional Details */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4 bg-gray-700/50 p-4 rounded-lg mb-6">
+                  <div>
+                    <div className="text-gray-400 text-xs uppercase tracking-wider">Accounts</div>
+                    <div className="font-medium text-white break-words">{selectedPositionDetail.accountsCount}</div>
                   </div>
+                  
+                  {selectedPositionDetail.assetType !== 'cash' ? (
+                    <>
+                      <div>
+                        <div className="text-gray-400 text-xs uppercase tracking-wider">Avg Cost Basis / Unit</div>
+                        <div className="font-medium text-white break-words">{formatCurrency(selectedPositionDetail.avgCostBasisPerUnit)}</div>
+                      </div>
+                      <div>
+                        <div className="text-gray-400 text-xs uppercase tracking-wider">Total Cost Basis</div>
+                        <div className="font-medium text-white break-words">{formatCurrency(selectedPositionDetail.totalCostBasis)}</div>
+                      </div>
+                      <div>
+                        <div className="text-gray-400 text-xs uppercase tracking-wider">Current Price Per Unit</div>
+                        <div className="font-medium text-white break-words">{formatCurrency(selectedPositionDetail.currentPricePerUnit)}</div>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div>
+                        <div className="text-gray-400 text-xs uppercase tracking-wider">Average Interest Rate</div>
+                        <div className="font-medium text-white break-words">
+                        {selectedPositionDetail.totalValue > 0 && selectedPositionDetail.estimatedAnnualIncome > 0
+                          ? ((selectedPositionDetail.estimatedAnnualIncome / selectedPositionDetail.totalValue) * 100).toFixed(2) + '%'
+                          : 'N/A'}
+                        </div>
+                      </div>
+                      <div>
+                        <div className="text-gray-400 text-xs uppercase tracking-wider">Est. Annual Income</div>
+                        <div className="font-medium text-white break-words">{formatCurrency(selectedPositionDetail.estimatedAnnualIncome)}</div>
+                      </div>
+                    </>
+                  )}
+                  
+                  {selectedPositionDetail.estimatedAnnualIncome > 0 && selectedPositionDetail.assetType !== 'cash' && (
+                    <>
+                      <div>
+                        <div className="text-gray-400 text-xs uppercase tracking-wider">Est. Annual Income</div>
+                        <div className="font-medium text-white break-words">{formatCurrency(selectedPositionDetail.estimatedAnnualIncome)}</div>
+                      </div>
+                      <div>
+                        <div className="text-gray-400 text-xs uppercase tracking-wider">Est. Yield</div>
+                        <div className="font-medium text-white break-words">
+                          {selectedPositionDetail.totalValue > 0
+                            ? ((selectedPositionDetail.estimatedAnnualIncome / selectedPositionDetail.totalValue) * 100).toFixed(2) + '%'
+                            : 'N/A'}
+                        </div>
+                      </div>
+                    </>
+                  )}
+                </div>
 
                 {/* Individual Positions */}
                 <div>
@@ -713,25 +759,84 @@ const UnifiedGroupedPositionsTable = ({ initialSort = "value-high", title = "Con
                     <table className="min-w-full divide-y divide-gray-600">
                       <thead className="bg-gray-800">
                         <tr>
-                          <th scope="col" className="px-3 py-2 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Account</th>
+                          <th 
+                            scope="col" 
+                            className="px-3 py-2 text-left text-xs font-medium text-gray-400 uppercase tracking-wider cursor-pointer hover:bg-gray-700"
+                            onClick={() => handleDetailSortChange("account")}
+                          >
+                            Account
+                            {detailSortOption === "account" && (
+                              <span className="ml-1">{detailSortOrder === "asc" ? "↑" : "↓"}</span>
+                            )}
+                          </th>
                           {selectedPositionDetail.assetType !== 'cash' && (
-                            <th scope="col" className="px-3 py-2 text-right text-xs font-medium text-gray-400 uppercase tracking-wider">Quantity</th>
+                            <th 
+                              scope="col" 
+                              className="px-3 py-2 text-right text-xs font-medium text-gray-400 uppercase tracking-wider cursor-pointer hover:bg-gray-700"
+                              onClick={() => handleDetailSortChange("quantity")}
+                            >
+                              Quantity
+                              {detailSortOption === "quantity" && (
+                                <span className="ml-1">{detailSortOrder === "asc" ? "↑" : "↓"}</span>
+                              )}
+                            </th>
                           )}
                           {selectedPositionDetail.assetType !== 'cash' && (
-                            <th scope="col" className="px-3 py-2 text-right text-xs font-medium text-gray-400 uppercase tracking-wider">Cost/Unit</th>
+                            <th 
+                              scope="col" 
+                              className="px-3 py-2 text-right text-xs font-medium text-gray-400 uppercase tracking-wider cursor-pointer hover:bg-gray-700"
+                              onClick={() => handleDetailSortChange("cost")}
+                            >
+                              Cost/Unit
+                              {detailSortOption === "cost" && (
+                                <span className="ml-1">{detailSortOrder === "asc" ? "↑" : "↓"}</span>
+                              )}
+                            </th>
                           )}
-                          <th scope="col" className="px-3 py-2 text-right text-xs font-medium text-gray-400 uppercase tracking-wider">Value</th>
+                          <th 
+                            scope="col" 
+                            className="px-3 py-2 text-right text-xs font-medium text-gray-400 uppercase tracking-wider cursor-pointer hover:bg-gray-700"
+                            onClick={() => handleDetailSortChange("value")}
+                          >
+                            Value
+                            {detailSortOption === "value" && (
+                              <span className="ml-1">{detailSortOrder === "asc" ? "↑" : "↓"}</span>
+                            )}
+                          </th>
                           {selectedPositionDetail.assetType !== 'cash' && (
-                            <th scope="col" className="px-3 py-2 text-right text-xs font-medium text-gray-400 uppercase tracking-wider">Gain/Loss</th>
+                            <th 
+                              scope="col" 
+                              className="px-3 py-2 text-right text-xs font-medium text-gray-400 uppercase tracking-wider cursor-pointer hover:bg-gray-700"
+                              onClick={() => handleDetailSortChange("gain")}
+                            >
+                              Gain/Loss
+                              {detailSortOption === "gain" && (
+                                <span className="ml-1">{detailSortOrder === "asc" ? "↑" : "↓"}</span>
+                              )}
+                            </th>
                           )}
+                        {selectedPositionDetail.assetType === 'cash' && (
+                          <td className="px-3 py-2 whitespace-nowrap text-sm text-right">
+                            {position.dividend_rate ? `${position.dividend_rate.toFixed(2)}%` : 'N/A'}
+                          </td>
+                        )}
+
+                        {selectedPositionDetail.assetType === 'cash' && (
+                          <td className="px-3 py-2 whitespace-nowrap text-sm text-right">
+                            {formatCurrency(position.current_value * (position.dividend_rate / 100))}
+                          </td>
+                        )}
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-600">
-                        {selectedPositionDetail.positions.map((position) => {
+                        {getSortedDetailPositions().map((position) => {
                           const positionCostBasis = parseFloat(position.total_cost_basis || 0);
                           const positionValue = parseFloat(position.current_value || 0);
                           const positionGainLoss = positionValue - positionCostBasis;
                           const positionGainLossPercent = positionCostBasis > 0 ? (positionGainLoss / positionCostBasis) * 100 : 0;
+                          const annualIncome = selectedPositionDetail.assetType === 'cash' && position.dividend_rate 
+                            ? (positionValue * (position.dividend_rate / 100)) 
+                            : 0;
                           
                           return (
                             <tr key={position.id} className="hover:bg-gray-600/50">
@@ -745,7 +850,7 @@ const UnifiedGroupedPositionsTable = ({ initialSort = "value-high", title = "Con
                               
                               {selectedPositionDetail.assetType !== 'cash' && (
                                 <td className="px-3 py-2 whitespace-nowrap text-sm text-right">
-                                  {formatCurrency(position.current_price_per_unit || 0)}
+                                  {formatCurrency(position.cost_basis || position.current_price_per_unit || 0)}
                                 </td>
                               )}
                               
@@ -763,13 +868,72 @@ const UnifiedGroupedPositionsTable = ({ initialSort = "value-high", title = "Con
                                   </div>
                                 </td>
                               )}
+                              
+                              {selectedPositionDetail.assetType === 'cash' && (
+                                <td className="px-3 py-2 whitespace-nowrap text-sm text-right">
+                                  {position.dividend_rate ? `${position.dividend_rate.toFixed(2)}%` : 'N/A'}
+                                </td>
+                              )}
+                              
+                              {selectedPositionDetail.assetType === 'cash' && (
+                                <td className="px-3 py-2 whitespace-nowrap text-sm text-right">
+                                  {formatCurrency(annualIncome)}
+                                </td>
+                              )}
                             </tr>
                           );
                         })}
+                        
+                        {/* Total Row */}
+                        <tr className="bg-gray-600/80 font-medium">
+                          <td className="px-3 py-2 whitespace-nowrap text-sm">Total</td>
+                          
+                          {selectedPositionDetail.assetType !== 'cash' && (
+                            <td className="px-3 py-2 whitespace-nowrap text-sm text-right">
+                              {formatNumber(selectedPositionDetail.totalQuantity, { maximumFractionDigits: 4 })}
+                            </td>
+                          )}
+                          
+                          {selectedPositionDetail.assetType !== 'cash' && (
+                            <td className="px-3 py-2 whitespace-nowrap text-sm text-right">
+                              {/* Leave blank for average cost */}
+                            </td>
+                          )}
+                          
+                          <td className="px-3 py-2 whitespace-nowrap text-sm text-right font-medium">
+                            {formatCurrency(selectedPositionDetail.totalValue)}
+                          </td>
+                          
+                          {selectedPositionDetail.assetType !== 'cash' && (
+                            <td className="px-3 py-2 whitespace-nowrap text-sm text-right">
+                              <div className={`font-medium ${selectedPositionDetail.totalGainLoss >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                {selectedPositionDetail.totalGainLoss >= 0 ? '+' : ''}{formatCurrency(selectedPositionDetail.totalGainLoss)}
+                                <div className="text-xs">
+                                  ({selectedPositionDetail.totalGainLoss >= 0 ? '+' : ''}{selectedPositionDetail.totalGainLossPercent.toFixed(2)}%)
+                                </div>
+                              </div>
+                            </td>
+                          )}
+                          
+                          {selectedPositionDetail.assetType === 'cash' && (
+                            <td className="px-3 py-2 whitespace-nowrap text-sm text-right">
+                              {/* Leave blank for average rate */}
+                            </td>
+                          )}
+                          
+                          {selectedPositionDetail.assetType === 'cash' && (
+                            <td className="px-3 py-2 whitespace-nowrap text-sm text-right font-medium">
+                              {formatCurrency(selectedPositionDetail.estimatedAnnualIncome)}
+                            </td>
+                          )}
+                        </tr>
                       </tbody>
                     </table>
                   </div>
                 </div>
+
+
+
               </div>
 
               {/* Footer */}
