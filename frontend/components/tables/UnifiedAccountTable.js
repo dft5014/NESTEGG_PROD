@@ -3,7 +3,9 @@ import React, { useState, useEffect, useMemo } from 'react';
 import ReactDOM from 'react-dom';
 
 // Data fetching and utils
-import { fetchAccountsWithDetails, deleteAccount } from '@/utils/apimethods/accountMethods';
+// Replace fetchAccountsWithDetails with fetchUnifiedPositions
+import { deleteAccount } from '@/utils/apimethods/accountMethods';
+import { fetchUnifiedPositions } from '@/utils/apimethods/positionMethods';
 import { formatCurrency, formatDate, formatPercentage } from '@/utils/formatters';
 import { popularBrokerages } from '@/utils/constants';
 
@@ -80,15 +82,68 @@ const AccountTable = ({
     const [sortOption, setSortOption] = useState(initialSort);
     const [searchQuery, setSearchQuery] = useState("");
 
-    // --- Data Fetching ---
+    // --- Data Fetching with unified positions ---
     const fetchData = async () => {
         console.log("AccountTable: fetchData START");
         setIsLoading(true);
         setError(null);
         try {
-            const fetchedAccounts = await fetchAccountsWithDetails();
-            console.log("AccountTable: fetchData SUCCESS");
-            setAccounts(fetchedAccounts || []);
+            // Fetch all unified positions
+            const allPositions = await fetchUnifiedPositions();
+            console.log("AccountTable: fetchUnifiedPositions SUCCESS");
+            
+            // Group by account_id to create account objects
+            const accountsMap = {};
+            
+            allPositions.forEach(position => {
+                const accountId = position.account_id;
+                
+                // Initialize account object if it doesn't exist
+                if (!accountsMap[accountId]) {
+                    accountsMap[accountId] = {
+                        id: accountId,
+                        account_name: position.account_name,
+                        institution: position.institution || "Unknown",
+                        type: position.account_type || "Unknown",
+                        total_value: 0,
+                        total_cost_basis: 0,
+                        total_gain_loss: 0,
+                        positions_count: 0,
+                        cash_balance: 0
+                    };
+                }
+                
+                // Add position to count
+                accountsMap[accountId].positions_count++;
+                
+                // Add position values to account totals
+                const currentValue = parseFloat(position.current_value || 0);
+                const costBasis = parseFloat(position.total_cost_basis || 0);
+                
+                accountsMap[accountId].total_value += currentValue;
+                accountsMap[accountId].total_cost_basis += costBasis;
+                accountsMap[accountId].total_gain_loss += (currentValue - costBasis);
+                
+                // Track cash balance separately
+                if (position.asset_type === 'cash') {
+                    accountsMap[accountId].cash_balance += currentValue;
+                }
+            });
+            
+            // Convert map to array and calculate percentages
+            const accountsArray = Object.values(accountsMap).map(account => {
+                const gainLossPercent = account.total_cost_basis > 0 
+                    ? (account.total_gain_loss / account.total_cost_basis) * 100 
+                    : 0;
+                    
+                return {
+                    ...account,
+                    total_gain_loss_percent: gainLossPercent
+                };
+            });
+            
+            console.log("AccountTable: Account data processed, found:", accountsArray.length);
+            setAccounts(accountsArray || []);
         } catch (err) {
             console.error("AccountTable: fetchData CATCH", err);
             setError(err.message || "Failed to load account data.");
@@ -172,7 +227,12 @@ const AccountTable = ({
     }, [accounts, sortOption, searchQuery]);
 
     // --- Modal Trigger Handlers ---
-    const handleRowClick = (account) => { setSelectedAccountDetail(account); setIsDetailModalOpen(true); };
+    const handleRowClick = (account) => { 
+        // When clicking a row, fetch unified positions for this account to populate the detail modal
+        setSelectedAccountDetail(account); 
+        setIsDetailModalOpen(true); 
+    };
+    
     const handleCloseDetailModal = () => setIsDetailModalOpen(false);
 
     // --- Delete Handlers ---
@@ -194,6 +254,8 @@ const AccountTable = ({
             handleCloseDeleteModal();
             setSuccessMessage(`Account "${deletedName}" deleted successfully!`);
             setTimeout(() => setSuccessMessage(""), 3000);
+            // Refresh data after delete
+            fetchData();
             onDataChanged();
         } catch (err) {
             console.error("AccountTable: Delete failed:", err);
@@ -215,6 +277,8 @@ const AccountTable = ({
         if (didSave) {
             setSuccessMessage(`Account "${accountName}" updated successfully!`);
             setTimeout(() => setSuccessMessage(""), 3000);
+            // Refresh data after edit
+            fetchData();
             onDataChanged();
         }
     };
@@ -232,6 +296,8 @@ const AccountTable = ({
         if (didSave) {
             setSuccessMessage(`Position added to "${accountName}" successfully!`);
             setTimeout(() => setSuccessMessage(""), 3000);
+            // Refresh data after position add
+            fetchData();
             onDataChanged();
         }
     };
@@ -289,7 +355,10 @@ const AccountTable = ({
                             <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none"><svg className="h-4 w-4 text-gray-400" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" /></svg></div>
                         </div>
                         {/* Add Account Button (Triggers parent refresh) */}
-                        <AddAccountButton className="bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded-lg text-sm" onAccountAdded={onDataChanged} />
+                        <AddAccountButton className="bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded-lg text-sm" onAccountAdded={() => {
+                            fetchData();
+                            onDataChanged();
+                        }} />
                     </div>
                 </div>
 
@@ -427,12 +496,18 @@ const AccountTable = ({
                                                         accountId={account.id}
                                                         className="p-1.5 bg-green-600/20 text-green-400 rounded-full hover:bg-green-600/40"
                                                         buttonContent={<Plus className="h-4 w-4" />}
-                                                        onPositionAdded={() => onDataChanged()}
+                                                        onPositionAdded={() => {
+                                                            fetchData();
+                                                            onDataChanged();
+                                                        }}
                                                     />
                                                     <EditAccountButton 
                                                         account={account}
                                                         className="p-1.5 bg-purple-600/20 text-purple-400 rounded-full hover:bg-purple-600/40" 
-                                                        onAccountEdited={() => onDataChanged()}
+                                                        onAccountEdited={() => {
+                                                            fetchData();
+                                                            onDataChanged();
+                                                        }}
                                                     />
                                                     <button 
                                                         onClick={(e) => { e.stopPropagation(); handleDeleteClick(account); }} 
