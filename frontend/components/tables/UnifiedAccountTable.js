@@ -3,8 +3,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import ReactDOM from 'react-dom';
 
 // Data fetching and utils
-// Replace fetchAccountsWithDetails with fetchUnifiedPositions
-import { deleteAccount } from '@/utils/apimethods/accountMethods';
+import { fetchAllAccounts, deleteAccount } from '@/utils/apimethods/accountMethods';
 import { fetchUnifiedPositions } from '@/utils/apimethods/positionMethods';
 import { formatCurrency, formatDate, formatPercentage } from '@/utils/formatters';
 import { popularBrokerages } from '@/utils/constants';
@@ -82,29 +81,30 @@ const AccountTable = ({
     const [sortOption, setSortOption] = useState(initialSort);
     const [searchQuery, setSearchQuery] = useState("");
 
-    // --- Data Fetching with unified positions ---
+    // --- Data Fetching with a simpler approach ---
     const fetchData = async () => {
         console.log("AccountTable: fetchData START");
         setIsLoading(true);
         setError(null);
         try {
-            // Fetch all unified positions
-            const allPositions = await fetchUnifiedPositions();
-            console.log("AccountTable: fetchUnifiedPositions SUCCESS");
+            // Step 1: Fetch all accounts (simple extract)
+            const allAccounts = await fetchAllAccounts();
+            console.log("AccountTable: fetchAllAccounts SUCCESS, count:", allAccounts.length);
             
-            // Group by account_id to create account objects
-            const accountsMap = {};
+            // Step 2: Fetch all unified positions
+            const allPositions = await fetchUnifiedPositions();
+            console.log("AccountTable: fetchUnifiedPositions SUCCESS, count:", allPositions.length);
+            
+            // Step 3: Group positions by account_id
+            const positionsByAccount = {};
             
             allPositions.forEach(position => {
                 const accountId = position.account_id;
+                if (!accountId) return; // Skip positions without account_id
                 
-                // Initialize account object if it doesn't exist
-                if (!accountsMap[accountId]) {
-                    accountsMap[accountId] = {
-                        id: accountId,
-                        account_name: position.account_name,
-                        institution: position.institution || "Unknown",
-                        type: position.account_type || "Unknown",
+                if (!positionsByAccount[accountId]) {
+                    positionsByAccount[accountId] = {
+                        positions: [],
                         total_value: 0,
                         total_cost_basis: 0,
                         total_gain_loss: 0,
@@ -113,37 +113,58 @@ const AccountTable = ({
                     };
                 }
                 
-                // Add position to count
-                accountsMap[accountId].positions_count++;
+                // Add position to array
+                positionsByAccount[accountId].positions.push(position);
                 
-                // Add position values to account totals
+                // Update metrics
+                positionsByAccount[accountId].positions_count++;
+                
+                // Safely parse numeric values
                 const currentValue = parseFloat(position.current_value || 0);
                 const costBasis = parseFloat(position.total_cost_basis || 0);
                 
-                accountsMap[accountId].total_value += currentValue;
-                accountsMap[accountId].total_cost_basis += costBasis;
-                accountsMap[accountId].total_gain_loss += (currentValue - costBasis);
+                positionsByAccount[accountId].total_value += currentValue;
+                positionsByAccount[accountId].total_cost_basis += costBasis;
+                positionsByAccount[accountId].total_gain_loss += (currentValue - costBasis);
                 
                 // Track cash balance separately
                 if (position.asset_type === 'cash') {
-                    accountsMap[accountId].cash_balance += currentValue;
+                    positionsByAccount[accountId].cash_balance += currentValue;
                 }
             });
             
-            // Convert map to array and calculate percentages
-            const accountsArray = Object.values(accountsMap).map(account => {
-                const gainLossPercent = account.total_cost_basis > 0 
-                    ? (account.total_gain_loss / account.total_cost_basis) * 100 
+            // Step 4: Merge account data with position data
+            const enrichedAccounts = allAccounts.map(account => {
+                // Get position data for this account (if any)
+                const positionData = positionsByAccount[account.id] || {
+                    positions: [],
+                    total_value: 0,
+                    total_cost_basis: 0,
+                    total_gain_loss: 0,
+                    positions_count: 0,
+                    cash_balance: account.cash_balance || 0
+                };
+                
+                // Calculate gain/loss percent
+                const gainLossPercent = positionData.total_cost_basis > 0 
+                    ? (positionData.total_gain_loss / positionData.total_cost_basis) * 100 
                     : 0;
-                    
+                
+                // Return enhanced account
                 return {
                     ...account,
-                    total_gain_loss_percent: gainLossPercent
+                    positions: positionData.positions,
+                    total_value: positionData.total_value,
+                    total_cost_basis: positionData.total_cost_basis,
+                    total_gain_loss: positionData.total_gain_loss,
+                    total_gain_loss_percent: gainLossPercent,
+                    positions_count: positionData.positions_count,
+                    cash_balance: positionData.cash_balance || account.cash_balance || 0
                 };
             });
             
-            console.log("AccountTable: Account data processed, found:", accountsArray.length);
-            setAccounts(accountsArray || []);
+            console.log("AccountTable: Data processing complete, enriched accounts:", enrichedAccounts.length);
+            setAccounts(enrichedAccounts || []);
         } catch (err) {
             console.error("AccountTable: fetchData CATCH", err);
             setError(err.message || "Failed to load account data.");
@@ -228,7 +249,6 @@ const AccountTable = ({
 
     // --- Modal Trigger Handlers ---
     const handleRowClick = (account) => { 
-        // When clicking a row, fetch unified positions for this account to populate the detail modal
         setSelectedAccountDetail(account); 
         setIsDetailModalOpen(true); 
     };

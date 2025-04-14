@@ -245,3 +245,24 @@ export const fetchAccountsWithAllPositions = async (assetType = null, accountId 
     throw error;
   }
 };
+
+/**
+ * Simple function to fetch all accounts for the current user
+ * @returns {Promise<Array>} - Promise resolving to array of account objects
+ */
+export const fetchAllAccounts = async () => {
+  try {
+    const response = await fetchWithAuth('/accounts');
+    
+    if (!response.ok) {
+      const errorData = await response.text();
+      throw new Error(errorData || 'Failed to fetch accounts');
+    }
+    
+    const data = await response.json();
+    return data.accounts || [];
+  } catch (error) {
+    console.error('Error fetching all accounts:', error);
+    throw error;
+  }
+};
