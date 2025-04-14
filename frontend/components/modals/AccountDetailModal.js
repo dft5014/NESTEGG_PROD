@@ -12,10 +12,98 @@ import EditAccountButton from '@/components/EditAccountButton';
 
 // Tax Lot Detail Modal Component - Updated for unified data model
 const TaxLotDetailModal = ({ isOpen, onClose, ticker, positions, onEditTaxLot, onDeleteTaxLot }) => {
+    const [sortField, setSortField] = useState('purchase_date');
+    const [sortDirection, setSortDirection] = useState('desc');
+
+    // Handle sorting
+    const handleSort = (field) => {
+        if (sortField === field) {
+            setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+        } else {
+            setSortField(field);
+            setSortDirection('desc');
+        }
+    };
+
+    // Get sort icon
+    const getSortIcon = (field) => {
+        if (sortField !== field) return null;
+        return sortDirection === 'asc' ? 
+            <ChevronUp className="w-3 h-3 ml-1 inline-block" /> : 
+            <ChevronDown className="w-3 h-3 ml-1 inline-block" />;
+    };
+
+    // Sort positions
+    const sortedPositions = useMemo(() => {
+        if (!positions || !positions.length) return [];
+        
+        return [...positions].sort((a, b) => {
+            let comparison = 0;
+            
+            switch (sortField) {
+                case 'purchase_date':
+                    // Convert dates to timestamps for comparison
+                    const dateA = new Date(a.purchase_date || 0).getTime();
+                    const dateB = new Date(b.purchase_date || 0).getTime();
+                    comparison = dateA - dateB;
+                    break;
+                case 'shares':
+                    comparison = parseFloat(a.quantity || 0) - parseFloat(b.quantity || 0);
+                    break;
+                case 'cost_basis':
+                    comparison = parseFloat(a.cost_basis || 0) - parseFloat(b.cost_basis || 0);
+                    break;
+                case 'total_cost':
+                    comparison = parseFloat(a.total_cost_basis || 0) - parseFloat(b.total_cost_basis || 0);
+                    break;
+                case 'current_value':
+                    comparison = parseFloat(a.current_value || 0) - parseFloat(b.current_value || 0);
+                    break;
+                case 'gain_loss':
+                    const gainLossA = parseFloat(a.current_value || 0) - parseFloat(a.total_cost_basis || 0);
+                    const gainLossB = parseFloat(b.current_value || 0) - parseFloat(b.total_cost_basis || 0);
+                    comparison = gainLossA - gainLossB;
+                    break;
+                default:
+                    comparison = 0;
+            }
+            
+            return sortDirection === 'asc' ? comparison : -comparison;
+        });
+    }, [positions, sortField, sortDirection]);
+
+    // Calculate totals
+    const totals = useMemo(() => {
+        if (!positions || !positions.length) return {
+            totalShares: 0,
+            totalCostBasis: 0,
+            totalCurrentValue: 0,
+            totalGainLoss: 0
+        };
+        
+        return positions.reduce((acc, position) => {
+            acc.totalShares += parseFloat(position.quantity || 0);
+            acc.totalCostBasis += parseFloat(position.total_cost_basis || 0);
+            acc.totalCurrentValue += parseFloat(position.current_value || 0);
+            acc.totalGainLoss += parseFloat(position.current_value || 0) - parseFloat(position.total_cost_basis || 0);
+            return acc;
+        }, {
+            totalShares: 0,
+            totalCostBasis: 0,
+            totalCurrentValue: 0,
+            totalGainLoss: 0
+        });
+    }, [positions]);
+
+    // Calculate gain/loss percent for totals
+    const totalGainLossPercent = totals.totalCostBasis > 0 
+        ? (totals.totalGainLoss / totals.totalCostBasis) * 100
+        : 0;
+
     if (!isOpen || !positions) return null; // Simplified guard
 
     return (
-        <div className="fixed inset-0 z-[200] overflow-y-auto bg-black/70 backdrop-blur-sm flex items-center justify-center">
+        <div className="fixed inset-0 z-[300] overflow-y-auto bg-black/70 backdrop-blur-sm flex items-center justify-center">
             <div className="bg-[#1e293b] text-white rounded-xl w-full max-w-3xl overflow-hidden shadow-2xl m-4">
                 {/* Header */}
                 <div className="p-4 bg-gradient-to-r from-blue-900 to-blue-800 border-b border-blue-700">
@@ -36,24 +124,54 @@ const TaxLotDetailModal = ({ isOpen, onClose, ticker, positions, onEditTaxLot, o
                     <table className="min-w-full divide-y divide-gray-700">
                         <thead className="bg-gray-900/60 sticky top-0 z-10"> {/* Added sticky header */}
                             <tr>
-                                <th className="px-3 py-2 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Purchase Date</th>
-                                <th className="px-3 py-2 text-right text-xs font-medium text-gray-400 uppercase tracking-wider">Shares</th>
-                                <th className="px-3 py-2 text-right text-xs font-medium text-gray-400 uppercase tracking-wider">Cost/Share</th>
-                                <th className="px-3 py-2 text-right text-xs font-medium text-gray-400 uppercase tracking-wider">Total Cost</th>
-                                <th className="px-3 py-2 text-right text-xs font-medium text-gray-400 uppercase tracking-wider">Current Value</th>
-                                <th className="px-3 py-2 text-right text-xs font-medium text-gray-400 uppercase tracking-wider">Gain/Loss</th>
+                                <th 
+                                    className="px-3 py-2 text-left text-xs font-medium text-gray-400 uppercase tracking-wider cursor-pointer hover:text-white"
+                                    onClick={() => handleSort('purchase_date')}
+                                >
+                                    Purchase Date {getSortIcon('purchase_date')}
+                                </th>
+                                <th 
+                                    className="px-3 py-2 text-right text-xs font-medium text-gray-400 uppercase tracking-wider cursor-pointer hover:text-white"
+                                    onClick={() => handleSort('shares')}
+                                >
+                                    Quantity {getSortIcon('shares')}
+                                </th>
+                                <th 
+                                    className="px-3 py-2 text-right text-xs font-medium text-gray-400 uppercase tracking-wider cursor-pointer hover:text-white"
+                                    onClick={() => handleSort('cost_basis')}
+                                >
+                                    Cost/Unit {getSortIcon('cost_basis')}
+                                </th>
+                                <th 
+                                    className="px-3 py-2 text-right text-xs font-medium text-gray-400 uppercase tracking-wider cursor-pointer hover:text-white"
+                                    onClick={() => handleSort('total_cost')}
+                                >
+                                    Total Cost {getSortIcon('total_cost')}
+                                </th>
+                                <th 
+                                    className="px-3 py-2 text-right text-xs font-medium text-gray-400 uppercase tracking-wider cursor-pointer hover:text-white"
+                                    onClick={() => handleSort('current_value')}
+                                >
+                                    Current Value {getSortIcon('current_value')}
+                                </th>
+                                <th 
+                                    className="px-3 py-2 text-right text-xs font-medium text-gray-400 uppercase tracking-wider cursor-pointer hover:text-white"
+                                    onClick={() => handleSort('gain_loss')}
+                                >
+                                    Gain/Loss {getSortIcon('gain_loss')}
+                                </th>
                                 <th className="px-3 py-2 text-center text-xs font-medium text-gray-400 uppercase tracking-wider">Actions</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-700">
-                            {positions && positions.length > 0 ? positions.map((position, index) => {
+                            {sortedPositions && sortedPositions.length > 0 ? sortedPositions.map((position, index) => {
                                 // Ensure robust parsing and defaults - Updated for unified model
                                 const shares = parseFloat(position.quantity || 0);
                                 const costPerShare = parseFloat(position.cost_basis || 0);
                                 const totalCost = parseFloat(position.total_cost_basis || 0);
                                 const currentValue = parseFloat(position.current_value || 0);
                                 const gainLoss = currentValue - totalCost;
-                                const gainLossPercent = totalCost > 0 ? (gainLoss / totalCost) : 0; // Avoid division by zero
+                                const gainLossPercent = totalCost > 0 ? (gainLoss / totalCost) * 100 : 0; // Avoid division by zero
 
                                 return (
                                     <tr key={`lot-${position.id || index}`} className="hover:bg-gray-700/40">
@@ -84,7 +202,10 @@ const TaxLotDetailModal = ({ isOpen, onClose, ticker, positions, onEditTaxLot, o
                                             <div className="flex items-center justify-center space-x-1">
                                                 {/* --- EDIT BUTTON --- */}
                                                 <button
-                                                    onClick={() => onEditTaxLot(position)} // Call handler with position data
+                                                    onClick={(e) => {
+                                                        e.stopPropagation(); // Prevent event bubbling
+                                                        onEditTaxLot(position);
+                                                    }}
                                                     className="p-1 bg-purple-600/20 text-purple-400 rounded hover:bg-purple-600/40 transition-colors text-xs"
                                                     title="Edit Tax Lot"
                                                 >
@@ -92,7 +213,10 @@ const TaxLotDetailModal = ({ isOpen, onClose, ticker, positions, onEditTaxLot, o
                                                 </button>
                                                 {/* --- DELETE BUTTON --- */}
                                                 <button
-                                                    onClick={() => onDeleteTaxLot(position)} // Call handler with position data
+                                                    onClick={(e) => {
+                                                        e.stopPropagation(); // Prevent event bubbling
+                                                        onDeleteTaxLot(position);
+                                                    }}
                                                     className="p-1 bg-red-600/20 text-red-400 rounded hover:bg-red-600/40 transition-colors text-xs"
                                                     title="Delete Tax Lot"
                                                 >
@@ -106,6 +230,36 @@ const TaxLotDetailModal = ({ isOpen, onClose, ticker, positions, onEditTaxLot, o
                                 <tr>
                                     <td colSpan="7" className="text-center py-4 text-gray-400">
                                         No individual tax lots found for this ticker/asset type.
+                                    </td>
+                                </tr>
+                            )}
+                            
+                            {/* Totals row */}
+                            {sortedPositions && sortedPositions.length > 0 && (
+                                <tr className="bg-gray-800/50 font-medium">
+                                    <td className="px-3 py-2 whitespace-nowrap text-sm font-semibold">TOTAL</td>
+                                    <td className="px-3 py-2 text-right whitespace-nowrap text-sm font-semibold">
+                                        {formatNumber(totals.totalShares, { maximumFractionDigits: 6 })}
+                                    </td>
+                                    <td className="px-3 py-2 text-right whitespace-nowrap text-sm">
+                                        {/* Average cost per share not displayed in totals */}
+                                    </td>
+                                    <td className="px-3 py-2 text-right whitespace-nowrap text-sm font-semibold">
+                                        {formatCurrency(totals.totalCostBasis)}
+                                    </td>
+                                    <td className="px-3 py-2 text-right whitespace-nowrap text-sm font-semibold">
+                                        {formatCurrency(totals.totalCurrentValue)}
+                                    </td>
+                                    <td className="px-3 py-2 text-right whitespace-nowrap font-semibold">
+                                        <div className={`text-sm ${totals.totalGainLoss >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                            {totals.totalGainLoss >= 0 ? '+' : ''}{formatCurrency(totals.totalGainLoss)}
+                                            <span className="text-xs block">
+                                                ({totals.totalGainLoss >= 0 ? '+' : ''}{formatPercentage(totalGainLossPercent)})
+                                            </span>
+                                        </div>
+                                    </td>
+                                    <td className="px-3 py-2 text-center whitespace-nowrap">
+                                        {/* No actions for totals row */}
                                     </td>
                                 </tr>
                             )}
@@ -130,6 +284,57 @@ const TaxLotDetailModal = ({ isOpen, onClose, ticker, positions, onEditTaxLot, o
 // Position Modify Modal Component - Updated for unified data model
 const PositionModifyModal = ({ isOpen, onClose, ticker, positions, onEditSelectedTaxLot, onDeleteSelectedTaxLot }) => {
     const [selectedPositionId, setSelectedPositionId] = useState(null);
+    const [sortField, setSortField] = useState('purchase_date');
+    const [sortDirection, setSortDirection] = useState('desc');
+
+    // Handle sorting
+    const handleSort = (field) => {
+        if (sortField === field) {
+            setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+        } else {
+            setSortField(field);
+            setSortDirection('desc');
+        }
+    };
+
+    // Get sort icon
+    const getSortIcon = (field) => {
+        if (sortField !== field) return null;
+        return sortDirection === 'asc' ? 
+            <ChevronUp className="w-3 h-3 ml-1 inline-block" /> : 
+            <ChevronDown className="w-3 h-3 ml-1 inline-block" />;
+    };
+
+    // Sort positions
+    const sortedPositions = useMemo(() => {
+        if (!positions || !positions.length) return [];
+        
+        return [...positions].sort((a, b) => {
+            let comparison = 0;
+            
+            switch (sortField) {
+                case 'purchase_date':
+                    // Convert dates to timestamps for comparison
+                    const dateA = new Date(a.purchase_date || 0).getTime();
+                    const dateB = new Date(b.purchase_date || 0).getTime();
+                    comparison = dateA - dateB;
+                    break;
+                case 'quantity':
+                    comparison = parseFloat(a.quantity || 0) - parseFloat(b.quantity || 0);
+                    break;
+                case 'cost_basis':
+                    comparison = parseFloat(a.cost_basis || 0) - parseFloat(b.cost_basis || 0);
+                    break;
+                case 'current_value':
+                    comparison = parseFloat(a.current_value || 0) - parseFloat(b.current_value || 0);
+                    break;
+                default:
+                    comparison = 0;
+            }
+            
+            return sortDirection === 'asc' ? comparison : -comparison;
+        });
+    }, [positions, sortField, sortDirection]);
 
     const handleSelectionChange = (event) => {
         setSelectedPositionId(event.target.value);
@@ -150,7 +355,7 @@ const PositionModifyModal = ({ isOpen, onClose, ticker, positions, onEditSelecte
     if (!isOpen || !positions) return null; // Simplified guard
 
     return (
-        <div className="fixed inset-0 z-[200] overflow-y-auto bg-black/70 backdrop-blur-sm flex items-center justify-center">
+        <div className="fixed inset-0 z-[300] overflow-y-auto bg-black/70 backdrop-blur-sm flex items-center justify-center">
             <div className="bg-[#1e293b] text-white rounded-xl w-full max-w-3xl overflow-hidden shadow-2xl m-4">
                 {/* Header */}
                 <div className="p-4 bg-gradient-to-r from-purple-900 to-indigo-800 border-b border-purple-700">
@@ -177,14 +382,34 @@ const PositionModifyModal = ({ isOpen, onClose, ticker, positions, onEditSelecte
                             <thead className="bg-gray-900/60 sticky top-0 z-10"> {/* Added sticky header */}
                                 <tr>
                                     <th className="px-3 py-2 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Select</th>
-                                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Purchase Date</th>
-                                    <th className="px-3 py-2 text-right text-xs font-medium text-gray-400 uppercase tracking-wider">Shares</th>
-                                    <th className="px-3 py-2 text-right text-xs font-medium text-gray-400 uppercase tracking-wider">Cost/Share</th>
-                                    <th className="px-3 py-2 text-right text-xs font-medium text-gray-400 uppercase tracking-wider">Value</th>
+                                    <th 
+                                        className="px-3 py-2 text-left text-xs font-medium text-gray-400 uppercase tracking-wider cursor-pointer hover:text-white"
+                                        onClick={() => handleSort('purchase_date')}
+                                    >
+                                        Purchase Date {getSortIcon('purchase_date')}
+                                    </th>
+                                    <th 
+                                        className="px-3 py-2 text-right text-xs font-medium text-gray-400 uppercase tracking-wider cursor-pointer hover:text-white"
+                                        onClick={() => handleSort('quantity')}
+                                    >
+                                        Quantity {getSortIcon('quantity')}
+                                    </th>
+                                    <th 
+                                        className="px-3 py-2 text-right text-xs font-medium text-gray-400 uppercase tracking-wider cursor-pointer hover:text-white"
+                                        onClick={() => handleSort('cost_basis')}
+                                    >
+                                        Cost/Unit {getSortIcon('cost_basis')}
+                                    </th>
+                                    <th 
+                                        className="px-3 py-2 text-right text-xs font-medium text-gray-400 uppercase tracking-wider cursor-pointer hover:text-white"
+                                        onClick={() => handleSort('current_value')}
+                                    >
+                                        Value {getSortIcon('current_value')}
+                                    </th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-700">
-                                {positions && positions.length > 0 ? positions.map((position, index) => (
+                                {sortedPositions && sortedPositions.length > 0 ? sortedPositions.map((position, index) => (
                                     <tr key={`modify-${position.id || index}`} className="hover:bg-gray-700/40">
                                         <td className="px-3 py-2 whitespace-nowrap">
                                             <input
@@ -433,11 +658,8 @@ const AccountDetailModal = ({
         setIsTaxLotModalOpen(true);
     }, []);
 
-    const handleModifyPositionClick = useCallback((e, positionGroup) => {
-        e.stopPropagation();
-        setSelectedGroupKeyForModify(positionGroup.groupingKey); // Use groupKey
-        setIsModifyModalOpen(true);
-    }, []);
+    // Removed separate modify position click handler as we're consolidating with view
+    // This is used to avoid the modify button in actions since the view button provides the same actions
 
     const handleCloseTaxLotModal = useCallback(() => {
         setIsTaxLotModalOpen(false);
@@ -517,8 +739,8 @@ const AccountDetailModal = ({
     if (!isOpen || !account) return null;
 
     return (
-        // Main Modal Container & Backdrop - z-[100]
-        <div className="fixed inset-0 z-[100] overflow-y-auto bg-black/60 backdrop-blur-sm flex items-center justify-center">
+        // Main Modal Container & Backdrop - z-[250] (increased to fix z-index issues)
+        <div className="fixed inset-0 z-[250] overflow-y-auto bg-black/60 backdrop-blur-sm flex items-center justify-center">
             {/* Modal Dialog */}
             <div className="bg-[#1e293b] text-white rounded-xl w-full max-w-5xl overflow-hidden shadow-2xl m-4 flex flex-col max-h-[90vh]">
 
@@ -603,64 +825,106 @@ const AccountDetailModal = ({
                                 </thead>
                                 <tbody className="divide-y divide-gray-700">
                                     {positionsWithPercentage.length > 0 ? (
-                                        positionsWithPercentage.map((positionGroup, index) => (
-                                            <tr key={`${positionGroup.groupingKey}-${index}`} className="hover:bg-[#172234] transition-colors">
-                                                <td className="px-2 py-2 text-center whitespace-nowrap text-xs text-gray-400">{index + 1}</td>
-                                                {/* --- Updated Display Column --- */}
-                                                <td className="px-3 py-2 whitespace-nowrap">
-                                                    <div className="font-medium text-white flex items-center">
-                                                        {getAssetTypeIcon(positionGroup.assetType)}
-                                                        {positionGroup.identifier}
-                                                    </div>
-                                                    <div className="text-xs text-gray-400 capitalize">
-                                                        {positionGroup.name !== positionGroup.identifier ? positionGroup.name : ''}
-                                                    </div>
-                                                </td>
-                                                {/* --- Rest of the columns --- */}
-                                                <td className="px-3 py-2 text-right whitespace-nowrap text-gray-300">
-                                                    {positionGroup.assetType?.toLowerCase() === 'cash' ? 
-                                                      '' : 
-                                                      formatNumber(positionGroup.totalShares, { maximumFractionDigits: 6 })}
-                                                </td>
-                                                <td className="px-3 py-2 text-right whitespace-nowrap text-gray-300">
-                                                    {positionGroup.assetType?.toLowerCase() === 'cash' ? 
-                                                      '' : 
-                                                      formatCurrency(positionGroup.currentPrice)}
-                                                </td>
-                                                <td className="px-3 py-2 text-right whitespace-nowrap font-medium text-white">{formatCurrency(positionGroup.totalValue)}</td>
-                                                <td className="px-3 py-2 text-right whitespace-nowrap text-gray-300">{formatPercentage(positionGroup.accountPercentage)}</td>
-                                                <td className="px-3 py-2 text-right whitespace-nowrap text-gray-300">
-                                                    {positionGroup.assetType?.toLowerCase() === 'cash' ? 
-                                                      '' : 
-                                                      formatCurrency(positionGroup.avgCostPerShare)}
-                                                </td>
-                                                <td className="px-3 py-2 text-right whitespace-nowrap text-gray-300">{formatCurrency(positionGroup.totalCostBasis)}</td>
-                                                <td className="px-3 py-2 text-right whitespace-nowrap">
-                                                    {positionGroup.assetType?.toLowerCase() === 'cash' ? (
-                                                        <div className="text-gray-500">N/A</div>
-                                                    ) : (
-                                                        <div>
-                                                            <div className={`font-medium ${positionGroup.gainLoss >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                                                                {positionGroup.gainLoss >= 0 ? '+' : ''}{formatCurrency(positionGroup.gainLoss)}
-                                                            </div>
-                                                            <div className={`text-[11px] ${positionGroup.gainLoss >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                                                                ({positionGroup.gainLoss >= 0 ? '+' : ''}{formatPercentage(positionGroup.gainLossPercent)})
-                                                            </div>
+                                        <>
+                                            {/* Map through positions */}
+                                            {positionsWithPercentage.map((positionGroup, index) => (
+                                                <tr key={`${positionGroup.groupingKey}-${index}`} className="hover:bg-[#172234] transition-colors">
+                                                    <td className="px-2 py-2 text-center whitespace-nowrap text-xs text-gray-400">{index + 1}</td>
+                                                    {/* --- Updated Display Column --- */}
+                                                    <td className="px-3 py-2 whitespace-nowrap">
+                                                        <div className="font-medium text-white flex items-center">
+                                                            {getAssetTypeIcon(positionGroup.assetType)}
+                                                            {positionGroup.identifier}
                                                         </div>
-                                                    )}
+                                                        <div className="text-xs text-gray-400 capitalize">
+                                                            {positionGroup.name !== positionGroup.identifier ? positionGroup.name : ''}
+                                                        </div>
+                                                    </td>
+                                                    {/* --- Rest of the columns --- */}
+                                                    <td className="px-3 py-2 text-right whitespace-nowrap text-gray-300">
+                                                        {positionGroup.assetType?.toLowerCase() === 'cash' ? 
+                                                        '' : 
+                                                        formatNumber(positionGroup.totalShares, { maximumFractionDigits: 6 })}
+                                                    </td>
+                                                    <td className="px-3 py-2 text-right whitespace-nowrap text-gray-300">
+                                                        {positionGroup.assetType?.toLowerCase() === 'cash' ? 
+                                                        '' : 
+                                                        formatCurrency(positionGroup.currentPrice)}
+                                                    </td>
+                                                    <td className="px-3 py-2 text-right whitespace-nowrap font-medium text-white">{formatCurrency(positionGroup.totalValue)}</td>
+                                                    <td className="px-3 py-2 text-right whitespace-nowrap text-gray-300">{formatPercentage(positionGroup.accountPercentage)}</td>
+                                                    <td className="px-3 py-2 text-right whitespace-nowrap text-gray-300">
+                                                        {positionGroup.assetType?.toLowerCase() === 'cash' ? 
+                                                        '' : 
+                                                        formatCurrency(positionGroup.avgCostPerShare)}
+                                                    </td>
+                                                    <td className="px-3 py-2 text-right whitespace-nowrap text-gray-300">{formatCurrency(positionGroup.totalCostBasis)}</td>
+                                                    <td className="px-3 py-2 text-right whitespace-nowrap">
+                                                        {positionGroup.assetType?.toLowerCase() === 'cash' ? (
+                                                            <div className="text-gray-500">N/A</div>
+                                                        ) : (
+                                                            <div>
+                                                                <div className={`font-medium ${positionGroup.gainLoss >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                                                    {positionGroup.gainLoss >= 0 ? '+' : ''}{formatCurrency(positionGroup.gainLoss)}
+                                                                </div>
+                                                                <div className={`text-[11px] ${positionGroup.gainLoss >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                                                                    ({positionGroup.gainLoss >= 0 ? '+' : ''}{formatPercentage(positionGroup.gainLossPercent)})
+                                                                </div>
+                                                            </div>
+                                                        )}
+                                                    </td>
+                                                    <td className="px-3 py-2 text-center whitespace-nowrap">
+                                                        <div className="flex items-center justify-center space-x-1.5">
+                                                            <button onClick={(e) => handleViewPositionClick(e, positionGroup)} className="p-1 bg-blue-600/20 text-blue-400 rounded hover:bg-blue-600/40 transition-colors" title="View Tax Lots">
+                                                                <Eye className="w-3.5 h-3.5" />
+                                                            </button>
+                                                            {/* Removed modify button as requested since view button provides the same actions */}
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                            
+                                            {/* Total Row */}
+                                            <tr className="bg-blue-800/30 font-semibold border-t-2 border-blue-700">
+                                                <td className="px-2 py-2 text-center whitespace-nowrap">
+                                                    <span className="font-bold">•</span>
+                                                </td>
+                                                <td className="px-3 py-2 whitespace-nowrap">
+                                                    <div className="font-medium text-white">TOTAL</div>
+                                                </td>
+                                                <td className="px-3 py-2 text-right whitespace-nowrap text-gray-100">
+                                                    {/* No total for quantity/shares across different asset types */}
+                                                </td>
+                                                <td className="px-3 py-2 text-right whitespace-nowrap text-gray-100">
+                                                    {/* No average price */}
+                                                </td>
+                                                <td className="px-3 py-2 text-right whitespace-nowrap font-medium text-white">
+                                                    {formatCurrency(totalValue)}
+                                                </td>
+                                                <td className="px-3 py-2 text-right whitespace-nowrap font-medium text-white">
+                                                    100%
+                                                </td>
+                                                <td className="px-3 py-2 text-right whitespace-nowrap text-gray-100">
+                                                    {/* No average cost per unit */}
+                                                </td>
+                                                <td className="px-3 py-2 text-right whitespace-nowrap font-medium text-white">
+                                                    {formatCurrency(costBasis)}
+                                                </td>
+                                                <td className="px-3 py-2 text-right whitespace-nowrap">
+                                                    <div>
+                                                        <div className={`font-medium ${gainLoss >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                                            {gainLoss >= 0 ? '+' : ''}{formatCurrency(gainLoss)}
+                                                        </div>
+                                                        <div className={`text-[11px] ${gainLoss >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                                                            ({gainLoss >= 0 ? '+' : ''}{formatPercentage(gainLossPercent)})
+                                                        </div>
+                                                    </div>
                                                 </td>
                                                 <td className="px-3 py-2 text-center whitespace-nowrap">
-                                                    <div className="flex items-center justify-center space-x-1.5">
-                                                        <button onClick={(e) => handleViewPositionClick(e, positionGroup)} className="p-1 bg-blue-600/20 text-blue-400 rounded hover:bg-blue-600/40 transition-colors" title="View Tax Lots">
-                                                            <Eye className="w-3.5 h-3.5" />
-                                                        </button>
-                                                        <button onClick={(e) => handleModifyPositionClick(e, positionGroup)} className="p-1 bg-purple-600/20 text-purple-400 rounded hover:bg-purple-600/40 transition-colors" title="Modify/Delete Tax Lots">
-                                                            <List className="w-3.5 h-3.5" />
-                                                        </button>
-                                                    </div>
+                                                    {/* No actions */}
                                                 </td>
                                             </tr>
-                                        ))
+                                        </>
                                     ) : (
                                         <tr><td colSpan="10" className="px-4 py-6 text-center text-gray-400 italic">No positions found in this account.</td></tr>
                                     )}

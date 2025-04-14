@@ -20,7 +20,7 @@ import AccountModal from '@/components/modals/AccountModal';
 import AddPositionFlow from '@/components/flows/AddPositionFlow';
 
 // Icons
-import { Briefcase, Loader, Search, Plus, SlidersHorizontal, Trash, Settings } from 'lucide-react';
+import { Briefcase, Loader, Search, Plus, SlidersHorizontal, Trash, Settings, ChevronUp, ChevronDown } from 'lucide-react';
 
 // --- Delete Confirmation Component ---
 const DeleteConfirmationModal = ({ isOpen, onClose, onConfirm, itemName, itemType = "item" }) => {
@@ -78,7 +78,8 @@ const AccountTable = ({
     const [successMessage, setSuccessMessage] = useState("");
 
     // Sorting and Filtering State
-    const [sortOption, setSortOption] = useState(initialSort);
+    const [sortField, setSortField] = useState(initialSort.split('-')[0]);
+    const [sortDirection, setSortDirection] = useState(initialSort.includes('-low') ? 'asc' : 'desc');
     const [searchQuery, setSearchQuery] = useState("");
 
     // --- Data Fetching with a simpler approach ---
@@ -145,10 +146,10 @@ const AccountTable = ({
                     cash_balance: account.cash_balance || 0
                 };
                 
-                // Calculate gain/loss percent
-                const gainLossPercent = positionData.total_cost_basis > 0 
-                    ? (positionData.total_gain_loss / positionData.total_cost_basis) * 100 
-                    : 0;
+                // Calculate gain/loss percent at the account level
+                const costBasis = positionData.total_cost_basis || 0;
+                const gainLoss = positionData.total_gain_loss || 0;
+                const gainLossPercent = costBasis > 0 ? (gainLoss / costBasis) * 100 : 0;
                 
                 // Return enhanced account
                 return {
@@ -180,7 +181,7 @@ const AccountTable = ({
 
     // Calculate totals for summary row
     const totals = useMemo(() => {
-        return accounts.reduce((acc, account) => {
+        const result = accounts.reduce((acc, account) => {
             acc.totalValue += account.total_value ?? 0;
             acc.totalCostBasis += account.total_cost_basis ?? 0;
             acc.totalGainLoss += account.total_gain_loss ?? 0;
@@ -194,12 +195,34 @@ const AccountTable = ({
             positionsCount: 0,
             cashBalance: 0
         });
+        
+        // Calculate gain/loss percent at the summary level
+        result.totalGainLossPercent = result.totalCostBasis > 0 
+            ? (result.totalGainLoss / result.totalCostBasis) * 100 
+            : 0;
+            
+        return result;
     }, [accounts]);
 
-    // Calculate gain/loss percent for summary
-    const totalGainLossPercent = totals.totalCostBasis > 0 
-        ? (totals.totalGainLoss / totals.totalCostBasis) * 100 
-        : 0;
+    // Handle column sort
+    const handleSortChange = (field) => {
+        if (field === sortField) {
+            // Toggle direction if same field
+            setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+        } else {
+            // Default to desc for new field
+            setSortField(field);
+            setSortDirection('desc');
+        }
+    };
+
+    // Get sort indicator for column headers
+    const getSortIndicator = (field) => {
+        if (field !== sortField) return null;
+        return sortDirection === 'asc' ? 
+            <ChevronUp className="inline-block w-4 h-4 ml-1" /> : 
+            <ChevronDown className="inline-block w-4 h-4 ml-1" />;
+    };
 
     // --- Filtering & Sorting ---
     const filteredAndSortedAccounts = useMemo(() => {
@@ -228,24 +251,26 @@ const AccountTable = ({
             const positionsCountA = a.positions_count ?? 0;
             const positionsCountB = b.positions_count ?? 0;
 
-            switch (sortOption) {
-                case "value-high": return valueB - valueA;
-                case "value-low": return valueA - valueB;
-                case "cost_basis-high": return costBasisB - costBasisA;
-                case "cost_basis-low": return costBasisA - costBasisB;
-                case "gain_loss-high": return gainLossB - gainLossA;
-                case "gain_loss-low": return gainLossA - gainLossB;
-                case "name": return nameA.localeCompare(nameB);
-                case "institution": return institutionA.localeCompare(institutionB);
-                case "positions-high": return positionsCountB - positionsCountA;
-                case "positions-low": return positionsCountA - positionsCountB;
-                case "cash-high": return (b.cash_balance ?? 0) - (a.cash_balance ?? 0);
-                case "cash-low": return (a.cash_balance ?? 0) - (b.cash_balance ?? 0);
-                default: return 0;
+            let comparison = 0;
+            
+            // Handle different sort fields
+            switch (sortField) {
+                case "value": comparison = valueB - valueA; break;
+                case "cost_basis": comparison = costBasisB - costBasisA; break;
+                case "gain_loss": comparison = gainLossB - gainLossA; break;
+                case "name": comparison = nameA.localeCompare(nameB); break;
+                case "institution": comparison = institutionA.localeCompare(institutionB); break;
+                case "positions": comparison = positionsCountB - positionsCountA; break;
+                case "cash": comparison = (b.cash_balance ?? 0) - (a.cash_balance ?? 0); break;
+                default: comparison = valueB - valueA; // Default to value
             }
+            
+            // Apply sort direction
+            return sortDirection === 'asc' ? -comparison : comparison;
         });
+        
         return sorted;
-    }, [accounts, sortOption, searchQuery]);
+    }, [accounts, sortField, sortDirection, searchQuery]);
 
     // --- Modal Trigger Handlers ---
     const handleRowClick = (account) => { 
@@ -358,11 +383,19 @@ const AccountTable = ({
                         {/* Sort Select */}
                         <div className="relative">
                             <SlidersHorizontal className="absolute h-4 w-4 text-gray-400 left-3 inset-y-0 my-auto" />
-                            <select className="bg-gray-700 text-white pl-9 pr-8 py-2 rounded-lg text-sm focus:ring-1 focus:ring-blue-500 focus:outline-none appearance-none" value={sortOption} onChange={(e) => setSortOption(e.target.value)}>
+                            <select 
+                                className="bg-gray-700 text-white pl-9 pr-8 py-2 rounded-lg text-sm focus:ring-1 focus:ring-blue-500 focus:outline-none appearance-none" 
+                                value={`${sortField}-${sortDirection === 'asc' ? 'low' : 'high'}`}
+                                onChange={(e) => {
+                                    const [field, direction] = e.target.value.split('-');
+                                    setSortField(field);
+                                    setSortDirection(direction === 'low' ? 'asc' : 'desc');
+                                }}
+                            >
                                 <option value="value-high">Sort: Value (High-Low)</option>
                                 <option value="value-low">Sort: Value (Low-High)</option>
-                                <option value="name">Sort: Name (A-Z)</option>
-                                <option value="institution">Sort: Institution (A-Z)</option>
+                                <option value="name-high">Sort: Name (A-Z)</option>
+                                <option value="institution-high">Sort: Institution (A-Z)</option>
                                 <option value="cost_basis-high">Sort: Cost Basis (High-Low)</option>
                                 <option value="cost_basis-low">Sort: Cost Basis (Low-High)</option>
                                 <option value="gain_loss-high">Sort: Gain $ (High-Low)</option>
@@ -391,14 +424,55 @@ const AccountTable = ({
                             <thead className="bg-gray-900/50 sticky top-0 z-10 shadow-sm">
                                 <tr>
                                     <th scope="col" className="px-3 py-2 text-center text-xs font-medium text-gray-400 uppercase tracking-wider w-10">#</th>
-                                    <th scope="col" className="px-3 py-2 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Institution</th>
-                                    <th scope="col" className="px-3 py-2 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Account Name</th>
-                                    <th scope="col" className="px-3 py-2 text-left text-xs font-medium text-gray-400 uppercase tracking-wider hidden lg:table-cell w-24">Type</th>
-                                    <th scope="col" className="px-3 py-2 text-right text-xs font-medium text-gray-400 uppercase tracking-wider hidden sm:table-cell w-20">Positions</th>
-                                    <th scope="col" className="px-3 py-2 text-right text-xs font-medium text-gray-400 uppercase tracking-wider w-28">Value</th>
-                                    <th scope="col" className="px-3 py-2 text-right text-xs font-medium text-gray-400 uppercase tracking-wider hidden md:table-cell w-28">Cash</th>
-                                    <th scope="col" className="px-3 py-2 text-right text-xs font-medium text-gray-400 uppercase tracking-wider hidden md:table-cell w-28">Cost Basis</th>
-                                    <th scope="col" className="px-3 py-2 text-right text-xs font-medium text-gray-400 uppercase tracking-wider w-28">Gain/Loss</th>
+                                    <th 
+                                        scope="col" 
+                                        className="px-3 py-2 text-left text-xs font-medium text-gray-400 uppercase tracking-wider cursor-pointer hover:bg-gray-800/50"
+                                        onClick={() => handleSortChange('institution')}
+                                    >
+                                        Institution {getSortIndicator('institution')}
+                                    </th>
+                                    <th 
+                                        scope="col" 
+                                        className="px-3 py-2 text-left text-xs font-medium text-gray-400 uppercase tracking-wider cursor-pointer hover:bg-gray-800/50"
+                                        onClick={() => handleSortChange('name')}
+                                    >
+                                        Account Name {getSortIndicator('name')}
+                                    </th>
+                                    <th 
+                                        scope="col" 
+                                        className="px-3 py-2 text-right text-xs font-medium text-gray-400 uppercase tracking-wider hidden sm:table-cell w-20 cursor-pointer hover:bg-gray-800/50"
+                                        onClick={() => handleSortChange('positions')}
+                                    >
+                                        Positions {getSortIndicator('positions')}
+                                    </th>
+                                    <th 
+                                        scope="col" 
+                                        className="px-3 py-2 text-right text-xs font-medium text-gray-400 uppercase tracking-wider w-28 cursor-pointer hover:bg-gray-800/50"
+                                        onClick={() => handleSortChange('value')}
+                                    >
+                                        Value {getSortIndicator('value')}
+                                    </th>
+                                    <th 
+                                        scope="col" 
+                                        className="px-3 py-2 text-right text-xs font-medium text-gray-400 uppercase tracking-wider hidden md:table-cell w-28 cursor-pointer hover:bg-gray-800/50"
+                                        onClick={() => handleSortChange('cash')}
+                                    >
+                                        Cash {getSortIndicator('cash')}
+                                    </th>
+                                    <th 
+                                        scope="col" 
+                                        className="px-3 py-2 text-right text-xs font-medium text-gray-400 uppercase tracking-wider hidden md:table-cell w-28 cursor-pointer hover:bg-gray-800/50"
+                                        onClick={() => handleSortChange('cost_basis')}
+                                    >
+                                        Cost Basis {getSortIndicator('cost_basis')}
+                                    </th>
+                                    <th 
+                                        scope="col" 
+                                        className="px-3 py-2 text-right text-xs font-medium text-gray-400 uppercase tracking-wider w-28 cursor-pointer hover:bg-gray-800/50"
+                                        onClick={() => handleSortChange('gain_loss')}
+                                    >
+                                        Gain/Loss {getSortIndicator('gain_loss')}
+                                    </th>
                                     <th scope="col" className="px-3 py-2 text-center text-xs font-medium text-gray-400 uppercase tracking-wider w-20">Actions</th>
                                 </tr>
                             </thead>
@@ -413,9 +487,6 @@ const AccountTable = ({
                                     </td>
                                     <td className="px-3 py-2 whitespace-nowrap text-sm">
                                         {/* Leave account name cell empty */}
-                                    </td>
-                                    <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-300 hidden lg:table-cell">
-                                        {/* Leave type cell empty */}
                                     </td>
                                     <td className="px-3 py-2 whitespace-nowrap text-right text-sm hidden sm:table-cell">
                                         {totals.positionsCount}
@@ -435,7 +506,7 @@ const AccountTable = ({
                                                 {totals.totalGainLoss >= 0 ? '+' : ''}{formatCurrency(totals.totalGainLoss)}
                                             </div>
                                             <div className={`text-xs ${totals.totalGainLoss >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                                                ({totals.totalGainLoss >= 0 ? '+' : ''}{formatPercentage(totalGainLossPercent)})
+                                                ({totals.totalGainLoss >= 0 ? '+' : ''}{formatPercentage(totals.totalGainLossPercent)})
                                             </div>
                                         </div>
                                     </td>
@@ -448,7 +519,10 @@ const AccountTable = ({
                                 {filteredAndSortedAccounts.map((account, index) => {
                                     const costBasis = account.total_cost_basis ?? 0;
                                     const gainLoss = account.total_gain_loss ?? 0;
-                                    const gainLossPercent = account.total_gain_loss_percent ?? 0;
+                                    
+                                    // Recalculate gain/loss percent at the account level for correctness
+                                    const gainLossPercent = costBasis > 0 ? (gainLoss / costBasis) * 100 : 0;
+                                    
                                     const positionsCount = account.positions_count ?? 0;
                                     const totalValue = account.total_value ?? 0;
                                     const LogoComponent = getInstitutionLogo(account.institution);
@@ -477,13 +551,13 @@ const AccountTable = ({
                                                 </div>
                                             </td>
                                             
-                                            {/* Account Name */}
+                                            {/* Account Name + Type (combined) */}
                                             <td className="px-3 py-2 whitespace-nowrap">
                                                 <div className="text-sm font-medium">{account.account_name}</div>
+                                                {account.type && (
+                                                    <div className="text-xs text-gray-400 italic">{account.type}</div>
+                                                )}
                                             </td>
-                                            
-                                            {/* Type */}
-                                            <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-300 hidden lg:table-cell">{account.type || "N/A"}</td>
                                             
                                             {/* Positions Count */}
                                             <td className="px-3 py-2 whitespace-nowrap text-right text-sm hidden sm:table-cell">{positionsCount}</td>
