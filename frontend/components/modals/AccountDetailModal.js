@@ -97,7 +97,7 @@ const TaxLotDetailModal = ({ isOpen, onClose, ticker, positions, onEditTaxLot, o
 
     // Calculate gain/loss percent for totals
     const totalGainLossPercent = totals.totalCostBasis > 0 
-        ? (totals.totalGainLoss / totals.totalCostBasis) * 100
+        ? (totals.totalGainLoss / totals.totalCostBasis)
         : 0;
 
     if (!isOpen || !positions) return null; // Simplified guard
@@ -171,7 +171,7 @@ const TaxLotDetailModal = ({ isOpen, onClose, ticker, positions, onEditTaxLot, o
                                 const totalCost = parseFloat(position.total_cost_basis || 0);
                                 const currentValue = parseFloat(position.current_value || 0);
                                 const gainLoss = currentValue - totalCost;
-                                const gainLossPercent = totalCost > 0 ? (gainLoss / totalCost) * 100 : 0; // Avoid division by zero
+                                const gainLossPercent = totalCost > 0 ? (gainLoss / totalCost) : 0; // Avoid division by zero
 
                                 return (
                                     <tr key={`lot-${position.id || index}`} className="hover:bg-gray-700/40">

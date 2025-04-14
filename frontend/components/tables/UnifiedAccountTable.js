@@ -149,7 +149,7 @@ const AccountTable = ({
                 // Calculate gain/loss percent at the account level
                 const costBasis = positionData.total_cost_basis || 0;
                 const gainLoss = positionData.total_gain_loss || 0;
-                const gainLossPercent = costBasis > 0 ? (gainLoss / costBasis) * 100 : 0;
+                const gainLossPercent = costBasis > 0 ? (gainLoss / costBasis) : 0;
                 
                 // Return enhanced account
                 return {
@@ -198,7 +198,7 @@ const AccountTable = ({
         
         // Calculate gain/loss percent at the summary level
         result.totalGainLossPercent = result.totalCostBasis > 0 
-            ? (result.totalGainLoss / result.totalCostBasis) * 100 
+            ? (result.totalGainLoss / result.totalCostBasis) 
             : 0;
             
         return result;
@@ -521,7 +521,7 @@ const AccountTable = ({
                                     const gainLoss = account.total_gain_loss ?? 0;
                                     
                                     // Recalculate gain/loss percent at the account level for correctness
-                                    const gainLossPercent = costBasis > 0 ? (gainLoss / costBasis) * 100 : 0;
+                                    const gainLossPercent = costBasis > 0 ? (gainLoss / costBasis) : 0;
                                     
                                     const positionsCount = account.positions_count ?? 0;
                                     const totalValue = account.total_value ?? 0;
