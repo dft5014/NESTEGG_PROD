@@ -911,7 +911,7 @@ const UnifiedGroupedPositionsTable = ({ initialSort = "value-high", title = "Con
                                     {formatCurrency(positionCostBasis)}
                                   </td>
                                   <td className="px-3 py-2 whitespace-nowrap text-sm text-right">
-                                    {formatCurrency(position.cost_basis || 0)}
+                                    {formatCurrency(position.cost_per_unit || 0)}
                                   </td>
                                   <td className="px-3 py-2 whitespace-nowrap text-sm text-right">
                                     <div className={`${positionGainLoss >= 0 ? 'text-green-400' : 'text-red-400'}`}>

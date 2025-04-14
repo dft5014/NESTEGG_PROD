@@ -47,17 +47,17 @@ const TaxLotDetailModal = ({ isOpen, onClose, ticker, positions, onEditTaxLot, o
                     const dateB = new Date(b.purchase_date || 0).getTime();
                     comparison = dateA - dateB;
                     break;
-                case 'shares':
-                    comparison = parseFloat(a.quantity || 0) - parseFloat(b.quantity || 0);
+                case 'current_value':
+                    comparison = parseFloat(a.current_value || 0) - parseFloat(b.current_value || 0);
                     break;
-                case 'cost_basis':
-                    comparison = parseFloat(a.cost_basis || 0) - parseFloat(b.cost_basis || 0);
+                case 'current_price':
+                    comparison = parseFloat(a.current_price_per_unit || 0) - parseFloat(b.current_price_per_unit || 0);
                     break;
                 case 'total_cost':
                     comparison = parseFloat(a.total_cost_basis || 0) - parseFloat(b.total_cost_basis || 0);
                     break;
-                case 'current_value':
-                    comparison = parseFloat(a.current_value || 0) - parseFloat(b.current_value || 0);
+                case 'cost_unit':
+                    comparison = parseFloat(a.cost_per_unit || 0) - parseFloat(b.cost_per_unit || 0);
                     break;
                 case 'gain_loss':
                     const gainLossA = parseFloat(a.current_value || 0) - parseFloat(a.total_cost_basis || 0);
@@ -97,8 +97,20 @@ const TaxLotDetailModal = ({ isOpen, onClose, ticker, positions, onEditTaxLot, o
 
     // Calculate gain/loss percent for totals
     const totalGainLossPercent = totals.totalCostBasis > 0 
-        ? (totals.totalGainLoss / totals.totalCostBasis)
+        ? (totals.totalGainLoss / totals.totalCostBasis) * 100
         : 0;
+
+    // Edit handler following SecurityTableAccount pattern
+    const handleEditClick = (e, position) => {
+        e.stopPropagation(); // Prevent row click
+        onEditTaxLot(position);
+    };
+
+    // Delete handler following SecurityTableAccount pattern
+    const handleDeleteClick = (e, position) => {
+        e.stopPropagation(); // Prevent row click
+        onDeleteTaxLot(position);
+    };
 
     if (!isOpen || !positions) return null; // Simplified guard
 
@@ -132,27 +144,27 @@ const TaxLotDetailModal = ({ isOpen, onClose, ticker, positions, onEditTaxLot, o
                                 </th>
                                 <th 
                                     className="px-3 py-2 text-right text-xs font-medium text-gray-400 uppercase tracking-wider cursor-pointer hover:text-white"
-                                    onClick={() => handleSort('shares')}
+                                    onClick={() => handleSort('current_value')}
                                 >
-                                    Quantity {getSortIcon('shares')}
+                                    Current Value {getSortIcon('current_value')}
                                 </th>
                                 <th 
                                     className="px-3 py-2 text-right text-xs font-medium text-gray-400 uppercase tracking-wider cursor-pointer hover:text-white"
-                                    onClick={() => handleSort('cost_basis')}
+                                    onClick={() => handleSort('current_price')}
                                 >
-                                    Cost/Unit {getSortIcon('cost_basis')}
+                                    Current Price {getSortIcon('current_price')}
                                 </th>
                                 <th 
                                     className="px-3 py-2 text-right text-xs font-medium text-gray-400 uppercase tracking-wider cursor-pointer hover:text-white"
                                     onClick={() => handleSort('total_cost')}
                                 >
-                                    Total Cost {getSortIcon('total_cost')}
+                                    Cost Basis {getSortIcon('total_cost')}
                                 </th>
                                 <th 
                                     className="px-3 py-2 text-right text-xs font-medium text-gray-400 uppercase tracking-wider cursor-pointer hover:text-white"
-                                    onClick={() => handleSort('current_value')}
+                                    onClick={() => handleSort('cost_unit')}
                                 >
-                                    Current Value {getSortIcon('current_value')}
+                                    Cost/Unit {getSortIcon('cost_unit')}
                                 </th>
                                 <th 
                                     className="px-3 py-2 text-right text-xs font-medium text-gray-400 uppercase tracking-wider cursor-pointer hover:text-white"
@@ -167,11 +179,13 @@ const TaxLotDetailModal = ({ isOpen, onClose, ticker, positions, onEditTaxLot, o
                             {sortedPositions && sortedPositions.length > 0 ? sortedPositions.map((position, index) => {
                                 // Ensure robust parsing and defaults - Updated for unified model
                                 const shares = parseFloat(position.quantity || 0);
-                                const costPerShare = parseFloat(position.cost_basis || 0);
+                                // Using the new cost_per_unit field as primary source
+                                const costPerUnit = parseFloat(position.cost_per_unit || 0);
                                 const totalCost = parseFloat(position.total_cost_basis || 0);
+                                const currentPrice = parseFloat(position.current_price_per_unit || 0);
                                 const currentValue = parseFloat(position.current_value || 0);
                                 const gainLoss = currentValue - totalCost;
-                                const gainLossPercent = totalCost > 0 ? (gainLoss / totalCost) : 0; // Avoid division by zero
+                                const gainLossPercent = totalCost > 0 ? (gainLoss / totalCost) * 100 : 0; // Avoid division by zero
 
                                 return (
                                     <tr key={`lot-${position.id || index}`} className="hover:bg-gray-700/40">
@@ -179,16 +193,16 @@ const TaxLotDetailModal = ({ isOpen, onClose, ticker, positions, onEditTaxLot, o
                                             {formatDate(position.purchase_date) || 'N/A'}
                                         </td>
                                         <td className="px-3 py-2 text-right whitespace-nowrap text-sm">
-                                            {formatNumber(shares, { maximumFractionDigits: 6 })}
+                                            {formatCurrency(currentValue)}
                                         </td>
                                         <td className="px-3 py-2 text-right whitespace-nowrap text-sm">
-                                            {formatCurrency(costPerShare)}
+                                            {formatCurrency(currentPrice)}
                                         </td>
                                         <td className="px-3 py-2 text-right whitespace-nowrap text-sm">
                                             {formatCurrency(totalCost)}
                                         </td>
                                         <td className="px-3 py-2 text-right whitespace-nowrap text-sm">
-                                            {formatCurrency(currentValue)}
+                                            {formatCurrency(costPerUnit)}
                                         </td>
                                         <td className="px-3 py-2 text-right whitespace-nowrap">
                                             <div className={`text-sm ${gainLoss >= 0 ? 'text-green-400' : 'text-red-400'}`}>
@@ -199,28 +213,22 @@ const TaxLotDetailModal = ({ isOpen, onClose, ticker, positions, onEditTaxLot, o
                                             </div>
                                         </td>
                                         <td className="px-3 py-2 text-center whitespace-nowrap">
-                                            <div className="flex items-center justify-center space-x-1">
-                                                {/* --- EDIT BUTTON --- */}
+                                            <div className="flex items-center justify-center space-x-2">
+                                                {/* Edit Button - Matching SecurityTableAccount.js pattern */}
                                                 <button
-                                                    onClick={(e) => {
-                                                        e.stopPropagation(); // Prevent event bubbling
-                                                        onEditTaxLot(position);
-                                                    }}
-                                                    className="p-1 bg-purple-600/20 text-purple-400 rounded hover:bg-purple-600/40 transition-colors text-xs"
-                                                    title="Edit Tax Lot"
+                                                    onClick={(e) => handleEditClick(e, position)}
+                                                    className="p-1.5 bg-purple-600/20 text-purple-400 rounded-full hover:bg-purple-600/40 transition-colors"
+                                                    title="Edit Position"
                                                 >
-                                                    Edit
+                                                    <Settings className="h-4 w-4" />
                                                 </button>
-                                                {/* --- DELETE BUTTON --- */}
+                                                {/* Delete Button - Matching SecurityTableAccount.js pattern */}
                                                 <button
-                                                    onClick={(e) => {
-                                                        e.stopPropagation(); // Prevent event bubbling
-                                                        onDeleteTaxLot(position);
-                                                    }}
-                                                    className="p-1 bg-red-600/20 text-red-400 rounded hover:bg-red-600/40 transition-colors text-xs"
-                                                    title="Delete Tax Lot"
+                                                    onClick={(e) => handleDeleteClick(e, position)}
+                                                    className="p-1.5 bg-red-600/20 text-red-400 rounded-full hover:bg-red-600/40 transition-colors"
+                                                    title="Delete Position"
                                                 >
-                                                    Delete
+                                                    <Trash className="h-4 w-4" />
                                                 </button>
                                             </div>
                                         </td>
@@ -239,16 +247,16 @@ const TaxLotDetailModal = ({ isOpen, onClose, ticker, positions, onEditTaxLot, o
                                 <tr className="bg-gray-800/50 font-medium">
                                     <td className="px-3 py-2 whitespace-nowrap text-sm font-semibold">TOTAL</td>
                                     <td className="px-3 py-2 text-right whitespace-nowrap text-sm font-semibold">
-                                        {formatNumber(totals.totalShares, { maximumFractionDigits: 6 })}
+                                        {formatCurrency(totals.totalCurrentValue)}
                                     </td>
                                     <td className="px-3 py-2 text-right whitespace-nowrap text-sm">
-                                        {/* Average cost per share not displayed in totals */}
+                                        {/* No average current price */}
                                     </td>
                                     <td className="px-3 py-2 text-right whitespace-nowrap text-sm font-semibold">
                                         {formatCurrency(totals.totalCostBasis)}
                                     </td>
-                                    <td className="px-3 py-2 text-right whitespace-nowrap text-sm font-semibold">
-                                        {formatCurrency(totals.totalCurrentValue)}
+                                    <td className="px-3 py-2 text-right whitespace-nowrap text-sm">
+                                        {/* No average cost per unit */}
                                     </td>
                                     <td className="px-3 py-2 text-right whitespace-nowrap font-semibold">
                                         <div className={`text-sm ${totals.totalGainLoss >= 0 ? 'text-green-400' : 'text-red-400'}`}>
