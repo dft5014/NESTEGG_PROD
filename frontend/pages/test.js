@@ -6,7 +6,8 @@ import KpiCard from '@/components/ui/KpiCard';
 import UpdateMarketDataButton from '@/components/UpdateMarketDataButton'; 
 import AddSecurityButton from '@/components/AddSecurityButton';
 import UpdateOtherDataButton from '@/components/UpdateOtherDataButton';
-import { fetchPortfolioSummary } from '@/utils/apimethods/positionMethods';
+import { fetchUnifiedPositions } from '@/utils/apimethods/positionMethods';
+import { fetchAllAccounts } from '@/utils/apimethods/accountMethods';
 import { formatCurrency, formatPercentage } from '@/utils/formatters';
 import { DollarSign, BarChart4, Users, TrendingUp, TrendingDown, Percent } from 'lucide-react';
 
@@ -20,8 +21,17 @@ export default function PortfolioPage() {
       setIsSummaryLoading(true);
       setSummaryError(null);
       try {
-        const data = await fetchPortfolioSummary();
-        setSummaryData(data);
+        // Fetch all positions using the unified API method
+        const allPositions = await fetchUnifiedPositions();
+        console.log("Portfolio: Fetched unified positions:", allPositions.length);
+        
+        // Fetch all accounts
+        const allAccounts = await fetchAllAccounts();
+        console.log("Portfolio: Fetched accounts:", allAccounts.length);
+        
+        // Calculate summary metrics
+        const calculatedSummary = calculatePortfolioSummary(allPositions, allAccounts);
+        setSummaryData(calculatedSummary);
       } catch (error) {
         console.error("Error loading summary data:", error);
         setSummaryError(error.message || "Failed to load summary");
@@ -31,6 +41,47 @@ export default function PortfolioPage() {
     };
     loadSummary();
   }, []);
+
+  // Calculate summary metrics from unified positions and accounts
+  const calculatePortfolioSummary = (positions, accounts) => {
+    // Initialize summary object with default values
+    const summary = {
+      total_value: 0,
+      total_cost_basis: 0,
+      total_gain_loss: 0,
+      total_gain_loss_percent: 0,
+      total_positions: positions.length,
+      total_accounts: accounts.length,
+      unique_securities: new Set(),
+    };
+    
+    // Calculate totals from positions
+    positions.forEach(position => {
+      // Safely parse numeric values
+      const currentValue = parseFloat(position.current_value || 0);
+      const costBasis = parseFloat(position.total_cost_basis || 0);
+      
+      // Accumulate totals
+      summary.total_value += currentValue;
+      summary.total_cost_basis += costBasis;
+      summary.total_gain_loss += (currentValue - costBasis);
+      
+      // Track unique securities/assets (by composite key for accurate counting)
+      const assetKey = `${position.asset_type}:${position.identifier}`;
+      summary.unique_securities.add(assetKey);
+    });
+    
+    // Calculate gain/loss percent
+    summary.total_gain_loss_percent = summary.total_cost_basis > 0 
+      ? (summary.total_gain_loss / summary.total_cost_basis) * 100 
+      : 0;
+      
+    // Convert Set to count for unique securities
+    summary.unique_securities_count = summary.unique_securities.size;
+    delete summary.unique_securities; // Remove the Set object
+    
+    return summary;
+  };
 
   // Determine overall gain/loss icon and color
   const gainLossValue = summaryData?.total_gain_loss ?? 0;
@@ -96,8 +147,8 @@ export default function PortfolioPage() {
                 color={gainLossColor}
              />
               <KpiCard
-                title="Total Positions"
-                value={summaryData?.total_positions}
+                title="Unique Assets"
+                value={summaryData?.unique_securities_count}
                 icon={<BarChart4 />}
                 isLoading={isSummaryLoading}
                 format={(v) => v?.toLocaleString() ?? '0'}
