@@ -3,9 +3,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import ReactDOM from 'react-dom';
 
 // Data fetching and utils
-// Replace fetchAccountsWithDetails with fetchUnifiedPositions
-import { deleteAccount } from '@/utils/apimethods/accountMethods';
-import { fetchUnifiedPositions } from '@/utils/apimethods/positionMethods';
+import { fetchAccountsWithAllPositions, deleteAccount } from '@/utils/apimethods/accountMethods';
 import { formatCurrency, formatDate, formatPercentage } from '@/utils/formatters';
 import { popularBrokerages } from '@/utils/constants';
 
@@ -21,7 +19,7 @@ import AccountModal from '@/components/modals/AccountModal';
 import AddPositionFlow from '@/components/flows/AddPositionFlow';
 
 // Icons
-import { Briefcase, Loader, Search, Plus, SlidersHorizontal, Trash, Settings } from 'lucide-react';
+import { Briefcase, Loader, Search, Plus, SlidersHorizontal, Trash, Settings, ArrowUp, ArrowDown } from 'lucide-react';
 
 // --- Delete Confirmation Component ---
 const DeleteConfirmationModal = ({ isOpen, onClose, onConfirm, itemName, itemType = "item" }) => {
@@ -80,70 +78,20 @@ const AccountTable = ({
 
     // Sorting and Filtering State
     const [sortOption, setSortOption] = useState(initialSort);
+    const [sortDirection, setSortDirection] = useState("desc");
     const [searchQuery, setSearchQuery] = useState("");
 
-    // --- Data Fetching with unified positions ---
+    // --- Data Fetching ---
     const fetchData = async () => {
         console.log("AccountTable: fetchData START");
         setIsLoading(true);
         setError(null);
         try {
-            // Fetch all unified positions
-            const allPositions = await fetchUnifiedPositions();
-            console.log("AccountTable: fetchUnifiedPositions SUCCESS");
+            // Single method call to get all accounts with position data
+            const enrichedAccounts = await fetchAccountsWithAllPositions();
+            console.log("AccountTable: fetchAccountsWithAllPositions SUCCESS");
             
-            // Group by account_id to create account objects
-            const accountsMap = {};
-            
-            allPositions.forEach(position => {
-                const accountId = position.account_id;
-                
-                // Initialize account object if it doesn't exist
-                if (!accountsMap[accountId]) {
-                    accountsMap[accountId] = {
-                        id: accountId,
-                        account_name: position.account_name,
-                        institution: position.institution || "Unknown",
-                        type: position.account_type || "Unknown",
-                        total_value: 0,
-                        total_cost_basis: 0,
-                        total_gain_loss: 0,
-                        positions_count: 0,
-                        cash_balance: 0
-                    };
-                }
-                
-                // Add position to count
-                accountsMap[accountId].positions_count++;
-                
-                // Add position values to account totals
-                const currentValue = parseFloat(position.current_value || 0);
-                const costBasis = parseFloat(position.total_cost_basis || 0);
-                
-                accountsMap[accountId].total_value += currentValue;
-                accountsMap[accountId].total_cost_basis += costBasis;
-                accountsMap[accountId].total_gain_loss += (currentValue - costBasis);
-                
-                // Track cash balance separately
-                if (position.asset_type === 'cash') {
-                    accountsMap[accountId].cash_balance += currentValue;
-                }
-            });
-            
-            // Convert map to array and calculate percentages
-            const accountsArray = Object.values(accountsMap).map(account => {
-                const gainLossPercent = account.total_cost_basis > 0 
-                    ? (account.total_gain_loss / account.total_cost_basis) * 100 
-                    : 0;
-                    
-                return {
-                    ...account,
-                    total_gain_loss_percent: gainLossPercent
-                };
-            });
-            
-            console.log("AccountTable: Account data processed, found:", accountsArray.length);
-            setAccounts(accountsArray || []);
+            setAccounts(enrichedAccounts || []);
         } catch (err) {
             console.error("AccountTable: fetchData CATCH", err);
             setError(err.message || "Failed to load account data.");
@@ -159,7 +107,7 @@ const AccountTable = ({
 
     // Calculate totals for summary row
     const totals = useMemo(() => {
-        return accounts.reduce((acc, account) => {
+        const result = accounts.reduce((acc, account) => {
             acc.totalValue += account.total_value ?? 0;
             acc.totalCostBasis += account.total_cost_basis ?? 0;
             acc.totalGainLoss += account.total_gain_loss ?? 0;
@@ -173,12 +121,31 @@ const AccountTable = ({
             positionsCount: 0,
             cashBalance: 0
         });
+        
+        // Calculate gain/loss percent at the parent level
+        result.totalGainLossPercent = result.totalCostBasis > 0 
+            ? (result.totalGainLoss / result.totalCostBasis) * 100 
+            : 0;
+            
+        return result;
     }, [accounts]);
 
-    // Calculate gain/loss percent for summary
-    const totalGainLossPercent = totals.totalCostBasis > 0 
-        ? (totals.totalGainLoss / totals.totalCostBasis) * 100 
-        : 0;
+    // Handle column header click
+    const handleColumnHeaderClick = (column) => {
+        // Extract the base sort option without high/low suffix
+        const baseOption = column.includes('-') ? column.split('-')[0] : column;
+        
+        // Toggle direction if clicking the same column
+        if (sortOption.startsWith(baseOption)) {
+            const newDirection = sortDirection === "asc" ? "desc" : "asc";
+            setSortDirection(newDirection);
+            setSortOption(`${baseOption}-${newDirection === "asc" ? "low" : "high"}`);
+        } else {
+            // Default to descending (high to low) for a new column
+            setSortDirection("desc");
+            setSortOption(`${baseOption}-high`);
+        }
+    };
 
     // --- Filtering & Sorting ---
     const filteredAndSortedAccounts = useMemo(() => {
@@ -228,7 +195,6 @@ const AccountTable = ({
 
     // --- Modal Trigger Handlers ---
     const handleRowClick = (account) => { 
-        // When clicking a row, fetch unified positions for this account to populate the detail modal
         setSelectedAccountDetail(account); 
         setIsDetailModalOpen(true); 
     };
@@ -302,6 +268,17 @@ const AccountTable = ({
         }
     };
 
+    // Helper to render sort indicators in column headers
+    const getSortIndicator = (column) => {
+        const baseOption = sortOption.split('-')[0];
+        if (baseOption === column) {
+            return sortDirection === "asc" ? 
+                <ArrowUp className="inline-block ml-1 h-3 w-3" /> : 
+                <ArrowDown className="inline-block ml-1 h-3 w-3" />;
+        }
+        return null;
+    };
+
     // --- Render Logic ---
     if (isLoading) {
         console.log("AccountTable: Rendering Loading State");
@@ -371,14 +348,61 @@ const AccountTable = ({
                             <thead className="bg-gray-900/50 sticky top-0 z-10 shadow-sm">
                                 <tr>
                                     <th scope="col" className="px-3 py-2 text-center text-xs font-medium text-gray-400 uppercase tracking-wider w-10">#</th>
-                                    <th scope="col" className="px-3 py-2 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Institution</th>
-                                    <th scope="col" className="px-3 py-2 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Account Name</th>
-                                    <th scope="col" className="px-3 py-2 text-left text-xs font-medium text-gray-400 uppercase tracking-wider hidden lg:table-cell w-24">Type</th>
-                                    <th scope="col" className="px-3 py-2 text-right text-xs font-medium text-gray-400 uppercase tracking-wider hidden sm:table-cell w-20">Positions</th>
-                                    <th scope="col" className="px-3 py-2 text-right text-xs font-medium text-gray-400 uppercase tracking-wider w-28">Value</th>
-                                    <th scope="col" className="px-3 py-2 text-right text-xs font-medium text-gray-400 uppercase tracking-wider hidden md:table-cell w-28">Cash</th>
-                                    <th scope="col" className="px-3 py-2 text-right text-xs font-medium text-gray-400 uppercase tracking-wider hidden md:table-cell w-28">Cost Basis</th>
-                                    <th scope="col" className="px-3 py-2 text-right text-xs font-medium text-gray-400 uppercase tracking-wider w-28">Gain/Loss</th>
+                                    <th 
+                                        scope="col" 
+                                        className="px-3 py-2 text-left text-xs font-medium text-gray-400 uppercase tracking-wider cursor-pointer hover:bg-gray-800"
+                                        onClick={() => handleColumnHeaderClick("institution")}
+                                    >
+                                        Institution {getSortIndicator("institution")}
+                                    </th>
+                                    <th 
+                                        scope="col" 
+                                        className="px-3 py-2 text-left text-xs font-medium text-gray-400 uppercase tracking-wider cursor-pointer hover:bg-gray-800"
+                                        onClick={() => handleColumnHeaderClick("name")}
+                                    >
+                                        Account Name {getSortIndicator("name")}
+                                    </th>
+                                    <th 
+                                        scope="col" 
+                                        className="px-3 py-2 text-left text-xs font-medium text-gray-400 uppercase tracking-wider hidden lg:table-cell w-24"
+                                    >
+                                        Type
+                                    </th>
+                                    <th 
+                                        scope="col" 
+                                        className="px-3 py-2 text-right text-xs font-medium text-gray-400 uppercase tracking-wider hidden sm:table-cell w-20 cursor-pointer hover:bg-gray-800"
+                                        onClick={() => handleColumnHeaderClick("positions")}
+                                    >
+                                        Positions {getSortIndicator("positions")}
+                                    </th>
+                                    <th 
+                                        scope="col" 
+                                        className="px-3 py-2 text-right text-xs font-medium text-gray-400 uppercase tracking-wider w-28 cursor-pointer hover:bg-gray-800"
+                                        onClick={() => handleColumnHeaderClick("value")}
+                                    >
+                                        Value {getSortIndicator("value")}
+                                    </th>
+                                    <th 
+                                        scope="col" 
+                                        className="px-3 py-2 text-right text-xs font-medium text-gray-400 uppercase tracking-wider hidden md:table-cell w-28 cursor-pointer hover:bg-gray-800"
+                                        onClick={() => handleColumnHeaderClick("cash")}
+                                    >
+                                        Cash {getSortIndicator("cash")}
+                                    </th>
+                                    <th 
+                                        scope="col" 
+                                        className="px-3 py-2 text-right text-xs font-medium text-gray-400 uppercase tracking-wider hidden md:table-cell w-28 cursor-pointer hover:bg-gray-800"
+                                        onClick={() => handleColumnHeaderClick("cost_basis")}
+                                    >
+                                        Cost Basis {getSortIndicator("cost_basis")}
+                                    </th>
+                                    <th 
+                                        scope="col" 
+                                        className="px-3 py-2 text-right text-xs font-medium text-gray-400 uppercase tracking-wider w-28 cursor-pointer hover:bg-gray-800"
+                                        onClick={() => handleColumnHeaderClick("gain_loss")}
+                                    >
+                                        Gain/Loss {getSortIndicator("gain_loss")}
+                                    </th>
                                     <th scope="col" className="px-3 py-2 text-center text-xs font-medium text-gray-400 uppercase tracking-wider w-20">Actions</th>
                                 </tr>
                             </thead>
@@ -415,7 +439,7 @@ const AccountTable = ({
                                                 {totals.totalGainLoss >= 0 ? '+' : ''}{formatCurrency(totals.totalGainLoss)}
                                             </div>
                                             <div className={`text-xs ${totals.totalGainLoss >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                                                ({totals.totalGainLoss >= 0 ? '+' : ''}{formatPercentage(totalGainLossPercent)})
+                                                ({totals.totalGainLoss >= 0 ? '+' : ''}{formatPercentage(totals.totalGainLossPercent)})
                                             </div>
                                         </div>
                                     </td>
@@ -428,7 +452,13 @@ const AccountTable = ({
                                 {filteredAndSortedAccounts.map((account, index) => {
                                     const costBasis = account.total_cost_basis ?? 0;
                                     const gainLoss = account.total_gain_loss ?? 0;
-                                    const gainLossPercent = account.total_gain_loss_percent ?? 0;
+                                    
+                                    // Calculate gain/loss percent at the account level 
+                                    // instead of relying on the incoming value
+                                    const gainLossPercent = costBasis > 0 
+                                        ? (gainLoss / costBasis) * 100 
+                                        : 0;
+                                        
                                     const positionsCount = account.positions_count ?? 0;
                                     const totalValue = account.total_value ?? 0;
                                     const LogoComponent = getInstitutionLogo(account.institution);

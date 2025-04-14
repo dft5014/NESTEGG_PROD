@@ -152,3 +152,96 @@ export const fetchAccountsWithDetails = async () => {
     throw error;
   }
 };
+
+/**
+ * Fetch all accounts with their unified position data
+ * This combines account details with position data in a single method
+ * @param {string} assetType - Optional filter for asset type
+ * @param {number} accountId - Optional filter for a specific account
+ * @returns {Promise<Array>} - Promise resolving to array of accounts with position data
+ */
+export const fetchAccountsWithAllPositions = async (assetType = null, accountId = null) => {
+  try {
+    // Step 1: Fetch basic account details
+    const accounts = await fetchAccountsWithDetails();
+    
+    // Step 2: Fetch all unified positions
+    const allPositions = await fetchUnifiedPositions(assetType, accountId);
+    
+    // Step 3: Group positions by account ID
+    const positionsByAccount = {};
+    
+    allPositions.forEach(position => {
+      const accountId = position.account_id;
+      
+      if (!positionsByAccount[accountId]) {
+        positionsByAccount[accountId] = {
+          positions: [],
+          total_value: 0,
+          total_cost_basis: 0,
+          total_gain_loss: 0,
+          positions_count: 0,
+          cash_balance: 0
+        };
+      }
+      
+      // Add position to the account's positions array
+      positionsByAccount[accountId].positions.push(position);
+      
+      // Update account metrics
+      positionsByAccount[accountId].positions_count++;
+      
+      const currentValue = parseFloat(position.current_value || 0);
+      const costBasis = parseFloat(position.total_cost_basis || 0);
+      
+      positionsByAccount[accountId].total_value += currentValue;
+      positionsByAccount[accountId].total_cost_basis += costBasis;
+      positionsByAccount[accountId].total_gain_loss += (currentValue - costBasis);
+      
+      // Track cash balance separately
+      if (position.asset_type === 'cash') {
+        positionsByAccount[accountId].cash_balance += currentValue;
+      }
+    });
+    
+    // Step 4: Merge account data with position data
+    const enrichedAccounts = accounts.map(account => {
+      const positionData = positionsByAccount[account.id] || {
+        positions: [],
+        total_value: 0,
+        total_cost_basis: 0,
+        total_gain_loss: 0,
+        positions_count: 0,
+        cash_balance: account.cash_balance || 0
+      };
+      
+      // Calculate gain/loss percent
+      const gainLossPercent = positionData.total_cost_basis > 0 
+        ? (positionData.total_gain_loss / positionData.total_cost_basis) * 100 
+        : 0;
+      
+      // Return enhanced account object
+      return {
+        ...account,
+        positions: positionData.positions,
+        total_value: positionData.total_value,
+        total_cost_basis: positionData.total_cost_basis,
+        total_gain_loss: positionData.total_gain_loss,
+        total_gain_loss_percent: gainLossPercent,
+        positions_count: positionData.positions_count,
+        cash_balance: positionData.cash_balance
+      };
+    });
+    
+    // If accountId filter is provided, return only that account
+    if (accountId) {
+      const filteredAccount = enrichedAccounts.find(acc => acc.id === accountId);
+      return filteredAccount ? [filteredAccount] : [];
+    }
+    
+    return enrichedAccounts;
+  } catch (error) {
+    console.error('Error fetching accounts with positions:', error);
+    throw error;
+  }
+};
