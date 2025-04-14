@@ -97,7 +97,7 @@ const TaxLotDetailModal = ({ isOpen, onClose, ticker, positions, onEditTaxLot, o
 
     // Calculate gain/loss percent for totals
     const totalGainLossPercent = totals.totalCostBasis > 0 
-        ? (totals.totalGainLoss / totals.totalCostBasis) * 100
+        ? (totals.totalGainLoss / totals.totalCostBasis)
         : 0;
 
     if (!isOpen || !positions) return null; // Simplified guard
@@ -171,7 +171,7 @@ const TaxLotDetailModal = ({ isOpen, onClose, ticker, positions, onEditTaxLot, o
                                 const totalCost = parseFloat(position.total_cost_basis || 0);
                                 const currentValue = parseFloat(position.current_value || 0);
                                 const gainLoss = currentValue - totalCost;
-                                const gainLossPercent = totalCost > 0 ? (gainLoss / totalCost) * 100 : 0; // Avoid division by zero
+                                const gainLossPercent = totalCost > 0 ? (gainLoss / totalCost) : 0; // Avoid division by zero
 
                                 return (
                                     <tr key={`lot-${position.id || index}`} className="hover:bg-gray-700/40">
@@ -497,8 +497,8 @@ const AccountDetailModal = ({
 }) => {
     const [sortField, setSortField] = useState('totalValue');
     const [sortDirection, setSortDirection] = useState('desc');
-    const [selectedGroupKeyForDetail, setSelectedGroupKeyForDetail] = useState(null);
-    const [selectedGroupKeyForModify, setSelectedGroupKeyForModify] = useState(null);
+    const [selectedGroupKeyForDetail, setSelectedGroupKeyForDetail] = useState(null); // Use groupKey now
+    const [selectedGroupKeyForModify, setSelectedGroupKeyForModify] = useState(null); // Use groupKey now
     const [isTaxLotModalOpen, setIsTaxLotModalOpen] = useState(false);
     const [isModifyModalOpen, setIsModifyModalOpen] = useState(false);
 
@@ -679,20 +679,14 @@ const AccountDetailModal = ({
 
     // --- Placeholder Handlers for Tax Lot Edit/Delete ---
     const handleEditTaxLot = useCallback((taxLot) => {
-        // Pass the actual tax lot object to the parent component's handler
-        console.log("Editing tax lot:", taxLot);
+        console.log("Request to EDIT Tax Lot:", taxLot);
         onEditPosition(taxLot);
-        // Close the modal after initiating edit
-        setIsTaxLotModalOpen(false);
     }, [onEditPosition]);
 
     const handleDeleteTaxLot = useCallback((taxLot) => {
-        console.log("Requesting deletion of tax lot:", taxLot);
-        // Show confirmation dialog with detailed info
+        console.log("Request to DELETE Tax Lot:", taxLot);
         if (window.confirm(`DELETE Tax Lot?\n${taxLot.identifier || taxLot.ticker || taxLot.name || taxLot.asset_type}\nQuantity: ${taxLot.quantity}\nDate: ${formatDate(taxLot.purchase_date)}`)) {
-            // Pass to parent component handler for actual deletion
             onDeletePosition(taxLot);
-            // No need to close modal automatically after delete - let user review remaining lots
         }
     }, [onDeletePosition]);
 
@@ -702,7 +696,7 @@ const AccountDetailModal = ({
         const positions = getPositionsForGroupKey(key);
         const taxLotToEdit = positions.find(p => p.id === selectedId);
         if (taxLotToEdit) {
-            console.log("Editing selected tax lot:", taxLotToEdit);
+            console.log("Request to EDIT Selected Tax Lot:", taxLotToEdit);
             onEditPosition(taxLotToEdit);
             handleCloseModifyModal();
         }
@@ -714,7 +708,7 @@ const AccountDetailModal = ({
         const positions = getPositionsForGroupKey(key);
         const taxLotToDelete = positions.find(p => p.id === selectedId);
         if (taxLotToDelete) {
-            console.log("Requesting deletion of selected tax lot:", taxLotToDelete);
+            console.log("Request to DELETE Selected Tax Lot:", taxLotToDelete);
             if (window.confirm(`DELETE Selected Tax Lot?\n${taxLotToDelete.identifier || taxLotToDelete.ticker || taxLotToDelete.name || taxLotToDelete.asset_type}\nQuantity: ${taxLotToDelete.quantity}\nDate: ${formatDate(taxLotToDelete.purchase_date)}`)) {
                 onDeletePosition(taxLotToDelete);
                 handleCloseModifyModal();
@@ -745,7 +739,7 @@ const AccountDetailModal = ({
     if (!isOpen || !account) return null;
 
     return (
-        // Main Modal Container & Backdrop - z-index fixed to be lower than nested modals
+        // Main Modal Container & Backdrop - z-[250] (increased to fix z-index issues)
         <div className="fixed inset-0 z-10 overflow-y-auto bg-black/60 backdrop-blur-sm flex items-center justify-center">
             {/* Modal Dialog */}
             <div className="bg-[#1e293b] text-white rounded-xl w-full max-w-5xl overflow-hidden shadow-2xl m-4 flex flex-col max-h-[90vh]">
@@ -944,32 +938,30 @@ const AccountDetailModal = ({
                 <div className="bg-[#111827] px-5 py-3 border-t border-gray-700 flex justify-end space-x-3 flex-shrink-0">
                     <AddPositionButton
                         accountId={account?.id}
-                        className="bg-blue-600 hover:bg-blue-700 text-white py-1.5 px-3 rounded-md text-sm transition-colors z-5" /* Added z-5 to ensure proper layering */
+                        className="bg-blue-600 hover:bg-blue-700 text-white py-1.5 px-3 rounded-md text-sm transition-colors z-5"
                         buttonContent={<div className="flex items-center"><Plus className="w-4 h-4 mr-1.5" /> Add Position</div>}
                         onPositionAdded={() => onTriggerAddPosition(account)}
                     />
                     <EditAccountButton
                         account={account}
-                        className="bg-purple-600 hover:bg-purple-700 text-white py-1.5 px-3 rounded-md text-sm transition-colors flex items-center z-5" /* Added z-5 to ensure proper layering */
+                        className="bg-purple-600 hover:bg-purple-700 text-white py-1.5 px-3 rounded-md text-sm transition-colors flex items-center z-5"
                         onAccountEdited={() => { onTriggerEdit(account); onClose(); }}
                         buttonContent={<div className="flex items-center"><Settings className="w-4 h-4 mr-1.5" /> Edit Account</div>}
                     />
                     <button
                         onClick={() => { if (window.confirm(`DELETE Account "${account.account_name}"?`)) { onTriggerDelete(account); onClose(); } }}
-                        className="px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white rounded-md flex items-center text-sm transition-colors z-5" /* Added z-5 to ensure proper layering */
+                        className="px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white rounded-md flex items-center text-sm transition-colors"
                     >
                         <Trash className="w-4 h-4 mr-1.5" /> Delete Account
                     </button>
-                    <button 
-                        onClick={onClose} 
-                        className="px-3 py-1.5 bg-gray-700 hover:bg-gray-600 text-white rounded-md text-sm transition-colors z-5" /* Added z-5 to ensure proper layering */
-                    >
+                    <button onClick={onClose} className="px-3 py-1.5 bg-gray-700 hover:bg-gray-600 text-white rounded-md text-sm transition-colors">
                         Close
                     </button>
                 </div>
             </div> {/* End Modal Dialog */}
 
-            {/* Render Nested Modals Conditionally - Using higher z-index than main modal */}
+            {/* Render Nested Modals Conditionally (These have z-[200]) */}
+            {/* Consider using React Portals here for robustness */}
             {isTaxLotModalOpen && selectedGroupKeyForDetail && (
                 <TaxLotDetailModal
                     isOpen={isTaxLotModalOpen}

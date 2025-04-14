@@ -82,7 +82,9 @@ const UnifiedGroupedPositionsTable = ({ initialSort = "value-high", title = "Con
           accountsCount: 0,
           uniqueAccounts: new Set(),
           estimatedAnnualIncome: 0,
-          currentPricePerUnit: position.current_price_per_unit || 0
+          currentPricePerUnit: position.current_price_per_unit || 0,
+          dividendRate: 0,
+          incomePerUnit: 0
         };
       }
       
@@ -97,15 +99,16 @@ const UnifiedGroupedPositionsTable = ({ initialSort = "value-high", title = "Con
         acc[groupKey].currentPricePerUnit = position.current_price_per_unit;
       }
       
-      // Calculate estimated annual income based on dividend_rate/yield
-      if (position.current_value) {
-        let annualIncome = 0;
-        if (position.asset_type === 'cash' && position.dividend_rate) {
-          annualIncome = parseFloat(position.current_value) * (parseFloat(position.dividend_rate) / 100);
-        } else if (position.dividend_yield) {
-          annualIncome = parseFloat(position.current_value) * (parseFloat(position.dividend_yield) / 100);
-        }
-        acc[groupKey].estimatedAnnualIncome += annualIncome;
+      // For cash, use the dividend_rate from the API
+      if (position.asset_type === 'cash' && position.dividend_rate) {
+        acc[groupKey].dividendRate = parseFloat(position.dividend_rate);
+        const annualIncome = parseFloat(position.current_value || 0) * (parseFloat(position.dividend_rate) / 100);
+        acc[groupKey].estimatedAnnualIncome = (acc[groupKey].estimatedAnnualIncome || 0) + annualIncome;
+      } 
+      // For securities, use dividend_yield from the API
+      else if (position.dividend_yield) {
+        const annualIncome = parseFloat(position.current_value || 0) * (parseFloat(position.dividend_yield) / 100);
+        acc[groupKey].estimatedAnnualIncome = (acc[groupKey].estimatedAnnualIncome || 0) + annualIncome;
       }
       
       return acc;
@@ -116,7 +119,16 @@ const UnifiedGroupedPositionsTable = ({ initialSort = "value-high", title = "Con
       group.accountsCount = group.uniqueAccounts.size;
       group.avgCostBasisPerUnit = group.totalQuantity > 0 ? group.totalCostBasis / group.totalQuantity : 0;
       group.totalGainLoss = group.totalValue - group.totalCostBasis;
-      group.totalGainLossPercent = group.totalCostBasis > 0 ? (group.totalGainLoss / group.totalCostBasis) * 100 : 0;
+      
+      // Fix the gain/loss percentage calculation
+      group.totalGainLossPercent = group.totalCostBasis > 0 
+        ? (group.totalGainLoss / group.totalCostBasis) * 100 
+        : 0;
+      
+      // Calculate income per unit
+      if (group.totalQuantity > 0 && group.estimatedAnnualIncome > 0) {
+        group.incomePerUnit = group.estimatedAnnualIncome / group.totalQuantity;
+      }
       
       // Remove Set as it's not needed anymore
       delete group.uniqueAccounts;
@@ -472,6 +484,7 @@ const UnifiedGroupedPositionsTable = ({ initialSort = "value-high", title = "Con
                   <th scope="col" className="px-3 py-2 text-right text-xs font-medium text-gray-400 uppercase tracking-wider hidden md:table-cell">Avg Cost/Unit</th>
                   <th scope="col" className="px-3 py-2 text-right text-xs font-medium text-gray-400 uppercase tracking-wider hidden lg:table-cell">Total Cost</th>
                   <th scope="col" className="px-3 py-2 text-right text-xs font-medium text-gray-400 uppercase tracking-wider">Gain/Loss</th>
+                  <th scope="col" className="px-3 py-2 text-right text-xs font-medium text-gray-400 uppercase tracking-wider hidden xl:table-cell">Income/Unit</th>
                   <th scope="col" className="px-3 py-2 text-center text-xs font-medium text-gray-400 uppercase tracking-wider hidden sm:table-cell">Accounts</th>
                   <th scope="col" className="px-3 py-2 text-right text-xs font-medium text-gray-400 uppercase tracking-wider hidden xl:table-cell">Est. Annual Income</th>
                 </tr>
@@ -510,6 +523,9 @@ const UnifiedGroupedPositionsTable = ({ initialSort = "value-high", title = "Con
                         ({portfolioTotals.totalGainLoss >= 0 ? '+' : ''}{formatPercentage(totalGainLossPercent)})
                       </div>
                     </div>
+                  </td>
+                  <td className="px-3 py-2 text-right whitespace-nowrap text-gray-300 hidden xl:table-cell">
+                    {/* Cannot calculate income/unit for portfolio */}
                   </td>
                   <td className="px-3 py-2 text-center whitespace-nowrap text-sm hidden sm:table-cell">
                     {/* Leave accounts cell empty */}
@@ -587,7 +603,14 @@ const UnifiedGroupedPositionsTable = ({ initialSort = "value-high", title = "Con
                         </div>
                       )}
                     </td>
-
+                    
+                    {/* Income/Unit */}
+                    <td className="px-3 py-2 text-right whitespace-nowrap text-sm hidden xl:table-cell">
+                      {group.assetType === 'cash' 
+                        ? (group.dividendRate > 0 ? formatPercentage(group.dividendRate) : 'N/A')
+                        : (group.incomePerUnit > 0 ? formatCurrency(group.incomePerUnit) : 'N/A')}
+                    </td>
+                    
                     {/* # Accounts */}
                     <td className="px-3 py-2 text-center whitespace-nowrap text-sm hidden sm:table-cell">
                       {group.accountsCount}
@@ -667,6 +690,11 @@ const UnifiedGroupedPositionsTable = ({ initialSort = "value-high", title = "Con
                   
                   {selectedPositionDetail.assetType !== 'cash' ? (
                     <>
+                      {/* Total Cost Basis KPI */}
+                      <div className="bg-gray-700 rounded-lg p-3">
+                        <div className="text-gray-400 text-xs mb-1 uppercase tracking-wider">Total Cost Basis</div>
+                        <div className="text-lg font-semibold truncate text-white">{formatCurrency(selectedPositionDetail.totalCostBasis)}</div>
+                      </div>
                       <div className="bg-gray-700 rounded-lg p-3">
                         <div className="text-gray-400 text-xs mb-1 uppercase tracking-wider">Gain/Loss ($)</div>
                         <div className={`text-lg font-semibold truncate ${selectedPositionDetail.totalGainLoss >= 0 ? 'text-green-400' : 'text-red-400'}`}>
@@ -707,10 +735,6 @@ const UnifiedGroupedPositionsTable = ({ initialSort = "value-high", title = "Con
                       <div>
                         <div className="text-gray-400 text-xs uppercase tracking-wider">Avg Cost Basis / Unit</div>
                         <div className="font-medium text-white break-words">{formatCurrency(selectedPositionDetail.avgCostBasisPerUnit)}</div>
-                      </div>
-                      <div>
-                        <div className="text-gray-400 text-xs uppercase tracking-wider">Total Cost Basis</div>
-                        <div className="font-medium text-white break-words">{formatCurrency(selectedPositionDetail.totalCostBasis)}</div>
                       </div>
                       <div>
                         <div className="text-gray-400 text-xs uppercase tracking-wider">Current Price Per Unit</div>
@@ -759,6 +783,7 @@ const UnifiedGroupedPositionsTable = ({ initialSort = "value-high", title = "Con
                     <table className="min-w-full divide-y divide-gray-600">
                       <thead className="bg-gray-800">
                         <tr>
+                          {/* Account column - for all asset types */}
                           <th 
                             scope="col" 
                             className="px-3 py-2 text-left text-xs font-medium text-gray-400 uppercase tracking-wider cursor-pointer hover:bg-gray-700"
@@ -769,63 +794,89 @@ const UnifiedGroupedPositionsTable = ({ initialSort = "value-high", title = "Con
                               <span className="ml-1">{detailSortOrder === "asc" ? "↑" : "↓"}</span>
                             )}
                           </th>
-                          {selectedPositionDetail.assetType !== 'cash' && (
-                            <th 
-                              scope="col" 
-                              className="px-3 py-2 text-right text-xs font-medium text-gray-400 uppercase tracking-wider cursor-pointer hover:bg-gray-700"
-                              onClick={() => handleDetailSortChange("quantity")}
-                            >
-                              Quantity
-                              {detailSortOption === "quantity" && (
-                                <span className="ml-1">{detailSortOrder === "asc" ? "↑" : "↓"}</span>
-                              )}
-                            </th>
+                          
+                          {/* Conditional columns based on asset type */}
+                          {selectedPositionDetail.assetType !== 'cash' ? (
+                            <>
+                              <th 
+                                scope="col" 
+                                className="px-3 py-2 text-right text-xs font-medium text-gray-400 uppercase tracking-wider cursor-pointer hover:bg-gray-700"
+                                onClick={() => handleDetailSortChange("quantity")}
+                              >
+                                Quantity
+                                {detailSortOption === "quantity" && (
+                                  <span className="ml-1">{detailSortOrder === "asc" ? "↑" : "↓"}</span>
+                                )}
+                              </th>
+                              <th 
+                                scope="col" 
+                                className="px-3 py-2 text-right text-xs font-medium text-gray-400 uppercase tracking-wider cursor-pointer hover:bg-gray-700"
+                                onClick={() => handleDetailSortChange("value")}
+                              >
+                                Value
+                                {detailSortOption === "value" && (
+                                  <span className="ml-1">{detailSortOrder === "asc" ? "↑" : "↓"}</span>
+                                )}
+                              </th>
+                              <th 
+                                scope="col" 
+                                className="px-3 py-2 text-right text-xs font-medium text-gray-400 uppercase tracking-wider"
+                              >
+                                Current Price
+                              </th>
+                              <th 
+                                scope="col" 
+                                className="px-3 py-2 text-right text-xs font-medium text-gray-400 uppercase tracking-wider"
+                              >
+                                Cost Basis
+                              </th>
+                              <th 
+                                scope="col" 
+                                className="px-3 py-2 text-right text-xs font-medium text-gray-400 uppercase tracking-wider cursor-pointer hover:bg-gray-700"
+                                onClick={() => handleDetailSortChange("cost")}
+                              >
+                                Cost/Unit
+                                {detailSortOption === "cost" && (
+                                  <span className="ml-1">{detailSortOrder === "asc" ? "↑" : "↓"}</span>
+                                )}
+                              </th>
+                              <th 
+                                scope="col" 
+                                className="px-3 py-2 text-right text-xs font-medium text-gray-400 uppercase tracking-wider cursor-pointer hover:bg-gray-700"
+                                onClick={() => handleDetailSortChange("gain")}
+                              >
+                                Gain/Loss
+                                {detailSortOption === "gain" && (
+                                  <span className="ml-1">{detailSortOrder === "asc" ? "↑" : "↓"}</span>
+                                )}
+                              </th>
+                            </>
+                          ) : (
+                            <>
+                              <th 
+                                scope="col" 
+                                className="px-3 py-2 text-right text-xs font-medium text-gray-400 uppercase tracking-wider hover:bg-gray-700"
+                              >
+                                Interest Rate
+                              </th>
+                              <th 
+                                scope="col" 
+                                className="px-3 py-2 text-right text-xs font-medium text-gray-400 uppercase tracking-wider hover:bg-gray-700"
+                              >
+                                Annual Income
+                              </th>
+                              <th 
+                                scope="col" 
+                                className="px-3 py-2 text-right text-xs font-medium text-gray-400 uppercase tracking-wider cursor-pointer hover:bg-gray-700"
+                                onClick={() => handleDetailSortChange("value")}
+                              >
+                                Value
+                                {detailSortOption === "value" && (
+                                  <span className="ml-1">{detailSortOrder === "asc" ? "↑" : "↓"}</span>
+                                )}
+                              </th>
+                            </>
                           )}
-                          {selectedPositionDetail.assetType !== 'cash' && (
-                            <th 
-                              scope="col" 
-                              className="px-3 py-2 text-right text-xs font-medium text-gray-400 uppercase tracking-wider cursor-pointer hover:bg-gray-700"
-                              onClick={() => handleDetailSortChange("cost")}
-                            >
-                              Cost/Unit
-                              {detailSortOption === "cost" && (
-                                <span className="ml-1">{detailSortOrder === "asc" ? "↑" : "↓"}</span>
-                              )}
-                            </th>
-                          )}
-                          <th 
-                            scope="col" 
-                            className="px-3 py-2 text-right text-xs font-medium text-gray-400 uppercase tracking-wider cursor-pointer hover:bg-gray-700"
-                            onClick={() => handleDetailSortChange("value")}
-                          >
-                            Value
-                            {detailSortOption === "value" && (
-                              <span className="ml-1">{detailSortOrder === "asc" ? "↑" : "↓"}</span>
-                            )}
-                          </th>
-                          {selectedPositionDetail.assetType !== 'cash' && (
-                            <th 
-                              scope="col" 
-                              className="px-3 py-2 text-right text-xs font-medium text-gray-400 uppercase tracking-wider cursor-pointer hover:bg-gray-700"
-                              onClick={() => handleDetailSortChange("gain")}
-                            >
-                              Gain/Loss
-                              {detailSortOption === "gain" && (
-                                <span className="ml-1">{detailSortOrder === "asc" ? "↑" : "↓"}</span>
-                              )}
-                            </th>
-                          )}
-                        {selectedPositionDetail.assetType === 'cash' && (
-                          <td className="px-3 py-2 whitespace-nowrap text-sm text-right">
-                            {position.dividend_rate ? `${position.dividend_rate.toFixed(2)}%` : 'N/A'}
-                          </td>
-                        )}
-
-                        {selectedPositionDetail.assetType === 'cash' && (
-                          <td className="px-3 py-2 whitespace-nowrap text-sm text-right">
-                            {formatCurrency(position.current_value * (position.dividend_rate / 100))}
-                          </td>
-                        )}
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-600">
@@ -834,51 +885,55 @@ const UnifiedGroupedPositionsTable = ({ initialSort = "value-high", title = "Con
                           const positionValue = parseFloat(position.current_value || 0);
                           const positionGainLoss = positionValue - positionCostBasis;
                           const positionGainLossPercent = positionCostBasis > 0 ? (positionGainLoss / positionCostBasis) * 100 : 0;
+                          // Calculate annual income for cash positions
                           const annualIncome = selectedPositionDetail.assetType === 'cash' && position.dividend_rate 
-                            ? (positionValue * (position.dividend_rate / 100)) 
+                            ? (positionValue * (parseFloat(position.dividend_rate) / 100)) 
                             : 0;
                           
                           return (
                             <tr key={position.id} className="hover:bg-gray-600/50">
+                              {/* Account name - for all asset types */}
                               <td className="px-3 py-2 whitespace-nowrap text-sm">{position.account_name}</td>
                               
-                              {selectedPositionDetail.assetType !== 'cash' && (
-                                <td className="px-3 py-2 whitespace-nowrap text-sm text-right">
-                                  {formatNumber(position.quantity, { maximumFractionDigits: 4 })}
-                                </td>
-                              )}
-                              
-                              {selectedPositionDetail.assetType !== 'cash' && (
-                                <td className="px-3 py-2 whitespace-nowrap text-sm text-right">
-                                  {formatCurrency(position.cost_basis || position.current_price_per_unit || 0)}
-                                </td>
-                              )}
-                              
-                              <td className="px-3 py-2 whitespace-nowrap text-sm text-right">
-                                {formatCurrency(positionValue)}
-                              </td>
-                              
-                              {selectedPositionDetail.assetType !== 'cash' && (
-                                <td className="px-3 py-2 whitespace-nowrap text-sm text-right">
-                                  <div className={`${positionGainLoss >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                                    {positionGainLoss >= 0 ? '+' : ''}{formatCurrency(positionGainLoss)}
-                                    <div className="text-xs">
-                                      ({positionGainLoss >= 0 ? '+' : ''}{positionGainLossPercent.toFixed(2)}%)
+                              {/* Conditional cells based on asset type */}
+                              {selectedPositionDetail.assetType !== 'cash' ? (
+                                <>
+                                  <td className="px-3 py-2 whitespace-nowrap text-sm text-right">
+                                    {formatNumber(position.quantity, { maximumFractionDigits: 4 })}
+                                  </td>
+                                  <td className="px-3 py-2 whitespace-nowrap text-sm text-right">
+                                    {formatCurrency(positionValue)}
+                                  </td>
+                                  <td className="px-3 py-2 whitespace-nowrap text-sm text-right">
+                                    {formatCurrency(position.current_price_per_unit || 0)}
+                                  </td>
+                                  <td className="px-3 py-2 whitespace-nowrap text-sm text-right">
+                                    {formatCurrency(positionCostBasis)}
+                                  </td>
+                                  <td className="px-3 py-2 whitespace-nowrap text-sm text-right">
+                                    {formatCurrency(position.cost_basis || position.current_price_per_unit || 0)}
+                                  </td>
+                                  <td className="px-3 py-2 whitespace-nowrap text-sm text-right">
+                                    <div className={`${positionGainLoss >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                      {positionGainLoss >= 0 ? '+' : ''}{formatCurrency(positionGainLoss)}
+                                      <div className="text-xs">
+                                        ({positionGainLoss >= 0 ? '+' : ''}{positionGainLossPercent.toFixed(2)}%)
+                                      </div>
                                     </div>
-                                  </div>
-                                </td>
-                              )}
-                              
-                              {selectedPositionDetail.assetType === 'cash' && (
-                                <td className="px-3 py-2 whitespace-nowrap text-sm text-right">
-                                  {position.dividend_rate ? `${position.dividend_rate.toFixed(2)}%` : 'N/A'}
-                                </td>
-                              )}
-                              
-                              {selectedPositionDetail.assetType === 'cash' && (
-                                <td className="px-3 py-2 whitespace-nowrap text-sm text-right">
-                                  {formatCurrency(annualIncome)}
-                                </td>
+                                  </td>
+                                </>
+                              ) : (
+                                <>
+                                  <td className="px-3 py-2 whitespace-nowrap text-sm text-right">
+                                    {position.dividend_rate ? `${parseFloat(position.dividend_rate).toFixed(2)}%` : 'N/A'}
+                                  </td>
+                                  <td className="px-3 py-2 whitespace-nowrap text-sm text-right">
+                                    {formatCurrency(annualIncome)}
+                                  </td>
+                                  <td className="px-3 py-2 whitespace-nowrap text-sm text-right">
+                                    {formatCurrency(positionValue)}
+                                  </td>
+                                </>
                               )}
                             </tr>
                           );
@@ -888,52 +943,50 @@ const UnifiedGroupedPositionsTable = ({ initialSort = "value-high", title = "Con
                         <tr className="bg-gray-600/80 font-medium">
                           <td className="px-3 py-2 whitespace-nowrap text-sm">Total</td>
                           
-                          {selectedPositionDetail.assetType !== 'cash' && (
-                            <td className="px-3 py-2 whitespace-nowrap text-sm text-right">
-                              {formatNumber(selectedPositionDetail.totalQuantity, { maximumFractionDigits: 4 })}
-                            </td>
-                          )}
-                          
-                          {selectedPositionDetail.assetType !== 'cash' && (
-                            <td className="px-3 py-2 whitespace-nowrap text-sm text-right">
-                              {/* Leave blank for average cost */}
-                            </td>
-                          )}
-                          
-                          <td className="px-3 py-2 whitespace-nowrap text-sm text-right font-medium">
-                            {formatCurrency(selectedPositionDetail.totalValue)}
-                          </td>
-                          
-                          {selectedPositionDetail.assetType !== 'cash' && (
-                            <td className="px-3 py-2 whitespace-nowrap text-sm text-right">
-                              <div className={`font-medium ${selectedPositionDetail.totalGainLoss >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                                {selectedPositionDetail.totalGainLoss >= 0 ? '+' : ''}{formatCurrency(selectedPositionDetail.totalGainLoss)}
-                                <div className="text-xs">
-                                  ({selectedPositionDetail.totalGainLoss >= 0 ? '+' : ''}{selectedPositionDetail.totalGainLossPercent.toFixed(2)}%)
+                          {selectedPositionDetail.assetType !== 'cash' ? (
+                            <>
+                              <td className="px-3 py-2 whitespace-nowrap text-sm text-right">
+                                {formatNumber(selectedPositionDetail.totalQuantity, { maximumFractionDigits: 4 })}
+                              </td>
+                              <td className="px-3 py-2 whitespace-nowrap text-sm text-right font-medium">
+                                {formatCurrency(selectedPositionDetail.totalValue)}
+                              </td>
+                              <td className="px-3 py-2 whitespace-nowrap text-sm text-right">
+                                {/* Leave price cell empty for total row */}
+                              </td>
+                              <td className="px-3 py-2 whitespace-nowrap text-sm text-right font-medium">
+                                {formatCurrency(selectedPositionDetail.totalCostBasis)}
+                              </td>
+                              <td className="px-3 py-2 whitespace-nowrap text-sm text-right">
+                                {/* Leave avg cost cell empty for total row */}
+                              </td>
+                              <td className="px-3 py-2 whitespace-nowrap text-sm text-right">
+                                <div className={`font-medium ${selectedPositionDetail.totalGainLoss >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                  {selectedPositionDetail.totalGainLoss >= 0 ? '+' : ''}{formatCurrency(selectedPositionDetail.totalGainLoss)}
+                                  <div className="text-xs">
+                                    ({selectedPositionDetail.totalGainLoss >= 0 ? '+' : ''}{selectedPositionDetail.totalGainLossPercent.toFixed(2)}%)
+                                  </div>
                                 </div>
-                              </div>
-                            </td>
-                          )}
-                          
-                          {selectedPositionDetail.assetType === 'cash' && (
-                            <td className="px-3 py-2 whitespace-nowrap text-sm text-right">
-                              {/* Leave blank for average rate */}
-                            </td>
-                          )}
-                          
-                          {selectedPositionDetail.assetType === 'cash' && (
-                            <td className="px-3 py-2 whitespace-nowrap text-sm text-right font-medium">
-                              {formatCurrency(selectedPositionDetail.estimatedAnnualIncome)}
-                            </td>
+                              </td>
+                            </>
+                          ) : (
+                            <>
+                              <td className="px-3 py-2 whitespace-nowrap text-sm text-right">
+                                {/* Leave avg rate cell empty for total row */}
+                              </td>
+                              <td className="px-3 py-2 whitespace-nowrap text-sm text-right font-medium">
+                                {formatCurrency(selectedPositionDetail.estimatedAnnualIncome)}
+                              </td>
+                              <td className="px-3 py-2 whitespace-nowrap text-sm text-right font-medium">
+                                {formatCurrency(selectedPositionDetail.totalValue)}
+                              </td>
+                            </>
                           )}
                         </tr>
                       </tbody>
                     </table>
                   </div>
                 </div>
-
-
-
               </div>
 
               {/* Footer */}
