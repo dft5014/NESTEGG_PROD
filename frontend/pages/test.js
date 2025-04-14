@@ -9,7 +9,10 @@ import UpdateOtherDataButton from '@/components/UpdateOtherDataButton';
 import { fetchUnifiedPositions } from '@/utils/apimethods/positionMethods';
 import { fetchAllAccounts } from '@/utils/apimethods/accountMethods';
 import { formatCurrency, formatPercentage } from '@/utils/formatters';
-import { DollarSign, BarChart4, Users, TrendingUp, TrendingDown, Percent } from 'lucide-react';
+import { 
+  DollarSign, BarChart4, Users, TrendingUp, TrendingDown, 
+  Percent, Coins, Banknote, LineChart, Package 
+} from 'lucide-react';
 // Import the chart components
 import { 
   AssetTypeChart, 
@@ -20,6 +23,7 @@ import {
 
 export default function PortfolioPage() {
   const [summaryData, setSummaryData] = useState(null);
+  const [assetClassData, setAssetClassData] = useState({});
   const [allPositions, setAllPositions] = useState([]);
   const [allAccounts, setAllAccounts] = useState([]);
   const [isSummaryLoading, setIsSummaryLoading] = useState(true);
@@ -43,6 +47,10 @@ export default function PortfolioPage() {
         // Calculate summary metrics
         const calculatedSummary = calculatePortfolioSummary(positions, accounts);
         setSummaryData(calculatedSummary);
+        
+        // Calculate asset class metrics
+        const assetClasses = calculateAssetClassMetrics(positions, calculatedSummary.total_value);
+        setAssetClassData(assetClasses);
       } catch (error) {
         console.error("Error loading summary data:", error);
         setSummaryError(error.message || "Failed to load summary");
@@ -84,7 +92,7 @@ export default function PortfolioPage() {
     
     // Calculate gain/loss percent
     summary.total_gain_loss_percent = summary.total_cost_basis > 0 
-      ? (summary.total_gain_loss / summary.total_cost_basis)
+      ? (summary.total_gain_loss / summary.total_cost_basis) 
       : 0;
       
     // Convert Set to count for unique securities
@@ -92,6 +100,36 @@ export default function PortfolioPage() {
     delete summary.unique_securities; // Remove the Set object
     
     return summary;
+  };
+  
+  // Calculate metrics for each asset class
+  const calculateAssetClassMetrics = (positions, totalPortfolioValue) => {
+    // Initialize asset class categories
+    const assetClasses = {
+      security: { value: 0, name: 'Securities', icon: <LineChart />, color: 'blue' },
+      cash: { value: 0, name: 'Cash', icon: <Banknote />, color: 'green' },
+      crypto: { value: 0, name: 'Crypto', icon: <Coins />, color: 'purple' },
+      metal: { value: 0, name: 'Metals', icon: <Package />, color: 'amber' }
+    };
+    
+    // Calculate value for each asset class
+    positions.forEach(position => {
+      const assetType = position.asset_type || 'unknown';
+      const value = parseFloat(position.current_value || 0);
+      
+      if (assetClasses[assetType]) {
+        assetClasses[assetType].value += value;
+      }
+    });
+    
+    // Calculate percentage for each asset class
+    Object.keys(assetClasses).forEach(key => {
+      assetClasses[key].percentage = totalPortfolioValue > 0 
+        ? (assetClasses[key].value / totalPortfolioValue) 
+        : 0;
+    });
+    
+    return assetClasses;
   };
 
   // Determine overall gain/loss icon and color
@@ -174,6 +212,60 @@ export default function PortfolioPage() {
                 color="indigo"
              />
            </div>
+        </section>
+        
+        {/* Asset Class Allocation KPIs */}
+        <section className="mb-10">
+          <h2 className="text-xl font-semibold mb-4 text-gray-300">Asset Class Allocation</h2>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            {/* Securities */}
+            <KpiCard
+              title="Securities"
+              value={assetClassData.security?.value}
+              icon={<LineChart />}
+              isLoading={isSummaryLoading}
+              format={(v) => formatCurrency(v)}
+              color="blue"
+            >
+              {formatPercentage(assetClassData.security?.percentage || 0)} of portfolio
+            </KpiCard>
+            
+            {/* Cash */}
+            <KpiCard
+              title="Cash"
+              value={assetClassData.cash?.value}
+              icon={<Banknote />}
+              isLoading={isSummaryLoading}
+              format={(v) => formatCurrency(v)}
+              color="green"
+            >
+              {formatPercentage(assetClassData.cash?.percentage || 0)} of portfolio
+            </KpiCard>
+            
+            {/* Crypto */}
+            <KpiCard
+              title="Crypto"
+              value={assetClassData.crypto?.value}
+              icon={<Coins />}
+              isLoading={isSummaryLoading}
+              format={(v) => formatCurrency(v)}
+              color="purple"
+            >
+              {formatPercentage(assetClassData.crypto?.percentage || 0)} of portfolio
+            </KpiCard>
+            
+            {/* Metals */}
+            <KpiCard
+              title="Metals"
+              value={assetClassData.metal?.value}
+              icon={<Package />}
+              isLoading={isSummaryLoading}
+              format={(v) => formatCurrency(v)}
+              color="amber"
+            >
+              {formatPercentage(assetClassData.metal?.percentage || 0)} of portfolio
+            </KpiCard>
+          </div>
         </section>
         
         {/* Charts Section */}
