@@ -10,9 +10,18 @@ import { fetchUnifiedPositions } from '@/utils/apimethods/positionMethods';
 import { fetchAllAccounts } from '@/utils/apimethods/accountMethods';
 import { formatCurrency, formatPercentage } from '@/utils/formatters';
 import { DollarSign, BarChart4, Users, TrendingUp, TrendingDown, Percent } from 'lucide-react';
+// Import the chart components
+import { 
+  AssetTypeChart, 
+  TopHoldingsChart, 
+  AccountValuesChart, 
+  GainLossAreaChart 
+} from '@/components/charts/PortfolioCharts';
 
 export default function PortfolioPage() {
   const [summaryData, setSummaryData] = useState(null);
+  const [allPositions, setAllPositions] = useState([]);
+  const [allAccounts, setAllAccounts] = useState([]);
   const [isSummaryLoading, setIsSummaryLoading] = useState(true);
   const [summaryError, setSummaryError] = useState(null);
 
@@ -22,15 +31,17 @@ export default function PortfolioPage() {
       setSummaryError(null);
       try {
         // Fetch all positions using the unified API method
-        const allPositions = await fetchUnifiedPositions();
-        console.log("Portfolio: Fetched unified positions:", allPositions.length);
+        const positions = await fetchUnifiedPositions();
+        console.log("Portfolio: Fetched unified positions:", positions.length);
+        setAllPositions(positions);
         
         // Fetch all accounts
-        const allAccounts = await fetchAllAccounts();
-        console.log("Portfolio: Fetched accounts:", allAccounts.length);
+        const accounts = await fetchAllAccounts();
+        console.log("Portfolio: Fetched accounts:", accounts.length);
+        setAllAccounts(accounts);
         
         // Calculate summary metrics
-        const calculatedSummary = calculatePortfolioSummary(allPositions, allAccounts);
+        const calculatedSummary = calculatePortfolioSummary(positions, accounts);
         setSummaryData(calculatedSummary);
       } catch (error) {
         console.error("Error loading summary data:", error);
@@ -73,7 +84,7 @@ export default function PortfolioPage() {
     
     // Calculate gain/loss percent
     summary.total_gain_loss_percent = summary.total_cost_basis > 0 
-      ? (summary.total_gain_loss / summary.total_cost_basis) * 100 
+      ? (summary.total_gain_loss / summary.total_cost_basis)
       : 0;
       
     // Convert Set to count for unique securities
@@ -163,6 +174,35 @@ export default function PortfolioPage() {
                 color="indigo"
              />
            </div>
+        </section>
+        
+        {/* Charts Section */}
+        <section className="mb-10">
+          <h2 className="text-xl font-semibold mb-4 text-gray-300">Portfolio Analysis</h2>
+          
+          {isSummaryLoading ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {[...Array(4)].map((_, i) => (
+                <div key={i} className="bg-gray-800/70 backdrop-blur-sm rounded-xl p-4 h-[300px] animate-pulse flex items-center justify-center">
+                  <div className="w-16 h-16 rounded-full border-4 border-blue-500 border-t-transparent animate-spin"></div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Asset Type Donut Chart */}
+              <AssetTypeChart positions={allPositions} />
+              
+              {/* Top Holdings Bar Chart */}
+              <TopHoldingsChart positions={allPositions} />
+              
+              {/* Account Values Bar Chart */}
+              <AccountValuesChart accounts={allAccounts} />
+              
+              {/* Gain/Loss by Asset Type Chart */}
+              <GainLossAreaChart positions={allPositions} />
+            </div>
+          )}
         </section>
 
         {/* Account Table Section - Using new UnifiedAccountTable */}

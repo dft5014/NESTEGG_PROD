@@ -122,7 +122,7 @@ const UnifiedGroupedPositionsTable = ({ initialSort = "value-high", title = "Con
       
       // Fix the gain/loss percentage calculation
       group.totalGainLossPercent = group.totalCostBasis > 0 
-        ? (group.totalGainLoss / group.totalCostBasis) * 100 
+        ? (group.totalGainLoss / group.totalCostBasis)
         : 0;
       
       // Calculate income per unit
@@ -166,7 +166,7 @@ const UnifiedGroupedPositionsTable = ({ initialSort = "value-high", title = "Con
           totalCostBasis,
           avgCostBasisPerUnit: totalQuantity > 0 ? totalCostBasis / totalQuantity : 0,
           totalGainLoss: totalValue - totalCostBasis,
-          totalGainLossPercent: totalCostBasis > 0 ? ((totalValue - totalCostBasis) / totalCostBasis) * 100 : 0,
+          totalGainLossPercent: totalCostBasis > 0 ? ((totalValue - totalCostBasis) / totalCostBasis) : 0,
           accountsCount: filteredPositions.length
         };
       });
@@ -285,7 +285,7 @@ const UnifiedGroupedPositionsTable = ({ initialSort = "value-high", title = "Con
 
   // Calculate total gain/loss percent
   const totalGainLossPercent = portfolioTotals.totalCostBasis > 0 
-    ? (portfolioTotals.totalGainLoss / portfolioTotals.totalCostBasis) * 100 
+    ? (portfolioTotals.totalGainLoss / portfolioTotals.totalCostBasis)
     : 0;
 
   // Handle row click to show detail modal
@@ -520,7 +520,7 @@ const UnifiedGroupedPositionsTable = ({ initialSort = "value-high", title = "Con
                         {portfolioTotals.totalGainLoss >= 0 ? '+' : ''}{formatCurrency(portfolioTotals.totalGainLoss)}
                       </div>
                       <div className={`text-xs ${portfolioTotals.totalGainLoss >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                        ({portfolioTotals.totalGainLoss >= 0 ? '+' : ''}{formatPercentage(totalGainLossPercent)})
+                        ({portfolioTotals.totalGainLoss >= 0 ? '+' : ''}{formatPercentage(totalGainLossPercent * 100)})
                       </div>
                     </div>
                   </td>
@@ -598,7 +598,7 @@ const UnifiedGroupedPositionsTable = ({ initialSort = "value-high", title = "Con
                             {group.totalGainLoss >= 0 ? '+' : ''}{formatCurrency(group.totalGainLoss)}
                           </div>
                           <div className={`text-xs ${group.totalGainLoss >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                            ({group.totalGainLoss >= 0 ? '+' : ''}{formatPercentage(group.totalGainLossPercent)})
+                            ({group.totalGainLoss >= 0 ? '+' : ''}{formatPercentage(group.totalGainLossPercent * 100)})
                           </div>
                         </div>
                       )}
@@ -704,7 +704,7 @@ const UnifiedGroupedPositionsTable = ({ initialSort = "value-high", title = "Con
                       <div className="bg-gray-700 rounded-lg p-3">
                         <div className="text-gray-400 text-xs mb-1 uppercase tracking-wider">Gain/Loss (%)</div>
                         <div className={`text-lg font-semibold truncate ${selectedPositionDetail.totalGainLoss >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                          {selectedPositionDetail.totalGainLoss >= 0 ? '+' : ''}{selectedPositionDetail.totalGainLossPercent.toFixed(2)}%
+                          {selectedPositionDetail.totalGainLoss >= 0 ? '+' : ''}{(selectedPositionDetail.totalGainLossPercent * 100).toFixed(2)}%
                         </div>
                       </div>
                     </>
@@ -884,7 +884,7 @@ const UnifiedGroupedPositionsTable = ({ initialSort = "value-high", title = "Con
                           const positionCostBasis = parseFloat(position.total_cost_basis || 0);
                           const positionValue = parseFloat(position.current_value || 0);
                           const positionGainLoss = positionValue - positionCostBasis;
-                          const positionGainLossPercent = positionCostBasis > 0 ? (positionGainLoss / positionCostBasis) * 100 : 0;
+                          const positionGainLossPercent = positionCostBasis > 0 ? (positionGainLoss / positionCostBasis) : 0;
                           // Calculate annual income for cash positions
                           const annualIncome = selectedPositionDetail.assetType === 'cash' && position.dividend_rate 
                             ? (positionValue * (parseFloat(position.dividend_rate) / 100)) 
@@ -893,7 +893,7 @@ const UnifiedGroupedPositionsTable = ({ initialSort = "value-high", title = "Con
                           return (
                             <tr key={position.id} className="hover:bg-gray-600/50">
                               {/* Account name - for all asset types */}
-                              <td className="px-3 py-2 whitespace-nowrap text-sm">{position.account_name}</td>
+                              <td className="px-3 py-2 text-sm break-words max-w-[150px]">{position.account_name}</td>
                               
                               {/* Conditional cells based on asset type */}
                               {selectedPositionDetail.assetType !== 'cash' ? (
@@ -911,13 +911,13 @@ const UnifiedGroupedPositionsTable = ({ initialSort = "value-high", title = "Con
                                     {formatCurrency(positionCostBasis)}
                                   </td>
                                   <td className="px-3 py-2 whitespace-nowrap text-sm text-right">
-                                    {formatCurrency(position.cost_basis || position.current_price_per_unit || 0)}
+                                    {formatCurrency(position.cost_basis || 0)}
                                   </td>
                                   <td className="px-3 py-2 whitespace-nowrap text-sm text-right">
                                     <div className={`${positionGainLoss >= 0 ? 'text-green-400' : 'text-red-400'}`}>
                                       {positionGainLoss >= 0 ? '+' : ''}{formatCurrency(positionGainLoss)}
                                       <div className="text-xs">
-                                        ({positionGainLoss >= 0 ? '+' : ''}{positionGainLossPercent.toFixed(2)}%)
+                                        ({positionGainLoss >= 0 ? '+' : ''}{(positionGainLossPercent * 100).toFixed(2)}%)
                                       </div>
                                     </div>
                                   </td>
@@ -964,7 +964,7 @@ const UnifiedGroupedPositionsTable = ({ initialSort = "value-high", title = "Con
                                 <div className={`font-medium ${selectedPositionDetail.totalGainLoss >= 0 ? 'text-green-400' : 'text-red-400'}`}>
                                   {selectedPositionDetail.totalGainLoss >= 0 ? '+' : ''}{formatCurrency(selectedPositionDetail.totalGainLoss)}
                                   <div className="text-xs">
-                                    ({selectedPositionDetail.totalGainLoss >= 0 ? '+' : ''}{selectedPositionDetail.totalGainLossPercent.toFixed(2)}%)
+                                    ({selectedPositionDetail.totalGainLoss >= 0 ? '+' : ''}{(selectedPositionDetail.totalGainLossPercent * 100).toFixed(2)}%)
                                   </div>
                                 </div>
                               </td>
