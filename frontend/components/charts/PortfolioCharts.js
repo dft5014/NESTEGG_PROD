@@ -170,53 +170,53 @@ export const TopHoldingsChart = ({ positions }) => {
 
 // 3. Account Values Comparison Chart (Bar)
 export const AccountValuesChart = ({ accounts }) => {
-  const data = useMemo(() => {
-    if (!accounts || !accounts.length) return [];
+    const data = useMemo(() => {
+      if (!accounts || !accounts.length) return [];
+      
+      // Transform account data for chart display
+      return accounts
+        .map(account => ({
+          name: account.account_name,
+          institution: account.institution || 'Unknown',
+          value: account.total_value || 0,
+          displayValue: formatCurrency(account.total_value || 0)
+        }))
+        .sort((a, b) => b.value - a.value) // Sort by value descending
+        .slice(0, 10); // Take top 10 accounts
+    }, [accounts]);
     
-    // Transform account data for chart display
-    return accounts
-      .map(account => ({
-        name: account.account_name,
-        institution: account.institution || 'Unknown',
-        value: account.total_value || 0,
-        displayValue: formatCurrency(account.total_value || 0)
-      }))
-      .sort((a, b) => b.value - a.value) // Sort by value descending
-      .slice(0, 10); // Take top 10 accounts
-  }, [accounts]);
+    // Custom tooltip
+    const CustomTooltip = ({ active, payload }) => {
+      if (active && payload && payload.length) {
+        return (
+          <div className="bg-gray-800 p-2 border border-gray-700 rounded shadow-lg text-white text-xs">
+            <p className="font-medium">{payload[0].payload.name}</p>
+            <p className="text-gray-300">{payload[0].payload.institution}</p>
+            <p className="text-blue-300">{payload[0].payload.displayValue}</p>
+          </div>
+        );
+      }
+      return null;
+    };
   
-  // Custom tooltip
-  const CustomTooltip = ({ active, payload }) => {
-    if (active && payload && payload.length) {
-      return (
-        <div className="bg-gray-800 p-2 border border-gray-700 rounded shadow-lg text-white text-xs">
-          <p className="font-medium">{payload[0].payload.name}</p>
-          <p className="text-gray-300">{payload[0].payload.institution}</p>
-          <p className="text-blue-300">{payload[0].payload.displayValue}</p>
-        </div>
-      );
-    }
-    return null;
+    return (
+      <div className="bg-gray-800/70 backdrop-blur-sm rounded-xl p-4 h-[300px]">
+        <h3 className="text-base font-medium mb-4">Account Values</h3>
+        <ResponsiveContainer width="100%" height="80%">
+          <BarChart
+            data={data}
+            layout="vertical"
+            margin={{ top: 5, right: 30, left: 80, bottom: 5 }}
+          >
+            <XAxis type="number" fontSize={10} tickFormatter={(value) => formatCurrency(value, { notation: 'compact' })} />
+            <YAxis type="category" dataKey="name" width={80} fontSize={10} />
+            <Tooltip content={<CustomTooltip />} />
+            <Bar dataKey="value" fill="#8B5CF6" radius={[0, 4, 4, 0]} />
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+    );
   };
-
-  return (
-    <div className="bg-gray-800/70 backdrop-blur-sm rounded-xl p-4 h-[300px]">
-      <h3 className="text-base font-medium mb-4">Account Values</h3>
-      <ResponsiveContainer width="100%" height="80%">
-        <BarChart
-          data={data}
-          layout="vertical"
-          margin={{ top: 5, right: 30, left: 80, bottom: 5 }}
-        >
-          <XAxis type="number" fontSize={10} tickFormatter={(value) => formatCurrency(value, { notation: 'compact' })} />
-          <YAxis type="category" dataKey="name" width={80} fontSize={10} />
-          <Tooltip content={<CustomTooltip />} />
-          <Bar dataKey="value" fill="#8B5CF6" radius={[0, 4, 4, a0]} />
-        </BarChart>
-      </ResponsiveContainer>
-    </div>
-  );
-};
 
 // 4. Performance Chart (Area)
 export const GainLossAreaChart = ({ positions }) => {
