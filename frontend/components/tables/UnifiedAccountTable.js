@@ -578,7 +578,7 @@ const AccountTable = ({
                                                         {gainLoss >= 0 ? '+' : ''}{formatCurrency(gainLoss)}
                                                     </div>
                                                     <div className={`text-xs ${gainLoss >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                                                        ({gainLoss >= 0 ? '+' : ''}{formatPercentage(gainLossPercent)})
+                                                    ({gainLoss >= 0 ? '+' : ''}{formatPercentage(account.total_gain_loss_percent)})
                                                     </div>
                                                 </div>
                                             </td>
