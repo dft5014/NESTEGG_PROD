@@ -10,18 +10,13 @@ import EditAccountButton from '@/components/EditAccountButton';
 
 // --- Nested Modals (No changes needed inside these components themselves) ---
 
-// Tax Lot Detail Modal Component
+// Tax Lot Detail Modal Component - Updated for unified data model
 const TaxLotDetailModal = ({ isOpen, onClose, ticker, positions, onEditTaxLot, onDeleteTaxLot }) => {
-    // ... (Keep the existing TaxLotDetailModal code from the previous version)
-    // Remember it has z-[200] on its outermost div
-     if (!isOpen || !positions) return null; // Simplified guard
+    if (!isOpen || !positions) return null; // Simplified guard
 
     return (
-        // IMPORTANT: For best results, wrap this in a React Portal:
-        // ReactDOM.createPortal(
         <div className="fixed inset-0 z-[200] overflow-y-auto bg-black/70 backdrop-blur-sm flex items-center justify-center">
-            {/* Rest of TaxLotDetailModal code... */}
-             <div className="bg-[#1e293b] text-white rounded-xl w-full max-w-3xl overflow-hidden shadow-2xl m-4">
+            <div className="bg-[#1e293b] text-white rounded-xl w-full max-w-3xl overflow-hidden shadow-2xl m-4">
                 {/* Header */}
                 <div className="p-4 bg-gradient-to-r from-blue-900 to-blue-800 border-b border-blue-700">
                     <div className="flex justify-between items-center">
@@ -52,11 +47,11 @@ const TaxLotDetailModal = ({ isOpen, onClose, ticker, positions, onEditTaxLot, o
                         </thead>
                         <tbody className="divide-y divide-gray-700">
                             {positions && positions.length > 0 ? positions.map((position, index) => {
-                                // Ensure robust parsing and defaults
-                                const shares = parseFloat(position.shares || position.quantity || 0);
-                                const costPerShare = parseFloat(position.cost_basis || 0); // Prioritize cost_basis
-                                const totalCost = shares * costPerShare;
-                                const currentValue = parseFloat(position.value || 0);
+                                // Ensure robust parsing and defaults - Updated for unified model
+                                const shares = parseFloat(position.quantity || 0);
+                                const costPerShare = parseFloat(position.cost_basis || 0);
+                                const totalCost = parseFloat(position.total_cost_basis || 0);
+                                const currentValue = parseFloat(position.current_value || 0);
                                 const gainLoss = currentValue - totalCost;
                                 const gainLossPercent = totalCost > 0 ? (gainLoss / totalCost) : 0; // Avoid division by zero
 
@@ -81,7 +76,7 @@ const TaxLotDetailModal = ({ isOpen, onClose, ticker, positions, onEditTaxLot, o
                                             <div className={`text-sm ${gainLoss >= 0 ? 'text-green-400' : 'text-red-400'}`}>
                                                 {gainLoss >= 0 ? '+' : ''}{formatCurrency(gainLoss)}
                                                 <span className="text-xs block">
-                                                    ({gainLoss >= 0 ? '+' : ''}{formatPercentage(gainLossPercent)}) {/* Use formatter */}
+                                                    ({gainLoss >= 0 ? '+' : ''}{formatPercentage(gainLossPercent)})
                                                 </span>
                                             </div>
                                         </td>
@@ -108,12 +103,12 @@ const TaxLotDetailModal = ({ isOpen, onClose, ticker, positions, onEditTaxLot, o
                                     </tr>
                                 );
                             }) : (
-                                 <tr>
-                                     <td colSpan="7" className="text-center py-4 text-gray-400">
-                                         No individual tax lots found for this ticker/asset type.
-                                     </td>
-                                 </tr>
-                             )}
+                                <tr>
+                                    <td colSpan="7" className="text-center py-4 text-gray-400">
+                                        No individual tax lots found for this ticker/asset type.
+                                    </td>
+                                </tr>
+                            )}
                         </tbody>
                     </table>
                 </div>
@@ -129,16 +124,12 @@ const TaxLotDetailModal = ({ isOpen, onClose, ticker, positions, onEditTaxLot, o
                 </div>
             </div>
         </div>
-        // , document.getElementById('modal-root') // Target element for Portal
-        // ) // End Portal
     );
 };
 
-// Position Modify Modal Component
+// Position Modify Modal Component - Updated for unified data model
 const PositionModifyModal = ({ isOpen, onClose, ticker, positions, onEditSelectedTaxLot, onDeleteSelectedTaxLot }) => {
-    // ... (Keep the existing PositionModifyModal code from the previous version)
-    // Remember it has z-[200] on its outermost div
-     const [selectedPositionId, setSelectedPositionId] = useState(null);
+    const [selectedPositionId, setSelectedPositionId] = useState(null);
 
     const handleSelectionChange = (event) => {
         setSelectedPositionId(event.target.value);
@@ -158,13 +149,9 @@ const PositionModifyModal = ({ isOpen, onClose, ticker, positions, onEditSelecte
 
     if (!isOpen || !positions) return null; // Simplified guard
 
-
     return (
-        // IMPORTANT: For best results, wrap this in a React Portal:
-        // ReactDOM.createPortal(
-         <div className="fixed inset-0 z-[200] overflow-y-auto bg-black/70 backdrop-blur-sm flex items-center justify-center">
-            {/* Rest of PositionModifyModal code... */}
-             <div className="bg-[#1e293b] text-white rounded-xl w-full max-w-3xl overflow-hidden shadow-2xl m-4">
+        <div className="fixed inset-0 z-[200] overflow-y-auto bg-black/70 backdrop-blur-sm flex items-center justify-center">
+            <div className="bg-[#1e293b] text-white rounded-xl w-full max-w-3xl overflow-hidden shadow-2xl m-4">
                 {/* Header */}
                 <div className="p-4 bg-gradient-to-r from-purple-900 to-indigo-800 border-b border-purple-700">
                     <div className="flex justify-between items-center">
@@ -213,21 +200,21 @@ const PositionModifyModal = ({ isOpen, onClose, ticker, positions, onEditSelecte
                                             {formatDate(position.purchase_date) || 'N/A'}
                                         </td>
                                         <td className="px-3 py-2 text-right whitespace-nowrap text-sm">
-                                            {formatNumber(position.shares || position.quantity || 0, { maximumFractionDigits: 6 })}
+                                            {formatNumber(position.quantity || 0, { maximumFractionDigits: 6 })}
                                         </td>
                                         <td className="px-3 py-2 text-right whitespace-nowrap text-sm">
                                             {formatCurrency(position.cost_basis || 0)}
                                         </td>
                                         <td className="px-3 py-2 text-right whitespace-nowrap text-sm">
-                                            {formatCurrency(position.value || 0)}
+                                            {formatCurrency(position.current_value || 0)}
                                         </td>
                                     </tr>
                                 )) : (
-                                     <tr>
-                                         <td colSpan="5" className="text-center py-4 text-gray-400">
-                                             No individual tax lots found for this ticker/asset type.
-                                         </td>
-                                     </tr>
+                                    <tr>
+                                        <td colSpan="5" className="text-center py-4 text-gray-400">
+                                            No individual tax lots found for this ticker/asset type.
+                                        </td>
+                                    </tr>
                                 )}
                             </tbody>
                         </table>
@@ -267,8 +254,6 @@ const PositionModifyModal = ({ isOpen, onClose, ticker, positions, onEditSelecte
                 </div>
             </div>
         </div>
-        // , document.getElementById('modal-root') // Target element for Portal
-        // ) // End Portal
     );
 };
 
@@ -299,9 +284,9 @@ const AccountDetailModal = ({
     const gainLossPercent = costBasis > 0 ? (gainLoss / costBasis) : 0;
     const positionsCount = account?.positions?.length ?? 0;
 
-    // --- Group positions by Ticker > Asset Type > 'Unknown' ---
+    // --- Group positions by Asset Type > Identifier ---
     const groupedPositions = useMemo(() => {
-        // Expecting account.positions: [{ id, ticker?, name?, asset_type?, shares?, quantity?, value?, cost_basis?, current_price?, purchase_date?, ... }]
+        // Using the unified positions format
         if (!account?.positions || !Array.isArray(account.positions) || account.positions.length === 0) {
             return [];
         }
@@ -313,65 +298,49 @@ const AccountDetailModal = ({
             }
 
             // --- Determine Grouping Key ---
-            const ticker = position.ticker?.trim(); // Use ticker if available and not just whitespace
-            // Standardize asset type for grouping (optional but good practice)
-            const assetTypeRaw = position.asset_type?.trim();
-            let assetType = assetTypeRaw;
-            // Example standardization:
-            // if (assetTypeRaw?.toLowerCase().includes('stock')) assetType = 'Security';
-            // else if (assetTypeRaw?.toLowerCase().includes('crypto')) assetType = 'Crypto';
-             // ... etc. Keep it simple for now based on user list:
-             const validAssetTypes = ['Security', 'Crypto', 'Real Estate', 'Cash', 'Metals']; // Example list
-             if (assetTypeRaw && !validAssetTypes.some(t => assetTypeRaw.toLowerCase() === t.toLowerCase())) {
-                 // If asset type exists but isn't in our known list, maybe default to 'Security' or keep raw?
-                 // For now, we only use it if Ticker is missing, so let's keep it raw if present.
-                 assetType = assetTypeRaw;
-             } else if (assetTypeRaw) {
-                // Find the canonical capitalization if it matches case-insensitively
-                assetType = validAssetTypes.find(t => assetTypeRaw.toLowerCase() === t.toLowerCase()) || assetTypeRaw;
-             }
-
-
-            const groupKey = ticker || assetType || 'Unknown'; // Group by Ticker > Asset Type > Unknown
-            // -----------------------------
-
+            // In unified model, we use asset_type and identifier (which could be ticker, symbol, etc.)
+            const assetType = position.asset_type?.trim() || 'Unknown';
+            const identifier = position.identifier?.trim() || position.ticker?.trim() || 'Unknown';
+            
+            // Create a composite key for grouping
+            const groupKey = `${assetType}:${identifier}`;
+            
             if (!groups[groupKey]) {
                 groups[groupKey] = {
-                    groupingKey: groupKey, // The key used for this group (ticker or asset type)
-                    isTickerGroup: !!ticker, // Flag to know if grouped by ticker
-                    ticker: ticker || null, // Store original ticker
-                    asset_type: assetType || 'Unknown', // Store standardized/raw asset type
-                    name: position.name || (ticker ? '' : groupKey), // Best guess for display name
+                    groupingKey: groupKey, // The composite key for this group
+                    assetType: assetType,
+                    identifier: identifier,
+                    name: position.name || identifier, // Best guess for display name
                     positions: [],
                     totalShares: 0,
                     totalValue: 0,
                     totalCostBasis: 0,
-                    currentPrice: parseFloat(position.current_price || position.price || 0), // Representative price
+                    currentPrice: parseFloat(position.current_price_per_unit || 0), // Representative price
                 };
             }
 
             groups[groupKey].positions.push(position);
 
-            // Aggregate values (robust parsing)
-            const positionShares = parseFloat(position.shares || position.quantity || 0);
-            const positionValue = parseFloat(position.value || 0);
+            // Aggregate values (robust parsing) - Updated for unified model
+            const positionShares = parseFloat(position.quantity || 0);
+            const positionValue = parseFloat(position.current_value || 0);
             const positionCostPerShare = parseFloat(position.cost_basis || 0);
-            const positionCostBasis = positionShares * positionCostPerShare;
+            const positionCostBasis = parseFloat(position.total_cost_basis || 0);
 
             if (!isNaN(positionShares)) groups[groupKey].totalShares += positionShares;
             if (!isNaN(positionValue)) groups[groupKey].totalValue += positionValue;
             if (!isNaN(positionCostBasis)) groups[groupKey].totalCostBasis += positionCostBasis;
 
-             // Update representative price (optional logic)
-            const currentItemPrice = parseFloat(position.current_price || position.price || 0);
+            // Update representative price (optional logic)
+            const currentItemPrice = parseFloat(position.current_price_per_unit || 0);
             if (!isNaN(currentItemPrice) && currentItemPrice > 0 && groups[groupKey].currentPrice <= 0) {
-                 groups[groupKey].currentPrice = currentItemPrice;
+                groups[groupKey].currentPrice = currentItemPrice;
             }
-             // Try to get a better Name if the first item didn't have one
-             if (!groups[groupKey].name && position.name) {
-                 groups[groupKey].name = position.name;
-             }
-
+            
+            // Try to get a better Name if the first item didn't have one
+            if (!groups[groupKey].name && position.name) {
+                groups[groupKey].name = position.name;
+            }
 
             return groups;
         }, {});
@@ -385,13 +354,13 @@ const AccountDetailModal = ({
             group.avgCostPerShare = isNaN(group.avgCostPerShare) ? 0 : group.avgCostPerShare;
             group.gainLoss = isNaN(group.gainLoss) ? 0 : group.gainLoss;
             group.gainLossPercent = isNaN(group.gainLossPercent) ? 0 : group.gainLossPercent;
-            // If name is still blank, use the grouping key
-            if (!group.name) group.name = group.groupingKey;
+            // If name is still blank, use the identifier
+            if (!group.name) group.name = group.identifier;
             return group;
         });
     }, [account?.positions]);
 
-    // --- Sorting grouped positions (using groupingKey for sorting ticker/name column) ---
+    // --- Sorting grouped positions ---
     const sortedGroupedPositions = useMemo(() => {
         if (!groupedPositions.length) return [];
 
@@ -414,10 +383,9 @@ const AccountDetailModal = ({
                 case 'currentPrice':  aValue = a.currentPrice; bValue = b.currentPrice; break;
                 case 'avgCostPerShare': aValue = a.avgCostPerShare; bValue = b.avgCostPerShare; break;
                 case 'gainLossPercent': aValue = a.gainLossPercent; bValue = b.gainLossPercent; break;
-                // Add case for asset_type if you want to sort by it separately
-                // case 'asset_type':
-                //     const compareResult = (a.asset_type || '').localeCompare(b.asset_type || '');
-                //     return sortDirection === 'asc' ? compareResult : -compareResult;
+                case 'assetType': 
+                    const compareResult = (a.assetType || '').localeCompare(b.assetType || '');
+                    return sortDirection === 'asc' ? compareResult : -compareResult;
                 default:              aValue = a.totalValue; bValue = b.totalValue; // Default sort
             }
 
@@ -429,9 +397,9 @@ const AccountDetailModal = ({
     }, [groupedPositions, sortField, sortDirection]);
 
     // --- Calculate account percentages ---
-     const positionsWithPercentage = useMemo(() => {
+    const positionsWithPercentage = useMemo(() => {
         if (!sortedGroupedPositions.length || totalValue <= 0) {
-             return sortedGroupedPositions.map(pos => ({ ...pos, accountPercentage: 0 }));
+            return sortedGroupedPositions.map(pos => ({ ...pos, accountPercentage: 0 }));
         }
         return sortedGroupedPositions.map(pos => ({
             ...pos,
@@ -487,7 +455,6 @@ const AccountDetailModal = ({
         return group ? group.positions : [];
     }, [groupedPositions]);
 
-
     // --- Placeholder Handlers for Tax Lot Edit/Delete ---
     const handleEditTaxLot = useCallback((taxLot) => {
         console.log("Request to EDIT Tax Lot:", taxLot);
@@ -496,21 +463,21 @@ const AccountDetailModal = ({
 
     const handleDeleteTaxLot = useCallback((taxLot) => {
         console.log("Request to DELETE Tax Lot:", taxLot);
-         if (window.confirm(`DELETE Tax Lot?\n${taxLot.ticker || taxLot.name || taxLot.asset_type}\nShares: ${taxLot.shares || taxLot.quantity}\nDate: ${formatDate(taxLot.purchase_date)}`)) {
+        if (window.confirm(`DELETE Tax Lot?\n${taxLot.identifier || taxLot.ticker || taxLot.name || taxLot.asset_type}\nQuantity: ${taxLot.quantity}\nDate: ${formatDate(taxLot.purchase_date)}`)) {
             onDeletePosition(taxLot);
-         }
+        }
     }, [onDeletePosition]);
 
     const handleEditSelectedTaxLot = useCallback((selectedId) => {
-         const key = selectedGroupKeyForModify;
-         if (!key || !selectedId) return;
-         const positions = getPositionsForGroupKey(key);
-         const taxLotToEdit = positions.find(p => p.id === selectedId);
-         if (taxLotToEdit) {
+        const key = selectedGroupKeyForModify;
+        if (!key || !selectedId) return;
+        const positions = getPositionsForGroupKey(key);
+        const taxLotToEdit = positions.find(p => p.id === selectedId);
+        if (taxLotToEdit) {
             console.log("Request to EDIT Selected Tax Lot:", taxLotToEdit);
             onEditPosition(taxLotToEdit);
             handleCloseModifyModal();
-         }
+        }
     }, [selectedGroupKeyForModify, getPositionsForGroupKey, onEditPosition, handleCloseModifyModal]);
 
     const handleDeleteSelectedTaxLot = useCallback((selectedId) => {
@@ -519,14 +486,32 @@ const AccountDetailModal = ({
         const positions = getPositionsForGroupKey(key);
         const taxLotToDelete = positions.find(p => p.id === selectedId);
         if (taxLotToDelete) {
-             console.log("Request to DELETE Selected Tax Lot:", taxLotToDelete);
-             if (window.confirm(`DELETE Selected Tax Lot?\n${taxLotToDelete.ticker || taxLotToDelete.name || taxLotToDelete.asset_type}\nShares: ${taxLotToDelete.shares || taxLotToDelete.quantity}\nDate: ${formatDate(taxLotToDelete.purchase_date)}`)) {
-                 onDeletePosition(taxLotToDelete);
-                 handleCloseModifyModal();
-             }
+            console.log("Request to DELETE Selected Tax Lot:", taxLotToDelete);
+            if (window.confirm(`DELETE Selected Tax Lot?\n${taxLotToDelete.identifier || taxLotToDelete.ticker || taxLotToDelete.name || taxLotToDelete.asset_type}\nQuantity: ${taxLotToDelete.quantity}\nDate: ${formatDate(taxLotToDelete.purchase_date)}`)) {
+                onDeletePosition(taxLotToDelete);
+                handleCloseModifyModal();
+            }
         }
     }, [selectedGroupKeyForModify, getPositionsForGroupKey, onDeletePosition, handleCloseModifyModal]);
 
+    // Get asset type icon
+    const getAssetTypeIcon = (assetType) => {
+        const type = assetType ? assetType.toLowerCase() : '';
+        switch (type) {
+            case 'security':
+                return <BarChart4 className="w-3 h-3 mr-1" />;
+            case 'crypto':
+                return <div className="w-3 h-3 mr-1 text-xs">₿</div>;
+            case 'metal':
+                return <div className="w-3 h-3 mr-1 text-xs">Au</div>;
+            case 'cash':
+                return <div className="w-3 h-3 mr-1 text-xs">$</div>;
+            case 'realestate':
+                return <div className="w-3 h-3 mr-1 text-xs">🏠</div>;
+            default:
+                return null;
+        }
+    };
 
     // --- Render ---
     if (!isOpen || !account) return null;
@@ -539,8 +524,7 @@ const AccountDetailModal = ({
 
                 {/* Header (No z-index needed) */}
                 <div className="p-5 bg-gradient-to-r from-blue-900 to-blue-800 border-b border-blue-700 flex-shrink-0">
-                    {/* ... header content ... */}
-                     <div className="flex items-center">
+                    <div className="flex items-center">
                         <div className="flex-shrink-0 h-10 w-10 rounded-full bg-white flex items-center justify-center mr-3">
                             <span className="font-bold text-blue-800 text-xl">{account?.account_name?.charAt(0)?.toUpperCase() || '?'}</span>
                         </div>
@@ -559,9 +543,8 @@ const AccountDetailModal = ({
                 {/* Scrollable Body Content (No z-index needed) */}
                 <div className="bg-[#111827] p-5 space-y-5 overflow-y-auto flex-grow">
                     {/* Account Metrics */}
-                     <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                        {/* ... metric cards ... */}
-                         <div className="bg-[#1e293b] rounded-lg p-3">
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                        <div className="bg-[#1e293b] rounded-lg p-3">
                             <div className="text-gray-400 text-[10px] mb-0.5 uppercase flex items-center"><DollarSign className='w-2.5 h-2.5 mr-1'/>CURRENT VALUE</div>
                             <div className="text-lg font-bold">{formatCurrency(totalValue)}</div>
                         </div>
@@ -578,7 +561,7 @@ const AccountDetailModal = ({
                         </div>
                          <div className="bg-[#1e293b] rounded-lg p-3">
                             <div className="text-gray-400 text-[10px] mb-0.5 uppercase flex items-center"><BarChart4 className='w-2.5 h-2.5 mr-1'/>POSITIONS</div>
-                            <div className="text-lg font-bold">{positionsCount}</div> {/* This might be confusing now - it's tax lots, not groups */}
+                            <div className="text-lg font-bold">{positionsCount}</div>
                         </div>
                     </div>
 
@@ -594,10 +577,10 @@ const AccountDetailModal = ({
                                         <th className="px-2 py-2 text-center text-xs font-medium text-gray-400 uppercase tracking-wider w-8">#</th>
                                         {/* --- Updated Header --- */}
                                         <th className="px-3 py-2 text-left text-xs font-medium text-gray-400 uppercase tracking-wider cursor-pointer hover:text-white" onClick={() => handleSort('groupingKey')}>
-                                            TICKER / ASSET TYPE {getSortIcon('groupingKey')}
+                                            ASSET / IDENTIFIER {getSortIcon('groupingKey')}
                                         </th>
                                         <th className="px-3 py-2 text-right text-xs font-medium text-gray-400 uppercase tracking-wider cursor-pointer hover:text-white" onClick={() => handleSort('totalShares')}>
-                                            SHARES {getSortIcon('totalShares')}
+                                            QUANTITY {getSortIcon('totalShares')}
                                         </th>
                                         <th className="px-3 py-2 text-right text-xs font-medium text-gray-400 uppercase tracking-wider cursor-pointer hover:text-white" onClick={() => handleSort('currentPrice')}>
                                             PRICE {getSortIcon('currentPrice')}
@@ -607,7 +590,7 @@ const AccountDetailModal = ({
                                         </th>
                                         <th className="px-3 py-2 text-right text-xs font-medium text-gray-400 uppercase tracking-wider">ACCT %</th>
                                         <th className="px-3 py-2 text-right text-xs font-medium text-gray-400 uppercase tracking-wider cursor-pointer hover:text-white" onClick={() => handleSort('avgCostPerShare')}>
-                                            COST/SHARE {getSortIcon('avgCostPerShare')}
+                                            COST/UNIT {getSortIcon('avgCostPerShare')}
                                         </th>
                                         <th className="px-3 py-2 text-right text-xs font-medium text-gray-400 uppercase tracking-wider cursor-pointer hover:text-white" onClick={() => handleSort('totalCostBasis')}>
                                             COST BASIS {getSortIcon('totalCostBasis')}
@@ -623,28 +606,48 @@ const AccountDetailModal = ({
                                         positionsWithPercentage.map((positionGroup, index) => (
                                             <tr key={`${positionGroup.groupingKey}-${index}`} className="hover:bg-[#172234] transition-colors">
                                                 <td className="px-2 py-2 text-center whitespace-nowrap text-xs text-gray-400">{index + 1}</td>
-                                                 {/* --- Updated Display Column --- */}
+                                                {/* --- Updated Display Column --- */}
                                                 <td className="px-3 py-2 whitespace-nowrap">
-                                                    <div className="font-medium text-white">{positionGroup.groupingKey}</div>
+                                                    <div className="font-medium text-white flex items-center">
+                                                        {getAssetTypeIcon(positionGroup.assetType)}
+                                                        {positionGroup.identifier}
+                                                    </div>
                                                     <div className="text-xs text-gray-400 capitalize">
-                                                        {/* Show name if different from grouping key, or show asset type if grouped by ticker */}
-                                                        {positionGroup.name !== positionGroup.groupingKey ? positionGroup.name : (positionGroup.isTickerGroup ? positionGroup.asset_type : '')}
+                                                        {positionGroup.name !== positionGroup.identifier ? positionGroup.name : ''}
                                                     </div>
                                                 </td>
                                                 {/* --- Rest of the columns --- */}
-                                                <td className="px-3 py-2 text-right whitespace-nowrap text-gray-300">{formatNumber(positionGroup.totalShares, { maximumFractionDigits: 6 })}</td>
-                                                <td className="px-3 py-2 text-right whitespace-nowrap text-gray-300">{formatCurrency(positionGroup.currentPrice)}</td>
+                                                <td className="px-3 py-2 text-right whitespace-nowrap text-gray-300">
+                                                    {positionGroup.assetType?.toLowerCase() === 'cash' ? 
+                                                      '' : 
+                                                      formatNumber(positionGroup.totalShares, { maximumFractionDigits: 6 })}
+                                                </td>
+                                                <td className="px-3 py-2 text-right whitespace-nowrap text-gray-300">
+                                                    {positionGroup.assetType?.toLowerCase() === 'cash' ? 
+                                                      '' : 
+                                                      formatCurrency(positionGroup.currentPrice)}
+                                                </td>
                                                 <td className="px-3 py-2 text-right whitespace-nowrap font-medium text-white">{formatCurrency(positionGroup.totalValue)}</td>
                                                 <td className="px-3 py-2 text-right whitespace-nowrap text-gray-300">{formatPercentage(positionGroup.accountPercentage)}</td>
-                                                <td className="px-3 py-2 text-right whitespace-nowrap text-gray-300">{formatCurrency(positionGroup.avgCostPerShare)}</td>
+                                                <td className="px-3 py-2 text-right whitespace-nowrap text-gray-300">
+                                                    {positionGroup.assetType?.toLowerCase() === 'cash' ? 
+                                                      '' : 
+                                                      formatCurrency(positionGroup.avgCostPerShare)}
+                                                </td>
                                                 <td className="px-3 py-2 text-right whitespace-nowrap text-gray-300">{formatCurrency(positionGroup.totalCostBasis)}</td>
                                                 <td className="px-3 py-2 text-right whitespace-nowrap">
-                                                    <div className={`font-medium ${positionGroup.gainLoss >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                                                        {positionGroup.gainLoss >= 0 ? '+' : ''}{formatCurrency(positionGroup.gainLoss)}
-                                                    </div>
-                                                    <div className={`text-[11px] ${positionGroup.gainLoss >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                                                        ({positionGroup.gainLoss >= 0 ? '+' : ''}{formatPercentage(positionGroup.gainLossPercent)})
-                                                    </div>
+                                                    {positionGroup.assetType?.toLowerCase() === 'cash' ? (
+                                                        <div className="text-gray-500">N/A</div>
+                                                    ) : (
+                                                        <div>
+                                                            <div className={`font-medium ${positionGroup.gainLoss >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                                                {positionGroup.gainLoss >= 0 ? '+' : ''}{formatCurrency(positionGroup.gainLoss)}
+                                                            </div>
+                                                            <div className={`text-[11px] ${positionGroup.gainLoss >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                                                                ({positionGroup.gainLoss >= 0 ? '+' : ''}{formatPercentage(positionGroup.gainLossPercent)})
+                                                            </div>
+                                                        </div>
+                                                    )}
                                                 </td>
                                                 <td className="px-3 py-2 text-center whitespace-nowrap">
                                                     <div className="flex items-center justify-center space-x-1.5">
@@ -669,7 +672,6 @@ const AccountDetailModal = ({
 
                 {/* Footer (No z-index needed here, removed relative z-10) */}
                 <div className="bg-[#111827] px-5 py-3 border-t border-gray-700 flex justify-end space-x-3 flex-shrink-0">
-                    {/* ... footer buttons ... */}
                     <AddPositionButton
                         accountId={account?.id}
                         className="bg-blue-600 hover:bg-blue-700 text-white py-1.5 px-3 rounded-md text-sm transition-colors"
@@ -700,7 +702,7 @@ const AccountDetailModal = ({
                 <TaxLotDetailModal
                     isOpen={isTaxLotModalOpen}
                     onClose={handleCloseTaxLotModal}
-                    ticker={selectedGroupKeyForDetail} // Pass groupKey as 'ticker' prop for display
+                    ticker={selectedGroupKeyForDetail.split(':')[1] || 'Unknown'} // Extract identifier from composite key
                     positions={getPositionsForGroupKey(selectedGroupKeyForDetail)}
                     onEditTaxLot={handleEditTaxLot}
                     onDeleteTaxLot={handleDeleteTaxLot}
@@ -711,7 +713,7 @@ const AccountDetailModal = ({
                 <PositionModifyModal
                     isOpen={isModifyModalOpen}
                     onClose={handleCloseModifyModal}
-                    ticker={selectedGroupKeyForModify} // Pass groupKey as 'ticker' prop for display
+                    ticker={selectedGroupKeyForModify.split(':')[1] || 'Unknown'} // Extract identifier from composite key
                     positions={getPositionsForGroupKey(selectedGroupKeyForModify)}
                     onEditSelectedTaxLot={handleEditSelectedTaxLot}
                     onDeleteSelectedTaxLot={handleDeleteSelectedTaxLot}
