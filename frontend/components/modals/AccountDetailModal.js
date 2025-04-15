@@ -133,11 +133,16 @@ const TaxLotDetailModal = ({ isOpen, onClose, ticker, positions, onEditTaxLot, o
     };
 
     // Handler for when position is saved successfully
-    const handlePositionSaved = () => {
+    const handlePositionSaved = (updatedPosition) => {
+        // Call parent's handler with the updated position
+        if (updatedPosition) {
+            onEditTaxLot(updatedPosition);
+        } else if (positionToEdit) {
+            onEditTaxLot(positionToEdit);
+        }
+        
         setIsEditModalOpen(false);
         setPositionToEdit(null);
-        // Potentially trigger a refresh of data
-        // This would require adding a callback to the parent component
     };
 
     // Delete Confirmation Modal Component (can be defined inside TaxLotDetailModal)
@@ -173,10 +178,10 @@ const TaxLotDetailModal = ({ isOpen, onClose, ticker, positions, onEditTaxLot, o
         );
     };
 
-    if (!isOpen || !positions) return null; // Simplified guard
+    if (!isOpen) return null; // Simplified guard
 
     return (
-        <div className="fixed inset-0 z-50 overflow-y-auto bg-black/70 backdrop-blur-sm flex items-center justify-center">
+        <div className="fixed inset-0 z-[200] overflow-y-auto bg-black/70 backdrop-blur-sm flex items-center justify-center">
             <div className="bg-[#1e293b] text-white rounded-xl w-full max-w-3xl overflow-hidden shadow-2xl m-4">
                 {/* Header */}
                 <div className="p-4 bg-gradient-to-r from-blue-900 to-blue-800 border-b border-blue-700">
@@ -193,147 +198,147 @@ const TaxLotDetailModal = ({ isOpen, onClose, ticker, positions, onEditTaxLot, o
                 </div>
 
                 {/* Body */}
-                <div className="p-4 max-h-[calc(80vh-120px)] overflow-y-auto"> {/* Adjusted max height */}
-                    <table className="min-w-full divide-y divide-gray-700">
-                        <thead className="bg-gray-900/60 sticky top-0 z-10"> {/* Added sticky header */}
-                            <tr>
-                                <th 
-                                    className="px-3 py-2 text-left text-xs font-medium text-gray-400 uppercase tracking-wider cursor-pointer hover:text-white"
-                                    onClick={() => handleSort('purchase_date')}
-                                >
-                                    Purchase Date {getSortIcon('purchase_date')}
-                                </th>
-                                <th 
-                                    className="px-3 py-2 text-right text-xs font-medium text-gray-400 uppercase tracking-wider cursor-pointer hover:text-white"
-                                    onClick={() => handleSort('current_value')}
-                                >
-                                    Current Value {getSortIcon('current_value')}
-                                </th>
-                                <th 
-                                    className="px-3 py-2 text-right text-xs font-medium text-gray-400 uppercase tracking-wider cursor-pointer hover:text-white"
-                                    onClick={() => handleSort('current_price')}
-                                >
-                                    Current Price {getSortIcon('current_price')}
-                                </th>
-                                <th 
-                                    className="px-3 py-2 text-right text-xs font-medium text-gray-400 uppercase tracking-wider cursor-pointer hover:text-white"
-                                    onClick={() => handleSort('total_cost')}
-                                >
-                                    Cost Basis {getSortIcon('total_cost')}
-                                </th>
-                                <th 
-                                    className="px-3 py-2 text-right text-xs font-medium text-gray-400 uppercase tracking-wider cursor-pointer hover:text-white"
-                                    onClick={() => handleSort('cost_unit')}
-                                >
-                                    Cost/Unit {getSortIcon('cost_unit')}
-                                </th>
-                                <th 
-                                    className="px-3 py-2 text-right text-xs font-medium text-gray-400 uppercase tracking-wider cursor-pointer hover:text-white"
-                                    onClick={() => handleSort('gain_loss')}
-                                >
-                                    Gain/Loss {getSortIcon('gain_loss')}
-                                </th>
-                                <th className="px-3 py-2 text-center text-xs font-medium text-gray-400 uppercase tracking-wider">Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-700">
-                            {sortedPositions && sortedPositions.length > 0 ? sortedPositions.map((position, index) => {
-                                // Ensure robust parsing and defaults - Updated for unified model
-                                const shares = parseFloat(position.quantity || 0);
-                                // Using the new cost_per_unit field as primary source
-                                const costPerUnit = parseFloat(position.cost_per_unit || 0);
-                                const totalCost = parseFloat(position.total_cost_basis || 0);
-                                const currentPrice = parseFloat(position.current_price_per_unit || 0);
-                                const currentValue = parseFloat(position.current_value || 0);
-                                const gainLoss = currentValue - totalCost;
-                                const gainLossPercent = totalCost > 0 ? (gainLoss / totalCost) * 100 : 0; // Avoid division by zero
+                <div className="p-4 max-h-[calc(80vh-120px)] overflow-y-auto">
+                    {positions && positions.length > 0 ? (
+                        <table className="min-w-full divide-y divide-gray-700">
+                            <thead className="bg-gray-900/60 sticky top-0 z-10">
+                                <tr>
+                                    <th 
+                                        className="px-3 py-2 text-left text-xs font-medium text-gray-400 uppercase tracking-wider cursor-pointer hover:text-white"
+                                        onClick={() => handleSort('purchase_date')}
+                                    >
+                                        Purchase Date {getSortIcon('purchase_date')}
+                                    </th>
+                                    <th 
+                                        className="px-3 py-2 text-right text-xs font-medium text-gray-400 uppercase tracking-wider cursor-pointer hover:text-white"
+                                        onClick={() => handleSort('current_value')}
+                                    >
+                                        Current Value {getSortIcon('current_value')}
+                                    </th>
+                                    <th 
+                                        className="px-3 py-2 text-right text-xs font-medium text-gray-400 uppercase tracking-wider cursor-pointer hover:text-white"
+                                        onClick={() => handleSort('current_price')}
+                                    >
+                                        Current Price {getSortIcon('current_price')}
+                                    </th>
+                                    <th 
+                                        className="px-3 py-2 text-right text-xs font-medium text-gray-400 uppercase tracking-wider cursor-pointer hover:text-white"
+                                        onClick={() => handleSort('total_cost')}
+                                    >
+                                        Cost Basis {getSortIcon('total_cost')}
+                                    </th>
+                                    <th 
+                                        className="px-3 py-2 text-right text-xs font-medium text-gray-400 uppercase tracking-wider cursor-pointer hover:text-white"
+                                        onClick={() => handleSort('cost_unit')}
+                                    >
+                                        Cost/Unit {getSortIcon('cost_unit')}
+                                    </th>
+                                    <th 
+                                        className="px-3 py-2 text-right text-xs font-medium text-gray-400 uppercase tracking-wider cursor-pointer hover:text-white"
+                                        onClick={() => handleSort('gain_loss')}
+                                    >
+                                        Gain/Loss {getSortIcon('gain_loss')}
+                                    </th>
+                                    <th className="px-3 py-2 text-center text-xs font-medium text-gray-400 uppercase tracking-wider">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-700">
+                                {sortedPositions.map((position, index) => {
+                                    // Ensure robust parsing and defaults - Updated for unified model
+                                    const shares = parseFloat(position.quantity || 0);
+                                    // Using the new cost_per_unit field as primary source
+                                    const costPerUnit = parseFloat(position.cost_per_unit || 0);
+                                    const totalCost = parseFloat(position.total_cost_basis || 0);
+                                    const currentPrice = parseFloat(position.current_price_per_unit || 0);
+                                    const currentValue = parseFloat(position.current_value || 0);
+                                    const gainLoss = currentValue - totalCost;
+                                    const gainLossPercent = totalCost > 0 ? (gainLoss / totalCost) * 100 : 0; // Avoid division by zero
 
-                                return (
-                                    <tr key={`lot-${position.id || index}`} className="hover:bg-gray-700/40">
-                                        <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-300">
-                                            {formatDate(position.purchase_date) || 'N/A'}
+                                    return (
+                                        <tr key={`lot-${position.id || index}`} className="hover:bg-gray-700/40">
+                                            <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-300">
+                                                {formatDate(position.purchase_date) || 'N/A'}
+                                            </td>
+                                            <td className="px-3 py-2 text-right whitespace-nowrap text-sm">
+                                                {formatCurrency(currentValue)}
+                                            </td>
+                                            <td className="px-3 py-2 text-right whitespace-nowrap text-sm">
+                                                {formatCurrency(currentPrice)}
+                                            </td>
+                                            <td className="px-3 py-2 text-right whitespace-nowrap text-sm">
+                                                {formatCurrency(totalCost)}
+                                            </td>
+                                            <td className="px-3 py-2 text-right whitespace-nowrap text-sm">
+                                                {formatCurrency(costPerUnit)}
+                                            </td>
+                                            <td className="px-3 py-2 text-right whitespace-nowrap">
+                                                <div className={`text-sm ${gainLoss >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                                    {gainLoss >= 0 ? '+' : ''}{formatCurrency(gainLoss)}
+                                                    <span className="text-xs block">
+                                                        ({gainLoss >= 0 ? '+' : ''}{formatPercentage(gainLossPercent)})
+                                                    </span>
+                                                </div>
+                                            </td>
+                                            <td className="px-3 py-2 text-center whitespace-nowrap">
+                                                <div className="flex items-center justify-center space-x-2">
+                                                    {/* Edit Button - Matching SecurityTableAccount.js pattern */}
+                                                    <button
+                                                        onClick={(e) => handleEditClick(e, position)}
+                                                        className="p-1.5 bg-purple-600/20 text-purple-400 rounded-full hover:bg-purple-600/40 transition-colors"
+                                                        title="Edit Position"
+                                                    >
+                                                        <Settings className="h-4 w-4" />
+                                                    </button>
+                                                    {/* Delete Button - Matching SecurityTableAccount.js pattern */}
+                                                    <button
+                                                        onClick={(e) => handleDeleteClick(e, position)}
+                                                        className="p-1.5 bg-red-600/20 text-red-400 rounded-full hover:bg-red-600/40 transition-colors"
+                                                        title="Delete Position"
+                                                    >
+                                                        <Trash className="h-4 w-4" />
+                                                    </button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    );
+                                })}
+                                
+                                {/* Totals row */}
+                                {sortedPositions.length > 0 && (
+                                    <tr className="bg-gray-800/50 font-medium">
+                                        <td className="px-3 py-2 whitespace-nowrap text-sm font-semibold">TOTAL</td>
+                                        <td className="px-3 py-2 text-right whitespace-nowrap text-sm font-semibold">
+                                            {formatCurrency(totals.totalCurrentValue)}
                                         </td>
                                         <td className="px-3 py-2 text-right whitespace-nowrap text-sm">
-                                            {formatCurrency(currentValue)}
+                                            {/* No average current price */}
+                                        </td>
+                                        <td className="px-3 py-2 text-right whitespace-nowrap text-sm font-semibold">
+                                            {formatCurrency(totals.totalCostBasis)}
                                         </td>
                                         <td className="px-3 py-2 text-right whitespace-nowrap text-sm">
-                                            {formatCurrency(currentPrice)}
+                                            {/* No average cost per unit */}
                                         </td>
-                                        <td className="px-3 py-2 text-right whitespace-nowrap text-sm">
-                                            {formatCurrency(totalCost)}
-                                        </td>
-                                        <td className="px-3 py-2 text-right whitespace-nowrap text-sm">
-                                            {formatCurrency(costPerUnit)}
-                                        </td>
-                                        <td className="px-3 py-2 text-right whitespace-nowrap">
-                                            <div className={`text-sm ${gainLoss >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                                                {gainLoss >= 0 ? '+' : ''}{formatCurrency(gainLoss)}
+                                        <td className="px-3 py-2 text-right whitespace-nowrap font-semibold">
+                                            <div className={`text-sm ${totals.totalGainLoss >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                                {totals.totalGainLoss >= 0 ? '+' : ''}{formatCurrency(totals.totalGainLoss)}
                                                 <span className="text-xs block">
-                                                    ({gainLoss >= 0 ? '+' : ''}{formatPercentage(gainLossPercent)})
+                                                    ({totals.totalGainLoss >= 0 ? '+' : ''}{formatPercentage(totalGainLossPercent)})
                                                 </span>
                                             </div>
                                         </td>
                                         <td className="px-3 py-2 text-center whitespace-nowrap">
-                                            <div className="flex items-center justify-center space-x-2">
-                                                {/* Edit Button - Matching SecurityTableAccount.js pattern */}
-                                                <button
-                                                    onClick={(e) => handleEditClick(e, position)}
-                                                    className="p-1.5 bg-purple-600/20 text-purple-400 rounded-full hover:bg-purple-600/40 transition-colors"
-                                                    title="Edit Position"
-                                                >
-                                                    <Settings className="h-4 w-4" />
-                                                </button>
-                                                {/* Delete Button - Matching SecurityTableAccount.js pattern */}
-                                                <button
-                                                    onClick={(e) => handleDeleteClick(e, position)}
-                                                    className="p-1.5 bg-red-600/20 text-red-400 rounded-full hover:bg-red-600/40 transition-colors"
-                                                    title="Delete Position"
-                                                >
-                                                    <Trash className="h-4 w-4" />
-                                                </button>
-                                            </div>
+                                            {/* No actions for totals row */}
                                         </td>
                                     </tr>
-                                );
-                            }) : (
-                                <tr>
-                                    <td colSpan="7" className="text-center py-4 text-gray-400">
-                                        No individual tax lots found for this ticker/asset type.
-                                    </td>
-                                </tr>
-                            )}
-                            
-                            {/* Totals row */}
-                            {sortedPositions && sortedPositions.length > 0 && (
-                                <tr className="bg-gray-800/50 font-medium">
-                                    <td className="px-3 py-2 whitespace-nowrap text-sm font-semibold">TOTAL</td>
-                                    <td className="px-3 py-2 text-right whitespace-nowrap text-sm font-semibold">
-                                        {formatCurrency(totals.totalCurrentValue)}
-                                    </td>
-                                    <td className="px-3 py-2 text-right whitespace-nowrap text-sm">
-                                        {/* No average current price */}
-                                    </td>
-                                    <td className="px-3 py-2 text-right whitespace-nowrap text-sm font-semibold">
-                                        {formatCurrency(totals.totalCostBasis)}
-                                    </td>
-                                    <td className="px-3 py-2 text-right whitespace-nowrap text-sm">
-                                        {/* No average cost per unit */}
-                                    </td>
-                                    <td className="px-3 py-2 text-right whitespace-nowrap font-semibold">
-                                        <div className={`text-sm ${totals.totalGainLoss >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                                            {totals.totalGainLoss >= 0 ? '+' : ''}{formatCurrency(totals.totalGainLoss)}
-                                            <span className="text-xs block">
-                                                ({totals.totalGainLoss >= 0 ? '+' : ''}{formatPercentage(totalGainLossPercent)})
-                                            </span>
-                                        </div>
-                                    </td>
-                                    <td className="px-3 py-2 text-center whitespace-nowrap">
-                                        {/* No actions for totals row */}
-                                    </td>
-                                </tr>
-                            )}
-                        </tbody>
-                    </table>
+                                )}
+                            </tbody>
+                        </table>
+                    ) : (
+                        <div className="text-center py-8 text-gray-400">
+                            No positions found for this ticker.
+                        </div>
+                    )}
                 </div>
 
                 {/* Footer */}
@@ -347,26 +352,26 @@ const TaxLotDetailModal = ({ isOpen, onClose, ticker, positions, onEditTaxLot, o
                 </div>
             </div>
 
-                {/* Render Delete Confirmation Modal */}
-                {isDeleteModalOpen && positionToDelete && (
-                    <DeleteConfirmationModal
-                        isOpen={isDeleteModalOpen}
-                        onClose={() => { setIsDeleteModalOpen(false); setPositionToDelete(null); }}
-                        onConfirm={handleConfirmDelete}
-                        position={positionToDelete}
-                    />
-                )}
+            {/* Render Delete Confirmation Modal */}
+            {isDeleteModalOpen && positionToDelete && (
+                <DeleteConfirmationModal
+                    isOpen={isDeleteModalOpen}
+                    onClose={() => { setIsDeleteModalOpen(false); setPositionToDelete(null); }}
+                    onConfirm={handleConfirmDelete}
+                    position={positionToDelete}
+                />
+            )}
 
-                {/* Render Edit Modal - assuming we have access to a SecurityPositionModal or similar component */}
-                {isEditModalOpen && positionToEdit && (
-                    <SecurityPositionModal
-                        isOpen={isEditModalOpen}
-                        onClose={() => { setIsEditModalOpen(false); setPositionToEdit(null); }}
-                        onPositionSaved={handlePositionSaved}
-                        positionToEdit={positionToEdit}
-                        accountId={positionToEdit.account_id}
-                    />
-                )}
+            {/* Render Edit Modal */}
+            {isEditModalOpen && positionToEdit && (
+                <SecurityPositionModal
+                    isOpen={isEditModalOpen}
+                    onClose={() => { setIsEditModalOpen(false); setPositionToEdit(null); }}
+                    onPositionSaved={handlePositionSaved}
+                    positionToEdit={positionToEdit}
+                    accountId={positionToEdit.account_id}
+                />
+            )}
         </div>
     );
 };
