@@ -2231,12 +2231,6 @@ async def search_fx_assets(
         
         # Format response
         formatted_results = [dict(row) for row in results]
-        for result in formatted_results:
-            # Format dates if present
-            if "price_updated_at" in result and result["price_updated_at"]:
-                result["price_updated_at"] = result["price_updated_at"].isoformat()
-            if "price_as_of_date" in result and result["price_as_of_date"]:
-                result["price_as_of_date"] = result["price_as_of_date"].isoformat()
         
         return {"results": formatted_results}
         
@@ -2246,7 +2240,7 @@ async def search_fx_assets(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to search FX assets: {str(e)}"
         )
-
+        
 @app.get("/portfolio/summary")
 async def get_portfolio_summary(current_user: dict = Depends(get_current_user)):
     try:

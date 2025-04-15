@@ -814,6 +814,7 @@ export const fetchUnifiedPositionsByTypeForAccount = async (accountId, assetType
 };
 
 /**
+/**
  * Search for FX assets (crypto, metals, etc.)
  * @param {string} query - Search query string (symbol or name)
  * @param {string} assetType - Type of asset to search for (crypto, metal, currency)

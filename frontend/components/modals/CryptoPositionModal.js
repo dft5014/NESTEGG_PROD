@@ -236,7 +236,7 @@ const CryptoPositionModal = ({ isOpen, onClose, accountId, accountName = '', onP
           <div className="flex items-center">
             <Tag className="h-5 w-5 text-blue-600 mr-2" />
             <span className="font-medium text-blue-800">
-              {isEditMode ? 'Editing position on:' : 'Adding to:'} {accountName || `Account #${accountId}`}
+              {isEditMode ? 'Editing position on:' : 'Adding to:'} {accountName}
             </span>
           </div>
         </div>
