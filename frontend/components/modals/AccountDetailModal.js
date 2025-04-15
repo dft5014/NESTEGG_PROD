@@ -7,6 +7,8 @@ import { BarChart4, ChevronDown, ChevronUp, DollarSign, TrendingUp, Plus, Settin
 import { formatCurrency, formatDate, formatPercentage, formatNumber } from '@/utils/formatters';
 import AddPositionButton from '@/components/AddPositionButton';
 import EditAccountButton from '@/components/EditAccountButton';
+import SecurityPositionModal from '@/components/modals/SecurityPositionModal';
+
 
 // --- Nested Modals (No changes needed inside these components themselves) ---
 
@@ -14,6 +16,10 @@ import EditAccountButton from '@/components/EditAccountButton';
 const TaxLotDetailModal = ({ isOpen, onClose, ticker, positions, onEditTaxLot, onDeleteTaxLot }) => {
     const [sortField, setSortField] = useState('purchase_date');
     const [sortDirection, setSortDirection] = useState('desc');
+    const [positionToEdit, setPositionToEdit] = useState(null);
+    const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+    const [positionToDelete, setPositionToDelete] = useState(null);
+    const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
 
     // Handle sorting
     const handleSort = (field) => {
@@ -100,16 +106,71 @@ const TaxLotDetailModal = ({ isOpen, onClose, ticker, positions, onEditTaxLot, o
         ? (totals.totalGainLoss / totals.totalCostBasis) * 100
         : 0;
 
-    // Edit handler following SecurityTableAccount pattern
+    // Edit handler 
     const handleEditClick = (e, position) => {
         e.stopPropagation(); // Prevent row click
-        onEditTaxLot(position);
+        setPositionToEdit(position);
+        setIsEditModalOpen(true);
     };
 
-    // Delete handler following SecurityTableAccount pattern
+    // Delete handler
     const handleDeleteClick = (e, position) => {
         e.stopPropagation(); // Prevent row click
-        onDeleteTaxLot(position);
+        setPositionToDelete(position);
+        setIsDeleteModalOpen(true);
+    };
+
+    // Confirmation handler for delete action
+    const handleConfirmDelete = () => {
+        if (!positionToDelete) return;
+        
+        // Call the passed onDeleteTaxLot function
+        onDeleteTaxLot(positionToDelete);
+        
+        // Close the delete modal and reset state
+        setIsDeleteModalOpen(false);
+        setPositionToDelete(null);
+    };
+
+    // Handler for when position is saved successfully
+    const handlePositionSaved = () => {
+        setIsEditModalOpen(false);
+        setPositionToEdit(null);
+        // Potentially trigger a refresh of data
+        // This would require adding a callback to the parent component
+    };
+
+    // Delete Confirmation Modal Component (can be defined inside TaxLotDetailModal)
+    const DeleteConfirmationModal = ({ isOpen, onClose, onConfirm, position }) => {
+        if (!isOpen || !position) return null;
+        
+        return (
+            <div className="fixed inset-0 z-[300] overflow-y-auto bg-black/70 backdrop-blur-sm flex items-center justify-center">
+                <div className="bg-[#1e293b] text-white rounded-xl p-6 max-w-md w-full">
+                    <h3 className="text-lg font-semibold mb-2">Delete Position</h3>
+                    <p className="mb-4">
+                        Are you sure you want to delete this position? 
+                        {position.ticker && <span className="font-medium"> ({position.ticker})</span>}
+                        {position.purchase_date && <span className="block mt-1 text-sm text-gray-400">Purchased: {formatDate(position.purchase_date)}</span>}
+                        This action cannot be undone.
+                    </p>
+                    <div className="flex justify-end space-x-3">
+                        <button
+                            onClick={onClose}
+                            className="px-3 py-1.5 bg-gray-700 hover:bg-gray-600 text-white rounded text-sm"
+                        >
+                            Cancel
+                        </button>
+                        <button
+                            onClick={onConfirm}
+                            className="px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white rounded text-sm"
+                        >
+                            Delete Position
+                        </button>
+                    </div>
+                </div>
+            </div>
+        );
     };
 
     if (!isOpen || !positions) return null; // Simplified guard
@@ -285,6 +346,27 @@ const TaxLotDetailModal = ({ isOpen, onClose, ticker, positions, onEditTaxLot, o
                     </button>
                 </div>
             </div>
+
+                {/* Render Delete Confirmation Modal */}
+                {isDeleteModalOpen && positionToDelete && (
+                    <DeleteConfirmationModal
+                        isOpen={isDeleteModalOpen}
+                        onClose={() => { setIsDeleteModalOpen(false); setPositionToDelete(null); }}
+                        onConfirm={handleConfirmDelete}
+                        position={positionToDelete}
+                    />
+                )}
+
+                {/* Render Edit Modal - assuming we have access to a SecurityPositionModal or similar component */}
+                {isEditModalOpen && positionToEdit && (
+                    <SecurityPositionModal
+                        isOpen={isEditModalOpen}
+                        onClose={() => { setIsEditModalOpen(false); setPositionToEdit(null); }}
+                        onPositionSaved={handlePositionSaved}
+                        positionToEdit={positionToEdit}
+                        accountId={positionToEdit.account_id}
+                    />
+                )}
         </div>
     );
 };

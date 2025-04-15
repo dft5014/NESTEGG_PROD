@@ -31,3 +31,28 @@ export const fetchPortfolioSummary = async () => {
     };
     // --- End Mock ---
 };
+
+/**
+ * Search for FX assets (crypto, metals, etc.)
+ * @param {string} query - Search query string (symbol or name)
+ * @param {string} assetType - Type of asset to search for (crypto, metal, currency)
+ * @returns {Promise} - Promise resolving to an array of asset objects
+ */
+export const searchFXAssets = async (query, assetType = 'crypto') => {
+    if (!query || query.length < 2) return [];
+    
+    try {
+      const response = await fetchWithAuth(`/fx/search?query=${encodeURIComponent(query)}&asset_type=${assetType}`);
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(errorText || 'FX asset search failed');
+      }
+      
+      const data = await response.json();
+      return data.results || [];
+    } catch (error) {
+      console.error('Error searching FX assets:', error);
+      throw error;
+    }
+  };

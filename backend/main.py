@@ -2195,6 +2195,71 @@ async def get_portfolio_summary_all(current_user: dict = Depends(get_current_use
         logger.error(traceback.format_exc())
         raise HTTPException(status_code=500, detail="Failed to generate portfolio summary")
 
+@app.get("/fx/search")
+async def search_fx_assets(
+    query: str, 
+    asset_type: Optional[str] = None,
+    current_user: dict = Depends(get_current_user)
+):
+    """Search for FX assets (crypto, metals, etc.) by symbol or name"""
+    try:
+        # Build the query
+        sql_query = """
+        SELECT 
+            symbol, 
+            name, 
+            asset_type, 
+            current_price as price, 
+            price_updated_at,
+            price_as_of_date,
+            market_cap,
+            volume_24h,
+            high_24h,
+            low_24h,
+            price_change_24h,
+            price_change_percentage_24h
+        FROM fx_prices
+        WHERE active = TRUE
+        AND (
+            LOWER(symbol) LIKE LOWER(:search_pattern) OR
+            LOWER(name) LIKE LOWER(:search_pattern)
+        )
+        """
+        
+        # Add asset_type filter if provided
+        if asset_type:
+            sql_query += " AND asset_type = :asset_type"
+            
+        # Add limit and order
+        sql_query += " ORDER BY symbol ASC LIMIT 20"
+        
+        # Prepare parameters
+        params = {
+            "search_pattern": f"%{query}%",
+            "asset_type": asset_type
+        }
+        
+        # Execute query
+        results = await database.fetch_all(sql_query, params)
+        
+        # Format response
+        formatted_results = [dict(row) for row in results]
+        for result in formatted_results:
+            # Format dates if present
+            if "price_updated_at" in result and result["price_updated_at"]:
+                result["price_updated_at"] = result["price_updated_at"].isoformat()
+            if "price_as_of_date" in result and result["price_as_of_date"]:
+                result["price_as_of_date"] = result["price_as_of_date"].isoformat()
+        
+        return {"results": formatted_results}
+        
+    except Exception as e:
+        logger.error(f"Error searching FX assets: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to search FX assets: {str(e)}"
+        )
+
 @app.get("/portfolio/summary")
 async def get_portfolio_summary(current_user: dict = Depends(get_current_user)):
     try:
