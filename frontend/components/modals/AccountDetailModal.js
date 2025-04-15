@@ -109,7 +109,16 @@ const TaxLotDetailModal = ({ isOpen, onClose, ticker, positions, onEditTaxLot, o
     // Edit handler 
     const handleEditClick = (e, position) => {
         e.stopPropagation(); // Prevent row click
-        setPositionToEdit(position);
+        
+        // Store position details, but we'll need to retrieve account name 
+        // separately in the modal due to API limitations
+        setPositionToEdit({
+            ...position,
+            // Add any data needed for the modal's initialization
+            // that might be missing in the position object
+            account_name: position.account_name || 'Account'
+        });
+        
         setIsEditModalOpen(true);
     };
 
@@ -134,7 +143,7 @@ const TaxLotDetailModal = ({ isOpen, onClose, ticker, positions, onEditTaxLot, o
 
     // Handler for when position is saved successfully
     const handlePositionSaved = (updatedPosition) => {
-        // Call parent's handler with the updated position
+        // Call the parent's handler with updated position data
         if (updatedPosition) {
             onEditTaxLot(updatedPosition);
         } else if (positionToEdit) {
@@ -175,6 +184,22 @@ const TaxLotDetailModal = ({ isOpen, onClose, ticker, positions, onEditTaxLot, o
                     </div>
                 </div>
             </div>
+        );
+    };
+
+    // Modified SecurityPositionModal that doesn't need to fetch account info
+    const ModifiedSecurityPositionModal = ({ isOpen, onClose, onPositionSaved, positionToEdit, accountId }) => {
+        // Instead of fetching account info, just use a simple account name display
+        // This way we avoid the API call that's failing
+        return (
+            <SecurityPositionModal 
+                isOpen={isOpen}
+                onClose={onClose}
+                onPositionSaved={onPositionSaved}
+                positionToEdit={positionToEdit}
+                accountId={accountId}
+                accountName={positionToEdit?.account_name || "Account"} // Pass account name directly
+            />
         );
     };
 
@@ -362,9 +387,9 @@ const TaxLotDetailModal = ({ isOpen, onClose, ticker, positions, onEditTaxLot, o
                 />
             )}
 
-            {/* Render Edit Modal */}
+            {/* Render Edit Modal - Use modified component that doesn't fetch account info */}
             {isEditModalOpen && positionToEdit && (
-                <SecurityPositionModal
+                <ModifiedSecurityPositionModal
                     isOpen={isEditModalOpen}
                     onClose={() => { setIsEditModalOpen(false); setPositionToEdit(null); }}
                     onPositionSaved={handlePositionSaved}
