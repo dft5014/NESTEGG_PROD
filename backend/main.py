@@ -113,8 +113,6 @@ crypto_positions = sqlalchemy.Table(
     sqlalchemy.Column("purchase_price", sqlalchemy.Float),
     sqlalchemy.Column("purchase_date", sqlalchemy.Date),
     sqlalchemy.Column("storage_type", sqlalchemy.String),
-    sqlalchemy.Column("exchange_name", sqlalchemy.String, nullable=True),
-    sqlalchemy.Column("wallet_address", sqlalchemy.String, nullable=True),
     sqlalchemy.Column("notes", sqlalchemy.Text, nullable=True),
     sqlalchemy.Column("tags", sqlalchemy.ARRAY(sqlalchemy.String), nullable=True), # Adjust type if using JSON
     sqlalchemy.Column("is_favorite", sqlalchemy.Boolean, default=False),
@@ -381,8 +379,6 @@ class CryptoPositionCreate(BaseModel):
     current_price: float
     purchase_date: str  # Format: YYYY-MM-DD
     storage_type: str = "Exchange"  # Default to Exchange
-    exchange_name: Optional[str] = None
-    wallet_address: Optional[str] = None
     notes: Optional[str] = None
     tags: Optional[List[str]] = None
     is_favorite: bool = False
@@ -395,8 +391,6 @@ class CryptoPositionUpdate(BaseModel):
     current_price: Optional[float] = None
     purchase_date: Optional[str] = None
     storage_type: Optional[str] = None
-    exchange_name: Optional[str] = None
-    wallet_address: Optional[str] = None
     notes: Optional[str] = None
     tags: Optional[List[str]] = None
     is_favorite: Optional[bool] = None
@@ -453,8 +447,6 @@ class CryptoPositionDetail(BaseModel):
     current_price: Optional[float] = None
     purchase_date: Optional[date] = None
     storage_type: Optional[str] = None
-    exchange_name: Optional[str] = None
-    wallet_address: Optional[str] = None
     notes: Optional[str] = None
     tags: Optional[List[str]] = None # Assuming stored as array/list
     is_favorite: Optional[bool] = None
@@ -537,8 +529,6 @@ class CryptoPositionDetail(BaseModel):
     current_price: Optional[float] = None
     purchase_date: Optional[date] = None
     storage_type: Optional[str] = None
-    exchange_name: Optional[str] = None
-    wallet_address: Optional[str] = None
     notes: Optional[str] = None
     tags: Optional[List[str]] = None # Assuming stored as array/list
     is_favorite: Optional[bool] = None
@@ -714,8 +704,7 @@ async def _get_detailed_crypto(user_id: str) -> List[CryptoPositionDetail]:
                 id=row_dict["id"], account_id=row_dict["account_id"], coin_type=row_dict.get("coin_type"),
                 coin_symbol=row_dict.get("coin_symbol"), quantity=quantity, purchase_price=purchase_price,
                 current_price=current_price, purchase_date=row_dict.get("purchase_date"),
-                storage_type=row_dict.get("storage_type"), exchange_name=row_dict.get("exchange_name"),
-                wallet_address=row_dict.get("wallet_address"), notes=row_dict.get("notes"), tags=tags_list,
+                storage_type=row_dict.get("storage_type"), notes=row_dict.get("notes"), tags=tags_list,
                 is_favorite=row_dict.get("is_favorite", False), created_at=row_dict.get("created_at"),
                 updated_at=row_dict.get("updated_at"), account_name=row_dict["account_name"],
                 total_value=total_value, gain_loss=gain_loss, gain_loss_percent=gain_loss_percent
@@ -1635,7 +1624,7 @@ async def get_all_detailed_crypto_positions(current_user: dict = Depends(get_cur
         SELECT
             cp.id, cp.account_id, cp.coin_type, cp.coin_symbol, cp.quantity,
             cp.purchase_price, cp.current_price, cp.purchase_date,
-            cp.storage_type, cp.exchange_name, cp.wallet_address, cp.notes,
+            cp.storage_type, cp.notes,
             cp.tags, cp.is_favorite, cp.created_at, cp.updated_at,
             a.account_name
         FROM crypto_positions cp
@@ -1681,8 +1670,6 @@ async def get_all_detailed_crypto_positions(current_user: dict = Depends(get_cur
                 current_price=current_price,
                 purchase_date=row_dict.get("purchase_date"),
                 storage_type=row_dict.get("storage_type"),
-                exchange_name=row_dict.get("exchange_name"),
-                wallet_address=row_dict.get("wallet_address"),
                 notes=row_dict.get("notes"),
                 tags=tags_list,
                 is_favorite=row_dict.get("is_favorite", False),
@@ -6396,10 +6383,10 @@ async def add_crypto_position(account_id: int, position: CryptoPositionCreate, c
         # Add crypto position
         query = """
         INSERT INTO crypto_positions (
-            account_id, coin_type, coin_symbol, quantity, purchase_price, purchase_date, storage_type, exchange_name, wallet_address, notes, tags, is_favorite
+            account_id, coin_type, coin_symbol, quantity, purchase_price, purchase_date, storage_type, notes, tags, is_favorite
         ) VALUES (
             :account_id, :coin_type, :coin_symbol, :quantity, :purchase_price,
-            :purchase_date, :storage_type, :exchange_name, :wallet_address, :notes, :tags, :is_favorite
+            :purchase_date, :storage_type, :notes, :tags, :is_favorite
         ) RETURNING id
         """
         values = {
@@ -6410,8 +6397,6 @@ async def add_crypto_position(account_id: int, position: CryptoPositionCreate, c
             "purchase_price": position.purchase_price,
             "purchase_date": datetime.strptime(position.purchase_date, "%Y-%m-%d").date() if position.purchase_date else None,
             "storage_type": position.storage_type,
-            "exchange_name": position.exchange_name if position.storage_type == "Exchange" else None,
-            "wallet_address": position.wallet_address if position.storage_type != "Exchange" else None,
             "notes": position.notes,
             "tags": tags_value,
             "is_favorite": position.is_favorite

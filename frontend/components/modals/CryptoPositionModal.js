@@ -1,7 +1,7 @@
 // components/modals/CryptoPositionModal.js
 import React, { useState, useEffect, useCallback } from 'react';
 import FixedModal from './FixedModal';
-import { addCryptoPosition, updatePosition, searchFXAssets } from '@/utils/apimethods/positionMethods';
+import { addCryptoPosition, updatePosition, searchSecurities } from '@/utils/apimethods/positionMethods';
 import debounce from 'lodash.debounce';
 import { 
   Search, X, Check, TrendingUp, TrendingDown, 
@@ -16,8 +16,6 @@ const CryptoPositionModal = ({ isOpen, onClose, accountId, accountName = '', onP
   const [purchasePrice, setPurchasePrice] = useState('');
   const [purchaseDate, setPurchaseDate] = useState('');
   const [storageType, setStorageType] = useState('Exchange');
-  const [exchangeName, setExchangeName] = useState('');
-  const [walletAddress, setWalletAddress] = useState('');
   const [notes, setNotes] = useState('');
   
   // Search state
@@ -49,8 +47,6 @@ const CryptoPositionModal = ({ isOpen, onClose, accountId, accountName = '', onP
           : '');
         
         setStorageType(positionToEdit.storage_type || 'Exchange');
-        setExchangeName(positionToEdit.exchange_name || '');
-        setWalletAddress(positionToEdit.wallet_address || '');
         setNotes(positionToEdit.notes || '');
         
         // Set selectedCrypto with market data if available
@@ -71,8 +67,6 @@ const CryptoPositionModal = ({ isOpen, onClose, accountId, accountName = '', onP
         setPurchasePrice('');
         setPurchaseDate(new Date().toISOString().split('T')[0]); // Default to today
         setStorageType('Exchange');
-        setExchangeName('');
-        setWalletAddress('');
         setNotes('');
         setSelectedCrypto(null);
       }
@@ -86,7 +80,8 @@ const CryptoPositionModal = ({ isOpen, onClose, accountId, accountName = '', onP
     }
   }, [isOpen, positionToEdit]);
 
-  // Debounced search function
+  // Temporarily use searchSecurities with conversion to crypto format
+  // This is a workaround until searchFXAssets is implemented
   const debouncedSearch = useCallback(
     debounce(async (query) => {
       if (!query || query.length < 2) {
@@ -98,9 +93,22 @@ const CryptoPositionModal = ({ isOpen, onClose, accountId, accountName = '', onP
       setIsSearching(true);
       
       try {
-        // Search FX assets filtered to crypto type
-        const results = await searchFXAssets(query, 'crypto');
-        setSearchResults(results);
+        // Use existing searchSecurities function as a temporary replacement
+        // In the future, replace with searchFXAssets
+        const results = await searchSecurities(query);
+        
+        // Convert security format to crypto format
+        const mappedResults = results.map(security => ({
+          symbol: security.ticker,
+          name: security.name || security.ticker,
+          price: security.price,
+          price_as_of_date: new Date().toISOString(),
+          high_24h: security.price * 1.05, // Mock data
+          low_24h: security.price * 0.95,  // Mock data
+          volume_24h: 0
+        }));
+        
+        setSearchResults(mappedResults);
       } catch (error) {
         console.error('Error searching cryptocurrencies:', error);
         setFormMessage('Error searching for cryptocurrencies. Please try again.');
@@ -161,18 +169,6 @@ const CryptoPositionModal = ({ isOpen, onClose, accountId, accountName = '', onP
       return;
     }
     
-    if (storageType === 'Exchange' && !exchangeName) {
-      setFormMessage('Please enter the exchange name');
-      setMessageType('error');
-      return;
-    }
-    
-    if (storageType !== 'Exchange' && storageType !== 'Paper Wallet' && !walletAddress) {
-      setFormMessage('Please enter the wallet address');
-      setMessageType('error');
-      return;
-    }
-    
     setIsSubmitting(true);
     setFormMessage('');
     
@@ -185,8 +181,6 @@ const CryptoPositionModal = ({ isOpen, onClose, accountId, accountName = '', onP
         current_price: selectedCrypto?.price || 0, // Use the price from selected crypto
         purchase_date: purchaseDate,
         storage_type: storageType,
-        exchange_name: storageType === 'Exchange' ? exchangeName : null,
-        wallet_address: storageType !== 'Exchange' ? walletAddress : null,
         notes: notes || null
       };
       
@@ -242,7 +236,7 @@ const CryptoPositionModal = ({ isOpen, onClose, accountId, accountName = '', onP
           <div className="flex items-center">
             <Tag className="h-5 w-5 text-blue-600 mr-2" />
             <span className="font-medium text-blue-800">
-              {isEditMode ? 'Editing position on:' : 'Adding to:'} {accountName || 'Account'}
+              {isEditMode ? 'Editing position on:' : 'Adding to:'} {accountName || `Account #${accountId}`}
             </span>
           </div>
         </div>
@@ -424,7 +418,7 @@ const CryptoPositionModal = ({ isOpen, onClose, accountId, accountName = '', onP
           />
         </div>
         
-        {/* Storage Details */}
+        {/* Storage Type */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
             Storage Type*
@@ -442,37 +436,6 @@ const CryptoPositionModal = ({ isOpen, onClose, accountId, accountName = '', onP
             <option value="Other">Other</option>
           </select>
         </div>
-        
-        {/* Exchange or Wallet Details (conditional) */}
-        {storageType === 'Exchange' ? (
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Exchange Name*
-            </label>
-            <input
-              type="text"
-              value={exchangeName}
-              onChange={(e) => setExchangeName(e.target.value)}
-              placeholder="e.g., Coinbase, Binance"
-              className="w-full p-2 border rounded"
-              required
-            />
-          </div>
-        ) : (
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Wallet Address {storageType !== 'Paper Wallet' ? '*' : ''}
-            </label>
-            <input
-              type="text"
-              value={walletAddress}
-              onChange={(e) => setWalletAddress(e.target.value)}
-              placeholder="e.g., 1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa"
-              className="w-full p-2 border rounded"
-              required={storageType !== 'Paper Wallet'}
-            />
-          </div>
-        )}
         
         {/* Notes */}
         <div>
