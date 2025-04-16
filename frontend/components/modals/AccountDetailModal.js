@@ -12,7 +12,7 @@ import SecurityPositionModal from '@/components/modals/SecurityPositionModal';
 
 // --- Nested Modals (No changes needed inside these components themselves) ---
 
-// Tax Lot Detail Modal Component - Updated for unified data model
+// Tax Lot Detail Modal Component - Updated with better undefined handling
 const TaxLotDetailModal = ({ isOpen, onClose, ticker, positions, onEditTaxLot, onDeleteTaxLot }) => {
     const [sortField, setSortField] = useState('purchase_date');
     const [sortDirection, setSortDirection] = useState('desc');
@@ -110,15 +110,21 @@ const TaxLotDetailModal = ({ isOpen, onClose, ticker, positions, onEditTaxLot, o
     const handleEditClick = (e, position) => {
         e.stopPropagation(); // Prevent row click
         
-        // Store position details, but we'll need to retrieve account name 
-        // separately in the modal due to API limitations
-        setPositionToEdit({
+        // The main fix - ensure we're passing required data and not trying 
+        // to access properties that might be undefined
+        const editablePosition = {
             ...position,
-            // Add any data needed for the modal's initialization
-            // that might be missing in the position object
-            account_name: position.account_name || 'Account'
-        });
+            // Ensure we have an account_name that won't cause charAt errors
+            account_name: position.account_name || "Unknown",
+            // Make sure all required fields exist
+            ticker: position.ticker || ticker || "Unknown",
+            // For debugging
+            id: position.id || `temp-${Date.now()}`,
+            // We must pass some value here that won't cause API errors
+            account_id: position.account_id || null
+        };
         
+        setPositionToEdit(editablePosition);
         setIsEditModalOpen(true);
     };
 
@@ -143,7 +149,7 @@ const TaxLotDetailModal = ({ isOpen, onClose, ticker, positions, onEditTaxLot, o
 
     // Handler for when position is saved successfully
     const handlePositionSaved = (updatedPosition) => {
-        // Call the parent's handler with updated position data
+        // Call parent's handler with the updated position
         if (updatedPosition) {
             onEditTaxLot(updatedPosition);
         } else if (positionToEdit) {
@@ -187,22 +193,6 @@ const TaxLotDetailModal = ({ isOpen, onClose, ticker, positions, onEditTaxLot, o
         );
     };
 
-    // Modified SecurityPositionModal that doesn't need to fetch account info
-    const ModifiedSecurityPositionModal = ({ isOpen, onClose, onPositionSaved, positionToEdit, accountId }) => {
-        // Instead of fetching account info, just use a simple account name display
-        // This way we avoid the API call that's failing
-        return (
-            <SecurityPositionModal 
-                isOpen={isOpen}
-                onClose={onClose}
-                onPositionSaved={onPositionSaved}
-                positionToEdit={positionToEdit}
-                accountId={accountId}
-                accountName={positionToEdit?.account_name || "Account"} // Pass account name directly
-            />
-        );
-    };
-
     if (!isOpen) return null; // Simplified guard
 
     return (
@@ -211,7 +201,7 @@ const TaxLotDetailModal = ({ isOpen, onClose, ticker, positions, onEditTaxLot, o
                 {/* Header */}
                 <div className="p-4 bg-gradient-to-r from-blue-900 to-blue-800 border-b border-blue-700">
                     <div className="flex justify-between items-center">
-                        <h2 className="text-lg font-bold text-white">{ticker} - Tax Lot Details</h2>
+                        <h2 className="text-lg font-bold text-white">{ticker || 'Unknown'} - Tax Lot Details</h2>
                         <button
                             onClick={onClose}
                             className="text-white hover:text-blue-200 p-1 rounded-full"
@@ -224,7 +214,7 @@ const TaxLotDetailModal = ({ isOpen, onClose, ticker, positions, onEditTaxLot, o
 
                 {/* Body */}
                 <div className="p-4 max-h-[calc(80vh-120px)] overflow-y-auto">
-                    {positions && positions.length > 0 ? (
+                    {sortedPositions && sortedPositions.length > 0 ? (
                         <table className="min-w-full divide-y divide-gray-700">
                             <thead className="bg-gray-900/60 sticky top-0 z-10">
                                 <tr>
@@ -387,14 +377,15 @@ const TaxLotDetailModal = ({ isOpen, onClose, ticker, positions, onEditTaxLot, o
                 />
             )}
 
-            {/* Render Edit Modal - Use modified component that doesn't fetch account info */}
+            {/* Render Edit Modal with accountName prop to avoid fetching account info */}
             {isEditModalOpen && positionToEdit && (
-                <ModifiedSecurityPositionModal
+                <SecurityPositionModal
                     isOpen={isEditModalOpen}
                     onClose={() => { setIsEditModalOpen(false); setPositionToEdit(null); }}
                     onPositionSaved={handlePositionSaved}
                     positionToEdit={positionToEdit}
-                    accountId={positionToEdit.account_id}
+                    accountId={positionToEdit.account_id || null}
+                    accountName={positionToEdit.account_name || "Account"} // Pass account name directly
                 />
             )}
         </div>
