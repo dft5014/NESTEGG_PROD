@@ -26,6 +26,8 @@ export default function PortfolioPage() {
   const [allAccounts, setAllAccounts] = useState([]);
   const [isSummaryLoading, setIsSummaryLoading] = useState(true);
   const [summaryError, setSummaryError] = useState(null);
+  const [institutionMixData, setInstitutionMixData] = useState([]);
+  const [topPositionsData, setTopPositionsData] = useState([]);
 
   useEffect(() => {
     const loadSummary = async () => {
@@ -49,6 +51,15 @@ export default function PortfolioPage() {
         // Calculate asset class metrics
         const assetClasses = calculateAssetClassMetrics(positions, calculatedSummary.total_value, calculatedSummary.total_cost_basis);
         setAssetClassData(assetClasses);
+        
+        // Calculate institution mix data for Top Institutions card
+        const institutionMix = calculateInstitutionMix(accounts);
+        setInstitutionMixData(institutionMix);
+        
+        // Calculate top positions data for Top Positions card
+        const topPositions = calculateTopPositions(positions, calculatedSummary.total_value);
+        setTopPositionsData(topPositions);
+        
       } catch (error) {
         console.error("Error loading summary data:", error);
         setSummaryError(error.message || "Failed to load summary");
@@ -100,7 +111,183 @@ export default function PortfolioPage() {
     return summary;
   };
   
-  // Calculate metrics for each asset class
+  // Calculate institution mix data for Top 5 Institutions card
+  const calculateInstitutionMix = (accounts) => {
+    if (!accounts || !accounts.length) return [];
+    
+    // Group by institution
+    const institutionMap = accounts.reduce((acc, account) => {
+      const institution = account.institution || 'Other';
+      const value = parseFloat(account.total_value || account.balance || 0);
+      
+      if (!acc[institution]) {
+        acc[institution] = {
+          name: institution,
+          value: 0,
+          color: getInstitutionColor(institution)
+        };
+      }
+      
+      acc[institution].value += value;
+      return acc;
+    }, {});
+    
+    // Convert to array and sort by value
+    let result = Object.values(institutionMap).sort((a, b) => b.value - a.value);
+    
+    // Calculate total value
+    const totalValue = result.reduce((sum, item) => sum + item.value, 0);
+    
+    // Calculate percentages and limit to top 5 + Other
+    if (result.length > 5) {
+      const top5 = result.slice(0, 5);
+      const others = result.slice(5);
+      
+      const otherValue = others.reduce((sum, item) => sum + item.value, 0);
+      const otherItem = {
+        name: 'Other',
+        value: otherValue,
+        color: '#6B7280', // Gray color for Other
+        percentage: totalValue > 0 ? otherValue / totalValue : 0
+      };
+      
+      result = [...top5, otherItem];
+    }
+    
+    // Add percentage to each item
+    result = result.map(item => ({
+      ...item,
+      percentage: totalValue > 0 ? item.value / totalValue : 0
+    }));
+    
+    return result;
+  };
+  
+  // Get institution color
+  function getInstitutionColor(name) {
+    const colorMap = {
+      'Vanguard': '#C94227',
+      'Fidelity': '#569A38',
+      'Charles Schwab': '#027BC7',
+      'Robinhood': '#00C805',
+      'TD Ameritrade': '#4F5B65',
+      'Chase': '#117ACA',
+      'Bank of America': '#E11B3C', 
+      'Wells Fargo': '#D71E28',
+      'E*TRADE': '#6633CC',
+      'Interactive Brokers': '#F79125',
+      'Coinbase': '#0052FF',
+      'Merrill Lynch': '#0073CF',
+      'Morgan Stanley': '#0073CF',
+      'Betterment': '#0A9ACF',
+      'Wealthfront': '#3ECBBC',
+      'Citibank': '#057CC0',
+      'SoFi': '#A7A8AA',
+    };
+    
+    return colorMap[name] || getRandomColor(name);
+  }
+  
+  // Calculate top positions data for Top 5 Positions card
+  const calculateTopPositions = (positions, totalPortfolioValue) => {
+    if (!positions || !positions.length) return [];
+    
+    // Group by asset identifier (e.g., ticker)
+    const positionMap = positions.reduce((acc, position) => {
+      // Create a composite key for the position
+      const identifier = position.identifier || position.ticker || position.coin_symbol || 'Unknown';
+      const name = position.name || identifier;
+      const value = parseFloat(position.current_value || 0);
+      const assetType = position.asset_type || 'unknown';
+      
+      // Skip positions with no value
+      if (value <= 0) return acc;
+      
+      const key = `${assetType}:${identifier}`;
+      
+      if (!acc[key]) {
+        acc[key] = {
+          key,
+          identifier,
+          name,
+          assetType,
+          value: 0,
+          color: getPositionColor(assetType, identifier)
+        };
+      }
+      
+      acc[key].value += value;
+      return acc;
+    }, {});
+    
+    // Convert to array and sort by value
+    let result = Object.values(positionMap).sort((a, b) => b.value - a.value);
+    
+    // Calculate total value for percentage calculation
+    const totalValue = result.reduce((sum, item) => sum + item.value, 0);
+    
+    // Limit to top 5 + Other
+    if (result.length > 5) {
+      const top5 = result.slice(0, 5);
+      const others = result.slice(5);
+      
+      const otherValue = others.reduce((sum, item) => sum + item.value, 0);
+      const otherItem = {
+        key: 'other',
+        identifier: 'Other',
+        name: 'Other',
+        assetType: 'other',
+        value: otherValue,
+        color: '#6B7280', // Gray color for Other
+        percentage: totalPortfolioValue > 0 ? otherValue / totalPortfolioValue : 0
+      };
+      
+      result = [...top5, otherItem];
+    }
+    
+    // Add percentage to each item
+    result = result.map(item => ({
+      ...item,
+      percentage: totalPortfolioValue > 0 ? item.value / totalPortfolioValue : 0
+    }));
+    
+    return result;
+  };
+  
+  // Get position color
+  function getPositionColor(assetType, identifier) {
+    // Different color palettes based on asset type
+    if (assetType === 'security') {
+      // Blue palette for securities
+      return getRandomColor(identifier, { hue: 220, saturation: 70, lightness: 55 });
+    } else if (assetType === 'crypto') {
+      // Purple palette for crypto
+      return getRandomColor(identifier, { hue: 270, saturation: 70, lightness: 50 });
+    } else if (assetType === 'metal') {
+      // Gold/amber palette for metals
+      return getRandomColor(identifier, { hue: 45, saturation: 80, lightness: 55 });
+    } else if (assetType === 'realestate') {
+      // Teal palette for real estate
+      return getRandomColor(identifier, { hue: 180, saturation: 70, lightness: 45 });
+    } else {
+      // Default color generation
+      return getRandomColor(identifier);
+    }
+  }
+  
+  // Generate a consistent color from a string with optional color parameters
+  function getRandomColor(str, opts = {}) {
+    const { hue, saturation = 70, lightness = 50 } = opts;
+    
+    let hash = 0;
+    for (let i = 0; i < str.length; i++) {
+      hash = str.charCodeAt(i) + ((hash << 5) - hash);
+    }
+    
+    // Use provided hue or generate from hash
+    const h = hue !== undefined ? hue : Math.abs(hash) % 360;
+    return `hsl(${h}, ${saturation}%, ${lightness}%)`;
+  }
   const calculateAssetClassMetrics = (positions, totalPortfolioValue, totalCostBasis) => {
     // Initialize asset class categories
     const assetClasses = {
@@ -470,20 +657,24 @@ export default function PortfolioPage() {
               </div>
               
               <div className="space-y-3">
-                {institutionMixData.map((institution, index) => (
-                  <div key={index} className="flex items-center justify-between">
-                    <div className="flex items-center">
-                      <div 
-                        className="h-3 w-3 rounded-full mr-2"
-                        style={{ backgroundColor: institution.color }}
-                      ></div>
-                      <span className="text-sm text-gray-300">{institution.name}</span>
+                {institutionMixData && institutionMixData.length > 0 ? (
+                  institutionMixData.map((institution, index) => (
+                    <div key={index} className="flex items-center justify-between">
+                      <div className="flex items-center">
+                        <div 
+                          className="h-3 w-3 rounded-full mr-2"
+                          style={{ backgroundColor: institution.color }}
+                        ></div>
+                        <span className="text-sm text-gray-300">{institution.name}</span>
+                      </div>
+                      <div className="flex items-center">
+                        <span className="text-sm font-medium">{formatPercentage(institution.percentage)}</span>
+                      </div>
                     </div>
-                    <div className="flex items-center">
-                      <span className="text-sm font-medium">{formatPercentage(institution.percentage)}</span>
-                    </div>
-                  </div>
-                ))}
+                  ))
+                ) : (
+                  <div className="text-center py-2 text-gray-400">No institution data available</div>
+                )}
               </div>
               
               <div className="mt-3 pt-2 border-t border-gray-700">
