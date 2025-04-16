@@ -1,6 +1,6 @@
 // components/tables/UnifiedGroupedPositionsTable.js
 import React, { useState, useEffect, useMemo } from 'react';
-import { fetchUnifiedPositions } from '@/utils/apimethods/positionMethods';
+import { fetchUnifiedPositions, deletePosition } from '@/utils/apimethods/positionMethods';
 import PositionDetailModal from '@/components/modals/PositionDetailModal';
 import { BarChart4, Settings, Trash, TrendingUp, TrendingDown, Loader, Info, Search, SlidersHorizontal, Filter } from 'lucide-react';
 import { formatCurrency, formatDate, formatPercentage, formatNumber } from '@/utils/formatters';
@@ -266,6 +266,14 @@ const UnifiedGroupedPositionsTable = ({ initialSort = "value-high", title = "Con
       return detailSortOrder === "asc" ? comparison : -comparison;
     });
   };
+  
+  // Function to handle tax lot deletion
+  const handleDeleteTaxLot = async (position) => {
+    if (window.confirm(`Are you sure you want to delete this position?\n${position.identifier || position.ticker || ''}: ${formatNumber(position.quantity || 0, { maximumFractionDigits: 2 })} @ ${formatCurrency(parseFloat(position.cost_per_unit || 0))}`)) {
+      return await handleDeletePosition(position);
+    }
+    return false;
+  };
 
   // Calculate portfolio totals
   const portfolioTotals = useMemo(() => {
@@ -293,10 +301,39 @@ const UnifiedGroupedPositionsTable = ({ initialSort = "value-high", title = "Con
     ? (portfolioTotals.totalGainLoss / portfolioTotals.totalCostBasis)
     : 0;
 
+  // Import deletePosition from positionMethods
+  // Be sure to import this at the top of the file:
+  // import { fetchUnifiedPositions, deletePosition } from '@/utils/apimethods/positionMethods';
+  
   // Handle row click to show detail modal
   const handleRowClick = (groupedPosition) => {
     setSelectedPositionDetail(groupedPosition);
     setIsDetailModalOpen(true);
+  };
+  
+  // Function to handle position deletion
+  const handleDeletePosition = async (position) => {
+    try {
+      console.log("Deleting position:", position);
+      
+      // Call the deletePosition API with correct parameters
+      const result = await deletePosition(position.id, position.asset_type);
+      
+      if (result) {
+        // Close the modal
+        setIsDetailModalOpen(false);
+        
+        // Refresh data after successful deletion
+        fetchData();
+        
+        return true;
+      }
+      
+      return false;
+    } catch (error) {
+      console.error("Error deleting position:", error);
+      return false;
+    }
   };
 
   // Get asset type icon
@@ -892,6 +929,9 @@ const UnifiedGroupedPositionsTable = ({ initialSort = "value-high", title = "Con
                           const positionValue = parseFloat(position.current_value || 0);
                           const positionGainLoss = positionValue - positionCostBasis;
                           const positionGainLossPercent = positionCostBasis > 0 ? (positionGainLoss / positionCostBasis) : 0;
+                          // Format price values to 2 decimal places for display
+                          const formattedCurrentPrice = position.current_price_per_unit ? parseFloat(position.current_price_per_unit).toFixed(2) : '0.00';
+                          const formattedCostPerUnit = position.cost_per_unit ? parseFloat(position.cost_per_unit).toFixed(2) : '0.00';
                           // Calculate annual income using position_income directly if available
                           const annualIncome = parseFloat(position.position_income || 0) || 
                             (selectedPositionDetail.assetType === 'cash' && position.dividend_rate 
@@ -913,13 +953,13 @@ const UnifiedGroupedPositionsTable = ({ initialSort = "value-high", title = "Con
                                     {formatCurrency(positionValue)}
                                   </td>
                                   <td className="px-3 py-2 whitespace-nowrap text-sm text-right">
-                                    {formatCurrency(position.current_price_per_unit || 0)}
+                                    {formatCurrency(parseFloat(formattedCurrentPrice))}
                                   </td>
                                   <td className="px-3 py-2 whitespace-nowrap text-sm text-right">
                                     {formatCurrency(positionCostBasis)}
                                   </td>
                                   <td className="px-3 py-2 whitespace-nowrap text-sm text-right">
-                                    {formatCurrency(position.cost_per_unit || 0)}
+                                    {formatCurrency(parseFloat(formattedCostPerUnit))}
                                   </td>
                                   <td className="px-3 py-2 whitespace-nowrap text-sm text-right">
                                     <div className={`${positionGainLoss >= 0 ? 'text-green-400' : 'text-red-400'}`}>
@@ -928,6 +968,15 @@ const UnifiedGroupedPositionsTable = ({ initialSort = "value-high", title = "Con
                                         ({positionGainLoss >= 0 ? '+' : ''}{(positionGainLossPercent * 100).toFixed(2)}%)
                                       </div>
                                     </div>
+                                    <button 
+                                      onClick={(e) => {
+                                        e.stopPropagation(); 
+                                        handleDeleteTaxLot(position);
+                                      }} 
+                                      className="mt-1 text-xs text-red-400 hover:text-red-300"
+                                    >
+                                      Delete
+                                    </button>
                                   </td>
                                 </>
                               ) : (
