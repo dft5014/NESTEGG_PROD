@@ -49,7 +49,7 @@ export default function PortfolioPage() {
         setSummaryData(calculatedSummary);
         
         // Calculate asset class metrics
-        const assetClasses = calculateAssetClassMetrics(positions, calculatedSummary.total_value);
+        const assetClasses = calculateAssetClassMetrics(positions, calculatedSummary.total_value, calculatedSummary.total_cost_basis);
         setAssetClassData(assetClasses);
       } catch (error) {
         console.error("Error loading summary data:", error);
@@ -103,29 +103,77 @@ export default function PortfolioPage() {
   };
   
   // Calculate metrics for each asset class
-  const calculateAssetClassMetrics = (positions, totalPortfolioValue) => {
+  const calculateAssetClassMetrics = (positions, totalPortfolioValue, totalCostBasis) => {
     // Initialize asset class categories
     const assetClasses = {
-      security: { value: 0, name: 'Securities', icon: <LineChart />, color: 'blue' },
-      cash: { value: 0, name: 'Cash', icon: <Banknote />, color: 'green' },
-      crypto: { value: 0, name: 'Crypto', icon: <Coins />, color: 'purple' },
-      metal: { value: 0, name: 'Metals', icon: <Package />, color: 'amber' }
+      security: { 
+        value: 0, 
+        name: 'Securities', 
+        icon: <LineChart />, 
+        color: 'blue',
+        cost_basis: 0,
+        gain_loss: 0,
+        gain_loss_percent: 0
+      },
+      cash: { 
+        value: 0, 
+        name: 'Cash', 
+        icon: <Banknote />, 
+        color: 'green',
+        cost_basis: 0,
+        gain_loss: 0,
+        gain_loss_percent: 0 
+      },
+      crypto: { 
+        value: 0, 
+        name: 'Crypto', 
+        icon: <Coins />, 
+        color: 'purple',
+        cost_basis: 0,
+        gain_loss: 0,
+        gain_loss_percent: 0
+      },
+      metal: { 
+        value: 0, 
+        name: 'Metals', 
+        icon: <Package />, 
+        color: 'amber',
+        cost_basis: 0,
+        gain_loss: 0,
+        gain_loss_percent: 0
+      }
     };
     
-    // Calculate value for each asset class
+    // Calculate value and cost basis for each asset class
     positions.forEach(position => {
       const assetType = position.asset_type || 'unknown';
       const value = parseFloat(position.current_value || 0);
+      const costBasis = parseFloat(position.total_cost_basis || 0);
       
       if (assetClasses[assetType]) {
         assetClasses[assetType].value += value;
+        assetClasses[assetType].cost_basis += costBasis;
+        assetClasses[assetType].gain_loss += (value - costBasis);
       }
     });
     
-    // Calculate percentage for each asset class
+    // Calculate percentages and gain/loss for each asset class
     Object.keys(assetClasses).forEach(key => {
-      assetClasses[key].percentage = totalPortfolioValue > 0 
-        ? (assetClasses[key].value / totalPortfolioValue) 
+      const assetClass = assetClasses[key];
+      
+      // Calculate percentage of total portfolio value
+      assetClass.percentage = totalPortfolioValue > 0 
+        ? (assetClass.value / totalPortfolioValue) 
+        : 0;
+      
+      // Calculate percentage of total cost basis
+      assetClass.cost_basis_percentage = totalCostBasis > 0
+        ? (assetClass.cost_basis / totalCostBasis)
+        : 0;
+        
+      // Calculate gain/loss percentage
+      assetClass.gain_loss_percent = assetClass.cost_basis > 0
+        ? (assetClass.gain_loss / assetClass.cost_basis)
         : 0;
     });
     
@@ -214,57 +262,134 @@ export default function PortfolioPage() {
            </div>
         </section>
         
-        {/* Asset Class Allocation KPIs */}
+        {/* Asset Class Allocation KPIs - ENHANCED with Cost Basis Data */}
         <section className="mb-10">
           <h2 className="text-xl font-semibold mb-4 text-gray-300">Asset Class Allocation</h2>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             {/* Securities */}
-            <KpiCard
-              title="Securities"
-              value={assetClassData.security?.value}
-              icon={<LineChart />}
-              isLoading={isSummaryLoading}
-              format={(v) => formatCurrency(v)}
-              color="blue"
-            >
-              {formatPercentage(assetClassData.security?.percentage || 0)} of portfolio
-            </KpiCard>
+            <div className="bg-gray-800/70 backdrop-blur-sm rounded-xl p-4 border border-gray-700 relative overflow-hidden">
+              <div className="absolute top-0 right-0 w-24 h-24 rounded-full bg-blue-500/10 -mr-10 -mt-10"></div>
+              <div className="flex items-center mb-2">
+                <div className="bg-blue-500/20 p-2 rounded-lg mr-3">
+                  <LineChart className="h-5 w-5 text-blue-400" />
+                </div>
+                <h3 className="text-lg font-semibold">Securities</h3>
+              </div>
+              <div className="space-y-2">
+                <div>
+                  <p className="text-sm text-gray-400">Market Value</p>
+                  <p className="text-xl font-bold">{formatCurrency(assetClassData.security?.value)}</p>
+                  <p className="text-xs text-gray-500">{formatPercentage(assetClassData.security?.percentage || 0)} of portfolio</p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-400">Cost Basis</p>
+                  <p className="text-lg font-semibold">{formatCurrency(assetClassData.security?.cost_basis)}</p>
+                  <p className="text-xs text-gray-500">{formatPercentage(assetClassData.security?.cost_basis_percentage || 0)} of total cost</p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-400">Performance</p>
+                  <p className={`text-lg font-semibold ${assetClassData.security?.gain_loss >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                    {assetClassData.security?.gain_loss >= 0 ? '+' : ''}{formatCurrency(assetClassData.security?.gain_loss)}
+                    <span className="text-sm ml-1">
+                      ({assetClassData.security?.gain_loss >= 0 ? '+' : ''}{formatPercentage(assetClassData.security?.gain_loss_percent * 100)})
+                    </span>
+                  </p>
+                </div>
+              </div>
+            </div>
             
             {/* Cash */}
-            <KpiCard
-              title="Cash"
-              value={assetClassData.cash?.value}
-              icon={<Banknote />}
-              isLoading={isSummaryLoading}
-              format={(v) => formatCurrency(v)}
-              color="green"
-            >
-              {formatPercentage(assetClassData.cash?.percentage || 0)} of portfolio
-            </KpiCard>
+            <div className="bg-gray-800/70 backdrop-blur-sm rounded-xl p-4 border border-gray-700 relative overflow-hidden">
+              <div className="absolute top-0 right-0 w-24 h-24 rounded-full bg-green-500/10 -mr-10 -mt-10"></div>
+              <div className="flex items-center mb-2">
+                <div className="bg-green-500/20 p-2 rounded-lg mr-3">
+                  <Banknote className="h-5 w-5 text-green-400" />
+                </div>
+                <h3 className="text-lg font-semibold">Cash</h3>
+              </div>
+              <div className="space-y-2">
+                <div>
+                  <p className="text-sm text-gray-400">Market Value</p>
+                  <p className="text-xl font-bold">{formatCurrency(assetClassData.cash?.value)}</p>
+                  <p className="text-xs text-gray-500">{formatPercentage(assetClassData.cash?.percentage || 0)} of portfolio</p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-400">Cost Basis</p>
+                  <p className="text-lg font-semibold">{formatCurrency(assetClassData.cash?.cost_basis)}</p>
+                  <p className="text-xs text-gray-500">{formatPercentage(assetClassData.cash?.cost_basis_percentage || 0)} of total cost</p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-400">Performance</p>
+                  <p className="text-lg font-semibold text-gray-400">
+                    N/A
+                  </p>
+                </div>
+              </div>
+            </div>
             
             {/* Crypto */}
-            <KpiCard
-              title="Crypto"
-              value={assetClassData.crypto?.value}
-              icon={<Coins />}
-              isLoading={isSummaryLoading}
-              format={(v) => formatCurrency(v)}
-              color="purple"
-            >
-              {formatPercentage(assetClassData.crypto?.percentage || 0)} of portfolio
-            </KpiCard>
+            <div className="bg-gray-800/70 backdrop-blur-sm rounded-xl p-4 border border-gray-700 relative overflow-hidden">
+              <div className="absolute top-0 right-0 w-24 h-24 rounded-full bg-purple-500/10 -mr-10 -mt-10"></div>
+              <div className="flex items-center mb-2">
+                <div className="bg-purple-500/20 p-2 rounded-lg mr-3">
+                  <Coins className="h-5 w-5 text-purple-400" />
+                </div>
+                <h3 className="text-lg font-semibold">Crypto</h3>
+              </div>
+              <div className="space-y-2">
+                <div>
+                  <p className="text-sm text-gray-400">Market Value</p>
+                  <p className="text-xl font-bold">{formatCurrency(assetClassData.crypto?.value)}</p>
+                  <p className="text-xs text-gray-500">{formatPercentage(assetClassData.crypto?.percentage || 0)} of portfolio</p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-400">Cost Basis</p>
+                  <p className="text-lg font-semibold">{formatCurrency(assetClassData.crypto?.cost_basis)}</p>
+                  <p className="text-xs text-gray-500">{formatPercentage(assetClassData.crypto?.cost_basis_percentage || 0)} of total cost</p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-400">Performance</p>
+                  <p className={`text-lg font-semibold ${assetClassData.crypto?.gain_loss >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                    {assetClassData.crypto?.gain_loss >= 0 ? '+' : ''}{formatCurrency(assetClassData.crypto?.gain_loss)}
+                    <span className="text-sm ml-1">
+                      ({assetClassData.crypto?.gain_loss >= 0 ? '+' : ''}{formatPercentage(assetClassData.crypto?.gain_loss_percent * 100)})
+                    </span>
+                  </p>
+                </div>
+              </div>
+            </div>
             
             {/* Metals */}
-            <KpiCard
-              title="Metals"
-              value={assetClassData.metal?.value}
-              icon={<Package />}
-              isLoading={isSummaryLoading}
-              format={(v) => formatCurrency(v)}
-              color="amber"
-            >
-              {formatPercentage(assetClassData.metal?.percentage || 0)} of portfolio
-            </KpiCard>
+            <div className="bg-gray-800/70 backdrop-blur-sm rounded-xl p-4 border border-gray-700 relative overflow-hidden">
+              <div className="absolute top-0 right-0 w-24 h-24 rounded-full bg-amber-500/10 -mr-10 -mt-10"></div>
+              <div className="flex items-center mb-2">
+                <div className="bg-amber-500/20 p-2 rounded-lg mr-3">
+                  <Package className="h-5 w-5 text-amber-400" />
+                </div>
+                <h3 className="text-lg font-semibold">Metals</h3>
+              </div>
+              <div className="space-y-2">
+                <div>
+                  <p className="text-sm text-gray-400">Market Value</p>
+                  <p className="text-xl font-bold">{formatCurrency(assetClassData.metal?.value)}</p>
+                  <p className="text-xs text-gray-500">{formatPercentage(assetClassData.metal?.percentage || 0)} of portfolio</p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-400">Cost Basis</p>
+                  <p className="text-lg font-semibold">{formatCurrency(assetClassData.metal?.cost_basis)}</p>
+                  <p className="text-xs text-gray-500">{formatPercentage(assetClassData.metal?.cost_basis_percentage || 0)} of total cost</p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-400">Performance</p>
+                  <p className={`text-lg font-semibold ${assetClassData.metal?.gain_loss >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                    {assetClassData.metal?.gain_loss >= 0 ? '+' : ''}{formatCurrency(assetClassData.metal?.gain_loss)}
+                    <span className="text-sm ml-1">
+                      ({assetClassData.metal?.gain_loss >= 0 ? '+' : ''}{formatPercentage(assetClassData.metal?.gain_loss_percent * 100)})
+                    </span>
+                  </p>
+                </div>
+              </div>
+            </div>
           </div>
         </section>
         
