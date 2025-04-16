@@ -81,7 +81,7 @@ const UnifiedGroupedPositionsTable = ({ initialSort = "value-high", title = "Con
           totalCostBasis: 0,
           accountsCount: 0,
           uniqueAccounts: new Set(),
-          estimatedAnnualIncome: 0,
+          totalPositionIncome: 0,
           currentPricePerUnit: position.current_price_per_unit || 0,
           dividendRate: 0,
           incomePerUnit: 0
@@ -94,6 +94,11 @@ const UnifiedGroupedPositionsTable = ({ initialSort = "value-high", title = "Con
       acc[groupKey].totalCostBasis += parseFloat(position.total_cost_basis || 0);
       acc[groupKey].uniqueAccounts.add(position.account_id);
       
+      // Use position_income directly from the API if available
+      if (position.position_income) {
+        acc[groupKey].totalPositionIncome += parseFloat(position.position_income || 0);
+      }
+      
       // Use the most recent price data
       if (position.current_price_per_unit) {
         acc[groupKey].currentPricePerUnit = position.current_price_per_unit;
@@ -102,13 +107,11 @@ const UnifiedGroupedPositionsTable = ({ initialSort = "value-high", title = "Con
       // For cash, use the dividend_rate from the API
       if (position.asset_type === 'cash' && position.dividend_rate) {
         acc[groupKey].dividendRate = parseFloat(position.dividend_rate);
-        const annualIncome = parseFloat(position.current_value || 0) * (parseFloat(position.dividend_rate) / 100);
-        acc[groupKey].estimatedAnnualIncome = (acc[groupKey].estimatedAnnualIncome || 0) + annualIncome;
       } 
-      // For securities, use dividend_yield from the API
-      else if (position.dividend_yield) {
-        const annualIncome = parseFloat(position.current_value || 0) * (parseFloat(position.dividend_yield) / 100);
-        acc[groupKey].estimatedAnnualIncome = (acc[groupKey].estimatedAnnualIncome || 0) + annualIncome;
+      
+      // For non-cash assets, use dividend_rate directly if available
+      if (position.asset_type !== 'cash' && position.dividend_rate) {
+        acc[groupKey].dividendRate = parseFloat(position.dividend_rate);
       }
       
       return acc;
@@ -126,8 +129,8 @@ const UnifiedGroupedPositionsTable = ({ initialSort = "value-high", title = "Con
         : 0;
       
       // Calculate income per unit
-      if (group.totalQuantity > 0 && group.estimatedAnnualIncome > 0) {
-        group.incomePerUnit = group.estimatedAnnualIncome / group.totalQuantity;
+      if (group.totalQuantity > 0 && group.totalPositionIncome > 0) {
+        group.incomePerUnit = group.totalPositionIncome / group.totalQuantity;
       }
       
       // Remove Set as it's not needed anymore
@@ -158,12 +161,14 @@ const UnifiedGroupedPositionsTable = ({ initialSort = "value-high", title = "Con
         const totalQuantity = filteredPositions.reduce((sum, pos) => sum + parseFloat(pos.quantity || 0), 0);
         const totalValue = filteredPositions.reduce((sum, pos) => sum + parseFloat(pos.current_value || 0), 0);
         const totalCostBasis = filteredPositions.reduce((sum, pos) => sum + parseFloat(pos.total_cost_basis || 0), 0);
+        const totalPositionIncome = filteredPositions.reduce((sum, pos) => sum + parseFloat(pos.position_income || 0), 0);
         
         return {
           ...group,
           totalQuantity,
           totalValue,
           totalCostBasis,
+          totalPositionIncome,
           avgCostBasisPerUnit: totalQuantity > 0 ? totalCostBasis / totalQuantity : 0,
           totalGainLoss: totalValue - totalCostBasis,
           totalGainLossPercent: totalCostBasis > 0 ? ((totalValue - totalCostBasis) / totalCostBasis) : 0,
@@ -207,8 +212,8 @@ const UnifiedGroupedPositionsTable = ({ initialSort = "value-high", title = "Con
         case "gain_percent-low": return a.totalGainLossPercent - b.totalGainLossPercent;
         case "accounts-high": return b.accountsCount - a.accountsCount;
         case "accounts-low": return a.accountsCount - b.accountsCount;
-        case "income-high": return b.estimatedAnnualIncome - a.estimatedAnnualIncome;
-        case "income-low": return a.estimatedAnnualIncome - b.estimatedAnnualIncome;
+        case "income-high": return b.totalPositionIncome - a.totalPositionIncome;
+        case "income-low": return a.totalPositionIncome - b.totalPositionIncome;
         case "identifier": return a.identifier.localeCompare(b.identifier);
         case "name": return a.name.localeCompare(b.name);
         case "asset_type": return a.assetType.localeCompare(b.assetType);
@@ -243,8 +248,8 @@ const UnifiedGroupedPositionsTable = ({ initialSort = "value-high", title = "Con
           comparison = parseFloat(a.quantity || 0) - parseFloat(b.quantity || 0);
           break;
         case "cost":
-          comparison = (parseFloat(a.cost_basis || 0) || parseFloat(a.current_price_per_unit || 0)) - 
-                       (parseFloat(b.cost_basis || 0) || parseFloat(b.current_price_per_unit || 0));
+          comparison = (parseFloat(a.cost_per_unit || 0) || parseFloat(a.current_price_per_unit || 0)) - 
+                       (parseFloat(b.cost_per_unit || 0) || parseFloat(b.current_price_per_unit || 0));
           break;
         case "value":
           comparison = parseFloat(a.current_value || 0) - parseFloat(b.current_value || 0);
@@ -269,7 +274,7 @@ const UnifiedGroupedPositionsTable = ({ initialSort = "value-high", title = "Con
       acc.totalValue += position.totalValue || 0;
       acc.totalCostBasis += position.totalCostBasis || 0;
       acc.totalGainLoss += position.totalGainLoss || 0;
-      acc.estimatedAnnualIncome += position.estimatedAnnualIncome || 0;
+      acc.totalPositionIncome += position.totalPositionIncome || 0;
       // Count unique positions
       acc.positionCount++;
       return acc;
@@ -278,7 +283,7 @@ const UnifiedGroupedPositionsTable = ({ initialSort = "value-high", title = "Con
       totalValue: 0,
       totalCostBasis: 0,
       totalGainLoss: 0,
-      estimatedAnnualIncome: 0,
+      totalPositionIncome: 0,
       positionCount: 0
     });
   }, [filteredPositions]);
@@ -484,9 +489,10 @@ const UnifiedGroupedPositionsTable = ({ initialSort = "value-high", title = "Con
                   <th scope="col" className="px-3 py-2 text-right text-xs font-medium text-gray-400 uppercase tracking-wider hidden md:table-cell">Avg Cost/Unit</th>
                   <th scope="col" className="px-3 py-2 text-right text-xs font-medium text-gray-400 uppercase tracking-wider hidden lg:table-cell">Total Cost</th>
                   <th scope="col" className="px-3 py-2 text-right text-xs font-medium text-gray-400 uppercase tracking-wider">Gain/Loss</th>
+                  {/* Place Income/Unit and Est. Annual Income columns next to each other */}
                   <th scope="col" className="px-3 py-2 text-right text-xs font-medium text-gray-400 uppercase tracking-wider hidden xl:table-cell">Income/Unit</th>
-                  <th scope="col" className="px-3 py-2 text-center text-xs font-medium text-gray-400 uppercase tracking-wider hidden sm:table-cell">Accounts</th>
                   <th scope="col" className="px-3 py-2 text-right text-xs font-medium text-gray-400 uppercase tracking-wider hidden xl:table-cell">Est. Annual Income</th>
+                  <th scope="col" className="px-3 py-2 text-center text-xs font-medium text-gray-400 uppercase tracking-wider hidden sm:table-cell">Accounts</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-700">
@@ -524,14 +530,15 @@ const UnifiedGroupedPositionsTable = ({ initialSort = "value-high", title = "Con
                       </div>
                     </div>
                   </td>
+                  {/* Income fields for portfolio summary */}
                   <td className="px-3 py-2 text-right whitespace-nowrap text-gray-300 hidden xl:table-cell">
                     {/* Cannot calculate income/unit for portfolio */}
                   </td>
+                  <td className="px-3 py-2 text-right whitespace-nowrap text-gray-300 hidden xl:table-cell">
+                    {formatCurrency(portfolioTotals.totalPositionIncome)}
+                  </td>
                   <td className="px-3 py-2 text-center whitespace-nowrap text-sm hidden sm:table-cell">
                     {/* Leave accounts cell empty */}
-                  </td>
-                  <td className="px-3 py-2 text-right whitespace-nowrap text-gray-300 hidden xl:table-cell">
-                    {formatCurrency(portfolioTotals.estimatedAnnualIncome)}
                   </td>
                 </tr>
 
@@ -604,21 +611,21 @@ const UnifiedGroupedPositionsTable = ({ initialSort = "value-high", title = "Con
                       )}
                     </td>
                     
-                    {/* Income/Unit */}
+                    {/* Income/Unit (using dividend_rate) */}
                     <td className="px-3 py-2 text-right whitespace-nowrap text-sm hidden xl:table-cell">
                       {group.assetType === 'cash' 
                         ? (group.dividendRate > 0 ? formatPercentage(group.dividendRate) : 'N/A')
                         : (group.incomePerUnit > 0 ? formatCurrency(group.incomePerUnit) : 'N/A')}
                     </td>
                     
+                    {/* Est. Annual Income (using position_income) */}
+                    <td className="px-3 py-2 text-right whitespace-nowrap text-sm hidden xl:table-cell">
+                      {formatCurrency(group.totalPositionIncome)}
+                    </td>
+                    
                     {/* # Accounts */}
                     <td className="px-3 py-2 text-center whitespace-nowrap text-sm hidden sm:table-cell">
                       {group.accountsCount}
-                    </td>
-                    
-                    {/* Est. Annual Income */}
-                    <td className="px-3 py-2 text-right whitespace-nowrap text-sm hidden xl:table-cell">
-                      {formatCurrency(group.estimatedAnnualIncome)}
                     </td>
                   </tr>
                 ))}
@@ -715,10 +722,10 @@ const UnifiedGroupedPositionsTable = ({ initialSort = "value-high", title = "Con
                     </div>
                   )}
                   
-                  {selectedPositionDetail.estimatedAnnualIncome > 0 && (
+                  {selectedPositionDetail.totalPositionIncome > 0 && (
                     <div className="bg-gray-700 rounded-lg p-3">
                       <div className="text-gray-400 text-xs mb-1 uppercase tracking-wider">Est. Annual Income</div>
-                      <div className="text-lg font-semibold truncate text-white">{formatCurrency(selectedPositionDetail.estimatedAnnualIncome)}</div>
+                      <div className="text-lg font-semibold truncate text-white">{formatCurrency(selectedPositionDetail.totalPositionIncome)}</div>
                     </div>
                   )}
                 </div>
@@ -746,29 +753,29 @@ const UnifiedGroupedPositionsTable = ({ initialSort = "value-high", title = "Con
                       <div>
                         <div className="text-gray-400 text-xs uppercase tracking-wider">Average Interest Rate</div>
                         <div className="font-medium text-white break-words">
-                        {selectedPositionDetail.totalValue > 0 && selectedPositionDetail.estimatedAnnualIncome > 0
-                          ? ((selectedPositionDetail.estimatedAnnualIncome / selectedPositionDetail.totalValue) * 100).toFixed(2) + '%'
+                        {selectedPositionDetail.totalValue > 0 && selectedPositionDetail.totalPositionIncome > 0
+                          ? ((selectedPositionDetail.totalPositionIncome / selectedPositionDetail.totalValue) * 100).toFixed(2) + '%'
                           : 'N/A'}
                         </div>
                       </div>
                       <div>
                         <div className="text-gray-400 text-xs uppercase tracking-wider">Est. Annual Income</div>
-                        <div className="font-medium text-white break-words">{formatCurrency(selectedPositionDetail.estimatedAnnualIncome)}</div>
+                        <div className="font-medium text-white break-words">{formatCurrency(selectedPositionDetail.totalPositionIncome)}</div>
                       </div>
                     </>
                   )}
                   
-                  {selectedPositionDetail.estimatedAnnualIncome > 0 && selectedPositionDetail.assetType !== 'cash' && (
+                  {selectedPositionDetail.totalPositionIncome > 0 && selectedPositionDetail.assetType !== 'cash' && (
                     <>
                       <div>
                         <div className="text-gray-400 text-xs uppercase tracking-wider">Est. Annual Income</div>
-                        <div className="font-medium text-white break-words">{formatCurrency(selectedPositionDetail.estimatedAnnualIncome)}</div>
+                        <div className="font-medium text-white break-words">{formatCurrency(selectedPositionDetail.totalPositionIncome)}</div>
                       </div>
                       <div>
                         <div className="text-gray-400 text-xs uppercase tracking-wider">Est. Yield</div>
                         <div className="font-medium text-white break-words">
                           {selectedPositionDetail.totalValue > 0
-                            ? ((selectedPositionDetail.estimatedAnnualIncome / selectedPositionDetail.totalValue) * 100).toFixed(2) + '%'
+                            ? ((selectedPositionDetail.totalPositionIncome / selectedPositionDetail.totalValue) * 100).toFixed(2) + '%'
                             : 'N/A'}
                         </div>
                       </div>
@@ -885,10 +892,11 @@ const UnifiedGroupedPositionsTable = ({ initialSort = "value-high", title = "Con
                           const positionValue = parseFloat(position.current_value || 0);
                           const positionGainLoss = positionValue - positionCostBasis;
                           const positionGainLossPercent = positionCostBasis > 0 ? (positionGainLoss / positionCostBasis) : 0;
-                          // Calculate annual income for cash positions
-                          const annualIncome = selectedPositionDetail.assetType === 'cash' && position.dividend_rate 
-                            ? (positionValue * (parseFloat(position.dividend_rate) / 100)) 
-                            : 0;
+                          // Calculate annual income using position_income directly if available
+                          const annualIncome = parseFloat(position.position_income || 0) || 
+                            (selectedPositionDetail.assetType === 'cash' && position.dividend_rate 
+                              ? (positionValue * (parseFloat(position.dividend_rate) / 100)) 
+                              : 0);
                           
                           return (
                             <tr key={position.id} className="hover:bg-gray-600/50">
@@ -975,7 +983,7 @@ const UnifiedGroupedPositionsTable = ({ initialSort = "value-high", title = "Con
                                 {/* Leave avg rate cell empty for total row */}
                               </td>
                               <td className="px-3 py-2 whitespace-nowrap text-sm text-right font-medium">
-                                {formatCurrency(selectedPositionDetail.estimatedAnnualIncome)}
+                                {formatCurrency(selectedPositionDetail.totalPositionIncome)}
                               </td>
                               <td className="px-3 py-2 whitespace-nowrap text-sm text-right font-medium">
                                 {formatCurrency(selectedPositionDetail.totalValue)}
