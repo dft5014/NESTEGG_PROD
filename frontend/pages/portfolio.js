@@ -15,11 +15,9 @@ import {
 } from 'lucide-react';
 // Import the chart components
 import { 
-  AssetTypeChart, 
-  TopHoldingsChart, 
-  AccountValuesChart, 
-  GainLossAreaChart 
-} from '@/components/charts/PortfolioCharts';
+  InstitutionDiversityChart,
+  SectorDiversityChart
+} from '@/components/charts/DiversificationCharts';
 
 export default function PortfolioPage() {
   const [summaryData, setSummaryData] = useState(null);
@@ -393,13 +391,13 @@ export default function PortfolioPage() {
           </div>
         </section>
         
-        {/* Charts Section */}
+        {/* Diversification Section */}
         <section className="mb-10">
-          <h2 className="text-xl font-semibold mb-4 text-gray-300">Portfolio Analysis</h2>
+          <h2 className="text-xl font-semibold mb-4 text-gray-300">Portfolio Diversification</h2>
           
           {isSummaryLoading ? (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {[...Array(4)].map((_, i) => (
+              {[...Array(2)].map((_, i) => (
                 <div key={i} className="bg-gray-800/70 backdrop-blur-sm rounded-xl p-4 h-[300px] animate-pulse flex items-center justify-center">
                   <div className="w-16 h-16 rounded-full border-4 border-blue-500 border-t-transparent animate-spin"></div>
                 </div>
@@ -407,17 +405,23 @@ export default function PortfolioPage() {
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* Asset Type Donut Chart */}
-              <AssetTypeChart positions={allPositions} />
+              {/* Financial Institution Diversity Chart */}
+              <div className="bg-gray-800/70 backdrop-blur-sm rounded-xl p-4 border border-gray-700">
+                <h3 className="text-lg font-semibold mb-3 text-white">Institution Exposure</h3>
+                <div className="h-[350px]">
+                  {/* Replace with actual institution diversity chart */}
+                  <InstitutionDiversityChart accounts={allAccounts} />
+                </div>
+              </div>
               
-              {/* Top Holdings Bar Chart */}
-              <TopHoldingsChart positions={allPositions} />
-              
-              {/* Account Values Bar Chart */}
-              <AccountValuesChart accounts={allAccounts} />
-              
-              {/* Gain/Loss by Asset Type Chart */}
-              <GainLossAreaChart positions={allPositions} />
+              {/* Industry/Sector Diversity Chart */}
+              <div className="bg-gray-800/70 backdrop-blur-sm rounded-xl p-4 border border-gray-700">
+                <h3 className="text-lg font-semibold mb-3 text-white">Sector Exposure (Securities)</h3>
+                <div className="h-[350px]">
+                  {/* Replace with actual sector diversity chart */}
+                  <SectorDiversityChart positions={allPositions} />
+                </div>
+              </div>
             </div>
           )}
         </section>
