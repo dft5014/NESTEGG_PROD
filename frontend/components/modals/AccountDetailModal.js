@@ -107,22 +107,37 @@ const TaxLotDetailModal = ({ isOpen, onClose, ticker, positions, onEditTaxLot, o
         : 0;
 
     // Edit handler 
+    // Edit handler 
     const handleEditClick = (e, position) => {
         e.stopPropagation(); // Prevent row click
         
-        // The main fix - ensure we're passing required data and not trying 
-        // to access properties that might be undefined
+        // More complete position object that maps properly to SecurityPositionModal expected fields
         const editablePosition = {
             ...position,
-            // Ensure we have an account_name that won't cause charAt errors
-            account_name: position.account_name || "Unknown",
-            // Make sure all required fields exist
-            ticker: position.ticker || ticker || "Unknown",
-            // For debugging
+            // Basic identity fields
             id: position.id || `temp-${Date.now()}`,
-            // We must pass some value here that won't cause API errors
-            account_id: position.account_id || null
+            account_id: position.account_id || null,
+            account_name: position.account_name || "Unknown",
+            
+            // Field name mapping for SecurityPositionModal compatibility
+            ticker: position.ticker || position.identifier || ticker || "Unknown",
+            shares: position.quantity || 0,  // Convert quantity to shares for SecurityPositionModal
+            price: position.current_price_per_unit || 0,
+            cost_basis: position.cost_per_unit || 0, // Map cost_per_unit to cost_basis
+            
+            // Additional optional SecurityPositionModal fields
+            name: position.name || "",
+            sector: position.sector || "",
+            industry: position.industry || "",
+            market_cap: position.market_cap || 0,
+            pe_ratio: position.pe_ratio || null,
+            dividend_yield: position.dividend_yield || null,
+            
+            // Make sure date format is correct
+            purchase_date: position.purchase_date || new Date().toISOString().split('T')[0]
         };
+        
+        console.log("Editing position:", editablePosition); // For debugging
         
         setPositionToEdit(editablePosition);
         setIsEditModalOpen(true);
@@ -131,13 +146,24 @@ const TaxLotDetailModal = ({ isOpen, onClose, ticker, positions, onEditTaxLot, o
     // Delete handler
     const handleDeleteClick = (e, position) => {
         e.stopPropagation(); // Prevent row click
-        setPositionToDelete(position);
+        
+        // Add account info to position if needed
+        const deletablePosition = {
+            ...position,
+            asset_type: position.asset_type || position.assetType,
+            id: position.id || `temp-${Date.now()}`
+        };
+        
+        setPositionToDelete(deletablePosition);
         setIsDeleteModalOpen(true);
     };
+
 
     // Confirmation handler for delete action
     const handleConfirmDelete = () => {
         if (!positionToDelete) return;
+
+        console.log("Deleting position:", positionToDelete);
         
         // Call the passed onDeleteTaxLot function
         onDeleteTaxLot(positionToDelete);
