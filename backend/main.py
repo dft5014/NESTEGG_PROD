@@ -3844,8 +3844,10 @@ async def test_yahoo_finance_client(ticker: str = "MKTX", current_user: dict = D
             "tests": {}
         }
         
-        # Use the client as a context manager for proper session handling
-        async with YahooFinanceClient() as client:
+        # Create client
+        client = YahooFinanceClient()
+        
+        try:
             # Test 1: Get current price
             try:
                 start_time = time.time()
@@ -3901,36 +3903,43 @@ async def test_yahoo_finance_client(ticker: str = "MKTX", current_user: dict = D
                     "status": "error",
                     "error": str(e)
                 }
-            
-            # The session will be automatically closed when exiting the context manager
+                
+            # Test 4: Get batch prices
+            try:
+                start_time = time.time()
+                batch_tickers = [ticker, "AAPL", "MSFT"]
+                
+                batch_data = await client.get_batch_prices(batch_tickers)
+                elapsed = time.time() - start_time
+                
+                results["tests"]["batch_prices"] = {
+                    "status": "success" if batch_data else "failed",
+                    "elapsed_seconds": round(elapsed, 4),
+                    "tickers_returned": list(batch_data.keys()) if batch_data else [],
+                    "data": {ticker: batch_data.get(ticker)} if batch_data and ticker in batch_data else None
+                }
+            except Exception as e:
+                results["tests"]["batch_prices"] = {
+                    "status": "error",
+                    "error": str(e)
+                }
+        finally:
+            # Always close the client
+            try:
+                await client.close()
+                results["client_close"] = "Success"
+            except Exception as close_error:
+                results["client_close"] = f"Error: {str(close_error)}"
         
-        results["session_handling"] = "Successfully used client as context manager"
-        
-        # Test 4: Manual client creation and explicit close
-        try:
-            manual_client = YahooFinanceClient()
-            batch_tickers = [ticker, "AAPL", "MSFT"]
-            
-            start_time = time.time()
-            batch_data = await manual_client.get_batch_prices(batch_tickers)
-            elapsed = time.time() - start_time
-            
-            results["tests"]["manual_client"] = {
-                "status": "success" if batch_data else "failed",
-                "elapsed_seconds": round(elapsed, 4),
-                "tickers_returned": list(batch_data.keys()) if batch_data else [],
-                "data": {ticker: batch_data.get(ticker)} if batch_data and ticker in batch_data else None
-            }
-            
-            # Explicitly close the manual client
-            await manual_client.close()
-            results["manual_client_close"] = "Successfully closed manual client"
-            
-        except Exception as e:
-            results["tests"]["manual_client"] = {
-                "status": "error",
-                "error": str(e)
-            }
+        # Calculate success rate
+        success_count = sum(1 for test_result in results["tests"].values() 
+                           if test_result.get("status") == "success")
+        test_count = len(results["tests"])
+        results["summary"] = {
+            "tests_run": test_count,
+            "tests_passed": success_count,
+            "success_rate": f"{(success_count/test_count)*100:.1f}%" if test_count > 0 else "0%"
+        }
         
         return results
     except Exception as e:
@@ -3959,23 +3968,30 @@ async def compare_yahoo_clients(ticker: str = "MKTX", current_user: dict = Depen
             "client_results": {}
         }
         
-        # Test with unified client using context manager
+        # Test with unified client
+        client = None
         try:
-            async with YahooFinanceClient() as client:
-                start_time = time.time()
-                ticker_data = await client.get_current_price(ticker)
-                elapsed = time.time() - start_time
-                
-                results["client_results"]["unified_client"] = {
-                    "status": "success" if ticker_data else "failed",
-                    "elapsed_seconds": round(elapsed, 4),
-                    "data": ticker_data
-                }
+            client = YahooFinanceClient()
+            start_time = time.time()
+            ticker_data = await client.get_current_price(ticker)
+            elapsed = time.time() - start_time
+            
+            results["client_results"]["unified_client"] = {
+                "status": "success" if ticker_data else "failed",
+                "elapsed_seconds": round(elapsed, 4),
+                "data": ticker_data
+            }
         except Exception as e:
             results["client_results"]["unified_client"] = {
                 "status": "error",
                 "error": str(e)
             }
+        finally:
+            if client is not None:
+                try:
+                    await client.close()
+                except Exception:
+                    pass
         
         # Test with direct client
         client = None
@@ -4053,6 +4069,21 @@ async def compare_yahoo_clients(ticker: str = "MKTX", current_user: dict = Depen
                 except Exception:
                     pass
         
+        # Compare performance
+        successful_clients = {name: data["elapsed_seconds"] 
+                             for name, data in results["client_results"].items() 
+                             if data.get("status") == "success"}
+        
+        if successful_clients:
+            fastest_client = min(successful_clients.items(), key=lambda x: x[1])
+            results["performance"] = {
+                "fastest_client": fastest_client[0],
+                "fastest_time": fastest_client[1],
+                "time_comparison": {name: f"{time/fastest_client[1]:.2f}x slower than fastest" 
+                                   for name, time in successful_clients.items() 
+                                   if name != fastest_client[0]}
+            }
+        
         return results
     except Exception as e:
         logger.error(f"Error in Yahoo Finance clients comparison: {str(e)}")
@@ -4060,7 +4091,7 @@ async def compare_yahoo_clients(ticker: str = "MKTX", current_user: dict = Depen
             "status": "error",
             "error": str(e)
         }
- 
+
 
 @app.get("/system/database-status")
 async def get_database_status(current_user: dict = Depends(get_current_user)):

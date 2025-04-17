@@ -59,13 +59,9 @@ class YahooFinanceClient:
                 "fx_prices": 30 * 60,  # 30 minutes
             }
             
-    async def __aenter__(self):
-        """Support for async with statement"""
-        return self
-        
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
-        """Close the session when exiting the context manager"""
-        await self.close()
+    # These two methods aren't needed in Python 3.7+
+    # We'll handle context manager usage differently
+    # Removed: async def __aenter__ and async def __aexit__
     
     async def close(self) -> None:
         """
