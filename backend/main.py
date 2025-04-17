@@ -4092,6 +4092,67 @@ async def compare_yahoo_clients(ticker: str = "MKTX", current_user: dict = Depen
             "error": str(e)
         }
 
+@app.get("/NEW-TEST")
+async def test_yahoo_finance_client_methods(current_user: dict = Depends(get_current_user)):
+    """
+    Tests all methods of the YahooFinanceClient class with real data.
+    Returns the exact output of each method call as it would be passed to other parts of the application.
+    """
+    from backend.api_clients.yahoo_finance_client import YahooFinanceClient
+    import json
+    from datetime import datetime, timedelta
+    
+    # Create client
+    client = YahooFinanceClient()
+    
+    try:
+        results = {}
+        
+        # 1. Test get_current_price with MKTX
+        ticker = "MKTX"
+        results["get_current_price"] = await client.get_current_price(ticker)
+        
+        # 2. Test get_batch_prices with 5 diverse tickers
+        tickers = ["MKTX", "AAPL", "MSFT", "AMZN", "GOOGL"]
+        results["get_batch_prices"] = await client.get_batch_prices(tickers)
+        
+        # 3. Test get_company_metrics with MKTX
+        results["get_company_metrics"] = await client.get_company_metrics(ticker)
+        
+        # 4. Test get_historical_prices - last 30 days
+        end_date = datetime.now()
+        start_date = end_date - timedelta(days=30)
+        results["get_historical_prices"] = await client.get_historical_prices(ticker, start_date, end_date)
+        
+        # 5. Test get_batch_historical_prices - last 7 days (smaller range for efficiency)
+        end_date = datetime.now()
+        start_date = end_date - timedelta(days=7)
+        batch_tickers = ["MKTX", "AAPL", "MSFT"]
+        results["get_batch_historical_prices"] = await client.get_batch_historical_prices(batch_tickers, start_date, end_date)
+        
+        # 6. Test get_fx_prices with crypto, forex, and commodities
+        fx_symbols = ["BTC-USD", "ETH-USD", "EURUSD=X", "GBPUSD=X", "GC=F", "SI=F"]  # Crypto, Forex, and Commodities
+        results["get_fx_prices"] = await client.get_fx_prices(fx_symbols)
+        
+        # 7. Convert datetime objects to ISO strings for JSON serialization
+        def convert_datetime_to_iso(obj):
+            if isinstance(obj, dict):
+                return {k: convert_datetime_to_iso(v) for k, v in obj.items()}
+            elif isinstance(obj, list):
+                return [convert_datetime_to_iso(item) for item in obj]
+            elif isinstance(obj, (datetime, date)):
+                return obj.isoformat()
+            else:
+                return obj
+                
+        serializable_results = convert_datetime_to_iso(results)
+        
+        return serializable_results
+    
+    finally:
+        # Always close the client
+        await client.close()
+
 
 @app.get("/system/database-status")
 async def get_database_status(current_user: dict = Depends(get_current_user)):
