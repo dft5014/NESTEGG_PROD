@@ -4091,67 +4091,155 @@ async def compare_yahoo_clients(ticker: str = "MKTX", current_user: dict = Depen
             "status": "error",
             "error": str(e)
         }
-
-@app.get("/NEW-TEST")
-async def test_yahoo_finance_client_methods(current_user: dict = Depends(get_current_user)):
+@app.get("/NEW-TEST/{method_id}")
+async def test_yahoo_finance_client_methods(method_id: int):
     """
-    Tests all methods of the YahooFinanceClient class with real data.
-    Returns the exact output of each method call as it would be passed to other parts of the application.
+    Tests methods of the YahooFinanceClient class with real data.
+    
+    Method IDs:
+    1 - get_current_price - Get current price for a single ticker
+    2 - get_batch_prices - Get prices for multiple tickers
+    3 - get_company_metrics - Get company details and metrics
+    4 - get_historical_prices - Get historical prices for a ticker
+    5 - get_batch_historical_prices - Get historical prices for multiple tickers
+    6 - get_fx_prices - Get forex/crypto/commodities prices
+    0 - Run all tests
     """
-    from backend.api_clients.yahoo_finance_client import YahooFinanceClient
-    import json
-    from datetime import datetime, timedelta
-    
-    # Create client
-    client = YahooFinanceClient()
-    
     try:
+        from backend.api_clients.yahoo_finance_client import YahooFinanceClient
+        from datetime import datetime, timedelta, date
+        import logging
+        
+        logger.info(f"Starting NEW-TEST with method_id={method_id}")
+        
+        # Create client
+        client = YahooFinanceClient()
         results = {}
         
-        # 1. Test get_current_price with MKTX
-        ticker = "MKTX"
-        results["get_current_price"] = await client.get_current_price(ticker)
+        try:
+            # Method 1: get_current_price
+            if method_id == 1 or method_id == 0:
+                ticker = "MKTX"
+                logger.info(f"Testing get_current_price with {ticker}")
+                try:
+                    results["get_current_price"] = await client.get_current_price(ticker)
+                    logger.info("get_current_price test completed successfully")
+                except Exception as e:
+                    logger.error(f"Error in get_current_price: {str(e)}")
+                    results["get_current_price"] = {"error": str(e)}
+            
+            # Method 2: get_batch_prices
+            if method_id == 2 or method_id == 0:
+                logger.info("Testing get_batch_prices")
+                try:
+                    tickers = ["MKTX", "AAPL", "MSFT", "AMZN", "GOOGL"]
+                    results["get_batch_prices"] = await client.get_batch_prices(tickers)
+                    logger.info("get_batch_prices test completed successfully")
+                except Exception as e:
+                    logger.error(f"Error in get_batch_prices: {str(e)}")
+                    results["get_batch_prices"] = {"error": str(e)}
+            
+            # Method 3: get_company_metrics
+            if method_id == 3 or method_id == 0:
+                ticker = "MKTX"
+                logger.info(f"Testing get_company_metrics with {ticker}")
+                try:
+                    results["get_company_metrics"] = await client.get_company_metrics(ticker)
+                    logger.info("get_company_metrics test completed successfully")
+                except Exception as e:
+                    logger.error(f"Error in get_company_metrics: {str(e)}")
+                    results["get_company_metrics"] = {"error": str(e)}
+            
+            # Method 4: get_historical_prices
+            if method_id == 4 or method_id == 0:
+                ticker = "MKTX"
+                logger.info(f"Testing get_historical_prices with {ticker}")
+                try:
+                    end_date = datetime.now()
+                    start_date = end_date - timedelta(days=30)
+                    history = await client.get_historical_prices(ticker, start_date, end_date)
+                    # Convert date objects to strings for JSON serialization
+                    for item in history:
+                        if isinstance(item.get('date'), date):
+                            item['date'] = item['date'].isoformat()
+                        if isinstance(item.get('timestamp'), datetime):
+                            item['timestamp'] = item['timestamp'].isoformat()
+                    results["get_historical_prices"] = history
+                    logger.info(f"get_historical_prices test completed successfully with {len(history)} data points")
+                except Exception as e:
+                    logger.error(f"Error in get_historical_prices: {str(e)}")
+                    results["get_historical_prices"] = {"error": str(e)}
+            
+            # Method 5: get_batch_historical_prices
+            if method_id == 5 or method_id == 0:
+                logger.info("Testing get_batch_historical_prices")
+                try:
+                    tickers = ["MKTX", "AAPL", "MSFT"]
+                    end_date = datetime.now()
+                    start_date = end_date - timedelta(days=7)  # Shorter timeframe for batch
+                    history_batch = await client.get_batch_historical_prices(tickers, start_date, end_date)
+                    
+                    # Convert date objects to strings for JSON serialization
+                    for ticker, history in history_batch.items():
+                        for item in history:
+                            if isinstance(item.get('date'), date):
+                                item['date'] = item['date'].isoformat()
+                            if isinstance(item.get('timestamp'), datetime):
+                                item['timestamp'] = item['timestamp'].isoformat()
+                    
+                    results["get_batch_historical_prices"] = history_batch
+                    logger.info("get_batch_historical_prices test completed successfully")
+                except Exception as e:
+                    logger.error(f"Error in get_batch_historical_prices: {str(e)}")
+                    results["get_batch_historical_prices"] = {"error": str(e)}
+            
+            # Method 6: get_fx_prices
+            if method_id == 6 or method_id == 0:
+                logger.info("Testing get_fx_prices")
+                try:
+                    fx_symbols = ["BTC-USD", "ETH-USD", "EURUSD=X", "GBPUSD=X", "GC=F", "SI=F"]
+                    results["get_fx_prices"] = await client.get_fx_prices(fx_symbols)
+                    
+                    # Convert datetime objects for JSON serialization
+                    for symbol, data in results["get_fx_prices"].items():
+                        if 'price_timestamp' in data and isinstance(data['price_timestamp'], (datetime, date)):
+                            data['price_timestamp'] = data['price_timestamp'].isoformat()
+                        if 'timestamp' in data and isinstance(data['timestamp'], (datetime, date)):
+                            data['timestamp'] = data['timestamp'].isoformat()
+                    
+                    logger.info("get_fx_prices test completed successfully")
+                except Exception as e:
+                    logger.error(f"Error in get_fx_prices: {str(e)}")
+                    results["get_fx_prices"] = {"error": str(e)}
+            
+        finally:
+            # Always close the client
+            try:
+                await client.close()
+                logger.info("Client closed successfully")
+            except Exception as e:
+                logger.error(f"Error closing client: {str(e)}")
+                results["client_close_error"] = str(e)
         
-        # 2. Test get_batch_prices with 5 diverse tickers
-        tickers = ["MKTX", "AAPL", "MSFT", "AMZN", "GOOGL"]
-        results["get_batch_prices"] = await client.get_batch_prices(tickers)
+        # Convert datetime objects to strings
+        import json
+        from datetime import date, datetime
         
-        # 3. Test get_company_metrics with MKTX
-        results["get_company_metrics"] = await client.get_company_metrics(ticker)
+        class DateTimeEncoder(json.JSONEncoder):
+            def default(self, obj):
+                if isinstance(obj, (datetime, date)):
+                    return obj.isoformat()
+                return super().default(obj)
         
-        # 4. Test get_historical_prices - last 30 days
-        end_date = datetime.now()
-        start_date = end_date - timedelta(days=30)
-        results["get_historical_prices"] = await client.get_historical_prices(ticker, start_date, end_date)
+        # First convert to JSON string, then back to dict to handle all nested datetime objects
+        serialized = json.loads(json.dumps(results, cls=DateTimeEncoder))
+        return serialized
         
-        # 5. Test get_batch_historical_prices - last 7 days (smaller range for efficiency)
-        end_date = datetime.now()
-        start_date = end_date - timedelta(days=7)
-        batch_tickers = ["MKTX", "AAPL", "MSFT"]
-        results["get_batch_historical_prices"] = await client.get_batch_historical_prices(batch_tickers, start_date, end_date)
-        
-        # 6. Test get_fx_prices with crypto, forex, and commodities
-        fx_symbols = ["BTC-USD", "ETH-USD", "EURUSD=X", "GBPUSD=X", "GC=F", "SI=F"]  # Crypto, Forex, and Commodities
-        results["get_fx_prices"] = await client.get_fx_prices(fx_symbols)
-        
-        # 7. Convert datetime objects to ISO strings for JSON serialization
-        def convert_datetime_to_iso(obj):
-            if isinstance(obj, dict):
-                return {k: convert_datetime_to_iso(v) for k, v in obj.items()}
-            elif isinstance(obj, list):
-                return [convert_datetime_to_iso(item) for item in obj]
-            elif isinstance(obj, (datetime, date)):
-                return obj.isoformat()
-            else:
-                return obj
-                
-        serializable_results = convert_datetime_to_iso(results)
-        
-        return serializable_results
-    
-    finally:
-        # Always close the client
-        await client.close()
+    except Exception as e:
+        logger.error(f"Error in test_yahoo_finance_client_methods: {str(e)}")
+        import traceback
+        tb = traceback.format_exc()
+        return {"error": str(e), "traceback": tb}
 
 
 @app.get("/system/database-status")
