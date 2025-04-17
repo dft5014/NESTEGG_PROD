@@ -462,7 +462,8 @@ export default function PortfolioPage() {
         {/* Asset Class Allocation KPIs - ENHANCED with Cost Basis Data */}
         <section className="mb-10">
           <h2 className="text-xl font-semibold mb-4 text-gray-300">Asset Class Allocation</h2>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            {/* First Row: 4 Asset Cards */}
             {/* Securities */}
             <div className="bg-gray-800/70 backdrop-blur-sm rounded-xl p-4 border border-gray-700 relative overflow-hidden">
               <div className="absolute top-0 right-0 w-24 h-24 rounded-full bg-blue-500/10 -mr-10 -mt-10"></div>
@@ -491,64 +492,6 @@ export default function PortfolioPage() {
                       ({assetClassData.security?.gain_loss >= 0 ? '+' : ''}{formatPercentage(assetClassData.security?.gain_loss_percent * 100)})
                     </span>
                   </p>
-                </div>
-              </div>
-            </div>
-            
-            {/* Real Estate - Double Width Card */}
-            <div className="bg-gray-800/70 backdrop-blur-sm rounded-xl p-4 border border-gray-700 relative overflow-hidden md:col-span-2">
-              <div className="absolute top-0 right-0 w-24 h-24 rounded-full bg-teal-500/10 -mr-10 -mt-10"></div>
-              <div className="flex items-center mb-2">
-                <div className="bg-teal-500/20 p-2 rounded-lg mr-3">
-                  <Home className="h-5 w-5 text-teal-400" />
-                </div>
-                <h3 className="text-lg font-semibold">Real Estate</h3>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {/* Left Column - Same as other asset cards */}
-                <div className="space-y-2">
-                  <div>
-                    <p className="text-sm text-gray-400">Market Value</p>
-                    <p className="text-xl font-bold">{formatCurrency(assetClassData.realestate?.value || 0)}</p>
-                    <p className="text-xs text-gray-500">{formatPercentage(assetClassData.realestate?.percentage || 0)} of portfolio</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-gray-400">Cost Basis</p>
-                    <p className="text-lg font-semibold">{formatCurrency(assetClassData.realestate?.cost_basis || 0)}</p>
-                    <p className="text-xs text-gray-500">{formatPercentage(assetClassData.realestate?.cost_basis_percentage || 0)} of total cost</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-gray-400">Performance</p>
-                    <p className={`text-lg font-semibold ${(assetClassData.realestate?.gain_loss || 0) >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                      {(assetClassData.realestate?.gain_loss || 0) >= 0 ? '+' : ''}{formatCurrency(assetClassData.realestate?.gain_loss || 0)}
-                      <span className="text-sm ml-1">
-                        ({(assetClassData.realestate?.gain_loss || 0) >= 0 ? '+' : ''}{formatPercentage((assetClassData.realestate?.gain_loss_percent || 0) * 100)})
-                      </span>
-                    </p>
-                  </div>
-                </div>
-                
-                {/* Right Column - Real Estate Specific */}
-                <div className="space-y-2">
-                  <div>
-                    <p className="text-sm text-gray-400">Properties</p>
-                    <p className="text-xl font-bold">{assetClassData.realestate?.properties_count || 0}</p>
-                    <p className="text-xs text-gray-500">Total owned properties</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-gray-400">Mortgage Balance</p>
-                    <p className="text-lg font-semibold">{formatCurrency(assetClassData.realestate?.mortgage_value || 0)}</p>
-                    <p className="text-xs text-gray-500">Total outstanding mortgages</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-gray-400">Net Equity</p>
-                    <p className="text-lg font-semibold text-teal-400">
-                      {formatCurrency(assetClassData.realestate?.net_equity || 0)}
-                    </p>
-                    <p className="text-xs text-gray-500">
-                      {formatPercentage((assetClassData.realestate?.net_equity || 0) / (assetClassData.realestate?.value || 1))} equity ratio
-                    </p>
-                  </div>
                 </div>
               </div>
             </div>
@@ -646,6 +589,65 @@ export default function PortfolioPage() {
               </div>
             </div>
             
+            {/* Second Row: Real Estate (2-wide) + Top Institutions + Top Positions */}
+            {/* Real Estate - Double Width Card */}
+            <div className="bg-gray-800/70 backdrop-blur-sm rounded-xl p-4 border border-gray-700 relative overflow-hidden md:col-span-2">
+              <div className="absolute top-0 right-0 w-24 h-24 rounded-full bg-teal-500/10 -mr-10 -mt-10"></div>
+              <div className="flex items-center mb-2">
+                <div className="bg-teal-500/20 p-2 rounded-lg mr-3">
+                  <Home className="h-5 w-5 text-teal-400" />
+                </div>
+                <h3 className="text-lg font-semibold">Real Estate</h3>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Left Column - Same as other asset cards */}
+                <div className="space-y-2">
+                  <div>
+                    <p className="text-sm text-gray-400">Market Value</p>
+                    <p className="text-xl font-bold">{formatCurrency(assetClassData.realestate?.value || 0)}</p>
+                    <p className="text-xs text-gray-500">{formatPercentage(assetClassData.realestate?.percentage || 0)} of portfolio</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-400">Cost Basis</p>
+                    <p className="text-lg font-semibold">{formatCurrency(assetClassData.realestate?.cost_basis || 0)}</p>
+                    <p className="text-xs text-gray-500">{formatPercentage(assetClassData.realestate?.cost_basis_percentage || 0)} of total cost</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-400">Performance</p>
+                    <p className={`text-lg font-semibold ${(assetClassData.realestate?.gain_loss || 0) >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                      {(assetClassData.realestate?.gain_loss || 0) >= 0 ? '+' : ''}{formatCurrency(assetClassData.realestate?.gain_loss || 0)}
+                      <span className="text-sm ml-1">
+                        ({(assetClassData.realestate?.gain_loss || 0) >= 0 ? '+' : ''}{formatPercentage((assetClassData.realestate?.gain_loss_percent || 0) * 100)})
+                      </span>
+                    </p>
+                  </div>
+                </div>
+                
+                {/* Right Column - Real Estate Specific */}
+                <div className="space-y-2">
+                  <div>
+                    <p className="text-sm text-gray-400">Properties</p>
+                    <p className="text-xl font-bold">{assetClassData.realestate?.properties_count || 0}</p>
+                    <p className="text-xs text-gray-500">Total owned properties</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-400">Mortgage Balance</p>
+                    <p className="text-lg font-semibold">{formatCurrency(assetClassData.realestate?.mortgage_value || 0)}</p>
+                    <p className="text-xs text-gray-500">Total outstanding mortgages</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-400">Net Equity</p>
+                    <p className="text-lg font-semibold text-teal-400">
+                      {formatCurrency(assetClassData.realestate?.net_equity || 0)}
+                    </p>
+                    <p className="text-xs text-gray-500">
+                      {formatPercentage((assetClassData.realestate?.net_equity || 0) / (assetClassData.realestate?.value || 1))} equity ratio
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
             {/* Top 5 Institutions Card */}
             <div className="bg-gray-800/70 backdrop-blur-sm rounded-xl p-4 border border-gray-700 relative overflow-hidden">
               <div className="absolute top-0 right-0 w-24 h-24 rounded-full bg-indigo-500/10 -mr-10 -mt-10"></div>
@@ -695,25 +697,29 @@ export default function PortfolioPage() {
               </div>
               
               <div className="space-y-3">
-                {topPositionsData.map((position, index) => (
-                  <div key={index} className="flex items-center justify-between">
-                    <div className="flex items-center">
-                      <div 
-                        className="h-3 w-3 rounded-full mr-2"
-                        style={{ backgroundColor: position.color }}
-                      ></div>
-                      <span className="text-sm text-gray-300">{position.name}</span>
+                {topPositionsData && topPositionsData.length > 0 ? (
+                  topPositionsData.map((position, index) => (
+                    <div key={index} className="flex items-center justify-between">
+                      <div className="flex items-center">
+                        <div 
+                          className="h-3 w-3 rounded-full mr-2"
+                          style={{ backgroundColor: position.color }}
+                        ></div>
+                        <span className="text-sm text-gray-300">{position.name}</span>
+                      </div>
+                      <div className="flex items-center">
+                        <span className="text-sm font-medium">{formatPercentage(position.percentage)}</span>
+                      </div>
                     </div>
-                    <div className="flex items-center">
-                      <span className="text-sm font-medium">{formatPercentage(position.percentage)}</span>
-                    </div>
-                  </div>
-                ))}
+                  ))
+                ) : (
+                  <div className="text-center py-2 text-gray-400">No position data available</div>
+                )}
               </div>
               
               <div className="mt-3 pt-2 border-t border-gray-700">
                 <div className="text-xs text-gray-500 text-center">
-                  Showing top {topPositionsData?.length - 1 || 0} positions by market value
+                  Showing top {(topPositionsData?.length || 1) - 1} positions by market value
                 </div>
               </div>
             </div>
