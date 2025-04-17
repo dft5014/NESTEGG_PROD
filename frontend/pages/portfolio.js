@@ -489,7 +489,7 @@ export default function PortfolioPage() {
                   <p className={`text-lg font-semibold ${assetClassData.security?.gain_loss >= 0 ? 'text-green-400' : 'text-red-400'}`}>
                     {assetClassData.security?.gain_loss >= 0 ? '+' : ''}{formatCurrency(assetClassData.security?.gain_loss)}
                     <span className="text-sm ml-1">
-                      ({assetClassData.security?.gain_loss >= 0 ? '+' : ''}{formatPercentage(assetClassData.security?.gain_loss_percent * 100)})
+                      ({assetClassData.security?.gain_loss >= 0 ? '+' : ''}{formatPercentage(assetClassData.security?.gain_loss_percent)})
                     </span>
                   </p>
                 </div>
@@ -550,7 +550,7 @@ export default function PortfolioPage() {
                   <p className={`text-lg font-semibold ${assetClassData.crypto?.gain_loss >= 0 ? 'text-green-400' : 'text-red-400'}`}>
                     {assetClassData.crypto?.gain_loss >= 0 ? '+' : ''}{formatCurrency(assetClassData.crypto?.gain_loss)}
                     <span className="text-sm ml-1">
-                      ({assetClassData.crypto?.gain_loss >= 0 ? '+' : ''}{formatPercentage(assetClassData.crypto?.gain_loss_percent * 100)})
+                      ({assetClassData.crypto?.gain_loss >= 0 ? '+' : ''}{formatPercentage(assetClassData.crypto?.gain_loss_percent)})
                     </span>
                   </p>
                 </div>
@@ -582,7 +582,7 @@ export default function PortfolioPage() {
                   <p className={`text-lg font-semibold ${assetClassData.metal?.gain_loss >= 0 ? 'text-green-400' : 'text-red-400'}`}>
                     {assetClassData.metal?.gain_loss >= 0 ? '+' : ''}{formatCurrency(assetClassData.metal?.gain_loss)}
                     <span className="text-sm ml-1">
-                      ({assetClassData.metal?.gain_loss >= 0 ? '+' : ''}{formatPercentage(assetClassData.metal?.gain_loss_percent * 100)})
+                      ({assetClassData.metal?.gain_loss >= 0 ? '+' : ''}{formatPercentage(assetClassData.metal?.gain_loss_percent )})
                     </span>
                   </p>
                 </div>
@@ -617,7 +617,7 @@ export default function PortfolioPage() {
                     <p className={`text-lg font-semibold ${(assetClassData.realestate?.gain_loss || 0) >= 0 ? 'text-green-400' : 'text-red-400'}`}>
                       {(assetClassData.realestate?.gain_loss || 0) >= 0 ? '+' : ''}{formatCurrency(assetClassData.realestate?.gain_loss || 0)}
                       <span className="text-sm ml-1">
-                        ({(assetClassData.realestate?.gain_loss || 0) >= 0 ? '+' : ''}{formatPercentage((assetClassData.realestate?.gain_loss_percent || 0) * 100)})
+                        ({(assetClassData.realestate?.gain_loss || 0) >= 0 ? '+' : ''}{formatPercentage((assetClassData.realestate?.gain_loss_percent || 0))})
                       </span>
                     </p>
                   </div>
