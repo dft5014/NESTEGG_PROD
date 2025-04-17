@@ -7,13 +7,6 @@ This module provides a comprehensive client for Yahoo Finance data with:
 - Robust error handling and retry logic
 - Batch operations support
 - Comprehensive type hints
-
-Handles all asset types:
-- Stocks and ETFs
-- Mutual funds
-- Cryptocurrencies
-- Forex pairs
-- Commodities (metals, energy, etc.)
 """
 import os
 import logging
@@ -58,12 +51,8 @@ class YahooFinanceClient:
                 "historical_prices": 6 * 60 * 60,  # 6 hours
                 "fx_prices": 30 * 60,  # 30 minutes
             }
-            
-    # These two methods aren't needed in Python 3.7+
-    # We'll handle context manager usage differently
-    # Removed: async def __aenter__ and async def __aexit__
     
-    async def close(self) -> None:
+    async def close(self):
         """
         Close the client session when done.
         This method should be called explicitly if not using the client as a context manager.

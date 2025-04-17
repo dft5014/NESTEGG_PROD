@@ -4092,12 +4092,12 @@ async def compare_yahoo_clients(ticker: str = "MKTX", current_user: dict = Depen
             "error": str(e)
         }
 @app.get("/NEW-TEST/{method_id}")
-async def test_yahoo_finance_client_methods(method_id: int):
+async def test_yahoo_finance_client_methods(method_id: int = 0):
     """
     Tests methods of the YahooFinanceClient class with real data.
     
     Method IDs:
-    1 - get_current_price - Get current price for a single ticker
+    1 - get_current_price - Get current price for a single ticker (MKTX)
     2 - get_batch_prices - Get prices for multiple tickers
     3 - get_company_metrics - Get company details and metrics
     4 - get_historical_prices - Get historical prices for a ticker
@@ -4158,12 +4158,9 @@ async def test_yahoo_finance_client_methods(method_id: int):
                     end_date = datetime.now()
                     start_date = end_date - timedelta(days=30)
                     history = await client.get_historical_prices(ticker, start_date, end_date)
-                    # Convert date objects to strings for JSON serialization
-                    for item in history:
-                        if isinstance(item.get('date'), date):
-                            item['date'] = item['date'].isoformat()
-                        if isinstance(item.get('timestamp'), datetime):
-                            item['timestamp'] = item['timestamp'].isoformat()
+                    
+                    # Note: We're returning the raw data here to show exact format
+                    # The caller will need to handle datetime serialization for JSON
                     results["get_historical_prices"] = history
                     logger.info(f"get_historical_prices test completed successfully with {len(history)} data points")
                 except Exception as e:
@@ -4179,14 +4176,8 @@ async def test_yahoo_finance_client_methods(method_id: int):
                     start_date = end_date - timedelta(days=7)  # Shorter timeframe for batch
                     history_batch = await client.get_batch_historical_prices(tickers, start_date, end_date)
                     
-                    # Convert date objects to strings for JSON serialization
-                    for ticker, history in history_batch.items():
-                        for item in history:
-                            if isinstance(item.get('date'), date):
-                                item['date'] = item['date'].isoformat()
-                            if isinstance(item.get('timestamp'), datetime):
-                                item['timestamp'] = item['timestamp'].isoformat()
-                    
+                    # Note: We're returning the raw data here to show exact format
+                    # The caller will need to handle datetime serialization for JSON
                     results["get_batch_historical_prices"] = history_batch
                     logger.info("get_batch_historical_prices test completed successfully")
                 except Exception as e:
@@ -4198,15 +4189,11 @@ async def test_yahoo_finance_client_methods(method_id: int):
                 logger.info("Testing get_fx_prices")
                 try:
                     fx_symbols = ["BTC-USD", "ETH-USD", "EURUSD=X", "GBPUSD=X", "GC=F", "SI=F"]
-                    results["get_fx_prices"] = await client.get_fx_prices(fx_symbols)
+                    fx_prices = await client.get_fx_prices(fx_symbols)
                     
-                    # Convert datetime objects for JSON serialization
-                    for symbol, data in results["get_fx_prices"].items():
-                        if 'price_timestamp' in data and isinstance(data['price_timestamp'], (datetime, date)):
-                            data['price_timestamp'] = data['price_timestamp'].isoformat()
-                        if 'timestamp' in data and isinstance(data['timestamp'], (datetime, date)):
-                            data['timestamp'] = data['timestamp'].isoformat()
-                    
+                    # Note: We're returning the raw data here to show exact format
+                    # The caller will need to handle datetime serialization for JSON
+                    results["get_fx_prices"] = fx_prices 
                     logger.info("get_fx_prices test completed successfully")
                 except Exception as e:
                     logger.error(f"Error in get_fx_prices: {str(e)}")
@@ -4221,9 +4208,8 @@ async def test_yahoo_finance_client_methods(method_id: int):
                 logger.error(f"Error closing client: {str(e)}")
                 results["client_close_error"] = str(e)
         
-        # Convert datetime objects to strings
+        # Convert datetime objects to strings for proper JSON serialization
         import json
-        from datetime import date, datetime
         
         class DateTimeEncoder(json.JSONEncoder):
             def default(self, obj):
@@ -4231,7 +4217,7 @@ async def test_yahoo_finance_client_methods(method_id: int):
                     return obj.isoformat()
                 return super().default(obj)
         
-        # First convert to JSON string, then back to dict to handle all nested datetime objects
+        # Convert results to JSON and back to handle nested datetime objects
         serialized = json.loads(json.dumps(results, cls=DateTimeEncoder))
         return serialized
         
@@ -4240,8 +4226,7 @@ async def test_yahoo_finance_client_methods(method_id: int):
         import traceback
         tb = traceback.format_exc()
         return {"error": str(e), "traceback": tb}
-
-
+        
 @app.get("/system/database-status")
 async def get_database_status(current_user: dict = Depends(get_current_user)):
     """Get database health and statistics"""
