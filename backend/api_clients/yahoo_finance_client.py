@@ -5,7 +5,7 @@ This module provides a comprehensive client for Yahoo Finance data with:
 - Asynchronous implementation
 - Efficient caching mechanism
 - Robust error handling and retry logic
-- Batch operations support
+- Batch operations support for minimizing API calls
 - Comprehensive type hints
 """
 import os
@@ -13,7 +13,7 @@ import logging
 import asyncio
 import aiohttp
 from typing import List, Dict, Any, Optional, Union, Tuple
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 import json
 
 # Set up logging
@@ -24,6 +24,7 @@ class YahooFinanceClient:
     """
     Unified client for Yahoo Finance API access.
     Provides data for stocks, ETFs, mutual funds, options, cryptocurrencies, and FX.
+    Combines the best features from DirectYahooFinanceClient, YahooQueryClient, and Yahoo_Data.
     """
     
     def __init__(self, cache_enabled: bool = True):
@@ -141,6 +142,7 @@ class YahooFinanceClient:
         """
         for attempt in range(retries):
             try:
+                logger.debug(f"Making request to {url} (attempt {attempt+1}/{retries})")
                 async with self.session.get(url, timeout=15) as response:
                     if response.status != 200:
                         logger.warning(f"Request failed with status {response.status} (attempt {attempt+1}/{retries})")
@@ -149,7 +151,20 @@ class YahooFinanceClient:
                             continue
                         return None
                     
-                    return await response.json()
+                    # Try to get response as JSON
+                    try:
+                        data = await response.json()
+                        return data
+                    except Exception as json_error:
+                        # If JSON parsing fails, try to get text and log it
+                        try:
+                            text = await response.text()
+                            logger.error(f"JSON parsing error: {str(json_error)}")
+                            logger.debug(f"Response text: {text[:200]}...")  # Log first 200 chars
+                        except:
+                            pass
+                        return None
+                
             except Exception as e:
                 logger.error(f"Request error (attempt {attempt+1}/{retries}): {str(e)}")
                 if attempt < retries - 1:
@@ -238,7 +253,8 @@ class YahooFinanceClient:
     
     async def get_batch_prices(self, tickers: List[str], max_batch_size: int = 10) -> Dict[str, Dict[str, Any]]:
         """
-        Get current prices for multiple tickers in batches
+        Get current prices for multiple tickers in batches.
+        Uses a single API call for each batch of tickers to minimize API requests.
         
         Args:
             tickers: List of stock symbols
@@ -259,47 +275,40 @@ class YahooFinanceClient:
             batch_str = ",".join(batch)
             logger.debug(f"Processing batch {i//max_batch_size + 1}/{(len(tickers) + max_batch_size - 1)//max_batch_size}: {batch}")
             
-            # Try to get batch data first
+            # Try to get batch data in a single API call
             try:
-                url = f"https://query1.finance.yahoo.com/v8/finance/chart/{batch_str}?interval=1d"
+                # Specifically format URL for chart data
+                url = f"https://query1.finance.yahoo.com/v7/finance/quote?symbols={batch_str}"
                 data = await self._make_request(url)
                 
-                if data and "chart" in data and "result" in data["chart"]:
+                if data and "quoteResponse" in data and "result" in data["quoteResponse"]:
+                    quotes = data["quoteResponse"]["result"]
+                    
                     # Process each result
-                    for result in data["chart"]["result"]:
-                        meta = result.get("meta", {})
-                        symbol = meta.get("symbol")
+                    for quote in quotes:
+                        symbol = quote.get("symbol")
                         
                         if not symbol:
                             continue
-                            
-                        timestamp = result.get("timestamp", [])
-                        quotes = result.get("indicators", {}).get("quote", [{}])[0]
-                        
-                        # Check if we have data
-                        if not timestamp or not quotes or "close" not in quotes:
-                            continue
-                        
-                        # Get the latest values
-                        latest_idx = -1
-                        close = quotes.get("close", [])[latest_idx] if quotes.get("close") and len(quotes.get("close", [])) > 0 else None
-                        open_price = quotes.get("open", [])[latest_idx] if quotes.get("open") and len(quotes.get("open", [])) > 0 else None
-                        high = quotes.get("high", [])[latest_idx] if quotes.get("high") and len(quotes.get("high", [])) > 0 else None
-                        low = quotes.get("low", [])[latest_idx] if quotes.get("low") and len(quotes.get("low", [])) > 0 else None
-                        volume = quotes.get("volume", [])[latest_idx] if quotes.get("volume") and len(quotes.get("volume", [])) > 0 else None
                         
                         # Only add data if we have a valid close price
-                        if close is not None:
-                            price_timestamp = datetime.fromtimestamp(timestamp[latest_idx]) if timestamp and len(timestamp) > 0 else datetime.now()
+                        regular_market_price = quote.get("regularMarketPrice")
+                        if regular_market_price is not None:
+                            # Get timestamp
+                            timestamp_str = quote.get("regularMarketTime", datetime.now().timestamp())
+                            try:
+                                price_timestamp = datetime.fromtimestamp(timestamp_str)
+                            except:
+                                price_timestamp = datetime.now()
                             
                             result_data = {
                                 "ticker": symbol,
-                                "price": float(close),
-                                "day_open": float(open_price) if open_price is not None else None,
-                                "day_high": float(high) if high is not None else None,
-                                "day_low": float(low) if low is not None else None,
-                                "close_price": float(close),
-                                "volume": int(volume) if volume is not None else None,
+                                "price": float(regular_market_price),
+                                "day_open": float(quote.get("regularMarketOpen")) if quote.get("regularMarketOpen") is not None else None,
+                                "day_high": float(quote.get("regularMarketDayHigh")) if quote.get("regularMarketDayHigh") is not None else None,
+                                "day_low": float(quote.get("regularMarketDayLow")) if quote.get("regularMarketDayLow") is not None else None,
+                                "close_price": float(regular_market_price),
+                                "volume": int(quote.get("regularMarketVolume")) if quote.get("regularMarketVolume") is not None else None,
                                 "timestamp": datetime.now(),
                                 "price_timestamp": price_timestamp,
                                 "price_timestamp_str": price_timestamp.strftime("%Y-%m-%d %H:%M:%S"),
@@ -310,14 +319,25 @@ class YahooFinanceClient:
                             self._set_in_cache(f"price_{symbol}", "current_price", result_data)
                             
                             results[symbol] = result_data
+                else:
+                    logger.warning(f"Invalid response format for batch {batch_str}")
+                    
+                    # Fall back to individual processing
+                    for ticker in batch:
+                        if ticker not in results:
+                            try:
+                                price_data = await self.get_current_price(ticker)
+                                if price_data:
+                                    results[ticker] = price_data
+                            except Exception as ticker_error:
+                                logger.error(f"Error processing {ticker} individually: {str(ticker_error)}")
+            
             except Exception as e:
                 logger.error(f"Error processing batch {batch}: {str(e)}")
                 
                 # Fall back to individual processing for any missing tickers
-                missing_tickers = [t for t in batch if t not in results]
-                if missing_tickers:
-                    logger.info(f"Falling back to individual processing for {len(missing_tickers)} tickers")
-                    for ticker in missing_tickers:
+                for ticker in batch:
+                    if ticker not in results:
                         try:
                             price_data = await self.get_current_price(ticker)
                             if price_data:
@@ -335,6 +355,7 @@ class YahooFinanceClient:
     async def get_company_metrics(self, ticker: str) -> Dict[str, Any]:
         """
         Get company metrics and information for a ticker
+        Adapted from YahooQueryClient logic for better reliability
         
         Args:
             ticker: Stock symbol
@@ -348,12 +369,14 @@ class YahooFinanceClient:
         if cached_data:
             return cached_data
         
-        # URL for Yahoo Finance API
-        url = f"https://query2.finance.yahoo.com/v10/finance/quoteSummary/{ticker}?modules=summaryProfile,summaryDetail,defaultKeyStatistics,assetProfile,price"
+        # URL for Yahoo Finance API - using quoteSummary endpoint
+        modules = "summaryProfile,summaryDetail,defaultKeyStatistics,assetProfile,price"
+        url = f"https://query2.finance.yahoo.com/v10/finance/quoteSummary/{ticker}?modules={modules}"
         
         # Make the request
         data = await self._make_request(url)
         if not data:
+            logger.error(f"No data returned from API for {ticker}")
             return {"not_found": True, "source": "yahoo_finance"}
         
         # Extract quote data
@@ -366,84 +389,99 @@ class YahooFinanceClient:
                 "source": "yahoo_finance"
             }
             
-            # Extract data from summaryProfile module
-            if "summaryProfile" in result:
-                profile = result["summaryProfile"]
-                metrics.update({
-                    "company_name": profile.get("shortName") or profile.get("longName"),
-                    "sector": profile.get("sector", ""),
-                    "industry": profile.get("industry", ""),
-                    "website": profile.get("website"),
-                    "description": profile.get("longBusinessSummary")
-                })
-            
-            # Extract data from price module
-            if "price" in result:
-                price_data = result["price"]
-                metrics.update({
-                    "current_price": self._extract_raw_value(price_data, "regularMarketPrice"),
-                    "previous_close": self._extract_raw_value(price_data, "regularMarketPreviousClose"),
-                    "day_open": self._extract_raw_value(price_data, "regularMarketOpen"),
-                    "day_high": self._extract_raw_value(price_data, "regularMarketDayHigh"),
-                    "day_low": self._extract_raw_value(price_data, "regularMarketDayLow"),
-                    "volume": self._extract_raw_value(price_data, "regularMarketVolume"),
-                    "exchange": self._extract_raw_value(price_data, "exchangeName"),
-                    "quote_type": self._extract_raw_value(price_data, "quoteType"),
-                })
-                
-                # Get company name from price if not in profile
-                if "company_name" not in metrics or not metrics["company_name"]:
-                    metrics["company_name"] = self._extract_raw_value(price_data, "shortName") or self._extract_raw_value(price_data, "longName") or ticker
-            
-            # Extract data from summaryDetail module
-            if "summaryDetail" in result:
-                details = result["summaryDetail"]
-                metrics.update({
-                    "fifty_two_week_low": self._extract_raw_value(details, "fiftyTwoWeekLow"),
-                    "fifty_two_week_high": self._extract_raw_value(details, "fiftyTwoWeekHigh"),
-                    "average_volume": self._extract_raw_value(details, "averageVolume"),
-                    "dividend_rate": self._extract_raw_value(details, "dividendRate"),
-                    "dividend_yield": self._extract_raw_value(details, "dividendYield"),
-                    "pe_ratio": self._extract_raw_value(details, "trailingPE"),
-                    "forward_pe": self._extract_raw_value(details, "forwardPE"),
-                })
-                
-                # Get market cap from summary detail if available
-                market_cap = self._extract_raw_value(details, "marketCap")
-                if market_cap is not None:
-                    metrics["market_cap"] = market_cap
-            
-            # Extract data from defaultKeyStatistics module
-            if "defaultKeyStatistics" in result:
-                stats = result["defaultKeyStatistics"]
-                metrics.update({
-                    "beta": self._extract_raw_value(stats, "beta"),
-                    "eps": self._extract_raw_value(stats, "trailingEps"),
-                    "forward_eps": self._extract_raw_value(stats, "forwardEps"),
-                })
-                
-                # Get market cap from key stats if not already set
-                if "market_cap" not in metrics:
-                    market_cap = self._extract_raw_value(stats, "marketCap")
+            # Process each module separately with error handling
+            try:
+                # Extract data from price module (most reliable)
+                if "price" in result:
+                    price_data = result["price"]
+                    metrics.update({
+                        "company_name": self._extract_raw_value(price_data, "shortName") or self._extract_raw_value(price_data, "longName") or ticker,
+                        "current_price": self._extract_raw_value(price_data, "regularMarketPrice"),
+                        "previous_close": self._extract_raw_value(price_data, "regularMarketPreviousClose"),
+                        "day_open": self._extract_raw_value(price_data, "regularMarketOpen"),
+                        "day_high": self._extract_raw_value(price_data, "regularMarketDayHigh"),
+                        "day_low": self._extract_raw_value(price_data, "regularMarketDayLow"),
+                        "volume": self._extract_raw_value(price_data, "regularMarketVolume"),
+                        "exchange": self._extract_raw_value(price_data, "exchangeName"),
+                        "quote_type": self._extract_raw_value(price_data, "quoteType"),
+                    })
+                    
+                    # Try to get market cap from price data
+                    market_cap = self._extract_raw_value(price_data, "marketCap")
                     if market_cap is not None:
                         metrics["market_cap"] = market_cap
+            except Exception as e:
+                logger.error(f"Error extracting price data for {ticker}: {str(e)}")
             
-            # Calculate fifty_two_week_range
+            try:
+                # Extract data from summaryProfile module
+                if "summaryProfile" in result:
+                    profile = result["summaryProfile"]
+                    metrics.update({
+                        "sector": profile.get("sector", ""),
+                        "industry": profile.get("industry", ""),
+                        "website": profile.get("website"),
+                        "description": profile.get("longBusinessSummary")
+                    })
+            except Exception as e:
+                logger.error(f"Error extracting profile data for {ticker}: {str(e)}")
+            
+            try:
+                # Extract data from summaryDetail module
+                if "summaryDetail" in result:
+                    details = result["summaryDetail"]
+                    metrics.update({
+                        "fifty_two_week_low": self._extract_raw_value(details, "fiftyTwoWeekLow"),
+                        "fifty_two_week_high": self._extract_raw_value(details, "fiftyTwoWeekHigh"),
+                        "average_volume": self._extract_raw_value(details, "averageVolume"),
+                        "dividend_rate": self._extract_raw_value(details, "dividendRate"),
+                        "dividend_yield": self._extract_raw_value(details, "dividendYield"),
+                        "pe_ratio": self._extract_raw_value(details, "trailingPE"),
+                        "forward_pe": self._extract_raw_value(details, "forwardPE"),
+                    })
+                    
+                    # Get market cap if not already set
+                    if "market_cap" not in metrics:
+                        market_cap = self._extract_raw_value(details, "marketCap")
+                        if market_cap is not None:
+                            metrics["market_cap"] = market_cap
+            except Exception as e:
+                logger.error(f"Error extracting summary details for {ticker}: {str(e)}")
+            
+            try:
+                # Extract data from defaultKeyStatistics module
+                if "defaultKeyStatistics" in result:
+                    stats = result["defaultKeyStatistics"]
+                    metrics.update({
+                        "beta": self._extract_raw_value(stats, "beta"),
+                        "eps": self._extract_raw_value(stats, "trailingEps"),
+                        "forward_eps": self._extract_raw_value(stats, "forwardEps"),
+                    })
+                    
+                    # Get market cap if not already set
+                    if "market_cap" not in metrics:
+                        market_cap = self._extract_raw_value(stats, "marketCap")
+                        if market_cap is not None:
+                            metrics["market_cap"] = market_cap
+            except Exception as e:
+                logger.error(f"Error extracting key stats for {ticker}: {str(e)}")
+            
+            # Calculate fifty_two_week_range if both values are available
             if metrics.get("fifty_two_week_low") is not None and metrics.get("fifty_two_week_high") is not None:
                 metrics["fifty_two_week_range"] = f"{metrics['fifty_two_week_low']}-{metrics['fifty_two_week_high']}"
             
             # Filter out None values
             metrics = {k: v for k, v in metrics.items() if v is not None}
             
-            # Check if we got meaningful data
-            if len(metrics) > 3:  # More than just the basics (ticker, source, etc.)
+            # Check if we got meaningful data (more than just ticker and source)
+            if "current_price" in metrics:  # As long as we have a price, consider it valid
                 # Cache the metrics
                 self._set_in_cache(cache_key, "company_metrics", metrics)
                 
-                logger.info(f"Retrieved company metrics for {ticker}")
+                logger.info(f"Retrieved company metrics for {ticker} with {len(metrics)} fields")
                 return metrics
             else:
-                logger.warning(f"Insufficient data for {ticker}")
+                logger.warning(f"Missing price data for {ticker}")
                 return {"not_found": True, "source": "yahoo_finance"}
         else:
             logger.warning(f"Invalid response format for {ticker} info")
@@ -583,6 +621,7 @@ class YahooFinanceClient:
     async def get_fx_prices(self, symbols: List[str]) -> Dict[str, Dict[str, Any]]:
         """
         Get current prices for FX pairs, cryptocurrencies, or metals
+        Adapted from Yahoo_Data implementation for improved FX handling
         
         Args:
             symbols: List of symbols (e.g., 'EURUSD=X', 'BTC-USD', 'GC=F' for gold)
@@ -590,89 +629,147 @@ class YahooFinanceClient:
         Returns:
             Dictionary mapping symbols to their price data
         """
-        # Use the same batch prices method but with appropriate symbols
         logger.info(f"Fetching FX/crypto prices for {len(symbols)} symbols")
         
-        # Check cache for each symbol
+        if not symbols:
+            return {}
+        
         results = {}
-        uncached_symbols = []
         
-        for symbol in symbols:
-            cache_key = f"fx_{symbol}"
-            cached_data = self._get_from_cache(cache_key, "fx_prices")
-            if cached_data:
-                results[symbol] = cached_data
-            else:
-                uncached_symbols.append(symbol)
+        # Use the batch endpoint which works well for FX/crypto
+        # Using the same approach as Yahoo_Data but with our client
+        batch_str = ",".join(symbols)
+        url = f"https://query1.finance.yahoo.com/v7/finance/quote?symbols={batch_str}"
         
-        # If all symbols were cached, return immediately
-        if not uncached_symbols:
-            return results
-        
-        # Get prices for uncached symbols
-        prices = await self.get_batch_prices(uncached_symbols, max_batch_size=10)
-        
-        # Process and cache results
-        for symbol, price_data in prices.items():
-            # Add FX-specific fields
-            if price_data:
-                # Determine currency from symbol (if possible)
-                quote_currency = None
-                if "-" in symbol:
-                    quote_currency = symbol.split("-")[1]
-                elif "=" in symbol:
-                    quote_currency = symbol.split("=")[0][-3:]
+        try:
+            # Make a single batch request
+            data = await self._make_request(url)
+            
+            if data and "quoteResponse" in data and "result" in data["quoteResponse"]:
+                quotes = data["quoteResponse"]["result"]
                 
-                # Add to price data
-                price_data["quote_currency"] = quote_currency
-                price_data["asset_type"] = "crypto" if "-" in symbol else "forex" if "=X" in symbol else "commodity"
-                
-                # Cache individual result
-                self._set_in_cache(f"fx_{symbol}", "fx_prices", price_data)
-                
-                results[symbol] = price_data
+                # Process each result
+                for quote in quotes:
+                    symbol = quote.get("symbol")
+                    
+                    if not symbol or symbol not in symbols:
+                        continue
+                    
+                    # Get price
+                    price = quote.get("regularMarketPrice")
+                    if price is None:
+                        continue
+                    
+                    # Determine asset type and currency
+                    asset_type = "unknown"
+                    quote_currency = None
+                    
+                    if "-" in symbol:  # Crypto format (BTC-USD)
+                        parts = symbol.split("-")
+                        if len(parts) >= 2:
+                            quote_currency = parts[1]
+                        asset_type = "crypto"
+                    elif "=X" in symbol:  # Forex format (EURUSD=X)
+                        base_currency = symbol.replace("=X", "")
+                        if len(base_currency) >= 3:
+                            quote_currency = base_currency[-3:]
+                        asset_type = "forex"
+                    elif symbol.endswith("=F"):  # Futures/commodities
+                        asset_type = "commodity"
+                    
+                    # Get timestamp
+                    timestamp_val = quote.get("regularMarketTime")
+                    if timestamp_val:
+                        try:
+                            price_timestamp = datetime.fromtimestamp(timestamp_val)
+                        except:
+                            price_timestamp = datetime.now()
+                    else:
+                        price_timestamp = datetime.now()
+                    
+                    # Create result object
+                    result_data = {
+                        "ticker": symbol,
+                        "price": float(price),
+                        "day_open": float(quote.get("regularMarketOpen")) if quote.get("regularMarketOpen") is not None else None,
+                        "day_high": float(quote.get("regularMarketDayHigh")) if quote.get("regularMarketDayHigh") is not None else None,
+                        "day_low": float(quote.get("regularMarketDayLow")) if quote.get("regularMarketDayLow") is not None else None,
+                        "close_price": float(price),
+                        "volume": int(quote.get("regularMarketVolume")) if quote.get("regularMarketVolume") is not None else None,
+                        "timestamp": datetime.now(),
+                        "price_timestamp": price_timestamp,
+                        "price_timestamp_str": price_timestamp.strftime("%Y-%m-%d %H:%M:%S"),
+                        "source": "yahoo_finance",
+                        "quote_currency": quote_currency,
+                        "asset_type": asset_type
+                    }
+                    
+                    # Add to results
+                    results[symbol] = result_data
+            
+            # If we're missing any symbols, try individual requests
+            missing_symbols = [s for s in symbols if s not in results]
+            if missing_symbols:
+                logger.info(f"Fetching {len(missing_symbols)} missing symbols individually")
+                for symbol in missing_symbols:
+                    try:
+                        price_data = await self.get_current_price(symbol)
+                        if price_data:
+                            # Add FX-specific fields
+                            asset_type = "unknown"
+                            quote_currency = None
+                            
+                            if "-" in symbol:
+                                parts = symbol.split("-")
+                                if len(parts) >= 2:
+                                    quote_currency = parts[1]
+                                asset_type = "crypto"
+                            elif "=X" in symbol:
+                                base_currency = symbol.replace("=X", "")
+                                if len(base_currency) >= 3:
+                                    quote_currency = base_currency[-3:]
+                                asset_type = "forex"
+                            elif symbol.endswith("=F"):
+                                asset_type = "commodity"
+                            
+                            price_data["quote_currency"] = quote_currency
+                            price_data["asset_type"] = asset_type
+                            
+                            results[symbol] = price_data
+                    except Exception as e:
+                        logger.error(f"Error fetching individual data for {symbol}: {str(e)}")
+        
+        except Exception as e:
+            logger.error(f"Error in FX/crypto batch request: {str(e)}")
+            
+            # Fall back to individual processing
+            for symbol in symbols:
+                try:
+                    price_data = await self.get_current_price(symbol)
+                    if price_data:
+                        # Add FX-specific fields
+                        asset_type = "unknown"
+                        quote_currency = None
+                        
+                        if "-" in symbol:
+                            parts = symbol.split("-")
+                            if len(parts) >= 2:
+                                quote_currency = parts[1]
+                            asset_type = "crypto"
+                        elif "=X" in symbol:
+                            base_currency = symbol.replace("=X", "")
+                            if len(base_currency) >= 3:
+                                quote_currency = base_currency[-3:]
+                            asset_type = "forex"
+                        elif symbol.endswith("=F"):
+                            asset_type = "commodity"
+                        
+                        price_data["quote_currency"] = quote_currency
+                        price_data["asset_type"] = asset_type
+                        
+                        results[symbol] = price_data
+                except Exception as symbol_error:
+                    logger.error(f"Error processing {symbol} individually: {str(symbol_error)}")
         
         logger.info(f"FX/crypto request complete, returning data for {len(results)}/{len(symbols)} symbols")
         return results
-
-
-# Usage example
-async def main():
-    # Initialize client
-    client = YahooFinanceClient()
-    
-    try:
-        # Get current price for a single stock
-        aapl_price = await client.get_current_price("AAPL")
-        print(f"Apple current price: ${aapl_price['price']}")
-        
-        # Get batch prices for multiple symbols
-        tickers = ["MSFT", "GOOG", "AMZN", "TSLA", "META"]
-        batch_prices = await client.get_batch_prices(tickers)
-        for ticker, data in batch_prices.items():
-            print(f"{ticker}: ${data['price']}")
-        
-        # Get company information
-        tsla_info = await client.get_company_metrics("TSLA")
-        print(f"Tesla PE Ratio: {tsla_info.get('pe_ratio')}")
-        
-        # Get historical prices
-        start_date = datetime.now() - timedelta(days=30)
-        end_date = datetime.now()
-        spy_history = await client.get_historical_prices("SPY", start_date, end_date)
-        print(f"Retrieved {len(spy_history)} historical data points for SPY")
-        
-        # Get FX prices
-        fx_symbols = ["EURUSD=X", "BTC-USD", "GC=F"]  # Euro/USD, Bitcoin, Gold
-        fx_prices = await client.get_fx_prices(fx_symbols)
-        for symbol, data in fx_prices.items():
-            print(f"{symbol}: ${data['price']}")
-    
-    finally:
-        # Close the client session
-        await client.close()
-
-# Run the example
-if __name__ == "__main__":
-    import asyncio
-    asyncio.run(main())
