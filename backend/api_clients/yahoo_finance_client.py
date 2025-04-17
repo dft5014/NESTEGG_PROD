@@ -7,7 +7,6 @@ This module provides a comprehensive client for Yahoo Finance data with:
 - Robust error handling and retry logic
 - Batch operations support for minimizing API calls
 - Comprehensive type hints
-- Complete field coverage for database requirements
 """
 import os
 import logging
@@ -25,7 +24,6 @@ class YahooFinanceClient:
     """
     Unified client for Yahoo Finance API access.
     Provides data for stocks, ETFs, mutual funds, options, cryptocurrencies, and FX.
-    Combines the best features from DirectYahooFinanceClient, YahooQueryClient, and Yahoo_Data.
     """
     
     def __init__(self, cache_enabled: bool = True):
@@ -355,8 +353,8 @@ class YahooFinanceClient:
     
     async def get_company_metrics(self, ticker: str) -> Dict[str, Any]:
         """
-        Get comprehensive company metrics and information for a ticker
-        Following YahooQueryClient implementation to ensure all required fields are included
+        Get company metrics and information for a ticker.
+        Implementation based on YahooQueryClient for maximum compatibility.
         
         Args:
             ticker: Stock symbol
@@ -374,174 +372,127 @@ class YahooFinanceClient:
         delay = 2
         for attempt in range(retries):
             try:
-                logger.info(f"Fetching company info for {ticker} using direct API (attempt {attempt+1}/{retries})")
+                logger.info(f"Fetching company info for {ticker} (attempt {attempt+1}/{retries})")
                 
-                # Request all necessary modules for complete metrics
-                modules = "summaryProfile,summaryDetail,defaultKeyStatistics,price,financialData"
-                url = f"https://query2.finance.yahoo.com/v10/finance/quoteSummary/{ticker}?modules={modules}"
-                data = await self._make_request(url)
+                # Get asset profile
+                asset_profile_url = f"https://query2.finance.yahoo.com/v10/finance/quoteSummary/{ticker}?modules=assetProfile"
+                asset_profile = await self._make_request(asset_profile_url)
                 
-                if not data or "quoteSummary" not in data or "result" not in data["quoteSummary"] or not data["quoteSummary"]["result"]:
-                    logger.warning(f"Incomplete data for {ticker}")
+                # Get financial data
+                financial_data_url = f"https://query2.finance.yahoo.com/v10/finance/quoteSummary/{ticker}?modules=financialData"
+                financial_data = await self._make_request(financial_data_url)
+                
+                # Get key stats
+                key_stats_url = f"https://query2.finance.yahoo.com/v10/finance/quoteSummary/{ticker}?modules=defaultKeyStatistics"
+                key_stats = await self._make_request(key_stats_url)
+                
+                # Get summary detail
+                summary_detail_url = f"https://query2.finance.yahoo.com/v10/finance/quoteSummary/{ticker}?modules=summaryDetail"
+                summary_detail = await self._make_request(summary_detail_url)
+                
+                # Get price data
+                price_data_url = f"https://query2.finance.yahoo.com/v10/finance/quoteSummary/{ticker}?modules=price"
+                price_data = await self._make_request(price_data_url)
+                
+                # Get quote type
+                quote_type_url = f"https://query2.finance.yahoo.com/v10/finance/quoteSummary/{ticker}?modules=quoteType"
+                quote_type = await self._make_request(quote_type_url)
+                
+                # Check if we got data
+                if not (price_data and "quoteSummary" in price_data and "result" in price_data["quoteSummary"] and price_data["quoteSummary"]["result"]):
+                    logger.warning(f"No price data for {ticker}")
                     if attempt < retries - 1:
                         await asyncio.sleep(delay * (2 ** attempt))
                         continue
                     return {"not_found": True, "source": "yahoo_finance"}
                 
-                # Extract top-level result
-                result = data["quoteSummary"]["result"][0]
-                
-                # Initialize metrics dictionary with all required fields preset to None
+                # Initialize metrics dictionary
                 metrics = {
                     "ticker": ticker,
-                    "source": "yahoo_finance",
-                    "company_name": None,
-                    "sector": None,
-                    "industry": None,
-                    "current_price": None,
-                    "previous_close": None,
-                    "day_open": None,
-                    "day_high": None,
-                    "day_low": None,
-                    "volume": None,
-                    "market_cap": None,
-                    "pe_ratio": None,
-                    "forward_pe": None,
-                    "eps": None,
-                    "forward_eps": None,
-                    "beta": None,
-                    "dividend_rate": None,
-                    "dividend_yield": None,
-                    "fifty_two_week_low": None,
-                    "fifty_two_week_high": None,
-                    "fifty_two_week_range": None,
-                    "average_volume": None,
-                    "bid_price": None,
-                    "ask_price": None,
-                    "target_high_price": None,
-                    "target_low_price": None,
-                    "target_mean_price": None,
-                    "target_median_price": None,
-                    "exchange": None,
-                    "quote_type": None
+                    "source": "yahoo_finance"
                 }
                 
-                # Extract data from price module (most reliable)
-                if "price" in result:
-                    price_data = result["price"]
+                # Extract price data
+                if price_data and "quoteSummary" in price_data and "result" in price_data["quoteSummary"] and price_data["quoteSummary"]["result"]:
+                    price_info = price_data["quoteSummary"]["result"][0].get("price", {})
                     
                     # Company name
-                    if "shortName" in price_data:
-                        metrics["company_name"] = price_data["shortName"]
-                    elif "longName" in price_data:
-                        metrics["company_name"] = price_data["longName"]
+                    if "shortName" in price_info:
+                        metrics["company_name"] = price_info["shortName"]
+                    elif "longName" in price_info:
+                        metrics["company_name"] = price_info["longName"]
                     
                     # Current price
-                    if "regularMarketPrice" in price_data:
-                        regular_price = price_data["regularMarketPrice"]
-                        if isinstance(regular_price, dict) and "raw" in regular_price:
-                            metrics["current_price"] = regular_price["raw"]
+                    if "regularMarketPrice" in price_info:
+                        market_price = price_info["regularMarketPrice"]
+                        if isinstance(market_price, dict) and "raw" in market_price:
+                            metrics["current_price"] = market_price["raw"]
                         else:
-                            metrics["current_price"] = regular_price
+                            metrics["current_price"] = market_price
                     
                     # Previous close
-                    if "regularMarketPreviousClose" in price_data:
-                        prev_close = price_data["regularMarketPreviousClose"]
+                    if "regularMarketPreviousClose" in price_info:
+                        prev_close = price_info["regularMarketPreviousClose"]
                         if isinstance(prev_close, dict) and "raw" in prev_close:
                             metrics["previous_close"] = prev_close["raw"]
                         else:
                             metrics["previous_close"] = prev_close
                     
                     # Day open
-                    if "regularMarketOpen" in price_data:
-                        day_open = price_data["regularMarketOpen"]
+                    if "regularMarketOpen" in price_info:
+                        day_open = price_info["regularMarketOpen"]
                         if isinstance(day_open, dict) and "raw" in day_open:
                             metrics["day_open"] = day_open["raw"]
                         else:
                             metrics["day_open"] = day_open
                     
                     # Day high
-                    if "regularMarketDayHigh" in price_data:
-                        day_high = price_data["regularMarketDayHigh"]
+                    if "regularMarketDayHigh" in price_info:
+                        day_high = price_info["regularMarketDayHigh"]
                         if isinstance(day_high, dict) and "raw" in day_high:
                             metrics["day_high"] = day_high["raw"]
                         else:
                             metrics["day_high"] = day_high
                     
                     # Day low
-                    if "regularMarketDayLow" in price_data:
-                        day_low = price_data["regularMarketDayLow"]
+                    if "regularMarketDayLow" in price_info:
+                        day_low = price_info["regularMarketDayLow"]
                         if isinstance(day_low, dict) and "raw" in day_low:
                             metrics["day_low"] = day_low["raw"]
                         else:
                             metrics["day_low"] = day_low
                     
                     # Volume
-                    if "regularMarketVolume" in price_data:
-                        volume = price_data["regularMarketVolume"]
+                    if "regularMarketVolume" in price_info:
+                        volume = price_info["regularMarketVolume"]
                         if isinstance(volume, dict) and "raw" in volume:
                             metrics["volume"] = volume["raw"]
                         else:
                             metrics["volume"] = volume
                     
-                    # Market Cap
-                    if "marketCap" in price_data:
-                        market_cap = price_data["marketCap"]
-                        if isinstance(market_cap, dict) and "raw" in market_cap:
-                            metrics["market_cap"] = market_cap["raw"]
-                        else:
-                            metrics["market_cap"] = market_cap
-                    
-                    # Exchange and quote type
-                    if "exchangeName" in price_data:
-                        metrics["exchange"] = price_data["exchangeName"]
-                    if "quoteType" in price_data:
-                        metrics["quote_type"] = price_data["quoteType"]
+                    # Exchange
+                    if "exchangeName" in price_info:
+                        metrics["exchange"] = price_info["exchangeName"]
                 
-                # Extract data from summaryProfile module
-                if "summaryProfile" in result:
-                    profile = result["summaryProfile"]
-                    
+                # Extract sector and industry
+                if asset_profile and "quoteSummary" in asset_profile and "result" in asset_profile["quoteSummary"] and asset_profile["quoteSummary"]["result"]:
+                    profile = asset_profile["quoteSummary"]["result"][0].get("assetProfile", {})
                     if "sector" in profile:
                         metrics["sector"] = profile["sector"]
                     if "industry" in profile:
                         metrics["industry"] = profile["industry"]
                 
-                # Extract data from summaryDetail module
-                if "summaryDetail" in result:
-                    details = result["summaryDetail"]
+                # Extract summary detail data
+                if summary_detail and "quoteSummary" in summary_detail and "result" in summary_detail["quoteSummary"] and summary_detail["quoteSummary"]["result"]:
+                    details = summary_detail["quoteSummary"]["result"][0].get("summaryDetail", {})
                     
-                    # 52-week low
-                    if "fiftyTwoWeekLow" in details:
-                        low = details["fiftyTwoWeekLow"]
-                        if isinstance(low, dict) and "raw" in low:
-                            metrics["fifty_two_week_low"] = low["raw"]
+                    # PE ratio
+                    if "trailingPE" in details:
+                        pe_ratio = details["trailingPE"]
+                        if isinstance(pe_ratio, dict) and "raw" in pe_ratio:
+                            metrics["pe_ratio"] = pe_ratio["raw"]
                         else:
-                            metrics["fifty_two_week_low"] = low
-                    
-                    # 52-week high
-                    if "fiftyTwoWeekHigh" in details:
-                        high = details["fiftyTwoWeekHigh"]
-                        if isinstance(high, dict) and "raw" in high:
-                            metrics["fifty_two_week_high"] = high["raw"]
-                        else:
-                            metrics["fifty_two_week_high"] = high
-                    
-                    # Average volume
-                    if "averageVolume" in details:
-                        avg_vol = details["averageVolume"]
-                        if isinstance(avg_vol, dict) and "raw" in avg_vol:
-                            metrics["average_volume"] = avg_vol["raw"]
-                        else:
-                            metrics["average_volume"] = avg_vol
-                    
-                    # Dividend rate
-                    if "dividendRate" in details:
-                        div_rate = details["dividendRate"]
-                        if isinstance(div_rate, dict) and "raw" in div_rate:
-                            metrics["dividend_rate"] = div_rate["raw"]
-                        else:
-                            metrics["dividend_rate"] = div_rate
+                            metrics["pe_ratio"] = pe_ratio
                     
                     # Dividend yield
                     if "dividendYield" in details:
@@ -551,30 +502,49 @@ class YahooFinanceClient:
                         else:
                             metrics["dividend_yield"] = div_yield
                     
-                    # P/E ratio
-                    if "trailingPE" in details:
-                        pe = details["trailingPE"]
-                        if isinstance(pe, dict) and "raw" in pe:
-                            metrics["pe_ratio"] = pe["raw"]
+                    # Dividend rate
+                    if "dividendRate" in details:
+                        div_rate = details["dividendRate"]
+                        if isinstance(div_rate, dict) and "raw" in div_rate:
+                            metrics["dividend_rate"] = div_rate["raw"]
                         else:
-                            metrics["pe_ratio"] = pe
+                            metrics["dividend_rate"] = div_rate
                     
-                    # Forward P/E
+                    # 52-week range
+                    if "fiftyTwoWeekLow" in details and "fiftyTwoWeekHigh" in details:
+                        low = details["fiftyTwoWeekLow"]
+                        high = details["fiftyTwoWeekHigh"]
+                        
+                        low_val = low["raw"] if isinstance(low, dict) and "raw" in low else low
+                        high_val = high["raw"] if isinstance(high, dict) and "raw" in high else high
+                        
+                        metrics["fifty_two_week_low"] = low_val
+                        metrics["fifty_two_week_high"] = high_val
+                        metrics["fifty_two_week_range"] = f"{low_val}-{high_val}"
+                    
+                    # Average volume
+                    if "averageVolume" in details:
+                        avg_vol = details["averageVolume"]
+                        if isinstance(avg_vol, dict) and "raw" in avg_vol:
+                            metrics["average_volume"] = avg_vol["raw"]
+                        else:
+                            metrics["average_volume"] = avg_vol
+                    
+                    # Market cap
+                    if "marketCap" in details:
+                        market_cap = details["marketCap"]
+                        if isinstance(market_cap, dict) and "raw" in market_cap:
+                            metrics["market_cap"] = market_cap["raw"]
+                        else:
+                            metrics["market_cap"] = market_cap
+                    
+                    # Forward PE
                     if "forwardPE" in details:
-                        fwd_pe = details["forwardPE"]
-                        if isinstance(fwd_pe, dict) and "raw" in fwd_pe:
-                            metrics["forward_pe"] = fwd_pe["raw"]
+                        forward_pe = details["forwardPE"]
+                        if isinstance(forward_pe, dict) and "raw" in forward_pe:
+                            metrics["forward_pe"] = forward_pe["raw"]
                         else:
-                            metrics["forward_pe"] = fwd_pe
-                    
-                    # Market cap (if not already set)
-                    if "market_cap" not in metrics or metrics["market_cap"] is None:
-                        if "marketCap" in details:
-                            market_cap = details["marketCap"]
-                            if isinstance(market_cap, dict) and "raw" in market_cap:
-                                metrics["market_cap"] = market_cap["raw"]
-                            else:
-                                metrics["market_cap"] = market_cap
+                            metrics["forward_pe"] = forward_pe
                     
                     # Bid and ask prices
                     if "bid" in details:
@@ -591,9 +561,9 @@ class YahooFinanceClient:
                         else:
                             metrics["ask_price"] = ask
                 
-                # Extract data from defaultKeyStatistics module
-                if "defaultKeyStatistics" in result:
-                    stats = result["defaultKeyStatistics"]
+                # Extract key stats
+                if key_stats and "quoteSummary" in key_stats and "result" in key_stats["quoteSummary"] and key_stats["quoteSummary"]["result"]:
+                    stats = key_stats["quoteSummary"]["result"][0].get("defaultKeyStatistics", {})
                     
                     # Beta
                     if "beta" in stats:
@@ -603,7 +573,7 @@ class YahooFinanceClient:
                         else:
                             metrics["beta"] = beta
                     
-                    # Trailing EPS
+                    # EPS
                     if "trailingEps" in stats:
                         eps = stats["trailingEps"]
                         if isinstance(eps, dict) and "raw" in eps:
@@ -613,77 +583,74 @@ class YahooFinanceClient:
                     
                     # Forward EPS
                     if "forwardEps" in stats:
-                        fwd_eps = stats["forwardEps"]
-                        if isinstance(fwd_eps, dict) and "raw" in fwd_eps:
-                            metrics["forward_eps"] = fwd_eps["raw"]
+                        forward_eps = stats["forwardEps"]
+                        if isinstance(forward_eps, dict) and "raw" in forward_eps:
+                            metrics["forward_eps"] = forward_eps["raw"]
                         else:
-                            metrics["forward_eps"] = fwd_eps
+                            metrics["forward_eps"] = forward_eps
                     
                     # Market cap (if not already set)
-                    if "market_cap" not in metrics or metrics["market_cap"] is None:
-                        if "marketCap" in stats:
-                            market_cap = stats["marketCap"]
-                            if isinstance(market_cap, dict) and "raw" in market_cap:
-                                metrics["market_cap"] = market_cap["raw"]
-                            else:
-                                metrics["market_cap"] = market_cap
-                
-                # Extract target prices from financialData module
-                if "financialData" in result:
-                    financial = result["financialData"]
-                    
-                    if "targetHighPrice" in financial:
-                        target_high = financial["targetHighPrice"]
-                        if isinstance(target_high, dict) and "raw" in target_high:
-                            metrics["target_high_price"] = target_high["raw"]
+                    if "marketCap" not in metrics and "marketCap" in stats:
+                        market_cap = stats["marketCap"]
+                        if isinstance(market_cap, dict) and "raw" in market_cap:
+                            metrics["market_cap"] = market_cap["raw"]
                         else:
-                            metrics["target_high_price"] = target_high
-                    
-                    if "targetLowPrice" in financial:
-                        target_low = financial["targetLowPrice"]
-                        if isinstance(target_low, dict) and "raw" in target_low:
-                            metrics["target_low_price"] = target_low["raw"]
-                        else:
-                            metrics["target_low_price"] = target_low
-                    
-                    if "targetMeanPrice" in financial:
-                        target_mean = financial["targetMeanPrice"]
-                        if isinstance(target_mean, dict) and "raw" in target_mean:
-                            metrics["target_mean_price"] = target_mean["raw"]
-                        else:
-                            metrics["target_mean_price"] = target_mean
-                    
-                    if "targetMedianPrice" in financial:
-                        target_median = financial["targetMedianPrice"]
-                        if isinstance(target_median, dict) and "raw" in target_median:
-                            metrics["target_median_price"] = target_median["raw"]
-                        else:
-                            metrics["target_median_price"] = target_median
+                            metrics["market_cap"] = market_cap
                 
-                # Calculate 52-week range
-                if metrics["fifty_two_week_low"] is not None and metrics["fifty_two_week_high"] is not None:
-                    metrics["fifty_two_week_range"] = f"{metrics['fifty_two_week_low']}-{metrics['fifty_two_week_high']}"
+                # Extract financial data
+                if financial_data and "quoteSummary" in financial_data and "result" in financial_data["quoteSummary"] and financial_data["quoteSummary"]["result"]:
+                    fin_data = financial_data["quoteSummary"]["result"][0].get("financialData", {})
+                    
+                    # Target prices
+                    if "targetHighPrice" in fin_data:
+                        high_price = fin_data["targetHighPrice"]
+                        if isinstance(high_price, dict) and "raw" in high_price:
+                            metrics["target_high_price"] = high_price["raw"]
+                        else:
+                            metrics["target_high_price"] = high_price
+                    
+                    if "targetLowPrice" in fin_data:
+                        low_price = fin_data["targetLowPrice"]
+                        if isinstance(low_price, dict) and "raw" in low_price:
+                            metrics["target_low_price"] = low_price["raw"]
+                        else:
+                            metrics["target_low_price"] = low_price
+                    
+                    if "targetMeanPrice" in fin_data:
+                        mean_price = fin_data["targetMeanPrice"]
+                        if isinstance(mean_price, dict) and "raw" in mean_price:
+                            metrics["target_mean_price"] = mean_price["raw"]
+                        else:
+                            metrics["target_mean_price"] = mean_price
+                    
+                    if "targetMedianPrice" in fin_data:
+                        median_price = fin_data["targetMedianPrice"]
+                        if isinstance(median_price, dict) and "raw" in median_price:
+                            metrics["target_median_price"] = median_price["raw"]
+                        else:
+                            metrics["target_median_price"] = median_price
                 
-                # Filter out None values for cleaner output
-                metrics = {k: v for k, v in metrics.items() if v is not None}
-                
-                # Check if we have at least the basic required data
+                # Check if we got basic required data
                 if "company_name" in metrics and "current_price" in metrics:
                     # Cache the metrics
                     self._set_in_cache(cache_key, "company_metrics", metrics)
                     
-                    logger.info(f"Retrieved company metrics for {ticker} with {len(metrics)} fields")
+                    logger.info(f"Retrieved company metrics for {ticker}")
                     return metrics
-                    
+                else:
+                    logger.warning(f"Missing required fields for {ticker}")
+                    if attempt < retries - 1:
+                        await asyncio.sleep(delay * (2 ** attempt))
+                    else:
+                        return {"not_found": True, "source": "yahoo_finance"}
             except Exception as e:
                 logger.error(f"Attempt {attempt + 1}/{retries} failed for {ticker} metrics: {str(e)}")
                 if attempt < retries - 1:
                     await asyncio.sleep(delay * (2 ** attempt))
                 else:
                     logger.error(f"All retries exhausted for {ticker} metrics")
-                    return {"not_found": True, "source": "yahoo_finance", "error": str(e)}
+                    return {"not_found": True, "source": "yahoo_finance"}
         
-        # If we get here, all attempts failed
         return {"not_found": True, "source": "yahoo_finance"}
     
     async def get_historical_prices(self, ticker: str, start_date: datetime, end_date: Optional[datetime] = None) -> List[Dict[str, Any]]:
