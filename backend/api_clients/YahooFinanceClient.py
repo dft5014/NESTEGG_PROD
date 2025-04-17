@@ -58,11 +58,30 @@ class YahooFinanceClient:
                 "historical_prices": 6 * 60 * 60,  # 6 hours
                 "fx_prices": 30 * 60,  # 30 minutes
             }
+            
+    async def __aenter__(self):
+        """Support for async with statement"""
+        return self
+        
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        """Close the session when exiting the context manager"""
+        await self.close()
     
     async def close(self) -> None:
-        """Close the client session when done"""
-        if hasattr(self, 'session') and not self.session.closed:
-            await self.session.close()
+        """
+        Close the client session when done.
+        This method should be called explicitly if not using the client as a context manager.
+        """
+        if hasattr(self, 'session') and self.session is not None:
+            try:
+                # Allow underlying connections to close first
+                await asyncio.sleep(0)
+                # Then close the session
+                await self.session.close()
+                logger.debug("Client session closed successfully")
+            except Exception as e:
+                logger.error(f"Error closing client session: {str(e)}")
+                # Don't re-raise the exception to prevent blocking
     
     def _get_from_cache(self, cache_key: str, cache_type: str) -> Optional[Any]:
         """
