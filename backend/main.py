@@ -51,6 +51,7 @@ from backend.services.portfolio_calculator import PortfolioCalculator
 from backend.utils.common import record_system_event, update_system_event
 from backend.api_clients.market_data_manager import MarketDataManager
 from backend.api_clients.yahoo_data import Yahoo_Data
+from backend.api_clients.yahoo_finance_client import YahooFinanceClient
 
 # Initialize Database Connection
 database = databases.Database(
@@ -3829,7 +3830,177 @@ async def update_single_fx_with_existing_components(
         )
 
 
+@app.get("/debug/test-yahoo-finance-client")
+async def test_yahoo_finance_client(ticker: str = "MKTX", current_user: dict = Depends(get_current_user)):
+    """
+    Test the unified YahooFinanceClient with a specific ticker
+    """
+    try:
+        # Initialize client
+        client = YahooFinanceClient()
+        
+        results = {
+            "timestamp": datetime.utcnow().isoformat(),
+            "ticker": ticker,
+            "tests": {}
+        }
+        
+        try:
+            # Test 1: Get current price
+            start_time = time.time()
+            price_data = await client.get_current_price(ticker)
+            elapsed = time.time() - start_time
+            
+            results["tests"]["current_price"] = {
+                "status": "success" if price_data else "failed",
+                "elapsed_seconds": round(elapsed, 4),
+                "data": price_data
+            }
+        except Exception as e:
+            results["tests"]["current_price"] = {
+                "status": "error",
+                "error": str(e)
+            }
+        
+        try:
+            # Test 2: Get company metrics
+            start_time = time.time()
+            metrics = await client.get_company_metrics(ticker)
+            elapsed = time.time() - start_time
+            
+            results["tests"]["company_metrics"] = {
+                "status": "success" if metrics and not metrics.get("not_found") else "failed",
+                "elapsed_seconds": round(elapsed, 4),
+                "data": metrics
+            }
+        except Exception as e:
+            results["tests"]["company_metrics"] = {
+                "status": "error",
+                "error": str(e)
+            }
+        
+        try:
+            # Test 3: Get historical prices (last 30 days)
+            start_time = time.time()
+            start_date = datetime.now() - timedelta(days=30)
+            end_date = datetime.now()
+            
+            history = await client.get_historical_prices(ticker, start_date, end_date)
+            elapsed = time.time() - start_time
+            
+            results["tests"]["historical_prices"] = {
+                "status": "success" if history else "failed",
+                "elapsed_seconds": round(elapsed, 4),
+                "data_points_count": len(history),
+                "first_point": history[0] if history else None,
+                "last_point": history[-1] if history else None
+            }
+        except Exception as e:
+            results["tests"]["historical_prices"] = {
+                "status": "error",
+                "error": str(e)
+            }
+        
+        try:
+            # Test 4: Batch test with multiple tickers including MKTX
+            start_time = time.time()
+            tickers = [ticker, "AAPL", "MSFT"]
+            
+            batch_data = await client.get_batch_prices(tickers)
+            elapsed = time.time() - start_time
+            
+            results["tests"]["batch_prices"] = {
+                "status": "success" if ticker in batch_data else "failed",
+                "elapsed_seconds": round(elapsed, 4),
+                "tickers_returned": list(batch_data.keys()),
+                "data": {ticker: batch_data.get(ticker)}
+            }
+        except Exception as e:
+            results["tests"]["batch_prices"] = {
+                "status": "error",
+                "error": str(e)
+            }
+            
+        # Close the client
+        await client.close()
+        
+        return results
+    except Exception as e:
+        logger.error(f"Error in Yahoo Finance client test: {str(e)}")
+        return {
+            "status": "error",
+            "error": str(e)
+        }
 
+@app.get("/debug/compare-yahoo-clients")
+async def compare_yahoo_clients(ticker: str = "MKTX", current_user: dict = Depends(get_current_user)):
+    """
+    Compare results from all three Yahoo Finance clients and the new unified client
+    """
+    try:
+        from backend.api_clients.direct_yahoo_client import DirectYahooFinanceClient
+        from backend.api_clients.yahooquery_client import YahooQueryClient
+        from backend.api_clients.yahoo_data import Yahoo_Data
+        from backend.api_clients.yahoo_finance_client import YahooFinanceClient
+        
+        results = {
+            "timestamp": datetime.utcnow().isoformat(),
+            "ticker": ticker,
+            "client_results": {}
+        }
+        
+        # Test all clients
+        clients = {
+            "unified_client": YahooFinanceClient(),
+            "direct_client": DirectYahooFinanceClient(),
+            "yahooquery_client": YahooQueryClient(),
+        }
+        
+        # Try to create Yahoo_Data client if possible
+        try:
+            yahoo_data = Yahoo_Data()
+            clients["yahoo_data"] = yahoo_data
+        except Exception as e:
+            results["yahoo_data_init_error"] = str(e)
+        
+        # Test current price with all clients
+        for name, client in clients.items():
+            try:
+                start_time = time.time()
+                
+                if name == "yahoo_data":
+                    # Yahoo_Data uses a different method
+                    price_data = await client.get_price_batch([ticker])
+                    ticker_data = price_data.get(ticker)
+                else:
+                    # All other clients use get_current_price
+                    ticker_data = await client.get_current_price(ticker)
+                
+                elapsed = time.time() - start_time
+                
+                results["client_results"][name] = {
+                    "status": "success" if ticker_data else "failed",
+                    "elapsed_seconds": round(elapsed, 4),
+                    "data": ticker_data
+                }
+            except Exception as e:
+                results["client_results"][name] = {
+                    "status": "error",
+                    "error": str(e)
+                }
+        
+        # Close all clients
+        for name, client in clients.items():
+            if hasattr(client, "close"):
+                await client.close()
+        
+        return results
+    except Exception as e:
+        logger.error(f"Error in Yahoo Finance clients comparison: {str(e)}")
+        return {
+            "status": "error",
+            "error": str(e)
+        }        
 
 @app.get("/system/database-status")
 async def get_database_status(current_user: dict = Depends(get_current_user)):
