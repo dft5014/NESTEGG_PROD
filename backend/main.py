@@ -947,7 +947,7 @@ async def read_root():
 
 # API endpoint for running the performance test
 @app.get("/test/yahoo-client-performance")
-async def run_yahoo_client_performance_test(current_user: dict = Depends(get_current_user)):
+async def run_yahoo_client_performance_test():
     """
     API endpoint that runs performance tests comparing different Yahoo Finance client methods.
     Tests company metrics vs individual prices vs batch prices.
@@ -1076,7 +1076,7 @@ async def run_yahoo_client_performance_test(current_user: dict = Depends(get_cur
             await yahoo_finance_client.close()
         except:
             pass
-            
+
 @app.get("/accounts/all/detailed", response_model=AccountsDetailedResponse)
 async def get_all_detailed_accounts(current_user: dict = Depends(get_current_user)):
     """
