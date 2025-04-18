@@ -658,6 +658,120 @@ class FXAssetUpdate(BaseModel):
     active: Optional[bool] = None
     name: Optional[str] = None
 
+import statistics
+
+# Test tickers (common large cap stocks)
+TEST_TICKERS = ['AAPL', 'MSFT', 'GOOG', 'AMZN', 'META', 'TSLA', 'NVDA', 'JPM', 'JNJ', 'V']
+
+# Number of iterations for each test
+NUM_ITERATIONS = 3
+
+# Helper functions for performance testing
+async def test_get_company_metrics(client_name: str, client, tickers: List[str]) -> Dict[str, Any]:
+    """Test get_company_metrics performance"""
+    logger.info(f"Testing get_company_metrics for {client_name}...")
+    results = []
+    
+    for iteration in range(NUM_ITERATIONS):
+        start_time = time.time()
+        metrics_results = {}
+        
+        for ticker in tickers:
+            try:
+                result = await client.get_company_metrics(ticker)
+                metrics_results[ticker] = result
+            except Exception as e:
+                logger.error(f"Error getting metrics for {ticker} with {client_name}: {e}")
+                metrics_results[ticker] = None
+        
+        elapsed = time.time() - start_time
+        results.append(elapsed)
+        logger.info(f"  Iteration {iteration+1}: {elapsed:.4f} seconds")
+    
+    # Calculate statistics
+    avg_time = statistics.mean(results)
+    min_time = min(results)
+    max_time = max(results)
+    
+    return {
+        "client": client_name,
+        "method": "get_company_metrics",
+        "iterations": NUM_ITERATIONS,
+        "avg_time": avg_time,
+        "min_time": min_time,
+        "max_time": max_time,
+        "all_times": results
+    }
+
+async def test_get_current_prices_individual(client_name: str, client, tickers: List[str]) -> Dict[str, Any]:
+    """Test get_current_price performance for individual calls"""
+    logger.info(f"Testing get_current_price (individual) for {client_name}...")
+    results = []
+    
+    for iteration in range(NUM_ITERATIONS):
+        start_time = time.time()
+        price_results = {}
+        
+        for ticker in tickers:
+            try:
+                result = await client.get_current_price(ticker)
+                price_results[ticker] = result
+            except Exception as e:
+                logger.error(f"Error getting price for {ticker} with {client_name}: {e}")
+                price_results[ticker] = None
+        
+        elapsed = time.time() - start_time
+        results.append(elapsed)
+        logger.info(f"  Iteration {iteration+1}: {elapsed:.4f} seconds")
+    
+    # Calculate statistics
+    avg_time = statistics.mean(results)
+    min_time = min(results)
+    max_time = max(results)
+    
+    return {
+        "client": client_name,
+        "method": "get_current_price_individual",
+        "iterations": NUM_ITERATIONS,
+        "avg_time": avg_time,
+        "min_time": min_time,
+        "max_time": max_time,
+        "all_times": results
+    }
+
+async def test_get_batch_prices(client_name: str, client, tickers: List[str]) -> Dict[str, Any]:
+    """Test get_batch_prices performance for batch processing"""
+    logger.info(f"Testing get_batch_prices for {client_name}...")
+    results = []
+    
+    for iteration in range(NUM_ITERATIONS):
+        start_time = time.time()
+        
+        try:
+            batch_results = await client.get_batch_prices(tickers)
+        except Exception as e:
+            logger.error(f"Error in batch price fetch with {client_name}: {e}")
+            batch_results = {}
+        
+        elapsed = time.time() - start_time
+        results.append(elapsed)
+        logger.info(f"  Iteration {iteration+1}: {elapsed:.4f} seconds")
+    
+    # Calculate statistics
+    avg_time = statistics.mean(results)
+    min_time = min(results)
+    max_time = max(results)
+    
+    return {
+        "client": client_name,
+        "method": "get_batch_prices",
+        "iterations": NUM_ITERATIONS,
+        "avg_time": avg_time,
+        "min_time": min_time, 
+        "max_time": max_time,
+        "all_times": results
+    }
+
 async def _get_detailed_securities(user_id: str) -> List[PositionDetail]:
     try:
         query = select(
@@ -831,14 +945,20 @@ async def _get_detailed_cash(user_id: str) -> List[CashPositionDetail]:
 async def read_root():
     return {"message": "Welcome to NestEgg API!", "version": "1.0.0"}
 
+# API endpoint for running the performance test
 @app.get("/test/yahoo-client-performance")
 async def run_yahoo_client_performance_test(current_user: dict = Depends(get_current_user)):
     """
     API endpoint that runs performance tests comparing different Yahoo Finance client methods.
     Tests company metrics vs individual prices vs batch prices.
+    
+    Returns detailed performance metrics and recommendations.
     """
     try:
         # Initialize clients
+        from backend.api_clients.yahoo_finance_client import YahooFinanceClient
+        from backend.api_clients.yahooquery_client import YahooQueryClient
+        
         yahoo_finance_client = YahooFinanceClient(cache_enabled=False)
         yahooquery_client = YahooQueryClient()
         
@@ -879,28 +999,76 @@ async def run_yahoo_client_performance_test(current_user: dict = Depends(get_cur
         fastest_method = sorted_methods[0]["description"]
         fastest_time = sorted_methods[0]["avg_time"]
         
+        # Compare batch vs. individual for both clients
+        batch_vs_individual = {}
+        for client in ["YahooFinanceClient", "YahooQueryClient"]:
+            individual_results = next((r for r in all_results if r["client"] == client and r["method"] == "get_current_price_individual"), None)
+            batch_results = next((r for r in all_results if r["client"] == client and r["method"] == "get_batch_prices"), None)
+            
+            if individual_results and batch_results:
+                ratio = individual_results["avg_time"] / batch_results["avg_time"]
+                batch_vs_individual[client] = {
+                    "individual_time": individual_results["avg_time"],
+                    "batch_time": batch_results["avg_time"],
+                    "speedup_ratio": ratio,
+                    "batch_is_faster": ratio > 1
+                }
+        
+        # Format for clean output
+        method_comparison = {}
+        for method, results in method_results.items():
+            method_comparison[method] = []
+            sorted_results = sorted(results, key=lambda x: x["avg_time"])
+            
+            for result in sorted_results:
+                method_comparison[method].append({
+                    "client": result["client"],
+                    "avg_time": result["avg_time"],
+                    "min_time": result["min_time"],
+                    "max_time": result["max_time"]
+                })
+        
+        # Final recommendation
+        if fastest_batch_price["avg_time"] < fastest_company_metrics["avg_time"]:
+            final_recommendation = f"Use {fastest_batch_price['client']}.get_batch_prices() for optimal performance when fetching multiple prices"
+        else:
+            final_recommendation = f"Use {fastest_company_metrics['client']}.get_company_metrics() for optimal performance (it returns price data as well)"
+        
         # Create response
         return {
-            "test_results": {
-                "all_results": all_results,
-                "method_results": method_results
+            "test_configuration": {
+                "tickers_tested": TEST_TICKERS,
+                "iterations_per_test": NUM_ITERATIONS
             },
+            "method_comparison": method_comparison,
             "recommendations": {
-                "fastest_company_metrics": fastest_company_metrics["client"],
-                "fastest_individual_price": fastest_individual_price["client"],
-                "fastest_batch_price": fastest_batch_price["client"],
-                "overall_fastest_method": fastest_method,
-                "overall_fastest_time": fastest_time,
-                "final_recommendation": f"Use {fastest_batch_price['client']}.get_batch_prices()" 
-                    if fastest_batch_price["avg_time"] < fastest_company_metrics["avg_time"] 
-                    else f"Use {fastest_company_metrics['client']}.get_company_metrics()"
+                "fastest_company_metrics": {
+                    "client": fastest_company_metrics["client"],
+                    "avg_time": fastest_company_metrics["avg_time"]
+                },
+                "fastest_individual_price": {
+                    "client": fastest_individual_price["client"],
+                    "avg_time": fastest_individual_price["avg_time"]
+                },
+                "fastest_batch_price": {
+                    "client": fastest_batch_price["client"],
+                    "avg_time": fastest_batch_price["avg_time"]
+                },
+                "overall_fastest_method": {
+                    "method": fastest_method,
+                    "avg_time": fastest_time
+                },
+                "batch_vs_individual_comparison": batch_vs_individual,
+                "final_recommendation": final_recommendation
             }
         }
     except Exception as e:
         logger.error(f"Error running performance test: {str(e)}")
+        import traceback
+        tb = traceback.format_exc()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Performance test failed: {str(e)}"
+            detail=f"Performance test failed: {str(e)}\n{tb}"
         )
     finally:
         # Close clients
@@ -908,7 +1076,7 @@ async def run_yahoo_client_performance_test(current_user: dict = Depends(get_cur
             await yahoo_finance_client.close()
         except:
             pass
-
+            
 @app.get("/accounts/all/detailed", response_model=AccountsDetailedResponse)
 async def get_all_detailed_accounts(current_user: dict = Depends(get_current_user)):
     """
