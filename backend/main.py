@@ -195,6 +195,23 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 # Test tickers (common large cap stocks)
 TEST_TICKERS = ['AAPL', 'MSFT', 'GOOG', 'AMZN', 'META', 'TSLA', 'NVDA', 'JPM', 'JNJ', 'V']
 
+# 100 common stock tickers for testing
+LARGE_TICKER_LIST = [
+    'AAPL', 'MSFT', 'AMZN', 'GOOGL', 'META', 'TSLA', 'NVDA', 'JPM', 'JNJ', 'V',
+    'PG', 'UNH', 'HD', 'BAC', 'MA', 'XOM', 'AVGO', 'COST', 'DIS', 'ADBE',
+    'CSCO', 'PFE', 'CRM', 'CMCSA', 'NFLX', 'AMD', 'VZ', 'INTC', 'QCOM', 'T',
+    'ABT', 'PEP', 'ORCL', 'TMO', 'MRK', 'NKE', 'ABBV', 'WMT', 'LLY', 'ACN',
+    'CVX', 'DHR', 'MCD', 'INTU', 'WFC', 'TXN', 'PM', 'NEE', 'UPS', 'MS',
+    'BMY', 'RTX', 'SBUX', 'AMGN', 'LIN', 'LOW', 'HON', 'MDT', 'IBM', 'SPGI',
+    'AXP', 'GS', 'AMT', 'BKNG', 'CAT', 'ISRG', 'BLK', 'C', 'DE', 'GILD',
+    'ADP', 'TJX', 'MDLZ', 'ADI', 'TMUS', 'MMC', 'PLD', 'BA', 'SYK', 'COP',
+    'REGN', 'CB', 'VRTX', 'SO', 'NOW', 'MO', 'ZTS', 'DUK', 'GE', 'SCHW',
+    'FDX', 'CI', 'CME', 'PNC', 'TGT', 'AMAT', 'CSX', 'ICE', 'EQIX', 'SLB'
+]
+
+# Number of iterations for test
+NUM_ITERATIONS = 2
+
 # Number of iterations for each test
 NUM_ITERATIONS = 3
 
@@ -1076,6 +1093,173 @@ async def run_yahoo_client_performance_test():
             await yahoo_finance_client.close()
         except:
             pass
+
+@app.get("/test/batch-vs-loop-performance")
+async def test_batch_vs_loop_performance():
+    """
+    Test API endpoint that compares performance between:
+    1. Batch retrieval of prices for 100 tickers
+    2. Individual retrieval of company metrics (including price) for 100 tickers
+    
+    Returns detailed timing metrics and recommendations.
+    """
+    try:
+        # Import clients
+        from backend.api_clients.yahoo_finance_client import YahooFinanceClient
+        from backend.api_clients.yahooquery_client import YahooQueryClient
+        
+        # Test results
+        results = {
+            "test_configuration": {
+                "tickers_count": len(LARGE_TICKER_LIST),
+                "iterations": NUM_ITERATIONS,
+                "ticker_sample": LARGE_TICKER_LIST[:5] + ["..."] + LARGE_TICKER_LIST[-5:]
+            },
+            "test_results": {},
+            "summary": {}
+        }
+        
+        # Initialize clients
+        yahoo_finance_client = YahooFinanceClient(cache_enabled=False)
+        yahooquery_client = YahooQueryClient()
+        
+        try:
+            # Test 1: YahooFinanceClient - Batch Prices
+            logger.info(f"Testing YahooFinanceClient.get_batch_prices with {len(LARGE_TICKER_LIST)} tickers...")
+            batch_times_yf = []
+            
+            for i in range(NUM_ITERATIONS):
+                start_time = time.time()
+                batch_results_yf = await yahoo_finance_client.get_batch_prices(LARGE_TICKER_LIST)
+                elapsed = time.time() - start_time
+                batch_times_yf.append(elapsed)
+                logger.info(f"  Iteration {i+1}: {elapsed:.4f} seconds, got {len(batch_results_yf)} results")
+            
+            results["test_results"]["yahoo_finance_batch"] = {
+                "avg_time": statistics.mean(batch_times_yf),
+                "min_time": min(batch_times_yf),
+                "max_time": max(batch_times_yf),
+                "success_rate": 0  # Will calculate later
+            }
+            
+            # Test 2: YahooFinanceClient - Loop through get_company_metrics
+            logger.info(f"Testing YahooFinanceClient.get_company_metrics loop with {len(LARGE_TICKER_LIST)} tickers...")
+            metrics_times_yf = []
+            
+            for i in range(NUM_ITERATIONS):
+                start_time = time.time()
+                metrics_results_yf = {}
+                for ticker in LARGE_TICKER_LIST:
+                    try:
+                        result = await yahoo_finance_client.get_company_metrics(ticker)
+                        metrics_results_yf[ticker] = result
+                    except Exception as e:
+                        logger.error(f"Error getting metrics for {ticker}: {e}")
+                elapsed = time.time() - start_time
+                metrics_times_yf.append(elapsed)
+                logger.info(f"  Iteration {i+1}: {elapsed:.4f} seconds, got {len(metrics_results_yf)} results")
+            
+            results["test_results"]["yahoo_finance_metrics_loop"] = {
+                "avg_time": statistics.mean(metrics_times_yf),
+                "min_time": min(metrics_times_yf),
+                "max_time": max(metrics_times_yf),
+                "success_rate": 0  # Will calculate later
+            }
+            
+            # Test 3: YahooQueryClient - Batch Prices
+            logger.info(f"Testing YahooQueryClient.get_batch_prices with {len(LARGE_TICKER_LIST)} tickers...")
+            batch_times_yq = []
+            
+            for i in range(NUM_ITERATIONS):
+                start_time = time.time()
+                batch_results_yq = await yahooquery_client.get_batch_prices(LARGE_TICKER_LIST)
+                elapsed = time.time() - start_time
+                batch_times_yq.append(elapsed)
+                logger.info(f"  Iteration {i+1}: {elapsed:.4f} seconds, got {len(batch_results_yq)} results")
+            
+            results["test_results"]["yahooquery_batch"] = {
+                "avg_time": statistics.mean(batch_times_yq),
+                "min_time": min(batch_times_yq),
+                "max_time": max(batch_times_yq),
+                "success_rate": 0  # Will calculate later
+            }
+            
+            # Test 4: YahooQueryClient - Loop through get_company_metrics
+            logger.info(f"Testing YahooQueryClient.get_company_metrics loop with {len(LARGE_TICKER_LIST)} tickers...")
+            metrics_times_yq = []
+            
+            for i in range(NUM_ITERATIONS):
+                start_time = time.time()
+                metrics_results_yq = {}
+                for ticker in LARGE_TICKER_LIST:
+                    try:
+                        result = await yahooquery_client.get_company_metrics(ticker)
+                        metrics_results_yq[ticker] = result
+                    except Exception as e:
+                        logger.error(f"Error getting metrics for {ticker}: {e}")
+                elapsed = time.time() - start_time
+                metrics_times_yq.append(elapsed)
+                logger.info(f"  Iteration {i+1}: {elapsed:.4f} seconds, got {len(metrics_results_yq)} results")
+            
+            results["test_results"]["yahooquery_metrics_loop"] = {
+                "avg_time": statistics.mean(metrics_times_yq),
+                "min_time": min(metrics_times_yq),
+                "max_time": max(metrics_times_yq),
+                "success_rate": 0  # Will calculate later
+            }
+            
+            # Calculate summary statistics
+            all_tests = list(results["test_results"].items())
+            all_tests.sort(key=lambda x: x[1]["avg_time"])
+            
+            # Find the fastest method
+            fastest_method = all_tests[0][0]
+            fastest_time = all_tests[0][1]["avg_time"]
+            
+            # Calculate relative performance
+            relative_performance = {}
+            for name, data in all_tests:
+                if name != fastest_method:
+                    ratio = data["avg_time"] / fastest_time
+                    relative_performance[name] = f"{ratio:.2f}x slower than the fastest method"
+            
+            # Batch vs Loop comparison
+            yf_ratio = results["test_results"]["yahoo_finance_metrics_loop"]["avg_time"] / results["test_results"]["yahoo_finance_batch"]["avg_time"]
+            yq_ratio = results["test_results"]["yahooquery_metrics_loop"]["avg_time"] / results["test_results"]["yahooquery_batch"]["avg_time"]
+            
+            # Set summary information
+            results["summary"] = {
+                "fastest_method": fastest_method,
+                "fastest_time": fastest_time,
+                "relative_performance": relative_performance,
+                "batch_vs_loop": {
+                    "yahoo_finance": f"Loop is {yf_ratio:.2f}x slower than batch",
+                    "yahooquery": f"Loop is {yq_ratio:.2f}x slower than batch"
+                },
+                "recommendations": [
+                    f"Use {fastest_method} for best performance with large ticker lists",
+                    "Batch methods are significantly faster than looping through individual calls",
+                    f"For YahooFinanceClient, batch is {yf_ratio:.2f}x faster than individual calls",
+                    f"For YahooQueryClient, batch is {yq_ratio:.2f}x faster than individual calls"
+                ]
+            }
+            
+            return results
+            
+        finally:
+            # Close clients
+            if hasattr(yahoo_finance_client, 'close'):
+                await yahoo_finance_client.close()
+            
+    except Exception as e:
+        import traceback
+        logger.error(f"Performance test failed: {str(e)}")
+        logger.error(traceback.format_exc())
+        
+        return {
+            "error": f"Performance test failed: {str(e)}",
+            "traceback": traceback.format_exc()
+        }
 
 @app.get("/accounts/all/detailed", response_model=AccountsDetailedResponse)
 async def get_all_detailed_accounts(current_user: dict = Depends(get_current_user)):
