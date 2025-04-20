@@ -2481,19 +2481,22 @@ async def update_specific_security(
             detail=f"Failed to update security: {str(e)}"
         )
         
-# Update Prices in database
+
 
 # Add this code to your backend/main.py file
 
 from backend.api_clients.yahooquery_client import YahooQueryClient
+from typing import List, Optional, Union
 
 class UpdateYahooQueryRequest(BaseModel):
     """Request model for updating securities or FX prices using YahooQuery."""
-    type: str  # "security" or "fx"
-    symbols: List[str]  # List of tickers/symbols to update
-    update_type: str = "current_price"  # "current_price", "metrics", or "history"
-    days: Optional[int] = None  # For historical data, number of days to fetch
-    batch_size: Optional[int] = 10  # For batch processing
+    asset_type: str  # "security" or "fx"
+    scope: str  # "ticker", "tickers", or "all"
+    ticker: Optional[str] = None  # Single ticker when scope is "ticker"
+    tickers: Optional[str] = None  # Comma-separated list when scope is "tickers"
+    method: str  # "current_price", "metrics", or "history" 
+    days: Optional[int] = 30  # For historical data, number of days to fetch
+    batch_size: int = 10  # Batch size for processing
 
 @app.post("/market/yahooquery-update")
 async def update_with_yahooquery(
@@ -2502,6 +2505,15 @@ async def update_with_yahooquery(
 ):
     """
     Update securities or FX prices using YahooQuery client and update database.
+    
+    Parameters:
+    - asset_type: "security" or "fx" - Type of asset to update
+    - scope: "ticker", "tickers", or "all" - Scope of update
+    - ticker: Single ticker when scope is "ticker"
+    - tickers: Comma-separated list when scope is "tickers"
+    - method: "current_price", "metrics", or "history" - Type of data to update
+    - days: Number of days for historical data (default 30)
+    - batch_size: Number of symbols to process in each batch (default 10)
     
     This endpoint:
     1. Validates the request
@@ -2512,37 +2524,57 @@ async def update_with_yahooquery(
     """
     try:
         # Validate request
-        if request.type not in ["security", "fx"]:
+        if request.asset_type not in ["security", "fx"]:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST, 
-                detail="Type must be 'security' or 'fx'"
+                detail="asset_type must be 'security' or 'fx'"
             )
             
-        if not request.symbols or len(request.symbols) == 0:
+        if request.scope not in ["ticker", "tickers", "all"]:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="At least one symbol must be provided"
+                detail="scope must be 'ticker', 'tickers', or 'all'"
             )
             
-        if request.update_type not in ["current_price", "metrics", "history"]:
+        if request.method not in ["current_price", "metrics", "history"]:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Update type must be 'current_price', 'metrics', or 'history'"
+                detail="method must be 'current_price', 'metrics', or 'history'"
+            )
+            
+        # Determine symbols based on scope
+        symbols = []
+        if request.scope == "ticker" and request.ticker:
+            symbols = [request.ticker.upper()]
+        elif request.scope == "tickers" and request.tickers:
+            symbols = [t.strip().upper() for t in request.tickers.split(",") if t.strip()]
+        elif request.scope == "all":
+            # Fetch all active symbols from database
+            if request.asset_type == "security":
+                query = "SELECT ticker FROM securities WHERE active = TRUE"
+                result = await database.fetch_all(query)
+                symbols = [row["ticker"] for row in result]
+            else:  # fx
+                query = "SELECT symbol FROM fx_prices WHERE active = TRUE"
+                result = await database.fetch_all(query)
+                symbols = [row["symbol"] for row in result]
+        
+        if not symbols:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="No valid symbols specified for the given scope"
             )
             
         # Create event record for tracking
         event_id = await record_system_event(
             database,
-            f"yahooquery_{request.type}_{request.update_type}",
+            f"yahooquery_{request.asset_type}_{request.method}",
             "started",
-            {"symbols": request.symbols, "count": len(request.symbols)}
+            {"symbols": symbols, "count": len(symbols), "scope": request.scope}
         )
         
         # Initialize YahooQueryClient
         client = YahooQueryClient()
-        
-        # Standardize symbols (uppercase for securities)
-        symbols = [symbol.upper() for symbol in request.symbols]
         
         # Track statistics
         stats = {
@@ -2553,7 +2585,7 @@ async def update_with_yahooquery(
         }
         
         # Process based on update type
-        if request.update_type == "current_price":
+        if request.method == "current_price":
             # Get current prices
             results = await client.get_batch_prices(symbols, max_batch_size=request.batch_size)
             
@@ -2628,72 +2660,217 @@ async def update_with_yahooquery(
                     stats["errors"].append(f"Error updating {symbol}: {str(e)}")
                     logger.error(f"Error updating {symbol}: {str(e)}")
                     
-        elif request.update_type == "metrics":
-            for symbol in symbols:
-                try:
-                    # Get company metrics (individual to avoid batch issues with detailed data)
-                    metrics = await client.get_company_metrics(symbol)
-                    
-                    if not metrics or metrics.get("not_found"):
+        elif request.method == "metrics":
+            for i in range(0, len(symbols), request.batch_size):
+                batch = symbols[i:i + request.batch_size]
+                logger.info(f"Processing metrics batch {i//request.batch_size + 1}/{(len(symbols) + request.batch_size - 1)//request.batch_size}")
+                
+                # Process each symbol in batch individually (metrics don't work well in batch)
+                for symbol in batch:
+                    try:
+                        # Get company metrics (individual to avoid batch issues with detailed data)
+                        metrics = await client.get_company_metrics(symbol)
+                        
+                        if not metrics or metrics.get("not_found"):
+                            stats["failed"] += 1
+                            stats["errors"].append(f"No metrics data returned for {symbol}")
+                            continue
+                        
+                        # Only update securities, not FX for metrics
+                        if request.asset_type == "security":
+                            # Update securities table with company metrics
+                            update_query = """
+                            UPDATE securities
+                            SET 
+                                company_name = :company_name,
+                                sector = :sector,
+                                industry = :industry,
+                                market_cap = :market_cap,
+                                pe_ratio = :pe_ratio,
+                                forward_pe = :forward_pe,
+                                dividend_rate = :dividend_rate,
+                                dividend_yield = :dividend_yield,
+                                beta = :beta,
+                                fifty_two_week_low = :fifty_two_week_low,
+                                fifty_two_week_high = :fifty_two_week_high,
+                                eps = :eps,
+                                forward_eps = :forward_eps,
+                                last_metrics_update = :updated_at,
+                                last_updated = :updated_at
+                            WHERE ticker = :symbol
+                            """
+                            
+                            # Prepare values for update
+                            update_values = {
+                                "symbol": symbol,
+                                "company_name": metrics.get("company_name"),
+                                "sector": metrics.get("sector"),
+                                "industry": metrics.get("industry"),
+                                "market_cap": metrics.get("market_cap"),
+                                "pe_ratio": metrics.get("pe_ratio"),
+                                "forward_pe": metrics.get("forward_pe"),
+                                "dividend_rate": metrics.get("dividend_rate"),
+                                "dividend_yield": metrics.get("dividend_yield"),
+                                "beta": metrics.get("beta"),
+                                "fifty_two_week_low": metrics.get("fifty_two_week_low"),
+                                "fifty_two_week_high": metrics.get("fifty_two_week_high"),
+                                "eps": metrics.get("eps"),
+                                "forward_eps": metrics.get("forward_eps"),
+                                "updated_at": datetime.now()
+                            }
+                            
+                            await database.execute(update_query, update_values)
+                            stats["updated"] += 1
+                        else:
+                            stats["failed"] += 1
+                            stats["errors"].append(f"Metrics update not supported for FX: {symbol}")
+                            
+                    except Exception as e:
                         stats["failed"] += 1
-                        stats["errors"].append(f"No metrics data returned for {symbol}")
-                        continue
-                    
-                    # Only update securities, not FX for metrics
-                    if request.type == "security":
-                        # Update securities table with company metrics
-                        update_query = """
-                        UPDATE securities
-                        SET 
-                            company_name = :company_name,
-                            sector = :sector,
-                            industry = :industry,
-                            market_cap = :market_cap,
-                            pe_ratio = :pe_ratio,
-                            forward_pe = :forward_pe,
-                            dividend_rate = :dividend_rate,
-                            dividend_yield = :dividend_yield,
-                            beta = :beta,
-                            fifty_two_week_low = :fifty_two_week_low,
-                            fifty_two_week_high = :fifty_two_week_high,
-                            eps = :eps,
-                            forward_eps = :forward_eps,
-                            last_metrics_update = :updated_at,
-                            last_updated = :updated_at
-                        WHERE ticker = :symbol
-                        """
+                        stats["errors"].append(f"Error updating metrics for {symbol}: {str(e)}")
+                        logger.error(f"Error updating metrics for {symbol}: {str(e)}")
                         
-                        # Prepare values for update
-                        update_values = {
-                            "symbol": symbol,
-                            "company_name": metrics.get("company_name"),
-                            "sector": metrics.get("sector"),
-                            "industry": metrics.get("industry"),
-                            "market_cap": metrics.get("market_cap"),
-                            "pe_ratio": metrics.get("pe_ratio"),
-                            "forward_pe": metrics.get("forward_pe"),
-                            "dividend_rate": metrics.get("dividend_rate"),
-                            "dividend_yield": metrics.get("dividend_yield"),
-                            "beta": metrics.get("beta"),
-                            "fifty_two_week_low": metrics.get("fifty_two_week_low"),
-                            "fifty_two_week_high": metrics.get("fifty_two_week_high"),
-                            "eps": metrics.get("eps"),
-                            "forward_eps": metrics.get("forward_eps"),
-                            "updated_at": datetime.now()
-                        }
-                        
-                        await database.execute(update_query, update_values)
-                        stats["updated"] += 1
-                    else:
-                        stats["failed"] += 1
-                        stats["errors"].append(f"Metrics update not supported for FX: {symbol}")
-                        
-                except Exception as e:
-                    stats["failed"] += 1
-                    stats["errors"].append(f"Error updating metrics for {symbol}: {str(e)}")
-                    logger.error(f"Error updating metrics for {symbol}: {str(e)}")
+                # Add a small delay between batches to avoid rate limiting
+                if i + request.batch_size < len(symbols):
+                    await asyncio.sleep(2)  # Slightly longer delay for metrics as they're more intensive
         
-        elif request.update_type == "history":
+        elif request.method == "history":
+            # Calculate date range
+            end_date = datetime.now()
+            days = request.days or 30  # Default to 30 days if not specified
+            start_date = end_date - timedelta(days=days)
+            
+            if request.asset_type == "security":
+                # Process in manageable batches
+                for i in range(0, len(symbols), request.batch_size):
+                    batch = symbols[i:i + request.batch_size]
+                    logger.info(f"Processing history batch {i//request.batch_size + 1}/{(len(symbols) + request.batch_size - 1)//request.batch_size}")
+                    
+                    try:
+                        # Get historical prices for this batch
+                        history_results = await client.get_batch_historical_prices(
+                            batch, 
+                            start_date, 
+                            end_date,
+                            max_batch_size=request.batch_size
+                        )
+                        
+                        # Process each symbol's historical data
+                        for symbol, history_data in history_results.items():
+                            if not history_data:
+                                stats["failed"] += 1
+                                stats["errors"].append(f"No historical data returned for {symbol}")
+                                continue
+                                
+                            # Create counters for this symbol's processing
+                            points_count = 0
+                            error_count = 0
+                                
+                            # This will be a list of data points for each day
+                            for data_point in history_data:
+                                try:
+                                    # Insert into price_history table
+                                    insert_query = """
+                                    INSERT INTO price_history (
+                                        ticker, date, close_price, day_open, day_high, day_low, 
+                                        volume, source, timestamp
+                                    ) VALUES (
+                                        :ticker, :date, :close_price, :day_open, :day_high, :day_low,
+                                        :volume, :source, :timestamp
+                                    )
+                                    ON CONFLICT (ticker, date) 
+                                    DO UPDATE SET
+                                        close_price = EXCLUDED.close_price,
+                                        day_open = EXCLUDED.day_open,
+                                        day_high = EXCLUDED.day_high,
+                                        day_low = EXCLUDED.day_low,
+                                        volume = EXCLUDED.volume,
+                                        source = EXCLUDED.source,
+                                        timestamp = EXCLUDED.timestamp
+                                    """
+                                    
+                                    await database.execute(
+                                        insert_query,
+                                        {
+                                            "ticker": symbol,
+                                            "date": data_point.get("date"),
+                                            "close_price": data_point.get("close_price"),
+                                            "day_open": data_point.get("day_open"),
+                                            "day_high": data_point.get("day_high"),
+                                            "day_low": data_point.get("day_low"),
+                                            "volume": data_point.get("volume"),
+                                            "source": data_point.get("source") or "yahooquery",
+                                            "timestamp": datetime.now()
+                                        }
+                                    )
+                                    points_count += 1
+                                except Exception as e:
+                                    error_count += 1
+                                    logger.error(f"Error inserting historical point for {symbol} date {data_point.get('date')}: {str(e)}")
+                                    # Continue with other points even if one fails
+                                    
+                            # Log success/failure for this symbol
+                            if points_count > 0:
+                                logger.info(f"Successfully inserted {points_count} historical points for {symbol}")
+                                stats["updated"] += 1
+                            else:
+                                stats["failed"] += 1
+                                stats["errors"].append(f"Failed to insert any historical points for {symbol}")
+                            
+                    except Exception as e:
+                        stats["failed"] += len(batch)
+                        stats["errors"].append(f"Error fetching batch historical data: {str(e)}")
+                        logger.error(f"Error fetching batch historical data: {str(e)}")
+                    
+                    # Add a small delay between batches to avoid rate limiting
+                    if i + request.batch_size < len(symbols):
+                        await asyncio.sleep(2)
+            else:
+                stats["failed"] += len(symbols)
+                stats["errors"].append("Historical data update not supported for FX")
+        
+        # Update event record with results
+        await update_system_event(
+            database,
+            event_id,
+            "completed",
+            {
+                "stats": stats,
+                "method": request.method,
+                "asset_type": request.asset_type,
+                "scope": request.scope,
+                "days": request.days
+            }
+        )
+        
+        return {
+            "message": f"YahooQuery update completed for {request.asset_type} using {request.method}",
+            "scope": request.scope,
+            "symbols_total": len(symbols),
+            "stats": stats,
+            "errors": stats["errors"] if stats["failed"] > 0 else None
+        }
+        
+    except Exception as e:
+        logger.error(f"Error in YahooQuery update: {str(e)}")
+        
+        # Update event status if we have an event_id
+        if 'event_id' in locals():
+            await update_system_event(
+                database,
+                event_id,
+                "failed",
+                {"error": str(e)}
+            )
+            
+        # Log detailed error for debugging
+        import traceback
+        logger.error(traceback.format_exc())
+        
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to update with YahooQuery: {str(e)}"
+        )
             # Calculate date range
             end_date = datetime.now()
             days = request.days or 30  # Default to 30 days if not specified
@@ -2806,6 +2983,7 @@ async def update_with_yahooquery(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to update with YahooQuery: {str(e)}"
         )
+
 
 @app.post("/fx/update-all")
 async def update_all_fx_prices(current_user: dict = Depends(get_current_user)):
