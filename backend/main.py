@@ -192,28 +192,6 @@ ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 7  # 7 days
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
-# Test tickers (common large cap stocks)
-TEST_TICKERS = ['AAPL', 'MSFT', 'GOOG', 'AMZN', 'META', 'TSLA', 'NVDA', 'JPM', 'JNJ', 'V']
-
-# 100 common stock tickers for testing
-LARGE_TICKER_LIST = [
-    'AAPL', 'MSFT', 'AMZN', 'GOOGL', 'META', 'TSLA', 'NVDA', 'JPM', 'JNJ', 'V',
-    'PG', 'UNH', 'HD', 'BAC', 'MA', 'XOM', 'AVGO', 'COST', 'DIS', 'ADBE',
-    'CSCO', 'PFE', 'CRM', 'CMCSA', 'NFLX', 'AMD', 'VZ', 'INTC', 'QCOM', 'T',
-    'ABT', 'PEP', 'ORCL', 'TMO', 'MRK', 'NKE', 'ABBV', 'WMT', 'LLY', 'ACN',
-    'CVX', 'DHR', 'MCD', 'INTU', 'WFC', 'TXN', 'PM', 'NEE', 'UPS', 'MS',
-    'BMY', 'RTX', 'SBUX', 'AMGN', 'LIN', 'LOW', 'HON', 'MDT', 'IBM', 'SPGI',
-    'AXP', 'GS', 'AMT', 'BKNG', 'CAT', 'ISRG', 'BLK', 'C', 'DE', 'GILD',
-    'ADP', 'TJX', 'MDLZ', 'ADI', 'TMUS', 'MMC', 'PLD', 'BA', 'SYK', 'COP',
-    'REGN', 'CB', 'VRTX', 'SO', 'NOW', 'MO', 'ZTS', 'DUK', 'GE', 'SCHW',
-    'FDX', 'CI', 'CME', 'PNC', 'TGT', 'AMAT', 'CSX', 'ICE', 'EQIX', 'SLB'
-]
-
-# Number of iterations for test
-NUM_ITERATIONS = 2
-
-# Number of iterations for each test
-NUM_ITERATIONS = 3
 
 # Password Hashing
 def hash_password(password: str) -> str:
@@ -250,16 +228,9 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-# Connect & Disconnect from Database
-@app.on_event("startup")
-async def startup():
-    await database.connect()
+# ----- PYDANTIC MODELS  -----
+# ----- THESE ARE USED IN VARIOUS API CALLS  -----
 
-@app.on_event("shutdown")
-async def shutdown():
-    await database.disconnect()
-
-# Pydantic Models
 class UserSignup(BaseModel):
     email: str
     password: str
@@ -325,7 +296,6 @@ class AccountDetail(BaseModel):
     positions_count: int = 0
     # Nested positions for modal drill-down
     positions: List[PositionBasicInfo] = [] # List of basic position info
-
 
 class AccountsDetailedResponse(BaseModel):
     accounts: List[AccountDetail]
@@ -484,7 +454,6 @@ class CryptoPositionDetail(BaseModel):
     gain_loss: Optional[float] = None # Calculated field
     gain_loss_percent: Optional[float] = None # Calculated field
 
-
 class CryptoPositionsDetailedResponse(BaseModel):
     crypto_positions: List[CryptoPositionDetail]
 
@@ -543,6 +512,16 @@ class PortfolioSummaryAllResponse(BaseModel):
     total_positions: int
     total_accounts: int # Or maybe filter for accounts with these asset types
     breakdown: Optional[List[PortfolioAssetSummary]] = None # Optional breakdown by asset
+
+# FX Prices Models
+class FXAssetCreate(BaseModel):
+    symbol: str
+    asset_type: str  # "crypto", "metal", or "currency"
+    name: str
+
+class FXAssetUpdate(BaseModel):
+    active: Optional[bool] = None
+    name: Optional[str] = None
 
 # Model for Detailed Crypto Position
 class CryptoPositionDetail(BaseModel):
@@ -675,119 +654,21 @@ class FXAssetUpdate(BaseModel):
     active: Optional[bool] = None
     name: Optional[str] = None
 
-import statistics
+class PasswordChangeRequest(BaseModel):
+    current_password: str
+    new_password: str
 
-# Test tickers (common large cap stocks)
-TEST_TICKERS = ['AAPL', 'MSFT', 'GOOG', 'AMZN', 'META', 'TSLA', 'NVDA', 'JPM', 'JNJ', 'V']
+class NotificationPreferences(BaseModel):
+    emailUpdates: bool = True
+    marketAlerts: bool = True
+    performanceReports: bool = True
+    securityAlerts: bool = True
+    newsletterUpdates: bool = False
 
-# Number of iterations for each test
-NUM_ITERATIONS = 3
 
-# Helper functions for performance testing
-async def test_get_company_metrics(client_name: str, client, tickers: List[str]) -> Dict[str, Any]:
-    """Test get_company_metrics performance"""
-    logger.info(f"Testing get_company_metrics for {client_name}...")
-    results = []
-    
-    for iteration in range(NUM_ITERATIONS):
-        start_time = time.time()
-        metrics_results = {}
-        
-        for ticker in tickers:
-            try:
-                result = await client.get_company_metrics(ticker)
-                metrics_results[ticker] = result
-            except Exception as e:
-                logger.error(f"Error getting metrics for {ticker} with {client_name}: {e}")
-                metrics_results[ticker] = None
-        
-        elapsed = time.time() - start_time
-        results.append(elapsed)
-        logger.info(f"  Iteration {iteration+1}: {elapsed:.4f} seconds")
-    
-    # Calculate statistics
-    avg_time = statistics.mean(results)
-    min_time = min(results)
-    max_time = max(results)
-    
-    return {
-        "client": client_name,
-        "method": "get_company_metrics",
-        "iterations": NUM_ITERATIONS,
-        "avg_time": avg_time,
-        "min_time": min_time,
-        "max_time": max_time,
-        "all_times": results
-    }
+# ----- HELPER FUNCTIONS  -----
+# ----- BELOW PROVIDE ADDITIONAL REUSABLE FUNCTIONALITY TO VARIOUS API ENDPOINTS  -----
 
-async def test_get_current_prices_individual(client_name: str, client, tickers: List[str]) -> Dict[str, Any]:
-    """Test get_current_price performance for individual calls"""
-    logger.info(f"Testing get_current_price (individual) for {client_name}...")
-    results = []
-    
-    for iteration in range(NUM_ITERATIONS):
-        start_time = time.time()
-        price_results = {}
-        
-        for ticker in tickers:
-            try:
-                result = await client.get_current_price(ticker)
-                price_results[ticker] = result
-            except Exception as e:
-                logger.error(f"Error getting price for {ticker} with {client_name}: {e}")
-                price_results[ticker] = None
-        
-        elapsed = time.time() - start_time
-        results.append(elapsed)
-        logger.info(f"  Iteration {iteration+1}: {elapsed:.4f} seconds")
-    
-    # Calculate statistics
-    avg_time = statistics.mean(results)
-    min_time = min(results)
-    max_time = max(results)
-    
-    return {
-        "client": client_name,
-        "method": "get_current_price_individual",
-        "iterations": NUM_ITERATIONS,
-        "avg_time": avg_time,
-        "min_time": min_time,
-        "max_time": max_time,
-        "all_times": results
-    }
-
-async def test_get_batch_prices(client_name: str, client, tickers: List[str]) -> Dict[str, Any]:
-    """Test get_batch_prices performance for batch processing"""
-    logger.info(f"Testing get_batch_prices for {client_name}...")
-    results = []
-    
-    for iteration in range(NUM_ITERATIONS):
-        start_time = time.time()
-        
-        try:
-            batch_results = await client.get_batch_prices(tickers)
-        except Exception as e:
-            logger.error(f"Error in batch price fetch with {client_name}: {e}")
-            batch_results = {}
-        
-        elapsed = time.time() - start_time
-        results.append(elapsed)
-        logger.info(f"  Iteration {iteration+1}: {elapsed:.4f} seconds")
-    
-    # Calculate statistics
-    avg_time = statistics.mean(results)
-    min_time = min(results)
-    max_time = max(results)
-    
-    return {
-        "client": client_name,
-        "method": "get_batch_prices",
-        "iterations": NUM_ITERATIONS,
-        "avg_time": avg_time,
-        "min_time": min_time, 
-        "max_time": max_time,
-        "all_times": results
-    }
 
 async def _get_detailed_securities(user_id: str) -> List[PositionDetail]:
     try:
@@ -957,545 +838,29 @@ async def _get_detailed_cash(user_id: str) -> List[CashPositionDetail]:
         logger.error(f"Error in _get_detailed_cash for user {user_id}: {str(e)}")
         return []
 
-# API Endpoints
+# ----- API ENDPOINT DIRECTORY  -----
+# ----- BELOW FEATURES VARIOUS ENDPOINTS USED BY CLIENT APPLICATION  -----
+
+# General application APIS
 @app.get("/")
 async def read_root():
     return {"message": "Welcome to NestEgg API!", "version": "1.0.0"}
 
-# API endpoint for running the performance test
-@app.get("/test/yahoo-client-performance")
-async def run_yahoo_client_performance_test():
-    """
-    API endpoint that runs performance tests comparing different Yahoo Finance client methods.
-    Tests company metrics vs individual prices vs batch prices.
-    
-    Returns detailed performance metrics and recommendations.
-    """
-    try:
-        # Initialize clients
-        from backend.api_clients.yahoo_finance_client import YahooFinanceClient
-        from backend.api_clients.yahooquery_client import YahooQueryClient
-        
-        yahoo_finance_client = YahooFinanceClient(cache_enabled=False)
-        yahooquery_client = YahooQueryClient()
-        
-        all_results = []
-        
-        # Test YahooFinanceClient methods
-        all_results.append(await test_get_company_metrics("YahooFinanceClient", yahoo_finance_client, TEST_TICKERS))
-        all_results.append(await test_get_current_prices_individual("YahooFinanceClient", yahoo_finance_client, TEST_TICKERS))
-        all_results.append(await test_get_batch_prices("YahooFinanceClient", yahoo_finance_client, TEST_TICKERS))
-        
-        # Test YahooQueryClient methods
-        all_results.append(await test_get_company_metrics("YahooQueryClient", yahooquery_client, TEST_TICKERS))
-        all_results.append(await test_get_current_prices_individual("YahooQueryClient", yahooquery_client, TEST_TICKERS))
-        all_results.append(await test_get_batch_prices("YahooQueryClient", yahooquery_client, TEST_TICKERS))
-        
-        # Organize results by method
-        method_results = {}
-        for result in all_results:
-            method = result["method"]
-            if method not in method_results:
-                method_results[method] = []
-            method_results[method].append(result)
-        
-        # Calculate recommendations
-        fastest_company_metrics = min(method_results["get_company_metrics"], key=lambda x: x["avg_time"])
-        fastest_individual_price = min(method_results["get_current_price_individual"], key=lambda x: x["avg_time"])
-        fastest_batch_price = min(method_results["get_batch_prices"], key=lambda x: x["avg_time"])
-        
-        # Find overall fastest method
-        all_methods = []
-        for result in all_results:
-            all_methods.append({
-                "description": f"{result['client']} - {result['method']}",
-                "avg_time": result["avg_time"]
-            })
-        
-        sorted_methods = sorted(all_methods, key=lambda x: x["avg_time"])
-        fastest_method = sorted_methods[0]["description"]
-        fastest_time = sorted_methods[0]["avg_time"]
-        
-        # Compare batch vs. individual for both clients
-        batch_vs_individual = {}
-        for client in ["YahooFinanceClient", "YahooQueryClient"]:
-            individual_results = next((r for r in all_results if r["client"] == client and r["method"] == "get_current_price_individual"), None)
-            batch_results = next((r for r in all_results if r["client"] == client and r["method"] == "get_batch_prices"), None)
-            
-            if individual_results and batch_results:
-                ratio = individual_results["avg_time"] / batch_results["avg_time"]
-                batch_vs_individual[client] = {
-                    "individual_time": individual_results["avg_time"],
-                    "batch_time": batch_results["avg_time"],
-                    "speedup_ratio": ratio,
-                    "batch_is_faster": ratio > 1
-                }
-        
-        # Format for clean output
-        method_comparison = {}
-        for method, results in method_results.items():
-            method_comparison[method] = []
-            sorted_results = sorted(results, key=lambda x: x["avg_time"])
-            
-            for result in sorted_results:
-                method_comparison[method].append({
-                    "client": result["client"],
-                    "avg_time": result["avg_time"],
-                    "min_time": result["min_time"],
-                    "max_time": result["max_time"]
-                })
-        
-        # Final recommendation
-        if fastest_batch_price["avg_time"] < fastest_company_metrics["avg_time"]:
-            final_recommendation = f"Use {fastest_batch_price['client']}.get_batch_prices() for optimal performance when fetching multiple prices"
-        else:
-            final_recommendation = f"Use {fastest_company_metrics['client']}.get_company_metrics() for optimal performance (it returns price data as well)"
-        
-        # Create response
-        return {
-            "test_configuration": {
-                "tickers_tested": TEST_TICKERS,
-                "iterations_per_test": NUM_ITERATIONS
-            },
-            "method_comparison": method_comparison,
-            "recommendations": {
-                "fastest_company_metrics": {
-                    "client": fastest_company_metrics["client"],
-                    "avg_time": fastest_company_metrics["avg_time"]
-                },
-                "fastest_individual_price": {
-                    "client": fastest_individual_price["client"],
-                    "avg_time": fastest_individual_price["avg_time"]
-                },
-                "fastest_batch_price": {
-                    "client": fastest_batch_price["client"],
-                    "avg_time": fastest_batch_price["avg_time"]
-                },
-                "overall_fastest_method": {
-                    "method": fastest_method,
-                    "avg_time": fastest_time
-                },
-                "batch_vs_individual_comparison": batch_vs_individual,
-                "final_recommendation": final_recommendation
-            }
-        }
-    except Exception as e:
-        logger.error(f"Error running performance test: {str(e)}")
-        import traceback
-        tb = traceback.format_exc()
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Performance test failed: {str(e)}\n{tb}"
-        )
-    finally:
-        # Close clients
-        try:
-            await yahoo_finance_client.close()
-        except:
-            pass
+@app.on_event("startup")
+async def startup():
+    await database.connect()
 
-@app.get("/test/batch-vs-loop-performance")
-async def test_batch_vs_loop_performance():
-    """
-    Test API endpoint that compares performance between:
-    1. Batch retrieval of prices for 100 tickers
-    2. Individual retrieval of company metrics (including price) for 100 tickers
-    
-    Returns detailed timing metrics and recommendations.
-    """
-    try:
-        # Import clients
-        from backend.api_clients.yahoo_finance_client import YahooFinanceClient
-        from backend.api_clients.yahooquery_client import YahooQueryClient
-        
-        # Test results
-        results = {
-            "test_configuration": {
-                "tickers_count": len(LARGE_TICKER_LIST),
-                "iterations": NUM_ITERATIONS,
-                "ticker_sample": LARGE_TICKER_LIST[:5] + ["..."] + LARGE_TICKER_LIST[-5:]
-            },
-            "test_results": {},
-            "summary": {}
-        }
-        
-        # Initialize clients
-        yahoo_finance_client = YahooFinanceClient(cache_enabled=False)
-        yahooquery_client = YahooQueryClient()
-        
-        try:
-            # Test 1: YahooFinanceClient - Batch Prices
-            logger.info(f"Testing YahooFinanceClient.get_batch_prices with {len(LARGE_TICKER_LIST)} tickers...")
-            batch_times_yf = []
-            
-            for i in range(NUM_ITERATIONS):
-                start_time = time.time()
-                batch_results_yf = await yahoo_finance_client.get_batch_prices(LARGE_TICKER_LIST)
-                elapsed = time.time() - start_time
-                batch_times_yf.append(elapsed)
-                logger.info(f"  Iteration {i+1}: {elapsed:.4f} seconds, got {len(batch_results_yf)} results")
-            
-            results["test_results"]["yahoo_finance_batch"] = {
-                "avg_time": statistics.mean(batch_times_yf),
-                "min_time": min(batch_times_yf),
-                "max_time": max(batch_times_yf),
-                "success_rate": 0  # Will calculate later
-            }
-            
-            # Test 2: YahooFinanceClient - Loop through get_company_metrics
-            logger.info(f"Testing YahooFinanceClient.get_company_metrics loop with {len(LARGE_TICKER_LIST)} tickers...")
-            metrics_times_yf = []
-            
-            for i in range(NUM_ITERATIONS):
-                start_time = time.time()
-                metrics_results_yf = {}
-                for ticker in LARGE_TICKER_LIST:
-                    try:
-                        result = await yahoo_finance_client.get_company_metrics(ticker)
-                        metrics_results_yf[ticker] = result
-                    except Exception as e:
-                        logger.error(f"Error getting metrics for {ticker}: {e}")
-                elapsed = time.time() - start_time
-                metrics_times_yf.append(elapsed)
-                logger.info(f"  Iteration {i+1}: {elapsed:.4f} seconds, got {len(metrics_results_yf)} results")
-            
-            results["test_results"]["yahoo_finance_metrics_loop"] = {
-                "avg_time": statistics.mean(metrics_times_yf),
-                "min_time": min(metrics_times_yf),
-                "max_time": max(metrics_times_yf),
-                "success_rate": 0  # Will calculate later
-            }
-            
-            # Test 3: YahooQueryClient - Batch Prices
-            logger.info(f"Testing YahooQueryClient.get_batch_prices with {len(LARGE_TICKER_LIST)} tickers...")
-            batch_times_yq = []
-            
-            for i in range(NUM_ITERATIONS):
-                start_time = time.time()
-                batch_results_yq = await yahooquery_client.get_batch_prices(LARGE_TICKER_LIST)
-                elapsed = time.time() - start_time
-                batch_times_yq.append(elapsed)
-                logger.info(f"  Iteration {i+1}: {elapsed:.4f} seconds, got {len(batch_results_yq)} results")
-            
-            results["test_results"]["yahooquery_batch"] = {
-                "avg_time": statistics.mean(batch_times_yq),
-                "min_time": min(batch_times_yq),
-                "max_time": max(batch_times_yq),
-                "success_rate": 0  # Will calculate later
-            }
-            
-            # Test 4: YahooQueryClient - Loop through get_company_metrics
-            logger.info(f"Testing YahooQueryClient.get_company_metrics loop with {len(LARGE_TICKER_LIST)} tickers...")
-            metrics_times_yq = []
-            
-            for i in range(NUM_ITERATIONS):
-                start_time = time.time()
-                metrics_results_yq = {}
-                for ticker in LARGE_TICKER_LIST:
-                    try:
-                        result = await yahooquery_client.get_company_metrics(ticker)
-                        metrics_results_yq[ticker] = result
-                    except Exception as e:
-                        logger.error(f"Error getting metrics for {ticker}: {e}")
-                elapsed = time.time() - start_time
-                metrics_times_yq.append(elapsed)
-                logger.info(f"  Iteration {i+1}: {elapsed:.4f} seconds, got {len(metrics_results_yq)} results")
-            
-            results["test_results"]["yahooquery_metrics_loop"] = {
-                "avg_time": statistics.mean(metrics_times_yq),
-                "min_time": min(metrics_times_yq),
-                "max_time": max(metrics_times_yq),
-                "success_rate": 0  # Will calculate later
-            }
-            
-            # Calculate summary statistics
-            all_tests = list(results["test_results"].items())
-            all_tests.sort(key=lambda x: x[1]["avg_time"])
-            
-            # Find the fastest method
-            fastest_method = all_tests[0][0]
-            fastest_time = all_tests[0][1]["avg_time"]
-            
-            # Calculate relative performance
-            relative_performance = {}
-            for name, data in all_tests:
-                if name != fastest_method:
-                    ratio = data["avg_time"] / fastest_time
-                    relative_performance[name] = f"{ratio:.2f}x slower than the fastest method"
-            
-            # Batch vs Loop comparison
-            yf_ratio = results["test_results"]["yahoo_finance_metrics_loop"]["avg_time"] / results["test_results"]["yahoo_finance_batch"]["avg_time"]
-            yq_ratio = results["test_results"]["yahooquery_metrics_loop"]["avg_time"] / results["test_results"]["yahooquery_batch"]["avg_time"]
-            
-            # Set summary information
-            results["summary"] = {
-                "fastest_method": fastest_method,
-                "fastest_time": fastest_time,
-                "relative_performance": relative_performance,
-                "batch_vs_loop": {
-                    "yahoo_finance": f"Loop is {yf_ratio:.2f}x slower than batch",
-                    "yahooquery": f"Loop is {yq_ratio:.2f}x slower than batch"
-                },
-                "recommendations": [
-                    f"Use {fastest_method} for best performance with large ticker lists",
-                    "Batch methods are significantly faster than looping through individual calls",
-                    f"For YahooFinanceClient, batch is {yf_ratio:.2f}x faster than individual calls",
-                    f"For YahooQueryClient, batch is {yq_ratio:.2f}x faster than individual calls"
-                ]
-            }
-            
-            return results
-            
-        finally:
-            # Close clients
-            if hasattr(yahoo_finance_client, 'close'):
-                await yahoo_finance_client.close()
-            
-    except Exception as e:
-        import traceback
-        logger.error(f"Performance test failed: {str(e)}")
-        logger.error(traceback.format_exc())
-        
-        return {
-            "error": f"Performance test failed: {str(e)}",
-            "traceback": traceback.format_exc()
-        }
+@app.on_event("shutdown")
+async def shutdown():
+    await database.disconnect()
 
-@app.get("/accounts/all/detailed", response_model=AccountsDetailedResponse)
-async def get_all_detailed_accounts(current_user: dict = Depends(get_current_user)):
-    """
-    Fetch all accounts for the logged-in user, enriched with calculated
-    metrics (value, cost basis, gain/loss) aggregated from all position types,
-    and includes a list of basic position info for each account.
-    """
-    try:
-        user_id = current_user["id"]
-        logger.info(f"Fetching all detailed accounts for user_id: {user_id}")
-
-        # 1. Fetch all basic account info
-        accounts_query = accounts.select().where(accounts.c.user_id == user_id).order_by(accounts.c.account_name)
-        user_accounts_raw = await database.fetch_all(accounts_query)
-
-        # Use INFO level for this crucial log
-        logger.info(f"Fetched user_accounts_raw for user {user_id}: {user_accounts_raw}")
-
-        if not user_accounts_raw:
-            logger.warning(f"No accounts found for user {user_id}. Returning empty list.")
-            return AccountsDetailedResponse(accounts=[])
-
-        # 2. Fetch all detailed positions across all types (using internal helpers)
-        all_securities = await _get_detailed_securities(user_id)
-        all_crypto = await _get_detailed_crypto(user_id)
-        all_metals = await _get_detailed_metals(user_id)
-        all_real_estate = await _get_detailed_real_estate(user_id)
-        all_cash = await _get_detailed_cash(user_id)
-
-        detailed_accounts_list = []
-
-        # 3. Process each account
-        for i, account_raw in enumerate(user_accounts_raw): # Add index for logging
-            # Log the raw object at the START of the loop iteration using INFO
-            logger.info(f"Processing account index {i} (type: {type(account_raw)}): {account_raw}")
-
-            # The check for None
-            if account_raw is None:
-                logger.warning(f"Account index {i} is None. Skipping.")
-                continue # Skip this iteration if account_raw is None
-
-            # Initialize aggregates (inside loop, reset for each account)
-            account_positions_basic_info = []
-            account_total_value = 0.0
-            account_total_cost_basis = 0.0
-            account_positions_count = 0
-            account_id = None # Initialize account_id
-            account_dict = None # Initialize account_dict
-
-            try:
-                # --- Access required fields first ---
-                account_id = account_raw["id"] # Direct access - raises TypeError if None, KeyError if missing
-                logger.info(f"Account index {i}: ID {account_id} accessed successfully.")
-
-                # --- *** Convert Record to dict *** ---
-                account_dict = dict(account_raw)
-                logger.info(f"Account index {i}: Converted account_raw to dict.")
-                # --- *** Use account_dict below for accessing account fields *** ---
-
-                # --- Aggregate positions ---
-                # Aggregate Securities
-                for pos in all_securities:
-                     if pos.account_id == account_id:
-                         value = pos.value
-                         cost_total = float(pos.shares * pos.cost_basis)
-                         gain_loss_amount = value - cost_total
-                         gain_loss_percent = (gain_loss_amount / cost_total) * 100 if cost_total > 0 else 0
-                         account_total_value += value
-                         account_total_cost_basis += cost_total
-                         account_positions_count += 1
-                         account_positions_basic_info.append(PositionBasicInfo(
-                             id=pos.id, asset_type='security', ticker_or_name=pos.ticker,
-                             quantity_or_shares=pos.shares, value=value, cost_basis_total=cost_total,
-                             gain_loss_amount=gain_loss_amount, gain_loss_percent=gain_loss_percent))
-                # Aggregate Crypto
-                for crypto in all_crypto:
-                      if crypto.account_id == account_id:
-                          value = crypto.total_value
-                          cost_total = float(crypto.quantity * crypto.purchase_price)
-                          gain_loss_amount = crypto.gain_loss if crypto.gain_loss is not None else (value - cost_total)
-                          gain_loss_percent = crypto.gain_loss_percent if crypto.gain_loss_percent is not None else ((value / cost_total) - 1) * 100 if cost_total > 0 else 0
-                          account_total_value += value
-                          account_total_cost_basis += cost_total
-                          account_positions_count += 1
-                          account_positions_basic_info.append(PositionBasicInfo(
-                              id=crypto.id, asset_type='crypto', ticker_or_name=crypto.coin_symbol or crypto.coin_type or 'Unknown',
-                              quantity_or_shares=crypto.quantity, value=value, cost_basis_total=cost_total,
-                              gain_loss_amount=gain_loss_amount, gain_loss_percent=gain_loss_percent))
-                # Aggregate Metals
-                for metal in all_metals:
-                     if metal.account_id == account_id:
-                         value = metal.total_value or 0
-                         cost_total = float(metal.quantity * metal.cost_basis)
-                         gain_loss_amount = metal.gain_loss if metal.gain_loss is not None else (value - cost_total)
-                         gain_loss_percent = metal.gain_loss_percent if metal.gain_loss_percent is not None else ((value / cost_total) - 1) * 100 if cost_total > 0 else 0
-                         account_total_value += value
-                         account_total_cost_basis += cost_total
-                         account_positions_count += 1
-                         account_positions_basic_info.append(PositionBasicInfo(
-                             id=metal.id, asset_type='metal', ticker_or_name=metal.metal_type or 'Unknown',
-                             quantity_or_shares=metal.quantity, value=value, cost_basis_total=cost_total,
-                             gain_loss_amount=gain_loss_amount, gain_loss_percent=gain_loss_percent))
-                # Aggregate Real Estate
-                for re_pos in all_real_estate:
-                       if re_pos.account_id == account_id:
-                           value = re_pos.estimated_value or re_pos.purchase_price or 0
-                           cost_total = float(re_pos.purchase_price or 0)
-                           gain_loss_amount = re_pos.gain_loss if re_pos.gain_loss is not None else (value - cost_total)
-                           gain_loss_percent = re_pos.gain_loss_percent if re_pos.gain_loss_percent is not None else ((value / cost_total) - 1) * 100 if cost_total > 0 else 0
-                           account_total_value += value
-                           account_total_cost_basis += cost_total
-                           account_positions_count += 1
-                           account_positions_basic_info.append(PositionBasicInfo(
-                               id=re_pos.id, asset_type='real_estate', ticker_or_name=re_pos.address or re_pos.property_type or 'Unknown',
-                               quantity_or_shares=1, value=value, cost_basis_total=cost_total,
-                               gain_loss_amount=gain_loss_amount, gain_loss_percent=gain_loss_percent))
-
-                # Aggregate Cash
-                for cash_pos in all_cash:
-                        if cash_pos.account_id == account_id:
-                            value = cash_pos.amount
-                            cost_total = cash_pos.amount  # For cash, cost basis is typically the same as current value
-                            gain_loss_amount = 0  # Typically zero for cash
-                            gain_loss_percent = 0
-                            account_total_value += value
-                            account_total_cost_basis += cost_total
-                            account_positions_count += 1
-                            account_positions_basic_info.append(PositionBasicInfo(
-                                id=cash_pos.id, 
-                                asset_type='cash', 
-                                ticker_or_name=cash_pos.name or cash_pos.cash_type,
-                                quantity_or_shares=1,  # Treat cash as a single position
-                                value=value, 
-                                cost_basis_total=cost_total,
-                                gain_loss_amount=gain_loss_amount, 
-                                gain_loss_percent=gain_loss_percent
-                            ))
-
-                # --- End Aggregate positions ---
-
-
-                # Calculate final account-level gain/loss
-                account_total_gain_loss = account_total_value - account_total_cost_basis
-                account_total_gain_loss_percent = (account_total_gain_loss / account_total_cost_basis) * 100 if account_total_cost_basis > 0 else 0
-
-                # Create AccountDetail object - Convert UUID to str
-                logger.info(f"Account index {i}: Attempting to create AccountDetail object from dict.")
-                account_detail = AccountDetail(
-                    id=account_dict["id"],
-                    user_id=str(account_dict["user_id"]),
-                    account_name=account_dict.get("account_name", "Unknown Account"),
-                    institution=account_dict.get("institution"),
-                    type=account_dict.get("type"),
-                    balance=float(account_total_value), # Use calculated value
-                    cash_balance=sum(cash_pos.amount for cash_pos in all_cash if cash_pos.account_id == account_id),  # Add the missing comma here
-                    created_at=account_dict.get("created_at"),
-                    updated_at=account_dict.get("updated_at"),
-                    # Calculated fields
-                    total_value=float(account_total_value),
-                    total_cost_basis=float(account_total_cost_basis),
-                    total_gain_loss=float(account_total_gain_loss),
-                    total_gain_loss_percent=float(account_total_gain_loss_percent),
-                    positions_count=account_positions_count,
-                    positions=account_positions_basic_info
-                )
-                detailed_accounts_list.append(account_detail)
-                logger.info(f"Account index {i}: Successfully created and added AccountDetail for account_id: {account_id}")
-
-            except KeyError as ke:
-                # Use account_dict in log message if available, otherwise account_raw
-                log_data = account_dict if account_dict is not None else account_raw
-                logger.error(f"Account index {i}: KeyError accessing account data from dict. Missing key: {ke}. Account data: {log_data}", exc_info=False)
-                continue
-            except TypeError as te:
-                 # This specific TypeError ('NoneType' not callable) should hopefully NOT happen now when using account_dict.get()
-                 # but might happen earlier if conversion to dict fails or on direct access if None check failed.
-                log_data = account_dict if account_dict is not None else account_raw
-                logger.error(f"Account index {i}: TypeError accessing account data. Error: {te}. Account data: {log_data}", exc_info=True)
-                continue # Skip this account
-            except Exception as e:
-                log_data = account_dict if account_dict is not None else account_raw
-                logger.error(f"Account index {i}: Unexpected error processing account_id {account_id}. Error: {e}. Account data: {log_data}", exc_info=True)
-                continue # Skip this account
-
-        logger.info(f"Finished processing accounts. Returning {len(detailed_accounts_list)} detailed accounts for user_id: {user_id}")
-        return AccountsDetailedResponse(accounts=detailed_accounts_list)
-
-    except Exception as e:
-        logger.error(f"General error in get_all_detailed_accounts for user {user_id}: {str(e)}", exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to fetch detailed accounts: {str(e)}"
-        )
-
+# ----- USER MANAGEMENT  -----
 # User Management
 @app.get("/users")
 async def get_users():
     query = users.select()
     result = await database.fetch_all(query)
     return {"users": result}
-
-@app.post("/signup", status_code=status.HTTP_201_CREATED)
-async def create_user(user: UserSignup):
-    try:
-        existing_user = await database.fetch_one(users.select().where(users.c.email == user.email))
-        if existing_user:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="User already exists")
-
-        password_hash = hash_password(user.password)
-        user_id = str(uuid.uuid4())
-        query = users.insert().values(id=user_id, email=user.email, password_hash=password_hash)
-        await database.execute(query)
-        return {"message": "User created successfully!", "user_id": user_id}
-    except IntegrityError:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email already exists")
-    except Exception as e:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Server error: {str(e)}")
-
-@app.post("/token")
-async def login(form_data: OAuth2PasswordRequestForm = Depends()):
-    user = await database.fetch_one(users.select().where(users.c.email == form_data.username))
-    if not user or not verify_password(form_data.password, user["password_hash"]):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Incorrect email or password",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-    
-    access_token = create_access_token(data={"sub": user["email"]})
-    return {"access_token": access_token, "token_type": "bearer"}
-
-async def get_current_user_admin(current_user: dict = Depends(get_current_user)):
-    # You could implement extra checks here to ensure the user is an admin
-    # For now, we'll just use the regular user authentication
-    return current_user
 
 @app.get("/user")
 async def get_user_data(current_user: dict = Depends(get_current_user)):
@@ -1736,6 +1101,41 @@ async def update_user_profile(
         logger.error(f"Traceback: {traceback.format_exc()}")
         raise HTTPException(status_code=500, detail="Failed to update user profile")
 
+@app.post("/signup", status_code=status.HTTP_201_CREATED)
+async def create_user(user: UserSignup):
+    try:
+        existing_user = await database.fetch_one(users.select().where(users.c.email == user.email))
+        if existing_user:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="User already exists")
+
+        password_hash = hash_password(user.password)
+        user_id = str(uuid.uuid4())
+        query = users.insert().values(id=user_id, email=user.email, password_hash=password_hash)
+        await database.execute(query)
+        return {"message": "User created successfully!", "user_id": user_id}
+    except IntegrityError:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email already exists")
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Server error: {str(e)}")
+
+@app.post("/token")
+async def login(form_data: OAuth2PasswordRequestForm = Depends()):
+    user = await database.fetch_one(users.select().where(users.c.email == form_data.username))
+    if not user or not verify_password(form_data.password, user["password_hash"]):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect email or password",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    
+    access_token = create_access_token(data={"sub": user["email"]})
+    return {"access_token": access_token, "token_type": "bearer"}
+
+async def get_current_user_admin(current_user: dict = Depends(get_current_user)):
+    # You could implement extra checks here to ensure the user is an admin
+    # For now, we'll just use the regular user authentication
+    return current_user
+
 @app.post("/user/change-password")
 async def change_password(
     password_data: PasswordChangeRequest,
@@ -1768,7 +1168,6 @@ async def change_password(
         logger.error(f"Error changing password: {str(e)}")
         raise HTTPException(status_code=500, detail="Failed to change password")
 
-
 @app.put("/user/notifications")
 async def update_notification_preferences(
     notification_data: NotificationPreferences,
@@ -1796,17 +1195,8 @@ async def update_notification_preferences(
         logger.error(f"Error updating notification preferences: {str(e)}")
         raise HTTPException(status_code=500, detail="Failed to update notification preferences")
 
-class PasswordChangeRequest(BaseModel):
-    current_password: str
-    new_password: str
-
-class NotificationPreferences(BaseModel):
-    emailUpdates: bool = True
-    marketAlerts: bool = True
-    performanceReports: bool = True
-    securityAlerts: bool = True
-    newsletterUpdates: bool = False
-
+# ----- ACCOUNT MANAGEMENT  -----
+# MANAGES ACCOUNTS FOR EACH USER AND PROVIDES ABILITY TO EXTRACT
 # Account Management
 @app.get("/accounts")
 async def get_accounts(current_user: dict = Depends(get_current_user)):
@@ -1840,6 +1230,200 @@ async def get_accounts(current_user: dict = Depends(get_current_user)):
         return {"accounts": accounts_list}
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Failed to fetch accounts: {str(e)}")
+
+@app.get("/accounts/all/detailed", response_model=AccountsDetailedResponse)
+async def get_all_detailed_accounts(current_user: dict = Depends(get_current_user)):
+    """
+    Fetch all accounts for the logged-in user, enriched with calculated
+    metrics (value, cost basis, gain/loss) aggregated from all position types,
+    and includes a list of basic position info for each account.
+    """
+    try:
+        user_id = current_user["id"]
+        logger.info(f"Fetching all detailed accounts for user_id: {user_id}")
+
+        # 1. Fetch all basic account info
+        accounts_query = accounts.select().where(accounts.c.user_id == user_id).order_by(accounts.c.account_name)
+        user_accounts_raw = await database.fetch_all(accounts_query)
+
+        # Use INFO level for this crucial log
+        logger.info(f"Fetched user_accounts_raw for user {user_id}: {user_accounts_raw}")
+
+        if not user_accounts_raw:
+            logger.warning(f"No accounts found for user {user_id}. Returning empty list.")
+            return AccountsDetailedResponse(accounts=[])
+
+        # 2. Fetch all detailed positions across all types (using internal helpers)
+        all_securities = await _get_detailed_securities(user_id)
+        all_crypto = await _get_detailed_crypto(user_id)
+        all_metals = await _get_detailed_metals(user_id)
+        all_real_estate = await _get_detailed_real_estate(user_id)
+        all_cash = await _get_detailed_cash(user_id)
+
+        detailed_accounts_list = []
+
+        # 3. Process each account
+        for i, account_raw in enumerate(user_accounts_raw): # Add index for logging
+            # Log the raw object at the START of the loop iteration using INFO
+            logger.info(f"Processing account index {i} (type: {type(account_raw)}): {account_raw}")
+
+            # The check for None
+            if account_raw is None:
+                logger.warning(f"Account index {i} is None. Skipping.")
+                continue # Skip this iteration if account_raw is None
+
+            # Initialize aggregates (inside loop, reset for each account)
+            account_positions_basic_info = []
+            account_total_value = 0.0
+            account_total_cost_basis = 0.0
+            account_positions_count = 0
+            account_id = None # Initialize account_id
+            account_dict = None # Initialize account_dict
+
+            try:
+                # --- Access required fields first ---
+                account_id = account_raw["id"] # Direct access - raises TypeError if None, KeyError if missing
+                logger.info(f"Account index {i}: ID {account_id} accessed successfully.")
+
+                # --- *** Convert Record to dict *** ---
+                account_dict = dict(account_raw)
+                logger.info(f"Account index {i}: Converted account_raw to dict.")
+                # --- *** Use account_dict below for accessing account fields *** ---
+
+                # --- Aggregate positions ---
+                # Aggregate Securities
+                for pos in all_securities:
+                     if pos.account_id == account_id:
+                         value = pos.value
+                         cost_total = float(pos.shares * pos.cost_basis)
+                         gain_loss_amount = value - cost_total
+                         gain_loss_percent = (gain_loss_amount / cost_total) * 100 if cost_total > 0 else 0
+                         account_total_value += value
+                         account_total_cost_basis += cost_total
+                         account_positions_count += 1
+                         account_positions_basic_info.append(PositionBasicInfo(
+                             id=pos.id, asset_type='security', ticker_or_name=pos.ticker,
+                             quantity_or_shares=pos.shares, value=value, cost_basis_total=cost_total,
+                             gain_loss_amount=gain_loss_amount, gain_loss_percent=gain_loss_percent))
+                # Aggregate Crypto
+                for crypto in all_crypto:
+                      if crypto.account_id == account_id:
+                          value = crypto.total_value
+                          cost_total = float(crypto.quantity * crypto.purchase_price)
+                          gain_loss_amount = crypto.gain_loss if crypto.gain_loss is not None else (value - cost_total)
+                          gain_loss_percent = crypto.gain_loss_percent if crypto.gain_loss_percent is not None else ((value / cost_total) - 1) * 100 if cost_total > 0 else 0
+                          account_total_value += value
+                          account_total_cost_basis += cost_total
+                          account_positions_count += 1
+                          account_positions_basic_info.append(PositionBasicInfo(
+                              id=crypto.id, asset_type='crypto', ticker_or_name=crypto.coin_symbol or crypto.coin_type or 'Unknown',
+                              quantity_or_shares=crypto.quantity, value=value, cost_basis_total=cost_total,
+                              gain_loss_amount=gain_loss_amount, gain_loss_percent=gain_loss_percent))
+                # Aggregate Metals
+                for metal in all_metals:
+                     if metal.account_id == account_id:
+                         value = metal.total_value or 0
+                         cost_total = float(metal.quantity * metal.cost_basis)
+                         gain_loss_amount = metal.gain_loss if metal.gain_loss is not None else (value - cost_total)
+                         gain_loss_percent = metal.gain_loss_percent if metal.gain_loss_percent is not None else ((value / cost_total) - 1) * 100 if cost_total > 0 else 0
+                         account_total_value += value
+                         account_total_cost_basis += cost_total
+                         account_positions_count += 1
+                         account_positions_basic_info.append(PositionBasicInfo(
+                             id=metal.id, asset_type='metal', ticker_or_name=metal.metal_type or 'Unknown',
+                             quantity_or_shares=metal.quantity, value=value, cost_basis_total=cost_total,
+                             gain_loss_amount=gain_loss_amount, gain_loss_percent=gain_loss_percent))
+                # Aggregate Real Estate
+                for re_pos in all_real_estate:
+                       if re_pos.account_id == account_id:
+                           value = re_pos.estimated_value or re_pos.purchase_price or 0
+                           cost_total = float(re_pos.purchase_price or 0)
+                           gain_loss_amount = re_pos.gain_loss if re_pos.gain_loss is not None else (value - cost_total)
+                           gain_loss_percent = re_pos.gain_loss_percent if re_pos.gain_loss_percent is not None else ((value / cost_total) - 1) * 100 if cost_total > 0 else 0
+                           account_total_value += value
+                           account_total_cost_basis += cost_total
+                           account_positions_count += 1
+                           account_positions_basic_info.append(PositionBasicInfo(
+                               id=re_pos.id, asset_type='real_estate', ticker_or_name=re_pos.address or re_pos.property_type or 'Unknown',
+                               quantity_or_shares=1, value=value, cost_basis_total=cost_total,
+                               gain_loss_amount=gain_loss_amount, gain_loss_percent=gain_loss_percent))
+
+                # Aggregate Cash
+                for cash_pos in all_cash:
+                        if cash_pos.account_id == account_id:
+                            value = cash_pos.amount
+                            cost_total = cash_pos.amount  # For cash, cost basis is typically the same as current value
+                            gain_loss_amount = 0  # Typically zero for cash
+                            gain_loss_percent = 0
+                            account_total_value += value
+                            account_total_cost_basis += cost_total
+                            account_positions_count += 1
+                            account_positions_basic_info.append(PositionBasicInfo(
+                                id=cash_pos.id, 
+                                asset_type='cash', 
+                                ticker_or_name=cash_pos.name or cash_pos.cash_type,
+                                quantity_or_shares=1,  # Treat cash as a single position
+                                value=value, 
+                                cost_basis_total=cost_total,
+                                gain_loss_amount=gain_loss_amount, 
+                                gain_loss_percent=gain_loss_percent
+                            ))
+
+                # --- End Aggregate positions ---
+
+
+                # Calculate final account-level gain/loss
+                account_total_gain_loss = account_total_value - account_total_cost_basis
+                account_total_gain_loss_percent = (account_total_gain_loss / account_total_cost_basis) * 100 if account_total_cost_basis > 0 else 0
+
+                # Create AccountDetail object - Convert UUID to str
+                logger.info(f"Account index {i}: Attempting to create AccountDetail object from dict.")
+                account_detail = AccountDetail(
+                    id=account_dict["id"],
+                    user_id=str(account_dict["user_id"]),
+                    account_name=account_dict.get("account_name", "Unknown Account"),
+                    institution=account_dict.get("institution"),
+                    type=account_dict.get("type"),
+                    balance=float(account_total_value), # Use calculated value
+                    cash_balance=sum(cash_pos.amount for cash_pos in all_cash if cash_pos.account_id == account_id),  # Add the missing comma here
+                    created_at=account_dict.get("created_at"),
+                    updated_at=account_dict.get("updated_at"),
+                    # Calculated fields
+                    total_value=float(account_total_value),
+                    total_cost_basis=float(account_total_cost_basis),
+                    total_gain_loss=float(account_total_gain_loss),
+                    total_gain_loss_percent=float(account_total_gain_loss_percent),
+                    positions_count=account_positions_count,
+                    positions=account_positions_basic_info
+                )
+                detailed_accounts_list.append(account_detail)
+                logger.info(f"Account index {i}: Successfully created and added AccountDetail for account_id: {account_id}")
+
+            except KeyError as ke:
+                # Use account_dict in log message if available, otherwise account_raw
+                log_data = account_dict if account_dict is not None else account_raw
+                logger.error(f"Account index {i}: KeyError accessing account data from dict. Missing key: {ke}. Account data: {log_data}", exc_info=False)
+                continue
+            except TypeError as te:
+                 # This specific TypeError ('NoneType' not callable) should hopefully NOT happen now when using account_dict.get()
+                 # but might happen earlier if conversion to dict fails or on direct access if None check failed.
+                log_data = account_dict if account_dict is not None else account_raw
+                logger.error(f"Account index {i}: TypeError accessing account data. Error: {te}. Account data: {log_data}", exc_info=True)
+                continue # Skip this account
+            except Exception as e:
+                log_data = account_dict if account_dict is not None else account_raw
+                logger.error(f"Account index {i}: Unexpected error processing account_id {account_id}. Error: {e}. Account data: {log_data}", exc_info=True)
+                continue # Skip this account
+
+        logger.info(f"Finished processing accounts. Returning {len(detailed_accounts_list)} detailed accounts for user_id: {user_id}")
+        return AccountsDetailedResponse(accounts=detailed_accounts_list)
+
+    except Exception as e:
+        logger.error(f"General error in get_all_detailed_accounts for user {user_id}: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to fetch detailed accounts: {str(e)}"
+        )
 
 @app.post("/accounts", status_code=status.HTTP_201_CREATED)
 async def add_account(account: AccountCreate, current_user: dict = Depends(get_current_user)):
@@ -1906,8 +1490,8 @@ async def delete_account(account_id: int, current_user: dict = Depends(get_curre
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Server error: {str(e)}")
 
-# Position Management
-
+# ----- REPORTING ON ACCOUNT POSITIONS  -----
+# Summary reporting by pulling each balance in each account - not primary way to get position detail
 @app.get("/positions/unified")
 async def get_unified_positions(
     asset_type: Optional[str] = None,
@@ -2273,234 +1857,9 @@ async def get_all_detailed_realestate_positions(current_user: dict = Depends(get
             detail=f"Failed to fetch detailed real estate positions: {str(e)}"
         )
 
-@app.get("/positions/{account_id}")
-async def get_positions(account_id: int, current_user: dict = Depends(get_current_user)):
-    try:
-        # Check if the account belongs to the user
-        account_query = accounts.select().where(
-            (accounts.c.id == account_id) & 
-            (accounts.c.user_id == current_user["id"])
-        )
-        account = await database.fetch_one(account_query)
-        
-        if not account:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Account not found or access denied")
-        
-        # Get positions for the account
-        positions_query = positions.select().where(positions.c.account_id == account_id)
-        result = await database.fetch_all(positions_query)
-        
-        positions_list = []
-        for row in result:
-            # Calculate value
-            value = row["shares"] * row["price"]
-            
-            position_data = {
-                "id": row["id"],
-                "account_id": row["account_id"],
-                "ticker": row["ticker"],
-                "shares": row["shares"],
-                "price": row["price"],
-                "value": value,
-                "date": row["date"].isoformat() if row["date"] else None
-            }
-            
-            # Add cost_basis and purchase_date if they exist
-            if "cost_basis" in row and row["cost_basis"] is not None:
-                position_data["cost_basis"] = row["cost_basis"]
-            
-            if "purchase_date" in row and row["purchase_date"] is not None:
-                position_data["purchase_date"] = row["purchase_date"].isoformat()
-                
-            positions_list.append(position_data)
-        
-        return {"positions": positions_list}
-    except Exception as e:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Failed to fetch positions: {str(e)}")
-
-@app.post("/positions/{account_id}", status_code=status.HTTP_201_CREATED)
-async def add_position(
-    account_id: int, 
-    position: PositionCreate, 
-    current_user: dict = Depends(get_current_user)
-):
-    try:
-        # Check if the account belongs to the user
-        account_query = accounts.select().where(
-            (accounts.c.id == account_id) & 
-            (accounts.c.user_id == current_user["id"])
-        )
-        account = await database.fetch_one(account_query)
-        
-        if not account:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Account not found or access denied")
-        
-        # Add position
-        query = positions.insert().values(
-            account_id=account_id,
-            ticker=position.ticker.upper(),
-            shares=position.shares,
-            price=position.price,
-            cost_basis=position.cost_basis,
-            purchase_date=datetime.strptime(position.purchase_date, "%Y-%m-%d").date(),
-            date=datetime.utcnow()
-        )
-        position_id = await database.execute(query)
-        
-        # Update account balance
-        position_value = position.shares * position.price
-        update_query = accounts.update().where(
-            accounts.c.id == account_id
-        ).values(
-            balance=account["balance"] + position_value,
-            updated_at=datetime.utcnow()
-        )
-        await database.execute(update_query)
-        
-        return {
-            "message": "Position added successfully", 
-            "position_id": position_id,
-            "position_value": position_value
-        }
-    except Exception as e:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Server error: {str(e)}")
-
-@app.put("/positions/{position_id}")
-async def update_position(position_id: int, position: PositionCreate, current_user: dict = Depends(get_current_user)):
-    try:
-        # Get position and check if it belongs to the user
-        position_query = select([positions, accounts.c.user_id, accounts.c.id.label("account_id")]).select_from(
-            positions.join(accounts, positions.c.account_id == accounts.c.id)
-        ).where(positions.c.id == position_id)
-        
-        position_data = await database.fetch_one(position_query)
-        
-        if not position_data or position_data["user_id"] != current_user["id"]:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Position not found or access denied")
-        
-        # Calculate old and new values for account balance
-        old_value = position_data["shares"] * position_data["price"]
-        new_value = position.shares * position.price
-        value_difference = new_value - old_value
-        
-        # Update position
-        update_query = positions.update().where(
-            positions.c.id == position_id
-        ).values(
-            ticker=position.ticker.upper(),
-            shares=position.shares,
-            price=position.price,
-            cost_basis=position.cost_basis,
-            purchase_date=datetime.strptime(position.purchase_date, "%Y-%m-%d").date(),
-            date=datetime.utcnow()
-        )
-        await database.execute(update_query)
-        
-        # Update account balance
-        account_id = position_data["account_id"]
-        account_query = accounts.select().where(accounts.c.id == account_id)
-        account = await database.fetch_one(account_query)
-        
-        update_account_query = accounts.update().where(
-            accounts.c.id == account_id
-        ).values(
-            balance=account["balance"] + value_difference,
-            updated_at=datetime.utcnow()
-        )
-        await database.execute(update_account_query)
-        
-        return {"message": "Position updated successfully"}
-    except Exception as e:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Server error: {str(e)}")
-
-@app.delete("/positions/{position_id}")
-async def delete_position(position_id: int, current_user: dict = Depends(get_current_user)):
-    try:
-        # Get position and check if it belongs to the user
-        position_query = select([positions, accounts.c.user_id, accounts.c.id.label("account_id")]).select_from(
-            positions.join(accounts, positions.c.account_id == accounts.c.id)
-        ).where(positions.c.id == position_id)
-        
-        position_data = await database.fetch_one(position_query)
-        
-        if not position_data or position_data["user_id"] != current_user["id"]:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Position not found or access denied")
-        
-        # Calculate value for account balance adjustment
-        position_value = position_data["shares"] * position_data["price"]
-        
-        # Delete position
-        delete_query = positions.delete().where(positions.c.id == position_id)
-        await database.execute(delete_query)
-        
-        # Update account balance
-        account_id = position_data["account_id"]
-        account_query = accounts.select().where(accounts.c.id == account_id)
-        account = await database.fetch_one(account_query)
-        
-        update_account_query = accounts.update().where(
-            accounts.c.id == account_id
-        ).values(
-            balance=account["balance"] - position_value,
-            updated_at=datetime.utcnow()
-        )
-        await database.execute(update_account_query)
-        
-        return {"message": "Position deleted successfully"}
-    except Exception as e:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Server error: {str(e)}")
-
-@app.get("/securities/search")
-async def search_securities(query: str, current_user: dict = Depends(get_current_user)):
-    """Search securities from the database."""
-    try:
-        logger.info(f"Securities search request received: query='{query}'")
-        
-        if not query or len(query.strip()) < 1:
-            return {"results": []}
-
-        search_pattern = f"%{query.strip().lower()}%"
-        params = {
-            "search_pattern": search_pattern
-        }
-        logger.info(f"Executing search with params: {params}")
-
-        # Query matching the schema
-        search_query = """
-        SELECT 
-            ticker,
-            company_name AS name,
-            COALESCE(current_price, 0) AS price,
-            sector,
-            industry,
-            market_cap
-        FROM securities
-            WHERE 
-                TRIM(LOWER(ticker)) LIKE :search_pattern OR
-                TRIM(LOWER(company_name)) LIKE :search_pattern OR
-                TRIM(LOWER(COALESCE(sector, ''))) LIKE :search_pattern OR
-                TRIM(LOWER(COALESCE(industry, ''))) LIKE :search_pattern
-
-        ORDER BY ticker ASC
-        LIMIT 20
-        """
-
-        results = await database.fetch_all(search_query, params)
-        result_count = len(results) if results else 0
-        logger.info(f"Search for '{query}' found {result_count} results")
-
-        formatted_results = [dict(row) for row in results]
-        return {"results": formatted_results}
-
-    except Exception as e:
-        logger.error(f"Error in securities search: {str(e)}")
-        import traceback
-        logger.error(traceback.format_exc())
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to search securities: {str(e)}"
-        )
-
+# ----- PRICING MANAGEMENT  -----
+# INCLUDES UPDATES OF SECURITIES AND EXCHANGE RATES - RELATES TO SECURITIES TABLE AND FX_PRICES
+# Get full list of securities / fx for price update or specific info from securities table or FX prices
 @app.get("/securities/all")
 async def get_all_securities(current_user: dict = Depends(get_current_user)):
     """Retrieve all securities from the database for debugging purposes."""
@@ -2519,272 +1878,6 @@ async def get_all_securities(current_user: dict = Depends(get_current_user)):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to fetch securities: {str(e)}"
         )   
-
-# Portfolio Summary
-@app.get("/portfolio/summary/all", response_model=PortfolioSummaryAllResponse)
-async def get_portfolio_summary_all(current_user: dict = Depends(get_current_user)):
-    """Get a summary across all asset types for the user."""
-    try:
-        user_id = current_user["id"]
-        total_value = 0.0
-        total_cost_basis = 0.0
-        total_positions = 0
-        # Asset specific summaries for breakdown (optional)
-        asset_summaries = []
-
-        # --- 1. Securities ---
-        sec_query = """
-        SELECT COALESCE(SUM(p.shares * p.price), 0) as value,
-               COALESCE(SUM(p.shares * COALESCE(p.cost_basis, p.price)), 0) as cost,
-               COUNT(p.id) as count
-        FROM positions p JOIN accounts a ON p.account_id = a.id
-        WHERE a.user_id = :user_id
-        """
-        sec_res = await database.fetch_one(sec_query, {"user_id": user_id})
-        if sec_res:
-            total_value += float(sec_res["value"])
-            total_cost_basis += float(sec_res["cost"])
-            total_positions += sec_res["count"]
-            asset_summaries.append(PortfolioAssetSummary(asset_type="Securities", total_value=float(sec_res["value"]), total_cost_basis=float(sec_res["cost"]), count=sec_res["count"]))
-
-
-        # --- 2. Crypto ---
-        cry_query = """
-        SELECT COALESCE(SUM(cp.quantity * cp.current_price), 0) as value,
-               COALESCE(SUM(cp.quantity * cp.purchase_price), 0) as cost,
-               COUNT(cp.id) as count
-        FROM crypto_positions cp JOIN accounts a ON cp.account_id = a.id
-        WHERE a.user_id = :user_id
-        """
-        cry_res = await database.fetch_one(cry_query, {"user_id": user_id})
-        if cry_res:
-             total_value += float(cry_res["value"])
-             total_cost_basis += float(cry_res["cost"])
-             total_positions += cry_res["count"]
-             asset_summaries.append(PortfolioAssetSummary(asset_type="Crypto", total_value=float(cry_res["value"]), total_cost_basis=float(cry_res["cost"]), count=cry_res["count"]))
-
-        # --- 3. Metals ---
-        # Note: Requires accurate current_price_per_unit logic for metals
-        met_query = """
-        SELECT COALESCE(SUM(mp.quantity * mp.purchase_price), 0) as value, -- Requires current_price_per_unit
-               COALESCE(SUM(mp.quantity * COALESCE(mp.cost_basis, mp.purchase_price)), 0) as cost,
-               COUNT(mp.id) as count
-        FROM metal_positions mp JOIN accounts a ON mp.account_id = a.id
-        WHERE a.user_id = :user_id
-        """
-        # Need to fetch/update mp.current_price_per_unit before this query or join with a prices table
-        met_res = await database.fetch_one(met_query, {"user_id": user_id})
-        if met_res:
-            total_value += float(met_res["value"])
-            total_cost_basis += float(met_res["cost"])
-            total_positions += met_res["count"]
-            asset_summaries.append(PortfolioAssetSummary(asset_type="Metals", total_value=float(met_res["value"]), total_cost_basis=float(met_res["cost"]), count=met_res["count"]))
-
-
-        # --- 4. Real Estate ---
-        re_query = """
-        SELECT COALESCE(SUM(re.purchase_price), 0) as value,
-               COALESCE(SUM(re.purchase_price), 0) as cost,
-               COUNT(re.id) as count
-        FROM real_estate_positions re JOIN accounts a ON re.account_id = a.id
-        WHERE a.user_id = :user_id
-        """
-        re_res = await database.fetch_one(re_query, {"user_id": user_id})
-        if re_res:
-            total_value += float(re_res["value"])
-            total_cost_basis += float(re_res["cost"])
-            total_positions += re_res["count"]
-            asset_summaries.append(PortfolioAssetSummary(asset_type="Real Estate", total_value=float(re_res["value"]), total_cost_basis=float(re_res["cost"]), count=re_res["count"]))
-
-        # --- Calculate Final Metrics ---
-        total_gain_loss = total_value - total_cost_basis
-        total_gain_loss_percent = (total_gain_loss / total_cost_basis) * 100 if total_cost_basis > 0 else 0
-
-        # Count distinct accounts involved
-        acc_query = """SELECT COUNT(DISTINCT a.id) as count FROM accounts a WHERE a.user_id = :user_id"""
-        acc_res = await database.fetch_one(acc_query, {"user_id": user_id})
-        total_accounts = acc_res["count"] if acc_res else 0
-
-        return PortfolioSummaryAllResponse(
-            total_value=total_value,
-            total_cost_basis=total_cost_basis,
-            total_gain_loss=total_gain_loss,
-            total_gain_loss_percent=total_gain_loss_percent,
-            total_positions=total_positions,
-            total_accounts=total_accounts,
-            breakdown=asset_summaries
-        )
-
-    except Exception as e:
-        logger.error(f"Error generating portfolio summary all for user {user_id}: {str(e)}")
-        import traceback
-        logger.error(traceback.format_exc())
-        raise HTTPException(status_code=500, detail="Failed to generate portfolio summary")
-
-@app.get("/fx/search")
-async def search_fx_assets(
-    query: str, 
-    asset_type: Optional[str] = None,
-    current_user: dict = Depends(get_current_user)
-):
-    """Search for FX assets (crypto, metals, etc.) by symbol or name"""
-    try:
-        # Build the query
-        sql_query = """
-        SELECT 
-            symbol, 
-            name, 
-            asset_type, 
-            current_price as price, 
-            price_updated_at,
-            price_as_of_date,
-            market_cap,
-            volume_24h,
-            high_24h,
-            low_24h,
-            price_change_24h,
-            price_change_percentage_24h
-        FROM fx_prices
-        WHERE active = TRUE
-        AND (
-            LOWER(symbol) LIKE LOWER(:search_pattern) OR
-            LOWER(name) LIKE LOWER(:search_pattern)
-        )
-        """
-        
-        # Add asset_type filter if provided
-        if asset_type:
-            sql_query += " AND asset_type = :asset_type"
-            
-        # Add limit and order
-        sql_query += " ORDER BY symbol ASC LIMIT 20"
-        
-        # Prepare parameters
-        params = {
-            "search_pattern": f"%{query}%",
-            "asset_type": asset_type
-        }
-        
-        # Execute query
-        results = await database.fetch_all(sql_query, params)
-        
-        # Format response
-        formatted_results = [dict(row) for row in results]
-        
-        return {"results": formatted_results}
-        
-    except Exception as e:
-        logger.error(f"Error searching FX assets: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to search FX assets: {str(e)}"
-        )
-        
-@app.get("/portfolio/summary")
-async def get_portfolio_summary(current_user: dict = Depends(get_current_user)):
-    try:
-        # Get all accounts for the user
-        accounts_query = accounts.select().where(accounts.c.user_id == current_user["id"])
-        user_accounts = await database.fetch_all(accounts_query)
-        
-        if not user_accounts:
-            return {
-                "net_worth": 0,
-                "accounts_count": 0,
-                "positions_count": 0,
-                "top_holdings": []
-            }
-        
-        # Calculate total net worth from account balances
-        net_worth = sum(account["balance"] for account in user_accounts)
-        accounts_count = len(user_accounts)
-        
-        # Get all positions for all accounts
-        account_ids = [account["id"] for account in user_accounts]
-        positions_query = positions.select().where(positions.c.account_id.in_(account_ids))
-        user_positions = await database.fetch_all(positions_query)
-        
-        positions_count = len(user_positions)
-        
-        # Calculate top holdings
-        holdings = {}
-        for position in user_positions:
-            ticker = position["ticker"]
-            value = position["shares"] * position["price"]
-            cost_basis = position["cost_basis"] * position["shares"] if "cost_basis" in position else 0
-            
-            if ticker in holdings:
-                holdings[ticker]["shares"] += position["shares"]
-                holdings[ticker]["value"] += value
-                holdings[ticker]["cost_basis"] += cost_basis
-            else:
-                holdings[ticker] = {
-                    "ticker": ticker,
-                    "shares": position["shares"],
-                    "value": value,
-                    "cost_basis": cost_basis,
-                    "percentage": 0  # Will calculate after totaling
-                }
-        
-        # Calculate percentage of portfolio and gain/loss for each holding
-        for ticker in holdings:
-            if net_worth > 0:
-                holdings[ticker]["percentage"] = (holdings[ticker]["value"] / net_worth) * 100
-                
-            # Calculate gain/loss
-            if holdings[ticker]["cost_basis"] > 0:
-                gain_loss_amount = holdings[ticker]["value"] - holdings[ticker]["cost_basis"]
-                gain_loss_percentage = (gain_loss_amount / holdings[ticker]["cost_basis"]) * 100
-                
-                holdings[ticker]["gain_loss"] = gain_loss_percentage
-                holdings[ticker]["gain_loss_amount"] = gain_loss_amount
-            else:
-                holdings[ticker]["gain_loss"] = 0
-                holdings[ticker]["gain_loss_amount"] = 0
-        
-        # Sort by value (descending) and get top 5
-        top_holdings = sorted(
-            list(holdings.values()), 
-            key=lambda x: x["value"], 
-            reverse=True
-        )[:5]
-        
-        # Also calculate overall portfolio gain/loss
-        total_cost_basis = sum(holding["cost_basis"] for holding in holdings.values())
-        daily_change = 2.5  # Placeholder for daily change percentage
-        
-        if total_cost_basis > 0:
-            overall_gain_loss_amount = net_worth - total_cost_basis
-            overall_gain_loss_percentage = (overall_gain_loss_amount / total_cost_basis) * 100
-        else:
-            overall_gain_loss_percentage = 0
-            overall_gain_loss_amount = 0
-        
-        # Fetch the most recent price update timestamp
-        last_price_update_query = """
-            SELECT MAX(timestamp) as last_update 
-            FROM price_history
-        """
-        last_update_result = await database.fetch_one(last_price_update_query)
-        last_price_update = last_update_result['last_update'] if last_update_result and last_update_result['last_update'] else None
-
-        
-        return {
-            "net_worth": net_worth,
-            "accounts_count": accounts_count,
-            "positions_count": positions_count,
-            "top_holdings": top_holdings,
-            "daily_change": daily_change,
-            "yearly_change": overall_gain_loss_percentage,
-            "overall_gain_loss": overall_gain_loss_percentage,
-            "overall_gain_loss_amount": overall_gain_loss_amount,
-            "last_price_update": last_price_update.isoformat() if last_price_update else None
-        }
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to fetch portfolio summary: {str(e)}"
-        )
 
 @app.get("/securities")
 async def get_securities(current_user: dict = Depends(get_current_user)):
@@ -2871,310 +1964,6 @@ async def get_securities(current_user: dict = Depends(get_current_user)):
             detail=f"Failed to fetch securities data: {str(e)}"
         )
         
-@app.post("/securities", status_code=status.HTTP_201_CREATED)
-async def add_security(security: SecurityCreate, current_user: dict = Depends(get_current_user)):
-    """Add a new security to track"""
-    try:
-        # Check if security already exists
-        query = "SELECT ticker FROM securities WHERE ticker = :ticker"
-        existing = await database.fetch_one(query, {"ticker": security.ticker.upper()})
-        
-        if existing:
-            return {"message": f"Security {security.ticker.upper()} already exists in the database"}
-        
-        # Insert new security
-        query = """
-        INSERT INTO securities (ticker, active, on_yfinance, created_at) 
-        VALUES (:ticker, true, true, :now)
-        """
-        await database.execute(
-            query, 
-            {
-                "ticker": security.ticker.upper(),
-                "now": datetime.utcnow()
-            }
-        )
-        
-        # Immediately try to fetch basic data for the security
-        updater = PriceUpdaterV2()
-        await updater.update_company_metrics([security.ticker.upper()])
-        
-        return {"message": f"Security {security.ticker.upper()} added successfully"}
-    
-    except Exception as e:
-        logger.error(f"Error adding security: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to add security: {str(e)}"
-        )
-
-# GET endpoint - Get all cash positions for an account
-@app.get("/cash/{account_id}")
-async def get_cash_positions(account_id: int, current_user: dict = Depends(get_current_user)):
-    try:
-        # Check if the account belongs to the user
-        account_query = accounts.select().where(
-            (accounts.c.id == account_id) & 
-            (accounts.c.user_id == current_user["id"])
-        )
-        account = await database.fetch_one(account_query)
-        
-        if not account:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Account not found or access denied")
-        
-        # Get cash positions for the account
-        query = """
-        SELECT * FROM cash_positions 
-        WHERE account_id = :account_id
-        ORDER BY name ASC
-        """
-        result = await database.fetch_all(query=query, values={"account_id": account_id})
-        
-        cash_positions = []
-        for row in dict(row):
-            position = dict(row)
-            
-            # Calculate interest metrics
-            amount = float(position.get("amount", 0))
-            interest_rate = float(position.get("interest_rate") or 0)
-            annual_interest = amount * interest_rate
-            monthly_interest = annual_interest / 12
-            
-            position["annual_interest"] = annual_interest
-            position["monthly_interest"] = monthly_interest
-            
-            # Format dates as ISO strings
-            if "maturity_date" in position and position["maturity_date"]:
-                position["maturity_date"] = position["maturity_date"].isoformat()
-            if "created_at" in position and position["created_at"]:
-                position["created_at"] = position["created_at"].isoformat()
-            if "updated_at" in position and position["updated_at"]:
-                position["updated_at"] = position["updated_at"].isoformat()
-                
-            cash_positions.append(position)
-            
-        return {"cash_positions": cash_positions}
-    except Exception as e:
-        logger.error(f"Error fetching cash positions: {str(e)}")
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Failed to fetch cash positions: {str(e)}")
-
-# POST endpoint - Add new cash position
-@app.post("/cash/{account_id}", status_code=status.HTTP_201_CREATED)
-async def add_cash_position(account_id: int, position: CashPositionCreate, current_user: dict = Depends(get_current_user)):
-    try:
-        # Check if the account belongs to the user
-        account_query = accounts.select().where(
-            (accounts.c.id == account_id) & 
-            (accounts.c.user_id == current_user["id"])
-        )
-        account = await database.fetch_one(account_query)
-        
-        if not account:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Account not found or access denied")
-        
-        # Add cash position
-        query = """
-        INSERT INTO cash_positions (
-            account_id, cash_type, name, amount, interest_rate, interest_period, 
-            maturity_date, notes
-        ) VALUES (
-            :account_id, :cash_type, :name, :amount, :interest_rate, :interest_period,
-            :maturity_date, :notes
-        ) RETURNING id
-        """
-        values = {
-            "account_id": account_id,
-            "cash_type": position.cash_type,
-            "name": position.name,
-            "amount": position.amount,
-            "interest_rate": position.interest_rate,
-            "interest_period": position.interest_period,
-            "maturity_date": datetime.strptime(position.maturity_date, "%Y-%m-%d").date() if position.maturity_date else None,
-            "notes": position.notes
-        }
-        
-        result = await database.fetch_one(query=query, values=values)
-        position_id = result["id"]
-        
-        # Update account balance if needed
-        update_query = accounts.update().where(
-            accounts.c.id == account_id
-        ).values(
-            balance=account["balance"] + position.amount,
-            updated_at=datetime.utcnow()
-        )
-        await database.execute(update_query)
-        
-        return {
-            "message": "Cash position added successfully",
-            "position_id": position_id,
-            "position_value": position.amount
-        }
-    except Exception as e:
-        logger.error(f"Error adding cash position: {str(e)}")
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Failed to add cash position: {str(e)}")
-
-# PUT endpoint - Update cash position
-@app.put("/cash/{position_id}")
-async def update_cash_position(position_id: int, position: CashPositionUpdate, current_user: dict = Depends(get_current_user)):
-    try:
-        # Get position and check if it belongs to the user
-        check_query = """
-        SELECT cp.*, a.user_id, a.balance, a.id as account_id
-        FROM cash_positions cp
-        JOIN accounts a ON cp.account_id = a.id
-        WHERE cp.id = :position_id
-        """
-        position_data = await database.fetch_one(query=check_query, values={"position_id": position_id})
-        
-        if not position_data or position_data["user_id"] != current_user["id"]:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Position not found or access denied")
-        
-        # Calculate old and new values for account balance update
-        old_value = position_data["amount"]
-        new_value = position.amount if position.amount is not None else old_value
-        value_difference = new_value - old_value
-        
-        # Build update dictionary with only provided fields
-        update_values = {}
-        for key, value in position.dict(exclude_unset=True).items():
-            if key == 'maturity_date' and value is not None:
-                update_values[key] = datetime.strptime(value, "%Y-%m-%d").date()
-            else:
-                update_values[key] = value
-        
-        # Only update if there are values to update
-        if update_values:
-            # Construct dynamic query with only the fields that need updating
-            set_clause = ", ".join([f"{key} = :{key}" for key in update_values.keys()])
-            query = f"""
-            UPDATE cash_positions 
-            SET {set_clause}, updated_at = :updated_at
-            WHERE id = :position_id
-            RETURNING id
-            """
-            
-            # Add position_id and timestamp to values
-            update_values["position_id"] = position_id
-            update_values["updated_at"] = datetime.utcnow()
-            
-            await database.execute(query=query, values=update_values)
-            
-            # Update account balance if amount changed
-            if value_difference != 0:
-                account_id = position_data["account_id"]
-                account_balance = position_data["balance"]
-                
-                update_account_query = accounts.update().where(
-                    accounts.c.id == account_id
-                ).values(
-                    balance=account_balance + value_difference,
-                    updated_at=datetime.utcnow()
-                )
-                await database.execute(update_account_query)
-        
-        return {"message": "Cash position updated successfully"}
-    except Exception as e:
-        logger.error(f"Error updating cash position: {str(e)}")
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Failed to update cash position: {str(e)}")
-
-# DELETE endpoint - Delete cash position
-@app.delete("/cash/{position_id}")
-async def delete_cash_position(position_id: int, current_user: dict = Depends(get_current_user)):
-    try:
-        # Get position and check if it belongs to the user
-        check_query = """
-        SELECT cp.*, a.user_id, a.balance, a.id as account_id
-        FROM cash_positions cp
-        JOIN accounts a ON cp.account_id = a.id
-        WHERE cp.id = :position_id
-        """
-        position_data = await database.fetch_one(query=check_query, values={"position_id": position_id})
-        
-        if not position_data or position_data["user_id"] != current_user["id"]:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Position not found or access denied")
-        
-        # Calculate value for account balance adjustment
-        position_value = position_data["amount"]
-        
-        # Delete the position
-        delete_query = """
-        DELETE FROM cash_positions WHERE id = :position_id
-        """
-        await database.execute(query=delete_query, values={"position_id": position_id})
-        
-        # Update account balance
-        account_id = position_data["account_id"]
-        account_balance = position_data["balance"]
-        
-        update_account_query = accounts.update().where(
-            accounts.c.id == account_id
-        ).values(
-            balance=account_balance - position_value,
-            updated_at=datetime.utcnow()
-        )
-        await database.execute(update_account_query)
-        
-        return {"message": "Cash position deleted successfully"}
-    except Exception as e:
-        logger.error(f"Error deleting cash position: {str(e)}")
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Failed to delete cash position: {str(e)}")
-
-# GET all detailed cash positions 
-@app.get("/cash/all/detailed", response_model=CashPositionsDetailedResponse)
-async def get_all_detailed_cash_positions(current_user: dict = Depends(get_current_user)):
-    try:
-        user_id = current_user["id"]
-        logger.info(f"Fetching all detailed cash positions for user_id: {user_id}")
-
-        query = """
-        SELECT cp.*, a.account_name 
-        FROM cash_positions cp
-        JOIN accounts a ON cp.account_id = a.id
-        WHERE a.user_id = :user_id
-        ORDER BY a.account_name, cp.name
-        """
-        results = await database.fetch_all(query=query, values={"user_id": user_id})
-
-        cash_positions_list = []
-        for row in results:
-            row_dict = dict(row)
-            
-            # Calculate interest values
-            amount = float(row_dict.get("amount") or 0)
-            interest_rate = float(row_dict.get("interest_rate") or 0)
-            annual_interest = amount * interest_rate
-            monthly_interest = annual_interest / 12
-            
-            cash_positions_list.append(CashPositionDetail(
-                id=row_dict["id"],
-                account_id=row_dict["account_id"],
-                cash_type=row_dict["cash_type"],
-                name=row_dict["name"],
-                amount=amount,
-                interest_rate=interest_rate,
-                interest_period=row_dict.get("interest_period"),
-                maturity_date=row_dict.get("maturity_date"),
-                notes=row_dict.get("notes"),
-                created_at=row_dict.get("created_at"),
-                updated_at=row_dict.get("updated_at"),
-                account_name=row_dict["account_name"],
-                monthly_interest=monthly_interest,
-                annual_interest=annual_interest
-            ))
-
-        logger.info(f"Returning {len(cash_positions_list)} detailed cash positions for user_id: {user_id}")
-        return CashPositionsDetailedResponse(cash_positions=cash_positions_list)
-
-    except Exception as e:
-        logger.error(f"Error in get_all_detailed_cash_positions for user {user_id}: {str(e)}")
-        import traceback
-        logger.error(traceback.format_exc())
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to fetch detailed cash positions: {str(e)}"
-        )
-
 @app.get("/securities/{ticker}/details")
 async def get_security_details(ticker: str, current_user: dict = Depends(get_current_user)):
     """Get detailed statistics for a security"""
@@ -3239,261 +2028,6 @@ async def get_security_details(ticker: str, current_user: dict = Depends(get_cur
             detail=f"Failed to fetch security details: {str(e)}"
         )
 
-@app.get("/portfolio/history")
-async def get_portfolio_history(period: str = "1m", current_user: dict = Depends(get_current_user)):
-    """Get historical portfolio value data"""
-    try:
-        # Calculate date range based on period
-        end_date = datetime.now().date()
-        
-        if period == "1w":
-            start_date = end_date - timedelta(days=7)
-        elif period == "1m":
-            start_date = end_date - timedelta(days=30)
-        elif period == "6m":
-            start_date = end_date - timedelta(days=180)
-        elif period == "ytd":
-            start_date = datetime(end_date.year, 1, 1).date()
-        elif period == "1y":
-            start_date = end_date - timedelta(days=365)
-        elif period == "5y":
-            start_date = end_date - timedelta(days=365*5)
-        elif period == "max":
-            start_date = datetime(2000, 1, 1).date()  # Arbitrary old date
-        else:
-            # Default to 1 month
-            start_date = end_date - timedelta(days=30)
-        
-        # Fetch portfolio history
-        query = """
-        SELECT 
-            date,
-            value
-        FROM portfolio_history
-        WHERE user_id = :user_id AND date BETWEEN :start_date AND :end_date
-        ORDER BY date ASC
-        """
-        
-        history = await database.fetch_all(
-            query, 
-            {
-                "user_id": current_user["id"],
-                "start_date": start_date,
-                "end_date": end_date
-            }
-        )
-        
-        # Format results
-        formatted_history = []
-        for row in history:
-            formatted_history.append({
-                "date": row["date"].isoformat() if row["date"] else None,
-                "value": float(row["value"]) if row["value"] is not None else 0
-            })
-        
-        return {"history": formatted_history}
-    
-    except Exception as e:
-        logger.error(f"Error fetching portfolio history: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to fetch portfolio history: {str(e)}"
-        )
-
-@app.get("/securities/{ticker}/history")
-async def get_security_history(ticker: str, current_user: dict = Depends(get_current_user)):
-    """Get historical price data for a security"""
-    try:
-        # Get price history
-        query = """
-        SELECT 
-            ticker, 
-            date,
-            close_price,
-            day_open,
-            day_high,
-            day_low,
-            volume
-        FROM price_history
-        WHERE ticker = :ticker
-        ORDER BY date ASC
-        """
-        history = await database.fetch_all(query, {"ticker": ticker.upper()})
-        
-        if not history:
-            return {"history": []}
-        
-        # Format results
-        formatted_history = []
-        for row in history:
-            formatted_history.append({
-                "ticker": row["ticker"],
-                "date": row["date"].isoformat() if row["date"] else None,
-                "close_price": float(row["close_price"]) if row["close_price"] is not None else None,
-                "open_price": float(row["day_open"]) if row["day_open"] is not None else None,
-                "high_price": float(row["day_high"]) if row["day_high"] is not None else None,
-                "low_price": float(row["day_low"]) if row["day_low"] is not None else None,
-                "volume": int(row["volume"]) if row["volume"] is not None else None
-            })
-        
-        return {"history": formatted_history}
-    
-    except Exception as e:
-        logger.error(f"Error fetching security history: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to fetch security history: {str(e)}"
-        )
-
-@app.post("/securities/{ticker}/update")
-async def update_specific_security(
-    ticker: str, 
-    update_data: SecurityUpdate, 
-    current_user: dict = Depends(get_current_user)
-):
-    """Update a specific security based on the update type"""
-    try:
-        # Check if security exists
-        query = "SELECT ticker FROM securities WHERE ticker = :ticker"
-        existing = await database.fetch_one(query, {"ticker": ticker.upper()})
-        
-        if not existing:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Security {ticker.upper()} not found"
-            )
-        
-        # Create event record for tracking
-        event_id = await record_system_event(
-            database,
-            f"security_update_{update_data.update_type}",
-            "started",
-            {"ticker": ticker.upper()}
-        )
-        
-        result = None
-        
-        # Perform update based on type
-        if update_data.update_type == "metrics":
-            # Use directly or import if needed
-            updater = PriceUpdaterV2()
-            result = await updater.update_company_metrics([ticker.upper()])
-            message = "Metrics updated successfully"
-            
-        elif update_data.update_type == "current_price":
-            # Use directly without reimporting
-            updater = PriceUpdaterV2()
-            result = await updater.update_security_prices([ticker.upper()])
-            message = "Current price updated successfully"
-            
-        elif update_data.update_type == "history":
-            # Use directly without reimporting
-            updater = PriceUpdaterV2()
-            days = update_data.days if update_data.days else 30  # Default to 30 days
-            result = await updater.update_historical_prices([ticker.upper()], days=days)
-            message = f"Price history updated successfully (last {days} days)"
-            
-        else:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Invalid update type: {update_data.update_type}"
-            )
-        
-        # Record completion of event
-        await update_system_event(
-            database,
-            event_id,
-            "completed",
-            {
-                "ticker": ticker.upper(),
-                "update_type": update_data.update_type,
-                "result": result
-            }
-        )
-        
-        return {
-            "message": message, 
-            "ticker": ticker.upper(),
-            "details": result
-        }
-    
-    except HTTPException:
-        raise
-    except Exception as e:
-        # Record failure if event was created
-        if 'event_id' in locals() and event_id:
-            await update_system_event(
-                database,
-                event_id,
-                "failed",
-                {"error": str(e)},
-                str(e)
-            )
-        
-        logger.error(f"Error updating security: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to update security: {str(e)}"
-        )
-        
-# New endpoints for price updates
-@app.post("/market/update-prices-v2")
-async def trigger_price_update_v2(current_user: dict = Depends(get_current_user)):
-    """Enhanced price update process using multiple data sources"""
-    try:
-        updater = PriceUpdaterV2()
-        result = await updater.update_security_prices()
-        return {"message": "Price update completed successfully", "details": result}
-    except Exception as e:
-        logger.error(f"Failed to update prices: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
-            detail=f"Failed to update prices: {str(e)}"
-        )
-
-@app.post("/market/update-metrics")
-async def trigger_metrics_update(current_user: dict = Depends(get_current_user)):
-    """Update company metrics for all securities"""
-    try:
-        updater = PriceUpdaterV2()
-        result = await updater.update_company_metrics()
-        return {"message": "Metrics update completed successfully", "details": result}
-    except Exception as e:
-        logger.error(f"Failed to update metrics: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
-            detail=f"Failed to update metrics: {str(e)}"
-        )
-
-@app.post("/market/update-history")
-async def trigger_history_update(days: int = 30, current_user: dict = Depends(get_current_user)):
-    """Update historical prices for all securities"""
-    try:
-        updater = PriceUpdaterV2()
-        result = await updater.update_historical_prices(days=days)
-        return {"message": "Historical price update completed successfully", "details": result}
-    except Exception as e:
-        logger.error(f"Failed to update historical prices: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
-            detail=f"Failed to update historical prices: {str(e)}"
-        )
-
-# Add to your imports
-from backend.api_clients.yahoo_data import Yahoo_Data
-
-# FX Prices Models
-class FXAssetCreate(BaseModel):
-    symbol: str
-    asset_type: str  # "crypto", "metal", or "currency"
-    name: str
-
-class FXAssetUpdate(BaseModel):
-    active: Optional[bool] = None
-    name: Optional[str] = None
-
-# ----- FX Prices Endpoints -----
-
 @app.get("/fx/list")
 async def get_fx_assets(
     asset_type: Optional[str] = None,
@@ -3552,6 +2086,118 @@ async def get_fx_assets(
             detail=f"Failed to fetch FX assets: {str(e)}"
         )
 
+# Search methods for adding positions for drop down
+@app.get("/securities/search")
+async def search_securities(query: str, current_user: dict = Depends(get_current_user)):
+    """Search securities from the database."""
+    try:
+        logger.info(f"Securities search request received: query='{query}'")
+        
+        if not query or len(query.strip()) < 1:
+            return {"results": []}
+
+        search_pattern = f"%{query.strip().lower()}%"
+        params = {
+            "search_pattern": search_pattern
+        }
+        logger.info(f"Executing search with params: {params}")
+
+        # Query matching the schema
+        search_query = """
+        SELECT 
+            ticker,
+            company_name AS name,
+            COALESCE(current_price, 0) AS price,
+            sector,
+            industry,
+            market_cap
+        FROM securities
+            WHERE 
+                TRIM(LOWER(ticker)) LIKE :search_pattern OR
+                TRIM(LOWER(company_name)) LIKE :search_pattern OR
+                TRIM(LOWER(COALESCE(sector, ''))) LIKE :search_pattern OR
+                TRIM(LOWER(COALESCE(industry, ''))) LIKE :search_pattern
+
+        ORDER BY ticker ASC
+        LIMIT 20
+        """
+
+        results = await database.fetch_all(search_query, params)
+        result_count = len(results) if results else 0
+        logger.info(f"Search for '{query}' found {result_count} results")
+
+        formatted_results = [dict(row) for row in results]
+        return {"results": formatted_results}
+
+    except Exception as e:
+        logger.error(f"Error in securities search: {str(e)}")
+        import traceback
+        logger.error(traceback.format_exc())
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to search securities: {str(e)}"
+        )
+
+@app.get("/fx/search")
+async def search_fx_assets(
+    query: str, 
+    asset_type: Optional[str] = None,
+    current_user: dict = Depends(get_current_user)
+):
+    """Search for FX assets (crypto, metals, etc.) by symbol or name"""
+    try:
+        # Build the query
+        sql_query = """
+        SELECT 
+            symbol, 
+            name, 
+            asset_type, 
+            current_price as price, 
+            price_updated_at,
+            price_as_of_date,
+            market_cap,
+            volume_24h,
+            high_24h,
+            low_24h,
+            price_change_24h,
+            price_change_percentage_24h
+        FROM fx_prices
+        WHERE active = TRUE
+        AND (
+            LOWER(symbol) LIKE LOWER(:search_pattern) OR
+            LOWER(name) LIKE LOWER(:search_pattern)
+        )
+        """
+        
+        # Add asset_type filter if provided
+        if asset_type:
+            sql_query += " AND asset_type = :asset_type"
+            
+        # Add limit and order
+        sql_query += " ORDER BY symbol ASC LIMIT 20"
+        
+        # Prepare parameters
+        params = {
+            "search_pattern": f"%{query}%",
+            "asset_type": asset_type
+        }
+        
+        # Execute query
+        results = await database.fetch_all(sql_query, params)
+        
+        # Format response
+        formatted_results = [dict(row) for row in results]
+        
+        return {"results": formatted_results}
+        
+    except Exception as e:
+        logger.error(f"Error searching FX assets: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to search FX assets: {str(e)}"
+        )
+        
+# Edit FX / Securities tables to add or edit existing in-scope securities
 @app.post("/fx/add", status_code=status.HTTP_201_CREATED)
 async def add_fx_asset(
     asset: FXAssetCreate,
@@ -3707,6 +2353,135 @@ async def update_fx_asset(
             detail=f"Failed to update FX asset: {str(e)}"
         )
 
+@app.post("/securities", status_code=status.HTTP_201_CREATED)
+async def add_security(security: SecurityCreate, current_user: dict = Depends(get_current_user)):
+    """Add a new security to track"""
+    try:
+        # Check if security already exists
+        query = "SELECT ticker FROM securities WHERE ticker = :ticker"
+        existing = await database.fetch_one(query, {"ticker": security.ticker.upper()})
+        
+        if existing:
+            return {"message": f"Security {security.ticker.upper()} already exists in the database"}
+        
+        # Insert new security
+        query = """
+        INSERT INTO securities (ticker, active, on_yfinance, created_at) 
+        VALUES (:ticker, true, true, :now)
+        """
+        await database.execute(
+            query, 
+            {
+                "ticker": security.ticker.upper(),
+                "now": datetime.utcnow()
+            }
+        )
+        
+        # Immediately try to fetch basic data for the security
+        updater = PriceUpdaterV2()
+        await updater.update_company_metrics([security.ticker.upper()])
+        
+        return {"message": f"Security {security.ticker.upper()} added successfully"}
+    
+    except Exception as e:
+        logger.error(f"Error adding security: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to add security: {str(e)}"
+        )
+
+@app.post("/securities/{ticker}/update")
+async def update_specific_security(
+    ticker: str, 
+    update_data: SecurityUpdate, 
+    current_user: dict = Depends(get_current_user)
+):
+    """Update a specific security based on the update type"""
+    try:
+        # Check if security exists
+        query = "SELECT ticker FROM securities WHERE ticker = :ticker"
+        existing = await database.fetch_one(query, {"ticker": ticker.upper()})
+        
+        if not existing:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Security {ticker.upper()} not found"
+            )
+        
+        # Create event record for tracking
+        event_id = await record_system_event(
+            database,
+            f"security_update_{update_data.update_type}",
+            "started",
+            {"ticker": ticker.upper()}
+        )
+        
+        result = None
+        
+        # Perform update based on type
+        if update_data.update_type == "metrics":
+            # Use directly or import if needed
+            updater = PriceUpdaterV2()
+            result = await updater.update_company_metrics([ticker.upper()])
+            message = "Metrics updated successfully"
+            
+        elif update_data.update_type == "current_price":
+            # Use directly without reimporting
+            updater = PriceUpdaterV2()
+            result = await updater.update_security_prices([ticker.upper()])
+            message = "Current price updated successfully"
+            
+        elif update_data.update_type == "history":
+            # Use directly without reimporting
+            updater = PriceUpdaterV2()
+            days = update_data.days if update_data.days else 30  # Default to 30 days
+            result = await updater.update_historical_prices([ticker.upper()], days=days)
+            message = f"Price history updated successfully (last {days} days)"
+            
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Invalid update type: {update_data.update_type}"
+            )
+        
+        # Record completion of event
+        await update_system_event(
+            database,
+            event_id,
+            "completed",
+            {
+                "ticker": ticker.upper(),
+                "update_type": update_data.update_type,
+                "result": result
+            }
+        )
+        
+        return {
+            "message": message, 
+            "ticker": ticker.upper(),
+            "details": result
+        }
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        # Record failure if event was created
+        if 'event_id' in locals() and event_id:
+            await update_system_event(
+                database,
+                event_id,
+                "failed",
+                {"error": str(e)},
+                str(e)
+            )
+        
+        logger.error(f"Error updating security: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to update security: {str(e)}"
+        )
+        
+# Update Prices in database
 @app.post("/fx/update-all")
 async def update_all_fx_prices(current_user: dict = Depends(get_current_user)):
     """Update prices for all active FX assets using DirectYahooFinanceClient"""
@@ -4067,604 +2842,1111 @@ async def update_fx_with_existing_components(current_user: dict = Depends(get_cu
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to update FX prices: {str(e)}"
         )
-
-@app.post("/fx/update-debug")
-async def update_fx_with_debug(current_user: dict = Depends(get_current_user)):
-    """Update FX prices using existing components with detailed debugging"""
+ 
+@app.post("/market/update-prices-v2")
+async def trigger_price_update_v2(current_user: dict = Depends(get_current_user)):
+    """Enhanced price update process using multiple data sources"""
     try:
-        # Get list of all active FX assets to update
-        query = "SELECT symbol, asset_type FROM fx_prices WHERE active = TRUE LIMIT 5"  # Just try 5 symbols first
-        assets = await database.fetch_all(query)
-        
-        if not assets:
-            return {"message": "No active FX assets to update", "updated_count": 0}
-        
-        # Initialize debug results
-        debug_results = {}
-        updated_count = 0
-        failed_symbols = []
-        
-        # Try each client directly for better debugging
-        from backend.api_clients.direct_yahoo_client import DirectYahooFinanceClient
-        from backend.api_clients.yahooquery_client import YahooQueryClient
-        from backend.api_clients.yahoo_finance_client import YahooFinanceClient
-        
-        clients = {
-            "direct_yahoo": DirectYahooFinanceClient(),
-            "yahooquery": YahooQueryClient(),
-            "yahoo_finance": YahooFinanceClient()
-        }
-        
-        # Detailed debug test for each symbol with each client
-        for asset in assets:
-            symbol = asset["symbol"]
-            asset_type = asset["asset_type"]
-            debug_results[symbol] = {"asset_type": asset_type, "client_results": {}}
-            
-            # Try each client separately
-            for client_name, client in clients.items():
-                try:
-                    price_data = await client.get_current_price(symbol)
-                    if price_data and price_data.get("price") is not None:
-                        debug_results[symbol]["client_results"][client_name] = {
-                            "success": True,
-                            "price": price_data.get("price"),
-                            "data": price_data
-                        }
-                        
-                        # Use the first successful client to update the database
-                        if "successful_client" not in debug_results[symbol]:
-                            update_query = """
-                            UPDATE fx_prices
-                            SET current_price = :price,
-                                price_updated_at = :updated_at,
-                                price_as_of_date = :price_as_of_date,
-                                source = :source,
-                                volume_24h = :volume,
-                                high_24h = :high,
-                                low_24h = :low
-                            WHERE symbol = :symbol
-                            """
-                            
-                            await database.execute(
-                                query=update_query,
-                                values={
-                                    "symbol": symbol,
-                                    "price": price_data.get("price"),
-                                    "updated_at": datetime.now(),
-                                    "price_as_of_date": price_data.get("price_timestamp"),
-                                    "source": client_name,
-                                    "volume": price_data.get("volume"),
-                                    "high": price_data.get("day_high"),
-                                    "low": price_data.get("day_low")
-                                }
-                            )
-                            updated_count += 1
-                            debug_results[symbol]["successful_client"] = client_name
-                            debug_results[symbol]["update_status"] = "success"
-                    else:
-                        debug_results[symbol]["client_results"][client_name] = {
-                            "success": False,
-                            "reason": "No price data returned or price is None"
-                        }
-                except Exception as e:
-                    debug_results[symbol]["client_results"][client_name] = {
-                        "success": False,
-                        "error": str(e)
-                    }
-            
-            # If no client succeeded, add to failed symbols
-            if "successful_client" not in debug_results[symbol]:
-                failed_symbols.append(symbol)
-                debug_results[symbol]["update_status"] = "failed"
-        
-        return {
-            "message": "FX prices debug update completed",
-            "total_assets": len(assets),
-            "updated_count": updated_count,
-            "failed_count": len(failed_symbols),
-            "failed_symbols": failed_symbols,
-            "debug_results": debug_results
-        }
-            
+        updater = PriceUpdaterV2()
+        result = await updater.update_security_prices()
+        return {"message": "Price update completed successfully", "details": result}
     except Exception as e:
-        logger.error(f"Error in FX debug update: {str(e)}")
-        import traceback
-        tb = traceback.format_exc()
-        
-        return {
-            "status": "error",
-            "message": str(e),
-            "traceback": tb
-        }
+        logger.error(f"Failed to update prices: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
+            detail=f"Failed to update prices: {str(e)}"
+        )
 
-@app.post("/fx/update-single/{symbol}")
-async def update_single_fx_with_existing_components(
-    symbol: str,
+@app.post("/market/update-metrics")
+async def trigger_metrics_update(current_user: dict = Depends(get_current_user)):
+    """Update company metrics for all securities"""
+    try:
+        updater = PriceUpdaterV2()
+        result = await updater.update_company_metrics()
+        return {"message": "Metrics update completed successfully", "details": result}
+    except Exception as e:
+        logger.error(f"Failed to update metrics: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
+            detail=f"Failed to update metrics: {str(e)}"
+        )
+
+@app.post("/market/update-history")
+async def trigger_history_update(days: int = 30, current_user: dict = Depends(get_current_user)):
+    """Update historical prices for all securities"""
+    try:
+        updater = PriceUpdaterV2()
+        result = await updater.update_historical_prices(days=days)
+        return {"message": "Historical price update completed successfully", "details": result}
+    except Exception as e:
+        logger.error(f"Failed to update historical prices: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
+            detail=f"Failed to update historical prices: {str(e)}"
+        )
+
+# ----- POSITION MANAGEMENT  -----
+# INCLUDES POSTIONS, CASH, METALS, CRYPTO, REAL ESTATE
+# Security positions
+@app.get("/positions/{account_id}")
+async def get_positions(account_id: int, current_user: dict = Depends(get_current_user)):
+    try:
+        # Check if the account belongs to the user
+        account_query = accounts.select().where(
+            (accounts.c.id == account_id) & 
+            (accounts.c.user_id == current_user["id"])
+        )
+        account = await database.fetch_one(account_query)
+        
+        if not account:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Account not found or access denied")
+        
+        # Get positions for the account
+        positions_query = positions.select().where(positions.c.account_id == account_id)
+        result = await database.fetch_all(positions_query)
+        
+        positions_list = []
+        for row in result:
+            # Calculate value
+            value = row["shares"] * row["price"]
+            
+            position_data = {
+                "id": row["id"],
+                "account_id": row["account_id"],
+                "ticker": row["ticker"],
+                "shares": row["shares"],
+                "price": row["price"],
+                "value": value,
+                "date": row["date"].isoformat() if row["date"] else None
+            }
+            
+            # Add cost_basis and purchase_date if they exist
+            if "cost_basis" in row and row["cost_basis"] is not None:
+                position_data["cost_basis"] = row["cost_basis"]
+            
+            if "purchase_date" in row and row["purchase_date"] is not None:
+                position_data["purchase_date"] = row["purchase_date"].isoformat()
+                
+            positions_list.append(position_data)
+        
+        return {"positions": positions_list}
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Failed to fetch positions: {str(e)}")
+
+@app.post("/positions/{account_id}", status_code=status.HTTP_201_CREATED)
+async def add_position(
+    account_id: int, 
+    position: PositionCreate, 
     current_user: dict = Depends(get_current_user)
 ):
-    """Update a single FX asset price using existing components"""
     try:
-        # Check if asset exists
-        existing = await database.fetch_one(
-            "SELECT symbol, active FROM fx_prices WHERE symbol = :symbol",
-            {"symbol": symbol}
+        # Check if the account belongs to the user
+        account_query = accounts.select().where(
+            (accounts.c.id == account_id) & 
+            (accounts.c.user_id == current_user["id"])
         )
+        account = await database.fetch_one(account_query)
         
-        if not existing:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Asset with symbol '{symbol}' not found"
-            )
+        if not account:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Account not found or access denied")
         
-        if not existing["active"]:
-            return {
-                "message": f"Asset {symbol} is inactive",
-                "updated": False
-            }
-        
-        # Initialize MarketDataManager
-        market_data = MarketDataManager()
-        
-        # Get price data for this symbol
-        price_data = await market_data.get_current_price(symbol)
-        
-        # Check if we got data
-        if not price_data:
-            return {
-                "message": f"Could not retrieve price data for {symbol}",
-                "updated": False
-            }
-            
-        # Update database
-        update_query = """
-        UPDATE fx_prices
-        SET current_price = :price,
-            price_updated_at = :updated_at,
-            price_as_of_date = :price_as_of_date,
-            source = :source,
-            volume_24h = :volume,
-            high_24h = :high,
-            low_24h = :low,
-            metadata = jsonb_set(
-                COALESCE(metadata, '{}'::jsonb), 
-                '{last_update}', 
-                to_jsonb(:metadata::text)
-            )
-        WHERE symbol = :symbol
-        """
-        
-        await database.execute(
-            query=update_query,
-            values={
-                "symbol": symbol,
-                "price": price_data.get("price"),
-                "updated_at": datetime.now(),
-                "price_as_of_date": price_data.get("price_timestamp"),
-                "source": price_data.get("source", "market_data_manager"),
-                "volume": price_data.get("volume"),
-                "high": price_data.get("day_high"),
-                "low": price_data.get("day_low"),
-                "metadata": json.dumps({
-                    "timestamp": datetime.now().isoformat(),
-                    "price_timestamp": price_data.get("price_timestamp_str") if "price_timestamp_str" in price_data else None
-                })
-            }
+        # Add position
+        query = positions.insert().values(
+            account_id=account_id,
+            ticker=position.ticker.upper(),
+            shares=position.shares,
+            price=position.price,
+            cost_basis=position.cost_basis,
+            purchase_date=datetime.strptime(position.purchase_date, "%Y-%m-%d").date(),
+            date=datetime.utcnow()
         )
+        position_id = await database.execute(query)
+        
+        # Update account balance
+        position_value = position.shares * position.price
+        update_query = accounts.update().where(
+            accounts.c.id == account_id
+        ).values(
+            balance=account["balance"] + position_value,
+            updated_at=datetime.utcnow()
+        )
+        await database.execute(update_query)
         
         return {
-            "message": f"Successfully updated price for {symbol} using existing components",
-            "updated": True,
-            "current_price": price_data.get("price"),
-            "price_updated_at": datetime.now().isoformat(),
-            "source": price_data.get("source", "market_data_manager")
+            "message": "Position added successfully", 
+            "position_id": position_id,
+            "position_value": position_value
         }
-            
     except Exception as e:
-        logger.error(f"Error updating FX price for {symbol}: {str(e)}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Server error: {str(e)}")
+
+@app.put("/positions/{position_id}")
+async def update_position(position_id: int, position: PositionCreate, current_user: dict = Depends(get_current_user)):
+    try:
+        # Get position and check if it belongs to the user
+        position_query = select([positions, accounts.c.user_id, accounts.c.id.label("account_id")]).select_from(
+            positions.join(accounts, positions.c.account_id == accounts.c.id)
+        ).where(positions.c.id == position_id)
+        
+        position_data = await database.fetch_one(position_query)
+        
+        if not position_data or position_data["user_id"] != current_user["id"]:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Position not found or access denied")
+        
+        # Calculate old and new values for account balance
+        old_value = position_data["shares"] * position_data["price"]
+        new_value = position.shares * position.price
+        value_difference = new_value - old_value
+        
+        # Update position
+        update_query = positions.update().where(
+            positions.c.id == position_id
+        ).values(
+            ticker=position.ticker.upper(),
+            shares=position.shares,
+            price=position.price,
+            cost_basis=position.cost_basis,
+            purchase_date=datetime.strptime(position.purchase_date, "%Y-%m-%d").date(),
+            date=datetime.utcnow()
+        )
+        await database.execute(update_query)
+        
+        # Update account balance
+        account_id = position_data["account_id"]
+        account_query = accounts.select().where(accounts.c.id == account_id)
+        account = await database.fetch_one(account_query)
+        
+        update_account_query = accounts.update().where(
+            accounts.c.id == account_id
+        ).values(
+            balance=account["balance"] + value_difference,
+            updated_at=datetime.utcnow()
+        )
+        await database.execute(update_account_query)
+        
+        return {"message": "Position updated successfully"}
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Server error: {str(e)}")
+
+@app.delete("/positions/{position_id}")
+async def delete_position(position_id: int, current_user: dict = Depends(get_current_user)):
+    try:
+        # Get position and check if it belongs to the user
+        position_query = select([positions, accounts.c.user_id, accounts.c.id.label("account_id")]).select_from(
+            positions.join(accounts, positions.c.account_id == accounts.c.id)
+        ).where(positions.c.id == position_id)
+        
+        position_data = await database.fetch_one(position_query)
+        
+        if not position_data or position_data["user_id"] != current_user["id"]:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Position not found or access denied")
+        
+        # Calculate value for account balance adjustment
+        position_value = position_data["shares"] * position_data["price"]
+        
+        # Delete position
+        delete_query = positions.delete().where(positions.c.id == position_id)
+        await database.execute(delete_query)
+        
+        # Update account balance
+        account_id = position_data["account_id"]
+        account_query = accounts.select().where(accounts.c.id == account_id)
+        account = await database.fetch_one(account_query)
+        
+        update_account_query = accounts.update().where(
+            accounts.c.id == account_id
+        ).values(
+            balance=account["balance"] - position_value,
+            updated_at=datetime.utcnow()
+        )
+        await database.execute(update_account_query)
+        
+        return {"message": "Position deleted successfully"}
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Server error: {str(e)}")
+
+# Cash positions
+@app.get("/cash/{account_id}")
+async def get_cash_positions(account_id: int, current_user: dict = Depends(get_current_user)):
+    try:
+        # Check if the account belongs to the user
+        account_query = accounts.select().where(
+            (accounts.c.id == account_id) & 
+            (accounts.c.user_id == current_user["id"])
+        )
+        account = await database.fetch_one(account_query)
+        
+        if not account:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Account not found or access denied")
+        
+        # Get cash positions for the account
+        query = """
+        SELECT * FROM cash_positions 
+        WHERE account_id = :account_id
+        ORDER BY name ASC
+        """
+        result = await database.fetch_all(query=query, values={"account_id": account_id})
+        
+        cash_positions = []
+        for row in dict(row):
+            position = dict(row)
+            
+            # Calculate interest metrics
+            amount = float(position.get("amount", 0))
+            interest_rate = float(position.get("interest_rate") or 0)
+            annual_interest = amount * interest_rate
+            monthly_interest = annual_interest / 12
+            
+            position["annual_interest"] = annual_interest
+            position["monthly_interest"] = monthly_interest
+            
+            # Format dates as ISO strings
+            if "maturity_date" in position and position["maturity_date"]:
+                position["maturity_date"] = position["maturity_date"].isoformat()
+            if "created_at" in position and position["created_at"]:
+                position["created_at"] = position["created_at"].isoformat()
+            if "updated_at" in position and position["updated_at"]:
+                position["updated_at"] = position["updated_at"].isoformat()
+                
+            cash_positions.append(position)
+            
+        return {"cash_positions": cash_positions}
+    except Exception as e:
+        logger.error(f"Error fetching cash positions: {str(e)}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Failed to fetch cash positions: {str(e)}")
+
+@app.post("/cash/{account_id}", status_code=status.HTTP_201_CREATED)
+async def add_cash_position(account_id: int, position: CashPositionCreate, current_user: dict = Depends(get_current_user)):
+    try:
+        # Check if the account belongs to the user
+        account_query = accounts.select().where(
+            (accounts.c.id == account_id) & 
+            (accounts.c.user_id == current_user["id"])
+        )
+        account = await database.fetch_one(account_query)
+        
+        if not account:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Account not found or access denied")
+        
+        # Add cash position
+        query = """
+        INSERT INTO cash_positions (
+            account_id, cash_type, name, amount, interest_rate, interest_period, 
+            maturity_date, notes
+        ) VALUES (
+            :account_id, :cash_type, :name, :amount, :interest_rate, :interest_period,
+            :maturity_date, :notes
+        ) RETURNING id
+        """
+        values = {
+            "account_id": account_id,
+            "cash_type": position.cash_type,
+            "name": position.name,
+            "amount": position.amount,
+            "interest_rate": position.interest_rate,
+            "interest_period": position.interest_period,
+            "maturity_date": datetime.strptime(position.maturity_date, "%Y-%m-%d").date() if position.maturity_date else None,
+            "notes": position.notes
+        }
+        
+        result = await database.fetch_one(query=query, values=values)
+        position_id = result["id"]
+        
+        # Update account balance if needed
+        update_query = accounts.update().where(
+            accounts.c.id == account_id
+        ).values(
+            balance=account["balance"] + position.amount,
+            updated_at=datetime.utcnow()
+        )
+        await database.execute(update_query)
+        
+        return {
+            "message": "Cash position added successfully",
+            "position_id": position_id,
+            "position_value": position.amount
+        }
+    except Exception as e:
+        logger.error(f"Error adding cash position: {str(e)}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Failed to add cash position: {str(e)}")
+
+@app.put("/cash/{position_id}")
+async def update_cash_position(position_id: int, position: CashPositionUpdate, current_user: dict = Depends(get_current_user)):
+    try:
+        # Get position and check if it belongs to the user
+        check_query = """
+        SELECT cp.*, a.user_id, a.balance, a.id as account_id
+        FROM cash_positions cp
+        JOIN accounts a ON cp.account_id = a.id
+        WHERE cp.id = :position_id
+        """
+        position_data = await database.fetch_one(query=check_query, values={"position_id": position_id})
+        
+        if not position_data or position_data["user_id"] != current_user["id"]:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Position not found or access denied")
+        
+        # Calculate old and new values for account balance update
+        old_value = position_data["amount"]
+        new_value = position.amount if position.amount is not None else old_value
+        value_difference = new_value - old_value
+        
+        # Build update dictionary with only provided fields
+        update_values = {}
+        for key, value in position.dict(exclude_unset=True).items():
+            if key == 'maturity_date' and value is not None:
+                update_values[key] = datetime.strptime(value, "%Y-%m-%d").date()
+            else:
+                update_values[key] = value
+        
+        # Only update if there are values to update
+        if update_values:
+            # Construct dynamic query with only the fields that need updating
+            set_clause = ", ".join([f"{key} = :{key}" for key in update_values.keys()])
+            query = f"""
+            UPDATE cash_positions 
+            SET {set_clause}, updated_at = :updated_at
+            WHERE id = :position_id
+            RETURNING id
+            """
+            
+            # Add position_id and timestamp to values
+            update_values["position_id"] = position_id
+            update_values["updated_at"] = datetime.utcnow()
+            
+            await database.execute(query=query, values=update_values)
+            
+            # Update account balance if amount changed
+            if value_difference != 0:
+                account_id = position_data["account_id"]
+                account_balance = position_data["balance"]
+                
+                update_account_query = accounts.update().where(
+                    accounts.c.id == account_id
+                ).values(
+                    balance=account_balance + value_difference,
+                    updated_at=datetime.utcnow()
+                )
+                await database.execute(update_account_query)
+        
+        return {"message": "Cash position updated successfully"}
+    except Exception as e:
+        logger.error(f"Error updating cash position: {str(e)}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Failed to update cash position: {str(e)}")
+
+@app.delete("/cash/{position_id}")
+async def delete_cash_position(position_id: int, current_user: dict = Depends(get_current_user)):
+    try:
+        # Get position and check if it belongs to the user
+        check_query = """
+        SELECT cp.*, a.user_id, a.balance, a.id as account_id
+        FROM cash_positions cp
+        JOIN accounts a ON cp.account_id = a.id
+        WHERE cp.id = :position_id
+        """
+        position_data = await database.fetch_one(query=check_query, values={"position_id": position_id})
+        
+        if not position_data or position_data["user_id"] != current_user["id"]:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Position not found or access denied")
+        
+        # Calculate value for account balance adjustment
+        position_value = position_data["amount"]
+        
+        # Delete the position
+        delete_query = """
+        DELETE FROM cash_positions WHERE id = :position_id
+        """
+        await database.execute(query=delete_query, values={"position_id": position_id})
+        
+        # Update account balance
+        account_id = position_data["account_id"]
+        account_balance = position_data["balance"]
+        
+        update_account_query = accounts.update().where(
+            accounts.c.id == account_id
+        ).values(
+            balance=account_balance - position_value,
+            updated_at=datetime.utcnow()
+        )
+        await database.execute(update_account_query)
+        
+        return {"message": "Cash position deleted successfully"}
+    except Exception as e:
+        logger.error(f"Error deleting cash position: {str(e)}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Failed to delete cash position: {str(e)}")
+
+@app.get("/cash/all/detailed", response_model=CashPositionsDetailedResponse)
+async def get_all_detailed_cash_positions(current_user: dict = Depends(get_current_user)):
+    try:
+        user_id = current_user["id"]
+        logger.info(f"Fetching all detailed cash positions for user_id: {user_id}")
+
+        query = """
+        SELECT cp.*, a.account_name 
+        FROM cash_positions cp
+        JOIN accounts a ON cp.account_id = a.id
+        WHERE a.user_id = :user_id
+        ORDER BY a.account_name, cp.name
+        """
+        results = await database.fetch_all(query=query, values={"user_id": user_id})
+
+        cash_positions_list = []
+        for row in results:
+            row_dict = dict(row)
+            
+            # Calculate interest values
+            amount = float(row_dict.get("amount") or 0)
+            interest_rate = float(row_dict.get("interest_rate") or 0)
+            annual_interest = amount * interest_rate
+            monthly_interest = annual_interest / 12
+            
+            cash_positions_list.append(CashPositionDetail(
+                id=row_dict["id"],
+                account_id=row_dict["account_id"],
+                cash_type=row_dict["cash_type"],
+                name=row_dict["name"],
+                amount=amount,
+                interest_rate=interest_rate,
+                interest_period=row_dict.get("interest_period"),
+                maturity_date=row_dict.get("maturity_date"),
+                notes=row_dict.get("notes"),
+                created_at=row_dict.get("created_at"),
+                updated_at=row_dict.get("updated_at"),
+                account_name=row_dict["account_name"],
+                monthly_interest=monthly_interest,
+                annual_interest=annual_interest
+            ))
+
+        logger.info(f"Returning {len(cash_positions_list)} detailed cash positions for user_id: {user_id}")
+        return CashPositionsDetailedResponse(cash_positions=cash_positions_list)
+
+    except Exception as e:
+        logger.error(f"Error in get_all_detailed_cash_positions for user {user_id}: {str(e)}")
+        import traceback
+        logger.error(traceback.format_exc())
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to update FX price: {str(e)}"
+            detail=f"Failed to fetch detailed cash positions: {str(e)}"
         )
 
-@app.get("/debug/test-yahoo-finance-client")
-async def test_yahoo_finance_client(ticker: str = "MKTX", current_user: dict = Depends(get_current_user)):
-    """
-    Test the unified YahooFinanceClient with proper session handling
-    """
+# ----- Cryptocurrency Endpoints -----
+@app.get("/crypto/{account_id}")
+async def get_crypto_positions(account_id: int, current_user: dict = Depends(get_current_user)):
+    """Get all cryptocurrency positions for a specific account"""
     try:
-        import time
-        from backend.api_clients.yahoo_finance_client import YahooFinanceClient
+        # Check if the account belongs to the user
+        account_query = accounts.select().where(
+            (accounts.c.id == account_id) & 
+            (accounts.c.user_id == current_user["id"])
+        )
+        account = await database.fetch_one(account_query)
         
-        results = {
-            "timestamp": datetime.utcnow().isoformat(),
-            "ticker": ticker,
-            "tests": {}
-        }
+        if not account:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Account not found or access denied")
         
-        # Create client
-        client = YahooFinanceClient()
+        # Get crypto positions for the account
+        query = """
+        SELECT * FROM crypto_positions 
+        WHERE account_id = :account_id
+        ORDER BY coin_type ASC
+        """
+        result = await database.fetch_all(query=query, values={"account_id": account_id})
         
-        try:
-            # Test 1: Get current price
-            try:
-                start_time = time.time()
-                price_data = await client.get_current_price(ticker)
-                elapsed = time.time() - start_time
-                
-                results["tests"]["current_price"] = {
-                    "status": "success" if price_data else "failed",
-                    "elapsed_seconds": round(elapsed, 4),
-                    "data": price_data
-                }
-            except Exception as e:
-                results["tests"]["current_price"] = {
-                    "status": "error",
-                    "error": str(e)
-                }
+        crypto_positions = [dict(row) for row in result]
+        
+        # Calculate additional values for frontend display
+        for position in crypto_positions:
+            position["total_value"] = position["quantity"] * position["current_price"]
+            position["gain_loss"] = position["total_value"] - (position["quantity"] * position["purchase_price"])
+            position["gain_loss_percent"] = ((position["current_price"] / position["purchase_price"]) - 1) * 100 if position["purchase_price"] > 0 else 0
             
-            # Test 2: Get company metrics
-            try:
-                start_time = time.time()
-                metrics = await client.get_company_metrics(ticker)
-                elapsed = time.time() - start_time
+            # Convert tags from array to list if needed
+            if position.get("tags") and isinstance(position["tags"], str):
+                position["tags"] = eval(position["tags"])  # Safely convert string representation to list
                 
-                results["tests"]["company_metrics"] = {
-                    "status": "success" if metrics and not metrics.get("not_found") else "failed",
-                    "elapsed_seconds": round(elapsed, 4),
-                    "data": metrics
-                }
-            except Exception as e:
-                results["tests"]["company_metrics"] = {
-                    "status": "error",
-                    "error": str(e)
-                }
-            
-            # Test 3: Get historical prices (last 30 days)
-            try:
-                start_time = time.time()
-                start_date = datetime.now() - timedelta(days=30)
-                end_date = datetime.now()
+            # Format dates as ISO strings
+            if "purchase_date" in position and position["purchase_date"]:
+                position["purchase_date"] = position["purchase_date"].isoformat() if hasattr(position["purchase_date"], "isoformat") else position["purchase_date"]
+            if "created_at" in position and position["created_at"]:
+                position["created_at"] = position["created_at"].isoformat() if hasattr(position["created_at"], "isoformat") else position["created_at"]
+            if "updated_at" in position and position["updated_at"]:
+                position["updated_at"] = position["updated_at"].isoformat() if hasattr(position["updated_at"], "isoformat") else position["updated_at"]
                 
-                history = await client.get_historical_prices(ticker, start_date, end_date)
-                elapsed = time.time() - start_time
-                
-                results["tests"]["historical_prices"] = {
-                    "status": "success" if history else "failed",
-                    "elapsed_seconds": round(elapsed, 4),
-                    "data_points_count": len(history),
-                    "first_point": history[0] if history else None,
-                    "last_point": history[-1] if history else None
-                }
-            except Exception as e:
-                results["tests"]["historical_prices"] = {
-                    "status": "error",
-                    "error": str(e)
-                }
-                
-            # Test 4: Get batch prices
-            try:
-                start_time = time.time()
-                batch_tickers = [ticker, "AAPL", "MSFT"]
-                
-                batch_data = await client.get_batch_prices(batch_tickers)
-                elapsed = time.time() - start_time
-                
-                results["tests"]["batch_prices"] = {
-                    "status": "success" if batch_data else "failed",
-                    "elapsed_seconds": round(elapsed, 4),
-                    "tickers_returned": list(batch_data.keys()) if batch_data else [],
-                    "data": {ticker: batch_data.get(ticker)} if batch_data and ticker in batch_data else None
-                }
-            except Exception as e:
-                results["tests"]["batch_prices"] = {
-                    "status": "error",
-                    "error": str(e)
-                }
-        finally:
-            # Always close the client
-            try:
-                await client.close()
-                results["client_close"] = "Success"
-            except Exception as close_error:
-                results["client_close"] = f"Error: {str(close_error)}"
-        
-        # Calculate success rate
-        success_count = sum(1 for test_result in results["tests"].values() 
-                           if test_result.get("status") == "success")
-        test_count = len(results["tests"])
-        results["summary"] = {
-            "tests_run": test_count,
-            "tests_passed": success_count,
-            "success_rate": f"{(success_count/test_count)*100:.1f}%" if test_count > 0 else "0%"
-        }
-        
-        return results
+        return {"crypto_positions": crypto_positions}
     except Exception as e:
-        logger.error(f"Error in Yahoo Finance client test: {str(e)}")
-        return {
-            "status": "error",
-            "error": str(e)
+        logger.error(f"Error fetching crypto positions: {str(e)}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Failed to fetch crypto positions: {str(e)}")
+
+@app.post("/crypto/{account_id}", status_code=status.HTTP_201_CREATED)
+async def add_crypto_position(account_id: int, position: CryptoPositionCreate, current_user: dict = Depends(get_current_user)):
+    """Add a new cryptocurrency position to an account"""
+    try:
+        # Check if the account belongs to the user
+        account_query = accounts.select().where(
+            (accounts.c.id == account_id) & 
+            (accounts.c.user_id == current_user["id"])
+        )
+        account = await database.fetch_one(account_query)
+        
+        if not account:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Account not found or access denied")
+        
+        # Prepare tags for storage
+        tags_value = position.tags if position.tags else []
+        
+        # Add crypto position
+        query = """
+        INSERT INTO crypto_positions (
+            account_id, coin_type, coin_symbol, quantity, purchase_price, purchase_date, storage_type, notes, tags, is_favorite
+        ) VALUES (
+            :account_id, :coin_type, :coin_symbol, :quantity, :purchase_price,
+            :purchase_date, :storage_type, :notes, :tags, :is_favorite
+        ) RETURNING id
+        """
+        values = {
+            "account_id": account_id,
+            "coin_type": position.coin_type,
+            "coin_symbol": position.coin_symbol,
+            "quantity": position.quantity,
+            "purchase_price": position.purchase_price,
+            "purchase_date": datetime.strptime(position.purchase_date, "%Y-%m-%d").date() if position.purchase_date else None,
+            "storage_type": position.storage_type,
+            "notes": position.notes,
+            "tags": tags_value,
+            "is_favorite": position.is_favorite
         }
+        
+        result = await database.fetch_one(query=query, values=values)
+        position_id = result["id"]
+        
+        # Update account balance (optional, if you track balances per account)
+        position_value = position.quantity * position.current_price
+        update_query = accounts.update().where(
+            accounts.c.id == account_id
+        ).values(
+            balance=account["balance"] + position_value,
+            updated_at=datetime.utcnow()
+        )
+        await database.execute(update_query)
+        
+        return {
+            "message": "Crypto position added successfully",
+            "position_id": position_id,
+            "position_value": position_value
+        }
+    except Exception as e:
+        logger.error(f"Error adding crypto position: {str(e)}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Failed to add crypto position: {str(e)}")
+
+@app.put("/crypto/{position_id}")
+async def update_crypto_position(position_id: int, position: CryptoPositionUpdate, current_user: dict = Depends(get_current_user)):
+    """Update an existing cryptocurrency position"""
+    try:
+        # Get position and check if it belongs to the user
+        check_query = """
+        SELECT cp.*, a.user_id, a.balance, a.id as account_id
+        FROM crypto_positions cp
+        JOIN accounts a ON cp.account_id = a.id
+        WHERE cp.id = :position_id
+        """
+        position_data = await database.fetch_one(query=check_query, values={"position_id": position_id})
+        
+        if not position_data or position_data["user_id"] != current_user["id"]:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Position not found or access denied")
+        
+        # Calculate old and new values for account balance update
+        old_value = position_data["quantity"] * position_data["current_price"]
+        new_value = (position.quantity or position_data["quantity"]) * (position.current_price or position_data["current_price"])
+        value_difference = new_value - old_value
+        
+        # Build update dictionary with only provided fields
+        update_values = {}
+        for key, value in position.dict(exclude_unset=True).items():
+            if key == 'purchase_date' and value is not None:
+                update_values[key] = datetime.strptime(value, "%Y-%m-%d").date()
+            elif key == 'tags' and value is not None:
+                update_values[key] = value  # Store as array
+            else:
+                update_values[key] = value
+        
+        # Only update if there are values to update
+        if update_values:
+            # Construct dynamic query with only the fields that need updating
+            set_clause = ", ".join([f"{key} = :{key}" for key in update_values.keys()])
+            query = f"""
+            UPDATE crypto_positions 
+            SET {set_clause} 
+            WHERE id = :position_id
+            RETURNING id
+            """
+            
+            # Add position_id to values
+            update_values["position_id"] = position_id
+            
+            await database.execute(query=query, values=update_values)
+            
+            # Update account balance (optional)
+            if value_difference != 0:
+                account_id = position_data["account_id"]
+                account_balance = position_data["balance"]
+                
+                update_account_query = accounts.update().where(
+                    accounts.c.id == account_id
+                ).values(
+                    balance=account_balance + value_difference,
+                    updated_at=datetime.utcnow()
+                )
+                await database.execute(update_account_query)
+        
+        return {"message": "Crypto position updated successfully"}
+    except Exception as e:
+        logger.error(f"Error updating crypto position: {str(e)}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Failed to update crypto position: {str(e)}")
+
+@app.delete("/crypto/{position_id}")
+async def delete_crypto_position(position_id: int, current_user: dict = Depends(get_current_user)):
+    """Delete a cryptocurrency position"""
+    try:
+        # Get position and check if it belongs to the user
+        check_query = """
+        SELECT cp.*, a.user_id, a.balance, a.id as account_id
+        FROM crypto_positions cp
+        JOIN accounts a ON cp.account_id = a.id
+        WHERE cp.id = :position_id
+        """
+        position_data = await database.fetch_one(query=check_query, values={"position_id": position_id})
+        
+        if not position_data or position_data["user_id"] != current_user["id"]:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Position not found or access denied")
+        
+        # Calculate value for account balance adjustment
+        position_value = position_data["quantity"] * position_data["current_price"]
+        
+        # Delete the position
+        delete_query = """
+        DELETE FROM crypto_positions WHERE id = :position_id
+        """
+        await database.execute(query=delete_query, values={"position_id": position_id})
+        
+        # Update account balance (optional)
+        account_id = position_data["account_id"]
+        account_balance = position_data["balance"]
+        
+        update_account_query = accounts.update().where(
+            accounts.c.id == account_id
+        ).values(
+            balance=account_balance - position_value,
+            updated_at=datetime.utcnow()
+        )
+        await database.execute(update_account_query)
+        
+        return {"message": "Crypto position deleted successfully"}
+    except Exception as e:
+        logger.error(f"Error deleting crypto position: {str(e)}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Failed to delete crypto position: {str(e)}")
+
+# ----- Precious Metals Endpoints -----
+@app.get("/metals/{account_id}")
+async def get_metal_positions(account_id: int, current_user: dict = Depends(get_current_user)):
+    """Get all precious metal positions for a specific account"""
+    try:
+        # Check if the account belongs to the user
+        account_query = accounts.select().where(
+            (accounts.c.id == account_id) & 
+            (accounts.c.user_id == current_user["id"])
+        )
+        account = await database.fetch_one(account_query)
+        
+        if not account:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Account not found or access denied")
+        
+        # Get metal positions for the account
+        query = """
+        SELECT * FROM metal_positions 
+        WHERE account_id = :account_id
+        ORDER BY metal_type ASC
+        """
+        result = await database.fetch_all(query=query, values={"account_id": account_id})
+        
+        metal_positions = [dict(row) for row in result]
+        
+        # Calculate additional values and format dates
+        for position in metal_positions:
+            # Use the cost_basis if provided, otherwise use purchase_price
+            cost_basis = position.get("cost_basis") or position["purchase_price"]
+            
+            # Calculate value based on current price (would need to be fetched from metals price table)
+            # For now, using purchase price as placeholder
+            current_price = position["purchase_price"]  # Replace with actual current price
+            
+            position["value"] = position["quantity"] * current_price
+            position["gain_loss"] = position["value"] - (position["quantity"] * cost_basis)
+            position["gain_loss_percent"] = ((current_price / cost_basis) - 1) * 100 if cost_basis > 0 else 0
+            
+            # Format dates as ISO strings
+            if "purchase_date" in position and position["purchase_date"]:
+                position["purchase_date"] = position["purchase_date"].isoformat() if hasattr(position["purchase_date"], "isoformat") else position["purchase_date"]
+            if "created_at" in position and position["created_at"]:
+                position["created_at"] = position["created_at"].isoformat() if hasattr(position["created_at"], "isoformat") else position["created_at"]
+            if "updated_at" in position and position["updated_at"]:
+                position["updated_at"] = position["updated_at"].isoformat() if hasattr(position["updated_at"], "isoformat") else position["updated_at"]
+                
+        return {"metal_positions": metal_positions}
+    except Exception as e:
+        logger.error(f"Error fetching metal positions: {str(e)}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Failed to fetch metal positions: {str(e)}")
+
+@app.post("/metals/{account_id}", status_code=status.HTTP_201_CREATED)
+async def add_metal_position(account_id: int, position: MetalPositionCreate, current_user: dict = Depends(get_current_user)):
+    """Add a new precious metal position to an account"""
+    try:
+        # Check if the account belongs to the user
+        account_query = accounts.select().where(
+            (accounts.c.id == account_id) & 
+            (accounts.c.user_id == current_user["id"])
+        )
+        account = await database.fetch_one(account_query)
+        
+        if not account:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Account not found or access denied")
+        
+        # Use the provided cost_basis or default to purchase_price
+        cost_basis = position.cost_basis if position.cost_basis is not None else position.purchase_price
+        
+        # Add metal position
+        query = """
+        INSERT INTO metal_positions (
+            account_id, metal_type, quantity, unit, purity, purchase_price, 
+            cost_basis, purchase_date, storage_location, description
+        ) VALUES (
+            :account_id, :metal_type, :quantity, :unit, :purity, :purchase_price,
+            :cost_basis, :purchase_date, :storage_location, :description
+        ) RETURNING id
+        """
+        values = {
+            "account_id": account_id,
+            "metal_type": position.metal_type,
+            "quantity": position.quantity,
+            "unit": position.unit,
+            "purity": position.purity,
+            "purchase_price": position.purchase_price,
+            "cost_basis": cost_basis,
+            "purchase_date": datetime.strptime(position.purchase_date, "%Y-%m-%d").date() if position.purchase_date else None,
+            "storage_location": position.storage_location,
+            "description": position.description
+        }
+        
+        result = await database.fetch_one(query=query, values=values)
+        position_id = result["id"]
+        
+        # Calculate position value
+        position_value = position.quantity * position.purchase_price
+        
+        # Update account balance (optional)
+        update_query = accounts.update().where(
+            accounts.c.id == account_id
+        ).values(
+            balance=account["balance"] + position_value,
+            updated_at=datetime.utcnow()
+        )
+        await database.execute(update_query)
+        
+        return {
+            "message": "Metal position added successfully",
+            "position_id": position_id,
+            "position_value": position_value
+        }
+    except Exception as e:
+        logger.error(f"Error adding metal position: {str(e)}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Failed to add metal position: {str(e)}")
+
+@app.put("/metals/{position_id}")
+async def update_metal_position(position_id: int, position: MetalPositionUpdate, current_user: dict = Depends(get_current_user)):
+    """Update an existing precious metal position"""
+    try:
+        # Get position and check if it belongs to the user
+        check_query = """
+        SELECT mp.*, a.user_id, a.balance, a.id as account_id
+        FROM metal_positions mp
+        JOIN accounts a ON mp.account_id = a.id
+        WHERE mp.id = :position_id
+        """
+        position_data = await database.fetch_one(query=check_query, values={"position_id": position_id})
+        
+        if not position_data or position_data["user_id"] != current_user["id"]:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Position not found or access denied")
+        
+        # Calculate old and new values for account balance update
+        old_value = position_data["quantity"] * position_data["purchase_price"]
+        new_purchase_price = position.purchase_price if position.purchase_price is not None else position_data["purchase_price"]
+        new_quantity = position.quantity if position.quantity is not None else position_data["quantity"]
+        new_value = new_quantity * new_purchase_price
+        value_difference = new_value - old_value
+        
+        # Build update dictionary with only provided fields
+        update_values = {}
+        for key, value in position.dict(exclude_unset=True).items():
+            if key == 'purchase_date' and value is not None:
+                update_values[key] = datetime.strptime(value, "%Y-%m-%d").date()
+            else:
+                update_values[key] = value
+        
+        # Only update if there are values to update
+        if update_values:
+            # Construct dynamic query with only the fields that need updating
+            set_clause = ", ".join([f"{key} = :{key}" for key in update_values.keys()])
+            query = f"""
+            UPDATE metal_positions 
+            SET {set_clause} 
+            WHERE id = :position_id
+            RETURNING id
+            """
+            
+            # Add position_id to values
+            update_values["position_id"] = position_id
+            
+            await database.execute(query=query, values=update_values)
+            
+            # Update account balance (optional)
+            if value_difference != 0:
+                account_id = position_data["account_id"]
+                account_balance = position_data["balance"]
+                
+                update_account_query = accounts.update().where(
+                    accounts.c.id == account_id
+                ).values(
+                    balance=account_balance + value_difference,
+                    updated_at=datetime.utcnow()
+                )
+                await database.execute(update_account_query)
+        
+        return {"message": "Metal position updated successfully"}
+    except Exception as e:
+        logger.error(f"Error updating metal position: {str(e)}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Failed to update metal position: {str(e)}")
+
+@app.delete("/metals/{position_id}")
+async def delete_metal_position(position_id: int, current_user: dict = Depends(get_current_user)):
+    """Delete a precious metal position"""
+    try:
+        # Get position and check if it belongs to the user
+        check_query = """
+        SELECT mp.*, a.user_id, a.balance, a.id as account_id
+        FROM metal_positions mp
+        JOIN accounts a ON mp.account_id = a.id
+        WHERE mp.id = :position_id
+        """
+        position_data = await database.fetch_one(query=check_query, values={"position_id": position_id})
+        
+        if not position_data or position_data["user_id"] != current_user["id"]:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Position not found or access denied")
+        
+        # Calculate value for account balance adjustment
+        position_value = position_data["quantity"] * position_data["purchase_price"]
+        
+        # Delete the position
+        delete_query = """
+        DELETE FROM metal_positions WHERE id = :position_id
+        """
+        await database.execute(query=delete_query, values={"position_id": position_id})
+        
+        # Update account balance (optional)
+        account_id = position_data["account_id"]
+        account_balance = position_data["balance"]
+        
+        update_account_query = accounts.update().where(
+            accounts.c.id == account_id
+        ).values(
+            balance=account_balance - position_value,
+            updated_at=datetime.utcnow()
+        )
+        await database.execute(update_account_query)
+        
+        return {"message": "Metal position deleted successfully"}
+    except Exception as e:
+        logger.error(f"Error deleting metal position: {str(e)}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Failed to delete metal position: {str(e)}")
 
 
-@app.get("/debug/compare-yahoo-clients")
-async def compare_yahoo_clients(ticker: str = "MKTX", current_user: dict = Depends(get_current_user)):
-    """
-    Compare results from all three Yahoo Finance clients and the new unified client
-    """
+
+
+
+
+
+
+# ----- Potentially Delete -----
+
+
+
+
+
+
+@app.get("/portfolio/history")
+async def get_portfolio_history(period: str = "1m", current_user: dict = Depends(get_current_user)):
+    """Get historical portfolio value data"""
     try:
-        import time
-        from backend.api_clients.direct_yahoo_client import DirectYahooFinanceClient
-        from backend.api_clients.yahooquery_client import YahooQueryClient
-        from backend.api_clients.yahoo_data import Yahoo_Data
-        from backend.api_clients.yahoo_finance_client import YahooFinanceClient
+        # Calculate date range based on period
+        end_date = datetime.now().date()
         
-        results = {
-            "timestamp": datetime.utcnow().isoformat(),
-            "ticker": ticker,
-            "client_results": {}
-        }
+        if period == "1w":
+            start_date = end_date - timedelta(days=7)
+        elif period == "1m":
+            start_date = end_date - timedelta(days=30)
+        elif period == "6m":
+            start_date = end_date - timedelta(days=180)
+        elif period == "ytd":
+            start_date = datetime(end_date.year, 1, 1).date()
+        elif period == "1y":
+            start_date = end_date - timedelta(days=365)
+        elif period == "5y":
+            start_date = end_date - timedelta(days=365*5)
+        elif period == "max":
+            start_date = datetime(2000, 1, 1).date()  # Arbitrary old date
+        else:
+            # Default to 1 month
+            start_date = end_date - timedelta(days=30)
         
-        # Test with unified client
-        client = None
-        try:
-            client = YahooFinanceClient()
-            start_time = time.time()
-            ticker_data = await client.get_current_price(ticker)
-            elapsed = time.time() - start_time
-            
-            results["client_results"]["unified_client"] = {
-                "status": "success" if ticker_data else "failed",
-                "elapsed_seconds": round(elapsed, 4),
-                "data": ticker_data
-            }
-        except Exception as e:
-            results["client_results"]["unified_client"] = {
-                "status": "error",
-                "error": str(e)
-            }
-        finally:
-            if client is not None:
-                try:
-                    await client.close()
-                except Exception:
-                    pass
+        # Fetch portfolio history
+        query = """
+        SELECT 
+            date,
+            value
+        FROM portfolio_history
+        WHERE user_id = :user_id AND date BETWEEN :start_date AND :end_date
+        ORDER BY date ASC
+        """
         
-        # Test with direct client
-        client = None
-        try:
-            client = DirectYahooFinanceClient()
-            start_time = time.time()
-            ticker_data = await client.get_current_price(ticker)
-            elapsed = time.time() - start_time
-            
-            results["client_results"]["direct_client"] = {
-                "status": "success" if ticker_data else "failed",
-                "elapsed_seconds": round(elapsed, 4),
-                "data": ticker_data
+        history = await database.fetch_all(
+            query, 
+            {
+                "user_id": current_user["id"],
+                "start_date": start_date,
+                "end_date": end_date
             }
-        except Exception as e:
-            results["client_results"]["direct_client"] = {
-                "status": "error",
-                "error": str(e)
-            }
-        finally:
-            if client and hasattr(client, "close"):
-                try:
-                    await client.close()
-                except Exception:
-                    pass
-                
-        # Test with yahooquery client
-        client = None
-        try:
-            client = YahooQueryClient()
-            start_time = time.time()
-            ticker_data = await client.get_current_price(ticker)
-            elapsed = time.time() - start_time
-            
-            results["client_results"]["yahooquery_client"] = {
-                "status": "success" if ticker_data else "failed",
-                "elapsed_seconds": round(elapsed, 4),
-                "data": ticker_data
-            }
-        except Exception as e:
-            results["client_results"]["yahooquery_client"] = {
-                "status": "error",
-                "error": str(e)
-            }
-        finally:
-            if client and hasattr(client, "close"):
-                try:
-                    await client.close()
-                except Exception:
-                    pass
+        )
         
-        # Test with Yahoo_Data client
-        client = None
-        try:
-            client = Yahoo_Data()
-            start_time = time.time()
-            price_data = await client.get_price_batch([ticker])
-            ticker_data = price_data.get(ticker)
-            elapsed = time.time() - start_time
-            
-            results["client_results"]["yahoo_data"] = {
-                "status": "success" if ticker_data else "failed",
-                "elapsed_seconds": round(elapsed, 4),
-                "data": ticker_data
-            }
-        except Exception as e:
-            results["client_results"]["yahoo_data"] = {
-                "status": "error",
-                "error": str(e)
-            }
-        finally:
-            if client and hasattr(client, "close"):
-                try:
-                    await client.close()
-                except Exception:
-                    pass
+        # Format results
+        formatted_history = []
+        for row in history:
+            formatted_history.append({
+                "date": row["date"].isoformat() if row["date"] else None,
+                "value": float(row["value"]) if row["value"] is not None else 0
+            })
         
-        # Compare performance
-        successful_clients = {name: data["elapsed_seconds"] 
-                             for name, data in results["client_results"].items() 
-                             if data.get("status") == "success"}
-        
-        if successful_clients:
-            fastest_client = min(successful_clients.items(), key=lambda x: x[1])
-            results["performance"] = {
-                "fastest_client": fastest_client[0],
-                "fastest_time": fastest_client[1],
-                "time_comparison": {name: f"{time/fastest_client[1]:.2f}x slower than fastest" 
-                                   for name, time in successful_clients.items() 
-                                   if name != fastest_client[0]}
-            }
-        
-        return results
-    except Exception as e:
-        logger.error(f"Error in Yahoo Finance clients comparison: {str(e)}")
-        return {
-            "status": "error",
-            "error": str(e)
-        }
-@app.get("/NEW-TEST/{method_id}")
-async def test_yahoo_finance_client_methods(method_id: int = 0):
-    """
-    Tests methods of the YahooFinanceClient class with real data.
+        return {"history": formatted_history}
     
-    Method IDs:
-    1 - get_current_price - Get current price for a single ticker (MKTX)
-    2 - get_batch_prices - Get prices for multiple tickers
-    3 - get_company_metrics - Get company details and metrics
-    4 - get_historical_prices - Get historical prices for a ticker
-    5 - get_batch_historical_prices - Get historical prices for multiple tickers
-    6 - get_fx_prices - Get forex/crypto/commodities prices
-    0 - Run all tests
-    """
-    try:
-        from backend.api_clients.yahoo_finance_client import YahooFinanceClient
-        from datetime import datetime, timedelta, date
-        import logging
-        
-        logger.info(f"Starting NEW-TEST with method_id={method_id}")
-        
-        # Create client
-        client = YahooFinanceClient()
-        results = {}
-        
-        try:
-            # Method 1: get_current_price
-            if method_id == 1 or method_id == 0:
-                ticker = "MKTX"
-                logger.info(f"Testing get_current_price with {ticker}")
-                try:
-                    results["get_current_price"] = await client.get_current_price(ticker)
-                    logger.info("get_current_price test completed successfully")
-                except Exception as e:
-                    logger.error(f"Error in get_current_price: {str(e)}")
-                    results["get_current_price"] = {"error": str(e)}
-            
-            # Method 2: get_batch_prices
-            if method_id == 2 or method_id == 0:
-                logger.info("Testing get_batch_prices")
-                try:
-                    tickers = ["MKTX", "AAPL", "MSFT", "AMZN", "GOOGL"]
-                    results["get_batch_prices"] = await client.get_batch_prices(tickers)
-                    logger.info("get_batch_prices test completed successfully")
-                except Exception as e:
-                    logger.error(f"Error in get_batch_prices: {str(e)}")
-                    results["get_batch_prices"] = {"error": str(e)}
-            
-            # Method 3: get_company_metrics
-            if method_id == 3 or method_id == 0:
-                ticker = "MKTX"
-                logger.info(f"Testing get_company_metrics with {ticker}")
-                try:
-                    results["get_company_metrics"] = await client.get_company_metrics(ticker)
-                    logger.info("get_company_metrics test completed successfully")
-                except Exception as e:
-                    logger.error(f"Error in get_company_metrics: {str(e)}")
-                    results["get_company_metrics"] = {"error": str(e)}
-            
-            # Method 4: get_historical_prices
-            if method_id == 4 or method_id == 0:
-                ticker = "MKTX"
-                logger.info(f"Testing get_historical_prices with {ticker}")
-                try:
-                    end_date = datetime.now()
-                    start_date = end_date - timedelta(days=30)
-                    history = await client.get_historical_prices(ticker, start_date, end_date)
-                    
-                    # Note: We're returning the raw data here to show exact format
-                    # The caller will need to handle datetime serialization for JSON
-                    results["get_historical_prices"] = history
-                    logger.info(f"get_historical_prices test completed successfully with {len(history)} data points")
-                except Exception as e:
-                    logger.error(f"Error in get_historical_prices: {str(e)}")
-                    results["get_historical_prices"] = {"error": str(e)}
-            
-            # Method 5: get_batch_historical_prices
-            if method_id == 5 or method_id == 0:
-                logger.info("Testing get_batch_historical_prices")
-                try:
-                    tickers = ["MKTX", "AAPL", "MSFT"]
-                    end_date = datetime.now()
-                    start_date = end_date - timedelta(days=7)  # Shorter timeframe for batch
-                    history_batch = await client.get_batch_historical_prices(tickers, start_date, end_date)
-                    
-                    # Note: We're returning the raw data here to show exact format
-                    # The caller will need to handle datetime serialization for JSON
-                    results["get_batch_historical_prices"] = history_batch
-                    logger.info("get_batch_historical_prices test completed successfully")
-                except Exception as e:
-                    logger.error(f"Error in get_batch_historical_prices: {str(e)}")
-                    results["get_batch_historical_prices"] = {"error": str(e)}
-            
-            # Method 6: get_fx_prices
-            if method_id == 6 or method_id == 0:
-                logger.info("Testing get_fx_prices")
-                try:
-                    fx_symbols = ["BTC-USD", "ETH-USD", "EURUSD=X", "GBPUSD=X", "GC=F", "SI=F"]
-                    fx_prices = await client.get_fx_prices(fx_symbols)
-                    
-                    # Note: We're returning the raw data here to show exact format
-                    # The caller will need to handle datetime serialization for JSON
-                    results["get_fx_prices"] = fx_prices 
-                    logger.info("get_fx_prices test completed successfully")
-                except Exception as e:
-                    logger.error(f"Error in get_fx_prices: {str(e)}")
-                    results["get_fx_prices"] = {"error": str(e)}
-            
-        finally:
-            # Always close the client
-            try:
-                await client.close()
-                logger.info("Client closed successfully")
-            except Exception as e:
-                logger.error(f"Error closing client: {str(e)}")
-                results["client_close_error"] = str(e)
-        
-        # Convert datetime objects to strings for proper JSON serialization
-        import json
-        
-        class DateTimeEncoder(json.JSONEncoder):
-            def default(self, obj):
-                if isinstance(obj, (datetime, date)):
-                    return obj.isoformat()
-                return super().default(obj)
-        
-        # Convert results to JSON and back to handle nested datetime objects
-        serialized = json.loads(json.dumps(results, cls=DateTimeEncoder))
-        return serialized
-        
     except Exception as e:
-        logger.error(f"Error in test_yahoo_finance_client_methods: {str(e)}")
-        import traceback
-        tb = traceback.format_exc()
-        return {"error": str(e), "traceback": tb}
+        logger.error(f"Error fetching portfolio history: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to fetch portfolio history: {str(e)}"
+        )
+
+@app.get("/portfolio/summary")
+async def get_portfolio_summary(current_user: dict = Depends(get_current_user)):
+    try:
+        # Get all accounts for the user
+        accounts_query = accounts.select().where(accounts.c.user_id == current_user["id"])
+        user_accounts = await database.fetch_all(accounts_query)
         
+        if not user_accounts:
+            return {
+                "net_worth": 0,
+                "accounts_count": 0,
+                "positions_count": 0,
+                "top_holdings": []
+            }
+        
+        # Calculate total net worth from account balances
+        net_worth = sum(account["balance"] for account in user_accounts)
+        accounts_count = len(user_accounts)
+        
+        # Get all positions for all accounts
+        account_ids = [account["id"] for account in user_accounts]
+        positions_query = positions.select().where(positions.c.account_id.in_(account_ids))
+        user_positions = await database.fetch_all(positions_query)
+        
+        positions_count = len(user_positions)
+        
+        # Calculate top holdings
+        holdings = {}
+        for position in user_positions:
+            ticker = position["ticker"]
+            value = position["shares"] * position["price"]
+            cost_basis = position["cost_basis"] * position["shares"] if "cost_basis" in position else 0
+            
+            if ticker in holdings:
+                holdings[ticker]["shares"] += position["shares"]
+                holdings[ticker]["value"] += value
+                holdings[ticker]["cost_basis"] += cost_basis
+            else:
+                holdings[ticker] = {
+                    "ticker": ticker,
+                    "shares": position["shares"],
+                    "value": value,
+                    "cost_basis": cost_basis,
+                    "percentage": 0  # Will calculate after totaling
+                }
+        
+        # Calculate percentage of portfolio and gain/loss for each holding
+        for ticker in holdings:
+            if net_worth > 0:
+                holdings[ticker]["percentage"] = (holdings[ticker]["value"] / net_worth) * 100
+                
+            # Calculate gain/loss
+            if holdings[ticker]["cost_basis"] > 0:
+                gain_loss_amount = holdings[ticker]["value"] - holdings[ticker]["cost_basis"]
+                gain_loss_percentage = (gain_loss_amount / holdings[ticker]["cost_basis"]) * 100
+                
+                holdings[ticker]["gain_loss"] = gain_loss_percentage
+                holdings[ticker]["gain_loss_amount"] = gain_loss_amount
+            else:
+                holdings[ticker]["gain_loss"] = 0
+                holdings[ticker]["gain_loss_amount"] = 0
+        
+        # Sort by value (descending) and get top 5
+        top_holdings = sorted(
+            list(holdings.values()), 
+            key=lambda x: x["value"], 
+            reverse=True
+        )[:5]
+        
+        # Also calculate overall portfolio gain/loss
+        total_cost_basis = sum(holding["cost_basis"] for holding in holdings.values())
+        daily_change = 2.5  # Placeholder for daily change percentage
+        
+        if total_cost_basis > 0:
+            overall_gain_loss_amount = net_worth - total_cost_basis
+            overall_gain_loss_percentage = (overall_gain_loss_amount / total_cost_basis) * 100
+        else:
+            overall_gain_loss_percentage = 0
+            overall_gain_loss_amount = 0
+        
+        # Fetch the most recent price update timestamp
+        last_price_update_query = """
+            SELECT MAX(timestamp) as last_update 
+            FROM price_history
+        """
+        last_update_result = await database.fetch_one(last_price_update_query)
+        last_price_update = last_update_result['last_update'] if last_update_result and last_update_result['last_update'] else None
+
+        
+        return {
+            "net_worth": net_worth,
+            "accounts_count": accounts_count,
+            "positions_count": positions_count,
+            "top_holdings": top_holdings,
+            "daily_change": daily_change,
+            "yearly_change": overall_gain_loss_percentage,
+            "overall_gain_loss": overall_gain_loss_percentage,
+            "overall_gain_loss_amount": overall_gain_loss_amount,
+            "last_price_update": last_price_update.isoformat() if last_price_update else None
+        }
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to fetch portfolio summary: {str(e)}"
+        )
+
 @app.get("/system/database-status")
 async def get_database_status(current_user: dict = Depends(get_current_user)):
     """Get database health and statistics"""
@@ -4713,97 +3995,150 @@ async def get_database_status(current_user: dict = Depends(get_current_user)):
             detail=f"Failed to get database status: {str(e)}"
         )
 
-# New endpoints for portfolio calculations
-@app.post("/portfolios/calculate")
-async def trigger_portfolio_calculation(current_user: dict = Depends(get_current_user)):
-    """Calculate all portfolio values based on current prices"""
+# Portfolio Summary
+@app.get("/portfolio/summary/all", response_model=PortfolioSummaryAllResponse)
+async def get_portfolio_summary_all(current_user: dict = Depends(get_current_user)):
+    """Get a summary across all asset types for the user."""
     try:
-        calculator = PortfolioCalculator()
-        result = await calculator.calculate_all_portfolios()
-        return {"message": "Portfolio calculation completed successfully", "details": result}
-    except Exception as e:
-        logger.error(f"Failed to calculate portfolios: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
-            detail=f"Failed to calculate portfolios: {str(e)}"
+        user_id = current_user["id"]
+        total_value = 0.0
+        total_cost_basis = 0.0
+        total_positions = 0
+        # Asset specific summaries for breakdown (optional)
+        asset_summaries = []
+
+        # --- 1. Securities ---
+        sec_query = """
+        SELECT COALESCE(SUM(p.shares * p.price), 0) as value,
+               COALESCE(SUM(p.shares * COALESCE(p.cost_basis, p.price)), 0) as cost,
+               COUNT(p.id) as count
+        FROM positions p JOIN accounts a ON p.account_id = a.id
+        WHERE a.user_id = :user_id
+        """
+        sec_res = await database.fetch_one(sec_query, {"user_id": user_id})
+        if sec_res:
+            total_value += float(sec_res["value"])
+            total_cost_basis += float(sec_res["cost"])
+            total_positions += sec_res["count"]
+            asset_summaries.append(PortfolioAssetSummary(asset_type="Securities", total_value=float(sec_res["value"]), total_cost_basis=float(sec_res["cost"]), count=sec_res["count"]))
+
+
+        # --- 2. Crypto ---
+        cry_query = """
+        SELECT COALESCE(SUM(cp.quantity * cp.current_price), 0) as value,
+               COALESCE(SUM(cp.quantity * cp.purchase_price), 0) as cost,
+               COUNT(cp.id) as count
+        FROM crypto_positions cp JOIN accounts a ON cp.account_id = a.id
+        WHERE a.user_id = :user_id
+        """
+        cry_res = await database.fetch_one(cry_query, {"user_id": user_id})
+        if cry_res:
+             total_value += float(cry_res["value"])
+             total_cost_basis += float(cry_res["cost"])
+             total_positions += cry_res["count"]
+             asset_summaries.append(PortfolioAssetSummary(asset_type="Crypto", total_value=float(cry_res["value"]), total_cost_basis=float(cry_res["cost"]), count=cry_res["count"]))
+
+        # --- 3. Metals ---
+        # Note: Requires accurate current_price_per_unit logic for metals
+        met_query = """
+        SELECT COALESCE(SUM(mp.quantity * mp.purchase_price), 0) as value, -- Requires current_price_per_unit
+               COALESCE(SUM(mp.quantity * COALESCE(mp.cost_basis, mp.purchase_price)), 0) as cost,
+               COUNT(mp.id) as count
+        FROM metal_positions mp JOIN accounts a ON mp.account_id = a.id
+        WHERE a.user_id = :user_id
+        """
+        # Need to fetch/update mp.current_price_per_unit before this query or join with a prices table
+        met_res = await database.fetch_one(met_query, {"user_id": user_id})
+        if met_res:
+            total_value += float(met_res["value"])
+            total_cost_basis += float(met_res["cost"])
+            total_positions += met_res["count"]
+            asset_summaries.append(PortfolioAssetSummary(asset_type="Metals", total_value=float(met_res["value"]), total_cost_basis=float(met_res["cost"]), count=met_res["count"]))
+
+
+        # --- 4. Real Estate ---
+        re_query = """
+        SELECT COALESCE(SUM(re.purchase_price), 0) as value,
+               COALESCE(SUM(re.purchase_price), 0) as cost,
+               COUNT(re.id) as count
+        FROM real_estate_positions re JOIN accounts a ON re.account_id = a.id
+        WHERE a.user_id = :user_id
+        """
+        re_res = await database.fetch_one(re_query, {"user_id": user_id})
+        if re_res:
+            total_value += float(re_res["value"])
+            total_cost_basis += float(re_res["cost"])
+            total_positions += re_res["count"]
+            asset_summaries.append(PortfolioAssetSummary(asset_type="Real Estate", total_value=float(re_res["value"]), total_cost_basis=float(re_res["cost"]), count=re_res["count"]))
+
+        # --- Calculate Final Metrics ---
+        total_gain_loss = total_value - total_cost_basis
+        total_gain_loss_percent = (total_gain_loss / total_cost_basis) * 100 if total_cost_basis > 0 else 0
+
+        # Count distinct accounts involved
+        acc_query = """SELECT COUNT(DISTINCT a.id) as count FROM accounts a WHERE a.user_id = :user_id"""
+        acc_res = await database.fetch_one(acc_query, {"user_id": user_id})
+        total_accounts = acc_res["count"] if acc_res else 0
+
+        return PortfolioSummaryAllResponse(
+            total_value=total_value,
+            total_cost_basis=total_cost_basis,
+            total_gain_loss=total_gain_loss,
+            total_gain_loss_percent=total_gain_loss_percent,
+            total_positions=total_positions,
+            total_accounts=total_accounts,
+            breakdown=asset_summaries
         )
 
-@app.post("/portfolios/calculate/user")
-async def trigger_user_portfolio_calculation(current_user: dict = Depends(get_current_user)):
-    """Calculate portfolio values for the current user"""
-    try:
-        calculator = PortfolioCalculator()
-        result = await calculator.calculate_user_portfolio(current_user["id"])
-        return {"message": "Portfolio calculation completed successfully", "details": result}
     except Exception as e:
-        logger.error(f"Failed to calculate user portfolio: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
-            detail=f"Failed to calculate user portfolio: {str(e)}"
-        )
+        logger.error(f"Error generating portfolio summary all for user {user_id}: {str(e)}")
+        import traceback
+        logger.error(traceback.format_exc())
+        raise HTTPException(status_code=500, detail="Failed to generate portfolio summary")
 
-@app.post("/portfolios/snapshot")
-async def trigger_portfolio_snapshot(current_user: dict = Depends(get_current_user)):
-    """Take a snapshot of all portfolio values for historical tracking"""
+@app.get("/securities/{ticker}/history")
+async def get_security_history(ticker: str, current_user: dict = Depends(get_current_user)):
+    """Get historical price data for a security"""
     try:
-        calculator = PortfolioCalculator()
-        result = await calculator.snapshot_portfolio_values()
-        return {"message": "Portfolio snapshot completed successfully", "details": result}
-    except Exception as e:
-        logger.error(f"Failed to take portfolio snapshot: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
-            detail=f"Failed to take portfolio snapshot: {str(e)}"
-        )
-
-# Combined endpoint for updating prices and calculating portfolios
-@app.post("/market/update-and-calculate")
-async def trigger_update_and_calculate(current_user: dict = Depends(get_current_user)):
-    """Update prices and then calculate portfolio values"""
-    try:
-        # First update prices
-        updater = PriceUpdaterV2()
-        price_result = await updater.update_security_prices()
+        # Get price history
+        query = """
+        SELECT 
+            ticker, 
+            date,
+            close_price,
+            day_open,
+            day_high,
+            day_low,
+            volume
+        FROM price_history
+        WHERE ticker = :ticker
+        ORDER BY date ASC
+        """
+        history = await database.fetch_all(query, {"ticker": ticker.upper()})
         
-        # Then calculate portfolios
-        calculator = PortfolioCalculator()
-        portfolio_result = await calculator.calculate_all_portfolios()
+        if not history:
+            return {"history": []}
         
-        return {
-            "message": "Update and calculation completed successfully",
-            "price_update": price_result,
-            "portfolio_calculation": portfolio_result
-        }
+        # Format results
+        formatted_history = []
+        for row in history:
+            formatted_history.append({
+                "ticker": row["ticker"],
+                "date": row["date"].isoformat() if row["date"] else None,
+                "close_price": float(row["close_price"]) if row["close_price"] is not None else None,
+                "open_price": float(row["day_open"]) if row["day_open"] is not None else None,
+                "high_price": float(row["day_high"]) if row["day_high"] is not None else None,
+                "low_price": float(row["day_low"]) if row["day_low"] is not None else None,
+                "volume": int(row["volume"]) if row["volume"] is not None else None
+            })
+        
+        return {"history": formatted_history}
+    
     except Exception as e:
-        logger.error(f"Failed to update and calculate: {str(e)}")
+        logger.error(f"Error fetching security history: {str(e)}")
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
-            detail=f"Failed to update and calculate: {str(e)}"
-        )
-
-@app.post("/market/update-stale")
-async def trigger_stale_update(
-    metrics_days: int = 7, 
-    price_days: int = 1, 
-    max_metrics: int = 50, 
-    max_prices: int = 100,
-    current_user: dict = Depends(get_current_user)
-):
-    """Update securities based on staleness of data"""
-    try:
-        updater = PriceUpdaterV2()
-        result = await updater.update_stale_securities(
-            metrics_days_threshold=metrics_days,
-            price_days_threshold=price_days,
-            max_metrics_tickers=max_metrics,
-            max_prices_tickers=max_prices
-        )
-        return {"message": "Stale data update completed successfully", "details": result}
-    except Exception as e:
-        logger.error(f"Failed to update stale data: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
-            detail=f"Failed to update stale data: {str(e)}"
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to fetch security history: {str(e)}"
         )
 
 # Get system events endpoint
@@ -5392,446 +4727,98 @@ async def set_update_thresholds(
     
     return {"success": True}
 
-# ----- Cryptocurrency Endpoints -----
-
-@app.get("/crypto/{account_id}")
-async def get_crypto_positions(account_id: int, current_user: dict = Depends(get_current_user)):
-    """Get all cryptocurrency positions for a specific account"""
+@app.post("/portfolios/snapshot")
+async def trigger_portfolio_snapshot(current_user: dict = Depends(get_current_user)):
+    """Take a snapshot of all portfolio values for historical tracking"""
     try:
-        # Check if the account belongs to the user
-        account_query = accounts.select().where(
-            (accounts.c.id == account_id) & 
-            (accounts.c.user_id == current_user["id"])
-        )
-        account = await database.fetch_one(account_query)
-        
-        if not account:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Account not found or access denied")
-        
-        # Get crypto positions for the account
-        query = """
-        SELECT * FROM crypto_positions 
-        WHERE account_id = :account_id
-        ORDER BY coin_type ASC
-        """
-        result = await database.fetch_all(query=query, values={"account_id": account_id})
-        
-        crypto_positions = [dict(row) for row in result]
-        
-        # Calculate additional values for frontend display
-        for position in crypto_positions:
-            position["total_value"] = position["quantity"] * position["current_price"]
-            position["gain_loss"] = position["total_value"] - (position["quantity"] * position["purchase_price"])
-            position["gain_loss_percent"] = ((position["current_price"] / position["purchase_price"]) - 1) * 100 if position["purchase_price"] > 0 else 0
-            
-            # Convert tags from array to list if needed
-            if position.get("tags") and isinstance(position["tags"], str):
-                position["tags"] = eval(position["tags"])  # Safely convert string representation to list
-                
-            # Format dates as ISO strings
-            if "purchase_date" in position and position["purchase_date"]:
-                position["purchase_date"] = position["purchase_date"].isoformat() if hasattr(position["purchase_date"], "isoformat") else position["purchase_date"]
-            if "created_at" in position and position["created_at"]:
-                position["created_at"] = position["created_at"].isoformat() if hasattr(position["created_at"], "isoformat") else position["created_at"]
-            if "updated_at" in position and position["updated_at"]:
-                position["updated_at"] = position["updated_at"].isoformat() if hasattr(position["updated_at"], "isoformat") else position["updated_at"]
-                
-        return {"crypto_positions": crypto_positions}
+        calculator = PortfolioCalculator()
+        result = await calculator.snapshot_portfolio_values()
+        return {"message": "Portfolio snapshot completed successfully", "details": result}
     except Exception as e:
-        logger.error(f"Error fetching crypto positions: {str(e)}")
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Failed to fetch crypto positions: {str(e)}")
+        logger.error(f"Failed to take portfolio snapshot: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
+            detail=f"Failed to take portfolio snapshot: {str(e)}"
+        )
 
-@app.post("/crypto/{account_id}", status_code=status.HTTP_201_CREATED)
-async def add_crypto_position(account_id: int, position: CryptoPositionCreate, current_user: dict = Depends(get_current_user)):
-    """Add a new cryptocurrency position to an account"""
+# Combined endpoint for updating prices and calculating portfolios
+@app.post("/market/update-and-calculate")
+async def trigger_update_and_calculate(current_user: dict = Depends(get_current_user)):
+    """Update prices and then calculate portfolio values"""
     try:
-        # Check if the account belongs to the user
-        account_query = accounts.select().where(
-            (accounts.c.id == account_id) & 
-            (accounts.c.user_id == current_user["id"])
-        )
-        account = await database.fetch_one(account_query)
+        # First update prices
+        updater = PriceUpdaterV2()
+        price_result = await updater.update_security_prices()
         
-        if not account:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Account not found or access denied")
-        
-        # Prepare tags for storage
-        tags_value = position.tags if position.tags else []
-        
-        # Add crypto position
-        query = """
-        INSERT INTO crypto_positions (
-            account_id, coin_type, coin_symbol, quantity, purchase_price, purchase_date, storage_type, notes, tags, is_favorite
-        ) VALUES (
-            :account_id, :coin_type, :coin_symbol, :quantity, :purchase_price,
-            :purchase_date, :storage_type, :notes, :tags, :is_favorite
-        ) RETURNING id
-        """
-        values = {
-            "account_id": account_id,
-            "coin_type": position.coin_type,
-            "coin_symbol": position.coin_symbol,
-            "quantity": position.quantity,
-            "purchase_price": position.purchase_price,
-            "purchase_date": datetime.strptime(position.purchase_date, "%Y-%m-%d").date() if position.purchase_date else None,
-            "storage_type": position.storage_type,
-            "notes": position.notes,
-            "tags": tags_value,
-            "is_favorite": position.is_favorite
-        }
-        
-        result = await database.fetch_one(query=query, values=values)
-        position_id = result["id"]
-        
-        # Update account balance (optional, if you track balances per account)
-        position_value = position.quantity * position.current_price
-        update_query = accounts.update().where(
-            accounts.c.id == account_id
-        ).values(
-            balance=account["balance"] + position_value,
-            updated_at=datetime.utcnow()
-        )
-        await database.execute(update_query)
+        # Then calculate portfolios
+        calculator = PortfolioCalculator()
+        portfolio_result = await calculator.calculate_all_portfolios()
         
         return {
-            "message": "Crypto position added successfully",
-            "position_id": position_id,
-            "position_value": position_value
+            "message": "Update and calculation completed successfully",
+            "price_update": price_result,
+            "portfolio_calculation": portfolio_result
         }
     except Exception as e:
-        logger.error(f"Error adding crypto position: {str(e)}")
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Failed to add crypto position: {str(e)}")
-
-@app.put("/crypto/{position_id}")
-async def update_crypto_position(position_id: int, position: CryptoPositionUpdate, current_user: dict = Depends(get_current_user)):
-    """Update an existing cryptocurrency position"""
-    try:
-        # Get position and check if it belongs to the user
-        check_query = """
-        SELECT cp.*, a.user_id, a.balance, a.id as account_id
-        FROM crypto_positions cp
-        JOIN accounts a ON cp.account_id = a.id
-        WHERE cp.id = :position_id
-        """
-        position_data = await database.fetch_one(query=check_query, values={"position_id": position_id})
-        
-        if not position_data or position_data["user_id"] != current_user["id"]:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Position not found or access denied")
-        
-        # Calculate old and new values for account balance update
-        old_value = position_data["quantity"] * position_data["current_price"]
-        new_value = (position.quantity or position_data["quantity"]) * (position.current_price or position_data["current_price"])
-        value_difference = new_value - old_value
-        
-        # Build update dictionary with only provided fields
-        update_values = {}
-        for key, value in position.dict(exclude_unset=True).items():
-            if key == 'purchase_date' and value is not None:
-                update_values[key] = datetime.strptime(value, "%Y-%m-%d").date()
-            elif key == 'tags' and value is not None:
-                update_values[key] = value  # Store as array
-            else:
-                update_values[key] = value
-        
-        # Only update if there are values to update
-        if update_values:
-            # Construct dynamic query with only the fields that need updating
-            set_clause = ", ".join([f"{key} = :{key}" for key in update_values.keys()])
-            query = f"""
-            UPDATE crypto_positions 
-            SET {set_clause} 
-            WHERE id = :position_id
-            RETURNING id
-            """
-            
-            # Add position_id to values
-            update_values["position_id"] = position_id
-            
-            await database.execute(query=query, values=update_values)
-            
-            # Update account balance (optional)
-            if value_difference != 0:
-                account_id = position_data["account_id"]
-                account_balance = position_data["balance"]
-                
-                update_account_query = accounts.update().where(
-                    accounts.c.id == account_id
-                ).values(
-                    balance=account_balance + value_difference,
-                    updated_at=datetime.utcnow()
-                )
-                await database.execute(update_account_query)
-        
-        return {"message": "Crypto position updated successfully"}
-    except Exception as e:
-        logger.error(f"Error updating crypto position: {str(e)}")
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Failed to update crypto position: {str(e)}")
-
-@app.delete("/crypto/{position_id}")
-async def delete_crypto_position(position_id: int, current_user: dict = Depends(get_current_user)):
-    """Delete a cryptocurrency position"""
-    try:
-        # Get position and check if it belongs to the user
-        check_query = """
-        SELECT cp.*, a.user_id, a.balance, a.id as account_id
-        FROM crypto_positions cp
-        JOIN accounts a ON cp.account_id = a.id
-        WHERE cp.id = :position_id
-        """
-        position_data = await database.fetch_one(query=check_query, values={"position_id": position_id})
-        
-        if not position_data or position_data["user_id"] != current_user["id"]:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Position not found or access denied")
-        
-        # Calculate value for account balance adjustment
-        position_value = position_data["quantity"] * position_data["current_price"]
-        
-        # Delete the position
-        delete_query = """
-        DELETE FROM crypto_positions WHERE id = :position_id
-        """
-        await database.execute(query=delete_query, values={"position_id": position_id})
-        
-        # Update account balance (optional)
-        account_id = position_data["account_id"]
-        account_balance = position_data["balance"]
-        
-        update_account_query = accounts.update().where(
-            accounts.c.id == account_id
-        ).values(
-            balance=account_balance - position_value,
-            updated_at=datetime.utcnow()
+        logger.error(f"Failed to update and calculate: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
+            detail=f"Failed to update and calculate: {str(e)}"
         )
-        await database.execute(update_account_query)
-        
-        return {"message": "Crypto position deleted successfully"}
-    except Exception as e:
-        logger.error(f"Error deleting crypto position: {str(e)}")
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Failed to delete crypto position: {str(e)}")
 
-# ----- Precious Metals Endpoints -----
-
-@app.get("/metals/{account_id}")
-async def get_metal_positions(account_id: int, current_user: dict = Depends(get_current_user)):
-    """Get all precious metal positions for a specific account"""
+@app.post("/market/update-stale")
+async def trigger_stale_update(
+    metrics_days: int = 7, 
+    price_days: int = 1, 
+    max_metrics: int = 50, 
+    max_prices: int = 100,
+    current_user: dict = Depends(get_current_user)
+):
+    """Update securities based on staleness of data"""
     try:
-        # Check if the account belongs to the user
-        account_query = accounts.select().where(
-            (accounts.c.id == account_id) & 
-            (accounts.c.user_id == current_user["id"])
+        updater = PriceUpdaterV2()
+        result = await updater.update_stale_securities(
+            metrics_days_threshold=metrics_days,
+            price_days_threshold=price_days,
+            max_metrics_tickers=max_metrics,
+            max_prices_tickers=max_prices
         )
-        account = await database.fetch_one(account_query)
-        
-        if not account:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Account not found or access denied")
-        
-        # Get metal positions for the account
-        query = """
-        SELECT * FROM metal_positions 
-        WHERE account_id = :account_id
-        ORDER BY metal_type ASC
-        """
-        result = await database.fetch_all(query=query, values={"account_id": account_id})
-        
-        metal_positions = [dict(row) for row in result]
-        
-        # Calculate additional values and format dates
-        for position in metal_positions:
-            # Use the cost_basis if provided, otherwise use purchase_price
-            cost_basis = position.get("cost_basis") or position["purchase_price"]
-            
-            # Calculate value based on current price (would need to be fetched from metals price table)
-            # For now, using purchase price as placeholder
-            current_price = position["purchase_price"]  # Replace with actual current price
-            
-            position["value"] = position["quantity"] * current_price
-            position["gain_loss"] = position["value"] - (position["quantity"] * cost_basis)
-            position["gain_loss_percent"] = ((current_price / cost_basis) - 1) * 100 if cost_basis > 0 else 0
-            
-            # Format dates as ISO strings
-            if "purchase_date" in position and position["purchase_date"]:
-                position["purchase_date"] = position["purchase_date"].isoformat() if hasattr(position["purchase_date"], "isoformat") else position["purchase_date"]
-            if "created_at" in position and position["created_at"]:
-                position["created_at"] = position["created_at"].isoformat() if hasattr(position["created_at"], "isoformat") else position["created_at"]
-            if "updated_at" in position and position["updated_at"]:
-                position["updated_at"] = position["updated_at"].isoformat() if hasattr(position["updated_at"], "isoformat") else position["updated_at"]
-                
-        return {"metal_positions": metal_positions}
+        return {"message": "Stale data update completed successfully", "details": result}
     except Exception as e:
-        logger.error(f"Error fetching metal positions: {str(e)}")
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Failed to fetch metal positions: {str(e)}")
+        logger.error(f"Failed to update stale data: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
+            detail=f"Failed to update stale data: {str(e)}"
+        )
 
-@app.post("/metals/{account_id}", status_code=status.HTTP_201_CREATED)
-async def add_metal_position(account_id: int, position: MetalPositionCreate, current_user: dict = Depends(get_current_user)):
-    """Add a new precious metal position to an account"""
+# New endpoints for portfolio calculations
+@app.post("/portfolios/calculate")
+async def trigger_portfolio_calculation(current_user: dict = Depends(get_current_user)):
+    """Calculate all portfolio values based on current prices"""
     try:
-        # Check if the account belongs to the user
-        account_query = accounts.select().where(
-            (accounts.c.id == account_id) & 
-            (accounts.c.user_id == current_user["id"])
-        )
-        account = await database.fetch_one(account_query)
-        
-        if not account:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Account not found or access denied")
-        
-        # Use the provided cost_basis or default to purchase_price
-        cost_basis = position.cost_basis if position.cost_basis is not None else position.purchase_price
-        
-        # Add metal position
-        query = """
-        INSERT INTO metal_positions (
-            account_id, metal_type, quantity, unit, purity, purchase_price, 
-            cost_basis, purchase_date, storage_location, description
-        ) VALUES (
-            :account_id, :metal_type, :quantity, :unit, :purity, :purchase_price,
-            :cost_basis, :purchase_date, :storage_location, :description
-        ) RETURNING id
-        """
-        values = {
-            "account_id": account_id,
-            "metal_type": position.metal_type,
-            "quantity": position.quantity,
-            "unit": position.unit,
-            "purity": position.purity,
-            "purchase_price": position.purchase_price,
-            "cost_basis": cost_basis,
-            "purchase_date": datetime.strptime(position.purchase_date, "%Y-%m-%d").date() if position.purchase_date else None,
-            "storage_location": position.storage_location,
-            "description": position.description
-        }
-        
-        result = await database.fetch_one(query=query, values=values)
-        position_id = result["id"]
-        
-        # Calculate position value
-        position_value = position.quantity * position.purchase_price
-        
-        # Update account balance (optional)
-        update_query = accounts.update().where(
-            accounts.c.id == account_id
-        ).values(
-            balance=account["balance"] + position_value,
-            updated_at=datetime.utcnow()
-        )
-        await database.execute(update_query)
-        
-        return {
-            "message": "Metal position added successfully",
-            "position_id": position_id,
-            "position_value": position_value
-        }
+        calculator = PortfolioCalculator()
+        result = await calculator.calculate_all_portfolios()
+        return {"message": "Portfolio calculation completed successfully", "details": result}
     except Exception as e:
-        logger.error(f"Error adding metal position: {str(e)}")
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Failed to add metal position: {str(e)}")
+        logger.error(f"Failed to calculate portfolios: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
+            detail=f"Failed to calculate portfolios: {str(e)}"
+        )
 
-@app.put("/metals/{position_id}")
-async def update_metal_position(position_id: int, position: MetalPositionUpdate, current_user: dict = Depends(get_current_user)):
-    """Update an existing precious metal position"""
+@app.post("/portfolios/calculate/user")
+async def trigger_user_portfolio_calculation(current_user: dict = Depends(get_current_user)):
+    """Calculate portfolio values for the current user"""
     try:
-        # Get position and check if it belongs to the user
-        check_query = """
-        SELECT mp.*, a.user_id, a.balance, a.id as account_id
-        FROM metal_positions mp
-        JOIN accounts a ON mp.account_id = a.id
-        WHERE mp.id = :position_id
-        """
-        position_data = await database.fetch_one(query=check_query, values={"position_id": position_id})
-        
-        if not position_data or position_data["user_id"] != current_user["id"]:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Position not found or access denied")
-        
-        # Calculate old and new values for account balance update
-        old_value = position_data["quantity"] * position_data["purchase_price"]
-        new_purchase_price = position.purchase_price if position.purchase_price is not None else position_data["purchase_price"]
-        new_quantity = position.quantity if position.quantity is not None else position_data["quantity"]
-        new_value = new_quantity * new_purchase_price
-        value_difference = new_value - old_value
-        
-        # Build update dictionary with only provided fields
-        update_values = {}
-        for key, value in position.dict(exclude_unset=True).items():
-            if key == 'purchase_date' and value is not None:
-                update_values[key] = datetime.strptime(value, "%Y-%m-%d").date()
-            else:
-                update_values[key] = value
-        
-        # Only update if there are values to update
-        if update_values:
-            # Construct dynamic query with only the fields that need updating
-            set_clause = ", ".join([f"{key} = :{key}" for key in update_values.keys()])
-            query = f"""
-            UPDATE metal_positions 
-            SET {set_clause} 
-            WHERE id = :position_id
-            RETURNING id
-            """
-            
-            # Add position_id to values
-            update_values["position_id"] = position_id
-            
-            await database.execute(query=query, values=update_values)
-            
-            # Update account balance (optional)
-            if value_difference != 0:
-                account_id = position_data["account_id"]
-                account_balance = position_data["balance"]
-                
-                update_account_query = accounts.update().where(
-                    accounts.c.id == account_id
-                ).values(
-                    balance=account_balance + value_difference,
-                    updated_at=datetime.utcnow()
-                )
-                await database.execute(update_account_query)
-        
-        return {"message": "Metal position updated successfully"}
+        calculator = PortfolioCalculator()
+        result = await calculator.calculate_user_portfolio(current_user["id"])
+        return {"message": "Portfolio calculation completed successfully", "details": result}
     except Exception as e:
-        logger.error(f"Error updating metal position: {str(e)}")
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Failed to update metal position: {str(e)}")
-
-@app.delete("/metals/{position_id}")
-async def delete_metal_position(position_id: int, current_user: dict = Depends(get_current_user)):
-    """Delete a precious metal position"""
-    try:
-        # Get position and check if it belongs to the user
-        check_query = """
-        SELECT mp.*, a.user_id, a.balance, a.id as account_id
-        FROM metal_positions mp
-        JOIN accounts a ON mp.account_id = a.id
-        WHERE mp.id = :position_id
-        """
-        position_data = await database.fetch_one(query=check_query, values={"position_id": position_id})
-        
-        if not position_data or position_data["user_id"] != current_user["id"]:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Position not found or access denied")
-        
-        # Calculate value for account balance adjustment
-        position_value = position_data["quantity"] * position_data["purchase_price"]
-        
-        # Delete the position
-        delete_query = """
-        DELETE FROM metal_positions WHERE id = :position_id
-        """
-        await database.execute(query=delete_query, values={"position_id": position_id})
-        
-        # Update account balance (optional)
-        account_id = position_data["account_id"]
-        account_balance = position_data["balance"]
-        
-        update_account_query = accounts.update().where(
-            accounts.c.id == account_id
-        ).values(
-            balance=account_balance - position_value,
-            updated_at=datetime.utcnow()
+        logger.error(f"Failed to calculate user portfolio: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
+            detail=f"Failed to calculate user portfolio: {str(e)}"
         )
-        await database.execute(update_account_query)
-        
-        return {"message": "Metal position deleted successfully"}
-    except Exception as e:
-        logger.error(f"Error deleting metal position: {str(e)}")
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Failed to delete metal position: {str(e)}")
-
 
 @app.post("/admin/data-consistency/fix")
 async def fix_data_consistency(current_user: dict = Depends(get_current_user)):
