@@ -2672,6 +2672,187 @@ async def update_ticker_metrics(
             detail=f"Failed to update ticker metrics: {str(e)}"
         )
 
+@app.post("/market/update-tickers-metrics/{tickers}")
+async def update_multiple_ticker_metrics(
+    tickers: str,
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Update company metrics for multiple tickers using YahooQuery client.
+    
+    Tickers should be comma-separated in the URL, e.g.:
+    /market/update-tickers-metrics/AAPL,MSFT,GOOG,AMZN
+    """
+    # Parse tickers from the URL path parameter
+    ticker_list = [ticker.strip().upper() for ticker in tickers.split(',') if ticker.strip()]
+    
+    if not ticker_list:
+        return {
+            "success": False,
+            "message": "No valid tickers provided",
+            "results": []
+        }
+    
+    # Create event record for the batch
+    event_id = await record_system_event(
+        database,
+        "yahoo_tickers_metrics_batch_update",
+        "started",
+        {"tickers_count": len(ticker_list), "first_ticker": ticker_list[0]}
+    )
+    
+    # Initialize results
+    results = []
+    success_count = 0
+    failed_count = 0
+    
+    # Initialize YahooQueryClient
+    client = YahooQueryClient()
+    
+    # Process each ticker
+    for ticker in ticker_list:
+        try:
+            # Check if ticker exists in database
+            check_query = "SELECT ticker FROM securities WHERE ticker = :ticker"
+            existing = await database.fetch_one(check_query, {"ticker": ticker})
+            
+            if not existing:
+                # Ticker doesn't exist, insert it first
+                insert_query = """
+                INSERT INTO securities (ticker, active, on_yfinance) 
+                VALUES (:ticker, true, true)
+                """
+                await database.execute(
+                    insert_query, 
+                    {
+                        "ticker": ticker
+                    }
+                )
+                logger.info(f"Created new security record for ticker: {ticker}")
+            
+            # Get company metrics data
+            logger.info(f"Fetching company metrics for {ticker}")
+            metrics = await client.get_company_metrics(ticker)
+            
+            if isinstance(metrics, str):
+                error_msg = f"Invalid metrics format (received string): {metrics}"
+                logger.error(error_msg)
+                
+                results.append({
+                    "ticker": ticker,
+                    "success": False,
+                    "message": error_msg
+                })
+                failed_count += 1
+                continue
+            
+            if not metrics or metrics.get("not_found"):
+                error_msg = f"No metrics data returned for {ticker}"
+                logger.error(error_msg)
+                
+                results.append({
+                    "ticker": ticker,
+                    "success": False,
+                    "message": error_msg
+                })
+                failed_count += 1
+                continue
+            
+            # Update securities table with company metrics
+            update_query = """
+            UPDATE securities
+            SET 
+                company_name = :company_name,
+                current_price = :current_price,
+                sector = :sector,
+                industry = :industry,
+                market_cap = :market_cap,
+                pe_ratio = :pe_ratio,
+                forward_pe = :forward_pe,
+                dividend_rate = :dividend_rate,
+                dividend_yield = :dividend_yield,
+                beta = :beta,
+                fifty_two_week_low = :fifty_two_week_low,
+                fifty_two_week_high = :fifty_two_week_high,
+                fifty_two_week_range = :fifty_two_week_range,
+                eps = :eps,
+                forward_eps = :forward_eps,
+                last_metrics_update = :updated_at,
+                last_updated = :updated_at
+            WHERE ticker = :ticker
+            """
+            
+            # Prepare values for update
+            fifty_two_week_range = None
+            if metrics.get("fifty_two_week_low") is not None and metrics.get("fifty_two_week_high") is not None:
+                fifty_two_week_range = f"{metrics['fifty_two_week_low']}-{metrics['fifty_two_week_high']}"
+            
+            update_values = {
+                "ticker": ticker,
+                "company_name": metrics.get("company_name"),
+                "current_price": metrics.get("current_price"),
+                "sector": metrics.get("sector"),
+                "industry": metrics.get("industry"),
+                "market_cap": metrics.get("market_cap"),
+                "pe_ratio": metrics.get("pe_ratio"),
+                "forward_pe": metrics.get("forward_pe"),
+                "dividend_rate": metrics.get("dividend_rate"),
+                "dividend_yield": metrics.get("dividend_yield"),
+                "beta": metrics.get("beta"),
+                "fifty_two_week_low": metrics.get("fifty_two_week_low"),
+                "fifty_two_week_high": metrics.get("fifty_two_week_high"),
+                "fifty_two_week_range": fifty_two_week_range,
+                "eps": metrics.get("eps"),
+                "forward_eps": metrics.get("forward_eps"),
+                "updated_at": datetime.now()
+            }
+            
+            await database.execute(update_query, update_values)
+            
+            # Filter out empty values for response
+            filtered_metrics = {k: v for k, v in metrics.items() if v is not None}
+            
+            results.append({
+                "ticker": ticker,
+                "success": True,
+                "message": f"Successfully updated metrics for {ticker}",
+                "fields_updated": len(filtered_metrics)
+            })
+            success_count += 1
+            
+        except Exception as e:
+            error_message = f"Error updating metrics for {ticker}: {str(e)}"
+            logger.error(error_message)
+            
+            results.append({
+                "ticker": ticker,
+                "success": False,
+                "message": error_message
+            })
+            failed_count += 1
+    
+    # Update event as completed
+    await update_system_event(
+        database,
+        event_id,
+        "completed",
+        {
+            "tickers_count": len(ticker_list),
+            "success_count": success_count,
+            "failed_count": failed_count
+        }
+    )
+    
+    return {
+        "success": success_count > 0,
+        "message": f"Updated metrics for {success_count}/{len(ticker_list)} tickers ({failed_count} failed)",
+        "total_tickers": len(ticker_list),
+        "success_count": success_count,
+        "failed_count": failed_count,
+        "results": results
+    }
+
+
 # Update just price for a single ticker
 @app.post("/market/update-ticker-price/{ticker}")
 async def update_ticker_price(
@@ -2824,6 +3005,7 @@ async def update_ticker_price(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to update ticker price: {str(e)}"
         )
+
 
 @app.post("/fx/update-all")
 async def update_all_fx_prices(current_user: dict = Depends(get_current_user)):
