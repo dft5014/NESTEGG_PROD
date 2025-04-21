@@ -2481,6 +2481,196 @@ async def update_specific_security(
             detail=f"Failed to update security: {str(e)}"
         )
         
+# Testing new files
+
+@app.post("/market/update-ticker-metrics/{ticker}")
+async def update_ticker_metrics(
+    ticker: str,
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Update company metrics for a single ticker using YahooQuery client.
+    
+    This endpoint:
+    1. Validates the ticker
+    2. Creates a YahooQueryClient
+    3. Fetches the company metrics data
+    4. Updates the securities database table
+    5. Returns results and status
+    """
+    try:
+        # Validate request
+        if not ticker:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Ticker must be provided"
+            )
+            
+        # Standardize ticker (uppercase)
+        ticker = ticker.strip().upper()
+        
+        # Check if ticker exists in database
+        check_query = "SELECT ticker FROM securities WHERE ticker = :ticker"
+        existing = await database.fetch_one(check_query, {"ticker": ticker})
+        
+        if not existing:
+            # Ticker doesn't exist, insert it first
+            insert_query = """
+            INSERT INTO securities (ticker, active, on_yfinance, created_at) 
+            VALUES (:ticker, true, true, :now)
+            """
+            await database.execute(
+                insert_query, 
+                {
+                    "ticker": ticker,
+                    "now": datetime.utcnow()
+                }
+            )
+            logger.info(f"Created new security record for ticker: {ticker}")
+            
+        # Create event record for tracking
+        event_id = await record_system_event(
+            database,
+            "yahoo_ticker_metrics_update",
+            "started",
+            {"ticker": ticker}
+        )
+        
+        # Initialize YahooQueryClient
+        client = YahooQueryClient()
+        
+        try:
+            # Get company metrics data
+            logger.info(f"Fetching company metrics for {ticker}")
+            metrics = await client.get_company_metrics(ticker)
+            
+            if not metrics or metrics.get("not_found"):
+                error_msg = f"No metrics data returned for {ticker}"
+                logger.error(error_msg)
+                
+                # Update event as failed
+                await update_system_event(
+                    database,
+                    event_id,
+                    "failed",
+                    {"error": error_msg}
+                )
+                
+                return {
+                    "success": False,
+                    "message": error_msg,
+                    "ticker": ticker
+                }
+            
+            # Update securities table with company metrics
+            update_query = """
+            UPDATE securities
+            SET 
+                company_name = :company_name,
+                sector = :sector,
+                industry = :industry,
+                market_cap = :market_cap,
+                pe_ratio = :pe_ratio,
+                forward_pe = :forward_pe,
+                dividend_rate = :dividend_rate,
+                dividend_yield = :dividend_yield,
+                beta = :beta,
+                fifty_two_week_low = :fifty_two_week_low,
+                fifty_two_week_high = :fifty_two_week_high,
+                fifty_two_week_range = :fifty_two_week_range,
+                eps = :eps,
+                forward_eps = :forward_eps,
+                last_metrics_update = :updated_at,
+                last_updated = :updated_at
+            WHERE ticker = :ticker
+            """
+            
+            # Prepare values for update
+            fifty_two_week_range = None
+            if metrics.get("fifty_two_week_low") is not None and metrics.get("fifty_two_week_high") is not None:
+                fifty_two_week_range = f"{metrics['fifty_two_week_low']}-{metrics['fifty_two_week_high']}"
+            
+            update_values = {
+                "ticker": ticker,
+                "company_name": metrics.get("company_name"),
+                "sector": metrics.get("sector"),
+                "industry": metrics.get("industry"),
+                "market_cap": metrics.get("market_cap"),
+                "pe_ratio": metrics.get("pe_ratio"),
+                "forward_pe": metrics.get("forward_pe"),
+                "dividend_rate": metrics.get("dividend_rate"),
+                "dividend_yield": metrics.get("dividend_yield"),
+                "beta": metrics.get("beta"),
+                "fifty_two_week_low": metrics.get("fifty_two_week_low"),
+                "fifty_two_week_high": metrics.get("fifty_two_week_high"),
+                "fifty_two_week_range": fifty_two_week_range,
+                "eps": metrics.get("eps"),
+                "forward_eps": metrics.get("forward_eps"),
+                "updated_at": datetime.now()
+            }
+            
+            await database.execute(update_query, update_values)
+            
+            # Filter out empty values for response
+            filtered_metrics = {k: v for k, v in metrics.items() if v is not None}
+            
+            # Update event as completed
+            await update_system_event(
+                database,
+                event_id,
+                "completed",
+                {"ticker": ticker, "fields_updated": len(filtered_metrics)}
+            )
+            
+            return {
+                "success": True,
+                "message": f"Successfully updated metrics for {ticker}",
+                "ticker": ticker,
+                "fields_updated": len(filtered_metrics),
+                "metrics": filtered_metrics
+            }
+            
+        except Exception as e:
+            error_message = f"Error updating metrics for {ticker}: {str(e)}"
+            logger.error(error_message)
+            
+            # Update event as failed
+            await update_system_event(
+                database,
+                event_id,
+                "failed",
+                {"error": error_message}
+            )
+            
+            return {
+                "success": False,
+                "message": error_message,
+                "ticker": ticker
+            }
+            
+    except Exception as e:
+        error_message = f"Error in ticker metrics update: {str(e)}"
+        logger.error(error_message)
+        
+        # Update event status if we have an event_id
+        if 'event_id' in locals():
+            await update_system_event(
+                database,
+                event_id,
+                "failed",
+                {"error": error_message}
+            )
+            
+        # Log detailed error for debugging
+        import traceback
+        logger.error(traceback.format_exc())
+        
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to update ticker metrics: {str(e)}"
+        )
+
+
 
 from backend.api_clients.yahooquery_client import YahooQueryClient
 from typing import List, Optional, Union
