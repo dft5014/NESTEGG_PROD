@@ -2594,7 +2594,7 @@ async def update_ticker_metrics(
             update_values = {
                 "ticker": ticker,
                 "company_name": metrics.get("company_name"),
-                "current_price": metrics.get("current_price",)
+                "current_price": metrics.get("current_price"),
                 "sector": metrics.get("sector"),
                 "industry": metrics.get("industry"),
                 "market_cap": metrics.get("market_cap"),
