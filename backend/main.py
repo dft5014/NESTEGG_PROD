@@ -2482,7 +2482,69 @@ async def update_specific_security(
         )
         
 # Testing new files
-# Update Company Metrics for use of single ticker
+# Helper functions for ticker operations
+
+async def check_or_create_ticker(ticker: str) -> str:
+    """
+    Check if a ticker exists in the database, and create it if it doesn't.
+    Returns the standardized (uppercase) ticker symbol.
+    """
+    # Standardize ticker (uppercase)
+    ticker = ticker.strip().upper()
+    
+    # Check if ticker exists in database
+    check_query = "SELECT ticker FROM securities WHERE ticker = :ticker"
+    existing = await database.fetch_one(check_query, {"ticker": ticker})
+    
+    if not existing:
+        # Ticker doesn't exist, insert it first
+        insert_query = """
+        INSERT INTO securities (ticker, active, on_yfinance, created_at) 
+        VALUES (:ticker, true, true, :now)
+        """
+        await database.execute(
+            insert_query, 
+            {
+                "ticker": ticker,
+                "now": datetime.utcnow()
+            }
+        )
+        logger.info(f"Created new security record for ticker: {ticker}")
+    
+    return ticker
+
+async def create_update_event(event_type: str, ticker: str) -> str:
+    """
+    Create a system event record for tracking the update operation.
+    Returns the event ID.
+    """
+    return await record_system_event(
+        database,
+        event_type,
+        "started",
+        {"ticker": ticker}
+    )
+
+async def complete_update_event(event_id: str, status: str, details: dict, error_message: str = None):
+    """
+    Update a system event record with completion status and details.
+    """
+    await update_system_event(
+        database,
+        event_id,
+        status,
+        details,
+        error_message
+    )
+
+def filter_non_null_values(data_dict: dict) -> dict:
+    """
+    Filter out None values from a dictionary.
+    """
+    return {k: v for k, v in data_dict.items() if v is not None}
+
+# Refactored endpoints using the helper functions
+
 @app.post("/market/update-ticker-metrics/{ticker}")
 async def update_ticker_metrics(
     ticker: str,
@@ -2490,13 +2552,6 @@ async def update_ticker_metrics(
 ):
     """
     Update company metrics for a single ticker using YahooQuery client.
-    
-    This endpoint:
-    1. Validates the ticker
-    2. Creates a YahooQueryClient
-    3. Fetches the company metrics data
-    4. Updates the securities database table
-    5. Returns results and status
     """
     try:
         # Validate request
@@ -2506,35 +2561,9 @@ async def update_ticker_metrics(
                 detail="Ticker must be provided"
             )
             
-        # Standardize ticker (uppercase)
-        ticker = ticker.strip().upper()
-        
-        # Check if ticker exists in database
-        check_query = "SELECT ticker FROM securities WHERE ticker = :ticker"
-        existing = await database.fetch_one(check_query, {"ticker": ticker})
-        
-        if not existing:
-            # Ticker doesn't exist, insert it first
-            insert_query = """
-            INSERT INTO securities (ticker, active, on_yfinance, created_at) 
-            VALUES (:ticker, true, true, :now)
-            """
-            await database.execute(
-                insert_query, 
-                {
-                    "ticker": ticker,
-                    "now": datetime.utcnow()
-                }
-            )
-            logger.info(f"Created new security record for ticker: {ticker}")
-            
-        # Create event record for tracking
-        event_id = await record_system_event(
-            database,
-            "yahoo_ticker_metrics_update",
-            "started",
-            {"ticker": ticker}
-        )
+        # Check/create ticker and start event tracking
+        ticker = await check_or_create_ticker(ticker)
+        event_id = await create_update_event("yahoo_ticker_metrics_update", ticker)
         
         # Initialize YahooQueryClient
         client = YahooQueryClient()
@@ -2548,13 +2577,7 @@ async def update_ticker_metrics(
                 error_msg = f"No metrics data returned for {ticker}"
                 logger.error(error_msg)
                 
-                # Update event as failed
-                await update_system_event(
-                    database,
-                    event_id,
-                    "failed",
-                    {"error": error_msg}
-                )
+                await complete_update_event(event_id, "failed", {"error": error_msg})
                 
                 return {
                     "success": False,
@@ -2571,6 +2594,7 @@ async def update_ticker_metrics(
                 sector = :sector,
                 industry = :industry,
                 market_cap = :market_cap,
+                current_price = :current_price,
                 pe_ratio = :pe_ratio,
                 forward_pe = :forward_pe,
                 dividend_rate = :dividend_rate,
@@ -2594,10 +2618,11 @@ async def update_ticker_metrics(
             update_values = {
                 "ticker": ticker,
                 "company_name": metrics.get("company_name"),
-                "current_price": metrics.get("current_price"),
+                "current_price": metrics.get("current_price")
                 "sector": metrics.get("sector"),
                 "industry": metrics.get("industry"),
                 "market_cap": metrics.get("market_cap"),
+                "current_price": metrics.get("current_price"),
                 "pe_ratio": metrics.get("pe_ratio"),
                 "forward_pe": metrics.get("forward_pe"),
                 "dividend_rate": metrics.get("dividend_rate"),
@@ -2614,12 +2639,11 @@ async def update_ticker_metrics(
             await database.execute(update_query, update_values)
             
             # Filter out empty values for response
-            filtered_metrics = {k: v for k, v in metrics.items() if v is not None}
+            filtered_metrics = filter_non_null_values(metrics)
             
             # Update event as completed
-            await update_system_event(
-                database,
-                event_id,
+            await complete_update_event(
+                event_id, 
                 "completed",
                 {"ticker": ticker, "fields_updated": len(filtered_metrics)}
             )
@@ -2636,13 +2660,7 @@ async def update_ticker_metrics(
             error_message = f"Error updating metrics for {ticker}: {str(e)}"
             logger.error(error_message)
             
-            # Update event as failed
-            await update_system_event(
-                database,
-                event_id,
-                "failed",
-                {"error": error_message}
-            )
+            await complete_update_event(event_id, "failed", {"error": error_message}, str(e))
             
             return {
                 "success": False,
@@ -2656,12 +2674,7 @@ async def update_ticker_metrics(
         
         # Update event status if we have an event_id
         if 'event_id' in locals():
-            await update_system_event(
-                database,
-                event_id,
-                "failed",
-                {"error": error_message}
-            )
+            await complete_update_event(event_id, "failed", {"error": error_message}, str(e))
             
         # Log detailed error for debugging
         import traceback
@@ -2671,7 +2684,7 @@ async def update_ticker_metrics(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to update ticker metrics: {str(e)}"
         )
-# Update just price for a single ticker
+
 @app.post("/market/update-ticker-price/{ticker}")
 async def update_ticker_price(
     ticker: str,
@@ -2681,35 +2694,16 @@ async def update_ticker_price(
     Update current price data for a single ticker using YahooQuery client.
     """
     try:
-        # Standardize ticker (uppercase)
-        ticker = ticker.strip().upper()
-        
-        # Check if ticker exists in database
-        check_query = "SELECT ticker FROM securities WHERE ticker = :ticker"
-        existing = await database.fetch_one(check_query, {"ticker": ticker})
-        
-        if not existing:
-            # Ticker doesn't exist, insert it first
-            insert_query = """
-            INSERT INTO securities (ticker, active, on_yfinance, created_at) 
-            VALUES (:ticker, true, true, :now)
-            """
-            await database.execute(
-                insert_query, 
-                {
-                    "ticker": ticker,
-                    "now": datetime.utcnow()
-                }
+        # Validate request
+        if not ticker:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Ticker must be provided"
             )
-            logger.info(f"Created new security record for ticker: {ticker}")
             
-        # Create event record for tracking
-        event_id = await record_system_event(
-            database,
-            "yahoo_ticker_price_update",
-            "started",
-            {"ticker": ticker}
-        )
+        # Check/create ticker and start event tracking
+        ticker = await check_or_create_ticker(ticker)
+        event_id = await create_update_event("yahoo_ticker_price_update", ticker)
         
         # Initialize YahooQueryClient
         client = YahooQueryClient()
@@ -2723,13 +2717,7 @@ async def update_ticker_price(
                 error_msg = f"No price data returned for {ticker}"
                 logger.error(error_msg)
                 
-                # Update event as failed
-                await update_system_event(
-                    database,
-                    event_id,
-                    "failed",
-                    {"error": error_msg}
-                )
+                await complete_update_event(event_id, "failed", {"error": error_msg})
                 
                 return {
                     "success": False,
@@ -2765,12 +2753,11 @@ async def update_ticker_price(
             await database.execute(update_query, update_values)
             
             # Filter out empty values for response
-            filtered_price_data = {k: v for k, v in price_data.items() if v is not None}
+            filtered_price_data = filter_non_null_values(price_data)
             
             # Update event as completed
-            await update_system_event(
-                database,
-                event_id,
+            await complete_update_event(
+                event_id, 
                 "completed",
                 {"ticker": ticker, "fields_updated": len(filtered_price_data)}
             )
@@ -2788,13 +2775,7 @@ async def update_ticker_price(
             error_message = f"Error updating price for {ticker}: {str(e)}"
             logger.error(error_message)
             
-            # Update event as failed
-            await update_system_event(
-                database,
-                event_id,
-                "failed",
-                {"error": error_message}
-            )
+            await complete_update_event(event_id, "failed", {"error": error_message}, str(e))
             
             return {
                 "success": False,
@@ -2808,12 +2789,7 @@ async def update_ticker_price(
         
         # Update event status if we have an event_id
         if 'event_id' in locals():
-            await update_system_event(
-                database,
-                event_id,
-                "failed",
-                {"error": error_message}
-            )
+            await complete_update_event(event_id, "failed", {"error": error_message}, str(e))
             
         # Log detailed error for debugging
         import traceback
@@ -2824,6 +2800,12 @@ async def update_ticker_price(
             detail=f"Failed to update ticker price: {str(e)}"
         )
 
+
+
+
+
+
+# fx updates
 @app.post("/fx/update-all")
 async def update_all_fx_prices(current_user: dict = Depends(get_current_user)):
     """Update prices for all active FX assets using DirectYahooFinanceClient"""
