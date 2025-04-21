@@ -2482,6 +2482,7 @@ async def update_specific_security(
         )
         
 # Testing new files
+# Update Company Metrics for use of single ticker
 @app.post("/market/update-ticker-metrics/{ticker}")
 async def update_ticker_metrics(
     ticker: str,
@@ -2489,6 +2490,13 @@ async def update_ticker_metrics(
 ):
     """
     Update company metrics for a single ticker using YahooQuery client.
+    
+    This endpoint:
+    1. Validates the ticker
+    2. Creates a YahooQueryClient
+    3. Fetches the company metrics data
+    4. Updates the securities database table
+    5. Returns results and status
     """
     try:
         # Validate request
@@ -2559,10 +2567,10 @@ async def update_ticker_metrics(
             UPDATE securities
             SET 
                 company_name = :company_name,
+                current_price = :current_price,
                 sector = :sector,
                 industry = :industry,
                 market_cap = :market_cap,
-                current_price = :current_price,
                 pe_ratio = :pe_ratio,
                 forward_pe = :forward_pe,
                 dividend_rate = :dividend_rate,
@@ -2586,10 +2594,10 @@ async def update_ticker_metrics(
             update_values = {
                 "ticker": ticker,
                 "company_name": metrics.get("company_name"),
+                "current_price": metrics.get("current_price"),
                 "sector": metrics.get("sector"),
                 "industry": metrics.get("industry"),
                 "market_cap": metrics.get("market_cap"),
-                "current_price": metrics.get("current_price"),
                 "pe_ratio": metrics.get("pe_ratio"),
                 "forward_pe": metrics.get("forward_pe"),
                 "dividend_rate": metrics.get("dividend_rate"),
@@ -2663,7 +2671,7 @@ async def update_ticker_metrics(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to update ticker metrics: {str(e)}"
         )
-
+# Update just price for a single ticker
 @app.post("/market/update-ticker-price/{ticker}")
 async def update_ticker_price(
     ticker: str,
@@ -2673,13 +2681,6 @@ async def update_ticker_price(
     Update current price data for a single ticker using YahooQuery client.
     """
     try:
-        # Validate request
-        if not ticker:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Ticker must be provided"
-            )
-            
         # Standardize ticker (uppercase)
         ticker = ticker.strip().upper()
         
@@ -2823,379 +2824,6 @@ async def update_ticker_price(
             detail=f"Failed to update ticker price: {str(e)}"
         )
 
-@app.post("/market/update-all-prices")
-async def update_all_prices(
-    batch_size: int = 50,
-    current_user: dict = Depends(get_current_user)
-):
-    """
-    Update current prices for all active tickers.
-    Uses YahooQueryClient's batch capability.
-    """
-    try:
-        # Get all active tickers
-        query = """
-        SELECT ticker
-        FROM securities
-        WHERE active = true
-        ORDER BY ticker ASC
-        """
-        
-        result = await database.fetch_all(query)
-        all_tickers = [row["ticker"] for row in result]
-        total_tickers = len(all_tickers)
-        
-        if total_tickers == 0:
-            return {
-                "success": True,
-                "message": "No active tickers found to update",
-                "total_tickers": 0,
-                "updated_tickers": 0
-            }
-        
-        # Create event for the entire operation
-        event_id = await record_system_event(
-            database,
-            "all_prices_update",
-            "started",
-            {"tickers_count": total_tickers}
-        )
-        
-        # Initialize stats
-        total_success = 0
-        total_failed = 0
-        failed_tickers = []
-        
-        # Initialize YahooQueryClient
-        client = YahooQueryClient()
-        
-        # Process tickers in batches
-        for i in range(0, total_tickers, batch_size):
-            batch = all_tickers[i:i + batch_size]
-            
-            logger.info(f"Processing prices batch {i//batch_size + 1}/{(total_tickers + batch_size - 1)//batch_size} with {len(batch)} tickers")
-            
-            try:
-                # Use the batch prices method
-                batch_results = await client.get_batch_prices(batch)
-                
-                # Process each result
-                for ticker, price_data in batch_results.items():
-                    try:
-                        if not price_data:
-                            logger.warning(f"No price data found for {ticker}")
-                            total_failed += 1
-                            failed_tickers.append(ticker)
-                            continue
-                        
-                        # Update securities table
-                        update_query = """
-                        UPDATE securities
-                        SET 
-                            current_price = :price,
-                            day_open = :day_open,
-                            day_high = :day_high,
-                            day_low = :day_low,
-                            volume = :volume,
-                            last_updated = :updated_at,
-                            price_timestamp = :price_timestamp
-                        WHERE ticker = :ticker
-                        """
-                        
-                        # Prepare update values
-                        update_values = {
-                            "ticker": ticker,
-                            "price": price_data.get("price"),
-                            "day_open": price_data.get("day_open"),
-                            "day_high": price_data.get("day_high"),
-                            "day_low": price_data.get("day_low"),
-                            "volume": price_data.get("volume"),
-                            "updated_at": datetime.now(),
-                            "price_timestamp": price_data.get("price_timestamp")
-                        }
-                        
-                        # Execute update
-                        await database.execute(update_query, update_values)
-                        total_success += 1
-                        
-                    except Exception as ticker_error:
-                        logger.error(f"Error updating price for {ticker}: {str(ticker_error)}")
-                        total_failed += 1
-                        failed_tickers.append(ticker)
-                
-            except Exception as batch_error:
-                logger.error(f"Error in batch price lookup: {str(batch_error)}")
-                
-                # If batch lookup fails, try individual lookups for this batch
-                for ticker in batch:
-                    try:
-                        # Get individual price
-                        price_data = await client.get_current_price(ticker)
-                        
-                        if not price_data:
-                            logger.warning(f"No price data found for {ticker} in individual lookup")
-                            total_failed += 1
-                            failed_tickers.append(ticker)
-                            continue
-                        
-                        # Update securities table
-                        update_query = """
-                        UPDATE securities
-                        SET 
-                            current_price = :price,
-                            day_open = :day_open,
-                            day_high = :day_high,
-                            day_low = :day_low,
-                            volume = :volume,
-                            last_updated = :updated_at,
-                            price_timestamp = :price_timestamp
-                        WHERE ticker = :ticker
-                        """
-                        
-                        # Prepare update values
-                        update_values = {
-                            "ticker": ticker,
-                            "price": price_data.get("price"),
-                            "day_open": price_data.get("day_open"),
-                            "day_high": price_data.get("day_high"),
-                            "day_low": price_data.get("day_low"),
-                            "volume": price_data.get("volume"),
-                            "updated_at": datetime.now(),
-                            "price_timestamp": price_data.get("price_timestamp")
-                        }
-                        
-                        # Execute update
-                        await database.execute(update_query, update_values)
-                        total_success += 1
-                        
-                    except Exception as ticker_error:
-                        logger.error(f"Error updating price for {ticker} in individual lookup: {str(ticker_error)}")
-                        total_failed += 1
-                        failed_tickers.append(ticker)
-            
-            # Add a short delay between batches to avoid rate limiting
-            if i + batch_size < total_tickers:
-                await asyncio.sleep(1)
-        
-        # Complete event
-        await update_system_event(
-            database,
-            event_id,
-            "completed",
-            {
-                "total_tickers": total_tickers,
-                "success_count": total_success,
-                "failed_count": total_failed,
-                "completion_time": datetime.now().isoformat()
-            }
-        )
-        
-        return {
-            "success": True,
-            "message": f"Price update completed for {total_success}/{total_tickers} tickers",
-            "total_tickers": total_tickers,
-            "updated_tickers": total_success,
-            "failed_tickers": total_failed,
-            "failed_ticker_list": failed_tickers if len(failed_tickers) <= 20 else f"{len(failed_tickers)} tickers failed"
-        }
-        
-    except Exception as e:
-        error_message = f"Error updating all prices: {str(e)}"
-        logger.error(error_message)
-        
-        # Update event if it exists
-        if 'event_id' in locals():
-            await update_system_event(
-                database,
-                event_id,
-                "failed",
-                {"error": error_message}
-            )
-        
-        # Log detailed error information
-        import traceback
-        logger.error(traceback.format_exc())
-        
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to update all prices: {str(e)}"
-        )
-
-@app.post("/market/update-all-metrics")
-async def update_all_metrics(
-    batch_size: int = 50,
-    current_user: dict = Depends(get_current_user)
-):
-    """
-    Update company metrics for all active tickers.
-    The endpoint handles batching internally.
-    """
-    try:
-        # Get all active tickers
-        query = """
-        SELECT ticker
-        FROM securities
-        WHERE active = true
-        ORDER BY ticker ASC
-        """
-        
-        result = await database.fetch_all(query)
-        all_tickers = [row["ticker"] for row in result]
-        total_tickers = len(all_tickers)
-        
-        if total_tickers == 0:
-            return {
-                "success": True,
-                "message": "No active tickers found to update",
-                "total_tickers": 0,
-                "updated_tickers": 0
-            }
-        
-        # Create event for the entire operation
-        event_id = await record_system_event(
-            database,
-            "all_metrics_update",
-            "started",
-            {"tickers_count": total_tickers}
-        )
-        
-        # Initialize stats
-        total_success = 0
-        total_failed = 0
-        failed_tickers = []
-        
-        # Initialize YahooQueryClient
-        client = YahooQueryClient()
-        
-        # Process tickers in batches
-        for i in range(0, total_tickers, batch_size):
-            batch = all_tickers[i:i + batch_size]
-            batch_size_actual = len(batch)
-            
-            logger.info(f"Processing metrics batch {i//batch_size + 1}/{(total_tickers + batch_size - 1)//batch_size} with {batch_size_actual} tickers")
-            
-            # Update metrics for each ticker in the batch
-            # Note: YahooQueryClient doesn't have batch metrics method, so process one by one
-            for ticker in batch:
-                try:
-                    # Get company metrics
-                    metrics = await client.get_company_metrics(ticker)
-                    
-                    if not metrics or metrics.get("not_found"):
-                        logger.warning(f"No metrics data found for {ticker}")
-                        total_failed += 1
-                        failed_tickers.append(ticker)
-                        continue
-                    
-                    # Update securities table
-                    update_query = """
-                    UPDATE securities
-                    SET 
-                        company_name = :company_name,
-                        sector = :sector,
-                        industry = :industry,
-                        market_cap = :market_cap,
-                        current_price = :current_price,
-                        pe_ratio = :pe_ratio,
-                        forward_pe = :forward_pe,
-                        dividend_rate = :dividend_rate,
-                        dividend_yield = :dividend_yield,
-                        beta = :beta,
-                        fifty_two_week_low = :fifty_two_week_low,
-                        fifty_two_week_high = :fifty_two_week_high,
-                        fifty_two_week_range = :fifty_two_week_range,
-                        eps = :eps,
-                        forward_eps = :forward_eps,
-                        last_metrics_update = :updated_at,
-                        last_updated = :updated_at
-                    WHERE ticker = :ticker
-                    """
-                    
-                    # Format 52-week range
-                    fifty_two_week_range = None
-                    if metrics.get("fifty_two_week_low") is not None and metrics.get("fifty_two_week_high") is not None:
-                        fifty_two_week_range = f"{metrics['fifty_two_week_low']}-{metrics['fifty_two_week_high']}"
-                    
-                    # Prepare update values
-                    update_values = {
-                        "ticker": ticker,
-                        "company_name": metrics.get("company_name"),
-                        "sector": metrics.get("sector"),
-                        "industry": metrics.get("industry"),
-                        "market_cap": metrics.get("market_cap"),
-                        "current_price": metrics.get("current_price"),
-                        "pe_ratio": metrics.get("pe_ratio"),
-                        "forward_pe": metrics.get("forward_pe"),
-                        "dividend_rate": metrics.get("dividend_rate"),
-                        "dividend_yield": metrics.get("dividend_yield"),
-                        "beta": metrics.get("beta"),
-                        "fifty_two_week_low": metrics.get("fifty_two_week_low"),
-                        "fifty_two_week_high": metrics.get("fifty_two_week_high"),
-                        "fifty_two_week_range": fifty_two_week_range,
-                        "eps": metrics.get("eps"),
-                        "forward_eps": metrics.get("forward_eps"),
-                        "updated_at": datetime.now()
-                    }
-                    
-                    # Execute update
-                    await database.execute(update_query, update_values)
-                    total_success += 1
-                    
-                except Exception as e:
-                    logger.error(f"Error updating metrics for {ticker}: {str(e)}")
-                    total_failed += 1
-                    failed_tickers.append(ticker)
-            
-            # Add a short delay between batches to avoid rate limiting
-            if i + batch_size < total_tickers:
-                await asyncio.sleep(1)
-        
-        # Complete event
-        await update_system_event(
-            database,
-            event_id,
-            "completed",
-            {
-                "total_tickers": total_tickers,
-                "success_count": total_success,
-                "failed_count": total_failed,
-                "completion_time": datetime.now().isoformat()
-            }
-        )
-        
-        return {
-            "success": True,
-            "message": f"Metrics update completed for {total_success}/{total_tickers} tickers",
-            "total_tickers": total_tickers,
-            "updated_tickers": total_success,
-            "failed_tickers": total_failed,
-            "failed_ticker_list": failed_tickers if len(failed_tickers) <= 20 else f"{len(failed_tickers)} tickers failed"
-        }
-        
-    except Exception as e:
-        error_message = f"Error updating all metrics: {str(e)}"
-        logger.error(error_message)
-        
-        # Update event if it exists
-        if 'event_id' in locals():
-            await update_system_event(
-                database,
-                event_id,
-                "failed",
-                {"error": error_message}
-            )
-        
-        # Log detailed error information
-        import traceback
-        logger.error(traceback.format_exc())
-        
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to update all metrics: {str(e)}"
-        )
-
-
-# fx updates
 @app.post("/fx/update-all")
 async def update_all_fx_prices(current_user: dict = Depends(get_current_user)):
     """Update prices for all active FX assets using DirectYahooFinanceClient"""
