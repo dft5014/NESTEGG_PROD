@@ -2482,7 +2482,7 @@ async def update_specific_security(
         )
         
 # Testing new files
-
+# Update Company Metrics for use of single ticker
 @app.post("/market/update-ticker-metrics/{ticker}")
 async def update_ticker_metrics(
     ticker: str,
@@ -2670,6 +2670,158 @@ async def update_ticker_metrics(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to update ticker metrics: {str(e)}"
+        )
+# Update just price for a single ticker
+@app.post("/market/update-ticker-price/{ticker}")
+async def update_ticker_price(
+    ticker: str,
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Update current price data for a single ticker using YahooQuery client.
+    """
+    try:
+        # Standardize ticker (uppercase)
+        ticker = ticker.strip().upper()
+        
+        # Check if ticker exists in database
+        check_query = "SELECT ticker FROM securities WHERE ticker = :ticker"
+        existing = await database.fetch_one(check_query, {"ticker": ticker})
+        
+        if not existing:
+            # Ticker doesn't exist, insert it first
+            insert_query = """
+            INSERT INTO securities (ticker, active, on_yfinance, created_at) 
+            VALUES (:ticker, true, true, :now)
+            """
+            await database.execute(
+                insert_query, 
+                {
+                    "ticker": ticker,
+                    "now": datetime.utcnow()
+                }
+            )
+            logger.info(f"Created new security record for ticker: {ticker}")
+            
+        # Create event record for tracking
+        event_id = await record_system_event(
+            database,
+            "yahoo_ticker_price_update",
+            "started",
+            {"ticker": ticker}
+        )
+        
+        # Initialize YahooQueryClient
+        client = YahooQueryClient()
+        
+        try:
+            # Get current price data
+            logger.info(f"Fetching current price for {ticker}")
+            price_data = await client.get_current_price(ticker)
+            
+            if not price_data:
+                error_msg = f"No price data returned for {ticker}"
+                logger.error(error_msg)
+                
+                # Update event as failed
+                await update_system_event(
+                    database,
+                    event_id,
+                    "failed",
+                    {"error": error_msg}
+                )
+                
+                return {
+                    "success": False,
+                    "message": error_msg,
+                    "ticker": ticker
+                }
+            
+            # Update securities table with price data
+            update_query = """
+            UPDATE securities
+            SET 
+                current_price = :price,
+                day_open = :day_open,
+                day_high = :day_high,
+                day_low = :day_low,
+                volume = :volume,
+                last_updated = :updated_at,
+                price_timestamp = :price_timestamp
+            WHERE ticker = :ticker
+            """
+            
+            update_values = {
+                "ticker": ticker,
+                "price": price_data.get("price"),
+                "day_open": price_data.get("day_open"),
+                "day_high": price_data.get("day_high"),
+                "day_low": price_data.get("day_low"),
+                "volume": price_data.get("volume"),
+                "updated_at": datetime.now(),
+                "price_timestamp": price_data.get("price_timestamp")
+            }
+            
+            await database.execute(update_query, update_values)
+            
+            # Filter out empty values for response
+            filtered_price_data = {k: v for k, v in price_data.items() if v is not None}
+            
+            # Update event as completed
+            await update_system_event(
+                database,
+                event_id,
+                "completed",
+                {"ticker": ticker, "fields_updated": len(filtered_price_data)}
+            )
+            
+            return {
+                "success": True,
+                "message": f"Successfully updated price for {ticker}",
+                "ticker": ticker,
+                "current_price": price_data.get("price"),
+                "updated_at": datetime.now().isoformat(),
+                "data": filtered_price_data
+            }
+            
+        except Exception as e:
+            error_message = f"Error updating price for {ticker}: {str(e)}"
+            logger.error(error_message)
+            
+            # Update event as failed
+            await update_system_event(
+                database,
+                event_id,
+                "failed",
+                {"error": error_message}
+            )
+            
+            return {
+                "success": False,
+                "message": error_message,
+                "ticker": ticker
+            }
+            
+    except Exception as e:
+        error_message = f"Error in ticker price update: {str(e)}"
+        logger.error(error_message)
+        
+        # Update event status if we have an event_id
+        if 'event_id' in locals():
+            await update_system_event(
+                database,
+                event_id,
+                "failed",
+                {"error": error_message}
+            )
+            
+        # Log detailed error for debugging
+        import traceback
+        logger.error(traceback.format_exc())
+        
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to update ticker price: {str(e)}"
         )
 
 @app.post("/fx/update-all")
