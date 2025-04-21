@@ -2481,10 +2481,8 @@ async def update_specific_security(
             detail=f"Failed to update security: {str(e)}"
         )
         
-# Testing new files
+# ---- IMPROVED PRICING LOGIC ----
 # Helper functions for ticker operations
-
-# Simplified helper functions
 
 async def get_all_active_tickers() -> List[str]:
     """
@@ -2637,11 +2635,10 @@ async def update_ticker_metrics(
             update_values = {
                 "ticker": ticker,
                 "company_name": metrics.get("company_name"),
-                "current_price": metrics.get("current_price")
+                "current_price": metrics.get("current_price"),
                 "sector": metrics.get("sector"),
                 "industry": metrics.get("industry"),
                 "market_cap": metrics.get("market_cap"),
-                "current_price": metrics.get("current_price"),
                 "pe_ratio": metrics.get("pe_ratio"),
                 "forward_pe": metrics.get("forward_pe"),
                 "dividend_rate": metrics.get("dividend_rate"),
@@ -2908,10 +2905,10 @@ async def update_all_metrics(
                     update_values = {
                         "ticker": ticker,
                         "company_name": metrics.get("company_name"),
+                        "current_price": metrics.get("current_price"),
                         "sector": metrics.get("sector"),
                         "industry": metrics.get("industry"),
                         "market_cap": metrics.get("market_cap"),
-                        "current_price": metrics.get("current_price"),
                         "pe_ratio": metrics.get("pe_ratio"),
                         "forward_pe": metrics.get("forward_pe"),
                         "dividend_rate": metrics.get("dividend_rate"),
