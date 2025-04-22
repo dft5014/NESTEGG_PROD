@@ -49,7 +49,10 @@ const UpdateMarketDataModal = ({ isOpen, onClose }) => {
     setLoadingSecurities(true);
     addLog('Fetching list of all securities...', 'info');
     try {
-      const response = await fetchWithAuth(`${API_BASE_URL}/securities/all`);
+      // Ensure we're using the correct endpoint format
+      const endpoint = '/securities/all';
+      const response = await fetchWithAuth(endpoint);
+      
       if (response.ok) {
         const data = await response.json();
         const tickers = data.securities.map(sec => sec.ticker);
@@ -80,7 +83,12 @@ const UpdateMarketDataModal = ({ isOpen, onClose }) => {
         endpoint = `/market/update-ticker-metrics/${ticker}`;
       }
 
-      const response = await fetchWithAuth(`${API_BASE_URL}${endpoint}`, {
+      // Make sure we're not using a URL that includes the API_BASE_URL
+      if (endpoint.includes(API_BASE_URL)) {
+        endpoint = endpoint.replace(API_BASE_URL, '');
+      }
+
+      const response = await fetchWithAuth(endpoint, {
         method: 'POST'
       });
 
@@ -136,7 +144,12 @@ const UpdateMarketDataModal = ({ isOpen, onClose }) => {
         endpoint = `/market/update-tickers-metrics/${tickerList.join(',')}`;
       }
       
-      const response = await fetchWithAuth(`${API_BASE_URL}${endpoint}`, {
+      // Make sure we're not using a URL that includes the API_BASE_URL
+      if (endpoint.includes(API_BASE_URL)) {
+        endpoint = endpoint.replace(API_BASE_URL, '');
+      }
+      
+      const response = await fetchWithAuth(endpoint, {
         method: 'POST'
       });
 
@@ -221,7 +234,12 @@ const UpdateMarketDataModal = ({ isOpen, onClose }) => {
             endpoint = `/market/update-tickers-metrics/${batchTickerString}`;
           }
 
-          const response = await fetchWithAuth(`${API_BASE_URL}${endpoint}`, {
+          // Make sure we're not using a URL that includes the API_BASE_URL
+          if (endpoint.includes(API_BASE_URL)) {
+            endpoint = endpoint.replace(API_BASE_URL, '');
+          }
+
+          const response = await fetchWithAuth(endpoint, {
             method: 'POST'
           });
 
