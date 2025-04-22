@@ -54,6 +54,7 @@ from backend.api_clients.market_data_manager import MarketDataManager
 from backend.api_clients.yahoo_data import Yahoo_Data
 from backend.api_clients.yahoo_finance_client import YahooFinanceClient
 from backend.api_clients.yahooquery_client import YahooQueryClient
+from backend.api_clients.direct_yahoo_client import DirectYahooFinanceClient
 
 # Initialize Database Connection
 database = databases.Database(
