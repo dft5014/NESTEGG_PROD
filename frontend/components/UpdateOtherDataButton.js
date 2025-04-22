@@ -2,6 +2,7 @@
 import React, { useState } from 'react';
 import { DollarSign } from 'lucide-react';
 import UpdateOtherDataModal from '@/components/modals/UpdateOtherDataModal';
+import DirectUpdateMarketDataModal from '@/components/modals/DirectUpdateMarketDataModal'
 
 const UpdateOtherDataButton = ({ className = "" }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -24,7 +25,7 @@ const UpdateOtherDataButton = ({ className = "" }) => {
         <span>Update Other Data</span>
       </button>
 
-      <UpdateOtherDataModal 
+      <DirectUpdateMarketDataModal 
         isOpen={isModalOpen}
         onClose={handleCloseModal}
       />
