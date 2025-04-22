@@ -84,7 +84,12 @@ const UpdateMarketDataModal = ({ isOpen, onClose }) => {
         method: 'POST'
       });
 
+      if (!response.ok) {
+        throw new Error(`Server returned ${response.status}: ${response.statusText}`);
+      }
+
       const data = await response.json();
+      
       if (data.success === false) {
         throw new Error(data.message || 'Update failed');
       }
@@ -124,15 +129,24 @@ const UpdateMarketDataModal = ({ isOpen, onClose }) => {
     addLog(`Starting batch update for ${tickerList.length} tickers (${updateType})`, 'info');
 
     try {
-      const endpoint = `/market/update-tickers-metrics/${tickerList.join(',')}`;
+      let endpoint = '';
+      if (updateType === 'prices') {
+        endpoint = `/market/update-tickers-price/${tickerList.join(',')}`;
+      } else {
+        endpoint = `/market/update-tickers-metrics/${tickerList.join(',')}`;
+      }
       
       const response = await fetchWithAuth(`${API_BASE_URL}${endpoint}`, {
         method: 'POST'
       });
 
+      if (!response.ok) {
+        throw new Error(`Server returned ${response.status}: ${response.statusText}`);
+      }
+
       const data = await response.json();
       
-      if (!data.success) {
+      if (data.success === false) {
         throw new Error(data.message || 'Batch update failed');
       }
 
@@ -202,7 +216,6 @@ const UpdateMarketDataModal = ({ isOpen, onClose }) => {
         try {
           let endpoint = '';
           if (updateType === 'prices') {
-            // Note: You'll need to create this endpoint in your backend
             endpoint = `/market/update-tickers-price/${batchTickerString}`;
           } else {
             endpoint = `/market/update-tickers-metrics/${batchTickerString}`;
@@ -211,6 +224,10 @@ const UpdateMarketDataModal = ({ isOpen, onClose }) => {
           const response = await fetchWithAuth(`${API_BASE_URL}${endpoint}`, {
             method: 'POST'
           });
+
+          if (!response.ok) {
+            throw new Error(`Server returned ${response.status}: ${response.statusText}`);
+          }
 
           const data = await response.json();
           
