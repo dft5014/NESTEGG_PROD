@@ -1866,7 +1866,7 @@ async def get_all_securities(current_user: dict = Depends(get_current_user)):
     """Retrieve all securities from the database for debugging purposes."""
     try:
         logger.info("Fetching all securities from the database")
-        query = "SELECT * FROM securities ORDER BY last_metrics_update ASC"
+        query = "SELECT * FROM securities ORDER BY last_updated ASC"
         results = await database.fetch_all(query)
         result_count = len(results) if results else 0
         logger.info(f"Fetched {result_count} securities from the database")
