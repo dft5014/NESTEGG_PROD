@@ -28,7 +28,7 @@ const UpdateMarketDataModal = ({ isOpen, onClose }) => {
     estimatedTimeRemaining: null
   });
   const [showAdvanced, setShowAdvanced] = useState(false);
-  const [batchSize, setBatchSize] = useState(5);
+  const [batchSize, setBatchSize] = useState(10);
   const [delayBetweenBatches, setDelayBetweenBatches] = useState(1000);
   const [updateLogs, setUpdateLogs] = useState([]);
 

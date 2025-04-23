@@ -1866,7 +1866,7 @@ async def get_all_securities(current_user: dict = Depends(get_current_user)):
     """Retrieve all securities from the database for debugging purposes."""
     try:
         logger.info("Fetching all securities from the database")
-        query = "SELECT ticker FROM securities ORDER BY ticker ASC LIMIT 50"
+        query = "SELECT * FROM securities ORDER BY last_metrics_update ASC"
         results = await database.fetch_all(query)
         result_count = len(results) if results else 0
         logger.info(f"Fetched {result_count} securities from the database")
@@ -2853,6 +2853,7 @@ async def update_multiple_ticker_metrics(
         "failed_count": failed_count,
         "results": results
     }
+
 
 # Update just price for a single ticker
 @app.post("/market/update-ticker-price/{ticker}")
@@ -5874,6 +5875,7 @@ async def set_update_thresholds(
         )
     
     return {"success": True}
+
     """Attempt to automatically fix common data consistency issues"""
     try:
         monitor = DataConsistencyMonitor()
