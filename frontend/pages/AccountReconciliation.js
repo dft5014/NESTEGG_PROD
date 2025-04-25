@@ -35,7 +35,8 @@ import SecurityPositionModal from '../components/modals/SecurityPositionModal';
 import CryptoPositionModal from '../components/modals/CryptoPositionModal';
 import CashPositionModal from '../components/modals/CashPositionModal';
 import MetalPositionModal from '../components/modals/MetalPositionModal';
-import AddPositionFlow from '../components/flows/AddPositionFlow';
+// Import AddPositionButton instead of AddPositionFlow
+import AddPositionButton from '../components/AddPositionButton';
 
 const AccountReconciliation = () => {
   const { user } = useContext(AuthContext);
@@ -60,7 +61,6 @@ const AccountReconciliation = () => {
   const [showCryptoPositionModal, setShowCryptoPositionModal] = useState(false);
   const [showCashPositionModal, setShowCashPositionModal] = useState(false);
   const [showMetalPositionModal, setShowMetalPositionModal] = useState(false);
-  const [showAddPositionFlow, setShowAddPositionFlow] = useState(false);
   const [positionToEdit, setPositionToEdit] = useState(null);
   
   // Sorting and filtering state
@@ -166,6 +166,19 @@ const AccountReconciliation = () => {
   // Handle position saved callback
   const handlePositionSaved = () => {
     showMessage("Position updated successfully!");
+    
+    // Refresh position data
+    if (activeAccount) {
+      fetchPositionsForAccount(activeAccount.id);
+    }
+    
+    // Refresh account data
+    fetchAccounts();
+  };
+  
+  // Handle position added callback
+  const handlePositionAdded = () => {
+    showMessage("Position added successfully!");
     
     // Refresh position data
     if (activeAccount) {
@@ -454,22 +467,6 @@ const AccountReconciliation = () => {
     }
   };
   
-  // Format dates for display
-  const formatDate = (dateString) => {
-    if (!dateString) return 'Never';
-    
-    const date = new Date(dateString);
-    const now = new Date();
-    const diffDays = Math.floor((now - date) / (1000 * 60 * 60 * 24));
-    
-    if (diffDays === 0) return 'Today';
-    if (diffDays === 1) return 'Yesterday';
-    if (diffDays < 7) return `${diffDays} days ago`;
-    if (diffDays < 30) return `${Math.floor(diffDays / 7)} weeks ago`;
-    if (diffDays < 365) return `${Math.floor(diffDays / 30)} months ago`;
-    return `${Math.floor(diffDays / 365)} years ago`;
-  };
-  
   // Get variance display class based on threshold
   const getVarianceClass = (variance, isPercent = false) => {
     const absVariance = Math.abs(isPercent ? variance : variance);
@@ -635,26 +632,6 @@ const AccountReconciliation = () => {
       return positionSortDirection === 'asc' ? comparison : -comparison;
     });
   }, [reconciliationData.positions, positionSortField, positionSortDirection]);
-  
-  // Handle adding a position
-  const handleAddPosition = () => {
-    if (!activeAccount) return;
-    
-    setShowAddPositionFlow(true);
-  };
-  
-  // Handle position added callback
-  const handlePositionAdded = () => {
-    showMessage("Position added successfully!");
-    
-    // Refresh position data
-    if (activeAccount) {
-      fetchPositionsForAccount(activeAccount.id);
-    }
-    
-    // Refresh account data
-    fetchAccounts();
-  };
 
   return (
     <div className="container mx-auto px-4 py-6">
@@ -940,14 +917,18 @@ const AccountReconciliation = () => {
                 <div className="flex justify-between items-center mb-4">
                   <h4 className="text-lg font-medium text-white">Account Balance Reconciliation</h4>
                   
-                  {/* Add Position Button */}
-                  <button
-                    onClick={handleAddPosition}
+                  {/* Use AddPositionButton instead of direct add position implementation */}
+                  <AddPositionButton 
+                    accountId={activeAccount.id}
+                    onPositionAdded={handlePositionAdded}
                     className="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded transition-colors flex items-center gap-1"
-                  >
-                    <Plus className="w-4 h-4" />
-                    Add Position
-                  </button>
+                    buttonContent={
+                      <>
+                        <Plus className="w-4 h-4" />
+                        <span>Add Position</span>
+                      </>
+                    }
+                  />
                 </div>
                 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -1267,16 +1248,6 @@ const AccountReconciliation = () => {
           accountName={activeAccount?.account_name}
           onPositionSaved={handlePositionSaved}
           positionToEdit={positionToEdit}
-        />
-      )}
-      
-      {/* Add Position Flow */}
-      {showAddPositionFlow && (
-        <AddPositionFlow
-          isOpen={showAddPositionFlow}
-          onClose={() => setShowAddPositionFlow(false)}
-          initialAccount={activeAccount}
-          onPositionAdded={handlePositionAdded}
         />
       )}
     </div>
