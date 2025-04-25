@@ -17,11 +17,20 @@ import {
   BarChart4,
   CreditCard,
   Loader,
-  Trash
+  Trash,
+  Filter,
+  SlidersHorizontal
 } from 'lucide-react';
 import { API_BASE_URL } from '../utils/api';
 import { popularBrokerages } from '../utils/constants';
 import { formatCurrency, formatDate, formatPercentage, formatNumber } from '../utils/formatters';
+import { deletePosition } from '../utils/apimethods/positionMethods';
+
+// Import position modals
+import SecurityPositionModal from './modals/SecurityPositionModal';
+import CryptoPositionModal from './modals/CryptoPositionModal';
+import CashPositionModal from './modals/CashPositionModal';
+import MetalPositionModal from './modals/MetalPositionModal';
 
 const AccountReconciliation = () => {
   const { user } = useContext(AuthContext);
@@ -40,6 +49,17 @@ const AccountReconciliation = () => {
     },
     positions: []
   });
+  
+  // Position modal states
+  const [showSecurityPositionModal, setShowSecurityPositionModal] = useState(false);
+  const [showCryptoPositionModal, setShowCryptoPositionModal] = useState(false);
+  const [showCashPositionModal, setShowCashPositionModal] = useState(false);
+  const [showMetalPositionModal, setShowMetalPositionModal] = useState(false);
+  const [positionToEdit, setPositionToEdit] = useState(null);
+  
+  // Success message state
+  const [successMessage, setSuccessMessage] = useState("");
+  const [showSuccessMessage, setShowSuccessMessage] = useState(false);
   
   // Helper function to get institution logo
   const getInstitutionLogo = (institutionName) => {
@@ -305,21 +325,115 @@ const AccountReconciliation = () => {
     }
   };
   
+  // Display success message
+  const showMessage = (message) => {
+    setSuccessMessage(message);
+    setShowSuccessMessage(true);
+    setTimeout(() => {
+      setShowSuccessMessage(false);
+    }, 3000);
+  };
+  
   // Handle editing a position
   const handleEditPosition = (position, e) => {
     if (e) e.stopPropagation();
     console.log("Edit position:", position);
-    // Here you would implement your position editing logic
-    // For example, opening the position editing modal
+    
+    setPositionToEdit(position);
+    
+    // Open the appropriate modal based on asset type
+    switch (position.asset_type) {
+      case 'security':
+        setShowSecurityPositionModal(true);
+        break;
+      case 'crypto':
+        setShowCryptoPositionModal(true);
+        break;
+      case 'cash':
+        setShowCashPositionModal(true);
+        break;
+      case 'metal':
+        setShowMetalPositionModal(true);
+        break;
+      default:
+        console.error("Unknown asset type:", position.asset_type);
+    }
+  };
+  
+  // Handle position saved callback
+  const handlePositionSaved = () => {
+    showMessage("Position updated successfully!");
+    
+    // Refresh position data
+    if (activeAccount) {
+      fetchPositionsForAccount(activeAccount.id);
+    }
+  };
+  
+  // Fetch positions for a specific account
+  const fetchPositionsForAccount = async (accountId) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/positions/by-account/${accountId}`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Content-Type': 'application/json',
+        },
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Error fetching positions: ${response.statusText}`);
+      }
+      
+      const data = await response.json();
+      
+      // Update the positions in reconciliation data
+      setReconciliationData(prev => ({
+        ...prev,
+        positions: data.positions.map(position => ({
+          ...position,
+          actualQuantity: position.quantity_or_shares,
+          actualValue: position.value,
+          quantityVariance: 0,
+          quantityVariancePercent: 0,
+          valueVariance: 0,
+          valueVariancePercent: 0,
+          isQuantityReconciled: false,
+          isValueReconciled: false
+        }))
+      }));
+      
+    } catch (err) {
+      console.error('Error fetching positions:', err);
+      setError(err.message);
+    }
   };
   
   // Handle deleting a position
-  const handleDeletePosition = (position, e) => {
+  const handleDeletePosition = async (position, e) => {
     if (e) e.stopPropagation();
     console.log("Delete position:", position);
+    
     if (window.confirm(`Are you sure you want to delete this position? ${position.ticker_or_name}`)) {
-      // Here you would implement your position deletion logic
-      // For example, calling your API to delete the position
+      try {
+        // Call the deletePosition API function
+        await deletePosition(position.id, position.asset_type);
+        
+        showMessage("Position deleted successfully!");
+        
+        // Update the positions list by removing the deleted position
+        setReconciliationData(prev => ({
+          ...prev,
+          positions: prev.positions.filter(p => p.id !== position.id)
+        }));
+        
+        // Also refresh account data if needed
+        fetchAccounts();
+        
+      } catch (error) {
+        console.error("Error deleting position:", error);
+        setError("Failed to delete position. Please try again.");
+      }
     }
   };
   
@@ -814,20 +928,145 @@ const AccountReconciliation = () => {
       
       {/* No accounts message */}
       {!loading && accounts.length === 0 && (
-        <div className="bg-gray-800/70 backdrop-blur-sm rounded-xl p-6 text-center min-h-[180px] flex items-center justify-center flex-col">
+        <div className="bg-gray-900 rounded-xl p-8 text-center min-h-[180px] flex items-center justify-center flex-col">
           <AlertCircle className="w-12 h-12 text-gray-500 mb-4" />
           <h3 className="text-lg font-medium text-white mb-2">No Accounts Found</h3>
           <p className="text-gray-400 mb-4">
             You need to add some accounts before you can reconcile them.
           </p>
-          <button className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors">
+          <button className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition-colors">
             Add Account
           </button>
         </div>
       )}
       
       {/* Reconciliation Modal */}
-      {renderReconcileModal()}
+      {showReconcileModal && activeAccount && (
+        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50">
+          <div className="bg-gray-900 rounded-xl shadow-xl w-full max-w-5xl max-h-[90vh] overflow-hidden flex flex-col">
+            {/* Header */}
+            <div className="bg-gray-800 px-6 py-4 text-white border-b border-gray-700">
+              <div className="flex justify-between items-center">
+                <h3 className="text-xl font-semibold">
+                  Account Reconciliation: {activeAccount.account_name}
+                </h3>
+                <button 
+                  onClick={() => setShowReconcileModal(false)}
+                  className="text-gray-400 hover:text-white transition-colors"
+                >
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+            </div>
+
+            {/* Modal Body */}
+            <div className="overflow-y-auto p-6 flex-grow bg-gray-900 text-white">
+              {/* Account Level Reconciliation */}
+              <div className="mb-6">
+                <div className="bg-blue-900/30 border border-blue-800/50 rounded-lg p-4 mb-6">
+                  <div className="flex">
+                    <Info className="w-5 h-5 text-blue-400 mr-3 flex-shrink-0 mt-0.5" />
+                    <div className="text-sm text-blue-100">
+                      <p className="font-medium mb-1">About Account Reconciliation</p>
+                      <p>
+                        Compare your account total balance from your financial institution with what's shown in NestEgg.
+                        Enter the actual balance to see any variance. If there's a significant difference, you can check individual positions.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+                
+                <h4 className="text-lg font-medium mb-4 text-white">Account Balance Reconciliation</h4>
+                
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="bg-gray-800 rounded-lg p-4 border border-gray-700">
+                    <div className="text-sm text-gray-300 mb-1">NestEgg Balance</div>
+                    <div className="text-xl font-semibold text-white">
+                      {formatCurrency(activeAccount.total_value)}
+                    </div>
+                  </div>
+                  
+                  <div className="bg-gray-800 rounded-lg p-4 border border-gray-700">
+                    <div className="text-sm text-gray-300 mb-1">Actual Balance</div>
+                    <div className="flex items-center">
+                      <span className="text-gray-400 mr-1">$</span>
+                      <input
+                        type="number"
+                        value={reconciliationData.accountLevel.actualBalance}
+                        onChange={handleAccountBalanceChange}
+                        className="text-xl font-semibold w-full bg-transparent focus:outline-none focus:ring-0 border-b border-gray-600 focus:border-blue-500 transition-colors text-white"
+                        placeholder="Enter actual balance"
+                        step="any"
+                      />
+                    </div>
+                  </div>
+                  
+                  <div className="bg-gray-800 rounded-lg p-4 border border-gray-700">
+                    <div className="text-sm text-gray-300 mb-1">Variance</div>
+                    <div className={`text-xl font-semibold ${getVarianceClass(reconciliationData.accountLevel.variance)}`}>
+                      {formatCurrency(reconciliationData.accountLevel.variance)}
+                      <span className="text-sm ml-1">
+                        ({formatPercentage(reconciliationData.accountLevel.variancePercent)})
+                      </span>
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="flex items-center justify-center mt-6">
+                  <label className="flex items-center cursor-pointer bg-gray-800 hover:bg-gray-700 transition-colors rounded-lg px-4 py-3 border border-gray-700">
+                    <input
+                      type="checkbox"
+                      className="h-5 w-5 text-blue-600 focus:ring-blue-500 rounded transition-colors"
+                      checked={reconciliationData.accountLevel.isReconciled}
+                      onChange={toggleAccountReconcileStatus}
+                    />
+                    <span className="ml-2 text-gray-200">Mark this account as reconciled</span>
+                  </label>
+                </div>
+              </div>
+      {/* Position Editing Modals */}
+      {showSecurityPositionModal && (
+        <SecurityPositionModal
+          isOpen={showSecurityPositionModal}
+          onClose={() => setShowSecurityPositionModal(false)}
+          accountId={activeAccount?.id}
+          accountName={activeAccount?.account_name}
+          onPositionSaved={handlePositionSaved}
+          positionToEdit={positionToEdit}
+        />
+      )}
+      
+      {showCryptoPositionModal && (
+        <CryptoPositionModal
+          isOpen={showCryptoPositionModal}
+          onClose={() => setShowCryptoPositionModal(false)}
+          accountId={activeAccount?.id}
+          accountName={activeAccount?.account_name}
+          onPositionSaved={handlePositionSaved}
+          positionToEdit={positionToEdit}
+        />
+      )}
+      
+      {showCashPositionModal && (
+        <CashPositionModal
+          isOpen={showCashPositionModal}
+          onClose={() => setShowCashPositionModal(false)}
+          accountId={activeAccount?.id}
+          onPositionSaved={handlePositionSaved}
+          positionToEdit={positionToEdit}
+        />
+      )}
+      
+      {showMetalPositionModal && (
+        <MetalPositionModal
+          isOpen={showMetalPositionModal}
+          onClose={() => setShowMetalPositionModal(false)}
+          accountId={activeAccount?.id}
+          accountName={activeAccount?.account_name}
+          onPositionSaved={handlePositionSaved}
+          positionToEdit={positionToEdit}
+        />
+      )}
     </div>
   );
 };
