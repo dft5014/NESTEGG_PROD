@@ -161,6 +161,11 @@ const Sidebar = () => {
               <BarChart2 size={24} className={iconClasses} />
               {!sidebarCollapsed && <span>Market Update</span>}
             </Link>
+            <Link href="/AccountReconciliation" className={menuItemClasses(isActive('/todo'))}>
+              <CheckSquare size={24} className={iconClasses} />
+              {!sidebarCollapsed && <span>Account Reconciliations</span>}
+            </Link>
+
 
             <Link href="/todo" className={menuItemClasses(isActive('/todo'))}>
               <CheckSquare size={24} className={iconClasses} />

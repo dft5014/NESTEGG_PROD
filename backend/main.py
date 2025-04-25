@@ -30,6 +30,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.sql import select
 from sqlalchemy import func, case, literal_column
 from sqlalchemy.sql import select, join, text # Ensure text is imported
+from sqlalchemy import Table, Column, Integer, String, Float, Boolean, DateTime, ForeignKey, MetaData, select
 
 # Load environment variables first
 env_path = Path(__file__).resolve().parent / ".env"
@@ -162,6 +163,41 @@ real_estate_positions = sqlalchemy.Table(
     # --- End columns ---
 )
 
+account_reconciliations = Table(
+    "account_reconciliations",
+    metadata,
+    Column("id", Integer, primary_key=True, autoincrement=True),
+    Column("account_id", Integer, ForeignKey("accounts.id", ondelete="CASCADE"), nullable=False),
+    Column("user_id", String, ForeignKey("users.id"), nullable=False),
+    Column("reconciliation_date", DateTime, default=datetime.utcnow),
+    Column("app_balance", Float),
+    Column("actual_balance", Float),
+    Column("variance", Float),
+    Column("variance_percent", Float),
+    Column("is_reconciled", Boolean, default=False),
+    Column("created_at", DateTime, default=datetime.utcnow),
+)
+
+position_reconciliations = Table(
+    "position_reconciliations",
+    metadata,
+    Column("id", Integer, primary_key=True, autoincrement=True),
+    Column("account_reconciliation_id", Integer, ForeignKey("account_reconciliations.id", ondelete="CASCADE"), nullable=False),
+    Column("position_id", Integer, nullable=False),
+    Column("asset_type", String, nullable=False),
+    Column("app_quantity", Float),
+    Column("app_value", Float),
+    Column("actual_quantity", Float),
+    Column("actual_value", Float),
+    Column("quantity_variance", Float),
+    Column("quantity_variance_percent", Float),
+    Column("value_variance", Float),
+    Column("value_variance_percent", Float),
+    Column("is_quantity_reconciled", Boolean, default=False),
+    Column("is_value_reconciled", Boolean, default=False),
+    Column("created_at", DateTime, default=datetime.utcnow),
+)
+
 # Create Database Engine
 engine = sqlalchemy.create_engine(DATABASE_URL)
 metadata.create_all(engine)
@@ -231,6 +267,29 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
 
 # ----- PYDANTIC MODELS  -----
 # ----- THESE ARE USED IN VARIOUS API CALLS  -----
+
+class PositionReconciliationData(BaseModel):
+    position_id: int
+    asset_type: str
+    app_quantity: float
+    app_value: float
+    actual_quantity: float
+    actual_value: float
+    is_quantity_reconciled: bool
+    is_value_reconciled: bool
+
+class AccountLevelReconciliation(BaseModel):
+    app_balance: float
+    actual_balance: float
+    variance: float
+    variance_percent: float
+    is_reconciled: bool
+
+class ReconciliationRequest(BaseModel):
+    account_id: int
+    reconciliation_date: datetime
+    account_level: AccountLevelReconciliation
+    positions: List[PositionReconciliationData]
 
 class UserSignup(BaseModel):
     email: str
@@ -5182,7 +5241,232 @@ async def delete_metal_position(position_id: int, current_user: dict = Depends(g
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Failed to delete metal position: {str(e)}")
 
 
+#----RECONCILIATION WORKFLOW FOR ACCOUNTS
+@app.post("/accounts/reconcile", status_code=status.HTTP_201_CREATED)
+async def reconcile_account(
+    reconciliation_data: ReconciliationRequest,
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Save account reconciliation data and update account reconciliation status.
+    """
+    try:
+        # Verify the account belongs to the user
+        account_query = accounts.select().where(
+            (accounts.c.id == reconciliation_data.account_id) & 
+            (accounts.c.user_id == current_user["id"])
+        )
+        account = await database.fetch_one(account_query)
+        
+        if not account:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Account not found or access denied"
+            )
+        
+        # Start a transaction
+        transaction = await database.transaction()
+        
+        try:
+            # Insert account reconciliation record
+            account_recon_query = account_reconciliations.insert().values(
+                account_id=reconciliation_data.account_id,
+                user_id=current_user["id"],
+                reconciliation_date=reconciliation_data.reconciliation_date,
+                app_balance=reconciliation_data.account_level.app_balance,
+                actual_balance=reconciliation_data.account_level.actual_balance,
+                variance=reconciliation_data.account_level.variance,
+                variance_percent=reconciliation_data.account_level.variance_percent,
+                is_reconciled=reconciliation_data.account_level.is_reconciled,
+                created_at=datetime.utcnow()
+            )
+            
+            account_recon_id = await database.execute(account_recon_query)
+            
+            # Insert position reconciliation records
+            for position in reconciliation_data.positions:
+                # Calculate variances
+                quantity_variance = position.actual_quantity - position.app_quantity
+                quantity_variance_percent = (quantity_variance / position.app_quantity * 100) if position.app_quantity != 0 else 0
+                
+                value_variance = position.actual_value - position.app_value
+                value_variance_percent = (value_variance / position.app_value * 100) if position.app_value != 0 else 0
+                
+                position_recon_query = position_reconciliations.insert().values(
+                    account_reconciliation_id=account_recon_id,
+                    position_id=position.position_id,
+                    asset_type=position.asset_type,
+                    app_quantity=position.app_quantity,
+                    app_value=position.app_value,
+                    actual_quantity=position.actual_quantity,
+                    actual_value=position.actual_value,
+                    quantity_variance=quantity_variance,
+                    quantity_variance_percent=quantity_variance_percent,
+                    value_variance=value_variance,
+                    value_variance_percent=value_variance_percent,
+                    is_quantity_reconciled=position.is_quantity_reconciled,
+                    is_value_reconciled=position.is_value_reconciled,
+                    created_at=datetime.utcnow()
+                )
+                
+                await database.execute(position_recon_query)
+            
+            # Update account with last reconciliation date and status
+            # (Add these columns to your accounts table if not already present)
+            update_account_query = """
+            ALTER TABLE accounts 
+            ADD COLUMN IF NOT EXISTS last_reconciled TIMESTAMP,
+            ADD COLUMN IF NOT EXISTS reconciliation_status VARCHAR(50);
+            """
+            await database.execute(update_account_query)
+            
+            # Update the account with reconciliation info
+            update_query = accounts.update().where(
+                accounts.c.id == reconciliation_data.account_id
+            ).values(
+                last_reconciled=datetime.utcnow(),
+                reconciliation_status='Reconciled' if reconciliation_data.account_level.is_reconciled else 'Not Reconciled'
+            )
+            
+            await database.execute(update_query)
+            
+            # Commit the transaction
+            await transaction.commit()
+            
+            return {
+                "message": "Account reconciliation saved successfully",
+                "account_id": reconciliation_data.account_id,
+                "reconciliation_date": reconciliation_data.reconciliation_date
+            }
+            
+        except Exception as e:
+            # Rollback the transaction in case of error
+            await transaction.rollback()
+            raise e
+            
+    except Exception as e:
+        logger.error(f"Error during account reconciliation: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to save reconciliation: {str(e)}"
+        )
 
+# reconciliation status
+@app.get("/accounts/reconciliation-status")
+async def get_reconciliation_status(current_user: dict = Depends(get_current_user)):
+    """
+    Get reconciliation status for all user accounts.
+    """
+    try:
+        # Fetch all user accounts with reconciliation status
+        query = """
+        SELECT 
+            a.id, 
+            a.account_name, 
+            a.last_reconciled, 
+            a.reconciliation_status
+        FROM 
+            accounts a
+        WHERE 
+            a.user_id = :user_id
+        ORDER BY 
+            a.account_name
+        """
+        
+        results = await database.fetch_all(
+            query=query,
+            values={"user_id": current_user["id"]}
+        )
+        
+        return {
+            "accounts": [dict(row) for row in results]
+        }
+    except Exception as e:
+        logger.error(f"Error fetching reconciliation status: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to fetch reconciliation status: {str(e)}"
+        )
+
+# reconciliation history
+@app.get("/accounts/{account_id}/reconciliation-history")
+async def get_reconciliation_history(
+    account_id: int,
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Get reconciliation history for a specific account.
+    """
+    try:
+        # Verify the account belongs to the user
+        account_query = accounts.select().where(
+            (accounts.c.id == account_id) & 
+            (accounts.c.user_id == current_user["id"])
+        )
+        account = await database.fetch_one(account_query)
+        
+        if not account:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Account not found or access denied"
+            )
+        
+        # Fetch reconciliation history
+        query = """
+        SELECT 
+            ar.id, 
+            ar.reconciliation_date, 
+            ar.app_balance, 
+            ar.actual_balance, 
+            ar.variance, 
+            ar.variance_percent, 
+            ar.is_reconciled,
+            ar.created_at,
+            (SELECT COUNT(*) FROM position_reconciliations pr WHERE pr.account_reconciliation_id = ar.id) as positions_count
+        FROM 
+            account_reconciliations ar
+        WHERE 
+            ar.account_id = :account_id AND
+            ar.user_id = :user_id
+        ORDER BY 
+            ar.reconciliation_date DESC
+        LIMIT 10
+        """
+        
+        results = await database.fetch_all(
+            query=query,
+            values={
+                "account_id": account_id,
+                "user_id": current_user["id"]
+            }
+        )
+        
+        # Format the results
+        history = []
+        for row in results:
+            history.append({
+                "id": row["id"],
+                "reconciliation_date": row["reconciliation_date"].isoformat() if row["reconciliation_date"] else None,
+                "app_balance": row["app_balance"],
+                "actual_balance": row["actual_balance"],
+                "variance": row["variance"],
+                "variance_percent": row["variance_percent"],
+                "is_reconciled": row["is_reconciled"],
+                "created_at": row["created_at"].isoformat() if row["created_at"] else None,
+                "positions_count": row["positions_count"]
+            })
+        
+        return {
+            "account_id": account_id,
+            "account_name": account["account_name"],
+            "reconciliation_history": history
+        }
+    except Exception as e:
+        logger.error(f"Error fetching reconciliation history: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to fetch reconciliation history: {str(e)}"
+        )
 
 
 
