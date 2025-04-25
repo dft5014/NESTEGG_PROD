@@ -577,7 +577,7 @@ return (
                       {portfolioTotals.totalGainLoss >= 0 ? '+' : ''}{formatCurrency(portfolioTotals.totalGainLoss)}
                     </div>
                     <div className={`text-xs ${portfolioTotals.totalGainLoss >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                      ({portfolioTotals.totalGainLoss >= 0 ? '+' : ''}{formatPercentage(totalGainLossPercent * 100)})
+                      ({portfolioTotals.totalGainLoss >= 0 ? '+' : ''}{formatPercentage(totalGainLossPercent)})
                     </div>
                   </div>
                 </td>
@@ -656,7 +656,7 @@ return (
                           {group.totalGainLoss >= 0 ? '+' : ''}{formatCurrency(group.totalGainLoss)}
                         </div>
                         <div className={`text-xs ${group.totalGainLoss >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                          ({group.totalGainLoss >= 0 ? '+' : ''}{formatPercentage(group.totalGainLossPercent * 100)})
+                          ({group.totalGainLoss >= 0 ? '+' : ''}{formatPercentage(group.totalGainLossPercent)})
                         </div>
                       </div>
                     )}
@@ -762,7 +762,7 @@ return (
                     <div className="bg-gray-700 rounded-lg p-3">
                       <div className="text-gray-400 text-xs mb-1 uppercase tracking-wider">Gain/Loss (%)</div>
                       <div className={`text-lg font-semibold truncate ${selectedPositionDetail.totalGainLoss >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                        {selectedPositionDetail.totalGainLoss >= 0 ? '+' : ''}{(selectedPositionDetail.totalGainLossPercent * 100).toFixed(2)}%
+                        {selectedPositionDetail.totalGainLoss >= 0 ? '+' : ''}{(selectedPositionDetail.totalGainLossPercent ).toFixed(2)}%
                       </div>
                     </div>
                   </>
@@ -805,7 +805,7 @@ return (
                       <div className="text-gray-400 text-xs uppercase tracking-wider">Average Interest Rate</div>
                       <div className="font-medium text-white break-words">
                       {selectedPositionDetail.totalValue > 0 && selectedPositionDetail.totalPositionIncome > 0
-                        ? ((selectedPositionDetail.totalPositionIncome / selectedPositionDetail.totalValue) * 100).toFixed(2) + '%'
+                        ? ((selectedPositionDetail.totalPositionIncome / selectedPositionDetail.totalValue) ).toFixed(2) + '%'
                         : 'N/A'}
                       </div>
                     </div>
@@ -826,7 +826,7 @@ return (
                       <div className="text-gray-400 text-xs uppercase tracking-wider">Est. Yield</div>
                       <div className="font-medium text-white break-words">
                         {selectedPositionDetail.totalValue > 0
-                          ? ((selectedPositionDetail.totalPositionIncome / selectedPositionDetail.totalValue) * 100).toFixed(2) + '%'
+                          ? ((selectedPositionDetail.totalPositionIncome / selectedPositionDetail.totalValue) ).toFixed(2) + '%'
                           : 'N/A'}
                       </div>
                     </div>
@@ -984,7 +984,7 @@ return (
                                   <div className={`${positionGainLoss >= 0 ? 'text-green-400' : 'text-red-400'}`}>
                                     {positionGainLoss >= 0 ? '+' : ''}{formatCurrency(positionGainLoss)}
                                     <div className="text-xs">
-                                      ({positionGainLoss >= 0 ? '+' : ''}{(positionGainLossPercent * 100).toFixed(2)}%)
+                                      ({positionGainLoss >= 0 ? '+' : ''}{(positionGainLossPercent ).toFixed(2)}%)
                                     </div>
                                   </div>
                                   <div className="mt-1 flex space-x-2">
@@ -1054,7 +1054,7 @@ return (
                               <div className={`font-medium ${selectedPositionDetail.totalGainLoss >= 0 ? 'text-green-400' : 'text-red-400'}`}>
                                 {selectedPositionDetail.totalGainLoss >= 0 ? '+' : ''}{formatCurrency(selectedPositionDetail.totalGainLoss)}
                                 <div className="text-xs">
-                                  ({selectedPositionDetail.totalGainLoss >= 0 ? '+' : ''}{(selectedPositionDetail.totalGainLossPercent * 100).toFixed(2)}%)
+                                  ({selectedPositionDetail.totalGainLoss >= 0 ? '+' : ''}{(selectedPositionDetail.totalGainLossPercent ).toFixed(2)}%)
                                 </div>
                               </div>
                             </td>

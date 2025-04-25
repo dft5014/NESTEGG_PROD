@@ -19,7 +19,11 @@ import {
   Loader,
   Trash,
   Filter,
-  SlidersHorizontal
+  SlidersHorizontal,
+  Search,
+  Plus,
+  ArrowUp,
+  ArrowDown
 } from 'lucide-react';
 import { API_BASE_URL } from '../utils/api';
 import { popularBrokerages } from '../utils/constants';
@@ -31,6 +35,7 @@ import SecurityPositionModal from '../components/modals/SecurityPositionModal';
 import CryptoPositionModal from '../components/modals/CryptoPositionModal';
 import CashPositionModal from '../components/modals/CashPositionModal';
 import MetalPositionModal from '../components/modals/MetalPositionModal';
+import AddPositionFlow from '../components/flows/AddPositionFlow';
 
 const AccountReconciliation = () => {
   const { user } = useContext(AuthContext);
@@ -55,7 +60,19 @@ const AccountReconciliation = () => {
   const [showCryptoPositionModal, setShowCryptoPositionModal] = useState(false);
   const [showCashPositionModal, setShowCashPositionModal] = useState(false);
   const [showMetalPositionModal, setShowMetalPositionModal] = useState(false);
+  const [showAddPositionFlow, setShowAddPositionFlow] = useState(false);
   const [positionToEdit, setPositionToEdit] = useState(null);
+  
+  // Sorting and filtering state
+  const [sortField, setSortField] = useState('institution');
+  const [sortDirection, setSortDirection] = useState('asc');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [institutionFilter, setInstitutionFilter] = useState('all');
+  const [statusFilter, setStatusFilter] = useState('all');
+  
+  // Position sort state
+  const [positionSortField, setPositionSortField] = useState('ticker_or_name');
+  const [positionSortDirection, setPositionSortDirection] = useState('asc');
   
   // Success message state
   const [successMessage, setSuccessMessage] = useState("");
@@ -154,6 +171,9 @@ const AccountReconciliation = () => {
     if (activeAccount) {
       fetchPositionsForAccount(activeAccount.id);
     }
+    
+    // Refresh account data
+    fetchAccounts();
   };
   
   // Fetch positions for a specific account
@@ -213,7 +233,7 @@ const AccountReconciliation = () => {
           positions: prev.positions.filter(p => p.id !== position.id)
         }));
         
-        // Also refresh account data if needed
+        // Also refresh account data
         fetchAccounts();
         
       } catch (error) {
@@ -235,20 +255,14 @@ const AccountReconciliation = () => {
         variancePercent: 0,
         isReconciled: false
       },
-      positions: account.positions.map(position => ({
-        ...position,
-        actualQuantity: position.quantity_or_shares,
-        actualValue: position.value,
-        quantityVariance: 0,
-        quantityVariancePercent: 0,
-        valueVariance: 0,
-        valueVariancePercent: 0,
-        isQuantityReconciled: false,
-        isValueReconciled: false
-      }))
+      positions: []
     };
     
     setReconciliationData(newReconciliationData);
+    
+    // Fetch positions for the account
+    fetchPositionsForAccount(account.id);
+    
     setShowReconcileModal(true);
   };
   
@@ -424,6 +438,9 @@ const AccountReconciliation = () => {
         throw new Error(`Failed to save reconciliation: ${response.statusText}`);
       }
       
+      // Show success message
+      showMessage("Reconciliation saved successfully!");
+      
       // Refresh accounts data
       fetchAccounts();
       
@@ -500,6 +517,144 @@ const AccountReconciliation = () => {
         return <CreditCard className="w-4 h-4 text-gray-600" />;
     }
   };
+  
+  // Handle column sort
+  const handleSort = (field) => {
+    if (field === sortField) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortField(field);
+      setSortDirection('asc');
+    }
+  };
+  
+  // Handle position column sort
+  const handlePositionSort = (field) => {
+    if (field === positionSortField) {
+      setPositionSortDirection(positionSortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      setPositionSortField(field);
+      setPositionSortDirection('asc');
+    }
+  };
+
+  // Get unique institutions for filtering
+  const uniqueInstitutions = useMemo(() => {
+    const institutions = accounts.map(account => account.institution).filter(Boolean);
+    return ['all', ...new Set(institutions)];
+  }, [accounts]);
+  
+  // Sort indicator component
+  const SortIndicator = ({ field, currentField, direction }) => {
+    if (field !== currentField) return null;
+    
+    return direction === 'asc' ? 
+      <ArrowUp className="inline-block w-3 h-3 ml-1" /> : 
+      <ArrowDown className="inline-block w-3 h-3 ml-1" />;
+  };
+
+  // Filter and sort accounts
+  const filteredAndSortedAccounts = useMemo(() => {
+    return accounts
+      .filter(account => {
+        const matchesSearch = searchQuery.trim() === '' || 
+          account.account_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          (account.institution && account.institution.toLowerCase().includes(searchQuery.toLowerCase()));
+        
+        const matchesInstitution = institutionFilter === 'all' || 
+          account.institution === institutionFilter;
+        
+        const matchesStatus = statusFilter === 'all' || 
+          account.reconciliationStatus === statusFilter;
+        
+        return matchesSearch && matchesInstitution && matchesStatus;
+      })
+      .sort((a, b) => {
+        let comparison = 0;
+        
+        // Sort by field
+        switch (sortField) {
+          case 'institution':
+            comparison = (a.institution || '').localeCompare(b.institution || '');
+            break;
+          case 'account_name':
+            comparison = a.account_name.localeCompare(b.account_name);
+            break;
+          case 'balance':
+            comparison = a.total_value - b.total_value;
+            break;
+          case 'positions':
+            comparison = a.positions_count - b.positions_count;
+            break;
+          case 'last_reconciled':
+            const dateA = a.lastReconciled ? new Date(a.lastReconciled).getTime() : 0;
+            const dateB = b.lastReconciled ? new Date(b.lastReconciled).getTime() : 0;
+            comparison = dateA - dateB;
+            break;
+          case 'status':
+            comparison = a.reconciliationStatus.localeCompare(b.reconciliationStatus);
+            break;
+          default:
+            comparison = 0;
+        }
+        
+        // Apply sort direction
+        return sortDirection === 'asc' ? comparison : -comparison;
+      });
+  }, [accounts, searchQuery, institutionFilter, statusFilter, sortField, sortDirection]);
+
+  // Sort positions
+  const sortedPositions = useMemo(() => {
+    if (!reconciliationData.positions) return [];
+    
+    return [...reconciliationData.positions].sort((a, b) => {
+      let comparison = 0;
+      
+      // Sort by field
+      switch (positionSortField) {
+        case 'ticker_or_name':
+          comparison = (a.ticker_or_name || '').localeCompare(b.ticker_or_name || '');
+          break;
+        case 'asset_type':
+          comparison = a.asset_type.localeCompare(b.asset_type);
+          break;
+        case 'quantity':
+          comparison = a.quantity_or_shares - b.quantity_or_shares;
+          break;
+        case 'value':
+          comparison = a.value - b.value;
+          break;
+        case 'variance':
+          comparison = a.valueVariance - b.valueVariance;
+          break;
+        default:
+          comparison = 0;
+      }
+      
+      // Apply sort direction
+      return positionSortDirection === 'asc' ? comparison : -comparison;
+    });
+  }, [reconciliationData.positions, positionSortField, positionSortDirection]);
+  
+  // Handle adding a position
+  const handleAddPosition = () => {
+    if (!activeAccount) return;
+    
+    setShowAddPositionFlow(true);
+  };
+  
+  // Handle position added callback
+  const handlePositionAdded = () => {
+    showMessage("Position added successfully!");
+    
+    // Refresh position data
+    if (activeAccount) {
+      fetchPositionsForAccount(activeAccount.id);
+    }
+    
+    // Refresh account data
+    fetchAccounts();
+  };
 
   return (
     <div className="container mx-auto px-4 py-6">
@@ -547,29 +702,109 @@ const AccountReconciliation = () => {
               <Briefcase className="w-5 h-5 mr-3 text-purple-500" />
               Account Reconciliation
             </h2>
+            
+            {/* Filters and Search */}
+            <div className="flex space-x-4">
+              {/* Institution Filter */}
+              <div className="relative">
+                <Filter className="absolute h-4 w-4 text-gray-400 left-3 inset-y-0 my-auto" />
+                <select
+                  className="bg-gray-800 text-white pl-9 pr-8 py-2 rounded-lg text-sm focus:ring-1 focus:ring-blue-500 focus:outline-none appearance-none"
+                  value={institutionFilter}
+                  onChange={(e) => setInstitutionFilter(e.target.value)}
+                >
+                  <option value="all">All Institutions</option>
+                  {uniqueInstitutions.filter(i => i !== 'all').map(institution => (
+                    <option key={institution} value={institution}>{institution}</option>
+                  ))}
+                </select>
+                <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
+                  <ChevronDown className="h-4 w-4 text-gray-400" />
+                </div>
+              </div>
+              
+              {/* Status Filter */}
+              <div className="relative">
+                <Filter className="absolute h-4 w-4 text-gray-400 left-3 inset-y-0 my-auto" />
+                <select
+                  className="bg-gray-800 text-white pl-9 pr-8 py-2 rounded-lg text-sm focus:ring-1 focus:ring-blue-500 focus:outline-none appearance-none"
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value)}
+                >
+                  <option value="all">All Statuses</option>
+                  <option value="Reconciled">Reconciled</option>
+                  <option value="Not Reconciled">Not Reconciled</option>
+                </select>
+                <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
+                  <ChevronDown className="h-4 w-4 text-gray-400" />
+                </div>
+              </div>
+              
+              {/* Search Input */}
+              <div className="relative">
+                <Search className="absolute h-4 w-4 text-gray-400 left-3 inset-y-0 my-auto" />
+                <input 
+                  type="text"
+                  placeholder="Search accounts..."
+                  className="bg-gray-800 text-white pl-9 pr-3 py-2 rounded-lg text-sm focus:ring-1 focus:ring-blue-500 focus:outline-none"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                />
+              </div>
+            </div>
           </div>
           
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-800 text-white">
               <thead className="bg-gray-800 sticky top-0 z-10">
                 <tr>
-                  <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
+                  <th 
+                    scope="col" 
+                    className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider cursor-pointer hover:bg-gray-700"
+                    onClick={() => handleSort('institution')}
+                  >
                     Institution
+                    <SortIndicator field="institution" currentField={sortField} direction={sortDirection} />
                   </th>
-                  <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
+                  <th 
+                    scope="col" 
+                    className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider cursor-pointer hover:bg-gray-700"
+                    onClick={() => handleSort('account_name')}
+                  >
                     Account
+                    <SortIndicator field="account_name" currentField={sortField} direction={sortDirection} />
                   </th>
-                  <th scope="col" className="px-4 py-3 text-right text-xs font-medium text-gray-400 uppercase tracking-wider">
+                  <th 
+                    scope="col" 
+                    className="px-4 py-3 text-right text-xs font-medium text-gray-400 uppercase tracking-wider cursor-pointer hover:bg-gray-700"
+                    onClick={() => handleSort('balance')}
+                  >
                     NestEgg Balance
+                    <SortIndicator field="balance" currentField={sortField} direction={sortDirection} />
                   </th>
-                  <th scope="col" className="px-4 py-3 text-center text-xs font-medium text-gray-400 uppercase tracking-wider">
+                  <th 
+                    scope="col" 
+                    className="px-4 py-3 text-center text-xs font-medium text-gray-400 uppercase tracking-wider cursor-pointer hover:bg-gray-700"
+                    onClick={() => handleSort('positions')}
+                  >
                     Positions
+                    <SortIndicator field="positions" currentField={sortField} direction={sortDirection} />
                   </th>
-                  <th scope="col" className="px-4 py-3 text-center text-xs font-medium text-gray-400 uppercase tracking-wider">
+                  <th 
+                    scope="col" 
+                    className="px-4 py-3 text-center text-xs font-medium text-gray-400 uppercase tracking-wider cursor-pointer hover:bg-gray-700"
+                    onClick={() => handleSort('last_reconciled')}
+                  >
                     Last Reconciled
+                    <SortIndicator field="last_reconciled" currentField={sortField} direction={sortDirection} />
                   </th>
-                  <th scope="col" className="px-4 py-3 text-center text-xs font-medium text-gray-400 uppercase tracking-wider">
+                  <th 
+                    scope="col" 
+                    className="px-4 py-3 text-center text-xs font-medium text-gray-400 uppercase tracking-wider cursor-pointer hover:bg-gray-700"
+                    onClick={() => handleSort('status')}
+                  >
                     Status
+                    <SortIndicator field="status" currentField={sortField} direction={sortDirection} />
                   </th>
                   <th scope="col" className="px-4 py-3 text-right text-xs font-medium text-gray-400 uppercase tracking-wider">
                     Actions
@@ -577,7 +812,7 @@ const AccountReconciliation = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-800">
-                {accounts.map(account => {
+                {filteredAndSortedAccounts.map(account => {
                   const LogoComponent = getInstitutionLogo(account.institution);
                   
                   return (
@@ -702,7 +937,18 @@ const AccountReconciliation = () => {
                   </div>
                 </div>
                 
-                <h4 className="text-lg font-medium mb-4 text-white">Account Balance Reconciliation</h4>
+                <div className="flex justify-between items-center mb-4">
+                  <h4 className="text-lg font-medium text-white">Account Balance Reconciliation</h4>
+                  
+                  {/* Add Position Button */}
+                  <button
+                    onClick={handleAddPosition}
+                    className="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded transition-colors flex items-center gap-1"
+                  >
+                    <Plus className="w-4 h-4" />
+                    Add Position
+                  </button>
+                </div>
                 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div className="bg-gray-800 rounded-lg p-4 border border-gray-700">
@@ -808,23 +1054,43 @@ const AccountReconciliation = () => {
                     <table className="min-w-full divide-y divide-gray-700 text-white border border-gray-700 rounded-lg">
                       <thead className="bg-gray-800">
                         <tr>
-                          <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
+                          <th 
+                            scope="col" 
+                            className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider cursor-pointer hover:bg-gray-700"
+                            onClick={() => handlePositionSort('ticker_or_name')}
+                          >
                             Asset
+                            <SortIndicator field="ticker_or_name" currentField={positionSortField} direction={positionSortDirection} />
                           </th>
-                          <th scope="col" className="px-4 py-3 text-right text-xs font-medium text-gray-400 uppercase tracking-wider">
+                          <th 
+                            scope="col" 
+                            className="px-4 py-3 text-right text-xs font-medium text-gray-400 uppercase tracking-wider cursor-pointer hover:bg-gray-700"
+                            onClick={() => handlePositionSort('quantity')}
+                          >
                             App Quantity
+                            <SortIndicator field="quantity" currentField={positionSortField} direction={positionSortDirection} />
                           </th>
                           <th scope="col" className="px-4 py-3 text-right text-xs font-medium text-gray-400 uppercase tracking-wider">
                             Actual Quantity
                           </th>
-                          <th scope="col" className="px-4 py-3 text-right text-xs font-medium text-gray-400 uppercase tracking-wider">
+                          <th 
+                            scope="col" 
+                            className="px-4 py-3 text-right text-xs font-medium text-gray-400 uppercase tracking-wider cursor-pointer hover:bg-gray-700"
+                            onClick={() => handlePositionSort('variance')}
+                          >
                             Qty Variance
+                            <SortIndicator field="variance" currentField={positionSortField} direction={positionSortDirection} />
                           </th>
                           <th scope="col" className="px-4 py-3 text-center text-xs font-medium text-gray-400 uppercase tracking-wider">
                             Reconciled?
                           </th>
-                          <th scope="col" className="px-4 py-3 text-right text-xs font-medium text-gray-400 uppercase tracking-wider">
+                          <th 
+                            scope="col" 
+                            className="px-4 py-3 text-right text-xs font-medium text-gray-400 uppercase tracking-wider cursor-pointer hover:bg-gray-700"
+                            onClick={() => handlePositionSort('value')}
+                          >
                             App Value
+                            <SortIndicator field="value" currentField={positionSortField} direction={positionSortDirection} />
                           </th>
                           <th scope="col" className="px-4 py-3 text-right text-xs font-medium text-gray-400 uppercase tracking-wider">
                             Actual Value
@@ -841,7 +1107,7 @@ const AccountReconciliation = () => {
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-700 bg-gray-900">
-                        {reconciliationData.positions.map((position, index) => (
+                        {sortedPositions.map((position, index) => (
                           <tr key={position.id} className="hover:bg-gray-800 transition-colors">
                             <td className="px-4 py-3 whitespace-nowrap">
                               <div className="flex items-center">
@@ -1001,6 +1267,16 @@ const AccountReconciliation = () => {
           accountName={activeAccount?.account_name}
           onPositionSaved={handlePositionSaved}
           positionToEdit={positionToEdit}
+        />
+      )}
+      
+      {/* Add Position Flow */}
+      {showAddPositionFlow && (
+        <AddPositionFlow
+          isOpen={showAddPositionFlow}
+          onClose={() => setShowAddPositionFlow(false)}
+          initialAccount={activeAccount}
+          onPositionAdded={handlePositionAdded}
         />
       )}
     </div>
