@@ -2155,8 +2155,8 @@ async def add_security(security: SecurityCreate, current_user: dict = Depends(ge
         
         # Insert new security
         query = """
-        INSERT INTO securities (ticker, active, on_yfinance, created_at) 
-        VALUES (:ticker, true, true, :now)
+        INSERT INTO securities (ticker) 
+        VALUES (:ticker)
         """
         await database.execute(
             query, 
