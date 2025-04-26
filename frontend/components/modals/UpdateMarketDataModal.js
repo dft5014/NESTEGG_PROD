@@ -575,7 +575,14 @@ const UpdateMarketDataModal = ({ isOpen, onClose }) => {
                       </span>
                       <span className="block text-xs text-gray-500 mt-1">
                         {loadingSecurities ? 'Loading securities...' :
-                         allSecurities.length > 0 ? `${allSecurities.length} securities will be updated` :
+                         allSecurities.length > 0 ? `${allSecurities.length} securities will be updated
+                                      Update Required       Recently Updated
+                         Securities:
+                         Crypto:
+                         Metals:
+                         Total:
+                         
+                         ` :
                          'No securities found. Click "Refresh List" to fetch securities.'}
                       </span>
                     </div>
