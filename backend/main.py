@@ -2166,9 +2166,47 @@ async def add_security(security: SecurityCreate, current_user: dict = Depends(ge
             }
         )
         
-        # Immediately try to fetch basic data for the security
-        updater = PriceUpdaterV2()
-        await updater.update_company_metrics([security.ticker.upper()])
+        # Immediately try to fetch basic data for the security using the DirectYahooFinanceClient
+        # Initialize DirectYahooFinanceClient
+        client = DirectYahooFinanceClient()
+        
+        try:
+            # Get current price data
+            logger.info(f"Fetching current price for {security.ticker.upper()} using DirectYahooFinanceClient")
+            price_data = await client.get_current_price(security.ticker.upper())
+            
+            if price_data:
+                # Update securities table with price data
+                update_query = """
+                UPDATE securities
+                SET 
+                    current_price = :price,
+                    day_open = :day_open,
+                    day_high = :day_high,
+                    day_low = :day_low,
+                    volume = :volume,
+                    last_updated = :updated_at,
+                    price_timestamp = :price_timestamp
+                WHERE ticker = :ticker
+                """
+                
+                update_values = {
+                    "ticker": security.ticker.upper(),
+                    "price": price_data.get("price"),
+                    "day_open": price_data.get("day_open"),
+                    "day_high": price_data.get("day_high"),
+                    "day_low": price_data.get("day_low"),
+                    "volume": price_data.get("volume"),
+                    "updated_at": datetime.now(),
+                    "price_timestamp": price_data.get("price_timestamp")
+                }
+                
+                await database.execute(update_query, update_values)
+                logger.info(f"Updated price data for {security.ticker.upper()}")
+        
+        except Exception as e:
+            # Log the error but don't fail the entire operation
+            logger.error(f"Error fetching initial price data for {security.ticker.upper()}: {str(e)}")
         
         return {"message": f"Security {security.ticker.upper()} added successfully"}
     
