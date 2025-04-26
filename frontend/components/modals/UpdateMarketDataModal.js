@@ -58,6 +58,9 @@ const UpdateMarketDataModal = ({ isOpen, onClose }) => {
         const tickers = data.securities.map(sec => sec.ticker);
         setAllSecurities(tickers);
         addLog(`Found ${tickers.length} securities to update`, 'success');
+        addLog('Test New Log')
+        addLog(`Found ${tickers.length} securities to update (${data.securities.filter(sec => sec.asset_type && sec.asset_type.toLowerCase() === 'crypto').length} crypto, ${data.securities.filter(sec => sec.asset_type && sec.asset_type.toLowerCase() === 'equity').length} equity)`, 'success');
+
       } else {
         addLog('Failed to fetch securities list', 'error');
       }
