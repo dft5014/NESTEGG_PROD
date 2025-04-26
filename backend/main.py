@@ -2162,7 +2162,6 @@ async def add_security(security: SecurityCreate, current_user: dict = Depends(ge
             query, 
             {
                 "ticker": security.ticker.upper(),
-                "now": datetime.utcnow()
             }
         )
         
