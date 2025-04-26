@@ -2196,7 +2196,7 @@ async def add_security(security: SecurityCreate, current_user: dict = Depends(ge
                     "day_high": price_data.get("day_high"),
                     "day_low": price_data.get("day_low"),
                     "volume": price_data.get("volume"),
-                    "updated_at": datetime.now(),
+                    "last_updated": datetime.now(),
                     "price_timestamp": price_data.get("price_timestamp")
                 }
                 
