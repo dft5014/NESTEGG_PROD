@@ -3770,8 +3770,8 @@ async def update_all_securities_prices():
     Update current price data for all active tickers in the securities table
     using DirectYahooFinanceClient.
     
-    This endpoint doesn't require authentication and automatically
-    processes all securities in the database.
+    This endpoint returns immediately with the count of securities to be updated,
+    while the actual update process continues in the background.
     """
     try:
         # Create event record for the batch update
@@ -3810,140 +3810,17 @@ async def update_all_securities_prices():
         ticker_count = len(ticker_list)
         logger.info(f"Found {ticker_count} active securities to update")
         
-        # Initialize DirectYahooFinanceClient
-        client = DirectYahooFinanceClient()
+        # Create the background task to handle the actual updates
+        asyncio.create_task(process_price_updates(ticker_list, event_id))
         
-        try:
-            # Get batch price data
-            logger.info(f"Fetching prices for all {ticker_count} active tickers using DirectYahooFinanceClient")
-            batch_price_data = await client.get_batch_prices(ticker_list)
-            
-            if not batch_price_data:
-                error_msg = "No price data returned for any tickers"
-                logger.error(error_msg)
-                
-                # Update event as failed
-                await update_system_event(
-                    database,
-                    event_id,
-                    "failed",
-                    {"error": error_msg}
-                )
-                
-                return {
-                    "success": False,
-                    "message": error_msg,
-                    "total_tickers": ticker_count
-                }
-            
-            # Process results for each ticker
-            results = []
-            updated_count = 0
-            failed_tickers = []
-            
-            for ticker in ticker_list:
-                if ticker not in batch_price_data:
-                    # No data returned for this ticker
-                    failed_tickers.append(ticker)
-                    results.append({
-                        "ticker": ticker,
-                        "success": False,
-                        "message": "No price data returned"
-                    })
-                    continue
-                    
-                price_data = batch_price_data[ticker]
-                
-                try:
-                    # Update securities table with price data
-                    update_query = """
-                    UPDATE securities
-                    SET 
-                        current_price = :price,
-                        day_open = :day_open,
-                        day_high = :day_high,
-                        day_low = :day_low,
-                        volume = :volume,
-                        last_updated = :updated_at,
-                        price_timestamp = :price_timestamp
-                    WHERE ticker = :ticker
-                    """
-                    
-                    update_values = {
-                        "ticker": ticker,
-                        "price": price_data.get("price"),
-                        "day_open": price_data.get("day_open"),
-                        "day_high": price_data.get("day_high"),
-                        "day_low": price_data.get("day_low"),
-                        "volume": price_data.get("volume"),
-                        "updated_at": datetime.now(),
-                        "price_timestamp": price_data.get("price_timestamp")
-                    }
-                    
-                    await database.execute(update_query, update_values)
-                    updated_count += 1
-                    
-                    # Filter out empty values for response
-                    filtered_price_data = {k: v for k, v in price_data.items() if v is not None}
-                    
-                    results.append({
-                        "ticker": ticker,
-                        "success": True,
-                        "message": f"Successfully updated price",
-                        "current_price": price_data.get("price"),
-                        "fields_updated": len(filtered_price_data)
-                    })
-                    
-                except Exception as ticker_error:
-                    error_message = f"Error updating price for {ticker}: {str(ticker_error)}"
-                    logger.error(error_message)
-                    failed_tickers.append(ticker)
-                    
-                    results.append({
-                        "ticker": ticker,
-                        "success": False,
-                        "message": error_message
-                    })
-            
-            # Update event as completed
-            await update_system_event(
-                database,
-                event_id,
-                "completed",
-                {
-                    "tickers_count": ticker_count,
-                    "updated_count": updated_count,
-                    "failed_count": len(failed_tickers)
-                }
-            )
-            
-            return {
-                "success": updated_count > 0,
-                "message": f"Updated prices for {updated_count}/{ticker_count} tickers",
-                "total_tickers": ticker_count,
-                "updated_count": updated_count,
-                "failed_count": len(failed_tickers),
-                "failed_tickers": failed_tickers if failed_tickers else None,
-                "results": results if len(results) <= 10 else f"{updated_count} tickers updated, {len(failed_tickers)} failed"
-            }
-            
-        except Exception as e:
-            error_message = f"Error in batch price update: {str(e)}"
-            logger.error(error_message)
-            
-            # Update event as failed
-            await update_system_event(
-                database,
-                event_id,
-                "failed",
-                {"error": error_message}
-            )
-            
-            return {
-                "success": False,
-                "message": error_message,
-                "total_tickers": ticker_count
-            }
+        # Return immediately with the initial response
+        return {
+            "success": True,
+            "message": f"Price Update Request received, {ticker_count} tickers identified for updating",
+            "status": "processing",
+            "ticker_count": ticker_count,
+            "event_id": str(event_id)  # Convert to string if event_id is not JSON serializable
+        }
             
     except Exception as e:
         error_message = f"Error in securities price update: {str(e)}"
@@ -3966,6 +3843,108 @@ async def update_all_securities_prices():
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to update security prices: {str(e)}"
         )
+
+# Define the background task function that will run asynchronously
+async def process_price_updates(ticker_list: list, event_id):
+    """Process price updates for the given tickers in the background."""
+    ticker_count = len(ticker_list)
+    
+    try:
+        # Initialize DirectYahooFinanceClient
+        client = DirectYahooFinanceClient()
+        
+        # Get batch price data
+        logger.info(f"Fetching prices for all {ticker_count} active tickers using DirectYahooFinanceClient")
+        batch_price_data = await client.get_batch_prices(ticker_list)
+        
+        if not batch_price_data:
+            error_msg = "No price data returned for any tickers"
+            logger.error(error_msg)
+            
+            # Update event as failed
+            await update_system_event(
+                database,
+                event_id,
+                "failed",
+                {"error": error_msg}
+            )
+            return
+        
+        # Process results for each ticker
+        updated_count = 0
+        failed_tickers = []
+        
+        for ticker in ticker_list:
+            if ticker not in batch_price_data:
+                # No data returned for this ticker
+                failed_tickers.append(ticker)
+                continue
+                
+            price_data = batch_price_data[ticker]
+            
+            try:
+                # Update securities table with price data
+                update_query = """
+                UPDATE securities
+                SET 
+                    current_price = :price,
+                    day_open = :day_open,
+                    day_high = :day_high,
+                    day_low = :day_low,
+                    volume = :volume,
+                    last_updated = :updated_at,
+                    price_timestamp = :price_timestamp
+                WHERE ticker = :ticker
+                """
+                
+                update_values = {
+                    "ticker": ticker,
+                    "price": price_data.get("price"),
+                    "day_open": price_data.get("day_open"),
+                    "day_high": price_data.get("day_high"),
+                    "day_low": price_data.get("day_low"),
+                    "volume": price_data.get("volume"),
+                    "updated_at": datetime.now(),
+                    "price_timestamp": price_data.get("price_timestamp")
+                }
+                
+                await database.execute(update_query, update_values)
+                updated_count += 1
+                
+            except Exception as ticker_error:
+                error_message = f"Error updating price for {ticker}: {str(ticker_error)}"
+                logger.error(error_message)
+                failed_tickers.append(ticker)
+        
+        # Update event as completed
+        await update_system_event(
+            database,
+            event_id,
+            "completed",
+            {
+                "tickers_count": ticker_count,
+                "updated_count": updated_count,
+                "failed_count": len(failed_tickers)
+            }
+        )
+        
+        logger.info(f"Background price update completed: {updated_count}/{ticker_count} tickers updated")
+        
+    except Exception as e:
+        error_message = f"Error in batch price update: {str(e)}"
+        logger.error(error_message)
+        
+        # Update event as failed
+        await update_system_event(
+            database,
+            event_id,
+            "failed",
+            {"error": error_message}
+        )
+        
+        # Log detailed error for debugging
+        import traceback
+        logger.error(traceback.format_exc())
 
 @app.get("/positions/{account_id}")
 async def get_positions(account_id: int, current_user: dict = Depends(get_current_user)):
