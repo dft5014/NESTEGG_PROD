@@ -2704,6 +2704,7 @@ async def update_multiple_ticker_metrics(
         "results": results
     }
 
+# Update just price for a single ticker
 @app.post("/market/update-ticker-price/{ticker}")
 async def update_ticker_price(
     ticker: str,
@@ -3786,6 +3787,11 @@ async def direct_update_multiple_ticker_metrics(
     }
 
 # Scheduled job updates
+
+
+# ----- POSITION MANAGEMENT  -----
+# INCLUDES POSTIONS, CASH, METALS, CRYPTO, REAL ESTATE
+# Security positions
 @app.post("/market/update-all-securities-prices")
 async def update_all_securities_prices():
     """
@@ -3866,6 +3872,7 @@ async def update_all_securities_prices():
             detail=f"Failed to update security prices: {str(e)}"
         )
 
+# Define the background task function that will run asynchronously
 async def process_price_updates(ticker_list: list, event_id):
     """Process price updates for the given tickers in the background."""
     ticker_count = len(ticker_list)
@@ -4047,6 +4054,7 @@ async def update_all_securities_metrics():
             detail=f"Failed to update security metrics: {str(e)}"
         )
 
+# Define the background task function for metrics updates
 async def process_metrics_updates(ticker_list: list, event_id):
     """Process company metrics updates for the given tickers in the background."""
     ticker_count = len(ticker_list)
@@ -4162,11 +4170,6 @@ async def process_metrics_updates(ticker_list: list, event_id):
         # Log detailed error for debugging
         import traceback
         logger.error(traceback.format_exc())
-
-# ----- POSITION MANAGEMENT  -----
-# INCLUDES POSTIONS, CASH, METALS, CRYPTO, REAL ESTATE
-# Security positions
-# Define the background task function that will run asynchronously
 
 @app.get("/positions/{account_id}")
 async def get_positions(account_id: int, current_user: dict = Depends(get_current_user)):
