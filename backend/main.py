@@ -3779,12 +3779,12 @@ async def update_all_securities_prices():
             database,
             "direct_yahoo_all_securities_price_update",
             "started",
-            {"description": "Starting price update for all securities"}
+            {"description": "Starting price update for active securities"}
         )
         
         # Fetch all tickers from the securities table
-        logger.info("Fetching all securities from the database")
-        query = "SELECT ticker FROM securities WHERE active = true ORDER BY last_updated ASC"
+        logger.info("Fetching active securities from the database")
+        query = "SELECT ticker FROM security_usage WHERE status = 'Active' AND price_status = 'Requires Updating' ORDER BY last_updated ASC"
         results = await database.fetch_all(query)
         
         if not results:
