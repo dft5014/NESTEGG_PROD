@@ -3761,9 +3761,7 @@ async def direct_update_multiple_ticker_metrics(
         "results": results
     }
 
-# ----- POSITION MANAGEMENT  -----
-# INCLUDES POSTIONS, CASH, METALS, CRYPTO, REAL ESTATE
-# Security positions
+# -- SCHEDULED AUTO RUNS 
 @app.post("/market/update-all-securities-prices")
 async def update_all_securities_prices():
     """
@@ -3945,6 +3943,232 @@ async def process_price_updates(ticker_list: list, event_id):
         # Log detailed error for debugging
         import traceback
         logger.error(traceback.format_exc())
+
+@app.post("/market/update-all-securities-metrics")
+async def update_all_securities_metrics():
+    """
+    Update company metrics for all active securities in the database
+    using YahooQueryClient.
+    
+    This endpoint returns immediately with the count of securities to be updated,
+    while the actual metrics update process continues in the background.
+    """
+    try:
+        # Create event record for the batch update
+        event_id = await record_system_event(
+            database,
+            "yahoo_all_securities_metrics_update",
+            "started",
+            {"description": "Starting company metrics update for active securities"}
+        )
+        
+        # Fetch all tickers from the securities table
+        logger.info("Fetching active securities from the database")
+        query = "SELECT ticker FROM security_usage WHERE status = 'Active' AND metrics_status = 'Requires Updating' ORDER BY last_updated ASC"
+        results = await database.fetch_all(query)
+        
+        if not results:
+            message = "No active securities found that require metrics updates"
+            logger.info(message)
+            
+            # Update event as completed with no tickers
+            await update_system_event(
+                database,
+                event_id,
+                "completed",
+                {"message": message, "tickers_count": 0}
+            )
+            
+            return {
+                "success": True,
+                "message": message,
+                "updated_count": 0
+            }
+        
+        # Extract tickers from results
+        ticker_list = [row['ticker'] for row in results]
+        ticker_count = len(ticker_list)
+        logger.info(f"Found {ticker_count} active securities to update metrics")
+        
+        # Create the background task to handle the actual metrics updates
+        asyncio.create_task(process_metrics_updates(ticker_list, event_id))
+        
+        # Return immediately with the initial response
+        return {
+            "success": True,
+            "message": f"Metrics Update Request received, {ticker_count} tickers identified for updating",
+            "status": "processing",
+            "ticker_count": ticker_count,
+            "event_id": str(event_id)  # Convert to string if event_id is not JSON serializable
+        }
+            
+    except Exception as e:
+        error_message = f"Error in securities metrics update: {str(e)}"
+        logger.error(error_message)
+        
+        # Update event status if we have an event_id
+        if 'event_id' in locals():
+            await update_system_event(
+                database,
+                event_id,
+                "failed",
+                {"error": error_message}
+            )
+            
+        # Log detailed error for debugging
+        import traceback
+        logger.error(traceback.format_exc())
+        
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to update security metrics: {str(e)}"
+        )
+
+# Define the background task function for metrics updates
+async def process_metrics_updates(ticker_list: list, event_id):
+    """Process company metrics updates for the given tickers in the background."""
+    ticker_count = len(ticker_list)
+    success_count = 0
+    failed_count = 0
+    
+    try:
+        # Initialize YahooQueryClient
+        client = YahooQueryClient()
+        
+        # Process each ticker
+        for ticker in ticker_list:
+            try:
+                # Get company metrics data
+                logger.info(f"Fetching company metrics for {ticker}")
+                metrics = await client.get_company_metrics(ticker)
+                
+                if isinstance(metrics, str):
+                    error_msg = f"Invalid metrics format (received string): {metrics}"
+                    logger.error(error_msg)
+                    failed_count += 1
+                    continue
+                
+                if not metrics or metrics.get("not_found"):
+                    error_msg = f"No metrics data returned for {ticker}"
+                    logger.error(error_msg)
+                    failed_count += 1
+                    continue
+                
+                # Update securities table with company metrics
+                update_query = """
+                UPDATE securities
+                SET 
+                    company_name = :company_name,
+                    current_price = :current_price,
+                    sector = :sector,
+                    industry = :industry,
+                    market_cap = :market_cap,
+                    pe_ratio = :pe_ratio,
+                    forward_pe = :forward_pe,
+                    dividend_rate = :dividend_rate,
+                    dividend_yield = :dividend_yield,
+                    beta = :beta,
+                    fifty_two_week_low = :fifty_two_week_low,
+                    fifty_two_week_high = :fifty_two_week_high,
+                    fifty_two_week_range = :fifty_two_week_range,
+                    eps = :eps,
+                    forward_eps = :forward_eps,
+                    last_metrics_update = :updated_at,
+                    last_updated = :updated_at
+                WHERE ticker = :ticker
+                """
+                
+                # Prepare values for update
+                fifty_two_week_range = None
+                if metrics.get("fifty_two_week_low") is not None and metrics.get("fifty_two_week_high") is not None:
+                    fifty_two_week_range = f"{metrics['fifty_two_week_low']}-{metrics['fifty_two_week_high']}"
+                
+                update_values = {
+                    "ticker": ticker,
+                    "company_name": metrics.get("company_name"),
+                    "current_price": metrics.get("current_price"),
+                    "sector": metrics.get("sector"),
+                    "industry": metrics.get("industry"),
+                    "market_cap": metrics.get("market_cap"),
+                    "pe_ratio": metrics.get("pe_ratio"),
+                    "forward_pe": metrics.get("forward_pe"),
+                    "dividend_rate": metrics.get("dividend_rate"),
+                    "dividend_yield": metrics.get("dividend_yield"),
+                    "beta": metrics.get("beta"),
+                    "fifty_two_week_low": metrics.get("fifty_two_week_low"),
+                    "fifty_two_week_high": metrics.get("fifty_two_week_high"),
+                    "fifty_two_week_range": fifty_two_week_range,
+                    "eps": metrics.get("eps"),
+                    "forward_eps": metrics.get("forward_eps"),
+                    "updated_at": datetime.now()
+                }
+                
+                await database.execute(update_query, update_values)
+                success_count += 1
+                
+            except Exception as e:
+                error_message = f"Error updating metrics for {ticker}: {str(e)}"
+                logger.error(error_message)
+                failed_count += 1
+        
+        # Update event as completed
+        await update_system_event(
+            database,
+            event_id,
+            "completed",
+            {
+                "tickers_count": ticker_count,
+                "success_count": success_count,
+                "failed_count": failed_count
+            }
+        )
+        
+        logger.info(f"Background metrics update completed: {success_count}/{ticker_count} tickers updated")
+        
+    except Exception as e:
+        error_message = f"Error in batch metrics update: {str(e)}"
+        logger.error(error_message)
+        
+        # Update event as failed
+        await update_system_event(
+            database,
+            event_id,
+            "failed",
+            {"error": error_message}
+        )
+        
+        # Log detailed error for debugging
+        import traceback
+        logger.error(traceback.format_exc())
+
+@app.get("/system/warmup")
+async def warmup_system():
+    """
+    Endpoint to wake up the Render service before scheduled tasks.
+    This ensures the service is fully initialized when cron jobs run.
+    """
+    try:
+        # Perform minimal database operation to ensure connections are ready
+        query = "SELECT 1 as health_check"
+        result = await database.fetch_one(query)
+        
+        # Return success response
+        return {
+            "success": True,
+            "message": "System warmed up successfully",
+            "timestamp": datetime.now().isoformat(),
+            "health_check": result["health_check"] if result else None
+        }
+    except Exception as e:
+        logger.error(f"Error during system warmup: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to warm up system: {str(e)}"
+        )
+
+# ----- POSITION MANAGEMENT  -----
+# INCLUDES POSTIONS, CASH, METALS, CRYPTO, REAL ESTATE
+# Security positions
 
 @app.get("/positions/{account_id}")
 async def get_positions(account_id: int, current_user: dict = Depends(get_current_user)):
