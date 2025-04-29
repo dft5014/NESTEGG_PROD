@@ -5277,7 +5277,166 @@ async def get_reconciliation_history(
         )
 
 
+@app.get("/market/security-statistics")
+async def get_security_statistics():
+    """
+    Get statistics about securities in the database, including price update information,
+    asset counts, and metrics age information.
+    """
+    try:
+        # Create event record
+        event_id = await record_system_event(
+            database,
+            "security_statistics_generation",
+            "started",
+            {"description": "Generating security statistics"}
+        )
 
+        # Query for all securities from security_usage table
+        query = "SELECT * FROM security_usage"
+        results = await database.fetch_all(query)
+        
+        if not results:
+            message = "No securities found in the database"
+            logger.info(message)
+            
+            # Update event as completed with no securities
+            await update_system_event(
+                database,
+                event_id,
+                "completed",
+                {"message": message, "securities_count": 0}
+            )
+            
+            return {
+                "success": True,
+                "message": message,
+                "statistics": {}
+            }
+
+        # Convert to list of dictionaries
+        securities = [dict(row) for row in results]
+        
+        # Calculate statistics
+        total_count = len(securities)
+        
+        # Count by asset type
+        asset_type_counts = {}
+        for security in securities:
+            asset_type = security.get('asset_type')
+            if asset_type:
+                asset_type_counts[asset_type] = asset_type_counts.get(asset_type, 0) + 1
+                
+        # Active securities
+        active_securities = [s for s in securities if s.get('status') == 'Active']
+        active_count = len(active_securities)
+        
+        # Price update information
+        all_last_updated = [s.get('last_updated') for s in securities if s.get('last_updated')]
+        most_recent_update = max(all_last_updated) if all_last_updated else None
+        
+        # Active securities price range
+        active_last_updated = [s.get('last_updated') for s in active_securities if s.get('last_updated')]
+        active_price_min = min(active_last_updated) if active_last_updated else None
+        active_price_max = max(active_last_updated) if active_last_updated else None
+        
+        # Active price age information
+        active_price_age_minutes = [s.get('price_age_minutes') for s in active_securities if s.get('price_age_minutes') is not None]
+        min_active_price_age = min(active_price_age_minutes) if active_price_age_minutes else None
+        max_active_price_age = max(active_price_age_minutes) if active_price_age_minutes else None
+        avg_active_price_age = sum(active_price_age_minutes) / len(active_price_age_minutes) if active_price_age_minutes else None
+        
+        # Metrics age information for active securities
+        active_metrics_age = [s.get('metrics_age_minutes') for s in active_securities if s.get('metrics_age_minutes') is not None]
+        min_metrics_age = min(active_metrics_age) if active_metrics_age else None
+        max_metrics_age = max(active_metrics_age) if active_metrics_age else None
+        avg_metrics_age = sum(active_metrics_age) / len(active_metrics_age) if active_metrics_age else None
+        
+        # Status counts
+        price_status_counts = {}
+        metrics_status_counts = {}
+        for security in securities:
+            price_status = security.get('price_status')
+            if price_status:
+                price_status_counts[price_status] = price_status_counts.get(price_status, 0) + 1
+                
+            metrics_status = security.get('metrics_status')
+            if metrics_status:
+                metrics_status_counts[metrics_status] = metrics_status_counts.get(metrics_status, 0) + 1
+        
+        # Position counts
+        securities_with_positions = sum(1 for s in securities if s.get('total_positions', 0) > 0)
+        active_with_positions = sum(1 for s in active_securities if s.get('total_positions', 0) > 0)
+        
+        # Format timestamps for readability
+        formatted_most_recent = most_recent_update.strftime("%Y-%m-%d %H:%M:%S") if most_recent_update else None
+        formatted_active_min = active_price_min.strftime("%Y-%m-%d %H:%M:%S") if active_price_min else None
+        formatted_active_max = active_price_max.strftime("%Y-%m-%d %H:%M:%S") if active_price_max else None
+        
+        # Construct statistics response
+        statistics = {
+            "total_securities": total_count,
+            "by_asset_type": asset_type_counts,
+            "active_securities": active_count,
+            "prices_last_updated": formatted_most_recent,
+            "active_price_update_range": {
+                "min": formatted_active_min,
+                "max": formatted_active_max,
+            },
+            "active_price_age_minutes": {
+                "min": round(min_active_price_age, 2) if min_active_price_age is not None else None,
+                "max": round(max_active_price_age, 2) if max_active_price_age is not None else None,
+                "avg": round(avg_active_price_age, 2) if avg_active_price_age is not None else None
+            },
+            "active_metrics_age_minutes": {
+                "min": round(min_metrics_age, 2) if min_metrics_age is not None else None,
+                "max": round(max_metrics_age, 2) if max_metrics_age is not None else None,
+                "avg": round(avg_metrics_age, 2) if avg_metrics_age is not None else None
+            },
+            "price_status_counts": price_status_counts,
+            "metrics_status_counts": metrics_status_counts,
+            "securities_with_positions": securities_with_positions,
+            "active_with_positions": active_with_positions,
+            "price_needs_update": price_status_counts.get("Requires Updating", 0),
+            "metrics_needs_update": metrics_status_counts.get("Requires Updating", 0)
+        }
+        
+        # Update event as completed
+        await update_system_event(
+            database,
+            event_id,
+            "completed",
+            {"message": "Successfully generated security statistics", "securities_count": total_count}
+        )
+        
+        return {
+            "success": True,
+            "message": "Security statistics generated successfully",
+            "statistics": statistics,
+            "timestamp": datetime.now().isoformat()
+        }
+            
+    except Exception as e:
+        error_message = f"Error generating security statistics: {str(e)}"
+        logger.error(error_message)
+        
+        # Update event status if we have an event_id
+        if 'event_id' in locals():
+            await update_system_event(
+                database,
+                event_id,
+                "failed",
+                {"error": error_message}
+            )
+            
+        # Log detailed error for debugging
+        import traceback
+        logger.error(traceback.format_exc())
+        
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to generate security statistics: {str(e)}"
+        )
 
 
 # ----- Potentially Delete -----
