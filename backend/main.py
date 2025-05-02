@@ -5438,19 +5438,8 @@ async def get_security_statistics():
             detail=f"Failed to generate security statistics: {str(e)}"
         )
 
-from datetime import datetime, timedelta
-from fastapi import APIRouter, Depends, HTTPException, Query, status
-from typing import Optional, List
-import logging
-from sqlalchemy import func, distinct, text
 
-from ..database import database
-from ..auth.auth import get_current_user
-
-router = APIRouter()
-logger = logging.getLogger(__name__)
-
-@router.get("/portfolio/snapshots")
+@app.get("/portfolio/snapshots")
 async def get_portfolio_snapshots(
     timeframe: str = Query("1m", description="Time period for snapshots: 1d, 1w, 1m, 3m, 6m, 1y, all"),
     group_by: str = Query("day", description="Group results by: day, week, month"),
