@@ -5451,7 +5451,7 @@ async def get_portfolio_snapshots(
     Used for the dashboard homepage and historical performance tracking.
     """
     try:
-        user_id = current_user["user_id"]
+        user_id = current_user["id"]
         
         # Calculate date range based on timeframe
         end_date = datetime.now().date()
