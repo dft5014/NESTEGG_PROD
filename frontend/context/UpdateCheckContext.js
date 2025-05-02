@@ -80,6 +80,31 @@ export const UpdateCheckProvider = ({ children }) => {
     }
   }, [auth.user]);
 
+// context/UpdateCheckContext.js
+// Add this function to your context
+
+  const fetchSecurityStats = async () => {
+    try {
+      const response = await fetch('/api/market/security-statistics');
+      if (!response.ok) {
+        throw new Error(`Failed to fetch security statistics: ${response.statusText}`);
+      }
+      return await response.json();
+    } catch (error) {
+      console.error("Error fetching security statistics:", error);
+      throw error;
+    }
+  };
+
+  // Add this to your context value
+  const contextValue = {
+    updateStatus,
+    checkForUpdates,
+    manuallyTriggerUpdate,
+    fetchSecurityStats, // Add this line
+  };
+
+
   return (
     <UpdateCheckContext.Provider
       value={{
