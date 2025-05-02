@@ -5438,6 +5438,382 @@ async def get_security_statistics():
             detail=f"Failed to generate security statistics: {str(e)}"
         )
 
+from datetime import datetime, timedelta
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from typing import Optional, List
+import logging
+from sqlalchemy import func, distinct, text
+
+from ..database import database
+from ..auth.auth import get_current_user
+
+router = APIRouter()
+logger = logging.getLogger(__name__)
+
+@router.get("/portfolio/snapshots")
+async def get_portfolio_snapshots(
+    timeframe: str = Query("1m", description="Time period for snapshots: 1d, 1w, 1m, 3m, 6m, 1y, all"),
+    group_by: str = Query("day", description="Group results by: day, week, month"),
+    include_cost_basis: bool = Query(True, description="Include cost basis data"),
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Retrieve portfolio snapshots with trend analysis and aggregated values.
+    Used for the dashboard homepage and historical performance tracking.
+    """
+    try:
+        user_id = current_user["user_id"]
+        
+        # Calculate date range based on timeframe
+        end_date = datetime.now().date()
+        if timeframe == "1d":
+            start_date = end_date - timedelta(days=1)
+        elif timeframe == "1w":
+            start_date = end_date - timedelta(weeks=1)
+        elif timeframe == "1m":
+            start_date = end_date - timedelta(days=30)
+        elif timeframe == "3m":
+            start_date = end_date - timedelta(days=90)
+        elif timeframe == "6m":
+            start_date = end_date - timedelta(days=180)
+        elif timeframe == "1y":
+            start_date = end_date - timedelta(days=365)
+        elif timeframe == "ytd":
+            start_date = datetime(end_date.year, 1, 1).date()
+        else:  # "all"
+            # Get earliest snapshot date for user
+            earliest_query = """
+            SELECT MIN(snapshot_date) FROM portfolio_daily_snapshots
+            WHERE user_id = :user_id
+            """
+            earliest_result = await database.fetch_one(earliest_query, {"user_id": user_id})
+            start_date = earliest_result[0] if earliest_result and earliest_result[0] else end_date - timedelta(days=365)
+        
+        # Get the most recent snapshot date (might not be today)
+        latest_query = """
+        SELECT MAX(snapshot_date) FROM portfolio_daily_snapshots
+        WHERE user_id = :user_id
+        """
+        latest_result = await database.fetch_one(latest_query, {"user_id": user_id})
+        latest_date = latest_result[0] if latest_result and latest_result[0] else end_date
+        
+        # Format for SQL query
+        start_date_str = start_date.strftime("%Y-%m-%d")
+        end_date_str = latest_date.strftime("%Y-%m-%d")
+        
+        # Get daily snapshots data
+        daily_snapshots_query = """
+        WITH grouped_snapshots AS (
+            SELECT 
+                snapshot_date,
+                SUM(current_value) as total_value,
+                SUM(total_cost_basis) as total_cost_basis,
+                SUM(current_value - total_cost_basis) as unrealized_gain,
+                SUM(position_income) as position_income,
+                ARRAY_AGG(DISTINCT asset_type) as asset_types
+            FROM portfolio_daily_snapshots
+            WHERE 
+                user_id = :user_id AND
+                snapshot_date BETWEEN :start_date AND :end_date AND
+                current_value IS NOT NULL
+            GROUP BY snapshot_date
+            ORDER BY snapshot_date ASC
+        )
+        SELECT * FROM grouped_snapshots
+        """
+        
+        daily_snapshots = await database.fetch_all(
+            daily_snapshots_query, 
+            {
+                "user_id": user_id,
+                "start_date": start_date_str,
+                "end_date": end_date_str
+            }
+        )
+        
+        # Get the latest snapshot for current values
+        latest_snapshot_query = """
+        WITH latest_values AS (
+            SELECT 
+                MAX(snapshot_date) as max_date
+            FROM portfolio_daily_snapshots
+            WHERE user_id = :user_id
+        ),
+        snapshot_totals AS (
+            SELECT 
+                SUM(current_value) as total_value,
+                SUM(total_cost_basis) as total_cost_basis,
+                SUM(current_value - total_cost_basis) as unrealized_gain,
+                SUM(position_income) as position_income
+            FROM portfolio_daily_snapshots pds
+            JOIN latest_values lv ON pds.snapshot_date = lv.max_date
+            WHERE 
+                user_id = :user_id AND
+                current_value IS NOT NULL
+        )
+        SELECT * FROM snapshot_totals
+        """
+        
+        current_values = await database.fetch_one(latest_snapshot_query, {"user_id": user_id})
+        
+        # Get asset allocation breakdown from the latest snapshot
+        asset_allocation_query = """
+        WITH latest_date AS (
+            SELECT MAX(snapshot_date) as max_date
+            FROM portfolio_daily_snapshots
+            WHERE user_id = :user_id
+        )
+        SELECT 
+            asset_type,
+            SUM(current_value) as value,
+            SUM(current_value) / (
+                SELECT SUM(current_value) FROM portfolio_daily_snapshots
+                WHERE user_id = :user_id AND snapshot_date = (SELECT max_date FROM latest_date)
+                AND current_value IS NOT NULL
+            ) as percentage
+        FROM portfolio_daily_snapshots
+        WHERE 
+            user_id = :user_id AND 
+            snapshot_date = (SELECT max_date FROM latest_date) AND
+            current_value IS NOT NULL
+        GROUP BY asset_type
+        ORDER BY value DESC
+        """
+        
+        asset_allocation = await database.fetch_all(asset_allocation_query, {"user_id": user_id})
+        
+        # Get sector allocation for securities
+        sector_allocation_query = """
+        WITH latest_date AS (
+            SELECT MAX(snapshot_date) as max_date
+            FROM portfolio_daily_snapshots
+            WHERE user_id = :user_id
+        ),
+        total_securities_value AS (
+            SELECT SUM(current_value) as total
+            FROM portfolio_daily_snapshots
+            WHERE 
+                user_id = :user_id AND 
+                snapshot_date = (SELECT max_date FROM latest_date) AND
+                asset_type = 'security' AND
+                current_value IS NOT NULL
+        )
+        SELECT 
+            COALESCE(sector, 'Unknown') as sector,
+            SUM(current_value) as value,
+            SUM(current_value) / (SELECT total FROM total_securities_value) as percentage
+        FROM portfolio_daily_snapshots
+        WHERE 
+            user_id = :user_id AND 
+            snapshot_date = (SELECT max_date FROM latest_date) AND
+            asset_type = 'security' AND
+            current_value IS NOT NULL
+        GROUP BY sector
+        ORDER BY value DESC
+        """
+        
+        sector_allocation = await database.fetch_all(sector_allocation_query, {"user_id": user_id})
+        
+        # Get account allocation
+        account_allocation_query = """
+        WITH latest_date AS (
+            SELECT MAX(snapshot_date) as max_date
+            FROM portfolio_daily_snapshots
+            WHERE user_id = :user_id
+        ),
+        total_value AS (
+            SELECT SUM(current_value) as total
+            FROM portfolio_daily_snapshots
+            WHERE 
+                user_id = :user_id AND 
+                snapshot_date = (SELECT max_date FROM latest_date) AND
+                current_value IS NOT NULL
+        )
+        SELECT 
+            account_name,
+            institution,
+            type as account_type,
+            SUM(current_value) as value,
+            SUM(current_value) / (SELECT total FROM total_value) as percentage
+        FROM portfolio_daily_snapshots
+        WHERE 
+            user_id = :user_id AND 
+            snapshot_date = (SELECT max_date FROM latest_date) AND
+            current_value IS NOT NULL
+        GROUP BY account_name, institution, type
+        ORDER BY value DESC
+        """
+        
+        account_allocation = await database.fetch_all(account_allocation_query, {"user_id": user_id})
+        
+        # Get top positions by value
+        top_positions_query = """
+        WITH latest_date AS (
+            SELECT MAX(snapshot_date) as max_date
+            FROM portfolio_daily_snapshots
+            WHERE user_id = :user_id
+        )
+        SELECT 
+            identifier as ticker,
+            name,
+            asset_type,
+            account_name,
+            current_value,
+            current_price_per_unit as price,
+            quantity,
+            gain_loss_pct as gain_loss_percent,
+            total_cost_basis as cost_basis
+        FROM portfolio_daily_snapshots
+        WHERE 
+            user_id = :user_id AND 
+            snapshot_date = (SELECT max_date FROM latest_date) AND
+            current_value IS NOT NULL
+        ORDER BY current_value DESC
+        LIMIT 10
+        """
+        
+        top_positions = await database.fetch_all(top_positions_query, {"user_id": user_id})
+        
+        # Calculate period changes
+        period_changes = {}
+        if daily_snapshots:
+            # Sort snapshots by date to ensure correct calculations
+            sorted_snapshots = sorted(daily_snapshots, key=lambda x: x['snapshot_date'])
+            
+            # Get the latest values
+            latest_value = sorted_snapshots[-1]['total_value'] if sorted_snapshots else 0
+            
+            # 1d change
+            if len(sorted_snapshots) >= 2:
+                prev_day = sorted_snapshots[-2]['total_value']
+                value_change_1d = latest_value - prev_day
+                percent_change_1d = (value_change_1d / prev_day) * 100 if prev_day else 0
+                period_changes["1d"] = {
+                    "value_change": value_change_1d,
+                    "percent_change": percent_change_1d
+                }
+            
+            # 1w change
+            week_ago_index = next((i for i, snap in enumerate(sorted_snapshots) 
+                                if (sorted_snapshots[-1]['snapshot_date'] - snap['snapshot_date']).days >= 7), None)
+            if week_ago_index is not None:
+                week_ago_value = sorted_snapshots[week_ago_index]['total_value']
+                value_change_1w = latest_value - week_ago_value
+                percent_change_1w = (value_change_1w / week_ago_value) * 100 if week_ago_value else 0
+                period_changes["1w"] = {
+                    "value_change": value_change_1w,
+                    "percent_change": percent_change_1w
+                }
+            
+            # 1m change
+            month_ago_index = next((i for i, snap in enumerate(sorted_snapshots) 
+                                  if (sorted_snapshots[-1]['snapshot_date'] - snap['snapshot_date']).days >= 30), None)
+            if month_ago_index is not None:
+                month_ago_value = sorted_snapshots[month_ago_index]['total_value']
+                value_change_1m = latest_value - month_ago_value
+                percent_change_1m = (value_change_1m / month_ago_value) * 100 if month_ago_value else 0
+                period_changes["1m"] = {
+                    "value_change": value_change_1m,
+                    "percent_change": percent_change_1m
+                }
+            
+            # YTD change
+            ytd_index = next((i for i, snap in enumerate(sorted_snapshots) 
+                             if snap['snapshot_date'].year == sorted_snapshots[-1]['snapshot_date'].year 
+                             and snap['snapshot_date'].month == 1 and snap['snapshot_date'].day <= 5), None)
+            if ytd_index is not None:
+                ytd_value = sorted_snapshots[ytd_index]['total_value']
+                value_change_ytd = latest_value - ytd_value
+                percent_change_ytd = (value_change_ytd / ytd_value) * 100 if ytd_value else 0
+                period_changes["ytd"] = {
+                    "value_change": value_change_ytd,
+                    "percent_change": percent_change_ytd
+                }
+        
+        # Calculate total portfolio income
+        total_income_query = """
+        WITH latest_date AS (
+            SELECT MAX(snapshot_date) as max_date
+            FROM portfolio_daily_snapshots
+            WHERE user_id = :user_id
+        )
+        SELECT 
+            SUM(position_income) as annual_income,
+            SUM(position_income) / NULLIF(SUM(current_value), 0) * 100 as yield_percentage
+        FROM portfolio_daily_snapshots
+        WHERE 
+            user_id = :user_id AND 
+            snapshot_date = (SELECT max_date FROM latest_date) AND
+            position_income IS NOT NULL AND 
+            current_value IS NOT NULL
+        """
+        
+        income_data = await database.fetch_one(total_income_query, {"user_id": user_id})
+        
+        # Format the results into a clean response structure
+        result = {
+            "current_value": current_values['total_value'] if current_values else 0,
+            "total_cost_basis": current_values['total_cost_basis'] if current_values and include_cost_basis else None,
+            "unrealized_gain": current_values['unrealized_gain'] if current_values and include_cost_basis else None,
+            "unrealized_gain_percent": (current_values['unrealized_gain'] / current_values['total_cost_basis'] * 100) 
+                                   if current_values and current_values['total_cost_basis'] and include_cost_basis else None,
+            "annual_income": income_data['annual_income'] if income_data else 0,
+            "yield_percentage": income_data['yield_percentage'] if income_data else 0,
+            "period_changes": period_changes,
+            "last_updated": latest_date,
+            
+            # Allocation breakdowns
+            "asset_allocation": {item['asset_type']: {
+                "value": item['value'],
+                "percentage": item['percentage']
+            } for item in asset_allocation},
+            
+            "sector_allocation": {item['sector']: {
+                "value": item['value'],
+                "percentage": item['percentage']
+            } for item in sector_allocation},
+            
+            "account_allocation": [{
+                "account_name": item['account_name'],
+                "institution": item['institution'],
+                "account_type": item['account_type'],
+                "value": item['value'],
+                "percentage": item['percentage']
+            } for item in account_allocation],
+            
+            # Top positions
+            "top_positions": [{
+                "ticker": item['ticker'],
+                "name": item['name'],
+                "asset_type": item['asset_type'],
+                "account": item['account_name'],
+                "value": item['current_value'],
+                "price": item['price'],
+                "quantity": item['quantity'],
+                "gain_loss_percent": item['gain_loss_percent'],
+                "cost_basis": item['cost_basis'] if include_cost_basis else None
+            } for item in top_positions],
+            
+            # Performance data
+            "performance": {
+                "daily": [{
+                    "date": snapshot['snapshot_date'].strftime("%Y-%m-%d"),
+                    "value": snapshot['total_value'],
+                    "cost_basis": snapshot['total_cost_basis'] if include_cost_basis else None
+                } for snapshot in daily_snapshots]
+            }
+        }
+        
+        return result
+        
+    except Exception as e:
+        logger.error(f"Error fetching portfolio snapshots: {str(e)}")
+        import traceback
+        logger.error(traceback.format_exc())
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to fetch portfolio snapshots: {str(e)}"
+        )
 
 # ----- Potentially Delete -----
 
