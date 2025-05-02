@@ -1,4 +1,3 @@
-// components/UpdateStatusIndicator.js
 import { useState, useEffect } from 'react';
 import { RefreshCw, AlertTriangle, Clock, Database, BarChart2 } from 'lucide-react';
 import { useUpdateCheck } from '@/context/UpdateCheckContext';
@@ -58,15 +57,36 @@ export default function UpdateStatusIndicator() {
     loadSecurityStats();
   };
   
-  // Determine status indicators based on stats
-  const getStatusIndicator = () => {
-    if (!securityStats) {
+  // Determine status based on original update status if no stats yet
+  const getBaseStatusIndicator = () => {
+    if (isUpdateInProgress) {
       return { 
-        status: 'unknown',
-        color: 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200',
-        icon: <Clock className="h-3 w-3" />,
-        text: 'Data status unknown'
+        status: 'updating',
+        color: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200',
+        icon: <RefreshCw className="h-3 w-3 animate-spin" />,
+        text: 'Updating...'
       };
+    } else if (isPriceDataStale) {
+      return {
+        status: 'stale',
+        color: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200',
+        icon: <AlertTriangle className="h-3 w-3" />,
+        text: 'Data is stale'
+      };
+    } else {
+      return {
+        status: 'current',
+        color: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200',
+        icon: <Clock className="h-3 w-3" />,
+        text: 'Prices up to date'
+      };
+    }
+  };
+  
+  // Determine status indicators based on stats
+  const getStatsStatusIndicator = () => {
+    if (!securityStats) {
+      return getBaseStatusIndicator();
     }
     
     // Check if all prices need updating
@@ -103,7 +123,8 @@ export default function UpdateStatusIndicator() {
     }
   };
   
-  const statusIndicator = getStatusIndicator();
+  // Get the appropriate status indicator
+  const statusIndicator = securityStats ? getStatsStatusIndicator() : getBaseStatusIndicator();
   
   return (
     <div className="relative">
@@ -133,8 +154,35 @@ export default function UpdateStatusIndicator() {
               <RefreshCw className="h-4 w-4 animate-spin text-blue-600" />
             </div>
           ) : !securityStats ? (
-            <div className="text-sm text-gray-600 dark:text-gray-400 text-center py-2">
-              Failed to load security statistics
+            <div className="text-sm text-gray-600 dark:text-gray-400 mb-2">
+              <div className="flex justify-between text-xs">
+                <span className="text-gray-600 dark:text-gray-400">Last updated:</span>
+                <span className="font-medium">
+                  {updateStatus?.price_updates?.last_updated ? 
+                   formatTimeSince(updateStatus?.price_updates?.minutes_since_update) : 
+                   'Never'}
+                </span>
+              </div>
+              <div className="flex justify-between text-xs mt-1">
+                <span className="text-gray-600 dark:text-gray-400">Status:</span>
+                <span className={`font-medium ${
+                  isUpdateInProgress ? 'text-blue-600 dark:text-blue-400' :
+                  isPriceDataStale ? 'text-yellow-600 dark:text-yellow-400' :
+                  'text-green-600 dark:text-green-400'
+                }`}>
+                  {isUpdateInProgress ? 'Updating now' :
+                   isPriceDataStale ? 'Update needed' :
+                   'Up to date'}
+                </span>
+              </div>
+              <div className="mt-2">
+                <button
+                  onClick={loadSecurityStats}
+                  className="w-full py-1 px-2 rounded text-xs bg-blue-600 text-white hover:bg-blue-700"
+                >
+                  Load detailed statistics
+                </button>
+              </div>
             </div>
           ) : (
             <>
