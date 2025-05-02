@@ -5486,10 +5486,6 @@ async def get_portfolio_snapshots(
         latest_result = await database.fetch_one(latest_query, {"user_id": user_id})
         latest_date = latest_result[0] if latest_result and latest_result[0] else end_date
         
-        # Format for SQL query
-        start_date_str = start_date.strftime("%Y-%m-%d")
-        end_date_str = latest_date.strftime("%Y-%m-%d")
-        
         # Get daily snapshots data
         daily_snapshots_query = """
         WITH grouped_snapshots AS (
@@ -5515,8 +5511,8 @@ async def get_portfolio_snapshots(
             daily_snapshots_query, 
             {
                 "user_id": user_id,
-                "start_date": start_date_str,
-                "end_date": end_date_str
+                "start_date": start_date,
+                "end_date": latest_date
             }
         )
         
