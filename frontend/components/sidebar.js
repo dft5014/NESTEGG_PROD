@@ -2,7 +2,7 @@
 import Link from 'next/link';
 import { BarChart2, ChevronLeft, ChevronRight, 
          CheckSquare, Settings, Database, Shield, 
-         Home, Coins, Bitcoin, ChevronDown, ChevronUp, TrendingUp } from 'lucide-react';
+         Home, Coins, Bitcoin, ChevronDown, ChevronUp, TrendingUp, Gauge } from 'lucide-react';
 import { useContext, useState, useEffect } from 'react';
 import { AuthContext } from '@/context/AuthContext';
 import { useRouter } from 'next/router';
@@ -71,6 +71,10 @@ const Sidebar = () => {
           <div className="space-y-1">
             {/* NestEgg (Portfolio) with Child Components Toggle */}
             <div className="flex items-center justify-between px-3">
+              <Link href="/" className={menuItemClasses(isActive('/'))}>
+                <Gauge size={24} className={iconClasses} />
+                {!sidebarCollapsed && <span>Home</span>}
+              </Link>
               <Link href="/portfolio" className={menuItemClasses(isActive('/portfolio'))}>
                 <span className="text-xl">🥚</span>
                 {!sidebarCollapsed && <span className="ml-3">NestEgg</span>}
@@ -157,10 +161,7 @@ const Sidebar = () => {
             )}
 
             {/* Other Navigation Items */}
-            <Link href="/" className={menuItemClasses(isActive('/'))}>
-              <BarChart2 size={24} className={iconClasses} />
-              {!sidebarCollapsed && <span>Market Update</span>}
-            </Link>
+
             <Link href="/AccountReconciliation" className={menuItemClasses(isActive('/todo'))}>
               <CheckSquare size={24} className={iconClasses} />
               {!sidebarCollapsed && <span>Account Reconciliations</span>}
