@@ -4,15 +4,15 @@ import Head from 'next/head';
 import { useRouter } from 'next/router';
 import { 
   AreaChart, Area, BarChart, Bar, PieChart, Pie, LineChart, Line,
-  XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell
+  XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell, ReferenceLine
 } from 'recharts';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  TrendingUp, TrendingDown, DollarSign, PieChart as PieChartIcon, 
+  TrendingUp, TrendingDown, DollarSign, 
   Activity, Calendar, Info, ArrowRight, BarChart2, Settings,
   Briefcase, X, AlertCircle, ChevronRight, CreditCard, Droplet, 
   Diamond, Cpu, Landmark, Layers, Shield, Database, Percent, 
-  Eye, Gift, Clock
+  Eye, Gift, Clock, ArrowUp, ArrowDown
 } from 'lucide-react';
 
 import { fetchWithAuth } from '@/utils/api';
@@ -64,6 +64,7 @@ export default function Dashboard() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
   const [showWelcomeBanner, setShowWelcomeBanner] = useState(true);
+  const [showModernDashboard, setShowModernDashboard] = useState(true);
   const router = useRouter();
   
   // Fetch portfolio data
@@ -291,6 +292,361 @@ export default function Dashboard() {
     return null;
   };
   
+  // Modern Dashboard Component
+  const ModernDashboard = () => {
+    if (!portfolioData) return null;
+  
+    // Extract data needed for visualizations
+    const totalValue = portfolioData.current_value || 0;
+    const totalCostBasis = portfolioData.total_cost_basis || 0;
+    const unrealizedGain = portfolioData.unrealized_gain || 0;
+    const unrealizedGainPercent = portfolioData.unrealized_gain_percent || 0;
+    const annualIncome = portfolioData.annual_income || 0;
+    const yieldPercentage = portfolioData.yield_percentage || 0;
+    const periodChanges = portfolioData.period_changes || {};
+    const selectedChange = periodChanges[selectedTimeframe]?.percent_change || 0;
+    const selectedChangeValue = periodChanges[selectedTimeframe]?.value_change || 0;
+    
+    // Get top positions
+    const topPositions = portfolioData?.top_positions?.slice(0, 5) || [];
+  
+    // Custom tooltip for the line chart
+    const CustomAreaTooltip = ({ active, payload, label }) => {
+      if (active && payload && payload.length) {
+        return (
+          <div className="bg-white dark:bg-gray-800 p-3 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg">
+            <p className="font-medium text-gray-900 dark:text-white">{label}</p>
+            <p className="text-sm text-indigo-600 dark:text-indigo-400">
+              <span className="font-medium">Value: </span> 
+              {formatCurrency(payload[0].value)}
+            </p>
+          </div>
+        );
+      }
+      return null;
+    };
+  
+    return (
+      <div className="bg-gray-50 dark:bg-gray-900 py-4 rounded-xl mb-8">
+        {/* Main dashboard grid */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 px-4">
+          {/* Left column - Summary */}
+          <div className="lg:col-span-8 space-y-4">
+            {/* Main metrics */}
+            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-5">
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
+                {/* Total value */}
+                <div>
+                  <div className="flex items-center space-x-2">
+                    <DollarSign className="h-5 w-5 text-indigo-500" />
+                    <p className="text-sm text-gray-500 dark:text-gray-400">Total Value</p>
+                  </div>
+                  <h3 className="text-2xl font-bold mt-1 dark:text-white">{formatCurrency(totalValue)}</h3>
+                  <div className="flex items-center mt-1">
+                    {selectedChange > 0 ? (
+                      <ArrowUp className="h-4 w-4 text-green-500" />
+                    ) : (
+                      <ArrowDown className="h-4 w-4 text-red-500" />
+                    )}
+                    <span className={`text-sm ml-1 ${selectedChange > 0 ? 'text-green-500' : 'text-red-500'}`}>
+                      {formatPercentage(selectedChange)}
+                    </span>
+                    <span className="text-xs text-gray-500 dark:text-gray-400 ml-1">
+                      ({formatCurrency(selectedChangeValue)})
+                    </span>
+                  </div>
+                </div>
+                
+                {/* Cost basis */}
+                <div>
+                  <div className="flex items-center space-x-2">
+                    <Database className="h-5 w-5 text-purple-500" />
+                    <p className="text-sm text-gray-500 dark:text-gray-400">Cost Basis</p>
+                  </div>
+                  <h3 className="text-2xl font-bold mt-1 dark:text-white">{formatCurrency(totalCostBasis)}</h3>
+                  <div className="flex items-center mt-1">
+                    <span className="text-xs text-gray-500 dark:text-gray-400">
+                      Invested capital
+                    </span>
+                  </div>
+                </div>
+                
+                {/* Unrealized gain */}
+                <div>
+                  <div className="flex items-center space-x-2">
+                    <Activity className="h-5 w-5 text-emerald-500" />
+                    <p className="text-sm text-gray-500 dark:text-gray-400">Unrealized Gain</p>
+                  </div>
+                  <h3 className="text-2xl font-bold mt-1 dark:text-white">{formatCurrency(unrealizedGain)}</h3>
+                  <div className="flex items-center mt-1">
+                    {unrealizedGainPercent > 0 ? (
+                      <ArrowUp className="h-4 w-4 text-green-500" />
+                    ) : (
+                      <ArrowDown className="h-4 w-4 text-red-500" />
+                    )}
+                    <span className={`text-sm ml-1 ${unrealizedGainPercent > 0 ? 'text-green-500' : 'text-red-500'}`}>
+                      {formatPercentage(unrealizedGainPercent)}
+                    </span>
+                  </div>
+                </div>
+                
+                {/* Annual income */}
+                <div>
+                  <div className="flex items-center space-x-2">
+                    <Gift className="h-5 w-5 text-amber-500" />
+                    <p className="text-sm text-gray-500 dark:text-gray-400">Annual Income</p>
+                  </div>
+                  <h3 className="text-2xl font-bold mt-1 dark:text-white">{formatCurrency(annualIncome)}</h3>
+                  <div className="flex items-center mt-1">
+                    <Percent className="h-4 w-4 text-gray-400" />
+                    <span className="text-sm ml-1 text-gray-500 dark:text-gray-400">
+                      {formatPercentage(yieldPercentage)} yield
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            {/* Performance chart */}
+            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-5">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold dark:text-white">Portfolio Value</h3>
+                <div className="text-sm text-gray-500 dark:text-gray-400">
+                  {selectedTimeframe.toUpperCase()}
+                </div>
+              </div>
+              <div className="h-72">
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart
+                    data={chartData}
+                    margin={{ top: 5, right: 5, left: 5, bottom: 5 }}
+                  >
+                    <defs>
+                      <linearGradient id="colorValue" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#4f46e5" stopOpacity={0.3} />
+                        <stop offset="95%" stopColor="#4f46e5" stopOpacity={0} />
+                      </linearGradient>
+                    </defs>
+                    <XAxis 
+                      dataKey="date" 
+                      tick={{ fill: '#6b7280' }} 
+                      axisLine={{ stroke: '#e5e7eb' }}
+                      tickLine={false}
+                      dy={10}
+                    />
+                    <YAxis 
+                      tick={{ fill: '#6b7280' }}
+                      axisLine={false}
+                      tickLine={false}
+                      tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`}
+                      dx={-10}
+                    />
+                    <Tooltip content={<CustomAreaTooltip />} />
+                    <CartesianGrid vertical={false} stroke="#e5e7eb" strokeDasharray="3 3" />
+                    <Area 
+                      type="monotone" 
+                      dataKey="value" 
+                      stroke="#4f46e5" 
+                      fill="url(#colorValue)" 
+                      strokeWidth={2}
+                      activeDot={{ r: 6, strokeWidth: 0, fill: '#4f46e5' }}
+                    />
+                    <ReferenceLine 
+                      y={chartData[0]?.value || 0} 
+                      stroke="#e5e7eb" 
+                      strokeDasharray="3 3" 
+                    />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+            
+            {/* Top holdings */}
+            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-5">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold dark:text-white">Top Holdings</h3>
+                <a href="/positions" className="text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 text-sm font-medium flex items-center">
+                  View All <ArrowRight className="ml-1 h-4 w-4" />
+                </a>
+              </div>
+              
+              <div className="space-y-4">
+                {topPositions.map((position, index) => (
+                  <div key={index} className="flex justify-between items-center">
+                    <div className="flex items-center">
+                      <div className="h-10 w-10 rounded-full flex items-center justify-center mr-3"
+                           style={{ backgroundColor: `${assetColors[position.asset_type.toLowerCase()] || assetColors.other}25` }}>
+                        <span style={{ color: assetColors[position.asset_type.toLowerCase()] || assetColors.other }}>
+                          {position.asset_type === 'security' && <Layers className="h-5 w-5" />}
+                          {position.asset_type === 'crypto' && <Diamond className="h-5 w-5" />}
+                          {position.asset_type === 'cash' && <DollarSign className="h-5 w-5" />}
+                          {position.asset_type === 'metal' && <Database className="h-5 w-5" />}
+                        </span>
+                      </div>
+                      <div>
+                        <p className="font-medium dark:text-white">{position.ticker}</p>
+                        <p className="text-sm text-gray-500 dark:text-gray-400">{position.name}</p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <p className="font-medium dark:text-white">{formatCurrency(position.value)}</p>
+                      <div className={`text-sm flex items-center justify-end ${
+                        position.gain_loss_percent > 0 ? 'text-green-500' : 'text-red-500'
+                      }`}>
+                        {position.gain_loss_percent > 0 ? (
+                          <ArrowUp className="h-3 w-3 mr-1" />
+                        ) : (
+                          <ArrowDown className="h-3 w-3 mr-1" />
+                        )}
+                        {formatPercentage(position.gain_loss_percent * 100)}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+          
+          {/* Right column - Allocation */}
+          <div className="lg:col-span-4 space-y-4">
+            {/* Asset allocation */}
+            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-5">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold dark:text-white">Asset Allocation</h3>
+                <a href="/allocation" className="text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 text-sm font-medium flex items-center">
+                  Details <ArrowRight className="ml-1 h-4 w-4" />
+                </a>
+              </div>
+              
+              {/* Donut chart */}
+              <div className="h-52">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={assetAllocationData}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={60}
+                      outerRadius={80}
+                      paddingAngle={3}
+                      dataKey="value"
+                    >
+                      {assetAllocationData.map((entry, index) => (
+                        <Cell 
+                          key={`cell-${index}`} 
+                          fill={assetColors[entry.name.toLowerCase()] || assetColors.other} 
+                          stroke="none"
+                        />
+                      ))}
+                    </Pie>
+                    <Tooltip 
+                      formatter={(value) => formatCurrency(value)}
+                      labelFormatter={(index) => assetAllocationData[index]?.name}
+                    />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+              
+              {/* Legend */}
+              <div className="mt-2 space-y-2">
+                {assetAllocationData.map((entry, index) => (
+                  <div key={index} className="flex items-center justify-between">
+                    <div className="flex items-center">
+                      <div 
+                        className="w-3 h-3 rounded-full mr-2" 
+                        style={{ backgroundColor: assetColors[entry.name.toLowerCase()] || assetColors.other }}
+                      />
+                      <span className="text-sm dark:text-white">{entry.name}</span>
+                    </div>
+                    <div className="text-right">
+                      <span className="text-sm text-gray-500 dark:text-gray-400">{entry.percentage.toFixed(1)}%</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+            
+            {/* Net worth breakdown */}
+            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-5">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold dark:text-white">Net Worth</h3>
+                <div className="h-8 px-3 rounded-md bg-indigo-100 dark:bg-indigo-900 flex items-center">
+                  <span className="text-sm font-medium text-indigo-700 dark:text-indigo-300">
+                    {formatCurrency(totalValue)}
+                  </span>
+                </div>
+              </div>
+              
+              <div className="space-y-4">
+                <div>
+                  <div className="flex justify-between text-sm mb-1">
+                    <span className="text-gray-500 dark:text-gray-400">Assets</span>
+                    <span className="font-medium dark:text-white">{formatCurrency(totalValue)}</span>
+                  </div>
+                  <div className="h-2 bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden">
+                    <div className="h-full bg-indigo-500 rounded-full" style={{ width: '100%' }}></div>
+                  </div>
+                </div>
+                
+                <div>
+                  <div className="flex justify-between text-sm mb-1">
+                    <span className="text-gray-500 dark:text-gray-400">Debts</span>
+                    <span className="font-medium dark:text-white">$0</span>
+                  </div>
+                  <div className="h-2 bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden">
+                    <div className="h-full bg-red-500 rounded-full" style={{ width: '0%' }}></div>
+                  </div>
+                </div>
+                
+                <div className="pt-2 mt-2 border-t border-gray-200 dark:border-gray-700">
+                  <div className="flex justify-between">
+                    <span className="font-medium dark:text-white">Net Worth</span>
+                    <span className="font-bold text-indigo-600 dark:text-indigo-400">{formatCurrency(totalValue)}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            {/* Retirement tracker */}
+            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-5">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold dark:text-white">Retirement Progress</h3>
+                <a href="/planning" className="text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 text-sm font-medium flex items-center">
+                  Plan <ArrowRight className="ml-1 h-4 w-4" />
+                </a>
+              </div>
+              
+              <div className="space-y-3">
+                <div className="flex justify-between text-sm mb-1">
+                  <span className="text-gray-500 dark:text-gray-400">Current</span>
+                  <span className="font-medium dark:text-white">{formatCurrency(totalValue)}</span>
+                </div>
+                
+                <div className="h-2.5 bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden">
+                  <div className="h-full bg-emerald-500 rounded-full" style={{ width: '37%' }}></div>
+                </div>
+                
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-500 dark:text-gray-400">Goal</span>
+                  <span className="font-medium dark:text-white">$1,500,000</span>
+                </div>
+                
+                <div className="pt-3 mt-2 border-t border-gray-200 dark:border-gray-700">
+                  <div className="flex items-center">
+                    <Clock className="h-4 w-4 text-indigo-500 mr-2" />
+                    <span className="text-sm text-gray-700 dark:text-gray-300">
+                      On track to reach goal by <span className="font-medium">2048</span>
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+  
   // Loading State
   if (isLoading) {
     return (
@@ -386,143 +742,162 @@ export default function Dashboard() {
                 Last updated: {lastUpdated}
               </p>
             </div>
-            <TimeframeSelector
-              options={timeframeOptions}
-              selected={selectedTimeframe}
-              onChange={setSelectedTimeframe}
-              className="mt-4 md:mt-0"
-            />
+            <div className="flex space-x-4 items-center mt-4 md:mt-0">
+              <button
+                onClick={() => setShowModernDashboard(!showModernDashboard)}
+                className={`px-3 py-1.5 rounded-lg text-sm font-medium ${
+                  showModernDashboard
+                    ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900 dark:text-indigo-200'
+                    : 'text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700'
+                }`}
+              >
+                {showModernDashboard ? 'Classic View' : 'Modern View'}
+              </button>
+              <TimeframeSelector
+                options={timeframeOptions}
+                selected={selectedTimeframe}
+                onChange={setSelectedTimeframe}
+              />
+            </div>
           </div>
 
-          {/* Key Metrics Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-            <DashboardCard 
-              title="Total Portfolio Value"
-              value={totalValue}
-              change={dailyChange}
-              changeValue={formatCurrency(periodChanges['1d']?.value_change || 0)}
-              changeLabel="Today"
-              icon={<DollarSign className="h-5 w-5 text-indigo-500" />}
-              tooltipText="The current total value of all positions in your portfolio"
-              gradientColors="from-indigo-500 to-blue-500"
-            />
-            
-            <DashboardCard 
-              title="Unrealized Gain/Loss"
-              value={unrealizedGain}
-              change={portfolioData?.unrealized_gain_percent || 0}
-              changeLabel="Total"
-              icon={<Activity className="h-5 w-5 text-purple-500" />}
-              tooltipText="Difference between current value and cost basis across all positions"
-              gradientColors="from-purple-500 to-pink-500"
-            />
-            
-            <DashboardCard 
-              title="Annual Income"
-              value={annualIncome}
-              change={portfolioData?.yield_percentage || 0}
-              changeLabel="Yield"
-              icon={<Gift className="h-5 w-5 text-green-500" />}
-              tooltipText="Estimated annual income from dividends and interest"
-              gradientColors="from-emerald-500 to-teal-500"
-            />
-            
-            <DashboardCard 
-              title={`${selectedTimeframe.toUpperCase()} Performance`}
-              value={formatPercentage(periodChanges[selectedTimeframe]?.percent_change || 0)}
-              changeValue={formatCurrency(periodChanges[selectedTimeframe]?.value_change || 0)}
-              changeLabel="Change"
-              icon={<BarChart2 className="h-5 w-5 text-amber-500" />}
-              tooltipText={`Performance over the selected time period (${selectedTimeframe})`}
-              gradientColors="from-amber-500 to-orange-500"
-            />
-          </div>
+          {/* Modern Dashboard */}
+          {showModernDashboard && <ModernDashboard />}
 
-          {/* Portfolio Chart */}
-          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-6 mb-8">
-            <div className="flex justify-between items-center mb-6">
-              <h3 className="text-xl font-bold text-gray-900 dark:text-white">Portfolio Performance</h3>
-              <div className="flex space-x-2">
-                <button
-                  onClick={() => setSelectedChartType('value')}
-                  className={`px-3 py-1.5 rounded-lg text-sm font-medium ${
-                    selectedChartType === 'value' 
-                      ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900 dark:text-indigo-200' 
-                      : 'text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700'
-                  }`}
-                >
-                  Value
-                </button>
-                <button
-                  onClick={() => setSelectedChartType('costBasis')}
-                  className={`px-3 py-1.5 rounded-lg text-sm font-medium ${
-                    selectedChartType === 'costBasis' 
-                      ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900 dark:text-indigo-200' 
-                      : 'text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700'
-                  }`}
-                >
-                  Value vs Cost
-                </button>
+          {/* Legacy Dashboard Elements */}
+          {!showModernDashboard && (
+            <>
+              {/* Key Metrics Cards */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+                <DashboardCard 
+                  title="Total Portfolio Value"
+                  value={totalValue}
+                  change={dailyChange}
+                  changeValue={formatCurrency(periodChanges['1d']?.value_change || 0)}
+                  changeLabel="Today"
+                  icon={<DollarSign className="h-5 w-5 text-indigo-500" />}
+                  tooltipText="The current total value of all positions in your portfolio"
+                  gradientColors="from-indigo-500 to-blue-500"
+                />
+                
+                <DashboardCard 
+                  title="Unrealized Gain/Loss"
+                  value={unrealizedGain}
+                  change={portfolioData?.unrealized_gain_percent || 0}
+                  changeLabel="Total"
+                  icon={<Activity className="h-5 w-5 text-purple-500" />}
+                  tooltipText="Difference between current value and cost basis across all positions"
+                  gradientColors="from-purple-500 to-pink-500"
+                />
+                
+                <DashboardCard 
+                  title="Annual Income"
+                  value={annualIncome}
+                  change={portfolioData?.yield_percentage || 0}
+                  changeLabel="Yield"
+                  icon={<Gift className="h-5 w-5 text-green-500" />}
+                  tooltipText="Estimated annual income from dividends and interest"
+                  gradientColors="from-emerald-500 to-teal-500"
+                />
+                
+                <DashboardCard 
+                  title={`${selectedTimeframe.toUpperCase()} Performance`}
+                  value={formatPercentage(periodChanges[selectedTimeframe]?.percent_change || 0)}
+                  changeValue={formatCurrency(periodChanges[selectedTimeframe]?.value_change || 0)}
+                  changeLabel="Change"
+                  icon={<BarChart2 className="h-5 w-5 text-amber-500" />}
+                  tooltipText={`Performance over the selected time period (${selectedTimeframe})`}
+                  gradientColors="from-amber-500 to-orange-500"
+                />
               </div>
-            </div>
-            
-            <div className="h-[400px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart
-                  data={chartData}
-                  margin={{ top: 10, right: 30, left: 0, bottom: 0 }}
-                >
-                  <defs>
-                    <linearGradient id="valueGradient" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#4f46e5" stopOpacity={0.4} />
-                      <stop offset="95%" stopColor="#4f46e5" stopOpacity={0} />
-                    </linearGradient>
-                    {selectedChartType === 'costBasis' && (
-                      <linearGradient id="costGradient" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.4} />
-                        <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0} />
-                      </linearGradient>
-                    )}
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(0,0,0,0.1)" />
-                  <XAxis 
-                    dataKey="date" 
-                    tick={{ fill: '#6b7280' }} 
-                    axisLine={{ stroke: '#e5e7eb' }}
-                    tickLine={{ stroke: '#e5e7eb' }}
-                  />
-                  <YAxis 
-                    tick={{ fill: '#6b7280' }}
-                    axisLine={{ stroke: '#e5e7eb' }}
-                    tickLine={{ stroke: '#e5e7eb' }}
-                    tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`}
-                  />
-                  <Tooltip content={<CustomTooltip />} />
-                  <Area 
-                    type="monotone" 
-                    dataKey="value" 
-                    stroke="#4f46e5" 
-                    fill="url(#valueGradient)" 
-                    strokeWidth={2}
-                    dot={false}
-                    activeDot={{ r: 6, stroke: '#4f46e5', strokeWidth: 2, fill: '#f9fafb' }}
-                  />
-                  {selectedChartType === 'costBasis' && (
-                    <Area 
-                      type="monotone" 
-                      dataKey="costBasis" 
-                      stroke="#8b5cf6" 
-                      fill="url(#costGradient)" 
-                      strokeWidth={2}
-                      dot={false}
-                      activeDot={{ r: 6, stroke: '#8b5cf6', strokeWidth: 2, fill: '#f9fafb' }}
-                      strokeDasharray="5 5"
-                    />
-                  )}
-                </AreaChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
+
+              {/* Portfolio Chart */}
+              <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-6 mb-8">
+                <div className="flex justify-between items-center mb-6">
+                  <h3 className="text-xl font-bold text-gray-900 dark:text-white">Portfolio Performance</h3>
+                  <div className="flex space-x-2">
+                    <button
+                      onClick={() => setSelectedChartType('value')}
+                      className={`px-3 py-1.5 rounded-lg text-sm font-medium ${
+                        selectedChartType === 'value' 
+                          ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900 dark:text-indigo-200' 
+                          : 'text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700'
+                      }`}
+                    >
+                      Value
+                    </button>
+                    <button
+                      onClick={() => setSelectedChartType('costBasis')}
+                      className={`px-3 py-1.5 rounded-lg text-sm font-medium ${
+                        selectedChartType === 'costBasis' 
+                          ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900 dark:text-indigo-200' 
+                          : 'text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700'
+                      }`}
+                    >
+                      Value vs Cost
+                    </button>
+                  </div>
+                </div>
+                
+                <div className="h-[400px]">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart
+                      data={chartData}
+                      margin={{ top: 10, right: 30, left: 0, bottom: 0 }}
+                    >
+                      <defs>
+                        <linearGradient id="valueGradient" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#4f46e5" stopOpacity={0.4} />
+                          <stop offset="95%" stopColor="#4f46e5" stopOpacity={0} />
+                        </linearGradient>
+                        {selectedChartType === 'costBasis' && (
+                          <linearGradient id="costGradient" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.4} />
+                            <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0} />
+                          </linearGradient>
+                        )}
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(0,0,0,0.1)" />
+                      <XAxis 
+                        dataKey="date" 
+                        tick={{ fill: '#6b7280' }} 
+                        axisLine={{ stroke: '#e5e7eb' }}
+                        tickLine={{ stroke: '#e5e7eb' }}
+                      />
+                      <YAxis 
+                        tick={{ fill: '#6b7280' }}
+                        axisLine={{ stroke: '#e5e7eb' }}
+                        tickLine={{ stroke: '#e5e7eb' }}
+                        tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`}
+                      />
+                      <Tooltip content={<CustomTooltip />} />
+                      <Area 
+                        type="monotone" 
+                        dataKey="value" 
+                        stroke="#4f46e5" 
+                        fill="url(#valueGradient)" 
+                        strokeWidth={2}
+                        dot={false}
+                        activeDot={{ r: 6, stroke: '#4f46e5', strokeWidth: 2, fill: '#f9fafb' }}
+                      />
+                      {selectedChartType === 'costBasis' && (
+                        <Area 
+                          type="monotone" 
+                          dataKey="costBasis" 
+                          stroke="#8b5cf6" 
+                          fill="url(#costGradient)" 
+                          strokeWidth={2}
+                          dot={false}
+                          activeDot={{ r: 6, stroke: '#8b5cf6', strokeWidth: 2, fill: '#f9fafb' }}
+                          strokeDasharray="5 5"
+                        />
+                      )}
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+            </>
+          )}
         </div>
 
         {/* Main Content Grid: Positions, Allocation, Activity */}
