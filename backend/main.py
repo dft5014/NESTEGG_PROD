@@ -325,7 +325,7 @@ class AccountUpdate(BaseModel):
     account_name: Optional[str] = None
     institution: Optional[str] = None
     type: Optional[str] = None
-    account_category: Option[str] = None
+    account_category: Optional[str] = None
 
 class PositionBasicInfo(BaseModel):
     id: int
@@ -1494,7 +1494,7 @@ async def add_account(account: AccountCreate, current_user: dict = Depends(get_c
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Server error: {str(e)}")
 
-@app.put("/accounts/{account_id}")
+    @app.put("/accounts/{account_id}")
 async def update_account(account_id: int, account_data: dict, current_user: dict = Depends(get_current_user)):
     try:
         # Check if the account exists and belongs to the user
