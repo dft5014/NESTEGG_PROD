@@ -320,7 +320,8 @@ class AccountCreate(BaseModel):
     account_name: str
     institution: Optional[str] = None
     type: Optional[str] = None
-    balance: float = 0.0
+    account_catergory: str
+
 
 class AccountUpdate(BaseModel):
     account_name: Optional[str] = None
@@ -1493,7 +1494,7 @@ async def add_account(account: AccountCreate, current_user: dict = Depends(get_c
             account_name=account.account_name,
             institution=account.institution,
             type=account.type,
-            balance=account.balance
+            account_catergory=account.account_catergory
         )
         
         account_id = await database.execute(query)
@@ -1915,6 +1916,61 @@ async def get_all_detailed_realestate_positions(current_user: dict = Depends(get
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to fetch detailed real estate positions: {str(e)}"
+        )
+
+
+@app.get("/cash/all/detailed", response_model=CashPositionsDetailedResponse)
+async def get_all_detailed_cash_positions(current_user: dict = Depends(get_current_user)):
+    try:
+        user_id = current_user["id"]
+        logger.info(f"Fetching all detailed cash positions for user_id: {user_id}")
+
+        query = """
+        SELECT cp.*, a.account_name 
+        FROM cash_positions cp
+        JOIN accounts a ON cp.account_id = a.id
+        WHERE a.user_id = :user_id
+        ORDER BY a.account_name, cp.name
+        """
+        results = await database.fetch_all(query=query, values={"user_id": user_id})
+
+        cash_positions_list = []
+        for row in results:
+            row_dict = dict(row)
+            
+            # Calculate interest values
+            amount = float(row_dict.get("amount") or 0)
+            interest_rate = float(row_dict.get("interest_rate") or 0)
+            annual_interest = amount * interest_rate
+            monthly_interest = annual_interest / 12
+            
+            cash_positions_list.append(CashPositionDetail(
+                id=row_dict["id"],
+                account_id=row_dict["account_id"],
+                cash_type=row_dict["cash_type"],
+                name=row_dict["name"],
+                amount=amount,
+                interest_rate=interest_rate,
+                interest_period=row_dict.get("interest_period"),
+                maturity_date=row_dict.get("maturity_date"),
+                notes=row_dict.get("notes"),
+                created_at=row_dict.get("created_at"),
+                updated_at=row_dict.get("updated_at"),
+                account_name=row_dict["account_name"],
+                monthly_interest=monthly_interest,
+                annual_interest=annual_interest
+            ))
+
+        logger.info(f"Returning {len(cash_positions_list)} detailed cash positions for user_id: {user_id}")
+        return CashPositionsDetailedResponse(cash_positions=cash_positions_list)
+
+    except Exception as e:
+        logger.error(f"Error in get_all_detailed_cash_positions for user {user_id}: {str(e)}")
+        import traceback
+        logger.error(traceback.format_exc())
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to fetch detailed cash positions: {str(e)}"
         )
 
 # ----- PRICING MANAGEMENT  -----
@@ -4555,60 +4611,6 @@ async def delete_cash_position(position_id: int, current_user: dict = Depends(ge
     except Exception as e:
         logger.error(f"Error deleting cash position: {str(e)}")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Failed to delete cash position: {str(e)}")
-
-@app.get("/cash/all/detailed", response_model=CashPositionsDetailedResponse)
-async def get_all_detailed_cash_positions(current_user: dict = Depends(get_current_user)):
-    try:
-        user_id = current_user["id"]
-        logger.info(f"Fetching all detailed cash positions for user_id: {user_id}")
-
-        query = """
-        SELECT cp.*, a.account_name 
-        FROM cash_positions cp
-        JOIN accounts a ON cp.account_id = a.id
-        WHERE a.user_id = :user_id
-        ORDER BY a.account_name, cp.name
-        """
-        results = await database.fetch_all(query=query, values={"user_id": user_id})
-
-        cash_positions_list = []
-        for row in results:
-            row_dict = dict(row)
-            
-            # Calculate interest values
-            amount = float(row_dict.get("amount") or 0)
-            interest_rate = float(row_dict.get("interest_rate") or 0)
-            annual_interest = amount * interest_rate
-            monthly_interest = annual_interest / 12
-            
-            cash_positions_list.append(CashPositionDetail(
-                id=row_dict["id"],
-                account_id=row_dict["account_id"],
-                cash_type=row_dict["cash_type"],
-                name=row_dict["name"],
-                amount=amount,
-                interest_rate=interest_rate,
-                interest_period=row_dict.get("interest_period"),
-                maturity_date=row_dict.get("maturity_date"),
-                notes=row_dict.get("notes"),
-                created_at=row_dict.get("created_at"),
-                updated_at=row_dict.get("updated_at"),
-                account_name=row_dict["account_name"],
-                monthly_interest=monthly_interest,
-                annual_interest=annual_interest
-            ))
-
-        logger.info(f"Returning {len(cash_positions_list)} detailed cash positions for user_id: {user_id}")
-        return CashPositionsDetailedResponse(cash_positions=cash_positions_list)
-
-    except Exception as e:
-        logger.error(f"Error in get_all_detailed_cash_positions for user {user_id}: {str(e)}")
-        import traceback
-        logger.error(traceback.format_exc())
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to fetch detailed cash positions: {str(e)}"
-        )
 
 # ----- Cryptocurrency Endpoints -----
 @app.get("/crypto/{account_id}")
