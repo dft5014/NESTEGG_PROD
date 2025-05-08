@@ -107,6 +107,10 @@ const AccountModal = ({ isOpen, onClose, onAccountAdded, editAccount = null }) =
         account_category: accountCategory,
       };
 
+
+
+      console.log("Exact payload before JSON.stringify:", payload);
+      console.log("Payload after JSON.stringify:", JSON.stringify(payload));
       console.log(`${isEditMode ? 'Updating' : 'Creating'} account:`, payload);
       
       let response;
@@ -267,7 +271,7 @@ const AccountModal = ({ isOpen, onClose, onAccountAdded, editAccount = null }) =
               id="accountName"
               type="text"
               value={accountName}
-              onChange={(e) => setAccountName(e.target.value)}
+              onChange={(e) => setAccountName(e.target.value.trim())}
               placeholder="e.g., My Retirement, Crypto Portfolio"
               style={{ color: '#1f2937' }}
               className="w-full px-4 py-3 bg-gray-50 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all text-gray-900"
