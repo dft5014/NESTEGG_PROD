@@ -320,7 +320,7 @@ class AccountCreate(BaseModel):
     account_name: str
     institution: Optional[str] = None
     type: Optional[str] = None
-    account_catergory: str
+    account_category: str
 
 
 class AccountUpdate(BaseModel):
@@ -1494,7 +1494,7 @@ async def add_account(account: AccountCreate, current_user: dict = Depends(get_c
             account_name=account.account_name,
             institution=account.institution,
             type=account.type,
-            account_catergory=account.account_catergory
+            account_category=account.account_category
         )
         
         account_id = await database.execute(query)
