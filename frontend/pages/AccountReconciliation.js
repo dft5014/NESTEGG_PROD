@@ -1,1256 +1,776 @@
-import React, { useState, useEffect, useContext, useMemo } from 'react';
-import { AuthContext } from '../context/AuthContext';
+// AccountReconciliation.jsx
+import React, { useState, useEffect } from 'react';
 import { 
-  Check, 
-  AlertCircle, 
-  Clock, 
-  Info,
-  ChevronDown, 
-  ChevronRight, 
-  RefreshCw,
-  Edit,
-  Save,
-  X,
-  DollarSign,
-  Home,
-  Briefcase,
-  BarChart4,
-  CreditCard,
-  Loader,
-  Trash,
-  Filter,
-  SlidersHorizontal,
-  Search,
-  Plus,
-  ArrowUp,
-  ArrowDown
-} from 'lucide-react';
-import { API_BASE_URL } from '../utils/api';
-import { popularBrokerages } from '../utils/constants';
-import { formatCurrency, formatDate, formatPercentage, formatNumber } from '../utils/formatters';
-import { deletePosition } from '../utils/apimethods/positionMethods';
+  Box, 
+  Button, 
+  Card, 
+  CardContent, 
+  Chip, 
+  CircularProgress, 
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogContentText,
+  DialogTitle,
+  Divider, 
+  Grid, 
+  IconButton, 
+  Paper, 
+  Stack, 
+  Table, 
+  TableBody, 
+  TableCell, 
+  TableContainer, 
+  TableHead, 
+  TableRow, 
+  TextField, 
+  Tooltip, 
+  Typography
+} from '@mui/material';
 
-// Import position modals
-import SecurityPositionModal from '../components/modals/SecurityPositionModal';
-import CryptoPositionModal from '../components/modals/CryptoPositionModal';
-import CashPositionModal from '../components/modals/CashPositionModal';
-import MetalPositionModal from '../components/modals/MetalPositionModal';
-// Import AddPositionButton instead of AddPositionFlow
-import AddPositionButton from '../components/AddPositionButton';
+import { 
+  CheckCircle, 
+  Warning, 
+  Error,
+  ArrowForward, 
+  Refresh, 
+  InfoOutlined, 
+  CheckCircleOutline,
+  HelpOutline,
+  ArrowDropDown,
+  MoreVert,
+  AccessTime
+} from '@mui/icons-material';
+
+// Mock data for demonstration purposes - would be fetched from API in production
+const MOCK_ACCOUNTS = [
+  { 
+    id: 1, 
+    name: "Vanguard IRA", 
+    type: "Retirement", 
+    institutionName: "Vanguard",
+    lastReconciledDate: "2023-05-01",
+    currentValue: 142568.32,
+    currentStatus: "needsReview", // 'reconciled', 'needsReview', 'outOfDate'
+    positions: [
+      { id: 101, name: "VTSAX", shares: 420.32, currentPrice: 123.45, currentValue: 51889.48, lastReconciledDate: "2023-05-01", status: "needsReview" },
+      { id: 102, name: "VBTLX", shares: 320.15, currentPrice: 89.32, currentValue: 28595.80, lastReconciledDate: "2023-05-01", status: "needsReview" },
+      { id: 103, name: "VTIAX", shares: 510.67, currentPrice: 112.78, currentValue: 57594.40, lastReconciledDate: "2023-05-01", status: "needsReview" },
+      { id: 104, name: "Cash", shares: 1, currentPrice: 4488.64, currentValue: 4488.64, lastReconciledDate: "2023-05-01", status: "needsReview" }
+    ]
+  },
+  { 
+    id: 2, 
+    name: "Fidelity 401(k)", 
+    type: "Retirement", 
+    institutionName: "Fidelity",
+    lastReconciledDate: "2023-05-07", // Just reconciled
+    currentValue: 215673.45,
+    currentStatus: "reconciled",
+    positions: [
+      { id: 201, name: "FXAIX", shares: 320.45, currentPrice: 189.32, currentValue: 60669.64, lastReconciledDate: "2023-05-07", status: "reconciled" },
+      { id: 202, name: "FSPSX", shares: 410.87, currentPrice: 132.45, currentValue: 54420.73, lastReconciledDate: "2023-05-07", status: "reconciled" },
+      { id: 203, name: "FXNAX", shares: 830.55, currentPrice: 112.56, currentValue: 93486.74, lastReconciledDate: "2023-05-07", status: "reconciled" },
+      { id: 204, name: "Cash", shares: 1, currentPrice: 7096.34, currentValue: 7096.34, lastReconciledDate: "2023-05-07", status: "reconciled" }
+    ]
+  },
+  { 
+    id: 3, 
+    name: "Chase Brokerage", 
+    type: "Taxable", 
+    institutionName: "Chase",
+    lastReconciledDate: "2022-09-15", // Over 6 months ago - out of date
+    currentValue: 87562.12,
+    currentStatus: "outOfDate",
+    positions: [
+      { id: 301, name: "AAPL", shares: 25, currentPrice: 178.45, currentValue: 4461.25, lastReconciledDate: "2022-09-15", status: "outOfDate" },
+      { id: 302, name: "MSFT", shares: 15, currentPrice: 332.58, currentValue: 4988.70, lastReconciledDate: "2022-09-15", status: "outOfDate" },
+      { id: 303, name: "VOO", shares: 120.32, currentPrice: 412.34, currentValue: 49612.96, lastReconciledDate: "2022-09-15", status: "outOfDate" },
+      { id: 304, name: "AMZN", shares: 18, currentPrice: 124.76, currentValue: 2245.68, lastReconciledDate: "2022-09-15", status: "outOfDate" },
+      { id: 305, name: "Cash", shares: 1, currentPrice: 26253.53, currentValue: 26253.53, lastReconciledDate: "2022-09-15", status: "outOfDate" }
+    ]
+  }
+];
+
+// Helper function to format currency
+const formatCurrency = (amount) => {
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  }).format(amount);
+};
+
+// Helper function to format dates
+const formatDate = (dateString) => {
+  const options = { year: 'numeric', month: 'short', day: 'numeric' };
+  return new Date(dateString).toLocaleDateString('en-US', options);
+};
+
+// Helper to determine days since last reconciliation
+const daysSinceLastReconciled = (dateString) => {
+  const lastDate = new Date(dateString);
+  const currentDate = new Date();
+  const diffTime = Math.abs(currentDate - lastDate);
+  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  return diffDays;
+};
+
+// Helper to get status details
+const getStatusDetails = (status, lastReconciledDate) => {
+  const days = daysSinceLastReconciled(lastReconciledDate);
+  
+  if (status === 'reconciled') {
+    return {
+      icon: <CheckCircle color="success" />,
+      label: 'Reconciled',
+      description: `Last reconciled ${days} days ago`,
+      color: 'success'
+    };
+  } else if (status === 'needsReview') {
+    return {
+      icon: <Warning color="warning" />,
+      label: 'Needs Review',
+      description: `Last reconciled ${days} days ago`,
+      color: 'warning'
+    };
+  } else {
+    return {
+      icon: <Error color="error" />,
+      label: 'Out of Date',
+      description: `Last reconciled ${days} days ago`,
+      color: 'error'
+    };
+  }
+};
 
 const AccountReconciliation = () => {
-  const { user } = useContext(AuthContext);
-  const [accounts, setAccounts] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [activeAccount, setActiveAccount] = useState(null);
-  const [showReconcileModal, setShowReconcileModal] = useState(false);
-  const [showPositionReconciliation, setShowPositionReconciliation] = useState(false);
-  const [reconciliationData, setReconciliationData] = useState({
-    accountLevel: {
-      actualBalance: '',
-      variance: 0,
-      variancePercent: 0,
-      isReconciled: false
-    },
-    positions: []
-  });
-  
-  // Position modal states
-  const [showSecurityPositionModal, setShowSecurityPositionModal] = useState(false);
-  const [showCryptoPositionModal, setShowCryptoPositionModal] = useState(false);
-  const [showCashPositionModal, setShowCashPositionModal] = useState(false);
-  const [showMetalPositionModal, setShowMetalPositionModal] = useState(false);
-  const [positionToEdit, setPositionToEdit] = useState(null);
-  
-  // Sorting and filtering state
-  const [sortField, setSortField] = useState('institution');
-  const [sortDirection, setSortDirection] = useState('asc');
-  const [searchQuery, setSearchQuery] = useState('');
-  const [institutionFilter, setInstitutionFilter] = useState('all');
-  const [statusFilter, setStatusFilter] = useState('all');
-  
-  // Position sort state
-  const [positionSortField, setPositionSortField] = useState('ticker_or_name');
-  const [positionSortDirection, setPositionSortDirection] = useState('asc');
-  
-  // Success message state
-  const [successMessage, setSuccessMessage] = useState("");
-  const [showSuccessMessage, setShowSuccessMessage] = useState(false);
+  const [accounts, setAccounts] = useState(MOCK_ACCOUNTS);
+  const [selectedAccount, setSelectedAccount] = useState(null);
+  const [expandedAccount, setExpandedAccount] = useState(null);
+  const [reconcileDialogOpen, setReconcileDialogOpen] = useState(false);
+  const [enteredBalance, setEnteredBalance] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [successMessage, setSuccessMessage] = useState('');
+  const [showTips, setShowTips] = useState(true);
 
-  // Helper function to get institution logo
-  const getInstitutionLogo = (institutionName) => {
-    if (!institutionName) return null;
-    const brokerage = popularBrokerages.find(
-      broker => broker.name.toLowerCase() === institutionName.toLowerCase()
-    );
-    const FallbackIcon = () => <Briefcase className="w-5 h-5 text-gray-500" />;
-    return brokerage ? brokerage.logo : FallbackIcon;
-  };
-
-  const fetchAccounts = async () => {
-    setLoading(true);
-    setError(null);
-    
-    try {
-      // Use the API_BASE_URL for constructing the full URL
-      const response = await fetch(`${API_BASE_URL}/accounts/all/detailed`, {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
-          'Content-Type': 'application/json',
-        },
-      });
-      
-      if (!response.ok) {
-        throw new Error(`Error fetching accounts: ${response.statusText}`);
-      }
-      
-      const data = await response.json();
-      
-      // Add reconciliation status fields if not present
-      const accountsWithReconciliation = data.accounts.map(account => ({
-        ...account,
-        lastReconciled: account.lastReconciled || null,
-        reconciliationStatus: account.reconciliationStatus || 'Not Reconciled'
-      }));
-      
-      setAccounts(accountsWithReconciliation);
-    } catch (err) {
-      console.error('Error fetching accounts:', err);
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-  
+  // Simulating API fetch
   useEffect(() => {
-    fetchAccounts();
+    setLoading(true);
+    // In a real app, this would be an API call
+    setTimeout(() => {
+      setLoading(false);
+    }, 800);
   }, []);
 
-  // Display success message
-  const showMessage = (message) => {
-    setSuccessMessage(message);
-    setShowSuccessMessage(true);
-    setTimeout(() => {
-      setShowSuccessMessage(false);
-    }, 3000);
-  };
-  
-  // Handle editing a position
-  const handleEditPosition = (position, e) => {
-    if (e) e.stopPropagation();
-    console.log("Edit position:", position);
-    
-    setPositionToEdit(position);
-    
-    // Open the appropriate modal based on asset type
-    switch (position.asset_type) {
-      case 'security':
-        setShowSecurityPositionModal(true);
-        break;
-      case 'crypto':
-        setShowCryptoPositionModal(true);
-        break;
-      case 'cash':
-        setShowCashPositionModal(true);
-        break;
-      case 'metal':
-        setShowMetalPositionModal(true);
-        break;
-      default:
-        console.error("Unknown asset type:", position.asset_type);
-    }
-  };
-  
-  // Handle position saved callback
-  const handlePositionSaved = () => {
-    showMessage("Position updated successfully!");
-    
-    // Refresh position data
-    if (activeAccount) {
-      fetchPositionsForAccount(activeAccount.id);
-    }
-    
-    // Refresh account data
-    fetchAccounts();
-  };
-  
-  // Handle position added callback
-  const handlePositionAdded = () => {
-    showMessage("Position added successfully!");
-    
-    // Refresh position data
-    if (activeAccount) {
-      fetchPositionsForAccount(activeAccount.id);
-    }
-    
-    // Refresh account data
-    fetchAccounts();
-  };
-  
-  // Fetch positions for a specific account
-  const fetchPositionsForAccount = async (accountId) => {
-    try {
-      const response = await fetch(`${API_BASE_URL}/positions/by-account/${accountId}`, {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
-          'Content-Type': 'application/json',
-        },
-      });
-      
-      if (!response.ok) {
-        throw new Error(`Error fetching positions: ${response.statusText}`);
-      }
-      
-      const data = await response.json();
-      
-      // Update the positions in reconciliation data
-      setReconciliationData(prev => ({
-        ...prev,
-        positions: data.positions.map(position => ({
-          ...position,
-          actualQuantity: position.quantity_or_shares,
-          actualValue: position.value,
-          quantityVariance: 0,
-          quantityVariancePercent: 0,
-          valueVariance: 0,
-          valueVariancePercent: 0,
-          isQuantityReconciled: false,
-          isValueReconciled: false
-        }))
-      }));
-      
-    } catch (err) {
-      console.error('Error fetching positions:', err);
-      setError(err.message);
-    }
-  };
-  
-  // Handle deleting a position
-  const handleDeletePosition = async (position, e) => {
-    if (e) e.stopPropagation();
-    console.log("Delete position:", position);
-    
-    if (window.confirm(`Are you sure you want to delete this position? ${position.ticker_or_name}`)) {
-      try {
-        // Call the deletePosition API function
-        await deletePosition(position.id, position.asset_type);
-        
-        showMessage("Position deleted successfully!");
-        
-        // Update the positions list by removing the deleted position
-        setReconciliationData(prev => ({
-          ...prev,
-          positions: prev.positions.filter(p => p.id !== position.id)
-        }));
-        
-        // Also refresh account data
-        fetchAccounts();
-        
-      } catch (error) {
-        console.error("Error deleting position:", error);
-        setError("Failed to delete position. Please try again.");
-      }
+  const handleAccountExpand = (accountId) => {
+    if (expandedAccount === accountId) {
+      setExpandedAccount(null);
+    } else {
+      setExpandedAccount(accountId);
     }
   };
 
-  const handleReconcileClick = (account) => {
-    setActiveAccount(account);
-    setShowPositionReconciliation(false);
-    
-    // Initialize reconciliation data
-    const newReconciliationData = {
-      accountLevel: {
-        actualBalance: account.total_value.toFixed(2),
-        variance: 0,
-        variancePercent: 0,
-        isReconciled: false
-      },
-      positions: []
-    };
-    
-    setReconciliationData(newReconciliationData);
-    
-    // Fetch positions for the account
-    fetchPositionsForAccount(account.id);
-    
-    setShowReconcileModal(true);
+  const handleOpenReconcileDialog = (account) => {
+    setSelectedAccount(account);
+    setEnteredBalance(account.currentValue.toString());
+    setReconcileDialogOpen(true);
   };
-  
-  const calculateAccountVariance = (actualBalance) => {
-    if (!activeAccount || !actualBalance) return { variance: 0, variancePercent: 0 };
-    
-    const numActualBalance = parseFloat(actualBalance);
-    const variance = numActualBalance - activeAccount.total_value;
-    const variancePercent = activeAccount.total_value !== 0 
-      ? (variance / activeAccount.total_value) * 100 
-      : 0;
-      
-    return { variance, variancePercent };
+
+  const handleCloseReconcileDialog = () => {
+    setReconcileDialogOpen(false);
+    setSelectedAccount(null);
+    setEnteredBalance('');
   };
-  
-  const handleAccountBalanceChange = (e) => {
-    const actualBalance = e.target.value;
-    const { variance, variancePercent } = calculateAccountVariance(actualBalance);
-    
-    setReconciliationData({
-      ...reconciliationData,
-      accountLevel: {
-        ...reconciliationData.accountLevel,
-        actualBalance,
-        variance,
-        variancePercent
-      }
-    });
+
+  const handleBalanceChange = (e) => {
+    // Allow only numbers and decimal point
+    const value = e.target.value.replace(/[^0-9.]/g, '');
+    setEnteredBalance(value);
   };
-  
-  const calculatePositionVariance = (position, actualQuantity, actualValue) => {
-    const numActualQuantity = parseFloat(actualQuantity);
-    const numActualValue = parseFloat(actualValue);
+
+  const handleReconcileAccount = () => {
+    setLoading(true);
     
-    const quantityVariance = numActualQuantity - position.quantity_or_shares;
-    const quantityVariancePercent = position.quantity_or_shares !== 0 
-      ? (quantityVariance / position.quantity_or_shares) * 100 
-      : 0;
-      
-    const valueVariance = numActualValue - position.value;
-    const valueVariancePercent = position.value !== 0 
-      ? (valueVariance / position.value) * 100 
-      : 0;
-      
-    return { 
-      quantityVariance, 
-      quantityVariancePercent, 
-      valueVariance, 
-      valueVariancePercent 
-    };
-  };
-  
-  const handlePositionQuantityChange = (index, value) => {
-    const positions = [...reconciliationData.positions];
-    const position = positions[index];
-    
-    const actualQuantity = value;
-    const { 
-      quantityVariance, 
-      quantityVariancePercent, 
-      valueVariance, 
-      valueVariancePercent 
-    } = calculatePositionVariance(
-      position, 
-      actualQuantity, 
-      position.actualValue
-    );
-    
-    positions[index] = {
-      ...position,
-      actualQuantity,
-      quantityVariance,
-      quantityVariancePercent,
-      valueVariance,
-      valueVariancePercent
-    };
-    
-    setReconciliationData({
-      ...reconciliationData,
-      positions
-    });
-  };
-  
-  const handlePositionValueChange = (index, value) => {
-    const positions = [...reconciliationData.positions];
-    const position = positions[index];
-    
-    const actualValue = value;
-    const { 
-      quantityVariance, 
-      quantityVariancePercent, 
-      valueVariance, 
-      valueVariancePercent 
-    } = calculatePositionVariance(
-      position, 
-      position.actualQuantity, 
-      actualValue
-    );
-    
-    positions[index] = {
-      ...position,
-      actualValue,
-      quantityVariance,
-      quantityVariancePercent,
-      valueVariance,
-      valueVariancePercent
-    };
-    
-    setReconciliationData({
-      ...reconciliationData,
-      positions
-    });
-  };
-  
-  const toggleAccountReconcileStatus = () => {
-    setReconciliationData({
-      ...reconciliationData,
-      accountLevel: {
-        ...reconciliationData.accountLevel,
-        isReconciled: !reconciliationData.accountLevel.isReconciled
-      }
-    });
-  };
-  
-  const togglePositionReconcileStatus = (index, field) => {
-    const positions = [...reconciliationData.positions];
-    
-    if (field === 'quantity') {
-      positions[index].isQuantityReconciled = !positions[index].isQuantityReconciled;
-    } else if (field === 'value') {
-      positions[index].isValueReconciled = !positions[index].isValueReconciled;
-    }
-    
-    setReconciliationData({
-      ...reconciliationData,
-      positions
-    });
-  };
-  
-  const handleSaveReconciliation = async () => {
-    try {
-      // Switch to POST format expected by your backend
-      const reconciliationPayload = {
-        account_id: activeAccount.id,
-        reconciliation_date: new Date().toISOString(),
-        account_level: {
-          ...reconciliationData.accountLevel,
-          app_balance: activeAccount.total_value
-        },
-        positions: reconciliationData.positions.map(position => ({
-          position_id: position.id,
-          asset_type: position.asset_type,
-          app_quantity: position.quantity_or_shares,
-          app_value: position.value,
-          actual_quantity: parseFloat(position.actualQuantity) || position.quantity_or_shares,
-          actual_value: parseFloat(position.actualValue) || position.value,
-          is_quantity_reconciled: position.isQuantityReconciled,
-          is_value_reconciled: position.isValueReconciled
-        }))
-      };
-      
-      // Send to your backend endpoint
-      const response = await fetch(`${API_BASE_URL}/accounts/reconcile`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(reconciliationPayload),
+    // Simulate API call
+    setTimeout(() => {
+      const updatedAccounts = accounts.map(account => {
+        if (account.id === selectedAccount.id) {
+          const parsedBalance = parseFloat(enteredBalance);
+          const difference = Math.abs(parsedBalance - account.currentValue);
+          const percentDifference = (difference / account.currentValue) * 100;
+          
+          // If within 0.1% tolerance, consider it reconciled
+          const isReconciled = percentDifference <= 0.1;
+          
+          const newStatus = isReconciled ? 'reconciled' : 'needsReview';
+          const today = new Date().toISOString().split('T')[0];
+          
+          return {
+            ...account,
+            currentValue: parsedBalance,
+            currentStatus: newStatus,
+            lastReconciledDate: today,
+            positions: isReconciled ? 
+              account.positions.map(position => ({
+                ...position,
+                status: 'reconciled',
+                lastReconciledDate: today
+              })) :
+              account.positions
+          };
+        }
+        return account;
       });
       
-      if (!response.ok) {
-        throw new Error(`Failed to save reconciliation: ${response.statusText}`);
-      }
+      setAccounts(updatedAccounts);
+      setLoading(false);
+      setReconcileDialogOpen(false);
       
       // Show success message
-      showMessage("Reconciliation saved successfully!");
+      const reconciled = updatedAccounts.find(a => a.id === selectedAccount.id);
+      setSuccessMessage(
+        reconciled.currentStatus === 'reconciled' 
+          ? `${reconciled.name} successfully reconciled! All positions are now up to date.` 
+          : `${reconciled.name} balance updated, but there may be discrepancies to review at the position level.`
+      );
       
-      // Refresh accounts data
-      fetchAccounts();
-      
-      // Close modal
-      setShowReconcileModal(false);
-      setActiveAccount(null);
-      
-    } catch (err) {
-      console.error('Error saving reconciliation:', err);
-      setError(err.message);
-    }
-  };
-  
-  // Get variance display class based on threshold
-  const getVarianceClass = (variance, isPercent = false) => {
-    const absVariance = Math.abs(isPercent ? variance : variance);
-    const threshold = isPercent ? 1 : 100; // 1% or $100
-    
-    if (absVariance === 0) return 'text-green-600';
-    if (absVariance < threshold) return 'text-yellow-600';
-    return 'text-red-600';
+      // Clear message after 5 seconds
+      setTimeout(() => {
+        setSuccessMessage('');
+      }, 5000);
+    }, 1000);
   };
 
-  // Calculate total position variances
-  const calculateTotalPositionVariances = () => {
-    if (!reconciliationData.positions.length) return { valueVariance: 0, valueVariancePercent: 0 };
+  const handleReconcileAllPositions = (accountId) => {
+    setLoading(true);
     
-    let totalAppValue = 0;
-    let totalActualValue = 0;
-    
-    reconciliationData.positions.forEach(position => {
-      totalAppValue += position.value;
-      totalActualValue += parseFloat(position.actualValue) || position.value;
-    });
-    
-    const valueVariance = totalActualValue - totalAppValue;
-    const valueVariancePercent = totalAppValue !== 0 
-      ? (valueVariance / totalAppValue) * 100 
-      : 0;
-      
-    return { valueVariance, valueVariancePercent };
-  };
-
-  // Get asset icon based on type
-  const getAssetIcon = (assetType) => {
-    switch (assetType) {
-      case 'security':
-        return <BarChart4 className="w-4 h-4 text-blue-600" />;
-      case 'crypto':
-        return <RefreshCw className="w-4 h-4 text-purple-600" />;
-      case 'cash':
-        return <DollarSign className="w-4 h-4 text-green-600" />;
-      case 'metal':
-        return <Briefcase className="w-4 h-4 text-yellow-600" />;
-      case 'real_estate':
-        return <Home className="w-4 h-4 text-red-600" />;
-      default:
-        return <CreditCard className="w-4 h-4 text-gray-600" />;
-    }
-  };
-  
-  // Handle column sort
-  const handleSort = (field) => {
-    if (field === sortField) {
-      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
-    } else {
-      setSortField(field);
-      setSortDirection('asc');
-    }
-  };
-  
-  // Handle position column sort
-  const handlePositionSort = (field) => {
-    if (field === positionSortField) {
-      setPositionSortDirection(positionSortDirection === 'asc' ? 'desc' : 'asc');
-    } else {
-      setPositionSortField(field);
-      setPositionSortDirection('asc');
-    }
-  };
-
-  // Get unique institutions for filtering
-  const uniqueInstitutions = useMemo(() => {
-    const institutions = accounts.map(account => account.institution).filter(Boolean);
-    return ['all', ...new Set(institutions)];
-  }, [accounts]);
-  
-  // Sort indicator component
-  const SortIndicator = ({ field, currentField, direction }) => {
-    if (field !== currentField) return null;
-    
-    return direction === 'asc' ? 
-      <ArrowUp className="inline-block w-3 h-3 ml-1" /> : 
-      <ArrowDown className="inline-block w-3 h-3 ml-1" />;
-  };
-
-  // Filter and sort accounts
-  const filteredAndSortedAccounts = useMemo(() => {
-    return accounts
-      .filter(account => {
-        const matchesSearch = searchQuery.trim() === '' || 
-          account.account_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          (account.institution && account.institution.toLowerCase().includes(searchQuery.toLowerCase()));
-        
-        const matchesInstitution = institutionFilter === 'all' || 
-          account.institution === institutionFilter;
-        
-        const matchesStatus = statusFilter === 'all' || 
-          account.reconciliationStatus === statusFilter;
-        
-        return matchesSearch && matchesInstitution && matchesStatus;
-      })
-      .sort((a, b) => {
-        let comparison = 0;
-        
-        // Sort by field
-        switch (sortField) {
-          case 'institution':
-            comparison = (a.institution || '').localeCompare(b.institution || '');
-            break;
-          case 'account_name':
-            comparison = a.account_name.localeCompare(b.account_name);
-            break;
-          case 'balance':
-            comparison = a.total_value - b.total_value;
-            break;
-          case 'positions':
-            comparison = a.positions_count - b.positions_count;
-            break;
-          case 'last_reconciled':
-            const dateA = a.lastReconciled ? new Date(a.lastReconciled).getTime() : 0;
-            const dateB = b.lastReconciled ? new Date(b.lastReconciled).getTime() : 0;
-            comparison = dateA - dateB;
-            break;
-          case 'status':
-            comparison = a.reconciliationStatus.localeCompare(b.reconciliationStatus);
-            break;
-          default:
-            comparison = 0;
+    // Simulate API call
+    setTimeout(() => {
+      const updatedAccounts = accounts.map(account => {
+        if (account.id === accountId) {
+          const today = new Date().toISOString().split('T')[0];
+          
+          return {
+            ...account,
+            currentStatus: 'reconciled',
+            lastReconciledDate: today,
+            positions: account.positions.map(position => ({
+              ...position,
+              status: 'reconciled',
+              lastReconciledDate: today
+            }))
+          };
         }
-        
-        // Apply sort direction
-        return sortDirection === 'asc' ? comparison : -comparison;
+        return account;
       });
-  }, [accounts, searchQuery, institutionFilter, statusFilter, sortField, sortDirection]);
+      
+      setAccounts(updatedAccounts);
+      setLoading(false);
+      
+      // Show success message
+      const reconciled = updatedAccounts.find(a => a.id === accountId);
+      setSuccessMessage(`All positions in ${reconciled.name} have been marked as reconciled.`);
+      
+      // Clear message after 5 seconds
+      setTimeout(() => {
+        setSuccessMessage('');
+      }, 5000);
+    }, 1000);
+  };
 
-  // Sort positions
-  const sortedPositions = useMemo(() => {
-    if (!reconciliationData.positions) return [];
+  const handleReconcilePosition = (accountId, positionId) => {
+    setLoading(true);
     
-    return [...reconciliationData.positions].sort((a, b) => {
-      let comparison = 0;
+    // Simulate API call
+    setTimeout(() => {
+      const updatedAccounts = accounts.map(account => {
+        if (account.id === accountId) {
+          const today = new Date().toISOString().split('T')[0];
+          
+          const updatedPositions = account.positions.map(position => {
+            if (position.id === positionId) {
+              return {
+                ...position,
+                status: 'reconciled',
+                lastReconciledDate: today
+              };
+            }
+            return position;
+          });
+          
+          // Check if all positions are now reconciled
+          const allReconciled = updatedPositions.every(p => p.status === 'reconciled');
+          
+          return {
+            ...account,
+            currentStatus: allReconciled ? 'reconciled' : account.currentStatus,
+            lastReconciledDate: allReconciled ? today : account.lastReconciledDate,
+            positions: updatedPositions
+          };
+        }
+        return account;
+      });
       
-      // Sort by field
-      switch (positionSortField) {
-        case 'ticker_or_name':
-          comparison = (a.ticker_or_name || '').localeCompare(b.ticker_or_name || '');
-          break;
-        case 'asset_type':
-          comparison = a.asset_type.localeCompare(b.asset_type);
-          break;
-        case 'quantity':
-          comparison = a.quantity_or_shares - b.quantity_or_shares;
-          break;
-        case 'value':
-          comparison = a.value - b.value;
-          break;
-        case 'variance':
-          comparison = a.valueVariance - b.valueVariance;
-          break;
-        default:
-          comparison = 0;
-      }
+      setAccounts(updatedAccounts);
+      setLoading(false);
       
-      // Apply sort direction
-      return positionSortDirection === 'asc' ? comparison : -comparison;
-    });
-  }, [reconciliationData.positions, positionSortField, positionSortDirection]);
+      // Show success message
+      const position = updatedAccounts
+        .find(a => a.id === accountId)
+        .positions
+        .find(p => p.id === positionId);
+        
+      setSuccessMessage(`${position.name} position has been reconciled.`);
+      
+      // Clear message after 5 seconds
+      setTimeout(() => {
+        setSuccessMessage('');
+      }, 5000);
+    }, 800);
+  };
+
+  const handleReconcileAllUnreconciled = () => {
+    setLoading(true);
+    
+    // Simulate API call
+    setTimeout(() => {
+      const today = new Date().toISOString().split('T')[0];
+      
+      const updatedAccounts = accounts.map(account => {
+        return {
+          ...account,
+          currentStatus: 'reconciled',
+          lastReconciledDate: today,
+          positions: account.positions.map(position => ({
+            ...position,
+            status: 'reconciled',
+            lastReconciledDate: today
+          }))
+        };
+      });
+      
+      setAccounts(updatedAccounts);
+      setLoading(false);
+      setSuccessMessage('All accounts and positions have been marked as reconciled.');
+      
+      // Clear message after 5 seconds
+      setTimeout(() => {
+        setSuccessMessage('');
+      }, 5000);
+    }, 1500);
+  };
 
   return (
-    <div className="container mx-auto px-4 py-6">
-      <div className="mb-6">
-        <h1 className="text-2xl font-semibold mb-2">Account Reconciliation</h1>
-        <p className="text-gray-400">
-          Verify that your NestEgg accounts match your actual account statements.
-        </p>
-      </div>
-      
-      {/* Success message */}
-      {showSuccessMessage && (
-        <div className="fixed bottom-4 right-4 p-4 bg-green-600 text-white rounded-lg shadow-lg z-[100]">
-          {successMessage}
-        </div>
-      )}
-      
-      {/* Error message */}
-      {error && (
-        <div className="mb-6 p-4 bg-red-900/60 rounded-lg text-red-200 flex items-start">
-          <AlertCircle className="w-5 h-5 mr-2 flex-shrink-0 mt-0.5" />
-          <div>
-            <p className="font-medium">Error loading accounts</p>
-            <p className="text-sm">{error}</p>
-          </div>
-        </div>
-      )}
-      
-      {/* Loading indicator */}
-      {loading && (
-        <div className="bg-gray-800/70 backdrop-blur-sm rounded-xl p-6 text-center min-h-[180px] flex items-center justify-center">
-          <div>
-            <Loader className="inline-block w-6 h-6 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mb-3" />
-            <p className="text-gray-400">Loading accounts...</p>
-          </div>
-        </div>
-      )}
-      
-      {/* Accounts table */}
-      {!loading && accounts.length > 0 && (
-        <div className="bg-gray-900 rounded-xl overflow-hidden">
-          {/* Header */}
-          <div className="flex justify-between items-center p-4 border-b border-gray-800">
-            <h2 className="text-xl font-semibold flex items-center whitespace-nowrap text-white">
-              <Briefcase className="w-5 h-5 mr-3 text-purple-500" />
-              Account Reconciliation
-            </h2>
-            
-            {/* Filters and Search */}
-            <div className="flex space-x-4">
-              {/* Institution Filter */}
-              <div className="relative">
-                <Filter className="absolute h-4 w-4 text-gray-400 left-3 inset-y-0 my-auto" />
-                <select
-                  className="bg-gray-800 text-white pl-9 pr-8 py-2 rounded-lg text-sm focus:ring-1 focus:ring-blue-500 focus:outline-none appearance-none"
-                  value={institutionFilter}
-                  onChange={(e) => setInstitutionFilter(e.target.value)}
-                >
-                  <option value="all">All Institutions</option>
-                  {uniqueInstitutions.filter(i => i !== 'all').map(institution => (
-                    <option key={institution} value={institution}>{institution}</option>
-                  ))}
-                </select>
-                <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
-                  <ChevronDown className="h-4 w-4 text-gray-400" />
-                </div>
-              </div>
-              
-              {/* Status Filter */}
-              <div className="relative">
-                <Filter className="absolute h-4 w-4 text-gray-400 left-3 inset-y-0 my-auto" />
-                <select
-                  className="bg-gray-800 text-white pl-9 pr-8 py-2 rounded-lg text-sm focus:ring-1 focus:ring-blue-500 focus:outline-none appearance-none"
-                  value={statusFilter}
-                  onChange={(e) => setStatusFilter(e.target.value)}
-                >
-                  <option value="all">All Statuses</option>
-                  <option value="Reconciled">Reconciled</option>
-                  <option value="Not Reconciled">Not Reconciled</option>
-                </select>
-                <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
-                  <ChevronDown className="h-4 w-4 text-gray-400" />
-                </div>
-              </div>
-              
-              {/* Search Input */}
-              <div className="relative">
-                <Search className="absolute h-4 w-4 text-gray-400 left-3 inset-y-0 my-auto" />
-                <input 
-                  type="text"
-                  placeholder="Search accounts..."
-                  className="bg-gray-800 text-white pl-9 pr-3 py-2 rounded-lg text-sm focus:ring-1 focus:ring-blue-500 focus:outline-none"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                />
-              </div>
-            </div>
-          </div>
+    <Box sx={{ maxWidth: 1200, margin: '0 auto', padding: 3 }}>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 4 }}>
+        <Typography variant="h4" component="h1" sx={{ fontWeight: 500 }}>
+          Account Reconciliation
+        </Typography>
+        
+        <Box>
+          <Button 
+            variant="outlined" 
+            color="primary" 
+            startIcon={<HelpOutline />}
+            onClick={() => setShowTips(!showTips)}
+            sx={{ mr: 2 }}
+          >
+            {showTips ? 'Hide Tips' : 'Show Tips'}
+          </Button>
           
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-800 text-white">
-              <thead className="bg-gray-800 sticky top-0 z-10">
-                <tr>
-                  <th 
-                    scope="col" 
-                    className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider cursor-pointer hover:bg-gray-700"
-                    onClick={() => handleSort('institution')}
-                  >
-                    Institution
-                    <SortIndicator field="institution" currentField={sortField} direction={sortDirection} />
-                  </th>
-                  <th 
-                    scope="col" 
-                    className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider cursor-pointer hover:bg-gray-700"
-                    onClick={() => handleSort('account_name')}
-                  >
-                    Account
-                    <SortIndicator field="account_name" currentField={sortField} direction={sortDirection} />
-                  </th>
-                  <th 
-                    scope="col" 
-                    className="px-4 py-3 text-right text-xs font-medium text-gray-400 uppercase tracking-wider cursor-pointer hover:bg-gray-700"
-                    onClick={() => handleSort('balance')}
-                  >
-                    NestEgg Balance
-                    <SortIndicator field="balance" currentField={sortField} direction={sortDirection} />
-                  </th>
-                  <th 
-                    scope="col" 
-                    className="px-4 py-3 text-center text-xs font-medium text-gray-400 uppercase tracking-wider cursor-pointer hover:bg-gray-700"
-                    onClick={() => handleSort('positions')}
-                  >
-                    Positions
-                    <SortIndicator field="positions" currentField={sortField} direction={sortDirection} />
-                  </th>
-                  <th 
-                    scope="col" 
-                    className="px-4 py-3 text-center text-xs font-medium text-gray-400 uppercase tracking-wider cursor-pointer hover:bg-gray-700"
-                    onClick={() => handleSort('last_reconciled')}
-                  >
-                    Last Reconciled
-                    <SortIndicator field="last_reconciled" currentField={sortField} direction={sortDirection} />
-                  </th>
-                  <th 
-                    scope="col" 
-                    className="px-4 py-3 text-center text-xs font-medium text-gray-400 uppercase tracking-wider cursor-pointer hover:bg-gray-700"
-                    onClick={() => handleSort('status')}
-                  >
-                    Status
-                    <SortIndicator field="status" currentField={sortField} direction={sortDirection} />
-                  </th>
-                  <th scope="col" className="px-4 py-3 text-right text-xs font-medium text-gray-400 uppercase tracking-wider">
-                    Actions
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-800">
-                {filteredAndSortedAccounts.map(account => {
-                  const LogoComponent = getInstitutionLogo(account.institution);
+          <Button 
+            variant="contained" 
+            color="primary" 
+            startIcon={<CheckCircleOutline />}
+            onClick={handleReconcileAllUnreconciled}
+          >
+            Reconcile All Positions
+          </Button>
+        </Box>
+      </Box>
+
+      {showTips && (
+        <Paper
+          elevation={0}
+          sx={{
+            p: 3,
+            mb: 4,
+            backgroundColor: 'rgba(232, 244, 253, 0.8)',
+            borderRadius: 2,
+            border: '1px solid rgba(25, 118, 210, 0.12)'
+          }}
+        >
+          <Stack direction="row" spacing={2} alignItems="flex-start">
+            <InfoOutlined color="primary" sx={{ mt: 0.5 }} />
+            <Box>
+              <Typography variant="h6" gutterBottom>
+                Reconciliation Tips
+              </Typography>
+              <Typography variant="body2" paragraph>
+                Regular reconciliation ensures your NestEgg data accurately reflects your actual financial accounts.
+              </Typography>
+              <Grid container spacing={3}>
+                <Grid item xs={12} md={4}>
+                  <Typography variant="subtitle2" gutterBottom>
+                    When to Reconcile
+                  </Typography>
+                  <Typography variant="body2">
+                    • After any transactions occur<br />
+                    • At month-end<br />
+                    • After major purchases or sales
+                  </Typography>
+                </Grid>
+                <Grid item xs={12} md={4}>
+                  <Typography variant="subtitle2" gutterBottom>
+                    Reconciliation Process
+                  </Typography>
+                  <Typography variant="body2">
+                    1. Enter your actual account balance<br />
+                    2. Verify each position is correct<br />
+                    3. Mark all positions as reconciled
+                  </Typography>
+                </Grid>
+                <Grid item xs={12} md={4}>
+                  <Typography variant="subtitle2" gutterBottom>
+                    Data Integrity
+                  </Typography>
+                  <Typography variant="body2">
+                    Reconciled accounts display a reliability indicator in reports and dashboards to show data confidence.
+                  </Typography>
+                </Grid>
+              </Grid>
+            </Box>
+          </Stack>
+        </Paper>
+      )}
+
+      {loading && (
+        <Box sx={{ display: 'flex', justifyContent: 'center', my: 4 }}>
+          <CircularProgress />
+        </Box>
+      )}
+
+      {successMessage && (
+        <Paper
+          elevation={0}
+          sx={{
+            p: 2,
+            mb: 3,
+            backgroundColor: 'rgba(237, 247, 237, 0.9)',
+            borderRadius: 2,
+            border: '1px solid rgba(46, 125, 50, 0.2)'
+          }}
+        >
+          <Stack direction="row" spacing={1.5} alignItems="center">
+            <CheckCircle color="success" />
+            <Typography>{successMessage}</Typography>
+          </Stack>
+        </Paper>
+      )}
+
+      <Box sx={{ mb: 2 }}>
+        <Typography variant="subtitle1" color="text.secondary" gutterBottom>
+          Your Accounts
+        </Typography>
+        <Divider />
+      </Box>
+
+      <Stack spacing={3}>
+        {accounts.map((account) => {
+          const statusDetails = getStatusDetails(account.currentStatus, account.lastReconciledDate);
+          const isExpanded = expandedAccount === account.id;
+          
+          return (
+            <Card 
+              key={account.id} 
+              elevation={1}
+              sx={{ 
+                borderRadius: 2,
+                borderLeft: 4,
+                borderColor: `${statusDetails.color}.main`,
+                transition: 'all 0.2s',
+                '&:hover': {
+                  boxShadow: 3
+                }
+              }}
+            >
+              <CardContent sx={{ px: 3, py: 2 }}>
+                <Grid container alignItems="center">
+                  <Grid item xs={12} md={4}>
+                    <Stack direction="row" spacing={1.5} alignItems="center">
+                      {statusDetails.icon}
+                      <Box>
+                        <Typography variant="h6" component="div">
+                          {account.name}
+                        </Typography>
+                        <Typography variant="body2" color="text.secondary">
+                          {account.institutionName} • {account.type}
+                        </Typography>
+                      </Box>
+                    </Stack>
+                  </Grid>
+                  
+                  <Grid item xs={12} md={3} sx={{ mt: { xs: 2, md: 0 } }}>
+                    <Typography variant="body2" color="text.secondary">
+                      Current Value
+                    </Typography>
+                    <Typography variant="h6">
+                      {formatCurrency(account.currentValue)}
+                    </Typography>
+                  </Grid>
+                  
+                  <Grid item xs={12} md={3} sx={{ mt: { xs: 2, md: 0 } }}>
+                    <Stack direction="row" alignItems="center" spacing={1}>
+                      <Chip 
+                        icon={<AccessTime sx={{ fontSize: '1rem !important' }} />}
+                        label={`Last: ${formatDate(account.lastReconciledDate)}`}
+                        size="small"
+                        sx={{ 
+                          height: 26, 
+                          backgroundColor: 'background.paper',
+                          border: 1,
+                          borderColor: 'divider'
+                        }}
+                      />
+                      
+                      <Tooltip title={statusDetails.description}>
+                        <Chip 
+                          icon={statusDetails.icon}
+                          label={statusDetails.label}
+                          size="small"
+                          color={statusDetails.color}
+                          sx={{ height: 26 }}
+                        />
+                      </Tooltip>
+                    </Stack>
+                  </Grid>
+                  
+                  <Grid item xs={12} md={2} sx={{ mt: { xs: 2, md: 0 } }}>
+                    <Stack direction="row" spacing={1} justifyContent={{ xs: 'flex-start', md: 'flex-end' }}>
+                      <Button
+                        variant="outlined"
+                        color="primary"
+                        onClick={() => handleAccountExpand(account.id)}
+                        endIcon={<ArrowDropDown />}
+                        size="small"
+                      >
+                        {isExpanded ? 'Hide' : 'View'} Positions
+                      </Button>
+                      
+                      <Button
+                        variant="contained"
+                        color="primary"
+                        onClick={() => handleOpenReconcileDialog(account)}
+                        size="small"
+                      >
+                        Reconcile
+                      </Button>
+                    </Stack>
+                  </Grid>
+                </Grid>
+                
+                {isExpanded && (
+                  <Box sx={{ mt: 3, mb: 1 }}>
+                    <Divider sx={{ mb: 2 }} />
+                    
+                    <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}>
+                      <Typography variant="subtitle2">
+                        Positions
+                      </Typography>
+                      
+                      <Button
+                        variant="outlined"
+                        size="small"
+                        startIcon={<CheckCircleOutline />}
+                        onClick={() => handleReconcileAllPositions(account.id)}
+                        disabled={account.currentStatus === 'reconciled'}
+                      >
+                        Mark All Positions as Reconciled
+                      </Button>
+                    </Stack>
+                    
+                    <TableContainer component={Paper} variant="outlined" sx={{ borderRadius: 1.5 }}>
+                      <Table size="small">
+                        <TableHead>
+                          <TableRow>
+                            <TableCell>Position</TableCell>
+                            <TableCell align="right">Shares</TableCell>
+                            <TableCell align="right">Current Price</TableCell>
+                            <TableCell align="right">Value</TableCell>
+                            <TableCell>Last Reconciled</TableCell>
+                            <TableCell>Status</TableCell>
+                            <TableCell align="right">Actions</TableCell>
+                          </TableRow>
+                        </TableHead>
+                        <TableBody>
+                          {account.positions.map((position) => {
+                            const posStatusDetails = getStatusDetails(position.status, position.lastReconciledDate);
+                            
+                            return (
+                              <TableRow 
+                                key={position.id}
+                                sx={{ 
+                                  '&:last-child td, &:last-child th': { border: 0 },
+                                  backgroundColor: position.status === 'reconciled' ? 'rgba(237, 247, 237, 0.3)' : 'inherit'
+                                }}
+                              >
+                                <TableCell>{position.name}</TableCell>
+                                <TableCell align="right">{position.shares.toFixed(2)}</TableCell>
+                                <TableCell align="right">{formatCurrency(position.currentPrice)}</TableCell>
+                                <TableCell align="right">{formatCurrency(position.currentValue)}</TableCell>
+                                <TableCell>{formatDate(position.lastReconciledDate)}</TableCell>
+                                <TableCell>
+                                  <Chip 
+                                    icon={posStatusDetails.icon}
+                                    label={posStatusDetails.label}
+                                    size="small"
+                                    color={posStatusDetails.color}
+                                    sx={{ height: 24 }}
+                                  />
+                                </TableCell>
+                                <TableCell align="right">
+                                  <Button
+                                    variant="text"
+                                    size="small"
+                                    onClick={() => handleReconcilePosition(account.id, position.id)}
+                                    disabled={position.status === 'reconciled'}
+                                  >
+                                    Reconcile
+                                  </Button>
+                                </TableCell>
+                              </TableRow>
+                            );
+                          })}
+                        </TableBody>
+                      </Table>
+                    </TableContainer>
+                  </Box>
+                )}
+              </CardContent>
+            </Card>
+          );
+        })}
+      </Stack>
+
+      {/* Account Reconciliation Dialog */}
+      <Dialog 
+        open={reconcileDialogOpen} 
+        onClose={handleCloseReconcileDialog}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>
+          Reconcile {selectedAccount?.name}
+        </DialogTitle>
+        
+        <DialogContent>
+          <DialogContentText paragraph sx={{ mb: 3 }}>
+            Enter the current balance from your {selectedAccount?.institutionName} statement to reconcile your account.
+          </DialogContentText>
+          
+          <Grid container spacing={3} alignItems="center">
+            <Grid item xs={12} md={6}>
+              <Typography variant="subtitle2" gutterBottom>
+                Current Value in NestEgg
+              </Typography>
+              <Typography variant="h5">
+                {selectedAccount && formatCurrency(selectedAccount.currentValue)}
+              </Typography>
+            </Grid>
+            
+            <Grid item xs={12} md={6}>
+              <TextField
+                label="Actual Value from Statement"
+                variant="outlined"
+                fullWidth
+                value={enteredBalance}
+                onChange={handleBalanceChange}
+                InputProps={{
+                  startAdornment: <Box component="span" sx={{ color: 'text.secondary', mr: 0.5 }}>$</Box>,
+                }}
+                autoFocus
+              />
+            </Grid>
+          </Grid>
+          
+          {selectedAccount && enteredBalance && (
+            <Box sx={{ mt: 3, p: 2, backgroundColor: 'rgba(232, 244, 253, 0.5)', borderRadius: 1 }}>
+              <Typography variant="subtitle2" gutterBottom>
+                Reconciliation Preview
+              </Typography>
+              
+              {(() => {
+                try {
+                  const parsedBalance = parseFloat(enteredBalance);
+                  const difference = parsedBalance - selectedAccount.currentValue;
+                  const percentDifference = (Math.abs(difference) / selectedAccount.currentValue) * 100;
+                  
+                  const isWithinTolerance = percentDifference <= 0.1;
                   
                   return (
-                    <tr key={account.id} className="hover:bg-gray-800/80 transition-colors">
-                      <td className="px-4 py-4 whitespace-nowrap">
-                        <div className="flex items-center max-w-xs">
-                          {typeof LogoComponent === 'string'
-                            ? <img src={LogoComponent} alt={account.institution || ''} className="w-5 h-5 object-contain mr-2 rounded-sm flex-shrink-0"/>
-                            : LogoComponent
-                                ? <div className="w-5 h-5 mr-2 flex items-center justify-center"><LogoComponent /></div>
-                                : (account.institution &&
-                                    <div className="flex-shrink-0 h-5 w-5 rounded-sm bg-gray-700 flex items-center justify-center mr-2 text-xs font-medium text-gray-300">
-                                      {account.institution.charAt(0).toUpperCase()}
-                                    </div>
-                                  )
-                          }
-                          <span className="break-words whitespace-normal">{account.institution || "N/A"}</span>
-                        </div>
-                      </td>
+                    <>
+                      <Grid container spacing={2} sx={{ mt: 0.5 }}>
+                        <Grid item xs={4}>
+                          <Typography variant="body2" color="text.secondary">
+                            Difference
+                          </Typography>
+                          <Typography variant="body1" color={difference === 0 ? 'success.main' : 'warning.main'}>
+                            {formatCurrency(difference)}
+                          </Typography>
+                        </Grid>
+                        <Grid item xs={4}>
+                          <Typography variant="body2" color="text.secondary">
+                            % Difference
+                          </Typography>
+                          <Typography variant="body1" color={isWithinTolerance ? 'success.main' : 'warning.main'}>
+                            {percentDifference.toFixed(2)}%
+                          </Typography>
+                        </Grid>
+                        <Grid item xs={4}>
+                          <Typography variant="body2" color="text.secondary">
+                            Status
+                          </Typography>
+                          <Typography variant="body1" color={isWithinTolerance ? 'success.main' : 'warning.main'}>
+                            {isWithinTolerance ? 'Will reconcile' : 'Review needed'}
+                          </Typography>
+                        </Grid>
+                      </Grid>
                       
-                      <td className="px-4 py-4 whitespace-nowrap">
-                        <div className="font-medium">{account.account_name}</div>
-                        {account.type && (
-                          <div className="text-xs text-gray-400 italic">{account.type}</div>
-                        )}
-                      </td>
-                      
-                      <td className="px-4 py-4 whitespace-nowrap text-right">
-                        <div className="font-medium">{formatCurrency(account.total_value)}</div>
-                      </td>
-                      
-                      <td className="px-4 py-4 whitespace-nowrap text-center">
-                        <div className="text-sm">{account.positions_count}</div>
-                      </td>
-                      
-                      <td className="px-4 py-4 whitespace-nowrap text-center">
-                        <div className="flex items-center justify-center">
-                          <Clock className="w-4 h-4 text-gray-400 mr-1" />
-                          <span className="text-gray-300 text-sm">
-                            {formatDate(account.lastReconciled)}
-                          </span>
-                        </div>
-                      </td>
-                      
-                      <td className="px-4 py-4 whitespace-nowrap text-center">
-                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
-                          account.reconciliationStatus === 'Reconciled' 
-                            ? 'bg-green-900 text-green-200' 
-                            : 'bg-amber-900 text-amber-200'
-                        }`}>
-                          {account.reconciliationStatus === 'Reconciled' 
-                            ? <Check className="w-3 h-3 mr-1" /> 
-                            : <AlertCircle className="w-3 h-3 mr-1" />}
-                          {account.reconciliationStatus}
-                        </span>
-                      </td>
-                      
-                      <td className="px-4 py-4 whitespace-nowrap text-right">
-                        <button 
-                          onClick={() => handleReconcileClick(account)}
-                          className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded transition-colors"
-                        >
-                          Reconcile
-                        </button>
-                      </td>
-                    </tr>
+                      {!isWithinTolerance && (
+                        <Typography variant="body2" sx={{ mt: 1.5, color: 'warning.dark' }}>
+                          Difference exceeds 0.1% threshold. After updating, you may need to review individual positions.
+                        </Typography>
+                      )}
+                    </>
                   );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-      
-      {/* No accounts message */}
-      {!loading && accounts.length === 0 && (
-        <div className="bg-gray-900 rounded-xl p-8 text-center min-h-[180px] flex items-center justify-center flex-col">
-          <AlertCircle className="w-12 h-12 text-gray-500 mb-4" />
-          <h3 className="text-lg font-medium text-white mb-2">No Accounts Found</h3>
-          <p className="text-gray-400 mb-4">
-            You need to add some accounts before you can reconcile them.
-          </p>
-          <button className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition-colors">
-            Add Account
-          </button>
-        </div>
-      )}
-      
-      {/* Reconciliation Modal */}
-      {showReconcileModal && activeAccount && (
-        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50">
-          <div className="bg-gray-900 rounded-xl shadow-xl w-full max-w-5xl max-h-[90vh] overflow-hidden flex flex-col">
-            {/* Header */}
-            <div className="bg-gray-800 px-6 py-4 text-white border-b border-gray-700">
-              <div className="flex justify-between items-center">
-                <h3 className="text-xl font-semibold">
-                  Account Reconciliation: {activeAccount.account_name}
-                </h3>
-                <button 
-                  onClick={() => setShowReconcileModal(false)}
-                  className="text-gray-400 hover:text-white transition-colors"
-                >
-                  <X className="w-6 h-6" />
-                </button>
-              </div>
-            </div>
-
-            {/* Modal Body */}
-            <div className="overflow-y-auto p-6 flex-grow bg-gray-900 text-white">
-              {/* Account Level Reconciliation */}
-              <div className="mb-6">
-                <div className="bg-blue-900/30 border border-blue-800/50 rounded-lg p-4 mb-6">
-                  <div className="flex">
-                    <Info className="w-5 h-5 text-blue-400 mr-3 flex-shrink-0 mt-0.5" />
-                    <div className="text-sm text-blue-100">
-                      <p className="font-medium mb-1">About Account Reconciliation</p>
-                      <p>
-                        Compare your account total balance from your financial institution with what's shown in NestEgg.
-                        Enter the actual balance to see any variance. If there's a significant difference, you can check individual positions.
-                      </p>
-                    </div>
-                  </div>
-                </div>
-                
-                <div className="flex justify-between items-center mb-4">
-                  <h4 className="text-lg font-medium text-white">Account Balance Reconciliation</h4>
-                  
-                  {/* Use AddPositionButton instead of direct add position implementation */}
-                  <AddPositionButton 
-                    accountId={activeAccount.id}
-                    onPositionAdded={handlePositionAdded}
-                    className="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded transition-colors flex items-center gap-1"
-                    buttonContent={
-                      <>
-                        <Plus className="w-4 h-4" />
-                        <span>Add Position</span>
-                      </>
-                    }
-                  />
-                </div>
-                
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div className="bg-gray-800 rounded-lg p-4 border border-gray-700">
-                    <div className="text-sm text-gray-300 mb-1">NestEgg Balance</div>
-                    <div className="text-xl font-semibold text-white">
-                      {formatCurrency(activeAccount.total_value)}
-                    </div>
-                  </div>
-                  
-                  <div className="bg-gray-800 rounded-lg p-4 border border-gray-700">
-                    <div className="text-sm text-gray-300 mb-1">Actual Balance</div>
-                    <div className="flex items-center">
-                      <span className="text-gray-400 mr-1">$</span>
-                      <input
-                        type="number"
-                        value={reconciliationData.accountLevel.actualBalance}
-                        onChange={handleAccountBalanceChange}
-                        className="text-xl font-semibold w-full bg-transparent focus:outline-none focus:ring-0 border-b border-gray-600 focus:border-blue-500 transition-colors text-white"
-                        placeholder="Enter actual balance"
-                        step="any"
-                      />
-                    </div>
-                  </div>
-                  
-                  <div className="bg-gray-800 rounded-lg p-4 border border-gray-700">
-                    <div className="text-sm text-gray-300 mb-1">Variance</div>
-                    <div className={`text-xl font-semibold ${getVarianceClass(reconciliationData.accountLevel.variance)}`}>
-                      {formatCurrency(reconciliationData.accountLevel.variance)}
-                      <span className="text-sm ml-1">
-                        ({formatPercentage(reconciliationData.accountLevel.variancePercent)})
-                      </span>
-                    </div>
-                  </div>
-                </div>
-                
-                <div className="flex items-center justify-center mt-6">
-                  <label className="flex items-center cursor-pointer bg-gray-800 hover:bg-gray-700 transition-colors rounded-lg px-4 py-3 border border-gray-700">
-                    <input
-                      type="checkbox"
-                      className="h-5 w-5 text-blue-600 focus:ring-blue-500 rounded transition-colors"
-                      checked={reconciliationData.accountLevel.isReconciled}
-                      onChange={toggleAccountReconcileStatus}
-                    />
-                    <span className="ml-2 text-gray-200">Mark this account as reconciled</span>
-                  </label>
-                </div>
-              </div>
-
-              {/* Divider with expand/collapse control */}
-              <div className="relative my-6">
-                <div className="absolute inset-0 flex items-center">
-                  <div className="w-full border-t border-gray-700"></div>
-                </div>
-                <div className="relative flex justify-center">
-                  <button
-                    onClick={() => setShowPositionReconciliation(!showPositionReconciliation)}
-                    className={`px-4 py-2 flex items-center bg-gray-800 border border-gray-700 rounded-full text-sm font-medium ${
-                      showPositionReconciliation ? 'text-blue-400' : 'text-gray-300 hover:text-blue-400'
-                    } transition-colors`}
-                  >
-                    {showPositionReconciliation ? (
-                      <>
-                        <ChevronDown className="w-4 h-4 mr-1" />
-                        Hide Position Details
-                      </>
-                    ) : (
-                      <>
-                        <ChevronRight className="w-4 h-4 mr-1" />
-                        {Math.abs(reconciliationData.accountLevel.variancePercent) > 1 
-                          ? 'Investigate Position Variances' 
-                          : 'Show Position Details'}
-                      </>
-                    )}
-                  </button>
-                </div>
-              </div>
-              
-              {/* Position Reconciliation (expanded section) */}
-              {showPositionReconciliation && (
-                <div className="mt-6">
-                  <div className="bg-blue-900/30 border border-blue-800/50 rounded-lg p-4 mb-6">
-                    <div className="flex">
-                      <Info className="w-5 h-5 text-blue-400 mr-3 flex-shrink-0 mt-0.5" />
-                      <div className="text-sm text-blue-100">
-                        <p className="font-medium mb-1">About Position Reconciliation</p>
-                        <p>
-                          Compare individual position quantities and values with what's shown in your financial institution.
-                          Enter the actual quantities and values to identify specific discrepancies.
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                  
-                  <div className="flex justify-between items-center mb-4">
-                    <h4 className="text-lg font-medium">Position-Level Reconciliation</h4>
-                    <div className={`text-sm font-medium ${getVarianceClass(calculateTotalPositionVariances().valueVariance)}`}>
-                      Total Positions Variance: {formatCurrency(calculateTotalPositionVariances().valueVariance)} 
-                      ({formatPercentage(calculateTotalPositionVariances().valueVariancePercent)})
-                    </div>
-                  </div>
-                  
-                  <div className="overflow-x-auto">
-                    <table className="min-w-full divide-y divide-gray-700 text-white border border-gray-700 rounded-lg">
-                      <thead className="bg-gray-800">
-                        <tr>
-                          <th 
-                            scope="col" 
-                            className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider cursor-pointer hover:bg-gray-700"
-                            onClick={() => handlePositionSort('ticker_or_name')}
-                          >
-                            Asset
-                            <SortIndicator field="ticker_or_name" currentField={positionSortField} direction={positionSortDirection} />
-                          </th>
-                          <th 
-                            scope="col" 
-                            className="px-4 py-3 text-right text-xs font-medium text-gray-400 uppercase tracking-wider cursor-pointer hover:bg-gray-700"
-                            onClick={() => handlePositionSort('quantity')}
-                          >
-                            App Quantity
-                            <SortIndicator field="quantity" currentField={positionSortField} direction={positionSortDirection} />
-                          </th>
-                          <th scope="col" className="px-4 py-3 text-right text-xs font-medium text-gray-400 uppercase tracking-wider">
-                            Actual Quantity
-                          </th>
-                          <th 
-                            scope="col" 
-                            className="px-4 py-3 text-right text-xs font-medium text-gray-400 uppercase tracking-wider cursor-pointer hover:bg-gray-700"
-                            onClick={() => handlePositionSort('variance')}
-                          >
-                            Qty Variance
-                            <SortIndicator field="variance" currentField={positionSortField} direction={positionSortDirection} />
-                          </th>
-                          <th scope="col" className="px-4 py-3 text-center text-xs font-medium text-gray-400 uppercase tracking-wider">
-                            Reconciled?
-                          </th>
-                          <th 
-                            scope="col" 
-                            className="px-4 py-3 text-right text-xs font-medium text-gray-400 uppercase tracking-wider cursor-pointer hover:bg-gray-700"
-                            onClick={() => handlePositionSort('value')}
-                          >
-                            App Value
-                            <SortIndicator field="value" currentField={positionSortField} direction={positionSortDirection} />
-                          </th>
-                          <th scope="col" className="px-4 py-3 text-right text-xs font-medium text-gray-400 uppercase tracking-wider">
-                            Actual Value
-                          </th>
-                          <th scope="col" className="px-4 py-3 text-right text-xs font-medium text-gray-400 uppercase tracking-wider">
-                            Value Variance
-                          </th>
-                          <th scope="col" className="px-4 py-3 text-center text-xs font-medium text-gray-400 uppercase tracking-wider">
-                            Reconciled?
-                          </th>
-                          <th scope="col" className="px-4 py-3 text-center text-xs font-medium text-gray-400 uppercase tracking-wider">
-                            Actions
-                          </th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-gray-700 bg-gray-900">
-                        {sortedPositions.map((position, index) => (
-                          <tr key={position.id} className="hover:bg-gray-800 transition-colors">
-                            <td className="px-4 py-3 whitespace-nowrap">
-                              <div className="flex items-center">
-                                <div className="w-6 h-6 bg-gray-800 rounded-sm flex items-center justify-center mr-2">
-                                  {getAssetIcon(position.asset_type)}
-                                </div>
-                                <div>
-                                  <div className="font-medium">{position.ticker_or_name}</div>
-                                  <div className="text-xs text-gray-400 capitalize">{position.asset_type}</div>
-                                </div>
-                              </div>
-                            </td>
-                            <td className="px-4 py-3 whitespace-nowrap text-right text-sm">
-                              {formatNumber(position.quantity_or_shares, { maximumFractionDigits: 6 })}
-                            </td>
-                            <td className="px-4 py-3 whitespace-nowrap text-right text-sm">
-                              <input
-                                type="number"
-                                value={position.actualQuantity}
-                                onChange={(e) => handlePositionQuantityChange(index, e.target.value)}
-                                className="w-20 text-right bg-gray-800 border-b border-gray-600 focus:border-blue-500 focus:outline-none focus:ring-0 transition-colors text-white"
-                                step="any"
-                              />
-                            </td>
-                            <td className="px-4 py-3 whitespace-nowrap text-right text-sm">
-                              <div className={`${getVarianceClass(position.quantityVariance)}`}>
-                                {formatNumber(position.quantityVariance, { maximumFractionDigits: 6 })}
-                                <div className="text-xs">
-                                  ({formatPercentage(position.quantityVariancePercent)})
-                                </div>
-                              </div>
-                            </td>
-                            <td className="px-4 py-3 whitespace-nowrap text-center">
-                              <input
-                                type="checkbox"
-                                checked={position.isQuantityReconciled}
-                                onChange={() => togglePositionReconcileStatus(index, 'quantity')}
-                                className="h-4 w-4 text-blue-600 focus:ring-blue-500 rounded transition-colors"
-                              />
-                            </td>
-                            <td className="px-4 py-3 whitespace-nowrap text-right text-sm">
-                              {formatCurrency(position.value)}
-                            </td>
-                            <td className="px-4 py-3 whitespace-nowrap text-right text-sm">
-                              <div className="flex items-center justify-end">
-                                <span className="text-gray-400 mr-1">$</span>
-                                <input
-                                  type="number"
-                                  value={position.actualValue}
-                                  onChange={(e) => handlePositionValueChange(index, e.target.value)}
-                                  className="w-20 text-right bg-gray-800 border-b border-gray-600 focus:border-blue-500 focus:outline-none focus:ring-0 transition-colors text-white"
-                                  step="any"
-                                />
-                              </div>
-                            </td>
-                            <td className="px-4 py-3 whitespace-nowrap text-right text-sm">
-                              <div className={`${getVarianceClass(position.valueVariance)}`}>
-                                {formatCurrency(position.valueVariance)}
-                                <div className="text-xs">
-                                  ({formatPercentage(position.valueVariancePercent)})
-                                </div>
-                              </div>
-                            </td>
-                            <td className="px-4 py-3 whitespace-nowrap text-center">
-                              <input
-                                type="checkbox"
-                                checked={position.isValueReconciled}
-                                onChange={() => togglePositionReconcileStatus(index, 'value')}
-                                className="h-4 w-4 text-blue-600 focus:ring-blue-500 rounded transition-colors"
-                              />
-                            </td>
-                            <td className="px-4 py-3 whitespace-nowrap text-center">
-                              <div className="flex items-center space-x-1 justify-center">
-                                <button 
-                                  onClick={(e) => handleEditPosition(position, e)} 
-                                  className="p-1 bg-blue-900 text-blue-400 rounded hover:bg-blue-800 transition-colors"
-                                  title="Edit Position"
-                                >
-                                  <Edit className="w-3.5 h-3.5" />
-                                </button>
-                                <button 
-                                  onClick={(e) => handleDeletePosition(position, e)} 
-                                  className="p-1 bg-red-900 text-red-400 rounded hover:bg-red-800 transition-colors"
-                                  title="Delete Position"
-                                >
-                                  <Trash className="w-3.5 h-3.5" />
-                                </button>
-                              </div>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              )}
-            </div>
-            
-            {/* Footer */}
-            <div className="border-t border-gray-700 px-6 py-4 flex justify-end space-x-3 bg-gray-800">
-              <button
-                onClick={() => setShowReconcileModal(false)}
-                className="px-4 py-2 bg-gray-700 border border-gray-600 text-gray-300 rounded hover:bg-gray-600 transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleSaveReconciliation}
-                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded transition-colors flex items-center shadow-sm"
-              >
-                <Save className="w-4 h-4 mr-2" />
-                Save Reconciliation
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-      
-      {/* Position Editing Modals */}
-      {showSecurityPositionModal && (
-        <SecurityPositionModal
-          isOpen={showSecurityPositionModal}
-          onClose={() => setShowSecurityPositionModal(false)}
-          accountId={activeAccount?.id}
-          accountName={activeAccount?.account_name}
-          onPositionSaved={handlePositionSaved}
-          positionToEdit={positionToEdit}
-        />
-      )}
-      
-      {showCryptoPositionModal && (
-        <CryptoPositionModal
-          isOpen={showCryptoPositionModal}
-          onClose={() => setShowCryptoPositionModal(false)}
-          accountId={activeAccount?.id}
-          accountName={activeAccount?.account_name}
-          onPositionSaved={handlePositionSaved}
-          positionToEdit={positionToEdit}
-        />
-      )}
-      
-      {showCashPositionModal && (
-        <CashPositionModal
-          isOpen={showCashPositionModal}
-          onClose={() => setShowCashPositionModal(false)}
-          accountId={activeAccount?.id}
-          onPositionSaved={handlePositionSaved}
-          positionToEdit={positionToEdit}
-        />
-      )}
-      
-      {showMetalPositionModal && (
-        <MetalPositionModal
-          isOpen={showMetalPositionModal}
-          onClose={() => setShowMetalPositionModal(false)}
-          accountId={activeAccount?.id}
-          accountName={activeAccount?.account_name}
-          onPositionSaved={handlePositionSaved}
-          positionToEdit={positionToEdit}
-        />
-      )}
-    </div>
+                } catch (e) {
+                  return (
+                    <Typography variant="body2" color="error">
+                      Please enter a valid number
+                    </Typography>
+                  );
+                }
+              })()}
+            </Box>
+          )}
+        </DialogContent>
+        
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button onClick={handleCloseReconcileDialog}>
+            Cancel
+          </Button>
+          <Button 
+            variant="contained" 
+            onClick={handleReconcileAccount}
+            disabled={!enteredBalance || isNaN(parseFloat(enteredBalance))}
+          >
+            Update & Reconcile
+          </Button>
+        </DialogActions>
+      </Dialog>
+    </Box>
   );
 };
 
