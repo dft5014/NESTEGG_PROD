@@ -87,9 +87,7 @@ accounts = sqlalchemy.Table(
     sqlalchemy.Column("account_name", sqlalchemy.String, nullable=False),
     sqlalchemy.Column("institution", sqlalchemy.String, nullable=True),
     sqlalchemy.Column("type", sqlalchemy.String, nullable=True),
-    sqlalchemy.Column("balance", sqlalchemy.Float, default=0.0),
-    sqlalchemy.Column("created_at", sqlalchemy.DateTime, default=datetime.utcnow),
-    sqlalchemy.Column("updated_at", sqlalchemy.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow),
+    sqlalchemy.Column("account_category", sqlalchemy.String, nullable=True),
 )
 
 # Define Positions Tables
