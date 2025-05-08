@@ -1270,19 +1270,9 @@ async def get_accounts(current_user: dict = Depends(get_current_user)):
                 "account_name": row["account_name"],
                 "institution": row["institution"] if "institution" in row else None,
                 "type": row["type"] if "type" in row else None,
-                "balance": row["balance"] or 0.0,
+                "account_category": row["account_category"] if "account_category" in row else None,
             }
             
-            # Safely handle datetime fields
-            if "created_at" in row and row["created_at"]:
-                account_data["created_at"] = row["created_at"].isoformat()
-            else:
-                account_data["created_at"] = None
-                
-            if "updated_at" in row and row["updated_at"]:
-                account_data["updated_at"] = row["updated_at"].isoformat()
-            else:
-                account_data["updated_at"] = None
                 
             accounts_list.append(account_data)
         
