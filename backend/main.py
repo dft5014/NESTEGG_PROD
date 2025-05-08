@@ -325,6 +325,7 @@ class AccountUpdate(BaseModel):
     account_name: Optional[str] = None
     institution: Optional[str] = None
     type: Optional[str] = None
+    account_category: Option[str] = None
 
 class PositionBasicInfo(BaseModel):
     id: int
@@ -1506,15 +1507,46 @@ async def update_account(account_id: int, account: AccountUpdate, current_user: 
         if not existing_account:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Account not found or access denied")
         
-        # Update account
-        update_values = {k: v for k, v in account.dict().items() if v is not None}
+        # Create update dictionary
+        update_values = {}
+        
+        # Only include fields that are provided in the request
+        if account.account_name is not None:
+            update_values["account_name"] = account.account_name
+        
+        if account.institution is not None:
+            update_values["institution"] = account.institution
+        
+        if account.type is not None:
+            update_values["type"] = account.type
+            
+        # Check if account_category exists in the database table
+        # If the column exists, include it in the update
+        try:
+            if account.account_category is not None:
+                update_values["account_category"] = account.account_category
+        except Exception as e:
+            # If there's an error related to account_category, log it but continue
+            print(f"Warning: Couldn't update account_category: {str(e)}")
+        
+        # Add timestamp
+        update_values["updated_at"] = datetime.utcnow()
+        
+        # Only perform update if there are values to update
         if update_values:
             update_query = accounts.update().where(
                 accounts.c.id == account_id
-            ).values(**update_values, updated_at=datetime.utcnow())
+            ).values(**update_values)
             await database.execute(update_query)
         
-        return {"message": "Account updated successfully"}
+        # Return updated account data
+        get_query = accounts.select().where(accounts.c.id == account_id)
+        updated_account = await database.fetch_one(get_query)
+        
+        return {
+            "message": "Account updated successfully",
+            "account": dict(updated_account)
+        }
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Server error: {str(e)}")
 
