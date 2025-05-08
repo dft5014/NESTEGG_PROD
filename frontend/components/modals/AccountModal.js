@@ -105,7 +105,6 @@ const AccountModal = ({ isOpen, onClose, onAccountAdded, editAccount = null }) =
         institution: institution || null,
         type: accountType,
         account_category: accountCategory,
-        balance: 0 // Default to zero since we removed the balance field
       };
 
       console.log(`${isEditMode ? 'Updating' : 'Creating'} account:`, payload);
