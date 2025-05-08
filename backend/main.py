@@ -1495,7 +1495,7 @@ async def add_account(account: AccountCreate, current_user: dict = Depends(get_c
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Server error: {str(e)}")
 
 @app.put("/accounts/{account_id}")
-async def update_account(account_id: int, account: AccountUpdate, current_user: dict = Depends(get_current_user)):
+async def update_account(account_id: int, account_data: dict, current_user: dict = Depends(get_current_user)):
     try:
         # Check if the account exists and belongs to the user
         query = accounts.select().where(
@@ -1507,33 +1507,29 @@ async def update_account(account_id: int, account: AccountUpdate, current_user: 
         if not existing_account:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Account not found or access denied")
         
-        # Create update dictionary
+        # Process the raw dictionary to ensure correct field names
         update_values = {}
         
-        # Only include fields that are provided in the request
-        if account.account_name is not None:
-            update_values["account_name"] = account.account_name
+        # Map potentially problematic field names to their correct versions
+        field_mapping = {
+            'account_name': 'account_name',
+            'account*name': 'account_name',  # Handle the corrupted field name
+            'institution': 'institution',
+            'type': 'type',
+            'account_category': 'account_category'
+        }
         
-        if account.institution is not None:
-            update_values["institution"] = account.institution
-        
-        if account.type is not None:
-            update_values["type"] = account.type
-            
-        # Check if account_category exists in the database table
-        # If the column exists, include it in the update
-        try:
-            if account.account_category is not None:
-                update_values["account_category"] = account.account_category
-        except Exception as e:
-            # If there's an error related to account_category, log it but continue
-            print(f"Warning: Couldn't update account_category: {str(e)}")
-        
-        # Add timestamp
-        update_values["updated_at"] = datetime.utcnow()
+        # Add values to update_values using the mapping
+        for key, value in account_data.items():
+            if key in field_mapping and value is not None:
+                correct_key = field_mapping[key]
+                update_values[correct_key] = value
         
         # Only perform update if there are values to update
         if update_values:
+            # Don't include updated_at if it doesn't exist in your table
+            # update_values["updated_at"] = datetime.utcnow()
+            
             update_query = accounts.update().where(
                 accounts.c.id == account_id
             ).values(**update_values)
@@ -1548,6 +1544,10 @@ async def update_account(account_id: int, account: AccountUpdate, current_user: 
             "account": dict(updated_account)
         }
     except Exception as e:
+        # Print the error for debugging
+        import traceback
+        print(f"Update account error: {str(e)}")
+        print(traceback.format_exc())
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Server error: {str(e)}")
 
 @app.delete("/accounts/{account_id}")

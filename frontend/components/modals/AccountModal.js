@@ -84,51 +84,56 @@ const AccountModal = ({ isOpen, onClose, onAccountAdded, editAccount = null }) =
       setFormMessage("Account name is required");
       return;
     }
-
+  
     if (!accountCategory) {
       setFormMessage("Account category is required");
       return;
     }
-
+  
     if (!accountType) {
       setFormMessage("Account type is required");
       return;
     }
-
+  
     setIsLoading(true);
     setFormMessage("");
-
+  
     try {
-      // Prepare payload
+      // Prepare payload - DO NOT trim accountName here, do it in the onChange handler
       const payload = {
-        account_name: accountName,
+        account_name: accountName,  // Ensure this is properly formatted
         institution: institution || null,
         type: accountType,
         account_category: accountCategory,
       };
-
-
-
-      console.log("Exact payload before JSON.stringify:", payload);
-      console.log("Payload after JSON.stringify:", JSON.stringify(payload));
-      console.log(`${isEditMode ? 'Updating' : 'Creating'} account:`, payload);
+  
+      // Log payload for debugging
+      console.log("Payload for update:", payload);
       
       let response;
       
       if (isEditMode) {
         // Update existing account
-        response = await fetchWithAuth(`/accounts/${editAccount.id}`, {
+        response = await fetch(`${API_BASE_URL}/accounts/${editAccount.id}`, {
           method: "PUT",
-          body: JSON.stringify(payload),
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${localStorage.getItem("token")}`
+          },
+          body: JSON.stringify(payload)
         });
       } else {
         // Create new account
-        response = await fetchWithAuth('/accounts', {
+        response = await fetch(`${API_BASE_URL}/accounts`, {
           method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${localStorage.getItem("token")}`
+          },
           body: JSON.stringify(payload)
         });
       }
-
+  
       console.log("API response status:", response.status);
       
       if (response.ok) {
@@ -146,10 +151,16 @@ const AccountModal = ({ isOpen, onClose, onAccountAdded, editAccount = null }) =
           }
         }, 1000);
       } else {
-        const errorData = await response.json();
-        console.error("API error response:", errorData);
+        const errorText = await response.text();
+        console.error("Raw error response:", errorText);
         
-        setFormMessage(`Failed to ${isEditMode ? 'update' : 'add'} account: ${errorData.detail || JSON.stringify(errorData)}`);
+        try {
+          const errorData = JSON.parse(errorText);
+          console.error("API error response:", errorData);
+          setFormMessage(`Failed to ${isEditMode ? 'update' : 'add'} account: ${errorData.detail || JSON.stringify(errorData)}`);
+        } catch (parseError) {
+          setFormMessage(`Failed to ${isEditMode ? 'update' : 'add'} account: ${errorText}`);
+        }
       }
     } catch (error) {
       console.error(`Error ${isEditMode ? 'updating' : 'adding'} account:`, error);
