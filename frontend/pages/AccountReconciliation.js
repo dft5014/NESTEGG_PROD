@@ -63,6 +63,15 @@ const formatCurrency = (amount) => {
   }).format(amount);
 };
 
+// Helper function to format percentage
+const formatPercentage = (value) => {
+  return new Intl.NumberFormat('en-US', {
+    style: 'percent',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  }).format(value / 100);
+};
+
 // Helper function to format dates
 const formatDate = (dateString) => {
   const options = { year: 'numeric', month: 'short', day: 'numeric' };
@@ -164,6 +173,20 @@ const DownArrowIcon = () => (
   </svg>
 );
 
+// Component for edit icon
+const EditIcon = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+    <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
+  </svg>
+);
+
+// Component for reconcile icon
+const ReconcileIcon = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+  </svg>
+);
+
 const AccountReconciliation = () => {
   const [accounts, setAccounts] = useState(MOCK_ACCOUNTS);
   const [selectedAccount, setSelectedAccount] = useState(null);
@@ -173,6 +196,10 @@ const AccountReconciliation = () => {
   const [loading, setLoading] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
   const [showTips, setShowTips] = useState(true);
+  
+  // New state for position inputs
+  const [positionInputs, setPositionInputs] = useState({});
+  const [accountInputs, setAccountInputs] = useState({});
 
   // Simulating API fetch
   useEffect(() => {
@@ -180,6 +207,28 @@ const AccountReconciliation = () => {
     // In a real app, this would be an API call
     setTimeout(() => {
       setLoading(false);
+      
+      // Initialize position inputs with current values
+      const initialPositionInputs = {};
+      const initialAccountInputs = {};
+      
+      accounts.forEach(account => {
+        // Account inputs
+        initialAccountInputs[account.id] = {
+          balance: account.currentValue,
+        };
+        
+        // Position inputs
+        account.positions.forEach(position => {
+          initialPositionInputs[position.id] = {
+            shares: position.shares,
+            value: position.currentValue
+          };
+        });
+      });
+      
+      setPositionInputs(initialPositionInputs);
+      setAccountInputs(initialAccountInputs);
     }, 800);
   }, []);
 
@@ -207,6 +256,32 @@ const AccountReconciliation = () => {
     // Allow only numbers and decimal point
     const value = e.target.value.replace(/[^0-9.]/g, '');
     setEnteredBalance(value);
+  };
+
+  // Handle changes to account level balance input
+  const handleAccountInputChange = (accountId, value) => {
+    // Allow only numbers and decimal point
+    const cleanValue = value.replace(/[^0-9.]/g, '');
+    setAccountInputs({
+      ...accountInputs,
+      [accountId]: {
+        ...accountInputs[accountId],
+        balance: cleanValue
+      }
+    });
+  };
+
+  // Handle changes to position level inputs
+  const handlePositionInputChange = (positionId, field, value) => {
+    // Allow only numbers and decimal point
+    const cleanValue = value.replace(/[^0-9.]/g, '');
+    setPositionInputs({
+      ...positionInputs,
+      [positionId]: {
+        ...positionInputs[positionId],
+        [field]: cleanValue
+      }
+    });
   };
 
   const handleReconcileAccount = () => {
@@ -310,6 +385,21 @@ const AccountReconciliation = () => {
           
           const updatedPositions = account.positions.map(position => {
             if (position.id === positionId) {
+              // If position inputs exist for this position, update the values
+              if (positionInputs[positionId]) {
+                const inputShares = parseFloat(positionInputs[positionId].shares) || position.shares;
+                const inputValue = parseFloat(positionInputs[positionId].value) || position.currentValue;
+                
+                return {
+                  ...position,
+                  shares: inputShares,
+                  currentValue: inputValue,
+                  currentPrice: inputShares > 0 ? inputValue / inputShares : position.currentPrice,
+                  status: 'reconciled',
+                  lastReconciledDate: today
+                };
+              }
+              
               return {
                 ...position,
                 status: 'reconciled',
@@ -322,8 +412,12 @@ const AccountReconciliation = () => {
           // Check if all positions are now reconciled
           const allReconciled = updatedPositions.every(p => p.status === 'reconciled');
           
+          // Calculate new total value
+          const newTotalValue = updatedPositions.reduce((sum, p) => sum + p.currentValue, 0);
+          
           return {
             ...account,
+            currentValue: newTotalValue,
             currentStatus: allReconciled ? 'reconciled' : account.currentStatus,
             lastReconciledDate: allReconciled ? today : account.lastReconciledDate,
             positions: updatedPositions
@@ -379,6 +473,31 @@ const AccountReconciliation = () => {
         setSuccessMessage('');
       }, 5000);
     }, 1500);
+  };
+
+  // Calculate difference for account balance input
+  const calculateAccountDifference = (account) => {
+    if (!accountInputs[account.id]) return { difference: 0, percentDifference: 0 };
+    
+    const inputBalance = parseFloat(accountInputs[account.id].balance) || 0;
+    const difference = inputBalance - account.currentValue;
+    const percentDifference = account.currentValue ? (difference / account.currentValue) * 100 : 0;
+    
+    return { difference, percentDifference };
+  };
+
+  // Calculate difference for position inputs
+  const calculatePositionDifference = (position) => {
+    if (!positionInputs[position.id]) return { shareDiff: 0, valueDiff: 0, valuePercentDiff: 0 };
+    
+    const inputShares = parseFloat(positionInputs[position.id].shares) || 0;
+    const inputValue = parseFloat(positionInputs[position.id].value) || 0;
+    
+    const shareDiff = inputShares - position.shares;
+    const valueDiff = inputValue - position.currentValue;
+    const valuePercentDiff = position.currentValue ? (valueDiff / position.currentValue) * 100 : 0;
+    
+    return { shareDiff, valueDiff, valuePercentDiff };
   };
 
   return (
@@ -500,6 +619,14 @@ const AccountReconciliation = () => {
             borderColor = "border-red-500";
           }
           
+          // Calculate account differences
+          const { difference: accountDifference, percentDifference: accountPercentDifference } = 
+            calculateAccountDifference(account);
+            
+          const isDifferencePositive = accountDifference > 0;
+          const differenceColor = accountDifference === 0 ? 'text-gray-900' : 
+                                 isDifferencePositive ? 'text-green-600' : 'text-red-600';
+          
           return (
             <div 
               key={account.id} 
@@ -507,7 +634,7 @@ const AccountReconciliation = () => {
             >
               <div className="px-6 py-4">
                 <div className="grid md:grid-cols-12 gap-4 items-center">
-                  <div className="md:col-span-4">
+                  <div className="md:col-span-3">
                     <div className="flex items-center">
                       <StatusIcon status={account.currentStatus} />
                       <div className="ml-3">
@@ -521,9 +648,9 @@ const AccountReconciliation = () => {
                     </div>
                   </div>
                   
-                  <div className="md:col-span-3">
+                  <div className="md:col-span-2">
                     <p className="text-sm text-gray-500">
-                      Current Value
+                      NestEgg Value
                     </p>
                     <p className="text-lg font-semibold text-gray-900">
                       {formatCurrency(account.currentValue)}
@@ -531,6 +658,34 @@ const AccountReconciliation = () => {
                   </div>
                   
                   <div className="md:col-span-3">
+                    <div className="flex flex-col">
+                      <label htmlFor={`account-balance-${account.id}`} className="text-sm text-gray-500 mb-1">
+                        Statement Balance
+                      </label>
+                      <div className="relative rounded-md shadow-sm">
+                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                          <span className="text-gray-500 sm:text-sm">$</span>
+                        </div>
+                        <input
+                          type="text"
+                          id={`account-balance-${account.id}`}
+                          className="focus:ring-blue-500 focus:border-blue-500 block w-full pl-7 pr-12 sm:text-sm border-gray-300 rounded-md"
+                          value={accountInputs[account.id]?.balance || ''}
+                          onChange={(e) => handleAccountInputChange(account.id, e.target.value)}
+                        />
+                      </div>
+                      
+                      {/* Difference display */}
+                      <div className="flex justify-between mt-1 text-xs">
+                        <span className={differenceColor}>
+                          {accountDifference === 0 ? 'No difference' : 
+                           `${formatCurrency(accountDifference)} (${formatPercentage(accountPercentDifference)})`}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div className="md:col-span-2">
                     <div className="flex items-center space-x-2">
                       <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800 border border-gray-300">
                         <ClockIcon className="mr-1" />
@@ -564,7 +719,11 @@ const AccountReconciliation = () => {
                       type="button"
                       className="inline-flex items-center px-2.5 py-1.5 border border-transparent shadow-sm text-xs font-medium rounded text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
                       onClick={() => handleOpenReconcileDialog(account)}
+                      title="Reconcile account balance and update all positions"
                     >
+                      <span className="mr-1">
+                        <ReconcileIcon />
+                      </span>
                       Reconcile
                     </button>
                   </div>
@@ -597,16 +756,22 @@ const AccountReconciliation = () => {
                                 Position
                               </th>
                               <th scope="col" className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                Shares
+                                NestEgg Qty
                               </th>
                               <th scope="col" className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                Current Price
+                                Statement Qty
                               </th>
                               <th scope="col" className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                Value
+                                Qty Diff
                               </th>
-                              <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                Last Reconciled
+                              <th scope="col" className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                NestEgg Value
+                              </th>
+                              <th scope="col" className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Statement Value
+                              </th>
+                              <th scope="col" className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Value Diff
                               </th>
                               <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                                 Status
@@ -620,6 +785,21 @@ const AccountReconciliation = () => {
                             {account.positions.map((position) => {
                               const posStatusDetails = getStatusDetails(position.status, position.lastReconciledDate);
                               
+                              // Calculate position differences
+                              const { 
+                                shareDiff, 
+                                valueDiff, 
+                                valuePercentDiff 
+                              } = calculatePositionDifference(position);
+                              
+                              const isShareDiffPositive = shareDiff > 0;
+                              const isValueDiffPositive = valueDiff > 0;
+                              
+                              const shareDiffColor = shareDiff === 0 ? 'text-gray-900' : 
+                                                   isShareDiffPositive ? 'text-green-600' : 'text-red-600';
+                              const valueDiffColor = valueDiff === 0 ? 'text-gray-900' : 
+                                                   isValueDiffPositive ? 'text-green-600' : 'text-red-600';
+                              
                               return (
                                 <tr 
                                   key={position.id}
@@ -631,14 +811,40 @@ const AccountReconciliation = () => {
                                   <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-500 text-right">
                                     {position.shares.toFixed(2)}
                                   </td>
-                                  <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-500 text-right">
-                                    {formatCurrency(position.currentPrice)}
+                                  <td className="px-4 py-2 whitespace-nowrap text-right">
+                                    <input
+                                      type="text"
+                                      className="border-gray-300 focus:ring-blue-500 focus:border-blue-500 block w-full px-2 py-1 sm:text-sm rounded-md text-right"
+                                      value={positionInputs[position.id]?.shares || ''}
+                                      onChange={(e) => handlePositionInputChange(position.id, 'shares', e.target.value)}
+                                    />
+                                  </td>
+                                  <td className="px-4 py-2 whitespace-nowrap text-sm text-right">
+                                    <span className={shareDiffColor}>
+                                      {shareDiff === 0 ? '0.00' : shareDiff.toFixed(2)}
+                                    </span>
                                   </td>
                                   <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-900 font-medium text-right">
                                     {formatCurrency(position.currentValue)}
                                   </td>
-                                  <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-500">
-                                    {formatDate(position.lastReconciledDate)}
+                                  <td className="px-4 py-2 whitespace-nowrap text-right">
+                                    <div className="relative rounded-md shadow-sm">
+                                      <div className="absolute inset-y-0 left-0 pl-2 flex items-center pointer-events-none">
+                                        <span className="text-gray-500 sm:text-xs">$</span>
+                                      </div>
+                                      <input
+                                        type="text"
+                                        className="border-gray-300 focus:ring-blue-500 focus:border-blue-500 block w-full pl-6 py-1 sm:text-sm rounded-md text-right"
+                                        value={positionInputs[position.id]?.value || ''}
+                                        onChange={(e) => handlePositionInputChange(position.id, 'value', e.target.value)}
+                                      />
+                                    </div>
+                                  </td>
+                                  <td className="px-4 py-2 whitespace-nowrap text-sm text-right">
+                                    <span className={valueDiffColor}>
+                                      {valueDiff === 0 ? '0.00' : 
+                                       `${formatCurrency(valueDiff)} (${valuePercentDiff.toFixed(2)}%)`}
+                                    </span>
                                   </td>
                                   <td className="px-4 py-2 whitespace-nowrap">
                                     <span 
@@ -652,14 +858,25 @@ const AccountReconciliation = () => {
                                     </span>
                                   </td>
                                   <td className="px-4 py-2 whitespace-nowrap text-sm text-right">
-                                    <button
-                                      type="button"
-                                      className="text-blue-600 hover:text-blue-900 font-medium"
-                                      onClick={() => handleReconcilePosition(account.id, position.id)}
-                                      disabled={position.status === 'reconciled'}
-                                    >
-                                      Reconcile
-                                    </button>
+                                    <div className="flex justify-end space-x-2">
+                                      <button
+                                        type="button"
+                                        className="text-gray-600 hover:text-gray-900"
+                                        title="Edit Position"
+                                        onClick={() => handlePositionInputChange(position.id, 'value', position.currentValue)}
+                                      >
+                                        <EditIcon />
+                                      </button>
+                                      <button
+                                        type="button"
+                                        className="text-blue-600 hover:text-blue-900"
+                                        title="Reconcile Position"
+                                        onClick={() => handleReconcilePosition(account.id, position.id)}
+                                        disabled={position.status === 'reconciled'}
+                                      >
+                                        <ReconcileIcon />
+                                      </button>
+                                    </div>
                                   </td>
                                 </tr>
                               );
