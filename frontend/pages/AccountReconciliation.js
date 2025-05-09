@@ -2,6 +2,8 @@
 import React, { useState, useEffect } from 'react';
 import { fetchWithAuth } from '../utils/api';
 import Head from 'next/head';
+import AddPositionButton from '@/components/AddPositionButton'
+import EditPositionButton from '@/components/EditPositionButton';
 
 // Helper function to format currency
 const formatCurrency = (amount) => {
@@ -909,15 +911,30 @@ const AccountReconciliation = () => {
                           Positions
                         </h4>
                         
-                        <button
-                          type="button"
-                          className="inline-flex items-center px-3 py-1.5 border border-gray-300 shadow-sm text-xs font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-                          onClick={() => handleReconcileAllPositions(account.id)}
-                          disabled={account.reconciliation_status === 'Reconciled'}
-                        >
-                          <CheckIcon className="mr-1.5 -ml-0.5" />
-                          Mark All Positions as Reconciled
-                        </button>
+                        <div className="flex space-x-2">
+                          <AddPositionButton 
+                            accountId={account.id}
+                            onPositionAdded={() => fetchPositions(account.id)} // Refresh positions when added
+                            buttonContent={
+                              <div className="inline-flex items-center px-3 py-1.5 border border-gray-300 shadow-sm text-xs font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1.5 -ml-0.5 text-gray-600" viewBox="0 0 20 20" fill="currentColor">
+                                  <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
+                                </svg>
+                                Add Position
+                              </div>
+                            }
+                          />
+                          
+                          <button
+                            type="button"
+                            className="inline-flex items-center px-3 py-1.5 border border-gray-300 shadow-sm text-xs font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                            onClick={() => handleReconcileAllPositions(account.id)}
+                            disabled={account.reconciliation_status === 'Reconciled'}
+                          >
+                            <CheckIcon className="mr-1.5 -ml-0.5" />
+                            Mark All Positions as Reconciled
+                          </button>
+                        </div>
                       </div>
                       
                       {loadingPositions[account.id] ? (
@@ -1039,30 +1056,25 @@ const AccountReconciliation = () => {
                                         <span className="ml-1">{positionStatus}</span>
                                       </span>
                                     </td>
-                                    <td className="px-4 py-2 whitespace-nowrap text-sm text-right">
-                                      <div className="flex justify-end space-x-2">
-                                        <button
-                                          type="button"
-                                          className="text-gray-600 hover:text-gray-900"
-                                          title="Edit Position"
-                                          onClick={() => {
-                                            handlePositionInputChange(position.id, 'shares', position.shares);
-                                            handlePositionInputChange(position.id, 'value', position.current_value);
-                                          }}
-                                        >
-                                          <EditIcon />
-                                        </button>
-                                        <button
-                                          type="button"
-                                          className="text-blue-600 hover:text-blue-900"
-                                          title="Reconcile Position"
-                                          onClick={() => handleReconcilePosition(account.id, position.id)}
-                                          disabled={positionStatus === 'Reconciled' || positionStatus === 'reconciled'}
-                                        >
-                                          <ReconcileIcon />
-                                        </button>
-                                      </div>
-                                    </td>
+                                      <td className="px-4 py-2 whitespace-nowrap text-sm text-right">
+                                        <div className="flex justify-end space-x-2">
+                                          <EditPositionButton
+                                            position={position}
+                                            accountId={account.id}
+                                            accountName={account.account_name}
+                                            onPositionEdited={() => fetchPositions(account.id)} // Refresh positions after edit
+                                          />
+                                          <button
+                                            type="button"
+                                            className="text-blue-600 hover:text-blue-900"
+                                            title="Reconcile Position"
+                                            onClick={() => handleReconcilePosition(account.id, position.id)}
+                                            disabled={positionStatus === 'Reconciled' || positionStatus === 'reconciled'}
+                                          >
+                                            <ReconcileIcon />
+                                          </button>
+                                        </div>
+                                      </td>
                                   </tr>
                                 );
                               })}
