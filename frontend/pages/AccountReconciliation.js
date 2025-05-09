@@ -63,6 +63,14 @@ const formatCurrency = (amount) => {
   }).format(amount);
 };
 
+// Helper function to format number with commas
+const formatNumber = (number) => {
+  return new Intl.NumberFormat('en-US', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  }).format(number);
+};
+
 // Helper function to format percentage
 const formatPercentage = (value) => {
   return new Intl.NumberFormat('en-US', {
@@ -85,6 +93,34 @@ const daysSinceLastReconciled = (dateString) => {
   const diffTime = Math.abs(currentDate - lastDate);
   const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
   return diffDays;
+};
+
+// Helper function to determine variance level
+const getVarianceLevel = (percentDifference) => {
+  const absDifference = Math.abs(percentDifference);
+  
+  if (absDifference <= 1) {
+    return { 
+      level: 'good', 
+      color: 'text-green-600',
+      bgColor: 'bg-green-100',
+      message: 'Within acceptable range (±1%)'
+    };
+  } else if (absDifference <= 2) {
+    return { 
+      level: 'warning', 
+      color: 'text-yellow-600',
+      bgColor: 'bg-yellow-100',
+      message: 'Minor variance (±1-2%)'
+    };
+  } else {
+    return { 
+      level: 'critical', 
+      color: 'text-red-600',
+      bgColor: 'bg-red-100',
+      message: 'Significant variance (>±2%)'
+    };
+  }
 };
 
 // Helper to get status details based on status and date
@@ -187,6 +223,34 @@ const ReconcileIcon = () => (
   </svg>
 );
 
+// Component for chart icon
+const ChartIcon = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+    <path d="M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5zM8 7a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1 1H9a1 1 0 01-1-1V7zM14 4a1 1 0 011-1h2a1 1 0 011 1v12a1 1 0 01-1 1h-2a1 1 0 01-1-1V4z" />
+  </svg>
+);
+
+// Component for calendar icon
+const CalendarIcon = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+    <path fillRule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clipRule="evenodd" />
+  </svg>
+);
+
+// Format input value with commas and decimal points
+const formatInputValue = (value) => {
+  if (!value) return '';
+  
+  // Remove non-numeric characters except decimal point
+  const numericValue = value.replace(/[^0-9.]/g, '');
+  
+  // Format with commas and decimal points
+  const parts = numericValue.split('.');
+  parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  
+  return parts.join('.');
+};
+
 const AccountReconciliation = () => {
   const [accounts, setAccounts] = useState(MOCK_ACCOUNTS);
   const [selectedAccount, setSelectedAccount] = useState(null);
@@ -200,6 +264,7 @@ const AccountReconciliation = () => {
   // New state for position inputs
   const [positionInputs, setPositionInputs] = useState({});
   const [accountInputs, setAccountInputs] = useState({});
+  const [formattedInputs, setFormattedInputs] = useState({});
 
   // Simulating API fetch
   useEffect(() => {
@@ -211,6 +276,7 @@ const AccountReconciliation = () => {
       // Initialize position inputs with current values
       const initialPositionInputs = {};
       const initialAccountInputs = {};
+      const initialFormattedInputs = {};
       
       accounts.forEach(account => {
         // Account inputs
@@ -218,19 +284,110 @@ const AccountReconciliation = () => {
           balance: account.currentValue,
         };
         
+        initialFormattedInputs[`account_${account.id}`] = formatCurrency(account.currentValue).replace('$', '');
+        
         // Position inputs
         account.positions.forEach(position => {
           initialPositionInputs[position.id] = {
             shares: position.shares,
             value: position.currentValue
           };
+          
+          initialFormattedInputs[`position_shares_${position.id}`] = formatNumber(position.shares);
+          initialFormattedInputs[`position_value_${position.id}`] = formatCurrency(position.currentValue).replace('$', '');
         });
       });
       
       setPositionInputs(initialPositionInputs);
       setAccountInputs(initialAccountInputs);
+      setFormattedInputs(initialFormattedInputs);
     }, 800);
   }, []);
+
+  // Calculate reconciliation dashboard metrics
+  const calculateDashboardMetrics = () => {
+    // Initialize counters
+    let totalAccounts = accounts.length;
+    let totalPositions = 0;
+    let reconciledAccounts = 0;
+    let reconciledPositions = 0;
+    let totalNestEggValue = 0;
+    let totalReconciledValue = 0;
+    let accountsReconciledLast30Days = 0;
+    let accountsReconciledLast90Days = 0;
+    let accountsRequiringReconciliation = 0;
+    
+    // Account status counts
+    let accountStatusCounts = {
+      reconciled: 0,
+      needsReview: 0,
+      outOfDate: 0
+    };
+    
+    // Position status counts
+    let positionStatusCounts = {
+      reconciled: 0,
+      needsReview: 0,
+      outOfDate: 0
+    };
+    
+    // Process accounts
+    accounts.forEach(account => {
+      totalNestEggValue += account.currentValue;
+      
+      // Check reconciliation status
+      if (account.currentStatus === 'reconciled') {
+        reconciledAccounts++;
+        totalReconciledValue += account.currentValue;
+      }
+      
+      // Count by status
+      accountStatusCounts[account.currentStatus]++;
+      
+      // Check reconciliation age
+      const days = daysSinceLastReconciled(account.lastReconciledDate);
+      if (days <= 30) {
+        accountsReconciledLast30Days++;
+      }
+      if (days <= 90) {
+        accountsReconciledLast90Days++;
+      }
+      if (days > 30) {
+        accountsRequiringReconciliation++;
+      }
+      
+      // Process positions
+      account.positions.forEach(position => {
+        totalPositions++;
+        
+        if (position.status === 'reconciled') {
+          reconciledPositions++;
+        }
+        
+        // Count by status
+        positionStatusCounts[position.status]++;
+      });
+    });
+    
+    return {
+      totalAccounts,
+      totalPositions,
+      reconciledAccounts,
+      reconciledPositions,
+      totalNestEggValue,
+      totalReconciledValue,
+      accountsReconciledLast30Days,
+      accountsReconciledLast90Days,
+      accountsRequiringReconciliation,
+      accountStatusCounts,
+      positionStatusCounts,
+      reconciledAccountPercentage: (reconciledAccounts / totalAccounts) * 100,
+      reconciledPositionPercentage: (reconciledPositions / totalPositions) * 100,
+      reconciledValuePercentage: (totalReconciledValue / totalNestEggValue) * 100
+    };
+  };
+
+  const dashboardMetrics = calculateDashboardMetrics();
 
   const handleAccountExpand = (accountId) => {
     if (expandedAccount === accountId) {
@@ -260,27 +417,39 @@ const AccountReconciliation = () => {
 
   // Handle changes to account level balance input
   const handleAccountInputChange = (accountId, value) => {
-    // Allow only numbers and decimal point
-    const cleanValue = value.replace(/[^0-9.]/g, '');
+    // Store raw numeric value
+    const numericValue = value.replace(/[^0-9.]/g, '');
     setAccountInputs({
       ...accountInputs,
       [accountId]: {
         ...accountInputs[accountId],
-        balance: cleanValue
+        balance: numericValue
       }
+    });
+    
+    // Store formatted value for display
+    setFormattedInputs({
+      ...formattedInputs,
+      [`account_${accountId}`]: formatInputValue(value)
     });
   };
 
   // Handle changes to position level inputs
   const handlePositionInputChange = (positionId, field, value) => {
-    // Allow only numbers and decimal point
-    const cleanValue = value.replace(/[^0-9.]/g, '');
+    // Store raw numeric value
+    const numericValue = value.replace(/[^0-9.]/g, '');
     setPositionInputs({
       ...positionInputs,
       [positionId]: {
         ...positionInputs[positionId],
-        [field]: cleanValue
+        [field]: numericValue
       }
+    });
+    
+    // Store formatted value for display
+    setFormattedInputs({
+      ...formattedInputs,
+      [`position_${field}_${positionId}`]: formatInputValue(value)
     });
   };
 
@@ -500,6 +669,153 @@ const AccountReconciliation = () => {
     return { shareDiff, valueDiff, valuePercentDiff };
   };
 
+  // Render the reconciliation dashboard
+  const renderDashboard = () => {
+    const metrics = dashboardMetrics;
+    
+    // Calculate percentage-based widths for progress bars
+    const reconciledAccountsWidth = `${metrics.reconciledAccountPercentage}%`;
+    const reconciledPositionsWidth = `${metrics.reconciledPositionPercentage}%`;
+    const reconciledValueWidth = `${metrics.reconciledValuePercentage}%`;
+    
+    return (
+      <div className="bg-white rounded-lg shadow-sm overflow-hidden mb-8">
+        <div className="px-6 py-5 border-b border-gray-200">
+          <div className="flex items-center">
+            <ChartIcon />
+            <h2 className="ml-2 text-lg font-medium text-gray-900">Reconciliation Dashboard</h2>
+          </div>
+        </div>
+        
+        <div className="px-6 py-5">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {/* Summary Stats */}
+            <div className="bg-gray-50 rounded-lg p-4">
+              <h3 className="text-sm font-medium text-gray-700 mb-3">Portfolio Summary</h3>
+              
+              <div className="space-y-3">
+                <div>
+                  <div className="flex justify-between mb-1">
+                    <span className="text-xs text-gray-500">Total NestEgg Value</span>
+                    <span className="text-xs font-medium">{formatCurrency(metrics.totalNestEggValue)}</span>
+                  </div>
+                  <div className="w-full bg-gray-200 rounded-full h-2">
+                    <div className="bg-blue-600 h-2 rounded-full" style={{ width: '100%' }}></div>
+                  </div>
+                </div>
+                
+                <div>
+                  <div className="flex justify-between mb-1">
+                    <span className="text-xs text-gray-500">Reconciled Value</span>
+                    <span className="text-xs font-medium">{formatCurrency(metrics.totalReconciledValue)} ({metrics.reconciledValuePercentage.toFixed(1)}%)</span>
+                  </div>
+                  <div className="w-full bg-gray-200 rounded-full h-2">
+                    <div className="bg-green-500 h-2 rounded-full" style={{ width: reconciledValueWidth }}></div>
+                  </div>
+                </div>
+                
+                <div className="pt-2 grid grid-cols-2 gap-3">
+                  <div className="bg-white rounded p-2 border border-gray-200">
+                    <div className="text-sm font-medium text-gray-900">{metrics.totalAccounts}</div>
+                    <div className="text-xs text-gray-500">Total Accounts</div>
+                  </div>
+                  <div className="bg-white rounded p-2 border border-gray-200">
+                    <div className="text-sm font-medium text-gray-900">{metrics.totalPositions}</div>
+                    <div className="text-xs text-gray-500">Total Positions</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            {/* Reconciliation Progress */}
+            <div className="bg-gray-50 rounded-lg p-4">
+              <h3 className="text-sm font-medium text-gray-700 mb-3">Reconciliation Progress</h3>
+              
+              <div className="space-y-4">
+                <div>
+                  <div className="flex justify-between mb-1">
+                    <span className="text-xs text-gray-500">Accounts Reconciled</span>
+                    <span className="text-xs font-medium">{metrics.reconciledAccounts} of {metrics.totalAccounts} ({metrics.reconciledAccountPercentage.toFixed(1)}%)</span>
+                  </div>
+                  <div className="w-full bg-gray-200 rounded-full h-2">
+                    <div className="bg-green-500 h-2 rounded-full" style={{ width: reconciledAccountsWidth }}></div>
+                  </div>
+                </div>
+                
+                <div>
+                  <div className="flex justify-between mb-1">
+                    <span className="text-xs text-gray-500">Positions Reconciled</span>
+                    <span className="text-xs font-medium">{metrics.reconciledPositions} of {metrics.totalPositions} ({metrics.reconciledPositionPercentage.toFixed(1)}%)</span>
+                  </div>
+                  <div className="w-full bg-gray-200 rounded-full h-2">
+                    <div className="bg-green-500 h-2 rounded-full" style={{ width: reconciledPositionsWidth }}></div>
+                  </div>
+                </div>
+                
+                <div className="bg-white rounded p-3 border border-gray-200">
+                  <div className="grid grid-cols-3 gap-2">
+                    <div className="text-center">
+                      <div className="text-xs font-medium text-gray-900">{metrics.accountStatusCounts.reconciled}</div>
+                      <div className="text-xs px-1.5 py-0.5 bg-green-100 text-green-800 rounded-full mx-auto w-min whitespace-nowrap">Reconciled</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-xs font-medium text-gray-900">{metrics.accountStatusCounts.needsReview}</div>
+                      <div className="text-xs px-1.5 py-0.5 bg-yellow-100 text-yellow-800 rounded-full mx-auto w-min whitespace-nowrap">Needs Review</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-xs font-medium text-gray-900">{metrics.accountStatusCounts.outOfDate}</div>
+                      <div className="text-xs px-1.5 py-0.5 bg-red-100 text-red-800 rounded-full mx-auto w-min whitespace-nowrap">Out of Date</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            {/* Reconciliation Timeline */}
+            <div className="bg-gray-50 rounded-lg p-4">
+              <h3 className="text-sm font-medium text-gray-700 mb-3">Reconciliation Timeline</h3>
+              
+              <div className="space-y-3">
+                <div className="flex items-center justify-between p-2 bg-white border border-gray-200 rounded">
+                  <div className="flex items-center">
+                    <CalendarIcon className="text-green-600" />
+                    <span className="ml-2 text-sm text-gray-900">Last 30 Days</span>
+                  </div>
+                  <span className="text-sm font-medium">{metrics.accountsReconciledLast30Days} Accounts</span>
+                </div>
+                
+                <div className="flex items-center justify-between p-2 bg-white border border-gray-200 rounded">
+                  <div className="flex items-center">
+                    <CalendarIcon className="text-blue-600" />
+                    <span className="ml-2 text-sm text-gray-900">Last 90 Days</span>
+                  </div>
+                  <span className="text-sm font-medium">{metrics.accountsReconciledLast90Days} Accounts</span>
+                </div>
+                
+                <div className="flex items-center p-3 bg-yellow-50 border border-yellow-200 rounded">
+                  <div className="flex-1">
+                    <div className="flex items-center">
+                      <div className="mr-2">
+                        <StatusIcon status="needsReview" />
+                      </div>
+                      <div>
+                        <h4 className="text-sm font-medium text-gray-900">Reconciliation Due</h4>
+                        <p className="text-xs text-gray-500">Accounts not reconciled in 30+ days</p>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="text-xl font-bold text-yellow-600">
+                    {metrics.accountsRequiringReconciliation}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <Head>
@@ -578,6 +894,9 @@ const AccountReconciliation = () => {
         </div>
       )}
 
+      {/* Reconciliation Dashboard */}
+      {renderDashboard()}
+
       {loading && (
         <div className="flex justify-center my-8">
           <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-blue-500"></div>
@@ -622,10 +941,9 @@ const AccountReconciliation = () => {
           // Calculate account differences
           const { difference: accountDifference, percentDifference: accountPercentDifference } = 
             calculateAccountDifference(account);
-            
-          const isDifferencePositive = accountDifference > 0;
-          const differenceColor = accountDifference === 0 ? 'text-gray-900' : 
-                                 isDifferencePositive ? 'text-green-600' : 'text-red-600';
+          
+          // Get variance level based on percentage difference
+          const varianceLevel = getVarianceLevel(accountPercentDifference);
           
           return (
             <div 
@@ -670,18 +988,22 @@ const AccountReconciliation = () => {
                           type="text"
                           id={`account-balance-${account.id}`}
                           className="focus:ring-blue-500 focus:border-blue-500 block w-full pl-7 pr-12 sm:text-sm border-gray-300 rounded-md"
-                          value={accountInputs[account.id]?.balance || ''}
+                          value={formattedInputs[`account_${account.id}`] || ''}
                           onChange={(e) => handleAccountInputChange(account.id, e.target.value)}
                         />
                       </div>
                       
-                      {/* Difference display */}
-                      <div className="flex justify-between mt-1 text-xs">
-                        <span className={differenceColor}>
-                          {accountDifference === 0 ? 'No difference' : 
-                           `${formatCurrency(accountDifference)} (${formatPercentage(accountPercentDifference)})`}
-                        </span>
-                      </div>
+                      {/* Difference display with conditional formatting */}
+                      {accountDifference !== 0 && (
+                        <div className="flex mt-1">
+                          <span className={`text-xs ${varianceLevel.color}`}>
+                            {formatCurrency(accountDifference)} ({formatPercentage(accountPercentDifference)})
+                          </span>
+                          <span className="ml-1 text-xs text-gray-500">
+                            • {varianceLevel.message}
+                          </span>
+                        </div>
+                      )}
                     </div>
                   </div>
                   
@@ -792,13 +1114,9 @@ const AccountReconciliation = () => {
                                 valuePercentDiff 
                               } = calculatePositionDifference(position);
                               
-                              const isShareDiffPositive = shareDiff > 0;
-                              const isValueDiffPositive = valueDiff > 0;
-                              
-                              const shareDiffColor = shareDiff === 0 ? 'text-gray-900' : 
-                                                   isShareDiffPositive ? 'text-green-600' : 'text-red-600';
-                              const valueDiffColor = valueDiff === 0 ? 'text-gray-900' : 
-                                                   isValueDiffPositive ? 'text-green-600' : 'text-red-600';
+                              // Get variance level based on percentage difference for shares and value
+                              const shareVarianceLevel = getVarianceLevel(shareDiff / position.shares * 100);
+                              const valueVarianceLevel = getVarianceLevel(valuePercentDiff);
                               
                               return (
                                 <tr 
@@ -809,20 +1127,22 @@ const AccountReconciliation = () => {
                                     {position.name}
                                   </td>
                                   <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-500 text-right">
-                                    {position.shares.toFixed(2)}
+                                    {formatNumber(position.shares)}
                                   </td>
                                   <td className="px-4 py-2 whitespace-nowrap text-right">
                                     <input
                                       type="text"
                                       className="border-gray-300 focus:ring-blue-500 focus:border-blue-500 block w-full px-2 py-1 sm:text-sm rounded-md text-right"
-                                      value={positionInputs[position.id]?.shares || ''}
+                                      value={formattedInputs[`position_shares_${position.id}`] || ''}
                                       onChange={(e) => handlePositionInputChange(position.id, 'shares', e.target.value)}
                                     />
                                   </td>
                                   <td className="px-4 py-2 whitespace-nowrap text-sm text-right">
-                                    <span className={shareDiffColor}>
-                                      {shareDiff === 0 ? '0.00' : shareDiff.toFixed(2)}
-                                    </span>
+                                    {shareDiff !== 0 && (
+                                      <span className={shareVarianceLevel.color} title={shareVarianceLevel.message}>
+                                        {formatNumber(shareDiff)}
+                                      </span>
+                                    )}
                                   </td>
                                   <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-900 font-medium text-right">
                                     {formatCurrency(position.currentValue)}
@@ -835,16 +1155,22 @@ const AccountReconciliation = () => {
                                       <input
                                         type="text"
                                         className="border-gray-300 focus:ring-blue-500 focus:border-blue-500 block w-full pl-6 py-1 sm:text-sm rounded-md text-right"
-                                        value={positionInputs[position.id]?.value || ''}
+                                        value={formattedInputs[`position_value_${position.id}`] || ''}
                                         onChange={(e) => handlePositionInputChange(position.id, 'value', e.target.value)}
                                       />
                                     </div>
                                   </td>
                                   <td className="px-4 py-2 whitespace-nowrap text-sm text-right">
-                                    <span className={valueDiffColor}>
-                                      {valueDiff === 0 ? '0.00' : 
-                                       `${formatCurrency(valueDiff)} (${valuePercentDiff.toFixed(2)}%)`}
-                                    </span>
+                                    {valueDiff !== 0 && (
+                                      <div>
+                                        <span className={valueVarianceLevel.color} title={valueVarianceLevel.message}>
+                                          {formatCurrency(valueDiff)} 
+                                        </span>
+                                        <div className="text-xs text-gray-500">
+                                          {valuePercentDiff.toFixed(2)}%
+                                        </div>
+                                      </div>
+                                    )}
                                   </td>
                                   <td className="px-4 py-2 whitespace-nowrap">
                                     <span 
@@ -957,6 +1283,8 @@ const AccountReconciliation = () => {
                               const difference = parsedBalance - selectedAccount.currentValue;
                               const percentDifference = (Math.abs(difference) / selectedAccount.currentValue) * 100;
                               
+                              // Get variance level based on percentage difference
+                              const varLevel = getVarianceLevel(percentDifference);
                               const isWithinTolerance = percentDifference <= 0.1;
                               
                               return (
@@ -966,7 +1294,7 @@ const AccountReconciliation = () => {
                                       <p className="text-xs text-gray-500">
                                         Difference
                                       </p>
-                                      <p className={`text-sm font-medium ${difference === 0 ? 'text-green-600' : 'text-yellow-600'}`}>
+                                      <p className={`text-sm font-medium ${varLevel.color}`}>
                                         {formatCurrency(difference)}
                                       </p>
                                     </div>
@@ -974,7 +1302,7 @@ const AccountReconciliation = () => {
                                       <p className="text-xs text-gray-500">
                                         % Difference
                                       </p>
-                                      <p className={`text-sm font-medium ${isWithinTolerance ? 'text-green-600' : 'text-yellow-600'}`}>
+                                      <p className={`text-sm font-medium ${varLevel.color}`}>
                                         {percentDifference.toFixed(2)}%
                                       </p>
                                     </div>
@@ -982,17 +1310,20 @@ const AccountReconciliation = () => {
                                       <p className="text-xs text-gray-500">
                                         Status
                                       </p>
-                                      <p className={`text-sm font-medium ${isWithinTolerance ? 'text-green-600' : 'text-yellow-600'}`}>
+                                      <p className={`text-sm font-medium ${varLevel.color}`}>
                                         {isWithinTolerance ? 'Will reconcile' : 'Review needed'}
                                       </p>
                                     </div>
                                   </div>
                                   
-                                  {!isWithinTolerance && (
-                                    <p className="text-xs text-yellow-700 mt-3">
-                                      Difference exceeds 0.1% threshold. After updating, you may need to review individual positions.
-                                    </p>
-                                  )}
+                                  <div className="mt-3 px-3 py-2 rounded-md bg-white border border-gray-200">
+                                    <div className="flex items-center">
+                                      <div className={`w-2 h-2 rounded-full ${varLevel.bgColor} mr-2`}></div>
+                                      <p className="text-xs text-gray-600">
+                                        {varLevel.message} {!isWithinTolerance && '• Position-level review may be needed'}
+                                      </p>
+                                    </div>
+                                  </div>
                                 </>
                               );
                             } catch (e) {
