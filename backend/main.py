@@ -1281,6 +1281,26 @@ async def get_accounts(current_user: dict = Depends(get_current_user)):
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Failed to fetch accounts: {str(e)}")
 
+@app.get("/accounts/enriched")
+async def get_enriched_accounts(current_user: dict = Depends(get_current_user)):
+    try:
+        # Simple query to get all columns from enriched_accounts for the current user
+        query = """
+            SELECT * FROM enriched_accounts 
+            WHERE user_id = :user_id
+        """
+        params = {"user_id": current_user["id"]}
+        
+        result = await database.fetch_all(query=query, values=params)
+        
+        # Convert SQLAlchemy rows to dicts
+        accounts_list = [dict(row) for row in result]
+        
+        return {"accounts": accounts_list}
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
+                            detail=f"Failed to fetch enriched account data: {str(e)}")
+
 @app.get("/accounts/all/detailed", response_model=AccountsDetailedResponse)
 async def get_all_detailed_accounts(current_user: dict = Depends(get_current_user)):
     """
@@ -5072,231 +5092,8 @@ async def delete_metal_position(position_id: int, current_user: dict = Depends(g
 
 
 #----RECONCILIATION WORKFLOW FOR ACCOUNTS
-@app.post("/accounts/reconcile", status_code=status.HTTP_201_CREATED)
-async def reconcile_account(
-    reconciliation_data: ReconciliationRequest,
-    current_user: dict = Depends(get_current_user)
-):
-    """
-    Save account reconciliation data and update account reconciliation status.
-    """
-    try:
-        # Verify the account belongs to the user
-        account_query = accounts.select().where(
-            (accounts.c.id == reconciliation_data.account_id) & 
-            (accounts.c.user_id == current_user["id"])
-        )
-        account = await database.fetch_one(account_query)
-        
-        if not account:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Account not found or access denied"
-            )
-        
-        # Start a transaction
-        transaction = await database.transaction()
-        
-        try:
-            # Insert account reconciliation record
-            account_recon_query = account_reconciliations.insert().values(
-                account_id=reconciliation_data.account_id,
-                user_id=current_user["id"],
-                reconciliation_date=reconciliation_data.reconciliation_date,
-                app_balance=reconciliation_data.account_level.app_balance,
-                actual_balance=reconciliation_data.account_level.actual_balance,
-                variance=reconciliation_data.account_level.variance,
-                variance_percent=reconciliation_data.account_level.variance_percent,
-                is_reconciled=reconciliation_data.account_level.is_reconciled,
-                created_at=datetime.utcnow()
-            )
-            
-            account_recon_id = await database.execute(account_recon_query)
-            
-            # Insert position reconciliation records
-            for position in reconciliation_data.positions:
-                # Calculate variances
-                quantity_variance = position.actual_quantity - position.app_quantity
-                quantity_variance_percent = (quantity_variance / position.app_quantity * 100) if position.app_quantity != 0 else 0
-                
-                value_variance = position.actual_value - position.app_value
-                value_variance_percent = (value_variance / position.app_value * 100) if position.app_value != 0 else 0
-                
-                position_recon_query = position_reconciliations.insert().values(
-                    account_reconciliation_id=account_recon_id,
-                    position_id=position.position_id,
-                    asset_type=position.asset_type,
-                    app_quantity=position.app_quantity,
-                    app_value=position.app_value,
-                    actual_quantity=position.actual_quantity,
-                    actual_value=position.actual_value,
-                    quantity_variance=quantity_variance,
-                    quantity_variance_percent=quantity_variance_percent,
-                    value_variance=value_variance,
-                    value_variance_percent=value_variance_percent,
-                    is_quantity_reconciled=position.is_quantity_reconciled,
-                    is_value_reconciled=position.is_value_reconciled,
-                    created_at=datetime.utcnow()
-                )
-                
-                await database.execute(position_recon_query)
-            
-            # Update account with last reconciliation date and status
-            # (Add these columns to your accounts table if not already present)
-            update_account_query = """
-            ALTER TABLE accounts 
-            ADD COLUMN IF NOT EXISTS last_reconciled TIMESTAMP,
-            ADD COLUMN IF NOT EXISTS reconciliation_status VARCHAR(50);
-            """
-            await database.execute(update_account_query)
-            
-            # Update the account with reconciliation info
-            update_query = accounts.update().where(
-                accounts.c.id == reconciliation_data.account_id
-            ).values(
-                last_reconciled=datetime.utcnow(),
-                reconciliation_status='Reconciled' if reconciliation_data.account_level.is_reconciled else 'Not Reconciled'
-            )
-            
-            await database.execute(update_query)
-            
-            # Commit the transaction
-            await transaction.commit()
-            
-            return {
-                "message": "Account reconciliation saved successfully",
-                "account_id": reconciliation_data.account_id,
-                "reconciliation_date": reconciliation_data.reconciliation_date
-            }
-            
-        except Exception as e:
-            # Rollback the transaction in case of error
-            await transaction.rollback()
-            raise e
-            
-    except Exception as e:
-        logger.error(f"Error during account reconciliation: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to save reconciliation: {str(e)}"
-        )
 
-# reconciliation status
-@app.get("/accounts/reconciliation-status")
-async def get_reconciliation_status(current_user: dict = Depends(get_current_user)):
-    """
-    Get reconciliation status for all user accounts.
-    """
-    try:
-        # Fetch all user accounts with reconciliation status
-        query = """
-        SELECT 
-            a.id, 
-            a.account_name, 
-            a.last_reconciled, 
-            a.reconciliation_status
-        FROM 
-            accounts a
-        WHERE 
-            a.user_id = :user_id
-        ORDER BY 
-            a.account_name
-        """
-        
-        results = await database.fetch_all(
-            query=query,
-            values={"user_id": current_user["id"]}
-        )
-        
-        return {
-            "accounts": [dict(row) for row in results]
-        }
-    except Exception as e:
-        logger.error(f"Error fetching reconciliation status: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to fetch reconciliation status: {str(e)}"
-        )
 
-# reconciliation history
-@app.get("/accounts/{account_id}/reconciliation-history")
-async def get_reconciliation_history(
-    account_id: int,
-    current_user: dict = Depends(get_current_user)
-):
-    """
-    Get reconciliation history for a specific account.
-    """
-    try:
-        # Verify the account belongs to the user
-        account_query = accounts.select().where(
-            (accounts.c.id == account_id) & 
-            (accounts.c.user_id == current_user["id"])
-        )
-        account = await database.fetch_one(account_query)
-        
-        if not account:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Account not found or access denied"
-            )
-        
-        # Fetch reconciliation history
-        query = """
-        SELECT 
-            ar.id, 
-            ar.reconciliation_date, 
-            ar.app_balance, 
-            ar.actual_balance, 
-            ar.variance, 
-            ar.variance_percent, 
-            ar.is_reconciled,
-            ar.created_at,
-            (SELECT COUNT(*) FROM position_reconciliations pr WHERE pr.account_reconciliation_id = ar.id) as positions_count
-        FROM 
-            account_reconciliations ar
-        WHERE 
-            ar.account_id = :account_id AND
-            ar.user_id = :user_id
-        ORDER BY 
-            ar.reconciliation_date DESC
-        LIMIT 10
-        """
-        
-        results = await database.fetch_all(
-            query=query,
-            values={
-                "account_id": account_id,
-                "user_id": current_user["id"]
-            }
-        )
-        
-        # Format the results
-        history = []
-        for row in results:
-            history.append({
-                "id": row["id"],
-                "reconciliation_date": row["reconciliation_date"].isoformat() if row["reconciliation_date"] else None,
-                "app_balance": row["app_balance"],
-                "actual_balance": row["actual_balance"],
-                "variance": row["variance"],
-                "variance_percent": row["variance_percent"],
-                "is_reconciled": row["is_reconciled"],
-                "created_at": row["created_at"].isoformat() if row["created_at"] else None,
-                "positions_count": row["positions_count"]
-            })
-        
-        return {
-            "account_id": account_id,
-            "account_name": account["account_name"],
-            "reconciliation_history": history
-        }
-    except Exception as e:
-        logger.error(f"Error fetching reconciliation history: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to fetch reconciliation history: {str(e)}"
-        )
 
 
 @app.get("/market/security-statistics")
