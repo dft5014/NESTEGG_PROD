@@ -125,20 +125,24 @@ const Sidebar = () => {
 
 
             <Link href="/Accounts" className={menuItemClasses(isActive('/todo'))}>
-              <CheckSquare size={24} className={iconClasses} />
-              {!sidebarCollapsed && <span>Account Reconciliations</span>}
+              <Home size={24} className={iconClasses} />
+              {!sidebarCollapsed && <span>Accounts</span>}
             </Link>
 
             <Link href="/Positions" className={menuItemClasses(isActive('/todo'))}>
-              <CheckSquare size={24} className={iconClasses} />
-              {!sidebarCollapsed && <span>Account Reconciliations</span>}
+              <Home size={24} className={iconClasses} />
+              {!sidebarCollapsed && <span>Positions</span>}
             </Link>
 
             <Link href="/Reports" className={menuItemClasses(isActive('/todo'))}>
-              <CheckSquare size={24} className={iconClasses} />
-              {!sidebarCollapsed && <span>Account Reconciliations</span>}
+              <Home size={24} className={iconClasses} />
+              {!sidebarCollapsed && <span>Reports</span>}
             </Link>                        
 
+            <Link href="/AccountReconciliation" className={menuItemClasses(isActive('/todo'))}>
+              <CheckSquare size={24} className={iconClasses} />
+              {!sidebarCollapsed && <span>Account Reconciliations</span>}
+            </Link>      
 
             <Link href="/todo" className={menuItemClasses(isActive('/todo'))}>
               <CheckSquare size={24} className={iconClasses} />
