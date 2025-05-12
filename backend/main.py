@@ -540,23 +540,46 @@ class MetalPositionDetail(BaseModel):
 class MetalPositionsDetailedResponse(BaseModel):
     metal_positions: List[MetalPositionDetail]
 
-class RealEstatePositionDetail(BaseModel):
-    id: int
+class RealEstatePositionCreate(BaseModel):
     account_id: int
-    address: Optional[str] = None # Example field
-    property_type: Optional[str] = None # Example field (e.g., Residential, Commercial)
-    purchase_price: Optional[float] = None
-    estimated_value: Optional[float] = None # Current estimated market value
-    purchase_date: Optional[date] = None
-    created_at: Optional[datetime] = None
-    updated_at: Optional[datetime] = None
-    # Added fields
-    account_name: str
-    gain_loss: Optional[float] = None # Calculated
-    gain_loss_percent: Optional[float] = None # Calculated
+    property_name: Optional[str] = None
+    address: str
+    city: str
+    state: str
+    zip_code: str
+    property_type: str  # residential, commercial, industrial, land, etc.
+    purchase_price: float
+    current_value: float
+    purchase_date: Optional[str] = None  # Format: YYYY-MM-DD
+    square_footage: Optional[int] = None
+    bedrooms: Optional[float] = None
+    bathrooms: Optional[float] = None
+    lot_size_sqft: Optional[int] = None
+    year_built: Optional[int] = None
+    property_taxes: Optional[float] = None
+    zillow_id: Optional[str] = None
+    last_zestimate_date: Optional[str] = None
+    notes: Optional[str] = None
 
-class RealEstatePositionsDetailedResponse(BaseModel):
-    real_estate_positions: List[RealEstatePositionDetail]
+class RealEstatePositionUpdate(BaseModel):
+    property_name: Optional[str] = None
+    address: Optional[str] = None
+    city: Optional[str] = None
+    state: Optional[str] = None
+    zip_code: Optional[str] = None
+    property_type: Optional[str] = None
+    purchase_price: Optional[float] = None
+    current_value: Optional[float] = None
+    purchase_date: Optional[str] = None
+    square_footage: Optional[int] = None
+    bedrooms: Optional[float] = None
+    bathrooms: Optional[float] = None
+    lot_size_sqft: Optional[int] = None
+    year_built: Optional[int] = None
+    property_taxes: Optional[float] = None
+    zillow_id: Optional[str] = None
+    last_zestimate_date: Optional[str] = None
+    notes: Optional[str] = None
 
 class PortfolioAssetSummary(BaseModel):
     asset_type: str
@@ -4505,15 +4528,6 @@ async def add_cash_position(account_id: int, position: CashPositionCreate, curre
         result = await database.fetch_one(query=query, values=values)
         position_id = result["id"]
         
-        # Update account balance if needed
-        update_query = accounts.update().where(
-            accounts.c.id == account_id
-        ).values(
-            balance=account["balance"] + position.amount,
-            updated_at=datetime.utcnow()
-        )
-        await database.execute(update_query)
-        
         return {
             "message": "Cash position added successfully",
             "position_id": position_id,
@@ -4537,11 +4551,6 @@ async def update_cash_position(position_id: int, position: CashPositionUpdate, c
         
         if not position_data or position_data["user_id"] != current_user["id"]:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Position not found or access denied")
-        
-        # Calculate old and new values for account balance update
-        old_value = position_data["amount"]
-        new_value = position.amount if position.amount is not None else old_value
-        value_difference = new_value - old_value
         
         # Build update dictionary with only provided fields
         update_values = {}
@@ -4568,19 +4577,6 @@ async def update_cash_position(position_id: int, position: CashPositionUpdate, c
             
             await database.execute(query=query, values=update_values)
             
-            # Update account balance if amount changed
-            if value_difference != 0:
-                account_id = position_data["account_id"]
-                account_balance = position_data["balance"]
-                
-                update_account_query = accounts.update().where(
-                    accounts.c.id == account_id
-                ).values(
-                    balance=account_balance + value_difference,
-                    updated_at=datetime.utcnow()
-                )
-                await database.execute(update_account_query)
-        
         return {"message": "Cash position updated successfully"}
     except Exception as e:
         logger.error(f"Error updating cash position: {str(e)}")
@@ -4591,7 +4587,7 @@ async def delete_cash_position(position_id: int, current_user: dict = Depends(ge
     try:
         # Get position and check if it belongs to the user
         check_query = """
-        SELECT cp.*, a.user_id, a.balance, a.id as account_id
+        SELECT cp.*, a.user_id, a.id as account_id
         FROM cash_positions cp
         JOIN accounts a ON cp.account_id = a.id
         WHERE cp.id = :position_id
@@ -4601,31 +4597,20 @@ async def delete_cash_position(position_id: int, current_user: dict = Depends(ge
         if not position_data or position_data["user_id"] != current_user["id"]:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Position not found or access denied")
         
-        # Calculate value for account balance adjustment
-        position_value = position_data["amount"]
-        
         # Delete the position
         delete_query = """
         DELETE FROM cash_positions WHERE id = :position_id
         """
         await database.execute(query=delete_query, values={"position_id": position_id})
         
-        # Update account balance
-        account_id = position_data["account_id"]
-        account_balance = position_data["balance"]
-        
-        update_account_query = accounts.update().where(
-            accounts.c.id == account_id
-        ).values(
-            balance=account_balance - position_value,
-            updated_at=datetime.utcnow()
-        )
-        await database.execute(update_account_query)
+        # Account balance updates are now handled by enriched_accounts table
+        # No need to update account balance here
         
         return {"message": "Cash position deleted successfully"}
     except Exception as e:
         logger.error(f"Error deleting cash position: {str(e)}")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Failed to delete cash position: {str(e)}")
+
 
 # ----- Cryptocurrency Endpoints -----
 @app.get("/crypto/{account_id}")
@@ -4717,15 +4702,7 @@ async def add_crypto_position(account_id: int, position: CryptoPositionCreate, c
         result = await database.fetch_one(query=query, values=values)
         position_id = result["id"]
         
-        # Update account balance (optional, if you track balances per account)
         position_value = position.quantity * position.current_price
-        update_query = accounts.update().where(
-            accounts.c.id == account_id
-        ).values(
-            balance=account["balance"] + position_value,
-            updated_at=datetime.utcnow()
-        )
-        await database.execute(update_query)
         
         return {
             "message": "Crypto position added successfully",
@@ -4742,7 +4719,7 @@ async def update_crypto_position(position_id: int, position: CryptoPositionUpdat
     try:
         # Get position and check if it belongs to the user
         check_query = """
-        SELECT cp.*, a.user_id, a.balance, a.id as account_id
+        SELECT cp.*, a.user_id, a.id as account_id
         FROM crypto_positions cp
         JOIN accounts a ON cp.account_id = a.id
         WHERE cp.id = :position_id
@@ -4751,11 +4728,6 @@ async def update_crypto_position(position_id: int, position: CryptoPositionUpdat
         
         if not position_data or position_data["user_id"] != current_user["id"]:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Position not found or access denied")
-        
-        # Calculate old and new values for account balance update
-        old_value = position_data["quantity"] * position_data["current_price"]
-        new_value = (position.quantity or position_data["quantity"]) * (position.current_price or position_data["current_price"])
-        value_difference = new_value - old_value
         
         # Build update dictionary with only provided fields
         update_values = {}
@@ -4783,18 +4755,8 @@ async def update_crypto_position(position_id: int, position: CryptoPositionUpdat
             
             await database.execute(query=query, values=update_values)
             
-            # Update account balance (optional)
-            if value_difference != 0:
-                account_id = position_data["account_id"]
-                account_balance = position_data["balance"]
-                
-                update_account_query = accounts.update().where(
-                    accounts.c.id == account_id
-                ).values(
-                    balance=account_balance + value_difference,
-                    updated_at=datetime.utcnow()
-                )
-                await database.execute(update_account_query)
+            # Account balance updates are now handled by enriched_accounts table
+            # No need to update account balance here
         
         return {"message": "Crypto position updated successfully"}
     except Exception as e:
@@ -4807,7 +4769,7 @@ async def delete_crypto_position(position_id: int, current_user: dict = Depends(
     try:
         # Get position and check if it belongs to the user
         check_query = """
-        SELECT cp.*, a.user_id, a.balance, a.id as account_id
+        SELECT cp.*, a.user_id, a.id as account_id
         FROM crypto_positions cp
         JOIN accounts a ON cp.account_id = a.id
         WHERE cp.id = :position_id
@@ -4817,26 +4779,14 @@ async def delete_crypto_position(position_id: int, current_user: dict = Depends(
         if not position_data or position_data["user_id"] != current_user["id"]:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Position not found or access denied")
         
-        # Calculate value for account balance adjustment
-        position_value = position_data["quantity"] * position_data["current_price"]
-        
         # Delete the position
         delete_query = """
         DELETE FROM crypto_positions WHERE id = :position_id
         """
         await database.execute(query=delete_query, values={"position_id": position_id})
         
-        # Update account balance (optional)
-        account_id = position_data["account_id"]
-        account_balance = position_data["balance"]
-        
-        update_account_query = accounts.update().where(
-            accounts.c.id == account_id
-        ).values(
-            balance=account_balance - position_value,
-            updated_at=datetime.utcnow()
-        )
-        await database.execute(update_account_query)
+        # Account balance updates are now handled by enriched_accounts table
+        # No need to update account balance here
         
         return {"message": "Crypto position deleted successfully"}
     except Exception as e:
@@ -4937,17 +4887,11 @@ async def add_metal_position(account_id: int, position: MetalPositionCreate, cur
         result = await database.fetch_one(query=query, values=values)
         position_id = result["id"]
         
-        # Calculate position value
+        # Calculate position value for response
         position_value = position.quantity * position.purchase_price
         
-        # Update account balance (optional)
-        update_query = accounts.update().where(
-            accounts.c.id == account_id
-        ).values(
-            balance=account["balance"] + position_value,
-            updated_at=datetime.utcnow()
-        )
-        await database.execute(update_query)
+        # Account balance updates are now handled by enriched_accounts table
+        # No need to update account balance here
         
         return {
             "message": "Metal position added successfully",
@@ -4964,7 +4908,7 @@ async def update_metal_position(position_id: int, position: MetalPositionUpdate,
     try:
         # Get position and check if it belongs to the user
         check_query = """
-        SELECT mp.*, a.user_id, a.balance, a.id as account_id
+        SELECT mp.*, a.user_id, a.id as account_id
         FROM metal_positions mp
         JOIN accounts a ON mp.account_id = a.id
         WHERE mp.id = :position_id
@@ -4973,13 +4917,6 @@ async def update_metal_position(position_id: int, position: MetalPositionUpdate,
         
         if not position_data or position_data["user_id"] != current_user["id"]:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Position not found or access denied")
-        
-        # Calculate old and new values for account balance update
-        old_value = position_data["quantity"] * position_data["purchase_price"]
-        new_purchase_price = position.purchase_price if position.purchase_price is not None else position_data["purchase_price"]
-        new_quantity = position.quantity if position.quantity is not None else position_data["quantity"]
-        new_value = new_quantity * new_purchase_price
-        value_difference = new_value - old_value
         
         # Build update dictionary with only provided fields
         update_values = {}
@@ -5005,18 +4942,8 @@ async def update_metal_position(position_id: int, position: MetalPositionUpdate,
             
             await database.execute(query=query, values=update_values)
             
-            # Update account balance (optional)
-            if value_difference != 0:
-                account_id = position_data["account_id"]
-                account_balance = position_data["balance"]
-                
-                update_account_query = accounts.update().where(
-                    accounts.c.id == account_id
-                ).values(
-                    balance=account_balance + value_difference,
-                    updated_at=datetime.utcnow()
-                )
-                await database.execute(update_account_query)
+            # Account balance updates are now handled by enriched_accounts table
+            # No need to update account balance here
         
         return {"message": "Metal position updated successfully"}
     except Exception as e:
@@ -5029,7 +4956,7 @@ async def delete_metal_position(position_id: int, current_user: dict = Depends(g
     try:
         # Get position and check if it belongs to the user
         check_query = """
-        SELECT mp.*, a.user_id, a.balance, a.id as account_id
+        SELECT mp.*, a.user_id, a.id as account_id
         FROM metal_positions mp
         JOIN accounts a ON mp.account_id = a.id
         WHERE mp.id = :position_id
@@ -5039,31 +4966,236 @@ async def delete_metal_position(position_id: int, current_user: dict = Depends(g
         if not position_data or position_data["user_id"] != current_user["id"]:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Position not found or access denied")
         
-        # Calculate value for account balance adjustment
-        position_value = position_data["quantity"] * position_data["purchase_price"]
-        
         # Delete the position
         delete_query = """
         DELETE FROM metal_positions WHERE id = :position_id
         """
         await database.execute(query=delete_query, values={"position_id": position_id})
         
-        # Update account balance (optional)
-        account_id = position_data["account_id"]
-        account_balance = position_data["balance"]
-        
-        update_account_query = accounts.update().where(
-            accounts.c.id == account_id
-        ).values(
-            balance=account_balance - position_value,
-            updated_at=datetime.utcnow()
-        )
-        await database.execute(update_account_query)
+        # Account balance updates are now handled by enriched_accounts table
+        # No need to update account balance here
         
         return {"message": "Metal position deleted successfully"}
     except Exception as e:
         logger.error(f"Error deleting metal position: {str(e)}")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Failed to delete metal position: {str(e)}")
+
+# ---- Real Estate Endpoints ------ 
+@app.get("/realestate/{account_id}")
+async def get_real_estate_positions(account_id: int, current_user: dict = Depends(get_current_user)):
+    """Get all real estate positions for a specific account"""
+    try:
+        # Check if the account belongs to the user
+        account_query = accounts.select().where(
+            (accounts.c.id == account_id) & 
+            (accounts.c.user_id == current_user["id"])
+        )
+        account = await database.fetch_one(account_query)
+        
+        if not account:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Account not found or access denied")
+        
+        # Get real estate positions for the account
+        query = """
+        SELECT * FROM real_estate_positions 
+        WHERE account_id = :account_id
+        ORDER BY property_name ASC, address ASC
+        """
+        result = await database.fetch_all(query=query, values={"account_id": account_id})
+        
+        real_estate_positions = [dict(row) for row in result]
+        
+        # Calculate additional values and format dates
+        for position in real_estate_positions:
+            # Calculate gain/loss and percentages
+            position["gain_loss"] = position["current_value"] - position["purchase_price"]
+            position["gain_loss_percent"] = ((position["current_value"] / position["purchase_price"]) - 1) * 100 if position["purchase_price"] > 0 else 0
+            
+            # Calculate annual return (annualized) if purchase date is available
+            if position.get("purchase_date"):
+                purchase_date = position["purchase_date"]
+                if isinstance(purchase_date, str):
+                    purchase_date = datetime.strptime(purchase_date, "%Y-%m-%d").date()
+                
+                days_owned = (datetime.now().date() - purchase_date).days
+                years_owned = days_owned / 365.25  # Account for leap years
+                
+                if years_owned > 0:
+                    # Calculate annualized return
+                    annualized_return = ((position["current_value"] / position["purchase_price"]) ** (1 / years_owned)) - 1
+                    position["annualized_return_percent"] = annualized_return * 100
+                else:
+                    position["annualized_return_percent"] = 0
+            else:
+                position["annualized_return_percent"] = 0
+            
+            # Format dates as ISO strings
+            if "purchase_date" in position and position["purchase_date"]:
+                position["purchase_date"] = position["purchase_date"].isoformat() if hasattr(position["purchase_date"], "isoformat") else position["purchase_date"]
+            
+            if "last_zestimate_date" in position and position["last_zestimate_date"]:
+                position["last_zestimate_date"] = position["last_zestimate_date"].isoformat() if hasattr(position["last_zestimate_date"], "isoformat") else position["last_zestimate_date"]
+                
+            if "created_at" in position and position["created_at"]:
+                position["created_at"] = position["created_at"].isoformat() if hasattr(position["created_at"], "isoformat") else position["created_at"]
+                
+            if "updated_at" in position and position["updated_at"]:
+                position["updated_at"] = position["updated_at"].isoformat() if hasattr(position["updated_at"], "isoformat") else position["updated_at"]
+                
+        return {"real_estate_positions": real_estate_positions}
+    except Exception as e:
+        logger.error(f"Error fetching real estate positions: {str(e)}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Failed to fetch real estate positions: {str(e)}")
+
+@app.post("/realestate/{account_id}", status_code=status.HTTP_201_CREATED)
+async def add_real_estate_position(account_id: int, position: RealEstatePositionCreate, current_user: dict = Depends(get_current_user)):
+    """Add a new real estate position to an account"""
+    try:
+        # Check if the account belongs to the user
+        account_query = accounts.select().where(
+            (accounts.c.id == account_id) & 
+            (accounts.c.user_id == current_user["id"])
+        )
+        account = await database.fetch_one(account_query)
+        
+        if not account:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Account not found or access denied")
+        
+        # Add real estate position
+        query = """
+        INSERT INTO real_estate_positions (
+            account_id, property_name, address, city, state, zip_code,
+            property_type, purchase_price, current_value, purchase_date, 
+            square_footage, bedrooms, bathrooms, lot_size_sqft, 
+            year_built, property_taxes, zillow_id, last_zestimate_date, notes
+        ) VALUES (
+            :account_id, :property_name, :address, :city, :state, :zip_code,
+            :property_type, :purchase_price, :current_value, :purchase_date, 
+            :square_footage, :bedrooms, :bathrooms, :lot_size_sqft, 
+            :year_built, :property_taxes, :zillow_id, :last_zestimate_date, :notes
+        ) RETURNING id
+        """
+        values = {
+            "account_id": account_id,
+            "property_name": position.property_name,
+            "address": position.address,
+            "city": position.city,
+            "state": position.state,
+            "zip_code": position.zip_code,
+            "property_type": position.property_type,
+            "purchase_price": position.purchase_price,
+            "current_value": position.current_value,
+            "purchase_date": datetime.strptime(position.purchase_date, "%Y-%m-%d").date() if position.purchase_date else None,
+            "square_footage": position.square_footage,
+            "bedrooms": position.bedrooms,
+            "bathrooms": position.bathrooms,
+            "lot_size_sqft": position.lot_size_sqft,
+            "year_built": position.year_built,
+            "property_taxes": position.property_taxes,
+            "zillow_id": position.zillow_id,
+            "last_zestimate_date": datetime.strptime(position.last_zestimate_date, "%Y-%m-%d").date() if position.last_zestimate_date else None,
+            "notes": position.notes
+        }
+        
+        result = await database.fetch_one(query=query, values=values)
+        position_id = result["id"]
+        
+        # Calculate position value for response
+        position_value = position.current_value
+        
+        # Account balance updates are now handled by enriched_accounts table
+        # No need to update account balance here
+        
+        return {
+            "message": "Real estate position added successfully",
+            "position_id": position_id,
+            "position_value": position_value
+        }
+    except Exception as e:
+        logger.error(f"Error adding real estate position: {str(e)}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Failed to add real estate position: {str(e)}")
+
+@app.put("/realestate/{position_id}")
+async def update_real_estate_position(position_id: int, position: RealEstatePositionUpdate, current_user: dict = Depends(get_current_user)):
+    """Update an existing real estate position"""
+    try:
+        # Get position and check if it belongs to the user
+        check_query = """
+        SELECT rep.*, a.user_id, a.id as account_id
+        FROM real_estate_positions rep
+        JOIN accounts a ON rep.account_id = a.id
+        WHERE rep.id = :position_id
+        """
+        position_data = await database.fetch_one(query=check_query, values={"position_id": position_id})
+        
+        if not position_data or position_data["user_id"] != current_user["id"]:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Position not found or access denied")
+        
+        # Build update dictionary with only provided fields
+        update_values = {}
+        for key, value in position.dict(exclude_unset=True).items():
+            if key == 'purchase_date' and value is not None:
+                update_values[key] = datetime.strptime(value, "%Y-%m-%d").date()
+            elif key == 'last_zestimate_date' and value is not None:
+                update_values[key] = datetime.strptime(value, "%Y-%m-%d").date()
+            else:
+                update_values[key] = value
+        
+        # Only update if there are values to update
+        if update_values:
+            # Construct dynamic query with only the fields that need updating
+            set_clause = ", ".join([f"{key} = :{key}" for key in update_values.keys()])
+            query = f"""
+            UPDATE real_estate_positions 
+            SET {set_clause}, updated_at = :updated_at
+            WHERE id = :position_id
+            RETURNING id
+            """
+            
+            # Add position_id and timestamp to values
+            update_values["position_id"] = position_id
+            update_values["updated_at"] = datetime.utcnow()
+            
+            await database.execute(query=query, values=update_values)
+            
+            # Account balance updates are now handled by enriched_accounts table
+            # No need to update account balance here
+        
+        return {"message": "Real estate position updated successfully"}
+    except Exception as e:
+        logger.error(f"Error updating real estate position: {str(e)}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Failed to update real estate position: {str(e)}")
+
+@app.delete("/realestate/{position_id}")
+async def delete_real_estate_position(position_id: int, current_user: dict = Depends(get_current_user)):
+    """Delete a real estate position"""
+    try:
+        # Get position and check if it belongs to the user
+        check_query = """
+        SELECT rep.*, a.user_id, a.id as account_id
+        FROM real_estate_positions rep
+        JOIN accounts a ON rep.account_id = a.id
+        WHERE rep.id = :position_id
+        """
+        position_data = await database.fetch_one(query=check_query, values={"position_id": position_id})
+        
+        if not position_data or position_data["user_id"] != current_user["id"]:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Position not found or access denied")
+        
+        # Delete the position
+        delete_query = """
+        DELETE FROM real_estate_positions WHERE id = :position_id
+        """
+        await database.execute(query=delete_query, values={"position_id": position_id})
+        
+        # Account balance updates are now handled by enriched_accounts table
+        # No need to update account balance here
+        
+        return {"message": "Real estate position deleted successfully"}
+    except Exception as e:
+        logger.error(f"Error deleting real estate position: {str(e)}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Failed to delete real estate position: {str(e)}")
+
 
 
 #----RECONCILIATION WORKFLOW FOR ACCOUNTS
