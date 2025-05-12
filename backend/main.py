@@ -1981,7 +1981,6 @@ async def get_all_detailed_realestate_positions(current_user: dict = Depends(get
             detail=f"Failed to fetch detailed real estate positions: {str(e)}"
         )
 
-
 @app.get("/cash/all/detailed", response_model=CashPositionsDetailedResponse)
 async def get_all_detailed_cash_positions(current_user: dict = Depends(get_current_user)):
     try:
@@ -4611,7 +4610,6 @@ async def delete_cash_position(position_id: int, current_user: dict = Depends(ge
         logger.error(f"Error deleting cash position: {str(e)}")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Failed to delete cash position: {str(e)}")
 
-
 # ----- Cryptocurrency Endpoints -----
 @app.get("/crypto/{account_id}")
 async def get_crypto_positions(account_id: int, current_user: dict = Depends(get_current_user)):
@@ -5363,7 +5361,6 @@ async def get_security_statistics():
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to generate security statistics: {str(e)}"
         )
-
 
 @app.get("/portfolio/snapshots")
 async def get_portfolio_snapshots(

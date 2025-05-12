@@ -93,79 +93,51 @@ const Sidebar = () => {
                 {sidebarCollapsed ? <ChevronRight size={24} /> : <ChevronLeft size={24} />}
               </button>
               
-              {/* Toggle for child components - only visible in expanded mode */}
-              {!sidebarCollapsed && (
-                <button 
-                  onClick={() => setPortfolioCollapsed(!portfolioCollapsed)}
-                  className="p-2 text-gray-300 hover:text-white"
-                  aria-label={portfolioCollapsed ? "Expand portfolio components" : "Collapse portfolio components"}
-                >
-                  {portfolioCollapsed ? <ChevronDown size={20} /> : <ChevronUp size={20} />}
-                </button>
-              )}
+ 
             </div>
 
             {/* Portfolio Child Pages - always visible, styled based on sidebar state */}
             {/* Show expanded list if sidebar is expanded and portfolio is not collapsed */}
             {(!sidebarCollapsed && !portfolioCollapsed) && (
               <div className="pl-4 space-y-1">
-                {/* Investment Securities */}
-                <Link href="/investment-securities" className={menuItemClasses(isActive('/investment-securities'))}>
+
+                <Link href="/accounts" className={menuItemClasses(isActive('/investment-securities'))}>
                   <TrendingUp size={24} className={iconClasses} />
-                  <span>Securities</span>
+                  <span>Accounts</span>
                 </Link>
 
-                {/* Real Estate */}
-                <Link href="/real-estate" className={menuItemClasses(isActive('/real-estate'))}>
+                <Link href="/Positions" className={menuItemClasses(isActive('/real-estate'))}>
                   <Home size={24} className={iconClasses} />
-                  <span>Real Estate</span>
+                  <span>Positions</span>
                 </Link>
 
-                {/* Metals */}
-                <Link href="/metals" className={menuItemClasses(isActive('/metals'))}>
+                <Link href="/Reports" className={menuItemClasses(isActive('/metals'))}>
                   <Coins size={24} className={iconClasses} />
-                  <span>Metals</span>
+                  <span>Reports</span>
                 </Link>
 
-                {/* Crypto */}
-                <Link href="/crypto" className={menuItemClasses(isActive('/crypto'))}>
-                  <Bitcoin size={24} className={iconClasses} />
-                  <span>Crypto</span>
-                </Link>
               </div>
             )}
 
-            {/* Show icons-only list if sidebar is collapsed */}
-            {sidebarCollapsed && (
-              <div className="space-y-1">
-                {/* Investment Securities */}
-                <Link href="/investment-securities" className={menuItemClasses(isActive('/investment-securities'))}>
-                  <TrendingUp size={24} className={iconClasses} />
-                </Link>
-
-                {/* Real Estate */}
-                <Link href="/real-estate2" className={menuItemClasses(isActive('/real-estate'))}>
-                  <Home size={24} className={iconClasses} />
-                </Link>
-
-                {/* Metals */}
-                <Link href="/metals2" className={menuItemClasses(isActive('/metals'))}>
-                  <Coins size={24} className={iconClasses} />
-                </Link>
-
-                {/* Crypto */}
-                <Link href="/crypto2" className={menuItemClasses(isActive('/crypto'))}>
-                  <Bitcoin size={24} className={iconClasses} />
-                </Link>
-              </div>
-            )}
 
             {/* Other Navigation Items */}
 
-            <Link href="/AccountReconciliation" className={menuItemClasses(isActive('/todo'))}>
+
+
+            <Link href="/Accounts" className={menuItemClasses(isActive('/todo'))}>
               <CheckSquare size={24} className={iconClasses} />
               {!sidebarCollapsed && <span>Account Reconciliations</span>}
             </Link>
+
+            <Link href="/Positions" className={menuItemClasses(isActive('/todo'))}>
+              <CheckSquare size={24} className={iconClasses} />
+              {!sidebarCollapsed && <span>Account Reconciliations</span>}
+            </Link>
+
+            <Link href="/Reports" className={menuItemClasses(isActive('/todo'))}>
+              <CheckSquare size={24} className={iconClasses} />
+              {!sidebarCollapsed && <span>Account Reconciliations</span>}
+            </Link>                        
 
 
             <Link href="/todo" className={menuItemClasses(isActive('/todo'))}>
