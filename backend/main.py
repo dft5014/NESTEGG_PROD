@@ -4340,15 +4340,8 @@ async def add_position(
         )
         position_id = await database.execute(query)
         
-        # Update account balance
+        # Calculate position value (but don't update account balance)
         position_value = position.shares * position.price
-        update_query = accounts.update().where(
-            accounts.c.id == account_id
-        ).values(
-            balance=account["balance"] + position_value,
-            updated_at=datetime.utcnow()
-        )
-        await database.execute(update_query)
         
         return {
             "message": "Position added successfully", 
@@ -4371,11 +4364,6 @@ async def update_position(position_id: int, position: PositionCreate, current_us
         if not position_data or position_data["user_id"] != current_user["id"]:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Position not found or access denied")
         
-        # Calculate old and new values for account balance
-        old_value = position_data["shares"] * position_data["price"]
-        new_value = position.shares * position.price
-        value_difference = new_value - old_value
-        
         # Update position
         update_query = positions.update().where(
             positions.c.id == position_id
@@ -4389,20 +4377,17 @@ async def update_position(position_id: int, position: PositionCreate, current_us
         )
         await database.execute(update_query)
         
-        # Update account balance
-        account_id = position_data["account_id"]
-        account_query = accounts.select().where(accounts.c.id == account_id)
-        account = await database.fetch_one(account_query)
+        # Calculate old and new values for informational purposes only
+        old_value = position_data["shares"] * position_data["price"]
+        new_value = position.shares * position.price
+        value_difference = new_value - old_value
         
-        update_account_query = accounts.update().where(
-            accounts.c.id == account_id
-        ).values(
-            balance=account["balance"] + value_difference,
-            updated_at=datetime.utcnow()
-        )
-        await database.execute(update_account_query)
-        
-        return {"message": "Position updated successfully"}
+        return {
+            "message": "Position updated successfully",
+            "previous_value": old_value,
+            "new_value": new_value,
+            "value_change": value_difference
+        }
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Server error: {str(e)}")
 
@@ -4419,30 +4404,20 @@ async def delete_position(position_id: int, current_user: dict = Depends(get_cur
         if not position_data or position_data["user_id"] != current_user["id"]:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Position not found or access denied")
         
-        # Calculate value for account balance adjustment
+        # Calculate value for informational purposes
         position_value = position_data["shares"] * position_data["price"]
         
         # Delete position
         delete_query = positions.delete().where(positions.c.id == position_id)
         await database.execute(delete_query)
         
-        # Update account balance
-        account_id = position_data["account_id"]
-        account_query = accounts.select().where(accounts.c.id == account_id)
-        account = await database.fetch_one(account_query)
-        
-        update_account_query = accounts.update().where(
-            accounts.c.id == account_id
-        ).values(
-            balance=account["balance"] - position_value,
-            updated_at=datetime.utcnow()
-        )
-        await database.execute(update_account_query)
-        
-        return {"message": "Position deleted successfully"}
+        return {
+            "message": "Position deleted successfully",
+            "removed_value": position_value
+        }
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Server error: {str(e)}")
-
+        
 # Cash positions
 @app.get("/cash/{account_id}")
 async def get_cash_positions(account_id: int, current_user: dict = Depends(get_current_user)):
