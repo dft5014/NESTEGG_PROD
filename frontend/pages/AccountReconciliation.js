@@ -3,7 +3,8 @@ import React, { useState, useEffect } from 'react';
 import { fetchWithAuth } from '../utils/api';
 import Head from 'next/head';
 import AddPositionButton from '@/components/AddPositionButton'
-import EditPositionButton from '@/components/EditPositionButton';
+import EditPositionButton from '@/components/EditPositionButton'
+
 
 // Helper function to format currency
 const formatCurrency = (amount) => {
