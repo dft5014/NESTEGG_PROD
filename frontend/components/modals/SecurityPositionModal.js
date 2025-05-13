@@ -445,7 +445,7 @@ import {
             <div className="flex justify-between items-center mb-2">
               <div className="flex items-center">
                 <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-800 font-bold">
-                  {selectedSecurity.ticker.charAt(0)}
+                    {selectedSecurity.ticker && selectedSecurity.ticker.charAt(0)}
                 </div>
                 <div className="ml-3">
                   <div className="font-bold text-blue-900">{selectedSecurity.ticker}</div>

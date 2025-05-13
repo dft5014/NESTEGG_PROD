@@ -133,6 +133,11 @@ const AccountReconciliation = () => {
     direction: 'ascending'
   });
 
+  const [accountSortConfig, setAccountSortConfig] = useState({
+  key: 'account_name',
+  direction: 'ascending'
+});
+
   // Load accounts on component mount
   useEffect(() => {
     fetchAccounts();
@@ -660,48 +665,163 @@ const AccountReconciliation = () => {
   };
 
   // Get sorted positions based on current sort configuration
-  const getSortedPositions = (accountId) => {
-    const positionsList = positions[accountId] || [];
-    if (!positionsList.length) return positionsList;
+const getSortedPositions = (accountId) => {
+  const positionsList = positions[accountId] || [];
+  if (!positionsList.length) return positionsList;
 
-    const sortablePositions = [...positionsList];
-    if (sortConfig.key) {
-      sortablePositions.sort((a, b) => {
-        // Handle different data types
-        let valueA, valueB;
-        
-        // Special handling for nested properties or calculated values
-        if (sortConfig.key === 'value') {
+  const sortablePositions = [...positionsList];
+  if (sortConfig.key) {
+    sortablePositions.sort((a, b) => {
+      // Handle different data types
+      let valueA, valueB;
+      
+      // Special handling for nested properties or calculated values
+      switch(sortConfig.key) {
+        case 'current_value':
           valueA = parseFloat(a.current_value) || 0;
           valueB = parseFloat(b.current_value) || 0;
-        } else if (sortConfig.key === 'quantity') {
+          break;
+        case 'quantity':
           valueA = parseFloat(a.quantity) || 0;
           valueB = parseFloat(b.quantity) || 0;
-        } else if (sortConfig.key === 'ticker') {
+          break;
+        case 'identifier':
           valueA = a.identifier || '';
           valueB = b.identifier || '';
-        } else {
+          break;
+        case 'name':
+          valueA = a.name || '';
+          valueB = b.name || '';
+          break;
+        case 'reconciliation_status':
+          valueA = a.reconciliation_status || '';
+          valueB = b.reconciliation_status || '';
+          break;
+        default:
           valueA = a[sortConfig.key] || '';
           valueB = b[sortConfig.key] || '';
-        }
-        
-        // String comparison for strings
-        if (typeof valueA === 'string') {
-          valueA = valueA.toLowerCase();
-          valueB = valueB.toLowerCase();
-        }
-        
-        if (valueA < valueB) {
-          return sortConfig.direction === 'ascending' ? -1 : 1;
-        }
-        if (valueA > valueB) {
-          return sortConfig.direction === 'ascending' ? 1 : -1;
-        }
-        return 0;
-      });
-    }
-    return sortablePositions;
-  };
+      }
+      
+      // String comparison for strings
+      if (typeof valueA === 'string') {
+        valueA = valueA.toLowerCase();
+        valueB = valueB.toLowerCase();
+      }
+      
+      // Debug sorting
+      console.log(`Sorting by ${sortConfig.key}: ${valueA} vs ${valueB}`);
+      
+      if (valueA < valueB) {
+        return sortConfig.direction === 'ascending' ? -1 : 1;
+      }
+      if (valueA > valueB) {
+        return sortConfig.direction === 'ascending' ? 1 : -1;
+      }
+      return 0;
+    });
+  }
+  return sortablePositions;
+};
+
+const getSortedAccounts = () => {
+  if (!accounts.length) return accounts;
+
+  const sortableAccounts = [...accounts];
+  
+  if (accountSortConfig.key) {
+    sortableAccounts.sort((a, b) => {
+      // Handle different data types
+      let valueA, valueB;
+      
+      // Special handling for nested properties or calculated values
+      switch(accountSortConfig.key) {
+        case 'total_value':
+          valueA = parseFloat(a.total_value) || 0;
+          valueB = parseFloat(b.total_value) || 0;
+          break;
+        case 'institution':
+          valueA = a.institution || '';
+          valueB = b.institution || '';
+          break;
+        case 'type':
+          valueA = a.type || '';
+          valueB = b.type || '';
+          break;
+        case 'reconciliation_status':
+          valueA = a.reconciliation_status || '';
+          valueB = b.reconciliation_status || '';
+          break;
+        case 'last_reconciled_date':
+          valueA = a.last_reconciled_date ? new Date(a.last_reconciled_date).getTime() : 0;
+          valueB = b.last_reconciled_date ? new Date(b.last_reconciled_date).getTime() : 0;
+          break;
+        default:
+          valueA = a[accountSortConfig.key] || '';
+          valueB = b[accountSortConfig.key] || '';
+      }
+      
+      // String comparison for strings
+      if (typeof valueA === 'string') {
+        valueA = valueA.toLowerCase();
+        valueB = valueB.toLowerCase();
+      }
+      
+      if (valueA < valueB) {
+        return accountSortConfig.direction === 'ascending' ? -1 : 1;
+      }
+      if (valueA > valueB) {
+        return accountSortConfig.direction === 'ascending' ? 1 : -1;
+      }
+      return 0;
+    });
+  }
+  
+  return sortableAccounts;
+};
+
+const AccountSortDropdown = () => {
+  const sortOptions = [
+    { label: 'Account Name (A-Z)', value: { key: 'account_name', direction: 'ascending' } },
+    { label: 'Account Name (Z-A)', value: { key: 'account_name', direction: 'descending' } },
+    { label: 'Institution (A-Z)', value: { key: 'institution', direction: 'ascending' } },
+    { label: 'Account Type', value: { key: 'type', direction: 'ascending' } },
+    { label: 'Value (High to Low)', value: { key: 'total_value', direction: 'descending' } },
+    { label: 'Value (Low to High)', value: { key: 'total_value', direction: 'ascending' } },
+    { label: 'Reconciliation Status', value: { key: 'reconciliation_status', direction: 'ascending' } },
+    { label: 'Recent Reconciliation', value: { key: 'last_reconciled_date', direction: 'descending' } },
+    { label: 'Oldest Reconciliation', value: { key: 'last_reconciled_date', direction: 'ascending' } },
+  ];
+
+  return (
+    <div className="relative inline-block text-left">
+      <div>
+        <label htmlFor="account-sort" className="sr-only">Sort Accounts</label>
+        <select
+          id="account-sort"
+          className="block w-full pl-3 pr-10 py-2 text-sm border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 rounded-md"
+          value={`${accountSortConfig.key}_${accountSortConfig.direction}`}
+          onChange={(e) => {
+            const selectedOption = sortOptions.find(option => 
+              `${option.value.key}_${option.value.direction}` === e.target.value
+            );
+            if (selectedOption) {
+              setAccountSortConfig(selectedOption.value);
+            }
+          }}
+        >
+          {sortOptions.map(option => (
+            <option 
+              key={`${option.value.key}_${option.value.direction}`}
+              value={`${option.value.key}_${option.value.direction}`}
+            >
+              {option.label}
+            </option>
+          ))}
+        </select>
+      </div>
+    </div>
+  );
+};
 
   // Render the reconciliation dashboard
   const renderDashboard = () => {
@@ -975,15 +1095,22 @@ const AccountReconciliation = () => {
         </div>
       )}
 
-      <div className="mb-4">
+      <div className="flex justify-between items-center mb-4">
         <h2 className="text-gray-600 text-sm font-medium uppercase tracking-wider">
           Your Accounts
         </h2>
+        
+        <div className="flex items-center space-x-2">
+          <div className="text-sm text-gray-500 mr-2">Sort:</div>
+          <AccountSortDropdown />
+        </div>
+        
         <div className="border-t border-gray-200 mt-1"></div>
       </div>
 
+
       <div className="space-y-4">
-        {accounts.map((account) => {
+        {getSortedAccounts().map((account) => {
           // Determine border color based on status
           let borderColor = "border-green-500";
           if (account.reconciliation_status === "Needs Review") {
