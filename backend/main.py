@@ -5422,7 +5422,7 @@ async def reconcile_account(
         query = """
         SELECT COUNT(*) as total_positions 
         FROM positions 
-        WHERE account_id = :account_id AND is_deleted = false
+        WHERE account_id = :account_id
         """
         total_positions_result = await database.fetch_one(
             query=query,
