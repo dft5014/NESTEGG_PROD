@@ -6,6 +6,7 @@ import { fetchWithAuth } from '@/utils/api';
 const DeletePositionButton = ({ 
     position,
     accountId,
+    assetType = "security", // Default to security, but allow override
     onPositionDeleted = () => {},
     className = "",
     buttonContent = null // Allow custom button content
@@ -34,7 +35,26 @@ const DeletePositionButton = ({
         setError(null);
 
         try {
-            const response = await fetchWithAuth(`/positions/${position.id}`, {
+            // Determine the correct endpoint based on the asset type
+            let endpoint;
+            switch (assetType.toLowerCase()) {
+                case 'crypto':
+                    endpoint = `/crypto/${position.id}`;
+                    break;
+                case 'metal':
+                    endpoint = `/metals/${position.id}`;
+                    break;
+                case 'real_estate':
+                    endpoint = `/realestate/${position.id}`;
+                    break;
+                case 'cash':
+                    endpoint = `/cash/${position.id}`;
+                    break;
+                default: // Default to security
+                    endpoint = `/positions/${position.id}`;
+            }
+
+            const response = await fetchWithAuth(endpoint, {
                 method: 'DELETE',
             });
 
@@ -66,6 +86,9 @@ const DeletePositionButton = ({
         </div>
     );
 
+    // Get position name for confirmation message
+    const positionName = position?.name || position?.ticker || position?.symbol || position?.coin_type || 'this position';
+
     return (
         <>
             {/* Delete Button */}
@@ -79,12 +102,12 @@ const DeletePositionButton = ({
 
             {/* Confirmation Modal */}
             {isConfirmOpen && (
-                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-                    <div className="bg-white rounded-lg p-6 max-w-md w-full">
-                        <h3 className="text-lg font-medium text-gray-900 mb-4">
-                            Delete Position
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+                    <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+                        <h3 className="text-lg font-medium text-gray-900 mb-4 break-words">
+                            Delete {positionName}
                         </h3>
-                        <p className="text-sm text-gray-500 mb-6">
+                        <p className="text-sm text-gray-500 mb-6 break-words whitespace-normal">
                             Are you sure you want to delete this position? This action cannot be undone.
                         </p>
                         <div className="flex space-x-2 justify-end">
@@ -109,7 +132,7 @@ const DeletePositionButton = ({
 
             {/* Error Message */}
             {error && (
-                <div className="fixed top-16 left-1/2 transform -translate-x-1/2 p-4 bg-red-100 text-red-700 rounded-lg z-[70]">
+                <div className="fixed top-16 left-1/2 transform -translate-x-1/2 p-4 bg-red-100 text-red-700 rounded-lg z-[70] max-w-md break-words">
                     {error}
                     <button
                         className="ml-4 px-2 py-0.5 bg-red-200 text-red-800 rounded hover:bg-red-300 text-sm"
@@ -122,7 +145,7 @@ const DeletePositionButton = ({
 
             {/* Success Message */}
             {successMessage && (
-                <div className="fixed top-16 left-1/2 transform -translate-x-1/2 p-4 bg-green-100 text-green-700 rounded-lg z-[70]">
+                <div className="fixed top-16 left-1/2 transform -translate-x-1/2 p-4 bg-green-100 text-green-700 rounded-lg z-[70] max-w-md break-words">
                     {successMessage}
                 </div>
             )}

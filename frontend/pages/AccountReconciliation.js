@@ -1354,6 +1354,7 @@ const handleReconcileAllUnreconciled = async () => {
                                           <DeletePositionButton
                                             position={position}
                                             accountId={account.id}
+                                            assetType={position.asset_type || "security"} // Add this line to pass the asset type
                                             onPositionDeleted={() => fetchPositions(account.id)}
                                           />
                                         </div>
