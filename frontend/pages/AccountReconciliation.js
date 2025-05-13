@@ -5,7 +5,7 @@ import Head from 'next/head';
 import AddPositionButton from '@/components/AddPositionButton'
 import EditPositionButton from '@/components/EditPositionButton'
 import DeletePositionButton from '@/components/DeletePositionButton';
-
+import { Menu, ArrowUpDown, CheckCircle, Info, Clock, X, Filter } from 'lucide-react';
 
 // Helper function to format currency
 const formatCurrency = (amount) => {
@@ -96,88 +96,13 @@ const formatInputValue = (value) => {
 // Component for status icon
 const StatusIcon = ({ status }) => {
   if (status === 'Reconciled' || status === 'reconciled') {
-    return (
-      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-green-600" viewBox="0 0 20 20" fill="currentColor">
-        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-      </svg>
-    );
+    return <CheckCircle className="h-5 w-5 text-green-600" />;
   } else if (status === 'Needs Review' || status === 'needsReview') {
-    return (
-      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-yellow-500" viewBox="0 0 20 20" fill="currentColor">
-        <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-      </svg>
-    );
+    return <Info className="h-5 w-5 text-yellow-500" />;
   } else {
-    return (
-      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-red-600" viewBox="0 0 20 20" fill="currentColor">
-        <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-      </svg>
-    );
+    return <X className="h-5 w-5 text-red-600" />;
   }
 };
-
-// Component for help/info icon
-const InfoIcon = () => (
-  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-blue-600" viewBox="0 0 20 20" fill="currentColor">
-    <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
-  </svg>
-);
-
-// Component for clock icon
-const ClockIcon = () => (
-  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-gray-600" viewBox="0 0 20 20" fill="currentColor">
-    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd" />
-  </svg>
-);
-
-// Component for check icon
-const CheckIcon = () => (
-  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-green-600" viewBox="0 0 20 20" fill="currentColor">
-    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-  </svg>
-);
-
-// Component for help icon
-const HelpIcon = () => (
-  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-    <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-8-3a1 1 0 00-.867.5 1 1 0 11-1.731-1A3 3 0 0113 8a3.001 3.001 0 01-2 2.83V11a1 1 0 11-2 0v-1a1 1 0 011-1 1 1 0 100-2zm0 8a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" />
-  </svg>
-);
-
-// Component for down arrow icon
-const DownArrowIcon = () => (
-  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-    <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
-  </svg>
-);
-
-// Component for edit icon
-const EditIcon = () => (
-  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-    <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
-  </svg>
-);
-
-// Component for reconcile icon
-const ReconcileIcon = () => (
-  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-  </svg>
-);
-
-// Component for chart icon
-const ChartIcon = () => (
-  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-    <path d="M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5zM8 7a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1 1H9a1 1 0 01-1-1V7zM14 4a1 1 0 011-1h2a1 1 0 011 1v12a1 1 0 01-1 1h-2a1 1 0 01-1-1V4z" />
-  </svg>
-);
-
-// Component for calendar icon
-const CalendarIcon = () => (
-  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-    <path fillRule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clipRule="evenodd" />
-  </svg>
-);
 
 const AccountReconciliation = () => {
   // State variables for accounts and UI state
@@ -202,8 +127,11 @@ const AccountReconciliation = () => {
   const [enteredBalance, setEnteredBalance] = useState('');
   const dropdownRef = useRef(null);
 
-
-
+  // State for sorting positions
+  const [sortConfig, setSortConfig] = useState({
+    key: 'name',
+    direction: 'ascending'
+  });
 
   // Load accounts on component mount
   useEffect(() => {
@@ -247,21 +175,18 @@ const AccountReconciliation = () => {
     }
   };
 
-
   useEffect(() => {
-  function handleClickOutside(event) {
-    if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
-      setActiveReconcileDropdown(null);
+    function handleClickOutside(event) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setActiveReconcileDropdown(null);
+      }
     }
-  }
-  
-  document.addEventListener("mousedown", handleClickOutside);
-  return () => {
-    document.removeEventListener("mousedown", handleClickOutside);
-  };
-}, []);
-
-
+    
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, []);
 
   // Fetch positions when an account is expanded
   const fetchPositions = async (accountId) => {
@@ -283,11 +208,11 @@ const AccountReconciliation = () => {
       positionsData.forEach(position => {
         if (!newPositionInputs[position.id]) {
           newPositionInputs[position.id] = {
-            shares: parseFloat(position.shares) || 0,
+            shares: parseFloat(position.quantity) || 0,
             value: parseFloat(position.current_value) || 0
           };
           
-          newFormattedInputs[`position_shares_${position.id}`] = formatNumber(parseFloat(position.shares) || 0);
+          newFormattedInputs[`position_shares_${position.id}`] = formatNumber(parseFloat(position.quantity) || 0);
           newFormattedInputs[`position_value_${position.id}`] = formatCurrency(parseFloat(position.current_value) || 0).replace('$', '');
         }
       });
@@ -371,147 +296,83 @@ const AccountReconciliation = () => {
     });
   };
 
-const handleReconcileAccount = async () => {
-  try {
-    setLoading(true);
-    
-    // Get the input values or use the current values if not modified
-    const actualBalance = parseFloat(enteredBalance) || parseFloat(selectedAccount.total_value);
-    
-    // Prepare the data for API call
-    const reconciliationData = {
-      account_id: selectedAccount.id,
-      app_balance: parseFloat(selectedAccount.total_value),
-      actual_balance: actualBalance
-    };
-    
-    // Call the API
-    const response = await fetchWithAuth('/api/reconciliation/account', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(reconciliationData),
-    });
-    
-    if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.detail || `Failed to reconcile account: ${response.status} ${response.statusText}`);
-    }
-    
-    const data = await response.json();
-    
-    // Close the dialog
-    setReconcileDialogOpen(false);
-    
-    // Refresh accounts to get updated status
-    fetchAccounts();
-    
-    setSuccessMessage(`${selectedAccount.account_name} has been reconciled successfully.`);
-    
-    // Clear success message after 5 seconds
-    setTimeout(() => {
-      setSuccessMessage('');
-    }, 5000);
-  } catch (error) {
-    console.error("Error reconciling account:", error);
-    setErrorMessage(`Failed to reconcile account: ${error.message}`);
-    
-    // Clear error message after 5 seconds
-    setTimeout(() => {
-      setErrorMessage('');
-    }, 5000);
-  } finally {
-    setLoading(false);
-    setSelectedAccount(null);
-    setEnteredBalance('');
-  }
-};
-
-const handleReconcilePosition = async (accountId, position, reconcileQuantity = true, reconcileValue = true) => {
-  try {
-    const positionId = position.id;
-    setLoading(true);
-    
-    // Get the input values or use the current values if not modified
-    const actualQuantity = parseFloat(positionInputs[positionId]?.shares || position.shares);
-    const actualValue = parseFloat(positionInputs[positionId]?.value || position.current_value);
-    
-    // Prepare the data for API call
-    const reconciliationData = {
-      position_id: positionId,
-      account_id: accountId,
-      asset_type: position.asset_type || "security", // Default to "security" if not specified
-      app_quantity: parseFloat(position.shares || 0),
-      app_value: parseFloat(position.current_value || 0),
-      actual_quantity: actualQuantity,
-      actual_value: actualValue,
-      reconcile_quantity: reconcileQuantity,
-      reconcile_value: reconcileValue
-    };
-    
-    // Call the API
-    const response = await fetchWithAuth('/api/reconciliation/position', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(reconciliationData),
-    });
-    
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.detail || `Failed to reconcile position: ${response.status}`);
-    }
-    
-    // Update UI to reflect the reconciled status
-    fetchPositions(accountId);
-    
-    let message = "Position has been reconciled successfully.";
-    if (reconcileQuantity && !reconcileValue) {
-      message = "Position quantity has been reconciled successfully.";
-    } else if (!reconcileQuantity && reconcileValue) {
-      message = "Position value has been reconciled successfully.";
-    }
-    
-    setSuccessMessage(message);
-    
-    // Clear success message after 5 seconds
-    setTimeout(() => {
-      setSuccessMessage('');
-    }, 5000);
-  } catch (error) {
-    console.error("Error reconciling position:", error);
-    setErrorMessage(`Failed to reconcile position: ${error.message}`);
-    
-    // Clear error message after 5 seconds
-    setTimeout(() => {
-      setErrorMessage('');
-    }, 5000);
-  } finally {
-    setLoading(false);
-    // Close the dropdown
-    setActiveReconcileDropdown(null);
-  }
-};
-  
-const handleReconcileAllPositions = async (accountId) => {
-  try {
-    setLoading(true);
-    
-    // Get all positions for this account
-    const accountPositions = positions[accountId] || [];
-    
-    // Reconcile each position one by one
-    for (const position of accountPositions) {
+  const handleReconcileAccount = async () => {
+    try {
+      setLoading(true);
+      
+      // Get the input values or use the current values if not modified
+      const actualBalance = parseFloat(enteredBalance) || parseFloat(selectedAccount.total_value);
+      
+      // Prepare the data for API call
       const reconciliationData = {
-        position_id: position.id,
+        account_id: selectedAccount.id,
+        app_balance: parseFloat(selectedAccount.total_value),
+        actual_balance: actualBalance
+      };
+      
+      // Call the API
+      const response = await fetchWithAuth('/api/reconciliation/account', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(reconciliationData),
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || `Failed to reconcile account: ${response.status} ${response.statusText}`);
+      }
+      
+      const data = await response.json();
+      
+      // Close the dialog
+      setReconcileDialogOpen(false);
+      
+      // Refresh accounts to get updated status
+      fetchAccounts();
+      
+      setSuccessMessage(`${selectedAccount.account_name} has been reconciled successfully.`);
+      
+      // Clear success message after 5 seconds
+      setTimeout(() => {
+        setSuccessMessage('');
+      }, 5000);
+    } catch (error) {
+      console.error("Error reconciling account:", error);
+      setErrorMessage(`Failed to reconcile account: ${error.message}`);
+      
+      // Clear error message after 5 seconds
+      setTimeout(() => {
+        setErrorMessage('');
+      }, 5000);
+    } finally {
+      setLoading(false);
+      setSelectedAccount(null);
+      setEnteredBalance('');
+    }
+  };
+
+  const handleReconcilePosition = async (accountId, position, reconcileQuantity = true, reconcileValue = true) => {
+    try {
+      const positionId = position.id;
+      setLoading(true);
+      
+      // Get the input values or use the current values if not modified
+      const actualQuantity = parseFloat(positionInputs[positionId]?.shares || position.quantity);
+      const actualValue = parseFloat(positionInputs[positionId]?.value || position.current_value);
+      
+      // Prepare the data for API call
+      const reconciliationData = {
+        position_id: positionId,
         account_id: accountId,
-        asset_type: position.asset_type || "security",
-        app_quantity: parseFloat(position.shares),
-        app_value: parseFloat(position.current_value),
-        actual_quantity: parseFloat(position.shares), // Using NestEgg values
-        actual_value: parseFloat(position.current_value) // Using NestEgg values
+        asset_type: position.asset_type || "security", // Default to "security" if not specified
+        app_quantity: parseFloat(position.quantity || 0),
+        app_value: parseFloat(position.current_value || 0),
+        actual_quantity: actualQuantity,
+        actual_value: actualValue,
+        reconcile_quantity: reconcileQuantity,
+        reconcile_value: reconcileValue
       };
       
       // Call the API
@@ -524,97 +385,160 @@ const handleReconcileAllPositions = async (accountId) => {
       });
       
       if (!response.ok) {
-        throw new Error(`Failed to reconcile position ${position.id}: ${response.status} ${response.statusText}`);
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.detail || `Failed to reconcile position: ${response.status}`);
       }
+      
+      // Update UI to reflect the reconciled status
+      fetchPositions(accountId);
+      
+      let message = "Position has been reconciled successfully.";
+      if (reconcileQuantity && !reconcileValue) {
+        message = "Position quantity has been reconciled successfully.";
+      } else if (!reconcileQuantity && reconcileValue) {
+        message = "Position value has been reconciled successfully.";
+      }
+      
+      setSuccessMessage(message);
+      
+      // Clear success message after 5 seconds
+      setTimeout(() => {
+        setSuccessMessage('');
+      }, 5000);
+    } catch (error) {
+      console.error("Error reconciling position:", error);
+      setErrorMessage(`Failed to reconcile position: ${error.message}`);
+      
+      // Clear error message after 5 seconds
+      setTimeout(() => {
+        setErrorMessage('');
+      }, 5000);
+    } finally {
+      setLoading(false);
+      // Close the dropdown
+      setActiveReconcileDropdown(null);
     }
-    
-    // Refresh positions to get updated status
-    fetchPositions(accountId);
-    
-    setSuccessMessage(`All positions have been reconciled successfully.`);
-    
-    // Clear success message after 5 seconds
-    setTimeout(() => {
-      setSuccessMessage('');
-    }, 5000);
-  } catch (error) {
-    console.error("Error reconciling all positions:", error);
-    setErrorMessage(`Failed to reconcile all positions: ${error.message}`);
-    
-    // Clear error message after 5 seconds
-    setTimeout(() => {
-      setErrorMessage('');
-    }, 5000);
-  } finally {
-    setLoading(false);
-  }
-};
-
-const handleReconcileAllUnreconciled = async () => {
-  try {
-    setLoading(true);
-    
-    // Process each account
-    for (const account of accounts) {
-      // Fetch positions if we haven't already
-      if (!positions[account.id]) {
-        await fetchPositions(account.id);
+  };
+  
+  const handleReconcileAllPositions = async (accountId) => {
+    try {
+      setLoading(true);
+      
+      // Get all positions for this account
+      const accountPositions = positions[accountId] || [];
+      
+      // Reconcile each position one by one
+      for (const position of accountPositions) {
+        const reconciliationData = {
+          position_id: position.id,
+          account_id: accountId,
+          asset_type: position.asset_type || "security",
+          app_quantity: parseFloat(position.quantity),
+          app_value: parseFloat(position.current_value),
+          actual_quantity: parseFloat(position.quantity), // Using NestEgg values
+          actual_value: parseFloat(position.current_value) // Using NestEgg values
+        };
+        
+        // Call the API
+        const response = await fetchWithAuth('/api/reconciliation/position', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(reconciliationData),
+        });
+        
+        if (!response.ok) {
+          throw new Error(`Failed to reconcile position ${position.id}: ${response.status} ${response.statusText}`);
+        }
       }
       
-      const accountPositions = positions[account.id] || [];
+      // Refresh positions to get updated status
+      fetchPositions(accountId);
       
-      // Reconcile each position
-      for (const position of accountPositions) {
-        // Check if position needs reconciliation
-        if (position.reconciliation_status !== 'Reconciled' && position.reconciliation_status !== 'reconciled') {
-          const reconciliationData = {
-            position_id: position.id,
-            account_id: account.id,
-            asset_type: position.asset_type || "security",
-            app_quantity: parseFloat(position.shares),
-            app_value: parseFloat(position.current_value),
-            actual_quantity: parseFloat(position.shares), // Using NestEgg values
-            actual_value: parseFloat(position.current_value) // Using NestEgg values
-          };
-          
-          // Call the API
-          const response = await fetchWithAuth('/api/reconciliation/position', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(reconciliationData),
-          });
-          
-          if (!response.ok) {
-            throw new Error(`Failed to reconcile position ${position.id}: ${response.status} ${response.statusText}`);
+      setSuccessMessage(`All positions have been reconciled successfully.`);
+      
+      // Clear success message after 5 seconds
+      setTimeout(() => {
+        setSuccessMessage('');
+      }, 5000);
+    } catch (error) {
+      console.error("Error reconciling all positions:", error);
+      setErrorMessage(`Failed to reconcile all positions: ${error.message}`);
+      
+      // Clear error message after 5 seconds
+      setTimeout(() => {
+        setErrorMessage('');
+      }, 5000);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleReconcileAllUnreconciled = async () => {
+    try {
+      setLoading(true);
+      
+      // Process each account
+      for (const account of accounts) {
+        // Fetch positions if we haven't already
+        if (!positions[account.id]) {
+          await fetchPositions(account.id);
+        }
+        
+        const accountPositions = positions[account.id] || [];
+        
+        // Reconcile each position
+        for (const position of accountPositions) {
+          // Check if position needs reconciliation
+          if (position.reconciliation_status !== 'Reconciled' && position.reconciliation_status !== 'reconciled') {
+            const reconciliationData = {
+              position_id: position.id,
+              account_id: account.id,
+              asset_type: position.asset_type || "security",
+              app_quantity: parseFloat(position.quantity),
+              app_value: parseFloat(position.current_value),
+              actual_quantity: parseFloat(position.quantity), // Using NestEgg values
+              actual_value: parseFloat(position.current_value) // Using NestEgg values
+            };
+            
+            // Call the API
+            const response = await fetchWithAuth('/api/reconciliation/position', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify(reconciliationData),
+            });
+            
+            if (!response.ok) {
+              throw new Error(`Failed to reconcile position ${position.id}: ${response.status} ${response.statusText}`);
+            }
           }
         }
       }
+      
+      // Refresh accounts and positions
+      fetchAccounts();
+      
+      setSuccessMessage(`All unreconciled positions have been reconciled successfully.`);
+      
+      // Clear success message after 5 seconds
+      setTimeout(() => {
+        setSuccessMessage('');
+      }, 5000);
+    } catch (error) {
+      console.error("Error reconciling all unreconciled positions:", error);
+      setErrorMessage(`Failed to reconcile all unreconciled positions: ${error.message}`);
+      
+      // Clear error message after 5 seconds
+      setTimeout(() => {
+        setErrorMessage('');
+      }, 5000);
+    } finally {
+      setLoading(false);
     }
-    
-    // Refresh accounts and positions
-    fetchAccounts();
-    
-    setSuccessMessage(`All unreconciled positions have been reconciled successfully.`);
-    
-    // Clear success message after 5 seconds
-    setTimeout(() => {
-      setSuccessMessage('');
-    }, 5000);
-  } catch (error) {
-    console.error("Error reconciling all unreconciled positions:", error);
-    setErrorMessage(`Failed to reconcile all unreconciled positions: ${error.message}`);
-    
-    // Clear error message after 5 seconds
-    setTimeout(() => {
-      setErrorMessage('');
-    }, 5000);
-  } finally {
-    setLoading(false);
-  }
-};
-
+  };
 
   // Calculate difference for account balance input
   const calculateAccountDifference = (account) => {
@@ -635,7 +559,7 @@ const handleReconcileAllUnreconciled = async () => {
     const inputShares = parseFloat(positionInputs[position.id].shares) || 0;
     const inputValue = parseFloat(positionInputs[position.id].value) || 0;
     
-    const positionShares = parseFloat(position.shares) || 0;
+    const positionShares = parseFloat(position.quantity) || 0;
     const positionValue = parseFloat(position.current_value) || 0;
     
     const shareDiff = inputShares - positionShares;
@@ -726,6 +650,59 @@ const handleReconcileAllUnreconciled = async () => {
 
   const dashboardMetrics = calculateDashboardMetrics();
 
+  // Handle sorting for positions table
+  const requestSort = (key) => {
+    let direction = 'ascending';
+    if (sortConfig.key === key && sortConfig.direction === 'ascending') {
+      direction = 'descending';
+    }
+    setSortConfig({ key, direction });
+  };
+
+  // Get sorted positions based on current sort configuration
+  const getSortedPositions = (accountId) => {
+    const positionsList = positions[accountId] || [];
+    if (!positionsList.length) return positionsList;
+
+    const sortablePositions = [...positionsList];
+    if (sortConfig.key) {
+      sortablePositions.sort((a, b) => {
+        // Handle different data types
+        let valueA, valueB;
+        
+        // Special handling for nested properties or calculated values
+        if (sortConfig.key === 'value') {
+          valueA = parseFloat(a.current_value) || 0;
+          valueB = parseFloat(b.current_value) || 0;
+        } else if (sortConfig.key === 'quantity') {
+          valueA = parseFloat(a.quantity) || 0;
+          valueB = parseFloat(b.quantity) || 0;
+        } else if (sortConfig.key === 'ticker') {
+          valueA = a.identifier || '';
+          valueB = b.identifier || '';
+        } else {
+          valueA = a[sortConfig.key] || '';
+          valueB = b[sortConfig.key] || '';
+        }
+        
+        // String comparison for strings
+        if (typeof valueA === 'string') {
+          valueA = valueA.toLowerCase();
+          valueB = valueB.toLowerCase();
+        }
+        
+        if (valueA < valueB) {
+          return sortConfig.direction === 'ascending' ? -1 : 1;
+        }
+        if (valueA > valueB) {
+          return sortConfig.direction === 'ascending' ? 1 : -1;
+        }
+        return 0;
+      });
+    }
+    return sortablePositions;
+  };
+
   // Render the reconciliation dashboard
   const renderDashboard = () => {
     const metrics = dashboardMetrics;
@@ -739,8 +716,12 @@ const handleReconcileAllUnreconciled = async () => {
       <div className="bg-white rounded-lg shadow-sm overflow-hidden mb-8">
         <div className="px-6 py-5 border-b border-gray-200">
           <div className="flex items-center">
-            <ChartIcon />
-            <h2 className="ml-2 text-lg font-medium text-gray-900">Reconciliation Dashboard</h2>
+            <div className="mr-2">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                <path d="M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5zM8 7a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1 1H9a1 1 0 01-1-1V7zM14 4a1 1 0 011-1h2a1 1 0 011 1v12a1 1 0 01-1 1h-2a1 1 0 01-1-1V4z" />
+              </svg>
+            </div>
+            <h2 className="text-lg font-medium text-gray-900">Reconciliation Dashboard</h2>
           </div>
         </div>
         
@@ -835,7 +816,9 @@ const handleReconcileAllUnreconciled = async () => {
               <div className="space-y-3">
                 <div className="flex items-center justify-between p-2 bg-white border border-gray-200 rounded">
                   <div className="flex items-center">
-                    <CalendarIcon className="text-green-600" />
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-green-600" viewBox="0 0 20 20" fill="currentColor">
+                      <path fillRule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clipRule="evenodd" />
+                    </svg>
                     <span className="ml-2 text-sm text-gray-900">Last 30 Days</span>
                   </div>
                   <span className="text-sm font-medium">{metrics.accountsReconciledLast30Days} Accounts</span>
@@ -843,7 +826,9 @@ const handleReconcileAllUnreconciled = async () => {
                 
                 <div className="flex items-center justify-between p-2 bg-white border border-gray-200 rounded">
                   <div className="flex items-center">
-                    <CalendarIcon className="text-blue-600" />
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-blue-600" viewBox="0 0 20 20" fill="currentColor">
+                      <path fillRule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clipRule="evenodd" />
+                    </svg>
                     <span className="ml-2 text-sm text-gray-900">Last 90 Days</span>
                   </div>
                   <span className="text-sm font-medium">{metrics.accountsReconciledLast90Days} Accounts</span>
@@ -890,7 +875,7 @@ const handleReconcileAllUnreconciled = async () => {
             className="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
             onClick={() => setShowTips(!showTips)}
           >
-            <HelpIcon className="mr-2 -ml-1" />
+            <Info className="mr-2 -ml-1 h-5 w-5" />
             {showTips ? 'Hide Tips' : 'Show Tips'}
           </button>
           
@@ -899,9 +884,7 @@ const handleReconcileAllUnreconciled = async () => {
             className="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
             onClick={handleReconcileAllUnreconciled}
           >
-            <span className="mr-2">
-              <CheckIcon />
-            </span>
+            <CheckCircle className="mr-2 h-5 w-5" />
             Reconcile All Positions
           </button>
         </div>
@@ -911,7 +894,7 @@ const handleReconcileAllUnreconciled = async () => {
         <div className="bg-blue-50 border border-blue-200 rounded-md p-6 mb-8">
           <div className="flex">
             <div className="flex-shrink-0">
-              <InfoIcon />
+              <Info className="h-5 w-5 text-blue-600" />
             </div>
             <div className="ml-3">
               <h3 className="text-lg font-medium text-blue-800">
@@ -964,7 +947,7 @@ const handleReconcileAllUnreconciled = async () => {
         <div className="bg-green-50 border border-green-200 rounded-md p-4 mb-6">
           <div className="flex">
             <div className="flex-shrink-0">
-              <CheckIcon />
+              <CheckCircle className="h-5 w-5 text-green-600" />
             </div>
             <div className="ml-3">
               <p className="text-sm text-green-800">
@@ -1061,7 +1044,7 @@ const handleReconcileAllUnreconciled = async () => {
                         <input
                           type="text"
                           id={`account-balance-${account.id}`}
-                          className="focus:ring-blue-500 focus:border-blue-500 block w-full pl-7 pr-12 sm:text-sm border-gray-300 rounded-md"
+                          className="focus:ring-blue-500 focus:border-blue-500 block w-full pl-7 pr-12 sm:text-sm border-gray-300 rounded-md bg-blue-50"
                           value={formattedInputs[`account_${account.id}`] || ''}
                           onChange={(e) => handleAccountInputChange(account.id, e.target.value)}
                         />
@@ -1084,7 +1067,7 @@ const handleReconcileAllUnreconciled = async () => {
                   <div className="md:col-span-2">
                     <div className="flex items-center space-x-2">
                       <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800 border border-gray-300">
-                        <ClockIcon className="mr-1" />
+                        <Clock className="mr-1 h-4 w-4 text-gray-600" />
                         Last: {formatDate(account.last_reconciled_date)}
                       </span>
                       
@@ -1108,7 +1091,7 @@ const handleReconcileAllUnreconciled = async () => {
                       onClick={() => handleAccountExpand(account.id)}
                     >
                       {isExpanded ? 'Hide' : 'View'} Positions
-                      <DownArrowIcon className="ml-1" />
+                      <ArrowUpDown className="ml-1 h-4 w-4" />
                     </button>
                     
                     <button
@@ -1117,9 +1100,7 @@ const handleReconcileAllUnreconciled = async () => {
                       onClick={() => handleOpenReconcileDialog(account)}
                       title="Reconcile account balance and update all positions"
                     >
-                      <span className="mr-1">
-                        <ReconcileIcon />
-                      </span>
+                      <CheckCircle className="mr-1 h-4 w-4" />
                       Reconcile
                     </button>
                   </div>
@@ -1153,7 +1134,7 @@ const handleReconcileAllUnreconciled = async () => {
                             onClick={() => handleReconcileAllPositions(account.id)}
                             disabled={account.reconciliation_status === 'Reconciled'}
                           >
-                            <CheckIcon className="mr-1.5 -ml-0.5" />
+                            <CheckCircle className="mr-1.5 -ml-0.5 h-4 w-4" />
                             Mark All Positions as Reconciled
                           </button>
                         </div>
@@ -1168,11 +1149,35 @@ const handleReconcileAllUnreconciled = async () => {
                           <table className="min-w-full divide-y divide-gray-200">
                             <thead className="bg-gray-50">
                               <tr>
-                                <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                  Position
+                                <th 
+                                  scope="col" 
+                                  className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer"
+                                  onClick={() => requestSort('name')}
+                                >
+                                  <div className="flex items-center">
+                                    Position
+                                    <ArrowUpDown className="ml-1 h-4 w-4" />
+                                  </div>
                                 </th>
-                                <th scope="col" className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                  NestEgg Qty
+                                <th 
+                                  scope="col" 
+                                  className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer"
+                                  onClick={() => requestSort('identifier')}
+                                >
+                                  <div className="flex items-center">
+                                    Ticker
+                                    <ArrowUpDown className="ml-1 h-4 w-4" />
+                                  </div>
+                                </th>
+                                <th 
+                                  scope="col" 
+                                  className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer"
+                                  onClick={() => requestSort('quantity')}
+                                >
+                                  <div className="flex items-center justify-end">
+                                    NestEgg Qty
+                                    <ArrowUpDown className="ml-1 h-4 w-4" />
+                                  </div>
                                 </th>
                                 <th scope="col" className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                                   Statement Qty
@@ -1180,8 +1185,15 @@ const handleReconcileAllUnreconciled = async () => {
                                 <th scope="col" className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                                   Qty Diff
                                 </th>
-                                <th scope="col" className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                  NestEgg Value
+                                <th 
+                                  scope="col" 
+                                  className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer"
+                                  onClick={() => requestSort('current_value')}
+                                >
+                                  <div className="flex items-center justify-end">
+                                    NestEgg Value
+                                    <ArrowUpDown className="ml-1 h-4 w-4" />
+                                  </div>
                                 </th>
                                 <th scope="col" className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                                   Statement Value
@@ -1189,8 +1201,15 @@ const handleReconcileAllUnreconciled = async () => {
                                 <th scope="col" className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                                   Value Diff
                                 </th>
-                                <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                  Status
+                                <th 
+                                  scope="col" 
+                                  className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer"
+                                  onClick={() => requestSort('reconciliation_status')}
+                                >
+                                  <div className="flex items-center">
+                                    Status
+                                    <ArrowUpDown className="ml-1 h-4 w-4" />
+                                  </div>
                                 </th>
                                 <th scope="col" className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider w-28">
                                   Actions
@@ -1198,7 +1217,7 @@ const handleReconcileAllUnreconciled = async () => {
                               </tr>
                             </thead>
                             <tbody className="bg-white divide-y divide-gray-200">
-                              {positions[account.id] && positions[account.id].map((position) => {
+                              {getSortedPositions(account.id).map((position) => {
                                 // Get position status - either from the position or default to account status
                                 const positionStatus = position.reconciliation_status || account.reconciliation_status || "Not Reconciled";
                                 
@@ -1210,7 +1229,7 @@ const handleReconcileAllUnreconciled = async () => {
                                 } = calculatePositionDifference(position);
                                 
                                 // Get variance level based on percentage difference for shares and value
-                                const shareVarianceLevel = getVarianceLevel(shareDiff / (parseFloat(position.shares) || 1) * 100);
+                                const shareVarianceLevel = getVarianceLevel(shareDiff / (parseFloat(position.quantity) || 1) * 100);
                                 const valueVarianceLevel = getVarianceLevel(valuePercentDiff);
                                 
                                 return (
@@ -1219,15 +1238,18 @@ const handleReconcileAllUnreconciled = async () => {
                                     className={positionStatus === 'Reconciled' || positionStatus === 'reconciled' ? 'bg-green-50' : ''}
                                   >
                                     <td className="px-4 py-2 whitespace-nowrap text-sm font-medium text-gray-900">
-                                      {position.name || position.symbol}
+                                      {position.name}
+                                    </td>
+                                    <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-500">
+                                      {position.identifier}
                                     </td>
                                     <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-500 text-right">
-                                      {formatNumber(parseFloat(position.shares) || 0)}
+                                      {formatNumber(parseFloat(position.quantity) || 0)}
                                     </td>
                                     <td className="px-4 py-2 whitespace-nowrap text-right">
                                       <input
                                         type="text"
-                                        className="border-gray-300 focus:ring-blue-500 focus:border-blue-500 block w-full px-2 py-1 sm:text-sm rounded-md text-right"
+                                        className="border-gray-300 focus:ring-blue-500 focus:border-blue-500 block w-full px-2 py-1 sm:text-sm rounded-md text-right bg-blue-50"
                                         value={formattedInputs[`position_shares_${position.id}`] || ''}
                                         onChange={(e) => handlePositionInputChange(position.id, 'shares', e.target.value)}
                                       />
@@ -1249,7 +1271,7 @@ const handleReconcileAllUnreconciled = async () => {
                                         </div>
                                         <input
                                           type="text"
-                                          className="border-gray-300 focus:ring-blue-500 focus:border-blue-500 block w-full pl-6 py-1 sm:text-sm rounded-md text-right"
+                                          className="border-gray-300 focus:ring-blue-500 focus:border-blue-500 block w-full pl-6 py-1 sm:text-sm rounded-md text-right bg-blue-50"
                                           value={formattedInputs[`position_value_${position.id}`] || ''}
                                           onChange={(e) => handlePositionInputChange(position.id, 'value', e.target.value)}
                                         />
@@ -1267,106 +1289,104 @@ const handleReconcileAllUnreconciled = async () => {
                                         </div>
                                       )}
                                     </td>
-
-
-                                      <td className="px-4 py-2 whitespace-nowrap">
-                                        <div className="flex flex-col space-y-1">
-                                          <span 
-                                            className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium 
-                                              ${positionStatus === 'Reconciled' || positionStatus === 'reconciled' ? 'bg-green-100 text-green-800' : 
-                                                positionStatus === 'Needs Review' || positionStatus === 'needsReview' ? 'bg-yellow-100 text-yellow-800' : 
-                                                'bg-red-100 text-red-800'}`}
-                                          >
-                                            <StatusIcon status={positionStatus} />
-                                            <span className="ml-1">{positionStatus}</span>
+                                    <td className="px-4 py-2 whitespace-nowrap">
+                                      <div className="flex flex-col space-y-1">
+                                        <span 
+                                          className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium 
+                                            ${positionStatus === 'Reconciled' || positionStatus === 'reconciled' ? 'bg-green-100 text-green-800' : 
+                                              positionStatus === 'Needs Review' || positionStatus === 'needsReview' ? 'bg-yellow-100 text-yellow-800' : 
+                                              'bg-red-100 text-red-800'}`}
+                                        >
+                                          <StatusIcon status={positionStatus} />
+                                          <span className="ml-1">{positionStatus}</span>
+                                        </span>
+                                        
+                                        {/* Additional indicators for partial reconciliation */}
+                                        {position.is_quantity_reconciled === true && position.is_value_reconciled !== true && (
+                                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                            Qty Only
                                           </span>
+                                        )}
+                                        {position.is_quantity_reconciled !== true && position.is_value_reconciled === true && (
+                                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+                                            Value Only
+                                          </span>
+                                        )}
+                                      </div>
+                                    </td>
+<td className="px-4 py-2 whitespace-nowrap text-sm text-right">
+                                      <div className="flex justify-end space-x-2">
+                                        {/* Edit Position Button */}
+                                        <EditPositionButton
+                                          position={position}
+                                          accountId={account.id}
+                                          accountName={account.account_name}
+                                          assetType={position.asset_type} // Add this line to explicitly pass the asset type
+                                          onPositionEdited={() => fetchPositions(account.id)}
+                                        />
+                                        
+                                        {/* Reconcile Dropdown */}
+                                        <div className="relative inline-block text-left" ref={dropdownRef}>
+                                          <button
+                                            type="button"
+                                            className="inline-flex items-center px-2 py-1 border border-gray-300 shadow-sm text-xs font-medium rounded text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              setActiveReconcileDropdown(
+                                                activeReconcileDropdown === position.id ? null : position.id
+                                              );
+                                            }}
+                                          >
+                                            <CheckCircle className="h-4 w-4 mr-1" />
+                                            <span className="sr-only md:not-sr-only">Reconcile</span>
+                                            <ArrowUpDown className="h-4 w-4 ml-1" />
+                                          </button>
                                           
-                                          {/* Additional indicators for partial reconciliation */}
-                                          {position.is_quantity_reconciled === true && position.is_value_reconciled !== true && (
-                                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                                              Qty Only
-                                            </span>
-                                          )}
-                                          {position.is_quantity_reconciled !== true && position.is_value_reconciled === true && (
-                                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
-                                              Value Only
-                                            </span>
-                                          )}
-                                        </div>
-                                      </td>
-
-                                      <td className="px-4 py-2 whitespace-nowrap text-sm text-right">
-                                        <div className="flex justify-end space-x-2">
-                                          {/* Edit Position Button */}
-                                          <EditPositionButton
-                                            position={position}
-                                            accountId={account.id}
-                                            accountName={account.account_name}
-                                            assetType={position.asset_type} // Add this line to explicitly pass the asset type
-                                            onPositionEdited={() => fetchPositions(account.id)}
-                                          />
-                                          
-                                          {/* Reconcile Dropdown */}
-                                          <div className="relative inline-block text-left" ref={dropdownRef}>
-                                            <button
-                                              type="button"
-                                              className="inline-flex items-center px-2 py-1 border border-gray-300 shadow-sm text-xs font-medium rounded text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-                                              onClick={(e) => {
-                                                e.stopPropagation();
-                                                setActiveReconcileDropdown(
-                                                  activeReconcileDropdown === position.id ? null : position.id
-                                                );
-                                              }}
+                                          {activeReconcileDropdown === position.id && (
+                                            <div 
+                                              className="origin-top-right absolute right-0 mt-2 w-48 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 z-10"
+                                              style={{ position: 'absolute', top: '100%', right: 0 }}
                                             >
-                                              <ReconcileIcon className="h-4 w-4 mr-1" />
-                                              <span className="sr-only md:not-sr-only">Reconcile</span>
-                                              <DownArrowIcon className="h-4 w-4 ml-1" />
-                                            </button>
-                                            
-                                            {activeReconcileDropdown === position.id && (
-                                              <div 
-                                                className="origin-top-right absolute right-0 mt-2 w-48 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 z-10"
-                                              >
-                                                <div className="py-1" role="menu" aria-orientation="vertical">
-                                                  <button
-                                                    className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                                                    onClick={() => handleReconcilePosition(account.id, position, true, true)}
-                                                  >
-                                                    Reconcile Both
-                                                  </button>
-                                                  <button
-                                                    className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                                                    onClick={() => handleReconcilePosition(account.id, position, true, false)}
-                                                  >
-                                                    Reconcile Quantity Only
-                                                  </button>
-                                                  <button
-                                                    className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                                                    onClick={() => handleReconcilePosition(account.id, position, false, true)}
-                                                  >
-                                                    Reconcile Value Only
-                                                  </button>
-                                                </div>
+                                              <div className="py-1" role="menu" aria-orientation="vertical">
+                                                <button
+                                                  className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                                                  onClick={() => handleReconcilePosition(account.id, position, true, true)}
+                                                >
+                                                  Reconcile Both
+                                                </button>
+                                                <button
+                                                  className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                                                  onClick={() => handleReconcilePosition(account.id, position, true, false)}
+                                                >
+                                                  Reconcile Quantity Only
+                                                </button>
+                                                <button
+                                                  className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                                                  onClick={() => handleReconcilePosition(account.id, position, false, true)}
+                                                >
+                                                  Reconcile Value Only
+                                                </button>
                                               </div>
-                                            )}
-                                          </div>
-                                          
-                                          {/* Delete Position Button */}
-                                          <DeletePositionButton
-                                            position={position}
-                                            accountId={account.id}
-                                            assetType={position.asset_type || "security"} // Add this line to pass the asset type
-                                            onPositionDeleted={() => fetchPositions(account.id)}
-                                          />
+                                            </div>
+                                          )}
                                         </div>
-                                      </td>                                      
+                                        
+                                        {/* Delete Position Button */}
+                                        <DeletePositionButton
+                                          position={position}
+                                          accountId={account.id}
+                                          assetType={position.asset_type || "security"} // Add this line to pass the asset type
+                                          onPositionDeleted={() => fetchPositions(account.id)}
+                                        />
+                                      </div>
+                                    </td>
                                   </tr>
                                 );
                               })}
                               
                               {(!positions[account.id] || positions[account.id].length === 0) && (
                                 <tr>
-                                  <td colSpan="9" className="px-4 py-4 text-center text-sm text-gray-500">
+                                  <td colSpan="10" className="px-4 py-4 text-center text-sm text-gray-500">
                                     No positions found for this account.
                                   </td>
                                 </tr>
@@ -1432,7 +1452,7 @@ const handleReconcileAllUnreconciled = async () => {
                               type="text"
                               name="actual-balance"
                               id="actual-balance"
-                              className="focus:ring-blue-500 focus:border-blue-500 block w-full pl-7 pr-12 sm:text-sm border-gray-300 rounded-md"
+                              className="focus:ring-blue-500 focus:border-blue-500 block w-full pl-7 pr-12 sm:text-sm border-gray-300 rounded-md bg-blue-50"
                               value={enteredBalance}
                               onChange={handleBalanceChange}
                               placeholder="0.00"
@@ -1483,7 +1503,7 @@ const handleReconcileAllUnreconciled = async () => {
                                         Status
                                       </p>
                                       <p className={`text-sm font-medium ${varLevel.color}`}>
-{isWithinTolerance ? 'Will reconcile' : 'Review needed'}
+                                        {isWithinTolerance ? 'Will reconcile' : 'Review needed'}
                                       </p>
                                     </div>
                                   </div>
