@@ -282,6 +282,20 @@ class AccountReconciliationCreate(BaseModel):
     app_balance: float
     actual_balance: float
 
+class AccountLevelReconciliation(BaseModel):
+    app_balance: float
+    actual_balance: float
+
+class PositionReconciliationData(BaseModel):
+    position_id: int
+    asset_type: str
+    app_quantity: float
+    app_value: float
+    actual_quantity: float
+    actual_value: float
+    reconcile_quantity: bool = True
+    reconcile_value: bool = True
+
 class ReconciliationRequest(BaseModel):
     account_id: int
     reconciliation_date: datetime
