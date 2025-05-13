@@ -266,22 +266,21 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
 # ----- PYDANTIC MODELS  -----
 # ----- THESE ARE USED IN VARIOUS API CALLS  -----
 
-class PositionReconciliationData(BaseModel):
+class PositionReconciliationCreate(BaseModel):
     position_id: int
+    account_id: int  # We'll use this to find or create an account_reconciliation
     asset_type: str
     app_quantity: float
     app_value: float
     actual_quantity: float
     actual_value: float
-    is_quantity_reconciled: bool
-    is_value_reconciled: bool
+    reconcile_quantity: bool = True  # Added flag
+    reconcile_value: bool = True     # Added flag
 
-class AccountLevelReconciliation(BaseModel):
+class AccountReconciliationCreate(BaseModel):
+    account_id: int
     app_balance: float
     actual_balance: float
-    variance: float
-    variance_percent: float
-    is_reconciled: bool
 
 class ReconciliationRequest(BaseModel):
     account_id: int
@@ -5197,8 +5196,285 @@ async def delete_real_estate_position(position_id: int, current_user: dict = Dep
 
 
 #----RECONCILIATION WORKFLOW FOR ACCOUNTS
+@app.post("/api/reconciliation/position", status_code=status.HTTP_201_CREATED)
+async def reconcile_position(
+    reconciliation: PositionReconciliationCreate,
+    current_user = Depends(get_current_user)
+):
+    try:
+        # Calculate variances
+        quantity_variance = reconciliation.actual_quantity - reconciliation.app_quantity
+        value_variance = reconciliation.actual_value - reconciliation.app_value
+        
+        # Calculate variance percentages
+        quantity_variance_percent = 0
+        if reconciliation.app_quantity != 0:
+            quantity_variance_percent = (quantity_variance / reconciliation.app_quantity) * 100
+            
+        value_variance_percent = 0
+        if reconciliation.app_value != 0:
+            value_variance_percent = (value_variance / reconciliation.app_value) * 100
+        
+        # Check if we already have an in-progress account reconciliation for this account
+        query = """
+        SELECT id FROM account_reconciliations 
+        WHERE account_id = :account_id AND user_id = :user_id AND is_reconciled = false
+        ORDER BY created_at DESC LIMIT 1
+        """
+        account_reconciliation = await database.fetch_one(
+            query=query, 
+            values={"account_id": reconciliation.account_id, "user_id": current_user["id"]}
+        )
+        
+        # If no active account reconciliation exists, create one
+        if not account_reconciliation:
+            query = """
+            INSERT INTO account_reconciliations (account_id, user_id, is_reconciled)
+            VALUES (:account_id, :user_id, false)
+            RETURNING id
+            """
+            account_reconciliation = await database.fetch_one(
+                query=query,
+                values={"account_id": reconciliation.account_id, "user_id": current_user["id"]}
+            )
+        
+        account_reconciliation_id = account_reconciliation["id"]
+        
+        # Check if there's already a position reconciliation for this position in this account reconciliation
+        query = """
+        SELECT id FROM position_reconciliations
+        WHERE account_reconciliation_id = :account_reconciliation_id AND position_id = :position_id
+        """
+        existing_position_reconciliation = await database.fetch_one(
+            query=query,
+            values={
+                "account_reconciliation_id": account_reconciliation_id,
+                "position_id": reconciliation.position_id
+            }
+        )
+        
+        if existing_position_reconciliation:
+            # Update existing position reconciliation
+            query = """
+            UPDATE position_reconciliations
+            SET 
+                app_quantity = :app_quantity,
+                app_value = :app_value,
+                actual_quantity = :actual_quantity,
+                actual_value = :actual_value,
+                quantity_variance = :quantity_variance,
+                quantity_variance_percent = :quantity_variance_percent,
+                value_variance = :value_variance,
+                value_variance_percent = :value_variance_percent,
+                is_quantity_reconciled = :is_quantity_reconciled,
+                is_value_reconciled = :is_value_reconciled,
+                created_at = CURRENT_TIMESTAMP
+            WHERE id = :id
+            RETURNING id
+            """
+            result = await database.fetch_one(
+                query=query,
+                values={
+                    "app_quantity": reconciliation.app_quantity,
+                    "app_value": reconciliation.app_value,
+                    "actual_quantity": reconciliation.actual_quantity,
+                    "actual_value": reconciliation.actual_value,
+                    "quantity_variance": quantity_variance,
+                    "quantity_variance_percent": quantity_variance_percent,
+                    "value_variance": value_variance,
+                    "value_variance_percent": value_variance_percent,
+                    "is_quantity_reconciled": reconciliation.reconcile_quantity,
+                    "is_value_reconciled": reconciliation.reconcile_value,
+                    "id": existing_position_reconciliation["id"]
+                }
+            )
+            position_reconciliation_id = existing_position_reconciliation["id"]
+        else:
+            # Create new position reconciliation
+            query = """
+            INSERT INTO position_reconciliations (
+                account_reconciliation_id, position_id, asset_type,
+                app_quantity, app_value, actual_quantity, actual_value,
+                quantity_variance, quantity_variance_percent,
+                value_variance, value_variance_percent,
+                is_quantity_reconciled, is_value_reconciled, created_at
+            )
+            VALUES (
+                :account_reconciliation_id, :position_id, :asset_type,
+                :app_quantity, :app_value, :actual_quantity, :actual_value,
+                :quantity_variance, :quantity_variance_percent,
+                :value_variance, :value_variance_percent,
+                :is_quantity_reconciled, :is_value_reconciled, CURRENT_TIMESTAMP
+            )
+            RETURNING id
+            """
+            result = await database.fetch_one(
+                query=query,
+                values={
+                    "account_reconciliation_id": account_reconciliation_id,
+                    "position_id": reconciliation.position_id,
+                    "asset_type": reconciliation.asset_type,
+                    "app_quantity": reconciliation.app_quantity,
+                    "app_value": reconciliation.app_value,
+                    "actual_quantity": reconciliation.actual_quantity,
+                    "actual_value": reconciliation.actual_value,
+                    "quantity_variance": quantity_variance,
+                    "quantity_variance_percent": quantity_variance_percent,
+                    "value_variance": value_variance,
+                    "value_variance_percent": value_variance_percent,
+                    "is_quantity_reconciled": reconciliation.reconcile_quantity,
+                    "is_value_reconciled": reconciliation.reconcile_value
+                }
+            )
+            position_reconciliation_id = result["id"]
+        
+        return {
+            "status": "success",
+            "message": "Position reconciled successfully",
+            "position_reconciliation_id": position_reconciliation_id,
+            "account_reconciliation_id": account_reconciliation_id
+        }
+    
+    except Exception as e:
+        logger.error(f"Error reconciling position: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error reconciling position: {str(e)}"
+        )
 
-
+# Account reconciliation endpoint
+@app.post("/api/reconciliation/account", status_code=status.HTTP_201_CREATED)
+async def reconcile_account(
+    reconciliation: AccountReconciliationCreate,
+    current_user = Depends(get_current_user)
+):
+    try:
+        # Calculate variance
+        variance = reconciliation.actual_balance - reconciliation.app_balance
+        
+        # Calculate variance percentage
+        variance_percent = 0
+        if reconciliation.app_balance != 0:
+            variance_percent = (variance / reconciliation.app_balance) * 100
+        
+        # Check if all positions in the account are reconciled
+        # First, find the active account reconciliation
+        query = """
+        SELECT id FROM account_reconciliations 
+        WHERE account_id = :account_id AND user_id = :user_id AND is_reconciled = false
+        ORDER BY created_at DESC LIMIT 1
+        """
+        account_reconciliation = await database.fetch_one(
+            query=query, 
+            values={"account_id": reconciliation.account_id, "user_id": current_user["id"]}
+        )
+        
+        if not account_reconciliation:
+            # If no active reconciliation exists, create one
+            query = """
+            INSERT INTO account_reconciliations (
+                account_id, user_id, app_balance, actual_balance, 
+                variance, variance_percent, is_reconciled, 
+                reconciliation_date, created_at
+            )
+            VALUES (
+                :account_id, :user_id, :app_balance, :actual_balance,
+                :variance, :variance_percent, true,
+                CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+            )
+            RETURNING id
+            """
+            result = await database.fetch_one(
+                query=query,
+                values={
+                    "account_id": reconciliation.account_id,
+                    "user_id": current_user["id"],
+                    "app_balance": reconciliation.app_balance,
+                    "actual_balance": reconciliation.actual_balance,
+                    "variance": variance,
+                    "variance_percent": variance_percent
+                }
+            )
+            return {
+                "status": "success",
+                "message": "Account reconciled successfully",
+                "account_reconciliation_id": result["id"]
+            }
+        
+        # If we have an active reconciliation, check that all positions are reconciled
+        account_reconciliation_id = account_reconciliation["id"]
+        
+        # Get all positions for this account
+        query = """
+        SELECT COUNT(*) as total_positions 
+        FROM positions 
+        WHERE account_id = :account_id AND is_deleted = false
+        """
+        total_positions_result = await database.fetch_one(
+            query=query,
+            values={"account_id": reconciliation.account_id}
+        )
+        total_positions = total_positions_result["total_positions"]
+        
+        # Get reconciled positions for this account reconciliation
+        query = """
+        SELECT COUNT(*) as reconciled_positions 
+        FROM position_reconciliations 
+        WHERE account_reconciliation_id = :account_reconciliation_id 
+        AND is_quantity_reconciled = true AND is_value_reconciled = true
+        """
+        reconciled_positions_result = await database.fetch_one(
+            query=query,
+            values={"account_reconciliation_id": account_reconciliation_id}
+        )
+        reconciled_positions = reconciled_positions_result["reconciled_positions"]
+        
+        # Validate that all positions are reconciled
+        if reconciled_positions < total_positions:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Cannot reconcile account - {total_positions - reconciled_positions} positions are not yet reconciled"
+            )
+        
+        # Update the account reconciliation to mark it as complete
+        query = """
+        UPDATE account_reconciliations
+        SET 
+            app_balance = :app_balance,
+            actual_balance = :actual_balance,
+            variance = :variance,
+            variance_percent = :variance_percent,
+            is_reconciled = true,
+            reconciliation_date = CURRENT_TIMESTAMP
+        WHERE id = :id
+        RETURNING id
+        """
+        result = await database.fetch_one(
+            query=query,
+            values={
+                "app_balance": reconciliation.app_balance,
+                "actual_balance": reconciliation.actual_balance,
+                "variance": variance,
+                "variance_percent": variance_percent,
+                "id": account_reconciliation_id
+            }
+        )
+        
+        return {
+            "status": "success",
+            "message": "Account reconciled successfully",
+            "account_reconciliation_id": account_reconciliation_id
+        }
+    
+    except HTTPException as e:
+        # Re-raise HTTP exceptions
+        raise e
+    except Exception as e:
+        logger.error(f"Error reconciling account: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error reconciling account: {str(e)}"
+        )
 
 
 @app.get("/market/security-statistics")

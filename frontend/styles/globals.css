@@ -906,3 +906,13 @@ body {
      animation: fadeIn 0.3s ease-in-out;
    }
   
+@media (max-width: 640px) {
+  .action-buttons {
+    flex-direction: column;
+    align-items: flex-end;
+  }
+  
+  .action-buttons > * {
+    margin-bottom: 0.5rem;
+  }
+}
