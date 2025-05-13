@@ -1302,6 +1302,7 @@ const handleReconcileAllUnreconciled = async () => {
                                             position={position}
                                             accountId={account.id}
                                             accountName={account.account_name}
+                                            assetType={position.asset_type} // Add this line to explicitly pass the asset type
                                             onPositionEdited={() => fetchPositions(account.id)}
                                           />
                                           

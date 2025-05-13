@@ -12,6 +12,7 @@ const EditPositionButton = ({
     position,
     accountId,
     accountName,
+    assetType, // Add this prop to explicitly pass the asset type
     onPositionEdited = () => {},
     className = "",
     buttonContent = null // Allow custom button content
@@ -77,15 +78,21 @@ const EditPositionButton = ({
 
     // Helper method to determine position type
     const getPositionType = () => {
-        // Based on your data structure, determine the type
-        // This might need adjustment based on how position type is stored
+        // First check if assetType prop is explicitly provided
+        if (assetType) {
+            return assetType.toLowerCase();
+        }
         
-        // Option 1: If position has a direct 'position_type' field
+        // Next check for asset_type property which is most likely in your data
+        if (position.asset_type) {
+            return position.asset_type.toLowerCase();
+        }
+        
+        // Then try the other methods as fallbacks
         if (position.position_type) {
             return position.position_type.toLowerCase();
         }
         
-        // Option 2: If position has an 'asset_class' field
         if (position.asset_class) {
             const assetClass = position.asset_class.toLowerCase();
             
@@ -102,18 +109,30 @@ const EditPositionButton = ({
             }
         }
         
-        // Option 3: If we have a symbol, it's likely a security
-        if (position.symbol && !position.symbol.includes('crypto:')) {
+        // Check if we have specific properties that indicate the type
+        if (position.ticker) {
             return 'security';
         }
         
-        // Option 4: If symbol starts with 'crypto:', it's cryptocurrency
-        if (position.symbol && position.symbol.includes('crypto:')) {
+        if (position.coin_type || position.coin_symbol) {
             return 'crypto';
         }
         
-        // Default to cash if we can't determine
-        return 'cash';
+        if (position.metal_type) {
+            return 'metal';
+        }
+        
+        if (position.property_type || position.address) {
+            return 'realestate';
+        }
+        
+        if (position.cash_type) {
+            return 'cash';
+        }
+        
+        // Default to security as a fallback
+        console.warn("EditPositionButton: Could not determine position type, defaulting to 'security'", position);
+        return 'security';
     };
 
     const handlePositionSaved = () => {
