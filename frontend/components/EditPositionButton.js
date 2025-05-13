@@ -197,40 +197,39 @@ const EditPositionButton = ({
                 onClose={() => setIsSecurityModalOpen(false)}
                 accountId={accountId}
                 accountName={accountName}
-                position={position}
-                isEditing={true}
+                positionToEdit={position} // Change 'position' to 'positionToEdit'
                 onPositionSaved={handlePositionSaved}
             />
+
             <CryptoPositionModal
                 isOpen={isCryptoModalOpen}
                 onClose={() => setIsCryptoModalOpen(false)}
                 accountId={accountId}
-                position={position}
-                isEditing={true}
+                positionToEdit={position} // Change 'position' to 'positionToEdit'
                 onPositionSaved={handlePositionSaved}
             />
+
             <MetalPositionModal
                 isOpen={isMetalModalOpen}
                 onClose={() => setIsMetalModalOpen(false)}
                 accountId={accountId}
-                position={position}
-                isEditing={true}
+                positionToEdit={position} // Change 'position' to 'positionToEdit'
                 onPositionSaved={handlePositionSaved}
             />
+
             <RealEstatePositionModal
                 isOpen={isRealEstateModalOpen}
                 onClose={() => setIsRealEstateModalOpen(false)}
                 accountId={accountId}
-                position={position}
-                isEditing={true}
+                positionToEdit={position} // Change 'position' to 'positionToEdit'
                 onPositionSaved={handlePositionSaved}
             />
+
             <CashPositionModal
                 isOpen={isCashModalOpen}
                 onClose={() => setIsCashModalOpen(false)}
                 accountId={accountId}
-                position={position}
-                isEditing={true}
+                positionToEdit={position} // Change 'position' to 'positionToEdit'
                 onPositionSaved={handlePositionSaved}
             />
         </>
