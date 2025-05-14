@@ -1,5 +1,5 @@
 // components/modals/SecurityPositionModal.js
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import FixedModal from './FixedModal';
 import { addSecurityPosition, searchSecurities, updatePosition } from '@/utils/apimethods/positionMethods';
 import { fetchAccountById } from '@/utils/apimethods/accountMethods';
@@ -15,17 +15,20 @@ import {
   Percent,
   Tag,
   BarChart4,
-  Plus
+  Plus,
+  Edit
 } from 'lucide-react';
 
-  const SecurityPositionModal = ({ 
-    isOpen, 
-    onClose, 
-    accountId, 
-    accountName = '',  // Add default empty string
-    onPositionSaved, 
-    positionToEdit = null 
-  }) => {  
+const SecurityPositionModal = ({ 
+  isOpen, 
+  onClose, 
+  accountId, 
+  accountName = '',  // Add default empty string
+  onPositionSaved, 
+  positionToEdit = null 
+}) => {  
+  // Original data to compare for changes
+  const originalData = useRef(null);
   
   // State for form fields
   const [ticker, setTicker] = useState('');
@@ -50,37 +53,63 @@ import {
   const [messageType, setMessageType] = useState('');
   const [isEditMode, setIsEditMode] = useState(false);
   const [isCalculatingFromTotal, setIsCalculatingFromTotal] = useState(false);
+  const [successMessage, setSuccessMessage] = useState('');
+  
+  // Track which fields have been changed
+  const [changedFields, setChangedFields] = useState({});
 
   // Reset form when modal opens/closes
   useEffect(() => {
-      if (isOpen) {
-        // Get account name if provided
-        if (accountId) {
-          fetchAccountById(accountId)
-            .then(account => {
-              setAccountName(account.account_name || '');
-            })
-            .catch(err => console.error("Error fetching account name:", err));
-        }
+    if (isOpen) {
+      console.log("SecurityPositionModal - positionToEdit:", positionToEdit);
+      
+      // Get account name if provided
+      if (accountId && !accountName) {
+        fetchAccountById(accountId)
+          .then(account => {
+            accountName = account.account_name || '';
+          })
+          .catch(err => console.error("Error fetching account name:", err));
+      }
+      
       if (positionToEdit) {
         // Edit mode - pre-fill form with position data
         setIsEditMode(true);
-        setTicker(positionToEdit.ticker || '');
-        setShares(positionToEdit.shares?.toString() || '');
-        setCurrentPrice(positionToEdit.price?.toString() || '');
-        setCostPerShare(positionToEdit.cost_basis?.toString() || positionToEdit.price?.toString() || '');
+        
+        const tickerValue = positionToEdit.ticker || '';
+        const sharesValue = positionToEdit.shares?.toString() || '';
+        const priceValue = positionToEdit.price?.toString() || '';
+        const costValue = positionToEdit.cost_basis?.toString() || positionToEdit.price?.toString() || '';
         
         // Calculate total cost
         const shareVal = parseFloat(positionToEdit.shares || 0);
         const costVal = parseFloat(positionToEdit.cost_basis || positionToEdit.price || 0);
-        if (!isNaN(shareVal) && !isNaN(costVal)) {
-          setTotalCost((shareVal * costVal).toFixed(2));
-        }
+        const totalValue = !isNaN(shareVal) && !isNaN(costVal) ? (shareVal * costVal).toFixed(2) : '';
         
         // Format date from ISO to YYYY-MM-DD for input
-        setPurchaseDate(positionToEdit.purchase_date 
+        const dateValue = positionToEdit.purchase_date 
           ? new Date(positionToEdit.purchase_date).toISOString().split('T')[0]
-          : '');
+          : '';
+        
+        setTicker(tickerValue);
+        setShares(sharesValue);
+        setCurrentPrice(priceValue);
+        setCostPerShare(costValue);
+        setTotalCost(totalValue);
+        setPurchaseDate(dateValue);
+        
+        // Store original data for comparison
+        originalData.current = {
+          ticker: tickerValue,
+          shares: sharesValue,
+          price: priceValue,
+          costPerShare: costValue,
+          totalCost: totalValue,
+          purchaseDate: dateValue
+        };
+        
+        // Reset changed fields
+        setChangedFields({});
         
         setSelectedSecurity({
           ticker: positionToEdit.ticker,
@@ -114,17 +143,34 @@ import {
         setPurchaseDate(new Date().toISOString().split('T')[0]); // Default to today
         setSelectedSecurity(null);
         setSecurityDetails(null);
+        originalData.current = null;
       }
       
       // Common reset
       setSearchQuery('');
       setSearchResults([]);
       setFormMessage('');
+      setSuccessMessage('');
       setMessageType('');
       setIsSubmitting(false);
       setIsCalculatingFromTotal(false);
     }
-  }, [isOpen, positionToEdit]);
+  }, [isOpen, positionToEdit, accountId, accountName]);
+  
+  // Update changedFields whenever form fields change
+  useEffect(() => {
+    if (isEditMode && originalData.current) {
+      const newChangedFields = {};
+      
+      if (ticker !== originalData.current.ticker) newChangedFields.ticker = true;
+      if (shares !== originalData.current.shares) newChangedFields.shares = true;
+      if (currentPrice !== originalData.current.price) newChangedFields.price = true;
+      if (costPerShare !== originalData.current.costPerShare) newChangedFields.costPerShare = true;
+      if (purchaseDate !== originalData.current.purchaseDate) newChangedFields.purchaseDate = true;
+      
+      setChangedFields(newChangedFields);
+    }
+  }, [ticker, shares, currentPrice, costPerShare, purchaseDate, isEditMode]);
 
   // Update totalCost when shares or costPerShare changes (if not calculating from total)
   useEffect(() => {
@@ -198,7 +244,7 @@ import {
     // Make sure we're storing all fields from the security object
     console.log("Selected security details:", security); // For debugging
   
-      // Debug log with explicit property checks
+    // Debug log with explicit property checks
     console.log("Security details properties:", {
       ticker: security.ticker,
       name: security.name,
@@ -243,10 +289,37 @@ import {
     setIsCalculatingFromTotal(false);
     setCostPerShare(value);
   };
+  
+  // Format position name for the title
+  const getDisplayName = () => {
+    if (!positionToEdit) return '';
+    
+    const name = positionToEdit.name || '';
+    const ticker = positionToEdit.ticker || '';
+    
+    if (name && ticker && name !== ticker) {
+      return `${ticker} | ${name}`;
+    }
+    
+    return ticker || name || 'Security Position';
+  };
+  
+  // Get field class based on whether it's been changed
+  const getFieldClass = (fieldName) => {
+    const baseClass = "w-full border rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500";
+    
+    if (changedFields[fieldName]) {
+      return `${baseClass} border-yellow-300 bg-yellow-50`;
+    }
+    
+    return `${baseClass} border-gray-300`;
+  };
 
   // Handle form submission
   const handleSubmit = async (e, addAnother = false) => {
     e.preventDefault();
+    setFormMessage('');
+    setSuccessMessage('');
     
     // Validation
     if (!ticker) {
@@ -280,7 +353,6 @@ import {
     }
     
     setIsSubmitting(true);
-    setFormMessage('');
     
     try {
       const positionData = {
@@ -314,7 +386,8 @@ import {
       console.log(`Security position ${isEditMode ? 'updated' : 'added'}:`, result);
       
       // Show success message
-      setFormMessage(`Security position ${isEditMode ? 'updated' : 'added'} successfully!`);
+      const successMsg = `Security position ${ticker} ${isEditMode ? 'updated' : 'added'} successfully!`;
+      setSuccessMessage(successMsg);
       setMessageType('success');
       
       // Call the callback
@@ -334,22 +407,20 @@ import {
           setSecurityDetails(null);
           setSearchQuery('');
           setFormMessage('');
+          setSuccessMessage('');
           setIsSubmitting(false);
-        }, 1000);
+        }, 1500);
       } else {
         // Close modal after delay
         setTimeout(() => {
           onClose();
-        }, 1000);
+        }, 1500);
       }
     } catch (error) {
       console.error(`Error ${isEditMode ? 'updating' : 'adding'} security position:`, error);
       setFormMessage(`Error ${isEditMode ? 'updating' : 'adding'} security position: ${error.message}`);
       setMessageType('error');
-    } finally {
-      if (!addAnother) {
-        setIsSubmitting(false);
-      }
+      setIsSubmitting(false);
     }
   };
 
@@ -367,26 +438,57 @@ import {
       return `$${marketCap.toLocaleString()}`;
     }
   };
+  
+  // Format date for display
+  const formatDate = (dateString) => {
+    if (!dateString) return 'None';
+    return new Date(dateString).toLocaleDateString();
+  };
 
   return (
     <FixedModal
       isOpen={isOpen}
       onClose={onClose}
-      title={`${isEditMode ? 'Edit' : 'Add'} Security Position`}
+      title={isEditMode ? `Edit ${getDisplayName()}` : 'Add Security Position'}
     >  
-      <form onSubmit={(e) => handleSubmit(e, false)} className="space-y-4">
-      {/* Account Badge at the top */}
-      {(
-      <div className="mb-4 bg-blue-50 p-3 rounded-lg border border-blue-200">
-        <div className="flex items-center">
-          <Tag className="h-5 w-5 text-blue-600 mr-2" />
-          <span className="font-medium text-blue-800">
-            {isEditMode ? 'Editing position on:' : 'Adding to:'} {accountName || 'Account'}
-          </span>
+      {/* Error Message */}
+      {formMessage && messageType === 'error' && (
+        <div className="bg-red-50 text-red-700 p-4 border-l-4 border-red-500 mb-4">
+          <div className="flex">
+            <div className="flex-shrink-0">
+              <X className="h-5 w-5 text-red-500" />
+            </div>
+            <div className="ml-3">
+              <p className="text-sm">{formMessage}</p>
+            </div>
+          </div>
         </div>
-      </div>
       )}
-
+      
+      {/* Success Message */}
+      {successMessage && (
+        <div className="bg-green-50 text-green-700 p-4 border-l-4 border-green-500 mb-4">
+          <div className="flex">
+            <div className="flex-shrink-0">
+              <Check className="h-5 w-5 text-green-500" />
+            </div>
+            <div className="ml-3">
+              <p className="text-sm">{successMessage}</p>
+            </div>
+          </div>
+        </div>
+      )}
+      
+      <form onSubmit={(e) => handleSubmit(e, false)} className="space-y-4">
+        {/* Account Badge at the top */}
+        <div className="mb-4 bg-blue-50 p-3 rounded-lg border border-blue-200">
+          <div className="flex items-center">
+            <Tag className="h-5 w-5 text-blue-600 mr-2" />
+            <span className="font-medium text-blue-800">
+              {isEditMode ? 'Editing position on:' : 'Adding to:'} {accountName || 'Account'}
+            </span>
+          </div>
+        </div>
 
         {/* Ticker/Security Search */}
         <div className="relative">
@@ -402,7 +504,7 @@ import {
               value={searchQuery}
               onChange={(e) => handleSearchChange(e.target.value)}
               placeholder="Search ticker or company name (e.g., AAPL, Apple)"
-              className="w-full pl-10 pr-4 py-2 border rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              className={`pl-10 pr-4 py-2 ${getFieldClass('ticker')}`}
               required
               disabled={isEditMode}
             />
@@ -412,6 +514,12 @@ import {
               </div>
             )}
           </div>
+          {changedFields.ticker && (
+            <p className="mt-1 text-xs text-amber-600 flex items-center">
+              <Edit className="h-3 w-3 mr-1" />
+              Changed from: {originalData.current?.ticker}
+            </p>
+          )}
           
           {/* Search Results Dropdown */}
           {!isEditMode && searchResults.length > 0 && (
@@ -517,13 +625,19 @@ import {
                 placeholder="e.g., 10.5"
                 step="0.000001"
                 min="0.000001"
-                className="w-full pl-3 pr-10 py-2 border rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className={`pl-3 pr-10 py-2 ${getFieldClass('shares')}`}
                 required
               />
               <div className="absolute inset-y-0 right-3 flex items-center text-gray-400">
                 <span className="text-xs">shares</span>
               </div>
             </div>
+            {changedFields.shares && (
+              <p className="mt-1 text-xs text-amber-600 flex items-center">
+                <Edit className="h-3 w-3 mr-1" />
+                Changed from: {originalData.current?.shares}
+              </p>
+            )}
           </div>
           
           <div>
@@ -541,10 +655,16 @@ import {
                 placeholder="e.g., 150.25"
                 step="0.01"
                 min="0"
-                className="w-full pl-10 pr-4 py-2 border rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className={`pl-10 pr-4 py-2 ${getFieldClass('price')}`}
                 required
               />
             </div>
+            {changedFields.price && (
+              <p className="mt-1 text-xs text-amber-600 flex items-center">
+                <Edit className="h-3 w-3 mr-1" />
+                Changed from: ${parseFloat(originalData.current?.price).toFixed(2)}
+              </p>
+            )}
           </div>
         </div>
         
@@ -565,10 +685,16 @@ import {
                 placeholder="e.g., 145.75"
                 step="0.01"
                 min="0"
-                className="w-full pl-10 pr-4 py-2 border rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className={`pl-10 pr-4 py-2 ${getFieldClass('costPerShare')}`}
                 required
               />
             </div>
+            {changedFields.costPerShare && (
+              <p className="mt-1 text-xs text-amber-600 flex items-center">
+                <Edit className="h-3 w-3 mr-1" />
+                Changed from: ${parseFloat(originalData.current?.costPerShare).toFixed(2)}
+              </p>
+            )}
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -585,45 +711,51 @@ import {
                 placeholder="e.g., 1457.50"
                 step="0.01"
                 min="0"
-                className="w-full pl-10 pr-4 py-2 border rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               />
             </div>
           </div>
         </div>
         
         {/* Purchase Date */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Purchase Date*
-            </label>
-            <div className="relative">
-              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <Clock className="h-4 w-4 text-gray-400" />
-              </div>
-              <input
-                type="date"
-                value={purchaseDate}
-                onChange={(e) => setPurchaseDate(e.target.value)}
-                onPaste={(e) => {
-                  // Allow pasting dates
-                  e.preventDefault();
-                  const pastedText = e.clipboardData.getData('text');
-                  // Try to parse the pasted text as a date
-                  try {
-                    const date = new Date(pastedText);
-                    if (!isNaN(date.getTime())) {
-                      setPurchaseDate(date.toISOString().split('T')[0]);
-                    }
-                  } catch (err) {
-                    console.error("Error parsing pasted date:", err);
-                  }
-                }}
-                className="w-full pl-10 pr-4 py-2 border rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                max={new Date().toISOString().split('T')[0]}
-                required
-              />
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Purchase Date*
+          </label>
+          <div className="relative">
+            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+              <Clock className="h-4 w-4 text-gray-400" />
             </div>
-          
+            <input
+              type="date"
+              value={purchaseDate}
+              onChange={(e) => setPurchaseDate(e.target.value)}
+              onPaste={(e) => {
+                // Allow pasting dates
+                e.preventDefault();
+                const pastedText = e.clipboardData.getData('text');
+                // Try to parse the pasted text as a date
+                try {
+                  const date = new Date(pastedText);
+                  if (!isNaN(date.getTime())) {
+                    setPurchaseDate(date.toISOString().split('T')[0]);
+                  }
+                } catch (err) {
+                  console.error("Error parsing pasted date:", err);
+                }
+              }}
+              className={`pl-10 pr-4 py-2 ${getFieldClass('purchaseDate')}`}
+              max={new Date().toISOString().split('T')[0]}
+              required
+            />
+          </div>
+          {changedFields.purchaseDate && (
+            <p className="mt-1 text-xs text-amber-600 flex items-center">
+              <Edit className="h-3 w-3 mr-1" />
+              Changed from: {formatDate(originalData.current?.purchaseDate)}
+            </p>
+          )}
+        
           {/* Date Helper Buttons */}
           <div className="flex flex-wrap gap-2 mt-2">
             <button
@@ -717,19 +849,25 @@ import {
           </div>
         )}
         
-        {/* Form Message */}
-        {formMessage && (
-          <div className={`p-4 rounded-md ${
-            messageType === 'success' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
-          }`}>
-            <div className="flex items-center">
-              {messageType === 'success' ? (
-                <Check className="h-5 w-5 mr-2" />
-              ) : (
-                <X className="h-5 w-5 mr-2" />
-              )}
-              {formMessage}
-            </div>
+        {/* Summary of changes */}
+        {isEditMode && Object.keys(changedFields).length > 0 && (
+          <div className="bg-amber-50 p-3 rounded-md border border-amber-200">
+            <h4 className="font-medium text-amber-800 mb-1 flex items-center">
+              <Edit className="h-4 w-4 mr-1" />
+              Changes to be saved:
+            </h4>
+            <ul className="text-sm text-amber-700 space-y-1">
+              {Object.keys(changedFields).map(field => (
+                <li key={field} className="ml-4">
+                  • {field === 'ticker' ? 'Ticker' : 
+                     field === 'shares' ? 'Number of Shares' : 
+                     field === 'price' ? 'Current Price' : 
+                     field === 'costPerShare' ? 'Cost Per Share' : 
+                     field === 'purchaseDate' ? 'Purchase Date' : 
+                     field.charAt(0).toUpperCase() + field.slice(1).replace(/([A-Z])/g, ' $1')}
+                </li>
+              ))}
+            </ul>
           </div>
         )}
         

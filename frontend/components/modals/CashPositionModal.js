@@ -1,6 +1,6 @@
 // frontend/components/modals/CashPositionModal.js
 import React, { useState, useEffect, useRef } from 'react';
-import { Save, AlertCircle, Calculator, Edit } from 'lucide-react';
+import { Save, AlertCircle, Calculator, Edit, Calendar } from 'lucide-react';
 import { addCashPosition, updateCashPosition } from '@/utils/apimethods/positionMethods';
 import { formatCurrency } from '@/utils/formatters';
 import FixedModal from '@/components/modals/FixedModal';
@@ -79,6 +79,10 @@ const CashPositionModal = ({ isOpen, onClose, accountId, onPositionSaved, positi
           },
           rawUsed: rawInterestRate,
           displayUsed: displayInterestRate
+        },
+        maturityDate: {
+          original: positionToEdit.maturity_date,
+          formatted: maturity_date
         }
       });
       
@@ -191,10 +195,15 @@ const CashPositionModal = ({ isOpen, onClose, accountId, onPositionSaved, positi
       
       // Convert values for API submission
       const dataToSubmit = {
-        ...formData,
+        cash_type: formData.cash_type,
+        name: formData.name,
         amount: parseFloat(formData.amount),
         // Convert from percentage to decimal for API (e.g., 3.5 -> 0.035)
-        interest_rate: formData.interest_rate ? parseFloat(formData.interest_rate) / 100 : null
+        interest_rate: formData.interest_rate ? parseFloat(formData.interest_rate) / 100 : null,
+        interest_period: formData.interest_period,
+        // Only include maturity_date if it's not empty, otherwise set to null
+        maturity_date: formData.maturity_date || null,
+        notes: formData.notes
       };
       
       console.log("Submitting cash position data:", dataToSubmit);
@@ -235,6 +244,12 @@ const CashPositionModal = ({ isOpen, onClose, accountId, onPositionSaved, positi
     }
     
     return `${baseClass} border-gray-300`;
+  };
+  
+  // Format date for display
+  const formatDate = (dateString) => {
+    if (!dateString) return 'None';
+    return new Date(dateString).toLocaleDateString();
   };
   
   return (
@@ -375,47 +390,50 @@ const CashPositionModal = ({ isOpen, onClose, accountId, onPositionSaved, positi
             </div>
           </div>
           
-          {/* Interest Period & Maturity Date (Side by Side) - Only show if interest rate is provided */}
-          {formData.interest_rate && (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700">Interest Period</label>
-                <select
-                  name="interest_period"
-                  value={formData.interest_period}
-                  onChange={handleInputChange}
-                  className={getFieldClass('interest_period')}
-                >
-                  <option value="daily">Daily</option>
-                  <option value="monthly">Monthly</option>
-                  <option value="quarterly">Quarterly</option>
-                  <option value="annually">Annually</option>
-                </select>
-                {changedFields.interest_period && (
-                  <p className="mt-1 text-xs text-amber-600 flex items-center">
-                    <Edit className="h-3 w-3 mr-1" />
-                    Changed from: {originalData.current?.interest_period}
-                  </p>
-                )}
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700">Maturity Date</label>
+          {/* Interest Period & Maturity Date (Side by Side) */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700">Interest Period</label>
+              <select
+                name="interest_period"
+                value={formData.interest_period}
+                onChange={handleInputChange}
+                className={getFieldClass('interest_period')}
+              >
+                <option value="daily">Daily</option>
+                <option value="monthly">Monthly</option>
+                <option value="quarterly">Quarterly</option>
+                <option value="annually">Annually</option>
+              </select>
+              {changedFields.interest_period && (
+                <p className="mt-1 text-xs text-amber-600 flex items-center">
+                  <Edit className="h-3 w-3 mr-1" />
+                  Changed from: {originalData.current?.interest_period}
+                </p>
+              )}
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700">Maturity Date</label>
+              <div className="mt-1 relative rounded-md shadow-sm">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <Calendar className="h-4 w-4 text-gray-400" />
+                </div>
                 <input
                   type="date"
                   name="maturity_date"
                   value={formData.maturity_date}
                   onChange={handleInputChange}
-                  className={getFieldClass('maturity_date')}
+                  className={`pl-10 ${getFieldClass('maturity_date')}`}
                 />
-                {changedFields.maturity_date && (
-                  <p className="mt-1 text-xs text-amber-600 flex items-center">
-                    <Edit className="h-3 w-3 mr-1" />
-                    Changed from: {originalData.current?.maturity_date}
-                  </p>
-                )}
               </div>
+              {changedFields.maturity_date && (
+                <p className="mt-1 text-xs text-amber-600 flex items-center">
+                  <Edit className="h-3 w-3 mr-1" />
+                  Changed from: {formatDate(originalData.current?.maturity_date)}
+                </p>
+              )}
             </div>
-          )}
+          </div>
           
           {/* Estimated Interest Box - Show if interest rate is provided */}
           {formData.interest_rate && (
