@@ -26,18 +26,41 @@ const CashPositionModal = ({ isOpen, onClose, accountId, onPositionSaved, positi
   const [isEditing, setIsEditing] = useState(false);
   
   useEffect(() => {
+    console.log("CashPositionModal - positionToEdit:", positionToEdit);
+    
     if (positionToEdit) {
       setIsEditing(true);
       // Format dates properly
       const maturity_date = positionToEdit.maturity_date 
         ? new Date(positionToEdit.maturity_date).toISOString().split('T')[0]
         : '';
+      
+      // Convert interest rate from decimal to percentage display
+      // API stores as 0.035, form displays as 3.5
+      const displayInterestRate = positionToEdit.interest_rate !== null && positionToEdit.interest_rate !== undefined
+        ? (parseFloat(positionToEdit.interest_rate) * 100).toString()
+        : '';
+      
+      console.log("Interest rate conversion:", {
+        original: positionToEdit.interest_rate,
+        converted: displayInterestRate
+      });
         
       setFormData({
         cash_type: positionToEdit.cash_type || 'Savings',
         name: positionToEdit.name || '',
         amount: positionToEdit.amount?.toString() || '',
-        interest_rate: positionToEdit.interest_rate?.toString() || '',
+        interest_rate: displayInterestRate,
+        interest_period: positionToEdit.interest_period || 'annually',
+        maturity_date,
+        notes: positionToEdit.notes || ''
+      });
+      
+      console.log("Form data after initialization:", {
+        cash_type: positionToEdit.cash_type || 'Savings',
+        name: positionToEdit.name || '',
+        amount: positionToEdit.amount?.toString() || '',
+        interest_rate: displayInterestRate,
         interest_period: positionToEdit.interest_period || 'annually',
         maturity_date,
         notes: positionToEdit.notes || ''
@@ -92,12 +115,15 @@ const CashPositionModal = ({ isOpen, onClose, accountId, onPositionSaved, positi
         return;
       }
       
-      // Convert amount and interest_rate to numbers
+      // Convert values for API submission
       const dataToSubmit = {
         ...formData,
         amount: parseFloat(formData.amount),
+        // Convert from percentage to decimal for API (e.g., 3.5 -> 0.035)
         interest_rate: formData.interest_rate ? parseFloat(formData.interest_rate) / 100 : null
       };
+      
+      console.log("Submitting cash position data:", dataToSubmit);
       
       setSaving(true);
       
@@ -116,6 +142,7 @@ const CashPositionModal = ({ isOpen, onClose, accountId, onPositionSaved, positi
     } catch (err) {
       setSaving(false);
       setError(err.message || 'Failed to save cash position');
+      console.error("Error saving cash position:", err);
     }
   };
   
