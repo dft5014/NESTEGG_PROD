@@ -126,6 +126,7 @@ const AccountReconciliation = () => {
   const [selectedAccount, setSelectedAccount] = useState(null);
   const [enteredBalance, setEnteredBalance] = useState('');
   const dropdownRef = useRef(null);
+  const [filterText, setFilterText] = useState('');
 
   // State for sorting positions
   const [sortConfig, setSortConfig] = useState({
@@ -231,6 +232,29 @@ const AccountReconciliation = () => {
     } finally {
       setLoadingPositions(prev => ({ ...prev, [accountId]: false }));
     }
+  };
+
+  const getFilteredAccounts = () => {
+    if (!filterText.trim()) {
+      // If no filter text, return all sorted accounts
+      return getSortedAccounts();
+    }
+
+    const searchTerm = filterText.toLowerCase().trim();
+    
+    // Filter accounts based on various criteria
+    return getSortedAccounts().filter(account => {
+      return (
+        // Search by account name
+        (account.account_name && account.account_name.toLowerCase().includes(searchTerm)) ||
+        // Search by institution
+        (account.institution && account.institution.toLowerCase().includes(searchTerm)) ||
+        // Search by account type
+        (account.type && account.type.toLowerCase().includes(searchTerm)) ||
+        // Search by reconciliation status
+        (account.reconciliation_status && account.reconciliation_status.toLowerCase().includes(searchTerm))
+      );
+    });
   };
 
   // Handle expanding an account to view positions
@@ -832,6 +856,53 @@ const AccountSortDropdown = () => {
     const reconciledPositionsWidth = `${metrics.reconciledPositionPercentage}%`;
     const reconciledValueWidth = `${metrics.reconciledValuePercentage}%`;
     
+  const AccountSearchFilter = () => {
+    return (
+      <div className="relative">
+        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+          <Search className="h-4 w-4 text-gray-400" />
+        </div>
+        <input
+          type="text"
+          className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+          placeholder="Filter accounts (name, institution, type, status)..."
+          value={filterText}
+          onChange={(e) => setFilterText(e.target.value)}
+        />
+        {filterText && (
+          <div className="absolute inset-y-0 right-0 pr-3 flex items-center">
+            <button
+              type="button"
+              className="text-gray-400 hover:text-gray-500 focus:outline-none focus:text-gray-500"
+              onClick={() => setFilterText('')}
+            >
+              <X className="h-4 w-4" aria-hidden="true" />
+            </button>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const FilterStats = ({ filteredCount, totalCount }) => {
+    if (filteredCount === totalCount || !filterText) {
+      return null; // Don't show if all accounts are visible or no filter applied
+    }
+    
+    return (
+      <div className="text-sm text-gray-500 mt-2">
+        Showing {filteredCount} of {totalCount} accounts
+        <button
+          type="button"
+          className="ml-2 text-blue-500 hover:text-blue-700 focus:outline-none"
+          onClick={() => setFilterText('')}
+        >
+          Clear filter
+        </button>
+      </div>
+    );
+  };
+
     return (
       <div className="bg-white rounded-lg shadow-sm overflow-hidden mb-8">
         <div className="px-6 py-5 border-b border-gray-200">
@@ -1105,12 +1176,20 @@ const AccountSortDropdown = () => {
           <AccountSortDropdown />
         </div>
         
+        <div className="mt-4">
+          <AccountSearchFilter />
+          <FilterStats 
+            filteredCount={getFilteredAccounts().length} 
+            totalCount={accounts.length} 
+          />
+        </div>
+
         <div className="border-t border-gray-200 mt-1"></div>
       </div>
 
 
       <div className="space-y-4">
-        {getSortedAccounts().map((account) => {
+        {getFilteredAccounts().map((account) => {
           // Determine border color based on status
           let borderColor = "border-green-500";
           if (account.reconciliation_status === "Needs Review") {
@@ -1441,7 +1520,7 @@ const AccountSortDropdown = () => {
                                         )}
                                       </div>
                                     </td>
-<td className="px-4 py-2 whitespace-nowrap text-sm text-right">
+                                      <td className="px-4 py-2 whitespace-nowrap text-sm text-right">
                                       <div className="flex justify-end space-x-2">
                                         {/* Edit Position Button */}
                                         <EditPositionButton

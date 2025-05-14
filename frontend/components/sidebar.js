@@ -1,8 +1,9 @@
-// components/Sidebar.js
+// components/Sidebar.js - Improved Version
 import Link from 'next/link';
 import { BarChart2, ChevronLeft, ChevronRight, 
          CheckSquare, Settings, Database, Shield, 
-         Home, Coins, Bitcoin, ChevronDown, ChevronUp, TrendingUp, Gauge } from 'lucide-react';
+         Home, Coins, Bitcoin, ChevronDown, ChevronUp, 
+         TrendingUp, Gauge, Info, LineChart, PieChart } from 'lucide-react';
 import { useContext, useState, useEffect } from 'react';
 import { AuthContext } from '@/context/AuthContext';
 import { useRouter } from 'next/router';
@@ -17,7 +18,7 @@ const Sidebar = () => {
   useEffect(() => {
     const handleResize = () => {
       if (window.innerWidth < 768) {
-        setSidebarCollapsed(true); // *** FIXED: Set to TRUE to collapse on mobile ***
+        setSidebarCollapsed(true); // Collapse on mobile
       } else {
         setSidebarCollapsed(false); // Expand on desktop
       }
@@ -43,6 +44,31 @@ const Sidebar = () => {
   // Common classes for icons
   const iconClasses = "min-w-[24px] min-h-[24px]";
 
+  // Menu structure for better organization
+  const menuItems = [
+    { href: "/", label: "Dashboard", icon: <Gauge size={24} className={iconClasses} /> },
+    { href: "/portfolio", label: "NestEgg", icon: <span className="text-xl">🥚</span> },
+    { 
+      label: "Portfolio Management",
+      items: [
+        { href: "/Accounts", label: "Accounts", icon: <Home size={24} className={iconClasses} /> },
+        { href: "/Positions", label: "Positions", icon: <TrendingUp size={24} className={iconClasses} /> },
+        { href: "/Reports", label: "Reports", icon: <BarChart2 size={24} className={iconClasses} /> },
+      ]
+    },
+    { href: "/AccountReconciliation", label: "Account Reconciliations", icon: <CheckSquare size={24} className={iconClasses} /> },
+    { href: "/todo", label: "To Do List", icon: <CheckSquare size={24} className={iconClasses} /> },
+    { href: "/data-summary", label: "Data Summary", icon: <Database size={24} className={iconClasses} /> },
+    { href: "/watchlist", label: "Watchlist", icon: <Info size={24} className={iconClasses} /> },
+    { 
+      label: "Testing",
+      items: [
+        { href: "/income", label: "Test 123", icon: <Settings size={24} className={iconClasses} /> },
+        { href: "/test", label: "Test Accounts", icon: <Shield size={24} className={iconClasses} /> },
+      ]
+    }
+  ];
+
   return (
     <>
       {/* Overlay to close sidebar on mobile */}
@@ -64,118 +90,90 @@ const Sidebar = () => {
         {/* Logo (Emoji Only) */}
         <div className="flex items-center justify-center py-6 border-b border-gray-800">
           <div className="text-2xl">🥚</div>
+          {!sidebarCollapsed && <span className="ml-2 text-lg font-semibold">NestEgg</span>}
         </div>
         
         {/* Navigation */}
         <nav className="flex-1 py-4 px-2">
           <div className="space-y-1">
-            {/* NestEgg (Portfolio) with Child Components Toggle */}
-            <div className="flex items-center justify-between px-3">
-              <Link href="/" className={menuItemClasses(isActive('/'))}>
-                <Gauge size={24} className={iconClasses} />
-                {!sidebarCollapsed && <span>Home</span>}
-              </Link>
-              <Link href="/portfolio" className={menuItemClasses(isActive('/portfolio'))}>
-                <span className="text-xl">🥚</span>
-                {!sidebarCollapsed && <span className="ml-3">NestEgg</span>}
-              </Link>
-              
-              {/* Toggle button for sidebar collapse/expand */}
-              <button 
-                onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-                className={`
-                  absolute z-50 p-2 rounded-full bg-gray-800 text-white
-                  hover:bg-gray-700 transition-colors duration-200 shadow-md
-                  ${sidebarCollapsed ? 'right-0 top-20 -translate-x-1/2' : 'right-2 top-20 translate-x-0'}
-                `}
-                aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
-              >
-                {sidebarCollapsed ? <ChevronRight size={24} /> : <ChevronLeft size={24} />}
-              </button>
-              
- 
-            </div>
-
-            {/* Portfolio Child Pages - always visible, styled based on sidebar state */}
-            {/* Show expanded list if sidebar is expanded and portfolio is not collapsed */}
-            {(!sidebarCollapsed && !portfolioCollapsed) && (
-              <div className="pl-4 space-y-1">
-
-                <Link href="/accounts" className={menuItemClasses(isActive('/investment-securities'))}>
-                  <TrendingUp size={24} className={iconClasses} />
-                  <span>Accounts</span>
+            {/* Render menu items based on structure */}
+            {menuItems.map((item, index) => (
+              item.items ? (
+                // Group with submenu
+                <div key={`group-${index}`} className="mb-2">
+                  {!sidebarCollapsed && (
+                    <div 
+                      className="flex items-center justify-between px-3 py-2 text-xs uppercase tracking-wider text-gray-400 font-semibold"
+                      onClick={() => {
+                        if (item.label === "Portfolio Management") {
+                          setPortfolioCollapsed(!portfolioCollapsed);
+                        }
+                      }}
+                    >
+                      <span>{item.label}</span>
+                      {item.label === "Portfolio Management" && (
+                        portfolioCollapsed ? <ChevronDown size={16} /> : <ChevronUp size={16} />
+                      )}
+                    </div>
+                  )}
+                  
+                  {/* Show submenu items if not collapsed or if it's not the Portfolio section */}
+                  {(!portfolioCollapsed || sidebarCollapsed || item.label !== "Portfolio Management") && (
+                    <div className={`space-y-1 ${sidebarCollapsed ? '' : 'ml-2'}`}>
+                      {item.items.map((subItem, subIndex) => (
+                        <Link 
+                          key={`${index}-${subIndex}`} 
+                          href={subItem.href}
+                          className={menuItemClasses(isActive(subItem.href))}
+                        >
+                          {subItem.icon}
+                          {!sidebarCollapsed && <span>{subItem.label}</span>}
+                        </Link>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ) : (
+                // Single menu item
+                <Link 
+                  key={`item-${index}`}
+                  href={item.href}
+                  className={menuItemClasses(isActive(item.href))}
+                >
+                  {item.icon}
+                  {!sidebarCollapsed && <span>{item.label}</span>}
                 </Link>
-
-                <Link href="/Positions" className={menuItemClasses(isActive('/real-estate'))}>
-                  <Home size={24} className={iconClasses} />
-                  <span>Positions</span>
-                </Link>
-
-                <Link href="/Reports" className={menuItemClasses(isActive('/metals'))}>
-                  <Coins size={24} className={iconClasses} />
-                  <span>Reports</span>
-                </Link>
-
-              </div>
-            )}
-
-
-            {/* Other Navigation Items */}
-
-
-
-            <Link href="/Accounts" className={menuItemClasses(isActive('/todo'))}>
-              <Home size={24} className={iconClasses} />
-              {!sidebarCollapsed && <span>Accounts</span>}
-            </Link>
-
-            <Link href="/Positions" className={menuItemClasses(isActive('/todo'))}>
-              <Home size={24} className={iconClasses} />
-              {!sidebarCollapsed && <span>Positions</span>}
-            </Link>
-
-            <Link href="/Reports" className={menuItemClasses(isActive('/todo'))}>
-              <Home size={24} className={iconClasses} />
-              {!sidebarCollapsed && <span>Reports</span>}
-            </Link>                        
-
-            <Link href="/AccountReconciliation" className={menuItemClasses(isActive('/todo'))}>
-              <CheckSquare size={24} className={iconClasses} />
-              {!sidebarCollapsed && <span>Account Reconciliations</span>}
-            </Link>      
-
-            <Link href="/todo" className={menuItemClasses(isActive('/todo'))}>
-              <CheckSquare size={24} className={iconClasses} />
-              {!sidebarCollapsed && <span>To Do List</span>}
-            </Link>
-            <Link href="/income" className={menuItemClasses(isActive('/test-combined'))}>
-                <Settings size={24} className={iconClasses} />
-                {!sidebarCollapsed && <span>Test 123</span>}
-              </Link>
-            <Link href="/data-summary" className={menuItemClasses(isActive('/data-summary'))}>
-              <Database size={24} className={iconClasses} />
-              {!sidebarCollapsed && <span>Data Summary</span>}
-            </Link>
-
-            <Link href="/watchlist" className={menuItemClasses(isActive('/about'))}>
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className={iconClasses}>
-                <path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
-                <path d="M12 7.5V9m0 6.5v-4" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"/>
-              </svg>
-              {!sidebarCollapsed && <span>Trial Page</span>}
-            </Link>
-
-            {/* Test Pages */}
-            <div className="pt-4 space-y-1">
-              <Link href="/test" className={menuItemClasses(isActive('/test-fixed'))}>
-                <Shield size={24} className={iconClasses} />
-                {!sidebarCollapsed && <span>Test Accounts</span>}
-              </Link>
-
-            </div>
+              )
+            ))}
           </div>
         </nav>
+        
+        {/* Footer with logout button */}
+        <div className="p-4 border-t border-gray-800">
+          <button 
+            onClick={logout}
+            className={`${menuItemClasses(false)} w-full justify-center md:justify-start`}
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className={iconClasses} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+            </svg>
+            {!sidebarCollapsed && <span>Logout</span>}
+          </button>
+        </div>
       </aside>
+      
+      {/* Toggle button for sidebar collapse/expand */}
+      <button 
+        onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+        className={`
+          fixed z-50 p-2 rounded-full bg-gray-800 text-white
+          hover:bg-gray-700 transition-colors duration-200 shadow-md
+          ${sidebarCollapsed ? 'left-12 top-20' : 'left-60 top-20'}
+        `}
+        aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+      >
+        {sidebarCollapsed ? <ChevronRight size={24} /> : <ChevronLeft size={24} />}
+      </button>
       
       {/* Main content wrapper */}
       <div className={`transition-all duration-300 ${sidebarCollapsed ? 'ml-16' : 'ml-64'}`}>
