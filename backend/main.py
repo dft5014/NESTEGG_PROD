@@ -4386,45 +4386,50 @@ async def add_position(
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Server error: {str(e)}")
 
-@app.put("/positions/{position_id}")
-async def update_position(position_id: int, position: PositionCreate, current_user: dict = Depends(get_current_user)):
+@app.put("/cash/{position_id}")
+async def update_cash_position(position_id: int, position: CashPositionUpdate, current_user: dict = Depends(get_current_user)):
     try:
         # Get position and check if it belongs to the user
-        position_query = select([positions, accounts.c.user_id, accounts.c.id.label("account_id")]).select_from(
-            positions.join(accounts, positions.c.account_id == accounts.c.id)
-        ).where(positions.c.id == position_id)
-        
-        position_data = await database.fetch_one(position_query)
+        check_query = """
+        SELECT cp.*, a.user_id, a.id as account_id
+        FROM cash_positions cp
+        JOIN accounts a ON cp.account_id = a.id
+        WHERE cp.id = :position_id
+        """
+        position_data = await database.fetch_one(query=check_query, values={"position_id": position_id})
         
         if not position_data or position_data["user_id"] != current_user["id"]:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Position not found or access denied")
         
-        # Update position
-        update_query = positions.update().where(
-            positions.c.id == position_id
-        ).values(
-            ticker=position.ticker.upper(),
-            shares=position.shares,
-            price=position.price,
-            cost_basis=position.cost_basis,
-            purchase_date=datetime.strptime(position.purchase_date, "%Y-%m-%d").date(),
-            date=datetime.utcnow()
-        )
-        await database.execute(update_query)
+        # Build update dictionary with only provided fields
+        update_values = {}
+        for key, value in position.dict(exclude_unset=True).items():
+            if key == 'maturity_date' and value is not None:
+                update_values[key] = datetime.strptime(value, "%Y-%m-%d").date()
+            else:
+                update_values[key] = value
         
-        # Calculate old and new values for informational purposes only
-        old_value = position_data["shares"] * position_data["price"]
-        new_value = position.shares * position.price
-        value_difference = new_value - old_value
-        
-        return {
-            "message": "Position updated successfully",
-            "previous_value": old_value,
-            "new_value": new_value,
-            "value_change": value_difference
-        }
+        # Only update if there are values to update
+        if update_values:
+            # Construct dynamic query with only the fields that need updating
+            set_clause = ", ".join([f"{key} = :{key}" for key in update_values.keys()])
+            query = f"""
+            UPDATE cash_positions 
+            SET {set_clause}, updated_at = :updated_at
+            WHERE id = :position_id
+            RETURNING id
+            """
+            
+            # Add position_id and timestamp to values
+            update_values["position_id"] = position_id
+            update_values["updated_at"] = datetime.utcnow()
+            
+            await database.execute(query=query, values=update_values)
+            
+        return {"message": "Cash position updated successfully"}
     except Exception as e:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Server error: {str(e)}")
+        logger.error(f"Error updating cash position: {str(e)}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Failed to update cash position: {str(e)}")
 
 @app.delete("/positions/{position_id}")
 async def delete_position(position_id: int, current_user: dict = Depends(get_current_user)):
