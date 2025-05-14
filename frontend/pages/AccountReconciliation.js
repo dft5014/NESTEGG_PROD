@@ -5,7 +5,7 @@ import Head from 'next/head';
 import AddPositionButton from '@/components/AddPositionButton'
 import EditPositionButton from '@/components/EditPositionButton'
 import DeletePositionButton from '@/components/DeletePositionButton';
-import { Menu, ArrowUpDown, CheckCircle, Info, Clock, X, Filter } from 'lucide-react';
+import { Menu, ArrowUpDown, CheckCircle, Info, Clock, X, Filter, Search} from 'lucide-react';
 
 // Helper function to format currency
 const formatCurrency = (amount) => {
