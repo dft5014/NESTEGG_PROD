@@ -11,8 +11,8 @@ import CashPositionModal from '@/components/modals/CashPositionModal';
 const EditPositionButton = ({ 
     position,
     accountId,
-    accountName,
-    assetType, // Add this prop to explicitly pass the asset type
+    accountName = '', // Default to empty string if not provided
+    assetType, // Explicitly pass the asset type
     onPositionEdited = () => {},
     className = "",
     buttonContent = null // Allow custom button content
@@ -25,6 +25,13 @@ const EditPositionButton = ({
     const [isMetalModalOpen, setIsMetalModalOpen] = useState(false);
     const [isRealEstateModalOpen, setIsRealEstateModalOpen] = useState(false);
     const [isCashModalOpen, setIsCashModalOpen] = useState(false);
+
+    // Log position data when it changes
+    useEffect(() => {
+        if (position) {
+            console.log("EditPositionButton - Position data received:", position);
+        }
+    }, [position]);
 
     const handleEditPosition = (e) => {
         if (e) e.stopPropagation(); // Stop event propagation for row clicks
@@ -46,6 +53,31 @@ const EditPositionButton = ({
 
     const openPositionModal = () => {
         try {
+            // Log all properties of the position object
+            console.log("EditPositionButton - Position data for modal:", 
+                Object.keys(position).reduce((acc, key) => {
+                    acc[key] = position[key];
+                    return acc;
+                }, {})
+            );
+            
+            // Additional debug info for date fields, which are often problematic
+            if (position.purchase_date) {
+                console.log("Purchase date format:", {
+                    original: position.purchase_date,
+                    type: typeof position.purchase_date,
+                    asDate: new Date(position.purchase_date).toISOString()
+                });
+            }
+            
+            if (position.maturity_date) {
+                console.log("Maturity date format:", {
+                    original: position.maturity_date,
+                    type: typeof position.maturity_date,
+                    asDate: new Date(position.maturity_date).toISOString()
+                });
+            }
+            
             // Determine position type
             const positionType = getPositionType();
             console.log('EditPositionButton: Determined position type:', positionType);
@@ -167,6 +199,7 @@ const EditPositionButton = ({
             <button
                 onClick={handleEditPosition}
                 className={`flex items-center transition-colors ${className}`}
+                title="Edit Position"
             >
                 {displayButtonContent}
             </button>
@@ -197,7 +230,7 @@ const EditPositionButton = ({
                 onClose={() => setIsSecurityModalOpen(false)}
                 accountId={accountId}
                 accountName={accountName}
-                positionToEdit={position} // Change 'position' to 'positionToEdit'
+                positionToEdit={position}
                 onPositionSaved={handlePositionSaved}
             />
 
@@ -205,7 +238,8 @@ const EditPositionButton = ({
                 isOpen={isCryptoModalOpen}
                 onClose={() => setIsCryptoModalOpen(false)}
                 accountId={accountId}
-                positionToEdit={position} // Change 'position' to 'positionToEdit'
+                accountName={accountName}
+                positionToEdit={position}
                 onPositionSaved={handlePositionSaved}
             />
 
@@ -213,7 +247,8 @@ const EditPositionButton = ({
                 isOpen={isMetalModalOpen}
                 onClose={() => setIsMetalModalOpen(false)}
                 accountId={accountId}
-                positionToEdit={position} // Change 'position' to 'positionToEdit'
+                accountName={accountName}
+                positionToEdit={position}
                 onPositionSaved={handlePositionSaved}
             />
 
@@ -221,7 +256,8 @@ const EditPositionButton = ({
                 isOpen={isRealEstateModalOpen}
                 onClose={() => setIsRealEstateModalOpen(false)}
                 accountId={accountId}
-                positionToEdit={position} // Change 'position' to 'positionToEdit'
+                accountName={accountName}
+                positionToEdit={position}
                 onPositionSaved={handlePositionSaved}
             />
 
@@ -229,7 +265,8 @@ const EditPositionButton = ({
                 isOpen={isCashModalOpen}
                 onClose={() => setIsCashModalOpen(false)}
                 accountId={accountId}
-                positionToEdit={position} // Change 'position' to 'positionToEdit'
+                accountName={accountName}
+                positionToEdit={position}
                 onPositionSaved={handlePositionSaved}
             />
         </>

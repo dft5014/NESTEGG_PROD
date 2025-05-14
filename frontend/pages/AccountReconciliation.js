@@ -5,7 +5,7 @@ import Head from 'next/head';
 import AddPositionButton from '@/components/AddPositionButton'
 import EditPositionButton from '@/components/EditPositionButton'
 import DeletePositionButton from '@/components/DeletePositionButton';
-import { Menu, ArrowUpDown, CheckCircle, Info, Clock, X, Filter, Search} from 'lucide-react';
+import { Menu, ArrowUpDown, CheckCircle, Info, Clock, X, Filter, Search, Edit} from 'lucide-react';
 
 // Helper function to format currency
 const formatCurrency = (amount) => {
@@ -106,29 +106,29 @@ const StatusIcon = ({ status }) => {
 
 const AccountSearchFilter = ({ filterText, setFilterText }) => {
   return (
-    <div className="relative">
-      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-        <Search className="h-4 w-4 text-gray-400" />
-      </div>
-      <input
-        type="text"
-        className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-        placeholder="Filter accounts (name, institution, type, status)..."
-        value={filterText}
-        onChange={(e) => setFilterText(e.target.value)}
-      />
-      {filterText && (
-        <div className="absolute inset-y-0 right-0 pr-3 flex items-center">
-          <button
-            type="button"
-            className="text-gray-400 hover:text-gray-500 focus:outline-none focus:text-gray-500"
-            onClick={() => setFilterText('')}
-          >
-            <X className="h-4 w-4" aria-hidden="true" />
-          </button>
-        </div>
-      )}
+  <div className="relative w-full md:w-96">
+    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+      <Search className="h-4 w-4 text-gray-400" />
     </div>
+    <input
+      type="text"
+      className="block w-full pl-10 pr-10 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+      placeholder="Filter accounts (name, institution, type, status)..."
+      value={filterText}
+      onChange={(e) => setFilterText(e.target.value)}
+    />
+    {filterText && (
+      <div className="absolute inset-y-0 right-0 pr-3 flex items-center">
+        <button
+          type="button"
+          className="text-gray-400 hover:text-gray-500 focus:outline-none focus:text-gray-500"
+          onClick={() => setFilterText('')}
+        >
+          <X className="h-4 w-4" aria-hidden="true" />
+        </button>
+      </div>
+    )}
+  </div>
   );
 };
 
@@ -779,9 +779,6 @@ const getSortedPositions = (accountId) => {
         valueB = valueB.toLowerCase();
       }
       
-      // Debug sorting
-      console.log(`Sorting by ${sortConfig.key}: ${valueA} vs ${valueB}`);
-      
       if (valueA < valueB) {
         return sortConfig.direction === 'ascending' ? -1 : 1;
       }
@@ -791,7 +788,48 @@ const getSortedPositions = (accountId) => {
       return 0;
     });
   }
-  return sortablePositions;
+  
+  // Group positions by ticker/identifier within this function
+  const groupedByTicker = {};
+  sortablePositions.forEach(position => {
+    const key = position.identifier || position.ticker || 'unknown';
+    if (!groupedByTicker[key]) {
+      groupedByTicker[key] = [];
+    }
+    groupedByTicker[key].push(position);
+  });
+  
+  // Create a new array with subtotals
+  const result = [];
+  Object.keys(groupedByTicker).forEach(ticker => {
+    const positions = groupedByTicker[ticker];
+    
+    // Add each position
+    positions.forEach(position => {
+      result.push(position);
+    });
+    
+    // Only add subtotal row if there are multiple positions with the same ticker
+    if (positions.length > 1) {
+      // Calculate subtotals
+      const totalQuantity = positions.reduce((sum, pos) => sum + parseFloat(pos.quantity || 0), 0);
+      const totalValue = positions.reduce((sum, pos) => sum + parseFloat(pos.current_value || 0), 0);
+      
+      // Add a subtotal row
+      result.push({
+        id: `subtotal-${ticker}`,
+        name: `${ticker} Total`,
+        identifier: ticker,
+        quantity: totalQuantity,
+        current_value: totalValue,
+        isSubtotal: true, // Flag to identify subtotal rows
+        asset_type: positions[0].asset_type, // Inherit from first position
+        reconciliation_status: 'Subtotal' // Special status for styling
+      });
+    }
+  });
+  
+  return result;
 };
 
 const getSortedAccounts = () => {
@@ -849,6 +887,8 @@ const getSortedAccounts = () => {
   
   return sortableAccounts;
 };
+
+
 
 const AccountSortDropdown = () => {
   const sortOptions = [
@@ -1166,17 +1206,21 @@ const AccountSortDropdown = () => {
         </div>
       )}
 
-      <div className="flex justify-between items-center mb-4">
-        <h2 className="text-gray-600 text-sm font-medium uppercase tracking-wider">
-          Your Accounts
-        </h2>
-        
-        <div className="flex items-center space-x-2">
-          <div className="text-sm text-gray-500 mr-2">Sort:</div>
-          <AccountSortDropdown />
+      <div className="flex flex-col space-y-4 mb-6">
+        <div className="flex justify-between items-center">
+          <h2 className="text-gray-600 text-sm font-medium uppercase tracking-wider">
+            Your Accounts
+          </h2>
+          
+          <div className="flex items-center space-x-4">
+            <div className="flex items-center">
+              <div className="text-sm text-gray-500 mr-2">Sort:</div>
+              <AccountSortDropdown />
+            </div>
+          </div>
         </div>
         
-        <div className="mt-4">
+        <div className="flex justify-between items-center">
           <AccountSearchFilter 
             filterText={filterText} 
             setFilterText={setFilterText} 
@@ -1189,7 +1233,7 @@ const AccountSortDropdown = () => {
           />
         </div>
 
-        <div className="border-t border-gray-200 mt-1"></div>
+        <div className="border-t border-gray-200"></div>
       </div>
 
 
@@ -1275,25 +1319,65 @@ const AccountSortDropdown = () => {
                     </div>
                   </div>
                   
-                  <div className="md:col-span-2">
-                    <div className="flex items-center space-x-2">
-                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800 border border-gray-300">
-                        <Clock className="mr-1 h-4 w-4 text-gray-600" />
-                        Last: {formatDate(account.last_reconciled_date)}
+                    <div className="md:col-span-4 flex items-center space-x-2">
+                      {/* Status Badge */}
+                      <span 
+                        className={`inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium 
+                          ${account.reconciliation_status === 'Reconciled' ? 'bg-green-100 text-green-800 border border-green-300' : 
+                            account.reconciliation_status === 'Needs Review' ? 'bg-yellow-100 text-yellow-800 border border-yellow-300' : 
+                            'bg-red-100 text-red-800 border border-red-300'}`}
+                      >
+                        <StatusIcon status={account.reconciliation_status || "Not Reconciled"} className="h-3.5 w-3.5 mr-1" />
+                        <span>{account.reconciliation_status || "Not Reconciled"}</span>
                       </span>
                       
+                      {/* Age Badge */}
                       <span 
-                        className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium 
-                          ${account.reconciliation_status === 'Reconciled' ? 'bg-green-100 text-green-800' : 
-                            account.reconciliation_status === 'Needs Review' ? 'bg-yellow-100 text-yellow-800' : 
-                            'bg-red-100 text-red-800'}`}
-                        title={account.days_since_reconciliation ? `Last reconciled ${account.days_since_reconciliation} days ago` : 'Not yet reconciled'}
+                        className={`inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium 
+                          ${!account.days_since_reconciliation ? 'bg-gray-100 text-gray-800 border border-gray-300' : 
+                            account.days_since_reconciliation <= 30 ? 'bg-green-100 text-green-800 border border-green-300' : 
+                            account.days_since_reconciliation <= 90 ? 'bg-yellow-100 text-yellow-800 border border-yellow-300' : 
+                            'bg-red-100 text-red-800 border border-red-300'}`}
+                        title={`Last reconciled: ${formatDate(account.last_reconciled_date)}`}
                       >
-                        <StatusIcon status={account.reconciliation_status || "Not Reconciled"} className="h-4 w-4 mr-1" />
-                        <span className="ml-1">{account.reconciliation_status || "Not Reconciled"}</span>
+                        <Clock className="h-3.5 w-3.5 mr-1" />
+                        {account.days_since_reconciliation 
+                          ? `${account.days_since_reconciliation} days` 
+                          : "Never"}
                       </span>
+                      
+                      {/* Action Buttons */}
+                      <div className="flex space-x-1 ml-auto">
+                        <button
+                          type="button"
+                          className="inline-flex items-center px-2 py-1 border border-gray-300 text-xs font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                          onClick={() => {/* Add edit account functionality */}}
+                          title="Edit Account"
+                        >
+                          <Edit className="h-3.5 w-3.5" />
+                        </button>
+                        
+                        <button
+                          type="button"
+                          className="inline-flex items-center px-2 py-1 border border-gray-300 text-xs font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                          onClick={() => handleAccountExpand(account.id)}
+                          title={isExpanded ? 'Hide Positions' : 'View Positions'}
+                        >
+                          <ArrowUpDown className="h-3.5 w-3.5" />
+                          <span className="ml-1">{isExpanded ? 'Hide' : 'View'}</span>
+                        </button>
+                        
+                        <button
+                          type="button"
+                          className="inline-flex items-center px-2 py-1 border border-transparent text-xs font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                          onClick={() => handleOpenReconcileDialog(account)}
+                          title="Reconcile account balance"
+                        >
+                          <CheckCircle className="h-3.5 w-3.5" />
+                          <span className="ml-1">Reconcile</span>
+                        </button>
+                      </div>
                     </div>
-                  </div>
                   
                   <div className="md:col-span-2 flex justify-end space-x-2">
                     <button
@@ -1382,6 +1466,16 @@ const AccountSortDropdown = () => {
                                 </th>
                                 <th 
                                   scope="col" 
+                                  className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer"
+                                  onClick={() => requestSort('purchase_date')}
+                                >
+                                  <div className="flex items-center">
+                                    Purchase Date
+                                    <ArrowUpDown className="ml-1 h-4 w-4" />
+                                  </div>
+                                </th>
+                                <th 
+                                  scope="col" 
                                   className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer"
                                   onClick={() => requestSort('quantity')}
                                 >
@@ -1430,6 +1524,26 @@ const AccountSortDropdown = () => {
                             <tbody className="bg-white divide-y divide-gray-200">
                               {getSortedPositions(account.id).map((position) => {
                                 // Get position status - either from the position or default to account status
+                                  if (position.isSubtotal) {
+                                    return (
+                                      <tr 
+                                        key={position.id}
+                                        className="bg-gray-100 font-medium"
+                                      >
+                                        <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-900 font-semibold" colSpan="2">
+                                          {position.name}
+                                        </td>
+                                        <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-900 font-semibold text-right">
+                                          {formatNumber(parseFloat(position.quantity) || 0)}
+                                        </td>
+                                        <td colSpan="2"></td>
+                                        <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-900 font-semibold text-right">
+                                          {formatCurrency(parseFloat(position.current_value) || 0)}
+                                        </td>
+                                        <td colSpan="4"></td>
+                                      </tr>
+                                    );
+                                  }
                                 const positionStatus = position.reconciliation_status || account.reconciliation_status || "Not Reconciled";
                                 
                                 // Calculate position differences
@@ -1454,6 +1568,9 @@ const AccountSortDropdown = () => {
                                     <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-500">
                                       {position.identifier}
                                     </td>
+                                    <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-500">
+                                      {position.purchase_date ? formatDate(position.purchase_date) : 'N/A'}
+                                    </td>  
                                     <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-500 text-right">
                                       {formatNumber(parseFloat(position.quantity) || 0)}
                                     </td>
@@ -1537,50 +1654,32 @@ const AccountSortDropdown = () => {
                                         />
                                         
                                         {/* Reconcile Dropdown */}
-                                        <div className="relative inline-block text-left" ref={dropdownRef}>
-                                          <button
-                                            type="button"
-                                            className="inline-flex items-center px-2 py-1 border border-gray-300 shadow-sm text-xs font-medium rounded text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-                                            onClick={(e) => {
-                                              e.stopPropagation();
-                                              setActiveReconcileDropdown(
-                                                activeReconcileDropdown === position.id ? null : position.id
-                                              );
-                                            }}
-                                          >
-                                            <CheckCircle className="h-4 w-4 mr-1" />
-                                            <span className="sr-only md:not-sr-only">Reconcile</span>
-                                            <ArrowUpDown className="h-4 w-4 ml-1" />
-                                          </button>
-                                          
-                                          {activeReconcileDropdown === position.id && (
-                                            <div 
-                                              className="origin-top-right absolute right-0 mt-2 w-48 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 z-10"
-                                              style={{ position: 'absolute', top: '100%', right: 0 }}
-                                            >
-                                              <div className="py-1" role="menu" aria-orientation="vertical">
-                                                <button
-                                                  className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                                                  onClick={() => handleReconcilePosition(account.id, position, true, true)}
-                                                >
-                                                  Reconcile Both
-                                                </button>
-                                                <button
-                                                  className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                                                  onClick={() => handleReconcilePosition(account.id, position, true, false)}
-                                                >
-                                                  Reconcile Quantity Only
-                                                </button>
-                                                <button
-                                                  className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                                                  onClick={() => handleReconcilePosition(account.id, position, false, true)}
-                                                >
-                                                  Reconcile Value Only
-                                                </button>
-                                              </div>
-                                            </div>
-                                          )}
-                                        </div>
+                                      <div className="flex space-x-1">
+                                        <button
+                                          type="button"
+                                          className="px-1.5 py-1 border border-green-300 text-xs font-medium rounded text-green-700 bg-green-50 hover:bg-green-100 focus:outline-none focus:ring-1 focus:ring-green-400"
+                                          onClick={() => handleReconcilePosition(account.id, position, true, true)}
+                                          title="Reconcile both quantity and value"
+                                        >
+                                          <CheckCircle className="h-3.5 w-3.5" />
+                                        </button>
+                                        <button
+                                          type="button"
+                                          className="px-1.5 py-1 border border-blue-300 text-xs font-medium rounded text-blue-700 bg-blue-50 hover:bg-blue-100 focus:outline-none focus:ring-1 focus:ring-blue-400"
+                                          onClick={() => handleReconcilePosition(account.id, position, true, false)}
+                                          title="Reconcile quantity only"
+                                        >
+                                          <span className="text-xs font-bold">#</span>
+                                        </button>
+                                        <button
+                                          type="button"
+                                          className="px-1.5 py-1 border border-purple-300 text-xs font-medium rounded text-purple-700 bg-purple-50 hover:bg-purple-100 focus:outline-none focus:ring-1 focus:ring-purple-400"
+                                          onClick={() => handleReconcilePosition(account.id, position, false, true)}
+                                          title="Reconcile value only"
+                                        >
+                                          <span className="text-xs font-bold">$</span>
+                                        </button>
+                                      </div>
                                         
                                         {/* Delete Position Button */}
                                         <DeletePositionButton
