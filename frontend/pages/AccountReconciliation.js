@@ -104,6 +104,53 @@ const StatusIcon = ({ status }) => {
   }
 };
 
+const AccountSearchFilter = ({ filterText, setFilterText }) => {
+  return (
+    <div className="relative">
+      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+        <Search className="h-4 w-4 text-gray-400" />
+      </div>
+      <input
+        type="text"
+        className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+        placeholder="Filter accounts (name, institution, type, status)..."
+        value={filterText}
+        onChange={(e) => setFilterText(e.target.value)}
+      />
+      {filterText && (
+        <div className="absolute inset-y-0 right-0 pr-3 flex items-center">
+          <button
+            type="button"
+            className="text-gray-400 hover:text-gray-500 focus:outline-none focus:text-gray-500"
+            onClick={() => setFilterText('')}
+          >
+            <X className="h-4 w-4" aria-hidden="true" />
+          </button>
+        </div>
+      )}
+    </div>
+  );
+};
+
+const FilterStats = ({ filteredCount, totalCount, filterText, setFilterText }) => {
+  if (filteredCount === totalCount || !filterText) {
+    return null; // Don't show if all accounts are visible or no filter applied
+  }
+  
+  return (
+    <div className="text-sm text-gray-500 mt-2">
+      Showing {filteredCount} of {totalCount} accounts
+      <button
+        type="button"
+        className="ml-2 text-blue-500 hover:text-blue-700 focus:outline-none"
+        onClick={() => setFilterText('')}
+      >
+        Clear filter
+      </button>
+    </div>
+  );
+};
+
 const AccountReconciliation = () => {
   // State variables for accounts and UI state
   const [accounts, setAccounts] = useState([]);
@@ -856,53 +903,6 @@ const AccountSortDropdown = () => {
     const reconciledPositionsWidth = `${metrics.reconciledPositionPercentage}%`;
     const reconciledValueWidth = `${metrics.reconciledValuePercentage}%`;
     
-  const AccountSearchFilter = () => {
-    return (
-      <div className="relative">
-        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-          <Search className="h-4 w-4 text-gray-400" />
-        </div>
-        <input
-          type="text"
-          className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-          placeholder="Filter accounts (name, institution, type, status)..."
-          value={filterText}
-          onChange={(e) => setFilterText(e.target.value)}
-        />
-        {filterText && (
-          <div className="absolute inset-y-0 right-0 pr-3 flex items-center">
-            <button
-              type="button"
-              className="text-gray-400 hover:text-gray-500 focus:outline-none focus:text-gray-500"
-              onClick={() => setFilterText('')}
-            >
-              <X className="h-4 w-4" aria-hidden="true" />
-            </button>
-          </div>
-        )}
-      </div>
-    );
-  };
-
-  const FilterStats = ({ filteredCount, totalCount }) => {
-    if (filteredCount === totalCount || !filterText) {
-      return null; // Don't show if all accounts are visible or no filter applied
-    }
-    
-    return (
-      <div className="text-sm text-gray-500 mt-2">
-        Showing {filteredCount} of {totalCount} accounts
-        <button
-          type="button"
-          className="ml-2 text-blue-500 hover:text-blue-700 focus:outline-none"
-          onClick={() => setFilterText('')}
-        >
-          Clear filter
-        </button>
-      </div>
-    );
-  };
-
     return (
       <div className="bg-white rounded-lg shadow-sm overflow-hidden mb-8">
         <div className="px-6 py-5 border-b border-gray-200">
@@ -1177,10 +1177,15 @@ const AccountSortDropdown = () => {
         </div>
         
         <div className="mt-4">
-          <AccountSearchFilter />
+          <AccountSearchFilter 
+            filterText={filterText} 
+            setFilterText={setFilterText} 
+          />
           <FilterStats 
             filteredCount={getFilteredAccounts().length} 
-            totalCount={accounts.length} 
+            totalCount={accounts.length}
+            filterText={filterText}
+            setFilterText={setFilterText} 
           />
         </div>
 

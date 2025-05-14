@@ -6,8 +6,8 @@ import { useRouter } from 'next/router';
 import { 
   DollarSign, TrendingUp, TrendingDown, Percent, Layers, 
   ArrowUp, ArrowDown, BarChart4, LineChart, PieChart as PieChartIcon,
-  Briefcase, RefreshCw, Plus, Search, X, AlertCircle, Check, Filter,
-  Diamond, Coins, Package, Home
+  Briefcase, RefreshCw, Search, X, Filter,
+  Diamond, Coins, Package, Home, Plus
 } from 'lucide-react';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
@@ -19,31 +19,15 @@ import { fetchWithAuth } from '@/utils/api';
 import { formatCurrency, formatPercentage } from '@/utils/formatters';
 import { fetchUnifiedPositions } from '@/utils/apimethods/positionMethods';
 import { fetchAllAccounts } from '@/utils/apimethods/accountMethods';
-import { addPosition } from '@/utils/apimethods/positionMethods';
+import AddPositionButton from '@/components/AddPositionButton';
 
 export default function PositionsPage() {
   const [positions, setPositions] = useState([]);
-  const [accounts, setAccounts] = useState([]);
   const [positionMetrics, setPositionMetrics] = useState({});
   const [filterView, setFilterView] = useState('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [showAddPositionModal, setShowAddPositionModal] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [submitSuccess, setSubmitSuccess] = useState(false);
-  const [submitError, setSubmitError] = useState(null);
-  
-  // State for new position form
-  const [newPosition, setNewPosition] = useState({
-    account_id: '',
-    identifier: '',
-    name: '',
-    asset_type: 'security',
-    quantity: 1,
-    cost_basis_per_share: 0,
-    purchase_date: new Date().toISOString().split('T')[0]
-  });
   
   const router = useRouter();
   
@@ -87,33 +71,29 @@ export default function PositionsPage() {
   ];
   
   useEffect(() => {
-    const loadPositions = async () => {
-      setIsLoading(true);
-      setError(null);
-      try {
-        // Fetch positions using API method
-        const fetchedPositions = await fetchUnifiedPositions();
-        console.log("Positions: Fetched unified positions:", fetchedPositions.length);
-        setPositions(fetchedPositions);
-        
-        // Fetch accounts for the position form
-        const fetchedAccounts = await fetchAllAccounts();
-        console.log("Positions: Fetched accounts:", fetchedAccounts.length);
-        setAccounts(fetchedAccounts);
-        
-        // Calculate position metrics
-        const metrics = calculatePositionMetrics(fetchedPositions);
-        setPositionMetrics(metrics);
-      } catch (error) {
-        console.error("Error loading positions:", error);
-        setError(error.message || "Failed to load positions");
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    
-    loadPositions();
+    loadData();
   }, []);
+  
+  // Function to load all necessary data
+  const loadData = async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      // Fetch positions using API method
+      const fetchedPositions = await fetchUnifiedPositions();
+      console.log("Positions: Fetched unified positions:", fetchedPositions.length);
+      setPositions(fetchedPositions);
+      
+      // Calculate position metrics
+      const metrics = calculatePositionMetrics(fetchedPositions);
+      setPositionMetrics(metrics);
+    } catch (error) {
+      console.error("Error loading positions:", error);
+      setError(error.message || "Failed to load positions");
+    } finally {
+      setIsLoading(false);
+    }
+  };
   
   // Calculate position metrics
   const calculatePositionMetrics = (positions) => {
@@ -337,9 +317,7 @@ export default function PositionsPage() {
       }
       
       // Reload positions after refresh
-      const updatedPositions = await fetchUnifiedPositions();
-      setPositions(updatedPositions);
-      setPositionMetrics(calculatePositionMetrics(updatedPositions));
+      await loadData();
     } catch (error) {
       console.error("Error refreshing positions:", error);
       setError(error.message || "Failed to refresh positions");
@@ -348,57 +326,9 @@ export default function PositionsPage() {
     }
   };
   
-  // Handle form input changes
-  const handleInputChange = (e) => {
-    const { name, value, type } = e.target;
-    
-    // Handle different input types
-    const newValue = type === 'number' ? parseFloat(value) || 0 : value;
-    
-    setNewPosition(prev => ({
-      ...prev,
-      [name]: newValue
-    }));
-  };
-  
-  // Handle position creation
-  const handleCreatePosition = async (e) => {
-    e.preventDefault();
-    setIsSubmitting(true);
-    setSubmitError(null);
-    
-    try {
-      // Create position using the API method
-      await addPosition(newPosition);
-      
-      // Reload positions after creation
-      const updatedPositions = await fetchUnifiedPositions();
-      setPositions(updatedPositions);
-      setPositionMetrics(calculatePositionMetrics(updatedPositions));
-      
-      // Show success message and reset form
-      setSubmitSuccess(true);
-      setNewPosition({
-        account_id: '',
-        identifier: '',
-        name: '',
-        asset_type: 'security',
-        quantity: 1,
-        cost_basis_per_share: 0,
-        purchase_date: new Date().toISOString().split('T')[0]
-      });
-      
-      // Close modal after a brief delay
-      setTimeout(() => {
-        setShowAddPositionModal(false);
-        setSubmitSuccess(false);
-      }, 1500);
-    } catch (error) {
-      console.error("Error creating position:", error);
-      setSubmitError(error.message || "Failed to create position");
-    } finally {
-      setIsSubmitting(false);
-    }
+  // Handler for when a position is added
+  const handlePositionAdded = async () => {
+    await loadData();
   };
   
   return (
@@ -425,13 +355,18 @@ export default function PositionsPage() {
                 <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
                 Refresh Positions
               </button>
-              <button
-                onClick={() => setShowAddPositionModal(true)}
-                className="flex items-center px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors"
-              >
-                <Plus className="h-4 w-4 mr-2" />
-                Add Position
-              </button>
+              
+              {/* Using AddPositionButton component */}
+              <AddPositionButton 
+                onPositionAdded={handlePositionAdded}
+                className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg"
+                buttonContent={
+                  <div className="flex items-center">
+                    <Plus className="h-4 w-4 mr-2" />
+                    Add Position
+                  </div>
+                }
+              />
             </div>
           </div>
         </header>
@@ -749,8 +684,25 @@ export default function PositionsPage() {
             </div>
           )}
           
-          {/* Positions Table */}
-          <UnifiedGroupedPositionsTable title="" filteredPositions={filteredPositions} />
+          {/* Positions Table with Add Position Button */}
+          <div className="mb-4 flex justify-end">
+            <AddPositionButton 
+              onPositionAdded={handlePositionAdded}
+              className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm"
+              buttonContent={
+                <div className="flex items-center">
+                  <Plus className="h-4 w-4 mr-1" />
+                  Add Position
+                </div>
+              }
+            />
+          </div>
+          
+          <UnifiedGroupedPositionsTable 
+            title="" 
+            filteredPositions={filteredPositions} 
+            onPositionAdded={handlePositionAdded}
+          />
         </section>
         
         {/* Quick Actions Footer */}
@@ -782,190 +734,6 @@ export default function PositionsPage() {
           </div>
         </section>
       </div>
-      
-      {/* Add Position Modal */}
-      {showAddPositionModal && (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
-          <div className="bg-gray-800 rounded-xl p-6 w-full max-w-md">
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-xl font-bold">Add New Position</h3>
-              <button 
-                onClick={() => setShowAddPositionModal(false)}
-                className="text-gray-400 hover:text-white"
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-            
-            {submitSuccess ? (
-              <div className="text-center p-4">
-                <div className="bg-green-500/20 p-3 rounded-full inline-flex mb-3">
-                  <Check className="h-6 w-6 text-green-400" />
-                </div>
-                <h4 className="text-lg font-medium mb-2">Position Added Successfully!</h4>
-                <p className="text-gray-400">Your new position has been added to your portfolio.</p>
-              </div>
-            ) : (
-              <form onSubmit={handleCreatePosition}>
-                {submitError && (
-                  <div className="mb-4 p-3 bg-red-900/30 rounded-lg text-red-200 flex items-start">
-                    <AlertCircle className="h-5 w-5 mr-2 flex-shrink-0 mt-0.5" />
-                    <span>{submitError}</span>
-                  </div>
-                )}
-                
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-1">Account</label>
-                    <div className="relative">
-                      <select
-                        name="account_id"
-                        value={newPosition.account_id}
-                        onChange={handleInputChange}
-                        className="w-full bg-gray-700 text-white border border-gray-600 rounded-lg p-2.5 focus:ring-blue-500 focus:border-blue-500 appearance-none"
-                        required
-                      >
-                        <option value="">Select Account</option>
-                        {accounts.map((account) => (
-                          <option key={account.id} value={account.id}>{account.account_name}</option>
-                        ))}
-                      </select>
-                      <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
-                        <ArrowDown className="h-4 w-4 text-gray-400" />
-                      </div>
-                    </div>
-                  </div>
-                  
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-1">Asset Type</label>
-                    <div className="relative">
-                      <select
-                        name="asset_type"
-                        value={newPosition.asset_type}
-                        onChange={handleInputChange}
-                        className="w-full bg-gray-700 text-white border border-gray-600 rounded-lg p-2.5 focus:ring-blue-500 focus:border-blue-500 appearance-none"
-                        required
-                      >
-                        <option value="security">Security</option>
-                        <option value="crypto">Cryptocurrency</option>
-                        <option value="metal">Precious Metal</option>
-                        <option value="realestate">Real Estate</option>
-                      </select>
-                      <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
-                        <ArrowDown className="h-4 w-4 text-gray-400" />
-                      </div>
-                    </div>
-                  </div>
-                  
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-1">
-                      {newPosition.asset_type === 'security' ? 'Ticker Symbol' : 
-                       newPosition.asset_type === 'crypto' ? 'Crypto Symbol' :
-                       'Identifier'}
-                    </label>
-                    <input
-                      type="text"
-                      name="identifier"
-                      value={newPosition.identifier}
-                      onChange={handleInputChange}
-                      className="w-full bg-gray-700 text-white border border-gray-600 rounded-lg p-2.5 focus:ring-blue-500 focus:border-blue-500"
-                      placeholder={newPosition.asset_type === 'security' ? 'E.g., AAPL' : 
-                                    newPosition.asset_type === 'crypto' ? 'E.g., BTC' :
-                                    'E.g., GOLD'}
-                      required
-                    />
-                  </div>
-                  
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-1">Name</label>
-                    <input
-                      type="text"
-                      name="name"
-                      value={newPosition.name}
-                      onChange={handleInputChange}
-                      className="w-full bg-gray-700 text-white border border-gray-600 rounded-lg p-2.5 focus:ring-blue-500 focus:border-blue-500"
-                      placeholder={newPosition.asset_type === 'security' ? 'E.g., Apple Inc.' : 
-                                    newPosition.asset_type === 'crypto' ? 'E.g., Bitcoin' :
-                                    'E.g., Gold Bullion'}
-                      required
-                    />
-                  </div>
-                  
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-1">Quantity</label>
-                    <input
-                      type="number"
-                      name="quantity"
-                      value={newPosition.quantity}
-                      onChange={handleInputChange}
-                      className="w-full bg-gray-700 text-white border border-gray-600 rounded-lg p-2.5 focus:ring-blue-500 focus:border-blue-500"
-                      placeholder="0.00"
-                      step="any"
-                      min="0"
-                      required
-                    />
-                  </div>
-                  
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-1">Cost Basis Per Unit</label>
-                    <div className="relative">
-                      <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400">$</span>
-                      <input
-                        type="number"
-                        name="cost_basis_per_share"
-                        value={newPosition.cost_basis_per_share}
-                        onChange={handleInputChange}
-                        className="w-full bg-gray-700 text-white border border-gray-600 rounded-lg p-2.5 pl-7 focus:ring-blue-500 focus:border-blue-500"
-                        placeholder="0.00"
-                        step="0.01"
-                        min="0"
-                      />
-                    </div>
-                  </div>
-                  
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-1">Purchase Date</label>
-                    <input
-                      type="date"
-                      name="purchase_date"
-                      value={newPosition.purchase_date}
-                      onChange={handleInputChange}
-                      className="w-full bg-gray-700 text-white border border-gray-600 rounded-lg p-2.5 focus:ring-blue-500 focus:border-blue-500"
-                    />
-                  </div>
-                </div>
-                
-                <div className="flex justify-end mt-6 space-x-3">
-                  <button 
-                    type="button"
-                    onClick={() => setShowAddPositionModal(false)}
-                    className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-colors"
-                  >
-                    Cancel
-                  </button>
-                  <button 
-                    type="submit"
-                    className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors flex items-center"
-                    disabled={isSubmitting}
-                  >
-                    {isSubmitting ? (
-                      <>
-                        <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                        Adding...
-                      </>
-                    ) : (
-                      <>
-                        <Plus className="h-4 w-4 mr-2" />
-                        Add Position
-                      </>
-                    )}
-                  </button>
-                </div>
-              </form>
-            )}
-          </div>
-        </div>
-      )}
     </div>
   );
 }

@@ -5,41 +5,25 @@ import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { 
   DollarSign, Briefcase, Building2, Landmark, 
-  ArrowUp, ArrowDown, CreditCard, PieChart as PieChartIcon,
-  Shield, BarChart2, LineChart, ArrowRight, Plus, RefreshCw,
-  X, Check, AlertCircle
+  ArrowUp, CreditCard, PieChart as PieChartIcon,
+  Shield, BarChart2, LineChart, Plus, RefreshCw
 } from 'lucide-react';
 import { 
   PieChart, Pie, Cell, ResponsiveContainer, Tooltip, 
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Legend 
+  BarChart, Bar, XAxis, YAxis, CartesianGrid
 } from 'recharts';
 import KpiCard from '@/components/ui/KpiCard';
 import AccountTable from '@/components/tables/UnifiedAccountTable';
 import { fetchWithAuth } from '@/utils/api';
 import { formatCurrency, formatPercentage } from '@/utils/formatters';
 import { fetchAllAccounts } from '@/utils/apimethods/accountMethods';
-import { addAccount } from '@/utils/apimethods/accountMethods';
+import AddAccountButton from '@/components/AddAccountButton';
 
 export default function AccountsPage() {
   const [accounts, setAccounts] = useState([]);
   const [accountsMetrics, setAccountsMetrics] = useState({});
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [showAddAccountModal, setShowAddAccountModal] = useState(false);
-  const [newAccount, setNewAccount] = useState({
-    account_name: '',
-    institution: '',
-    account_type: 'Brokerage',
-    account_number: '',
-    balance: 0,
-    currency: 'USD',
-    is_taxable: true
-  });
-  const [institutions, setInstitutions] = useState([]);
-  const [accountTypes, setAccountTypes] = useState(['Brokerage', 'Retirement', 'IRA', 'Roth IRA', '401k', 'Checking', 'Savings', 'HSA', '529', 'Other']);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [submitSuccess, setSubmitSuccess] = useState(false);
-  const [submitError, setSubmitError] = useState(null);
   
   const router = useRouter();
 
@@ -79,32 +63,30 @@ export default function AccountsPage() {
     'Other': '#6B7280'
   };
 
+  // Load accounts on component mount
   useEffect(() => {
-    const loadAccounts = async () => {
-      setIsLoading(true);
-      setError(null);
-      try {
-        // Fetch all accounts using the accountMethods utility
-        const fetchedAccounts = await fetchAllAccounts();
-        setAccounts(fetchedAccounts);
-        
-        // Get unique institutions from accounts for dropdown
-        const uniqueInstitutions = [...new Set(fetchedAccounts.map(account => account.institution))].filter(Boolean);
-        setInstitutions(uniqueInstitutions);
-        
-        // Calculate metrics
-        const metrics = calculateAccountMetrics(fetchedAccounts);
-        setAccountsMetrics(metrics);
-      } catch (error) {
-        console.error("Error loading accounts:", error);
-        setError(error.message || "Failed to load accounts");
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    
     loadAccounts();
   }, []);
+
+  // Function to load accounts data
+  const loadAccounts = async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      // Fetch all accounts using the accountMethods utility
+      const fetchedAccounts = await fetchAllAccounts();
+      setAccounts(fetchedAccounts);
+      
+      // Calculate metrics
+      const metrics = calculateAccountMetrics(fetchedAccounts);
+      setAccountsMetrics(metrics);
+    } catch (error) {
+      console.error("Error loading accounts:", error);
+      setError(error.message || "Failed to load accounts");
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   // Calculate account metrics
   const calculateAccountMetrics = (accounts) => {
@@ -238,9 +220,7 @@ export default function AccountsPage() {
       }
       
       // Reload accounts after refresh
-      const updatedAccounts = await fetchAllAccounts();
-      setAccounts(updatedAccounts);
-      setAccountsMetrics(calculateAccountMetrics(updatedAccounts));
+      await loadAccounts();
     } catch (error) {
       console.error("Error refreshing accounts:", error);
       setError(error.message || "Failed to refresh accounts");
@@ -249,59 +229,9 @@ export default function AccountsPage() {
     }
   };
 
-  // Handle form input changes
-  const handleInputChange = (e) => {
-    const { name, value, type, checked } = e.target;
-    
-    // Handle different input types appropriately
-    const newValue = type === 'checkbox' ? checked : 
-                     type === 'number' ? parseFloat(value) || 0 : 
-                     value;
-    
-    setNewAccount(prev => ({
-      ...prev,
-      [name]: newValue
-    }));
-  };
-
-  // Handle account creation form submission
-  const handleCreateAccount = async (e) => {
-    e.preventDefault();
-    setIsSubmitting(true);
-    setSubmitError(null);
-    
-    try {
-      // Create the account using the accountMethods utility
-      const createdAccount = await addAccount(newAccount);
-      
-      // Update the accounts list and metrics
-      const updatedAccounts = await fetchAllAccounts();
-      setAccounts(updatedAccounts);
-      setAccountsMetrics(calculateAccountMetrics(updatedAccounts));
-      
-      // Show success message and reset form
-      setSubmitSuccess(true);
-      setNewAccount({
-        account_name: '',
-        institution: '',
-        account_type: 'Brokerage',
-        account_number: '',
-        balance: 0,
-        currency: 'USD',
-        is_taxable: true
-      });
-      
-      // Close modal after a brief delay
-      setTimeout(() => {
-        setShowAddAccountModal(false);
-        setSubmitSuccess(false);
-      }, 1500);
-    } catch (error) {
-      console.error("Error creating account:", error);
-      setSubmitError(error.message || "Failed to create account");
-    } finally {
-      setIsSubmitting(false);
-    }
+  // Handler for when an account is added
+  const handleAccountAdded = async () => {
+    await loadAccounts();
   };
 
   return (
@@ -328,13 +258,12 @@ export default function AccountsPage() {
                 <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
                 Refresh Accounts
               </button>
-              <button
-                onClick={() => setShowAddAccountModal(true)}
-                className="flex items-center px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors"
-              >
-                <Plus className="h-4 w-4 mr-2" />
-                Add Account
-              </button>
+              
+              {/* Using AddAccountButton component */}
+              <AddAccountButton 
+                onAccountAdded={handleAccountAdded}
+                className="bg-green-600 hover:bg-green-700 rounded-lg"
+              />
             </div>
           </div>
         </header>
@@ -564,16 +493,18 @@ export default function AccountsPage() {
                 <BarChart2 className="h-4 w-4 mr-1" />
                 Manage Accounts
               </button>
-              <button
-                onClick={() => setShowAddAccountModal(true)}
-                className="flex items-center px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors text-sm"
-              >
-                <Plus className="h-4 w-4 mr-1" />
-                Add Account
-              </button>
+              
+              {/* Second instance of AddAccountButton with different styling */}
+              <AddAccountButton 
+                onAccountAdded={handleAccountAdded}
+                className="bg-blue-600 hover:bg-blue-700 rounded-lg"
+              />
             </div>
           </div>
-          <AccountTable title="" />
+          <AccountTable 
+            title="" 
+            onAccountsChanged={handleAccountAdded}
+          />
         </section>
         
         {/* Quick Actions Footer */}
@@ -605,182 +536,6 @@ export default function AccountsPage() {
           </div>
         </section>
       </div>
-      
-      {/* Add Account Modal - properly implemented */}
-      {showAddAccountModal && (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
-          <div className="bg-gray-800 rounded-xl p-6 w-full max-w-md">
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-xl font-bold">Add New Account</h3>
-              <button 
-                onClick={() => setShowAddAccountModal(false)}
-                className="text-gray-400 hover:text-white"
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-            
-            {submitSuccess ? (
-              <div className="text-center p-4">
-                <div className="bg-green-500/20 p-3 rounded-full inline-flex mb-3">
-                  <Check className="h-6 w-6 text-green-400" />
-                </div>
-                <h4 className="text-lg font-medium mb-2">Account Added Successfully!</h4>
-                <p className="text-gray-400">Your new account has been added to your portfolio.</p>
-              </div>
-            ) : (
-              <form onSubmit={handleCreateAccount}>
-                {submitError && (
-                  <div className="mb-4 p-3 bg-red-900/30 rounded-lg text-red-200 flex items-start">
-                    <AlertCircle className="h-5 w-5 mr-2 flex-shrink-0 mt-0.5" />
-                    <span>{submitError}</span>
-                  </div>
-                )}
-                
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-1">Account Name</label>
-                    <input
-                      type="text"
-                      name="account_name"
-                      value={newAccount.account_name}
-                      onChange={handleInputChange}
-                      className="w-full bg-gray-700 text-white border border-gray-600 rounded-lg p-2.5 focus:ring-blue-500 focus:border-blue-500"
-                      placeholder="E.g., Main Brokerage Account"
-                      required
-                    />
-                  </div>
-                  
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-1">Institution</label>
-                    <div className="relative">
-                      <select
-                        name="institution"
-                        value={newAccount.institution}
-                        onChange={handleInputChange}
-                        className="w-full bg-gray-700 text-white border border-gray-600 rounded-lg p-2.5 focus:ring-blue-500 focus:border-blue-500 appearance-none"
-                        required
-                      >
-                        <option value="">Select Institution</option>
-                        {institutions.map((institution, index) => (
-                          <option key={index} value={institution}>{institution}</option>
-                        ))}
-                        <option value="Other">Other</option>
-                      </select>
-                      <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
-                        <ArrowDown className="h-4 w-4 text-gray-400" />
-                      </div>
-                    </div>
-                    
-                    {newAccount.institution === 'Other' && (
-                      <input
-                        type="text"
-                        name="institution"
-                        value={newAccount.institution === 'Other' ? '' : newAccount.institution}
-                        onChange={handleInputChange}
-                        className="w-full mt-2 bg-gray-700 text-white border border-gray-600 rounded-lg p-2.5 focus:ring-blue-500 focus:border-blue-500"
-                        placeholder="Enter institution name"
-                        required
-                      />
-                    )}
-                  </div>
-                  
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-1">Account Type</label>
-                    <div className="relative">
-                      <select
-                        name="account_type"
-                        value={newAccount.account_type}
-                        onChange={handleInputChange}
-                        className="w-full bg-gray-700 text-white border border-gray-600 rounded-lg p-2.5 focus:ring-blue-500 focus:border-blue-500 appearance-none"
-                        required
-                      >
-                        {accountTypes.map((type, index) => (
-                          <option key={index} value={type}>{type}</option>
-                        ))}
-                      </select>
-                      <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
-                        <ArrowDown className="h-4 w-4 text-gray-400" />
-                      </div>
-                    </div>
-                  </div>
-                  
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-1">Account Number (Last 4 digits)</label>
-                    <input
-                      type="text"
-                      name="account_number"
-                      value={newAccount.account_number}
-                      onChange={handleInputChange}
-                      className="w-full bg-gray-700 text-white border border-gray-600 rounded-lg p-2.5 focus:ring-blue-500 focus:border-blue-500"
-                      placeholder="E.g., 1234"
-                      maxLength={4}
-                      pattern="[0-9]{4}"
-                    />
-                    <p className="text-xs text-gray-400 mt-1">For identification purposes only</p>
-                  </div>
-                  
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-1">Current Balance</label>
-                    <div className="relative">
-                      <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400">$</span>
-                      <input
-                        type="number"
-                        name="balance"
-                        value={newAccount.balance}
-                        onChange={handleInputChange}
-                        className="w-full bg-gray-700 text-white border border-gray-600 rounded-lg p-2.5 pl-7 focus:ring-blue-500 focus:border-blue-500"
-                        placeholder="0.00"
-                        step="0.01"
-                      />
-                    </div>
-                  </div>
-                  
-                  <div className="flex items-center">
-                    <input
-                      type="checkbox"
-                      name="is_taxable"
-                      checked={newAccount.is_taxable}
-                      onChange={handleInputChange}
-                      className="w-4 h-4 text-blue-600 bg-gray-700 border-gray-600 rounded focus:ring-blue-500"
-                    />
-                    <label className="ml-2 text-sm font-medium text-gray-300">
-                      Taxable Account
-                    </label>
-                  </div>
-                </div>
-                
-                <div className="flex justify-end mt-6 space-x-3">
-                  <button 
-                    type="button"
-                    onClick={() => setShowAddAccountModal(false)}
-                    className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-colors"
-                  >
-                    Cancel
-                  </button>
-                  <button 
-                    type="submit"
-                    className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors flex items-center"
-                    disabled={isSubmitting}
-                  >
-                    {isSubmitting ? (
-                      <>
-                        <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                        Adding...
-                      </>
-                    ) : (
-                      <>
-                        <Plus className="h-4 w-4 mr-2" />
-                        Add Account
-                      </>
-                    )}
-                  </button>
-                </div>
-              </form>
-            )}
-          </div>
-        </div>
-      )}
     </div>
   );
 }
