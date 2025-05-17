@@ -938,7 +938,7 @@ export default function Dashboard() {
             <div className="bg-gray-800 dark:bg-gray-900 rounded-xl shadow-md p-5">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-lg font-semibold text-white">Top Holdings</h3>
-                <a href="/positions" className="text-indigo-400 dark:text-indigo-400 hover:text-indigo-300 text-sm font-medium flex items-center">
+                <a href="/Positions" className="text-indigo-400 dark:text-indigo-400 hover:text-indigo-300 text-sm font-medium flex items-center">
                   View All <ArrowRight className="ml-1 h-4 w-4" />
                 </a>
               </div>
@@ -1065,7 +1065,7 @@ export default function Dashboard() {
             <div className="bg-gray-800 dark:bg-gray-900 rounded-xl shadow-md p-5">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-lg font-semibold text-white">Asset Allocation</h3>
-                <a href="/allocation" className="text-indigo-400 dark:text-indigo-400 hover:text-indigo-300 text-sm font-medium flex items-center">
+                <a href="/Positions" className="text-indigo-400 dark:text-indigo-400 hover:text-indigo-300 text-sm font-medium flex items-center">
                   Details <ArrowRight className="ml-1 h-4 w-4" />
                 </a>
               </div>
@@ -1283,37 +1283,45 @@ export default function Dashboard() {
       </Head>
 
       <main className="container mx-auto px-4 py-8">
-        {/* Welcome Banner */}
-        <AnimatePresence>
-          {showWelcomeBanner && (
-            <motion.div 
-              initial={{ opacity: 0, y: -20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, height: 0 }}
-              className="bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 rounded-2xl p-6 mb-8 text-white shadow-xl"
-            >
-              <div className="flex justify-between items-start">
-                <div>
-                  <h1 className="text-2xl font-bold mb-2">Welcome to Your NestEgg Dashboard</h1>
-                  <p className="text-indigo-100 mb-4">Track your portfolio's performance and make informed investment decisions.</p>
+      {/* Welcome Banner */}
+      <AnimatePresence>
+        {showWelcomeBanner && (
+          <motion.div 
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, height: 0 }}
+            className="bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 rounded-2xl p-6 mb-8 text-white shadow-xl"
+          >
+            <div className="flex justify-between items-start">
+              <div>
+                <h1 className="text-2xl font-bold mb-2">Welcome to Your NestEgg Dashboard</h1>
+                <p className="text-indigo-100 mb-4">Track your portfolio's performance and make informed investment decisions.</p>
+                <div className="flex flex-wrap gap-3">
                   <button 
                     className="px-4 py-2 bg-white text-indigo-700 rounded-lg hover:bg-indigo-100 transition-colors font-medium"
                     onClick={() => router.push('/accounts')}
                   >
                     View Your Accounts
                   </button>
+                  <button 
+                    className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-medium border border-white/20"
+                    onClick={() => router.push('/positions')}
+                  >
+                    View Your Positions
+                  </button>
                 </div>
-                <button 
-                  onClick={() => setShowWelcomeBanner(false)}
-                  className="text-white/80 hover:text-white"
-                  aria-label="Close welcome banner"
-                >
-                  <X size={20} />
-                </button>
               </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
+              <button 
+                onClick={() => setShowWelcomeBanner(false)}
+                className="text-white/80 hover:text-white"
+                aria-label="Close welcome banner"
+              >
+                <X size={20} />
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
         {/* Portfolio Summary */}
         <div className="mb-8">
