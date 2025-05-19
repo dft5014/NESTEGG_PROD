@@ -1356,11 +1356,11 @@ export default function Dashboard() {
           </button>
           
           <button 
-            onClick={() => router.push('/transactions/new')}
+            onClick={() => router.push('/positions')}  {/* Updated from '/transactions/new' */}
             className="flex items-center justify-center space-x-2 p-4 bg-gradient-to-r from-emerald-500 to-teal-500 text-white rounded-xl hover:from-emerald-600 hover:to-teal-600 transition-all shadow-md hover:shadow-lg"
           >
             <DollarSign className="h-5 w-5" />
-            <span>New Transaction</span>
+            <span>View Positions</span> {/* Updated text */}
           </button>
           
           <button 
