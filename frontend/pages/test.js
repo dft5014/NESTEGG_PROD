@@ -1196,7 +1196,7 @@ export default function Dashboard() {
         </div>
       </div>
     );
-
+  };
 
   // Loading State
   if (isLoading) {
