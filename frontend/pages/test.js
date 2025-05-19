@@ -671,7 +671,7 @@ export default function Dashboard() {
             <div className="w-full bg-gray-800 dark:bg-gray-900 rounded-xl shadow-md p-5">
               <h2 className="text-lg font-semibold mb-4 text-white">Asset Class Allocation</h2>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                {/* First Row: Securities, Crypto, Cash */}
+                {/* First Row: Securities, Cash, Crtoti */}
                 {/* Securities */}
                 <div className="bg-gray-800/70 backdrop-blur-sm rounded-xl p-4 border border-gray-700 relative overflow-hidden">
                   <div className="absolute top-0 right-0 w-24 h-24 rounded-full bg-blue-500/10 -mr-10 -mt-10"></div>
@@ -698,38 +698,6 @@ export default function Dashboard() {
                         {assetClassData.security?.gain_loss >= 0 ? '+' : ''}{formatCurrency(assetClassData.security?.gain_loss)}
                         <span className="text-sm ml-1">
                           ({assetClassData.security?.gain_loss >= 0 ? '+' : ''}{formatPercentage(assetClassData.security?.gain_loss_percent * 100)})
-                        </span>
-                      </p>
-                    </div>
-                  </div>
-                </div>
-                
-                {/* Crypto */}
-                <div className="bg-gray-800/70 backdrop-blur-sm rounded-xl p-4 border border-gray-700 relative overflow-hidden">
-                  <div className="absolute top-0 right-0 w-24 h-24 rounded-full bg-purple-500/10 -mr-10 -mt-10"></div>
-                  <div className="flex items-center mb-2">
-                    <div className="bg-purple-500/20 p-2 rounded-lg mr-3">
-                      <Coins className="h-5 w-5 text-purple-400" />
-                    </div>
-                    <h3 className="text-lg font-semibold text-white">Crypto</h3>
-                  </div>
-                  <div className="space-y-2">
-                    <div>
-                      <p className="text-sm text-gray-400">Market Value</p>
-                      <p className="text-xl font-bold text-white">{formatCurrency(assetClassData.crypto?.value)}</p>
-                      <p className="text-xs text-gray-500">{formatPercentage(assetClassData.crypto?.percentage * 100 || 0)} of portfolio</p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-gray-400">Cost Basis</p>
-                      <p className="text-lg font-semibold text-white">{formatCurrency(assetClassData.crypto?.cost_basis)}</p>
-                      <p className="text-xs text-gray-500">{formatPercentage(assetClassData.crypto?.cost_basis_percentage * 100 || 0)} of total cost</p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-gray-400">Performance</p>
-                      <p className={`text-lg font-semibold ${assetClassData.crypto?.gain_loss >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                        {assetClassData.crypto?.gain_loss >= 0 ? '+' : ''}{formatCurrency(assetClassData.crypto?.gain_loss)}
-                        <span className="text-sm ml-1">
-                          ({assetClassData.crypto?.gain_loss >= 0 ? '+' : ''}{formatPercentage(assetClassData.crypto?.gain_loss_percent * 100)})
                         </span>
                       </p>
                     </div>
@@ -764,10 +732,74 @@ export default function Dashboard() {
                     </div>
                   </div>
                 </div>
-                
+
+                {/* Crypto */}
+                <div className="bg-gray-800/70 backdrop-blur-sm rounded-xl p-4 border border-gray-700 relative overflow-hidden">
+                  <div className="absolute top-0 right-0 w-24 h-24 rounded-full bg-purple-500/10 -mr-10 -mt-10"></div>
+                  <div className="flex items-center mb-2">
+                    <div className="bg-purple-500/20 p-2 rounded-lg mr-3">
+                      <Coins className="h-5 w-5 text-purple-400" />
+                    </div>
+                    <h3 className="text-lg font-semibold text-white">Crypto</h3>
+                  </div>
+                  <div className="space-y-2">
+                    <div>
+                      <p className="text-sm text-gray-400">Market Value</p>
+                      <p className="text-xl font-bold text-white">{formatCurrency(assetClassData.crypto?.value)}</p>
+                      <p className="text-xs text-gray-500">{formatPercentage(assetClassData.crypto?.percentage * 100 || 0)} of portfolio</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-400">Cost Basis</p>
+                      <p className="text-lg font-semibold text-white">{formatCurrency(assetClassData.crypto?.cost_basis)}</p>
+                      <p className="text-xs text-gray-500">{formatPercentage(assetClassData.crypto?.cost_basis_percentage * 100 || 0)} of total cost</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-400">Performance</p>
+                      <p className={`text-lg font-semibold ${assetClassData.crypto?.gain_loss >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                        {assetClassData.crypto?.gain_loss >= 0 ? '+' : ''}{formatCurrency(assetClassData.crypto?.gain_loss)}
+                        <span className="text-sm ml-1">
+                          ({assetClassData.crypto?.gain_loss >= 0 ? '+' : ''}{formatPercentage(assetClassData.crypto?.gain_loss_percent * 100)})
+                        </span>
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
                 {/* Second Row: Real Estate (1.5 width) and Metals (1.5 width) */}
+                {/* Metals */}
+                <div className="bg-gray-800/70 backdrop-blur-sm rounded-xl p-4 border border-gray-700 relative overflow-hidden md:col-span-3 lg:col-span-1">
+                  <div className="absolute top-0 right-0 w-24 h-24 rounded-full bg-amber-500/10 -mr-10 -mt-10"></div>
+                  <div className="flex items-center mb-2">
+                    <div className="bg-amber-500/20 p-2 rounded-lg mr-3">
+                      <Package className="h-5 w-5 text-amber-400" />
+                    </div>
+                    <h3 className="text-lg font-semibold text-white">Metals</h3>
+                  </div>
+                  <div className="space-y-2">
+                    <div>
+                      <p className="text-sm text-gray-400">Market Value</p>
+                      <p className="text-xl font-bold text-white">{formatCurrency(assetClassData.metal?.value)}</p>
+                      <p className="text-xs text-gray-500">{formatPercentage(assetClassData.metal?.percentage * 100 || 0)} of portfolio</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-400">Cost Basis</p>
+                      <p className="text-lg font-semibold text-white">{formatCurrency(assetClassData.metal?.cost_basis)}</p>
+                      <p className="text-xs text-gray-500">{formatPercentage(assetClassData.metal?.cost_basis_percentage * 100 || 0)} of total cost</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-400">Performance</p>
+                      <p className={`text-lg font-semibold ${assetClassData.metal?.gain_loss >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                        {assetClassData.metal?.gain_loss >= 0 ? '+' : ''}{formatCurrency(assetClassData.metal?.gain_loss)}
+                        <span className="text-sm ml-1">
+                          ({assetClassData.metal?.gain_loss >= 0 ? '+' : ''}{formatPercentage(assetClassData.metal?.gain_loss_percent * 100)})
+                        </span>
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
                 {/* Real Estate */}
-                <div className="bg-gray-800/70 backdrop-blur-sm rounded-xl p-4 border border-gray-700 relative overflow-hidden md:col-span-3 lg:col-span-1.5">
+                <div className="bg-gray-800/70 backdrop-blur-sm rounded-xl p-4 border border-gray-700 relative overflow-hidden md:col-span-3 lg:col-span-2">
                   <div className="absolute top-0 right-0 w-24 h-24 rounded-full bg-teal-500/10 -mr-10 -mt-10"></div>
                   <div className="flex items-center mb-2">
                     <div className="bg-teal-500/20 p-2 rounded-lg mr-3">
@@ -823,161 +855,6 @@ export default function Dashboard() {
                     </div>
                   </div>
                 </div>
-                
-                {/* Metals */}
-                <div className="bg-gray-800/70 backdrop-blur-sm rounded-xl p-4 border border-gray-700 relative overflow-hidden md:col-span-3 lg:col-span-1.5">
-                  <div className="absolute top-0 right-0 w-24 h-24 rounded-full bg-amber-500/10 -mr-10 -mt-10"></div>
-                  <div className="flex items-center mb-2">
-                    <div className="bg-amber-500/20 p-2 rounded-lg mr-3">
-                      <Package className="h-5 w-5 text-amber-400" />
-                    </div>
-                    <h3 className="text-lg font-semibold text-white">Metals</h3>
-                  </div>
-                  <div className="space-y-2">
-                    <div>
-                      <p className="text-sm text-gray-400">Market Value</p>
-                      <p className="text-xl font-bold text-white">{formatCurrency(assetClassData.metal?.value)}</p>
-                      <p className="text-xs text-gray-500">{formatPercentage(assetClassData.metal?.percentage * 100 || 0)} of portfolio</p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-gray-400">Cost Basis</p>
-                      <p className="text-lg font-semibold text-white">{formatCurrency(assetClassData.metal?.cost_basis)}</p>
-                      <p className="text-xs text-gray-500">{formatPercentage(assetClassData.metal?.cost_basis_percentage * 100 || 0)} of total cost</p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-gray-400">Performance</p>
-                      <p className={`text-lg font-semibold ${assetClassData.metal?.gain_loss >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                        {assetClassData.metal?.gain_loss >= 0 ? '+' : ''}{formatCurrency(assetClassData.metal?.gain_loss)}
-                        <span className="text-sm ml-1">
-                          ({assetClassData.metal?.gain_loss >= 0 ? '+' : ''}{formatPercentage(assetClassData.metal?.gain_loss_percent * 100)})
-                        </span>
-                      </p>
-                    </div>
-                  </div>
-                </div>
-                
-                {/* Third Row: Top Positions and Top Institutions */}
-                {/* Top 5 Positions Card */}
-                <div className="bg-gray-800/70 backdrop-blur-sm rounded-xl p-4 border border-gray-700 relative overflow-hidden md:col-span-3 lg:col-span-1.5">
-                  <div className="absolute top-0 right-0 w-24 h-24 rounded-full bg-rose-500/10 -mr-10 -mt-10"></div>
-                  <div className="flex items-center mb-3">
-                    <div className="bg-rose-500/20 p-2 rounded-lg mr-3">
-                      <BarChart3 className="h-5 w-5 text-rose-400" />
-                    </div>
-                    <h3 className="text-lg font-semibold text-white">Top Positions</h3>
-                  </div>
-                  
-                  <div className="space-y-3">
-                    {topPositionsData && topPositionsData.length > 0 ? (
-                      topPositionsData.map((position, index) => (
-                        <div key={index} className="flex items-center justify-between">
-                          <div className="flex items-center">
-                            <div 
-                              className="h-3 w-3 rounded-full mr-2"
-                              style={{ backgroundColor: position.color }}
-                            ></div>
-                            <span className="text-sm text-gray-300">{position.name}</span>
-                          </div>
-                          <div className="flex items-center">
-                            <span className="text-sm font-medium text-white">{formatPercentage(position.percentage * 100)}</span>
-                          </div>
-                        </div>
-                      ))
-                    ) : (
-                      <div className="text-center py-2 text-gray-400">No position data available</div>
-                    )}
-                  </div>
-                  
-                  <div className="mt-3 pt-2 border-t border-gray-700">
-                    <div className="text-xs text-gray-500 text-center">
-                      Showing top {Math.min((topPositionsData?.length || 0), 5)} positions by market value
-                    </div>
-                  </div>
-                </div>
-                
-                {/* Top 5 Institutions Card */}
-                <div className="bg-gray-800/70 backdrop-blur-sm rounded-xl p-4 border border-gray-700 relative overflow-hidden md:col-span-3 lg:col-span-1.5">
-                  <div className="absolute top-0 right-0 w-24 h-24 rounded-full bg-indigo-500/10 -mr-10 -mt-10"></div>
-                  <div className="flex items-center mb-3">
-                    <div className="bg-indigo-500/20 p-2 rounded-lg mr-3">
-                      <Building2 className="h-5 w-5 text-indigo-400" />
-                    </div>
-                    <h3 className="text-lg font-semibold text-white">Top Institutions</h3>
-                  </div>
-                  
-                  <div className="space-y-3">
-                    {institutionMixData && institutionMixData.length > 0 ? (
-                      institutionMixData.map((institution, index) => (
-                        <div key={index} className="flex items-center justify-between">
-                          <div className="flex items-center">
-                            <div 
-                              className="h-3 w-3 rounded-full mr-2"
-                              style={{ backgroundColor: institution.color }}
-                            ></div>
-                            <span className="text-sm text-gray-300">{institution.name}</span>
-                          </div>
-                          <div className="flex items-center">
-                            <span className="text-sm font-medium text-white">{formatPercentage(institution.percentage * 100)}</span>
-                          </div>
-                        </div>
-                      ))
-                    ) : (
-                      <div className="text-center py-2 text-gray-400">No institution data available</div>
-                    )}
-                  </div>
-                  
-                  <div className="mt-3 pt-2 border-t border-gray-700">
-                    <div className="text-xs text-gray-500 text-center">
-                      Based on {institutionMixData?.length || 0} financial institutions
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Top holdings */}
-            <div className="bg-gray-800 dark:bg-gray-900 rounded-xl shadow-md p-5">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold text-white">Top Holdings</h3>
-                <a href="/Positions" className="text-indigo-400 dark:text-indigo-400 hover:text-indigo-300 text-sm font-medium flex items-center">
-                  View All <ArrowRight className="ml-1 h-4 w-4" />
-                </a>
-              </div>
-              
-              <div className="space-y-4">
-                {topPositions.map((position, index) => (
-                  <div key={index} className="flex justify-between items-center">
-                    <div className="flex items-center">
-                      <div className="h-10 w-10 rounded-full flex items-center justify-center mr-3"
-                        style={{ backgroundColor: `${assetColors[position.asset_type.toLowerCase()] || assetColors.other}25` }}>
-                        <span style={{ color: assetColors[position.asset_type.toLowerCase()] || assetColors.other }}>
-                          {position.asset_type === 'security' && <Layers className="h-5 w-5" />}
-                          {position.asset_type === 'crypto' && <Diamond className="h-5 w-5" />}
-                          {position.asset_type === 'cash' && <DollarSign className="h-5 w-5" />}
-                          {position.asset_type === 'metal' && <Database className="h-5 w-5" />}
-                        </span>
-                      </div>
-                      <div>
-                        <p className="font-medium text-white">{position.ticker}</p>
-                        <p className="text-sm text-gray-400">{position.name}</p>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <p className="font-medium text-white">{formatCurrency(position.value)}</p>
-                      <div className={`text-sm flex items-center justify-end ${
-                        position.gain_loss_percent > 0 ? 'text-green-500' : 'text-red-500'
-                      }`}>
-                        {position.gain_loss_percent > 0 ? (
-                          <ArrowUp className="h-3 w-3 mr-1" />
-                        ) : (
-                          <ArrowDown className="h-3 w-3 mr-1" />
-                        )}
-                        {formatPercentage(position.gain_loss_percent * 100)}
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
             </div>
 
             {/* Portfolio Stats */}
@@ -1240,6 +1117,87 @@ export default function Dashboard() {
                 </div>
               </div>
             </div>
+
+                {/* Top 5 Positions Card */}
+                <div className="bg-gray-800 dark:bg-gray-900 rounded-xl shadow-md p-5 relative">
+                  <div className="absolute top-0 right-0 w-24 h-24 rounded-full bg-rose-500/10 -mr-10 -mt-10"></div>
+                  <div className="flex items-center mb-3">
+                    <div className="bg-rose-500/20 p-2 rounded-lg mr-3">
+                      <BarChart3 className="h-5 w-5 text-rose-400" />
+                    </div>
+                    <h3 className="text-lg font-semibold text-white">Top Positions</h3>
+                  </div>
+                  
+                  <div className="space-y-3">
+                    {topPositionsData && topPositionsData.length > 0 ? (
+                      topPositionsData.map((position, index) => (
+                        <div key={index} className="flex items-center justify-between">
+                          <div className="flex items-center">
+                            <div 
+                              className="h-3 w-3 rounded-full mr-2"
+                              style={{ backgroundColor: position.color }}
+                            ></div>
+                            <span className="text-sm text-gray-300">{position.name}</span>
+                          </div>
+                          <div className="flex items-center">
+                            <span className="text-sm font-medium text-white">{formatPercentage(position.percentage * 100)}</span>
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="text-center py-2 text-gray-400">No position data available</div>
+                    )}
+                  </div>
+                  
+                  <div className="mt-3 pt-2 border-t border-gray-700">
+                    <div className="text-xs text-gray-500 text-center">
+                      Showing top {Math.min((topPositionsData?.length || 0), 5)} positions by market value
+                    </div>
+                  </div>
+                </div>
+                
+                {/* Top 5 Institutions Card */}
+                <div className="bg-gray-800 dark:bg-gray-900 rounded-xl shadow-md p-5 relative">
+                  <div className="absolute top-0 right-0 w-24 h-24 rounded-full bg-indigo-500/10 -mr-10 -mt-10"></div>
+                  <div className="flex items-center mb-3">
+                    <div className="bg-indigo-500/20 p-2 rounded-lg mr-3">
+                      <Building2 className="h-5 w-5 text-indigo-400" />
+                    </div>
+                    <h3 className="text-lg font-semibold text-white">Top Institutions</h3>
+                  </div>
+                  
+                  <div className="space-y-3">
+                    {institutionMixData && institutionMixData.length > 0 ? (
+                      institutionMixData.map((institution, index) => (
+                        <div key={index} className="flex items-center justify-between">
+                          <div className="flex items-center">
+                            <div 
+                              className="h-3 w-3 rounded-full mr-2"
+                              style={{ backgroundColor: institution.color }}
+                            ></div>
+                            <span className="text-sm text-gray-300">{institution.name}</span>
+                          </div>
+                          <div className="flex items-center">
+                            <span className="text-sm font-medium text-white">{formatPercentage(institution.percentage * 100)}</span>
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="text-center py-2 text-gray-400">No institution data available</div>
+                    )}
+                  </div>
+                  
+                  <div className="mt-3 pt-2 border-t border-gray-700">
+                    <div className="text-xs text-gray-500 text-center">
+                      Based on {institutionMixData?.length || 0} financial institutions
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+
+
           </div>
         </div>
       </div>
