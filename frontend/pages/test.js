@@ -666,7 +666,6 @@ export default function Dashboard() {
                 </ResponsiveContainer>
               </div>
             </div>
-                        
             {/* Asset Class Allocation Section */}
             <div className="w-full bg-gray-800 dark:bg-gray-900 rounded-xl shadow-md p-5">
               <h2 className="text-lg font-semibold mb-4 text-white">Asset Class Allocation</h2>
@@ -855,6 +854,7 @@ export default function Dashboard() {
                     </div>
                   </div>
                 </div>
+              </div>
             </div>
 
             {/* Portfolio Stats */}
