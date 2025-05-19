@@ -668,7 +668,7 @@ export default function Dashboard() {
             </div>
                         
             {/* Asset Class Allocation Section */}
-            <div className="w-full bg-gray-800 dark:bg-gray-900 rounded-xl shadow-md p-5">
+            <div className="bg-gray-800 dark:bg-gray-900 rounded-xl shadow-md p-5">
               <h2 className="text-lg font-semibold mb-4 text-white">Asset Class Allocation</h2>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 {/* Securities */}
@@ -1117,92 +1117,87 @@ export default function Dashboard() {
               </div>
             </div>
 
-                {/* Top 5 Positions Card */}
-                <div className="bg-gray-800 dark:bg-gray-900 rounded-xl shadow-md p-5 relative">
-                  <div className="absolute top-0 right-0 w-24 h-24 rounded-full bg-rose-500/10 -mr-10 -mt-10"></div>
-                  <div className="flex items-center mb-3">
-                    <div className="bg-rose-500/20 p-2 rounded-lg mr-3">
-                      <BarChart3 className="h-5 w-5 text-rose-400" />
-                    </div>
-                    <h3 className="text-lg font-semibold text-white">Top Positions</h3>
-                  </div>
-                  
-                  <div className="space-y-3">
-                    {topPositionsData && topPositionsData.length > 0 ? (
-                      topPositionsData.map((position, index) => (
-                        <div key={index} className="flex items-center justify-between">
-                          <div className="flex items-center">
-                            <div 
-                              className="h-3 w-3 rounded-full mr-2"
-                              style={{ backgroundColor: position.color }}
-                            ></div>
-                            <span className="text-sm text-gray-300">{position.name}</span>
-                          </div>
-                          <div className="flex items-center">
-                            <span className="text-sm font-medium text-white">{formatPercentage(position.percentage * 100)}</span>
-                          </div>
-                        </div>
-                      ))
-                    ) : (
-                      <div className="text-center py-2 text-gray-400">No position data available</div>
-                    )}
-                  </div>
-                  
-                  <div className="mt-3 pt-2 border-t border-gray-700">
-                    <div className="text-xs text-gray-500 text-center">
-                      Showing top {Math.min((topPositionsData?.length || 0), 5)} positions by market value
-                    </div>
-                  </div>
+            {/* Top 5 Positions Card */}
+            <div className="bg-gray-800 dark:bg-gray-900 rounded-xl shadow-md p-5 relative">
+              <div className="absolute top-0 right-0 w-24 h-24 rounded-full bg-rose-500/10 -mr-10 -mt-10"></div>
+              <div className="flex items-center mb-3">
+                <div className="bg-rose-500/20 p-2 rounded-lg mr-3">
+                  <BarChart3 className="h-5 w-5 text-rose-400" />
                 </div>
-                
-                {/* Top 5 Institutions Card */}
-                <div className="bg-gray-800 dark:bg-gray-900 rounded-xl shadow-md p-5 relative">
-                  <div className="absolute top-0 right-0 w-24 h-24 rounded-full bg-indigo-500/10 -mr-10 -mt-10"></div>
-                  <div className="flex items-center mb-3">
-                    <div className="bg-indigo-500/20 p-2 rounded-lg mr-3">
-                      <Building2 className="h-5 w-5 text-indigo-400" />
+                <h3 className="text-lg font-semibold text-white">Top Positions</h3>
+              </div>
+              
+              <div className="space-y-3">
+                {topPositionsData && topPositionsData.length > 0 ? (
+                  topPositionsData.map((position, index) => (
+                    <div key={index} className="flex items-center justify-between">
+                      <div className="flex items-center">
+                        <div 
+                          className="h-3 w-3 rounded-full mr-2"
+                          style={{ backgroundColor: position.color }}
+                        ></div>
+                        <span className="text-sm text-gray-300">{position.name}</span>
+                      </div>
+                      <div className="flex items-center">
+                        <span className="text-sm font-medium text-white">{formatPercentage(position.percentage * 100)}</span>
+                      </div>
                     </div>
-                    <h3 className="text-lg font-semibold text-white">Top Institutions</h3>
-                  </div>
-                  
-                  <div className="space-y-3">
-                    {institutionMixData && institutionMixData.length > 0 ? (
-                      institutionMixData.map((institution, index) => (
-                        <div key={index} className="flex items-center justify-between">
-                          <div className="flex items-center">
-                            <div 
-                              className="h-3 w-3 rounded-full mr-2"
-                              style={{ backgroundColor: institution.color }}
-                            ></div>
-                            <span className="text-sm text-gray-300">{institution.name}</span>
-                          </div>
-                          <div className="flex items-center">
-                            <span className="text-sm font-medium text-white">{formatPercentage(institution.percentage * 100)}</span>
-                          </div>
-                        </div>
-                      ))
-                    ) : (
-                      <div className="text-center py-2 text-gray-400">No institution data available</div>
-                    )}
-                  </div>
-                  
-                  <div className="mt-3 pt-2 border-t border-gray-700">
-                    <div className="text-xs text-gray-500 text-center">
-                      Based on {institutionMixData?.length || 0} financial institutions
-                    </div>
-                  </div>
+                  ))
+                ) : (
+                  <div className="text-center py-2 text-gray-400">No position data available</div>
+                )}
+              </div>
+              
+              <div className="mt-3 pt-2 border-t border-gray-700">
+                <div className="text-xs text-gray-500 text-center">
+                  Showing top {Math.min((topPositionsData?.length || 0), 5)} positions by market value
                 </div>
               </div>
             </div>
-
-
-
+            
+            {/* Top 5 Institutions Card */}
+            <div className="bg-gray-800 dark:bg-gray-900 rounded-xl shadow-md p-5 relative">
+              <div className="absolute top-0 right-0 w-24 h-24 rounded-full bg-indigo-500/10 -mr-10 -mt-10"></div>
+              <div className="flex items-center mb-3">
+                <div className="bg-indigo-500/20 p-2 rounded-lg mr-3">
+                  <Building2 className="h-5 w-5 text-indigo-400" />
+                </div>
+                <h3 className="text-lg font-semibold text-white">Top Institutions</h3>
+              </div>
+              
+              <div className="space-y-3">
+                {institutionMixData && institutionMixData.length > 0 ? (
+                  institutionMixData.map((institution, index) => (
+                    <div key={index} className="flex items-center justify-between">
+                      <div className="flex items-center">
+                        <div 
+                          className="h-3 w-3 rounded-full mr-2"
+                          style={{ backgroundColor: institution.color }}
+                        ></div>
+                        <span className="text-sm text-gray-300">{institution.name}</span>
+                      </div>
+                      <div className="flex items-center">
+                        <span className="text-sm font-medium text-white">{formatPercentage(institution.percentage * 100)}</span>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="text-center py-2 text-gray-400">No institution data available</div>
+                )}
+              </div>
+              
+              <div className="mt-3 pt-2 border-t border-gray-700">
+                <div className="text-xs text-gray-500 text-center">
+                  Based on {institutionMixData?.length || 0} financial institutions
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
     );
-  };
-  
+
+
   // Loading State
   if (isLoading) {
     return (
