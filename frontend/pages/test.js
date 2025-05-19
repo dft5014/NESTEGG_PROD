@@ -671,7 +671,6 @@ export default function Dashboard() {
             <div className="w-full bg-gray-800 dark:bg-gray-900 rounded-xl shadow-md p-5">
               <h2 className="text-lg font-semibold mb-4 text-white">Asset Class Allocation</h2>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                {/* First Row: Securities, Cash, Crtoti */}
                 {/* Securities */}
                 <div className="bg-gray-800/70 backdrop-blur-sm rounded-xl p-4 border border-gray-700 relative overflow-hidden">
                   <div className="absolute top-0 right-0 w-24 h-24 rounded-full bg-blue-500/10 -mr-10 -mt-10"></div>
@@ -765,7 +764,6 @@ export default function Dashboard() {
                   </div>
                 </div>
 
-                {/* Second Row: Real Estate (1.5 width) and Metals (1.5 width) */}
                 {/* Metals */}
                 <div className="bg-gray-800/70 backdrop-blur-sm rounded-xl p-4 border border-gray-700 relative overflow-hidden md:col-span-3 lg:col-span-1">
                   <div className="absolute top-0 right-0 w-24 h-24 rounded-full bg-amber-500/10 -mr-10 -mt-10"></div>
@@ -855,9 +853,8 @@ export default function Dashboard() {
                     </div>
                   </div>
                 </div>
+              </div>
             </div>
-          </div>
-
 
             {/* Portfolio Stats */}
             <div className="bg-gray-800 dark:bg-gray-900 rounded-xl shadow-md p-5">
