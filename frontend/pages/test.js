@@ -667,11 +667,11 @@ export default function Dashboard() {
               </div>
             </div>
                         
-            {/* Asset Class Allocation Section - From portfolio.js */}
+            {/* Asset Class Allocation Section */}
             <div className="w-full bg-gray-800 dark:bg-gray-900 rounded-xl shadow-md p-5">
               <h2 className="text-lg font-semibold mb-4 text-white">Asset Class Allocation</h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                {/* First Row */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {/* First Row: Securities, Crypto, Cash */}
                 {/* Securities */}
                 <div className="bg-gray-800/70 backdrop-blur-sm rounded-xl p-4 border border-gray-700 relative overflow-hidden">
                   <div className="absolute top-0 right-0 w-24 h-24 rounded-full bg-blue-500/10 -mr-10 -mt-10"></div>
@@ -699,35 +699,6 @@ export default function Dashboard() {
                         <span className="text-sm ml-1">
                           ({assetClassData.security?.gain_loss >= 0 ? '+' : ''}{formatPercentage(assetClassData.security?.gain_loss_percent * 100)})
                         </span>
-                      </p>
-                    </div>
-                  </div>
-                </div>
-                
-                {/* Cash */}
-                <div className="bg-gray-800/70 backdrop-blur-sm rounded-xl p-4 border border-gray-700 relative overflow-hidden">
-                  <div className="absolute top-0 right-0 w-24 h-24 rounded-full bg-green-500/10 -mr-10 -mt-10"></div>
-                  <div className="flex items-center mb-2">
-                    <div className="bg-green-500/20 p-2 rounded-lg mr-3">
-                      <Banknote className="h-5 w-5 text-green-400" />
-                    </div>
-                    <h3 className="text-lg font-semibold text-white">Cash</h3>
-                  </div>
-                  <div className="space-y-2">
-                    <div>
-                      <p className="text-sm text-gray-400">Market Value</p>
-                      <p className="text-xl font-bold text-white">{formatCurrency(assetClassData.cash?.value)}</p>
-                      <p className="text-xs text-gray-500">{formatPercentage(assetClassData.cash?.percentage * 100 || 0)} of portfolio</p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-gray-400">Cost Basis</p>
-                      <p className="text-lg font-semibold text-white">{formatCurrency(assetClassData.cash?.cost_basis)}</p>
-                      <p className="text-xs text-gray-500">{formatPercentage(assetClassData.cash?.cost_basis_percentage * 100 || 0)} of total cost</p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-gray-400">Performance</p>
-                      <p className="text-lg font-semibold text-gray-400">
-                        N/A
                       </p>
                     </div>
                   </div>
@@ -765,41 +736,38 @@ export default function Dashboard() {
                   </div>
                 </div>
                 
-                {/* Metals */}
+                {/* Cash */}
                 <div className="bg-gray-800/70 backdrop-blur-sm rounded-xl p-4 border border-gray-700 relative overflow-hidden">
-                  <div className="absolute top-0 right-0 w-24 h-24 rounded-full bg-amber-500/10 -mr-10 -mt-10"></div>
+                  <div className="absolute top-0 right-0 w-24 h-24 rounded-full bg-green-500/10 -mr-10 -mt-10"></div>
                   <div className="flex items-center mb-2">
-                    <div className="bg-amber-500/20 p-2 rounded-lg mr-3">
-                      <Package className="h-5 w-5 text-amber-400" />
+                    <div className="bg-green-500/20 p-2 rounded-lg mr-3">
+                      <Banknote className="h-5 w-5 text-green-400" />
                     </div>
-                    <h3 className="text-lg font-semibold text-white">Metals</h3>
+                    <h3 className="text-lg font-semibold text-white">Cash</h3>
                   </div>
                   <div className="space-y-2">
                     <div>
                       <p className="text-sm text-gray-400">Market Value</p>
-                      <p className="text-xl font-bold text-white">{formatCurrency(assetClassData.metal?.value)}</p>
-                      <p className="text-xs text-gray-500">{formatPercentage(assetClassData.metal?.percentage * 100 || 0)} of portfolio</p>
+                      <p className="text-xl font-bold text-white">{formatCurrency(assetClassData.cash?.value)}</p>
+                      <p className="text-xs text-gray-500">{formatPercentage(assetClassData.cash?.percentage * 100 || 0)} of portfolio</p>
                     </div>
                     <div>
                       <p className="text-sm text-gray-400">Cost Basis</p>
-                      <p className="text-lg font-semibold text-white">{formatCurrency(assetClassData.metal?.cost_basis)}</p>
-                      <p className="text-xs text-gray-500">{formatPercentage(assetClassData.metal?.cost_basis_percentage * 100 || 0)} of total cost</p>
+                      <p className="text-lg font-semibold text-white">{formatCurrency(assetClassData.cash?.cost_basis)}</p>
+                      <p className="text-xs text-gray-500">{formatPercentage(assetClassData.cash?.cost_basis_percentage * 100 || 0)} of total cost</p>
                     </div>
                     <div>
                       <p className="text-sm text-gray-400">Performance</p>
-                      <p className={`text-lg font-semibold ${assetClassData.metal?.gain_loss >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                        {assetClassData.metal?.gain_loss >= 0 ? '+' : ''}{formatCurrency(assetClassData.metal?.gain_loss)}
-                        <span className="text-sm ml-1">
-                          ({assetClassData.metal?.gain_loss >= 0 ? '+' : ''}{formatPercentage(assetClassData.metal?.gain_loss_percent * 100)})
-                        </span>
+                      <p className="text-lg font-semibold text-gray-400">
+                        N/A
                       </p>
                     </div>
                   </div>
                 </div>
                 
-                {/* Second Row: Real Estate (2-wide) + Top Institutions + Top Positions */}
-                {/* Real Estate - Double Width Card */}
-                <div className="bg-gray-800/70 backdrop-blur-sm rounded-xl p-4 border border-gray-700 relative overflow-hidden md:col-span-2">
+                {/* Second Row: Real Estate (1.5 width) and Metals (1.5 width) */}
+                {/* Real Estate */}
+                <div className="bg-gray-800/70 backdrop-blur-sm rounded-xl p-4 border border-gray-700 relative overflow-hidden md:col-span-3 lg:col-span-1.5">
                   <div className="absolute top-0 right-0 w-24 h-24 rounded-full bg-teal-500/10 -mr-10 -mt-10"></div>
                   <div className="flex items-center mb-2">
                     <div className="bg-teal-500/20 p-2 rounded-lg mr-3">
@@ -856,46 +824,41 @@ export default function Dashboard() {
                   </div>
                 </div>
                 
-                {/* Top 5 Institutions Card */}
-                <div className="bg-gray-800/70 backdrop-blur-sm rounded-xl p-4 border border-gray-700 relative overflow-hidden">
-                  <div className="absolute top-0 right-0 w-24 h-24 rounded-full bg-indigo-500/10 -mr-10 -mt-10"></div>
-                  <div className="flex items-center mb-3">
-                    <div className="bg-indigo-500/20 p-2 rounded-lg mr-3">
-                      <Building2 className="h-5 w-5 text-indigo-400" />
+                {/* Metals */}
+                <div className="bg-gray-800/70 backdrop-blur-sm rounded-xl p-4 border border-gray-700 relative overflow-hidden md:col-span-3 lg:col-span-1.5">
+                  <div className="absolute top-0 right-0 w-24 h-24 rounded-full bg-amber-500/10 -mr-10 -mt-10"></div>
+                  <div className="flex items-center mb-2">
+                    <div className="bg-amber-500/20 p-2 rounded-lg mr-3">
+                      <Package className="h-5 w-5 text-amber-400" />
                     </div>
-                    <h3 className="text-lg font-semibold text-white">Top Institutions</h3>
+                    <h3 className="text-lg font-semibold text-white">Metals</h3>
                   </div>
-                  
-                  <div className="space-y-3">
-                    {institutionMixData && institutionMixData.length > 0 ? (
-                      institutionMixData.map((institution, index) => (
-                        <div key={index} className="flex items-center justify-between">
-                          <div className="flex items-center">
-                            <div 
-                              className="h-3 w-3 rounded-full mr-2"
-                              style={{ backgroundColor: institution.color }}
-                            ></div>
-                            <span className="text-sm text-gray-300">{institution.name}</span>
-                          </div>
-                          <div className="flex items-center">
-                            <span className="text-sm font-medium text-white">{formatPercentage(institution.percentage * 100)}</span>
-                          </div>
-                        </div>
-                      ))
-                    ) : (
-                      <div className="text-center py-2 text-gray-400">No institution data available</div>
-                    )}
-                  </div>
-                  
-                  <div className="mt-3 pt-2 border-t border-gray-700">
-                    <div className="text-xs text-gray-500 text-center">
-                      Based on {institutionMixData?.length || 0} financial institutions
+                  <div className="space-y-2">
+                    <div>
+                      <p className="text-sm text-gray-400">Market Value</p>
+                      <p className="text-xl font-bold text-white">{formatCurrency(assetClassData.metal?.value)}</p>
+                      <p className="text-xs text-gray-500">{formatPercentage(assetClassData.metal?.percentage * 100 || 0)} of portfolio</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-400">Cost Basis</p>
+                      <p className="text-lg font-semibold text-white">{formatCurrency(assetClassData.metal?.cost_basis)}</p>
+                      <p className="text-xs text-gray-500">{formatPercentage(assetClassData.metal?.cost_basis_percentage * 100 || 0)} of total cost</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-400">Performance</p>
+                      <p className={`text-lg font-semibold ${assetClassData.metal?.gain_loss >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                        {assetClassData.metal?.gain_loss >= 0 ? '+' : ''}{formatCurrency(assetClassData.metal?.gain_loss)}
+                        <span className="text-sm ml-1">
+                          ({assetClassData.metal?.gain_loss >= 0 ? '+' : ''}{formatPercentage(assetClassData.metal?.gain_loss_percent * 100)})
+                        </span>
+                      </p>
                     </div>
                   </div>
                 </div>
                 
+                {/* Third Row: Top Positions and Top Institutions */}
                 {/* Top 5 Positions Card */}
-                <div className="bg-gray-800/70 backdrop-blur-sm rounded-xl p-4 border border-gray-700 relative overflow-hidden">
+                <div className="bg-gray-800/70 backdrop-blur-sm rounded-xl p-4 border border-gray-700 relative overflow-hidden md:col-span-3 lg:col-span-1.5">
                   <div className="absolute top-0 right-0 w-24 h-24 rounded-full bg-rose-500/10 -mr-10 -mt-10"></div>
                   <div className="flex items-center mb-3">
                     <div className="bg-rose-500/20 p-2 rounded-lg mr-3">
@@ -931,9 +894,47 @@ export default function Dashboard() {
                     </div>
                   </div>
                 </div>
+                
+                {/* Top 5 Institutions Card */}
+                <div className="bg-gray-800/70 backdrop-blur-sm rounded-xl p-4 border border-gray-700 relative overflow-hidden md:col-span-3 lg:col-span-1.5">
+                  <div className="absolute top-0 right-0 w-24 h-24 rounded-full bg-indigo-500/10 -mr-10 -mt-10"></div>
+                  <div className="flex items-center mb-3">
+                    <div className="bg-indigo-500/20 p-2 rounded-lg mr-3">
+                      <Building2 className="h-5 w-5 text-indigo-400" />
+                    </div>
+                    <h3 className="text-lg font-semibold text-white">Top Institutions</h3>
+                  </div>
+                  
+                  <div className="space-y-3">
+                    {institutionMixData && institutionMixData.length > 0 ? (
+                      institutionMixData.map((institution, index) => (
+                        <div key={index} className="flex items-center justify-between">
+                          <div className="flex items-center">
+                            <div 
+                              className="h-3 w-3 rounded-full mr-2"
+                              style={{ backgroundColor: institution.color }}
+                            ></div>
+                            <span className="text-sm text-gray-300">{institution.name}</span>
+                          </div>
+                          <div className="flex items-center">
+                            <span className="text-sm font-medium text-white">{formatPercentage(institution.percentage * 100)}</span>
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="text-center py-2 text-gray-400">No institution data available</div>
+                    )}
+                  </div>
+                  
+                  <div className="mt-3 pt-2 border-t border-gray-700">
+                    <div className="text-xs text-gray-500 text-center">
+                      Based on {institutionMixData?.length || 0} financial institutions
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
-            
+
             {/* Top holdings */}
             <div className="bg-gray-800 dark:bg-gray-900 rounded-xl shadow-md p-5">
               <div className="flex items-center justify-between mb-4">
