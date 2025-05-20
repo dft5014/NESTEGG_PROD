@@ -51,9 +51,9 @@ const Sidebar = () => {
     { 
       label: "Portfolio Management",
       items: [
-        { href: "/Accounts", label: "Accounts", icon: <Home size={24} className={iconClasses} /> },
-        { href: "/Positions", label: "Positions", icon: <TrendingUp size={24} className={iconClasses} /> },
-        { href: "/Reports", label: "Reports", icon: <BarChart2 size={24} className={iconClasses} /> },
+        { href: "/accounts", label: "Accounts", icon: <Home size={24} className={iconClasses} /> },
+        { href: "/positions", label: "Positions", icon: <TrendingUp size={24} className={iconClasses} /> },
+        { href: "/reports", label: "Reports", icon: <BarChart2 size={24} className={iconClasses} /> },
       ]
     },
     { href: "/AccountReconciliation", label: "Account Reconciliations", icon: <CheckSquare size={24} className={iconClasses} /> },

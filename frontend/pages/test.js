@@ -110,7 +110,7 @@ export default function Dashboard() {
     return portfolioData.performance.daily.map(day => ({
       date: new Date(day.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
       value: day.value,
-      costBasis: day.cost_basis || 0
+      totalcostBasis: day.cost_basis || 0
     }));
   }, [portfolioData]);
   
@@ -443,7 +443,7 @@ export default function Dashboard() {
           value: data.value || 0,
           name: type.charAt(0).toUpperCase() + type.slice(1),
           percentage: data.percentage || 0,
-          cost_basis: data.cost_basis || 0,
+          cost_basis: data.total_cost_basis || 0,
           cost_basis_percentage: (data.cost_basis || 0) / (totalCostBasis || 1),
           gain_loss: (data.value || 0) - (data.cost_basis || 0),
           gain_loss_percent: data.cost_basis ? ((data.value - data.cost_basis) / data.cost_basis) : 0,

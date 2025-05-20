@@ -1628,7 +1628,7 @@ async def delete_account(account_id: int, current_user: dict = Depends(get_curre
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Server error: {str(e)}")
 
 # ----- REPORTING ON ACCOUNT POSITIONS  -----
-# Summary reporting by pulling each balance in each account - not primary way to get position detail
+# Summary reporting by pulling each balance in each account
 @app.get("/positions/unified")
 async def get_unified_positions(
     asset_type: Optional[str] = None,
@@ -1699,6 +1699,7 @@ async def get_unified_positions(
             detail=f"Failed to fetch positions: {str(e)}"
         )
 
+#  not primary way to get position detail
 @app.get("/positions/all/detailed", response_model=PositionsDetailedResponse)
 async def get_all_detailed_positions(current_user: dict = Depends(get_current_user)):
     """
