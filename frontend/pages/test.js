@@ -443,9 +443,9 @@ export default function Dashboard() {
           value: data.value || 0,
           name: type.charAt(0).toUpperCase() + type.slice(1),
           percentage: data.percentage || 0,
-          cost_basis: data.total_cost_basis || 0,
+          cost_basis: data.cost_basis || 0,
           cost_basis_percentage: (data.cost_basis || 0) / (totalCostBasis || 1),
-          gain_loss: (data.value || 0) - (data.total_cost_basis || 0),
+          gain_loss: (data.value || 0) - (data.cost_basis || 0),
           gain_loss_percent: data.cost_basis ? ((data.value - data.cost_basis) / data.cost_basis) : 0,
         };
       });
@@ -688,7 +688,7 @@ export default function Dashboard() {
                     </div>
                     <div>
                       <p className="text-sm text-gray-400">Cost Basis</p>
-                      <p className="text-lg font-semibold text-white">{formatCurrency(assetClassData.security?.total_cost_basis)}</p>
+                      <p className="text-lg font-semibold text-white">{formatCurrency(assetClassData.security?.cost_basis)}</p>
                       <p className="text-xs text-gray-500">{formatPercentage(assetClassData.security?.cost_basis_percentage * 100 || 0)} of total cost</p>
                     </div>
                     <div>
