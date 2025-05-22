@@ -1,21 +1,361 @@
 // pages/reports.js
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import Head from 'next/head';
 import { useRouter } from 'next/router';
 import { 
-  AreaChart, Area, BarChart, Bar, PieChart, Pie, LineChart, Line, ScatterChart, Scatter,
+  AreaChart, Area, BarChart, Bar, PieChart, Pie, LineChart, Line,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell, ReferenceLine,
-  ComposedChart, Label
+  ComposedChart
 } from 'recharts';
-import { 
-  TrendingUp, TrendingDown, DollarSign, Filter, Calendar, Download, Share2,
-  Activity, BarChart2, PieChart as PieChartIcon, ArrowUpRight, ArrowDownRight, 
-  RefreshCw, ChevronDown, ChevronUp, Search, X, Plus, Minus, Save, LineChart as LineChartIcon, 
-  LayoutDashboard, Settings, AlertTriangle, ArrowLeft, ArrowRight, Clock, Layers, 
-  ArrowUp, ArrowDown, Eye, Percent
+import { motion, AnimatePresence } from 'framer-motion';
+import {
+  TrendingUp, TrendingDown, DollarSign, 
+  Activity, Calendar, Info, ArrowRight, BarChart2, Settings,
+  Briefcase, X, AlertCircle, ChevronRight, CreditCard, Droplet, 
+  Diamond, Cpu, Landmark, Layers, Shield, Database, Percent, 
+  Eye, Gift, Clock, ArrowUp, ArrowDown, Calculator,
+  Banknote, Coins, Package, Home, LayoutDashboard
 } from 'lucide-react';
-import { motion } from 'framer-motion';
+
 import { fetchWithAuth } from '@/utils/api';
+
+// Import the AssetTypeTrendChart component
+// You'll need to create this component in your components/charts/ directory
+import AssetTypeTrendChart from '@/components/charts/AssetTypeTrendChart';
+
+// Time period options for charts
+const timeframeOptions = [
+  { id: '1w', label: '1W' },
+  { id: '1m', label: '1M' },
+  { id: '3m', label: '3M' },
+  { id: '6m', label: '6M' },
+  { id: 'ytd', label: 'YTD' },
+  { id: '1y', label: '1Y' },
+  { id: 'all', label: 'All' }
+];
+
+// Color palettes matching your existing theme
+const assetColors = {
+  security: '#4f46e5', // Indigo
+  cash: '#10b981',    // Emerald
+  crypto: '#8b5cf6',  // Purple
+  bond: '#ec4899',    // Pink
+  metal: '#f97316',   // Orange
+  currency: '#3b82f6', // Blue
+  realestate: '#ef4444', // Red
+  other: '#6b7280'    // Gray
+};
+
+// Main Dashboard Component
+export default function ReportsPage() {
+  // State management
+  const [selectedTimeframe, setSelectedTimeframe] = useState('3m');
+  const [selectedTab, setSelectedTab] = useState('insights');
+  const [portfolioData, setPortfolioData] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const router = useRouter();
+  
+  // Fetch portfolio data
+  useEffect(() => {
+    const fetchPortfolioData = async () => {
+      setIsLoading(true);
+      try {
+        const response = await fetchWithAuth(`/portfolio/snapshots?timeframe=${selectedTimeframe}&group_by=day&include_cost_basis=true`);
+        
+        if (!response.ok) {
+          throw new Error('Failed to fetch portfolio data');
+        }
+        
+        const data = await response.json();
+        setPortfolioData(data);
+        setError(null);
+      } catch (err) {
+        console.error('Error fetching portfolio data:', err);
+        setError('Unable to load your portfolio data. Please try again later.');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    
+    fetchPortfolioData();
+  }, [selectedTimeframe]);
+  
+  // Format utilities
+  const formatCurrency = (value) => {
+    if (value === null || value === undefined) return '-';
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0
+    }).format(value);
+  };
+  
+  const formatPercentage = (value) => {
+    if (value === null || value === undefined) return '-';
+    return `${value > 0 ? '+' : ''}${value.toFixed(2)}%`;
+  };
+  
+  // Timeframe Selector Component
+  const TimeframeSelector = ({ options, selected, onChange, className = "" }) => {
+    return (
+      <div className={`flex p-1 space-x-1 bg-gray-200 rounded-lg ${className}`}>
+        {options.map((option) => (
+          <button
+            key={option.id}
+            className={`
+              px-3 py-1.5 text-sm font-medium rounded-md transition-colors
+              ${selected === option.id 
+                ? 'bg-white text-gray-800 shadow-sm' 
+                : 'text-gray-600 hover:text-gray-800 hover:bg-gray-100'
+              }
+            `}
+            onClick={() => onChange(option.id)}
+          >
+            {option.label}
+          </button>
+        ))}
+      </div>
+    );
+  };
+  
+  // Report Card component matching your existing styling
+  const ReportCard = ({ title, subtitle, children, className = "", actions = null }) => {
+    return (
+      <div className={`bg-white rounded-lg shadow-md p-6 border border-gray-200 ${className}`}>
+        <div className="flex justify-between items-start mb-4">
+          <div>
+            <h3 className="text-lg font-semibold text-gray-800">{title}</h3>
+            {subtitle && <p className="text-sm text-gray-600">{subtitle}</p>}
+          </div>
+          {actions && <div className="flex space-x-2">{actions}</div>}
+        </div>
+        {children}
+      </div>
+    );
+  };
+  
+  // Loading State
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex flex-col justify-center items-center">
+        <div className="w-16 h-16 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+        <p className="mt-4 text-gray-600">Loading your reports...</p>
+      </div>
+    );
+  }
+  
+  // Error State
+  if (error) {
+    return (
+      <div className="min-h-screen flex flex-col justify-center items-center p-4">
+        <div className="text-red-500 mb-4">
+          <AlertCircle size={48} />
+        </div>
+        <h1 className="text-2xl font-bold text-gray-800 mb-2">Unable to Load Reports</h1>
+        <p className="text-gray-600 mb-6 text-center max-w-md">{error}</p>
+        <button 
+          onClick={() => window.location.reload()}
+          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+        >
+          Retry
+        </button>
+      </div>
+    );
+  }
+  
+  return (
+    <div className="min-h-screen bg-gray-50">
+      <Head>
+        <title>Portfolio Reports | NestEgg</title>
+        <meta name="description" content="Detailed reports and analytics for your investment portfolio" />
+        <link rel="icon" href="/favicon.ico" />
+      </Head>
+
+      <main className="container mx-auto px-4 py-8">
+        {/* Page header */}
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6">
+          <div>
+            <div className="flex items-center">
+              <button 
+                onClick={() => router.push('/')}
+                className="mr-3 p-2 rounded-full bg-white hover:bg-gray-100 transition-colors border border-gray-200"
+              >
+                <ArrowRight className="h-5 w-5 transform rotate-180" />
+              </button>
+              <h1 className="text-3xl font-bold text-gray-800">Portfolio Reports</h1>
+            </div>
+            <p className="text-gray-600 mt-1">
+              Analyze trends and track changes in your investment portfolio
+            </p>
+          </div>
+          <div className="flex mt-4 md:mt-0">
+            <TimeframeSelector
+              options={timeframeOptions}
+              selected={selectedTimeframe}
+              onChange={setSelectedTimeframe}
+            />
+          </div>
+        </div>
+        
+        {/* Tab navigation */}
+        <div className="mb-6 border-b border-gray-200">
+          <div className="flex space-x-1">
+            <button
+              className={`px-4 py-2 text-sm font-medium rounded-t-md transition-colors border-b-2 ${
+                selectedTab === 'insights' 
+                  ? 'text-blue-600 border-blue-600' 
+                  : 'text-gray-500 border-transparent hover:text-gray-700 hover:border-gray-300'
+              }`}
+              onClick={() => setSelectedTab('insights')}
+            >
+              Portfolio Insights
+            </button>
+            <button
+              className={`px-4 py-2 text-sm font-medium rounded-t-md transition-colors border-b-2 ${
+                selectedTab === 'trends' 
+                  ? 'text-blue-600 border-blue-600' 
+                  : 'text-gray-500 border-transparent hover:text-gray-700 hover:border-gray-300'
+              }`}
+              onClick={() => setSelectedTab('trends')}
+            >
+              Asset Type Trends
+            </button>
+          </div>
+        </div>
+        
+        {/* Tab content */}
+        {selectedTab === 'insights' && (
+          <div className="space-y-6">
+            {/* Portfolio Overview Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+              <ReportCard title="Total Portfolio Value" className="col-span-1">
+                <div className="text-3xl font-bold text-gray-800">
+                  {formatCurrency(portfolioData?.current_value || 0)}
+                </div>
+                <div className="text-sm text-gray-600 mt-1">
+                  {portfolioData?.period_changes?.['1d'] ? 
+                    <span className={portfolioData.period_changes['1d'].percent_change >= 0 ? 'text-green-600' : 'text-red-600'}>
+                      {formatPercentage(portfolioData.period_changes['1d'].percent_change)} today
+                    </span>
+                    : 'No change data'
+                  }
+                </div>
+              </ReportCard>
+              
+              <ReportCard title="Cost Basis" className="col-span-1">
+                <div className="text-3xl font-bold text-gray-800">
+                  {formatCurrency(portfolioData?.total_cost_basis || 0)}
+                </div>
+                <div className="text-sm text-gray-600 mt-1">
+                  Total invested
+                </div>
+              </ReportCard>
+              
+              <ReportCard title="Unrealized Gain" className="col-span-1">
+                <div className={`text-3xl font-bold ${
+                  (portfolioData?.unrealized_gain || 0) >= 0 ? 'text-green-600' : 'text-red-600'
+                }`}>
+                  {formatCurrency(portfolioData?.unrealized_gain || 0)}
+                </div>
+                <div className="text-sm text-gray-600 mt-1">
+                  {formatPercentage(portfolioData?.unrealized_gain_percent || 0)}
+                </div>
+              </ReportCard>
+              
+              <ReportCard title="Annual Income" className="col-span-1">
+                <div className="text-3xl font-bold text-gray-800">
+                  {formatCurrency(portfolioData?.annual_income || 0)}
+                </div>
+                <div className="text-sm text-gray-600 mt-1">
+                  {formatPercentage(portfolioData?.yield_percentage || 0)} yield
+                </div>
+              </ReportCard>
+            </div>
+            
+            {/* Charts and detailed analysis would go here */}
+            <ReportCard 
+              title="Portfolio Performance" 
+              subtitle={`Performance over ${selectedTimeframe.toUpperCase()}`}
+            >
+              <div className="h-80">
+                {portfolioData?.performance?.daily ? (
+                  <div className="h-full flex items-center justify-center text-gray-500">
+                    <div className="text-center">
+                      <BarChart2 className="h-12 w-12 mx-auto mb-2" />
+                      <p>Portfolio performance chart would be rendered here</p>
+                      <p className="text-sm">Using data from {portfolioData.performance.daily.length} days</p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="h-full flex items-center justify-center text-gray-500">
+                    <div className="text-center">
+                      <AlertCircle className="h-12 w-12 mx-auto mb-2" />
+                      <p>No performance data available</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </ReportCard>
+          </div>
+        )}
+        
+        {selectedTab === 'trends' && (
+          <div className="space-y-6">
+            <ReportCard 
+              title="Asset Type Performance Trends" 
+              subtitle="Track how each asset class is performing over time"
+            >
+              <AssetTypeTrendChart />
+            </ReportCard>
+          </div>
+        )}
+        
+        {/* Quick Actions Footer */}
+        <div className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-4">
+          <button 
+            onClick={() => setSelectedTab('insights')}
+            className="flex items-center justify-center space-x-2 p-4 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors shadow-md"
+          >
+            <LayoutDashboard className="h-5 w-5" />
+            <span>Portfolio Insights</span>
+          </button>
+          
+          <button 
+            onClick={() => setSelectedTab('trends')}
+            className="flex items-center justify-center space-x-2 p-4 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors shadow-md"
+          >
+            <TrendingUp className="h-5 w-5" />
+            <span>Asset Type Trends</span>
+          </button>
+          
+          <button 
+            onClick={() => router.push('/')}
+            className="flex items-center justify-center space-x-2 p-4 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors shadow-md"
+          >
+            <ArrowRight className="h-5 w-5 transform rotate-180" />
+            <span>Back to Dashboard</span>
+          </button>
+        </div>
+      </main>
+    </div>
+  );
+}
+
+// Import the new AssetTypeTrendChart component
+// Note: You'll need to create this as a separate component file
+const AssetTypeTrendChart = () => {
+  // Placeholder for the asset trend chart
+  // In your actual implementation, this would be imported from the component file
+  return (
+    <div className="h-96 flex items-center justify-center text-gray-400">
+      Asset Type Trend Chart Component
+      <br />
+      <small>Import the AssetTypeTrendChart component here</small>
+    </div>
+  );
+};
 
 // Time period options for charts
 const timeframeOptions = [
@@ -613,6 +953,14 @@ export default function ReportsPage() {
             </div>
           </ReportCard>
           
+          {/* Asset Type Performance Trends */}
+          <ReportCard 
+            title="Asset Type Performance Trends" 
+            subtitle="Market value and cost basis trends by asset class"
+          >
+            <AssetTypeTrendChart />
+          </ReportCard>
+          
           {/* Asset type contribution */}
           <ReportCard 
             title="Contribution to Growth by Asset Type" 
@@ -631,7 +979,7 @@ export default function ReportsPage() {
                     tick={{ fill: '#6b7280' }}
                     axisLine={{ stroke: '#374151' }}
                     tickLine={false}
-                    tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`}
+                    tickFormatter={(value) => `${(value / 1000).toFixed(0)}k`}
                   />
                   <YAxis 
                     dataKey="type" 
