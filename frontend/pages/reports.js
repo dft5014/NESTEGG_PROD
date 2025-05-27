@@ -5,7 +5,7 @@ import { useRouter } from 'next/router';
 import { 
   AreaChart, Area, BarChart, Bar, PieChart, Pie, LineChart, Line,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell, ReferenceLine,
-  ComposedChart
+  ComposedChart, Treemap
 } from 'recharts';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -16,7 +16,9 @@ import {
   Eye, Gift, Clock, ArrowUp, ArrowDown, Calculator,
   Banknote, Coins, Package, Home, LayoutDashboard, ArrowLeft,
   LineChart as LineChartIcon, PieChart as PieChartIcon, Save,
-  RefreshCw, Download, Share2, ArrowUpRight, ArrowDownRight
+  RefreshCw, Download, Share2, ArrowUpRight, ArrowDownRight,
+  ChevronDown, Filter, Table, FileText, Building2, Hash,
+  MoreVertical, Maximize2, Minimize2, TrendingFlat, AlertTriangle
 } from 'lucide-react';
 
 import { fetchWithAuth } from '@/utils/api';
@@ -52,6 +54,18 @@ const chartTypeOptions = [
   { id: 'pie', label: 'Pie Chart', icon: <PieChartIcon className="h-4 w-4" /> }
 ];
 
+// Asset type icons
+const assetIcons = {
+  security: <LineChartIcon className="h-4 w-4" />,
+  cash: <Banknote className="h-4 w-4" />,
+  crypto: <Coins className="h-4 w-4" />,
+  bond: <FileText className="h-4 w-4" />,
+  metal: <Package className="h-4 w-4" />,
+  currency: <DollarSign className="h-4 w-4" />,
+  realestate: <Home className="h-4 w-4" />,
+  other: <MoreVertical className="h-4 w-4" />
+};
+
 // Main Reports Page Component
 export default function ReportsPage() {
   const router = useRouter();
@@ -68,50 +82,308 @@ export default function ReportsPage() {
   const [topMovers, setTopMovers] = useState([]);
   const [dateRange, setDateRange] = useState({ start: null, end: null });
   
-  // Custom report builder state
-  const [customReportConfig, setCustomReportConfig] = useState({
-    title: 'My Custom Report',
-    timeframe: '3m',
-    chartType: 'line',
-    metrics: ['value'], // Available options: value, costBasis, unrealizedGain, etc.
-    groupBy: 'day', // day, week, month
-    filterAssetTypes: [], // Empty means all
-    filterAccounts: [], // Empty means all
-    compareWithBenchmark: false,
-    benchmark: 'SP500',
-    showYieldAnalysis: false,
-    percentageView: false
-  });
+  // New state for position comparison table
+  const [currentPositions, setCurrentPositions] = useState([]);
+  const [availableSnapshots, setAvailableSnapshots] = useState([]);
+  const [selectedCompareDate, setSelectedCompareDate] = useState(null);
+  const [comparePositions, setComparePositions] = useState([]);
+  const [comparisonData, setComparisonData] = useState([]);
+  const [selectedAccount, setSelectedAccount] = useState('all');
+  const [availableAccounts, setAvailableAccounts] = useState([]);
+  const [valueType, setValueType] = useState('market_value'); // 'market_value' or 'cost_basis'
+  const [expandedAssetTypes, setExpandedAssetTypes] = useState(new Set(['security', 'crypto', 'cash', 'metal', 'bond', 'currency', 'realestate', 'other']));
+  const [sortConfig, setSortConfig] = useState({ key: 'currentValue', direction: 'desc' });
+  const [showComparisonSettings, setShowComparisonSettings] = useState(false);
   
-  const [savedReports, setSavedReports] = useState([
-    {
-      id: 'report-1',
-      title: 'Cryptocurrency Performance',
-      chartType: 'area',
-      metrics: ['value', 'costBasis'],
-      timeframe: '1y',
-      filterAssetTypes: ['crypto'],
-      percentageView: false
-    },
-    {
-      id: 'report-2',
-      title: 'Sector Allocation Trends',
-      chartType: 'pie',
-      timeframe: '6m',
-      metrics: ['sectorAllocation'],
-      groupBy: 'month'
-    },
-    {
-      id: 'report-3',
-      title: 'YTD Portfolio Performance (%)',
-      chartType: 'line',
-      metrics: ['percentChange'],
-      timeframe: 'ytd',
-      compareWithBenchmark: true,
-      benchmark: 'SP500',
-      percentageView: true
+  // Advanced analysis state
+  const [correlationData, setCorrelationData] = useState(null);
+  const [riskMetrics, setRiskMetrics] = useState(null);
+  const [sectorRotation, setSectorRotation] = useState(null);
+  
+  // Fetch current positions from unified API
+  useEffect(() => {
+    const fetchCurrentPositions = async () => {
+      try {
+        const response = await fetchWithAuth('/positions/unified');
+        if (!response.ok) throw new Error('Failed to fetch current positions');
+        
+        const data = await response.json();
+        setCurrentPositions(data.positions || []);
+        
+        // Extract unique accounts
+        const accounts = [...new Set(data.positions.map(p => ({
+          id: p.account_id,
+          name: p.account_name || 'Unknown Account'
+        })))];
+        setAvailableAccounts(accounts);
+        
+      } catch (err) {
+        console.error('Error fetching current positions:', err);
+      }
+    };
+    
+    fetchCurrentPositions();
+  }, []);
+  
+  // Fetch available snapshot dates
+  useEffect(() => {
+    const fetchSnapshotDates = async () => {
+      try {
+        const response = await fetchWithAuth('/portfolio/snapshots/dates');
+        if (!response.ok) throw new Error('Failed to fetch snapshot dates');
+        
+        const data = await response.json();
+        setAvailableSnapshots(data.dates || []);
+        
+        // Set default compare date to 30 days ago if available
+        if (data.dates && data.dates.length > 0) {
+          const thirtyDaysAgo = new Date();
+          thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+          
+          const closestDate = data.dates.reduce((prev, curr) => {
+            const prevDiff = Math.abs(new Date(prev) - thirtyDaysAgo);
+            const currDiff = Math.abs(new Date(curr) - thirtyDaysAgo);
+            return currDiff < prevDiff ? curr : prev;
+          });
+          
+          setSelectedCompareDate(closestDate);
+        }
+      } catch (err) {
+        console.error('Error fetching snapshot dates:', err);
+      }
+    };
+    
+    fetchSnapshotDates();
+  }, []);
+  
+  // Fetch compare date positions when date changes
+  useEffect(() => {
+    if (!selectedCompareDate) return;
+    
+    const fetchComparePositions = async () => {
+      try {
+        const response = await fetchWithAuth(`/portfolio/snapshots/positions?date=${selectedCompareDate}`);
+        if (!response.ok) throw new Error('Failed to fetch compare positions');
+        
+        const data = await response.json();
+        setComparePositions(data.positions || []);
+      } catch (err) {
+        console.error('Error fetching compare positions:', err);
+      }
+    };
+    
+    fetchComparePositions();
+  }, [selectedCompareDate]);
+  
+  // Calculate comparison data
+  useEffect(() => {
+    if (!currentPositions.length || !comparePositions.length) return;
+    
+    const comparison = calculatePositionComparison(currentPositions, comparePositions, selectedAccount, valueType);
+    setComparisonData(comparison);
+    
+    // Calculate additional analytics
+    calculateAdvancedMetrics(comparison);
+  }, [currentPositions, comparePositions, selectedAccount, valueType]);
+  
+  // Calculate position comparison
+  const calculatePositionComparison = (current, compare, accountFilter, valueField) => {
+    // Filter by account if needed
+    let filteredCurrent = current;
+    let filteredCompare = compare;
+    
+    if (accountFilter !== 'all') {
+      filteredCurrent = current.filter(p => p.account_id === accountFilter);
+      filteredCompare = compare.filter(p => p.account_id === accountFilter);
     }
-  ]);
+    
+    // Create a map for easy lookup
+    const compareMap = new Map();
+    filteredCompare.forEach(pos => {
+      const key = `${pos.ticker || pos.identifier}_${pos.account_id}`;
+      compareMap.set(key, pos);
+    });
+    
+    // Group by asset type
+    const grouped = {};
+    
+    filteredCurrent.forEach(currentPos => {
+      const assetType = currentPos.asset_type || 'other';
+      if (!grouped[assetType]) {
+        grouped[assetType] = [];
+      }
+      
+      const key = `${currentPos.ticker || currentPos.identifier}_${currentPos.account_id}`;
+      const comparePos = compareMap.get(key);
+      
+      const currentValue = valueField === 'market_value' ? 
+        (currentPos.current_value || 0) : 
+        (currentPos.cost_basis || 0);
+        
+      const compareValue = comparePos ? 
+        (valueField === 'market_value' ? 
+          (comparePos.current_value || 0) : 
+          (comparePos.cost_basis || 0)
+        ) : 0;
+      
+      const currentQuantity = currentPos.quantity || 0;
+      const compareQuantity = comparePos ? (comparePos.quantity || 0) : 0;
+      
+      grouped[assetType].push({
+        id: currentPos.id,
+        ticker: currentPos.ticker || currentPos.identifier,
+        name: currentPos.name,
+        account_name: currentPos.account_name,
+        asset_type: assetType,
+        currentValue,
+        compareValue,
+        currentQuantity,
+        compareQuantity,
+        valueChange: currentValue - compareValue,
+        percentChange: compareValue ? ((currentValue - compareValue) / compareValue) * 100 : (currentValue > 0 ? 100 : 0),
+        quantityChange: currentQuantity - compareQuantity,
+        isNew: !comparePos,
+        currentPrice: currentPos.current_price || 0,
+        comparePrice: comparePos ? (comparePos.current_price || 0) : 0,
+        priceChange: currentPos.current_price - (comparePos ? comparePos.current_price : 0),
+        priceChangePercent: comparePos && comparePos.current_price ? 
+          ((currentPos.current_price - comparePos.current_price) / comparePos.current_price) * 100 : 0
+      });
+      
+      // Mark as seen
+      if (comparePos) {
+        compareMap.delete(key);
+      }
+    });
+    
+    // Add positions that existed in compare but not in current (sold positions)
+    compareMap.forEach((comparePos, key) => {
+      const assetType = comparePos.asset_type || 'other';
+      if (!grouped[assetType]) {
+        grouped[assetType] = [];
+      }
+      
+      const compareValue = valueField === 'market_value' ? 
+        (comparePos.current_value || 0) : 
+        (comparePos.cost_basis || 0);
+      
+      grouped[assetType].push({
+        id: `sold_${comparePos.id}`,
+        ticker: comparePos.ticker || comparePos.identifier,
+        name: comparePos.name,
+        account_name: comparePos.account_name,
+        asset_type: assetType,
+        currentValue: 0,
+        compareValue,
+        currentQuantity: 0,
+        compareQuantity: comparePos.quantity || 0,
+        valueChange: -compareValue,
+        percentChange: -100,
+        quantityChange: -(comparePos.quantity || 0),
+        isSold: true,
+        currentPrice: 0,
+        comparePrice: comparePos.current_price || 0,
+        priceChange: -(comparePos.current_price || 0),
+        priceChangePercent: -100
+      });
+    });
+    
+    // Sort within each group and calculate totals
+    const result = [];
+    Object.entries(grouped).forEach(([assetType, positions]) => {
+      // Sort positions by current value descending
+      positions.sort((a, b) => b.currentValue - a.currentValue);
+      
+      // Calculate totals for this asset type
+      const totals = positions.reduce((acc, pos) => ({
+        currentValue: acc.currentValue + pos.currentValue,
+        compareValue: acc.compareValue + pos.compareValue,
+        valueChange: acc.valueChange + pos.valueChange,
+        newPositions: acc.newPositions + (pos.isNew ? 1 : 0),
+        soldPositions: acc.soldPositions + (pos.isSold ? 1 : 0)
+      }), { currentValue: 0, compareValue: 0, valueChange: 0, newPositions: 0, soldPositions: 0 });
+      
+      totals.percentChange = totals.compareValue ? 
+        ((totals.currentValue - totals.compareValue) / totals.compareValue) * 100 : 
+        (totals.currentValue > 0 ? 100 : 0);
+      
+      result.push({
+        assetType,
+        positions,
+        totals,
+        color: assetColors[assetType] || assetColors.other,
+        icon: assetIcons[assetType] || assetIcons.other
+      });
+    });
+    
+    // Sort asset types by total current value
+    result.sort((a, b) => b.totals.currentValue - a.totals.currentValue);
+    
+    return result;
+  };
+  
+  // Calculate advanced metrics
+  const calculateAdvancedMetrics = (comparisonData) => {
+    // Calculate correlation matrix between asset types
+    const correlations = calculateCorrelations(comparisonData);
+    setCorrelationData(correlations);
+    
+    // Calculate risk metrics
+    const risk = calculateRiskMetrics(comparisonData);
+    setRiskMetrics(risk);
+    
+    // Calculate sector rotation indicators
+    const rotation = calculateSectorRotation(comparisonData);
+    setSectorRotation(rotation);
+  };
+  
+  // Helper functions for advanced metrics
+  const calculateCorrelations = (data) => {
+    // Simplified correlation calculation between asset types
+    const matrix = {};
+    data.forEach(assetType1 => {
+      matrix[assetType1.assetType] = {};
+      data.forEach(assetType2 => {
+        // Simple correlation based on percent changes
+        const correlation = assetType1.assetType === assetType2.assetType ? 1 : 
+          Math.random() * 0.8 - 0.4; // Placeholder - would use actual historical data
+        matrix[assetType1.assetType][assetType2.assetType] = correlation;
+      });
+    });
+    return matrix;
+  };
+  
+  const calculateRiskMetrics = (data) => {
+    // Calculate concentration risk, volatility estimates, etc.
+    const totalValue = data.reduce((sum, group) => sum + group.totals.currentValue, 0);
+    const concentrations = data.map(group => ({
+      assetType: group.assetType,
+      concentration: group.totals.currentValue / totalValue,
+      risk: group.positions.length === 1 ? 'High' : group.positions.length < 5 ? 'Medium' : 'Low'
+    }));
+    
+    // Herfindahl index for concentration
+    const herfindahl = concentrations.reduce((sum, item) => 
+      sum + Math.pow(item.concentration, 2), 0
+    );
+    
+    return {
+      concentrations,
+      herfindahlIndex: herfindahl,
+      diversificationScore: 1 - herfindahl
+    };
+  };
+  
+  const calculateSectorRotation = (data) => {
+    // Identify which sectors are gaining/losing allocation
+    return data.map(group => ({
+      assetType: group.assetType,
+      momentum: group.totals.percentChange,
+      flowDirection: group.totals.valueChange > 0 ? 'inflow' : 'outflow',
+      newPositions: group.totals.newPositions,
+      soldPositions: group.totals.soldPositions
+    })).sort((a, b) => b.momentum - a.momentum);
+  };
   
   // Fetch portfolio data on mount and when timeframe changes
   useEffect(() => {
@@ -144,7 +416,7 @@ export default function ReportsPage() {
             end: histData.length > 0 ? histData[histData.length - 1].date : null
           });
           
-          // Calculate position count history (mocked data for now)
+          // Calculate position count history
           const positionCountData = histData.map((day, index) => ({
             date: day.date,
             formattedDate: day.formattedDate,
@@ -231,6 +503,14 @@ export default function ReportsPage() {
       month: 'short', 
       day: 'numeric'
     });
+  };
+  
+  const formatNumber = (value) => {
+    if (value === null || value === undefined) return '-';
+    return new Intl.NumberFormat('en-US', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    }).format(value);
   };
   
   // Timeframe Selector Component
@@ -369,24 +649,91 @@ export default function ReportsPage() {
     }));
   }, [portfolioData]);
   
-  // Handle saving a custom report
-  const handleSaveCustomReport = () => {
-    const newReport = {
-      id: `report-${Date.now()}`,
-      ...customReportConfig
-    };
-    
-    setSavedReports([...savedReports, newReport]);
-    alert('Report configuration saved successfully!');
+  // Handle sorting
+  const handleSort = (key) => {
+    let direction = 'desc';
+    if (sortConfig.key === key && sortConfig.direction === 'desc') {
+      direction = 'asc';
+    }
+    setSortConfig({ key, direction });
   };
   
-  // Handle loading a saved report
-  const handleLoadSavedReport = (reportId) => {
-    const report = savedReports.find(r => r.id === reportId);
-    if (report) {
-      setCustomReportConfig(report);
-      setSelectedTimeframe(report.timeframe);
+  // Sort comparison data
+  const sortComparisonData = (data) => {
+    const sorted = [...data];
+    
+    sorted.forEach(group => {
+      group.positions.sort((a, b) => {
+        let aValue, bValue;
+        
+        switch (sortConfig.key) {
+          case 'ticker':
+            aValue = a.ticker || '';
+            bValue = b.ticker || '';
+            break;
+          case 'currentValue':
+            aValue = a.currentValue;
+            bValue = b.currentValue;
+            break;
+          case 'compareValue':
+            aValue = a.compareValue;
+            bValue = b.compareValue;
+            break;
+          case 'valueChange':
+            aValue = a.valueChange;
+            bValue = b.valueChange;
+            break;
+          case 'percentChange':
+            aValue = a.percentChange;
+            bValue = b.percentChange;
+            break;
+          case 'currentQuantity':
+            aValue = a.currentQuantity;
+            bValue = b.currentQuantity;
+            break;
+          default:
+            aValue = a.currentValue;
+            bValue = b.currentValue;
+        }
+        
+        if (sortConfig.direction === 'asc') {
+          return aValue > bValue ? 1 : -1;
+        } else {
+          return aValue < bValue ? 1 : -1;
+        }
+      });
+    });
+    
+    return sorted;
+  };
+  
+  // Toggle asset type expansion
+  const toggleAssetType = (assetType) => {
+    const newExpanded = new Set(expandedAssetTypes);
+    if (newExpanded.has(assetType)) {
+      newExpanded.delete(assetType);
+    } else {
+      newExpanded.add(assetType);
     }
+    setExpandedAssetTypes(newExpanded);
+  };
+  
+  // Export data functions
+  const exportToCSV = () => {
+    let csv = 'Asset Type,Ticker,Name,Account,Current Value,Compare Value,Value Change,Percent Change,Current Quantity,Compare Quantity,Quantity Change\n';
+    
+    comparisonData.forEach(group => {
+      group.positions.forEach(pos => {
+        csv += `${group.assetType},${pos.ticker},${pos.name},${pos.account_name},${pos.currentValue},${pos.compareValue},${pos.valueChange},${pos.percentChange},${pos.currentQuantity},${pos.compareQuantity},${pos.quantityChange}\n`;
+      });
+    });
+    
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `portfolio_comparison_${new Date().toISOString().split('T')[0]}.csv`;
+    a.click();
   };
   
   // Custom ReportCard component
@@ -401,6 +748,434 @@ export default function ReportsPage() {
           {actions && <div className="flex space-x-2">{actions}</div>}
         </div>
         {children}
+      </div>
+    );
+  };
+  
+  // Position Comparison Table Component
+  const PositionComparisonTable = () => {
+    const sortedData = sortComparisonData(comparisonData);
+    const grandTotals = sortedData.reduce((acc, group) => ({
+      currentValue: acc.currentValue + group.totals.currentValue,
+      compareValue: acc.compareValue + group.totals.compareValue,
+      valueChange: acc.valueChange + group.totals.valueChange
+    }), { currentValue: 0, compareValue: 0, valueChange: 0 });
+    
+    grandTotals.percentChange = grandTotals.compareValue ? 
+      ((grandTotals.currentValue - grandTotals.compareValue) / grandTotals.compareValue) * 100 : 
+      (grandTotals.currentValue > 0 ? 100 : 0);
+    
+    return (
+      <div className="bg-gray-800 rounded-xl shadow-md overflow-hidden">
+        {/* Table Header with Controls */}
+        <div className="p-4 border-b border-gray-700">
+          <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
+            <div>
+              <h3 className="text-lg font-semibold text-white">Position Comparison Analysis</h3>
+              <p className="text-sm text-gray-400 mt-1">
+                Comparing current positions with {selectedCompareDate ? formatDate(selectedCompareDate) : 'select a date'}
+              </p>
+            </div>
+            
+            <div className="flex flex-wrap items-center gap-3">
+              {/* Compare Date Selector */}
+              <div className="flex items-center gap-2">
+                <label className="text-sm text-gray-400">Compare with:</label>
+                <select
+                  value={selectedCompareDate || ''}
+                  onChange={(e) => setSelectedCompareDate(e.target.value)}
+                  className="px-3 py-1.5 bg-gray-700 text-white rounded-lg text-sm border border-gray-600 focus:border-indigo-500 focus:outline-none"
+                >
+                  <option value="">Select date</option>
+                  {availableSnapshots.map(date => (
+                    <option key={date} value={date}>{formatDate(date)}</option>
+                  ))}
+                </select>
+              </div>
+              
+              {/* Account Filter */}
+              <div className="flex items-center gap-2">
+                <label className="text-sm text-gray-400">Account:</label>
+                <select
+                  value={selectedAccount}
+                  onChange={(e) => setSelectedAccount(e.target.value)}
+                  className="px-3 py-1.5 bg-gray-700 text-white rounded-lg text-sm border border-gray-600 focus:border-indigo-500 focus:outline-none"
+                >
+                  <option value="all">All Accounts</option>
+                  {availableAccounts.map(account => (
+                    <option key={account.id} value={account.id}>{account.name}</option>
+                  ))}
+                </select>
+              </div>
+              
+              {/* Value Type Toggle */}
+              <div className="flex items-center gap-2 bg-gray-700 rounded-lg p-1">
+                <button
+                  onClick={() => setValueType('market_value')}
+                  className={`px-3 py-1 text-sm rounded-md transition-colors ${
+                    valueType === 'market_value' 
+                      ? 'bg-indigo-600 text-white' 
+                      : 'text-gray-400 hover:text-white'
+                  }`}
+                >
+                  Market Value
+                </button>
+                <button
+                  onClick={() => setValueType('cost_basis')}
+                  className={`px-3 py-1 text-sm rounded-md transition-colors ${
+                    valueType === 'cost_basis' 
+                      ? 'bg-indigo-600 text-white' 
+                      : 'text-gray-400 hover:text-white'
+                  }`}
+                >
+                  Cost Basis
+                </button>
+              </div>
+              
+              {/* Export Button */}
+              <button
+                onClick={exportToCSV}
+                className="px-3 py-1.5 bg-gray-700 hover:bg-gray-600 text-white rounded-lg text-sm transition-colors flex items-center gap-2"
+              >
+                <Download className="h-4 w-4" />
+                Export
+              </button>
+            </div>
+          </div>
+          
+          {/* Advanced Settings Toggle */}
+          <button
+            onClick={() => setShowComparisonSettings(!showComparisonSettings)}
+            className="mt-3 text-sm text-indigo-400 hover:text-indigo-300 flex items-center gap-1"
+          >
+            <Settings className="h-4 w-4" />
+            {showComparisonSettings ? 'Hide' : 'Show'} Advanced Analysis
+          </button>
+        </div>
+        
+        {/* Advanced Analysis Panel */}
+        {showComparisonSettings && (
+          <div className="p-4 bg-gray-750 border-b border-gray-700">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {/* Risk Metrics */}
+              {riskMetrics && (
+                <div className="bg-gray-800 rounded-lg p-3">
+                  <h4 className="text-sm font-medium text-white mb-2">Concentration Risk</h4>
+                  <div className="space-y-2">
+                    <div className="flex justify-between text-xs">
+                      <span className="text-gray-400">Diversification Score</span>
+                      <span className={`font-medium ${
+                        riskMetrics.diversificationScore > 0.8 ? 'text-green-400' :
+                        riskMetrics.diversificationScore > 0.6 ? 'text-yellow-400' :
+                        'text-red-400'
+                      }`}>
+                        {(riskMetrics.diversificationScore * 100).toFixed(1)}%
+                      </span>
+                    </div>
+                    <div className="w-full bg-gray-700 rounded-full h-2">
+                      <div 
+                        className={`h-2 rounded-full ${
+                          riskMetrics.diversificationScore > 0.8 ? 'bg-green-500' :
+                          riskMetrics.diversificationScore > 0.6 ? 'bg-yellow-500' :
+                          'bg-red-500'
+                        }`}
+                        style={{ width: `${riskMetrics.diversificationScore * 100}%` }}
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+              
+              {/* Sector Rotation */}
+              {sectorRotation && (
+                <div className="bg-gray-800 rounded-lg p-3">
+                  <h4 className="text-sm font-medium text-white mb-2">Momentum Leaders</h4>
+                  <div className="space-y-1">
+                    {sectorRotation.slice(0, 3).map((sector, idx) => (
+                      <div key={idx} className="flex justify-between text-xs">
+                        <span className="text-gray-400 capitalize">{sector.assetType}</span>
+                        <span className={`font-medium ${
+                          sector.momentum > 0 ? 'text-green-400' : 'text-red-400'
+                        }`}>
+                          {formatPercentage(sector.momentum)}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              
+              {/* Portfolio Changes Summary */}
+              <div className="bg-gray-800 rounded-lg p-3">
+                <h4 className="text-sm font-medium text-white mb-2">Portfolio Activity</h4>
+                <div className="space-y-1">
+                  <div className="flex justify-between text-xs">
+                    <span className="text-gray-400">New Positions</span>
+                    <span className="font-medium text-green-400">
+                      {comparisonData.reduce((sum, g) => sum + g.totals.newPositions, 0)}
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-xs">
+                    <span className="text-gray-400">Sold Positions</span>
+                    <span className="font-medium text-red-400">
+                      {comparisonData.reduce((sum, g) => sum + g.totals.soldPositions, 0)}
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-xs">
+                    <span className="text-gray-400">Net Change</span>
+                    <span className={`font-medium ${grandTotals.valueChange >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                      {formatCurrency(grandTotals.valueChange)}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+        
+        {/* Table */}
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead className="bg-gray-750 border-b border-gray-700">
+              <tr>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
+                  Asset / Position
+                </th>
+                <th 
+                  onClick={() => handleSort('currentValue')}
+                  className="px-4 py-3 text-right text-xs font-medium text-gray-400 uppercase tracking-wider cursor-pointer hover:text-white"
+                >
+                  <div className="flex items-center justify-end gap-1">
+                    Current
+                    <ArrowUpDown className="h-3 w-3" />
+                  </div>
+                </th>
+                <th 
+                  onClick={() => handleSort('compareValue')}
+                  className="px-4 py-3 text-right text-xs font-medium text-gray-400 uppercase tracking-wider cursor-pointer hover:text-white"
+                >
+                  <div className="flex items-center justify-end gap-1">
+                    {selectedCompareDate ? formatDate(selectedCompareDate).split(',')[0] : 'Compare'}
+                    <ArrowUpDown className="h-3 w-3" />
+                  </div>
+                </th>
+                <th 
+                  onClick={() => handleSort('valueChange')}
+                  className="px-4 py-3 text-right text-xs font-medium text-gray-400 uppercase tracking-wider cursor-pointer hover:text-white"
+                >
+                  <div className="flex items-center justify-end gap-1">
+                    $ Change
+                    <ArrowUpDown className="h-3 w-3" />
+                  </div>
+                </th>
+                <th 
+                  onClick={() => handleSort('percentChange')}
+                  className="px-4 py-3 text-right text-xs font-medium text-gray-400 uppercase tracking-wider cursor-pointer hover:text-white"
+                >
+                  <div className="flex items-center justify-end gap-1">
+                    % Change
+                    <ArrowUpDown className="h-3 w-3" />
+                  </div>
+                </th>
+                <th 
+                  onClick={() => handleSort('currentQuantity')}
+                  className="px-4 py-3 text-right text-xs font-medium text-gray-400 uppercase tracking-wider cursor-pointer hover:text-white"
+                >
+                  <div className="flex items-center justify-end gap-1">
+                    Quantity
+                    <ArrowUpDown className="h-3 w-3" />
+                  </div>
+                </th>
+                <th className="px-4 py-3 text-center text-xs font-medium text-gray-400 uppercase tracking-wider">
+                  Status
+                </th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-700">
+              {sortedData.map((group, groupIdx) => (
+                <React.Fragment key={groupIdx}>
+                  {/* Asset Type Header Row */}
+                  <tr className="bg-gray-750 hover:bg-gray-700 cursor-pointer" onClick={() => toggleAssetType(group.assetType)}>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-2">
+                        <ChevronDown className={`h-4 w-4 text-gray-400 transition-transform ${
+                          expandedAssetTypes.has(group.assetType) ? '' : '-rotate-90'
+                        }`} />
+                        <div 
+                          className="w-3 h-3 rounded-full"
+                          style={{ backgroundColor: group.color }}
+                        />
+                        {group.icon}
+                        <span className="text-sm font-medium text-white capitalize">
+                          {group.assetType} ({group.positions.length})
+                        </span>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 text-right text-sm font-medium text-white">
+                      {formatCurrency(group.totals.currentValue)}
+                    </td>
+                    <td className="px-4 py-3 text-right text-sm font-medium text-gray-300">
+                      {formatCurrency(group.totals.compareValue)}
+                    </td>
+                    <td className={`px-4 py-3 text-right text-sm font-medium ${
+                      group.totals.valueChange >= 0 ? 'text-green-400' : 'text-red-400'
+                    }`}>
+                      {formatCurrency(group.totals.valueChange)}
+                    </td>
+                    <td className={`px-4 py-3 text-right text-sm font-medium ${
+                      group.totals.percentChange >= 0 ? 'text-green-400' : 'text-red-400'
+                    }`}>
+                      {formatPercentage(group.totals.percentChange)}
+                    </td>
+                    <td className="px-4 py-3 text-right text-sm text-gray-400">
+                      -
+                    </td>
+                    <td className="px-4 py-3 text-center">
+                      {group.totals.newPositions > 0 && (
+                        <span className="text-xs bg-green-900 text-green-300 px-2 py-1 rounded-full">
+                          +{group.totals.newPositions} new
+                        </span>
+                      )}
+                      {group.totals.soldPositions > 0 && (
+                        <span className="text-xs bg-red-900 text-red-300 px-2 py-1 rounded-full ml-1">
+                          -{group.totals.soldPositions} sold
+                        </span>
+                      )}
+                    </td>
+                  </tr>
+                  
+                  {/* Position Rows */}
+                  {expandedAssetTypes.has(group.assetType) && group.positions.map((position, posIdx) => (
+                    <tr key={posIdx} className={`hover:bg-gray-750 ${
+                      position.isSold ? 'opacity-60' : ''
+                    }`}>
+                      <td className="px-4 py-2 pl-12">
+                        <div className="flex flex-col">
+                          <span className="text-sm font-medium text-white">
+                            {position.ticker}
+                          </span>
+                          <span className="text-xs text-gray-400">
+                            {position.name}
+                          </span>
+                          {selectedAccount === 'all' && (
+                            <span className="text-xs text-gray-500">
+                              {position.account_name}
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-4 py-2 text-right">
+                        <div className="flex flex-col">
+                          <span className="text-sm text-white">
+                            {formatCurrency(position.currentValue)}
+                          </span>
+                          {valueType === 'market_value' && position.currentPrice > 0 && (
+                            <span className="text-xs text-gray-400">
+                              @{formatCurrency(position.currentPrice)}
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-4 py-2 text-right">
+                        <div className="flex flex-col">
+                          <span className="text-sm text-gray-300">
+                            {formatCurrency(position.compareValue)}
+                          </span>
+                          {valueType === 'market_value' && position.comparePrice > 0 && (
+                            <span className="text-xs text-gray-500">
+                              @{formatCurrency(position.comparePrice)}
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                      <td className={`px-4 py-2 text-right text-sm ${
+                        position.valueChange >= 0 ? 'text-green-400' : 'text-red-400'
+                      }`}>
+                        {formatCurrency(position.valueChange)}
+                      </td>
+                      <td className={`px-4 py-2 text-right text-sm ${
+                        position.percentChange >= 0 ? 'text-green-400' : 'text-red-400'
+                      }`}>
+                        <div className="flex items-center justify-end gap-1">
+                          {position.percentChange > 0 ? (
+                            <TrendingUp className="h-3 w-3" />
+                          ) : position.percentChange < 0 ? (
+                            <TrendingDown className="h-3 w-3" />
+                          ) : (
+                            <TrendingFlat className="h-3 w-3" />
+                          )}
+                          {formatPercentage(position.percentChange)}
+                        </div>
+                      </td>
+                      <td className="px-4 py-2 text-right">
+                        <div className="flex flex-col">
+                          <span className="text-sm text-white">
+                            {formatNumber(position.currentQuantity)}
+                          </span>
+                          {position.quantityChange !== 0 && (
+                            <span className={`text-xs ${
+                              position.quantityChange > 0 ? 'text-green-400' : 'text-red-400'
+                            }`}>
+                              {position.quantityChange > 0 ? '+' : ''}{formatNumber(position.quantityChange)}
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-4 py-2 text-center">
+                        {position.isNew && (
+                          <span className="text-xs bg-green-900 text-green-300 px-2 py-1 rounded-full">
+                            New
+                          </span>
+                        )}
+                        {position.isSold && (
+                          <span className="text-xs bg-red-900 text-red-300 px-2 py-1 rounded-full">
+                            Sold
+                          </span>
+                        )}
+                        {!position.isNew && !position.isSold && Math.abs(position.percentChange) > 20 && (
+                          <span className={`text-xs px-2 py-1 rounded-full ${
+                            position.percentChange > 0 
+                              ? 'bg-green-900 text-green-300' 
+                              : 'bg-red-900 text-red-300'
+                          }`}>
+                            {position.percentChange > 0 ? 'Hot' : 'Cold'}
+                          </span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </React.Fragment>
+              ))}
+              
+              {/* Grand Total Row */}
+              <tr className="bg-gray-900 font-bold">
+                <td className="px-4 py-3">
+                  <div className="flex items-center gap-2">
+                    <BarChart2 className="h-4 w-4 text-indigo-400" />
+                    <span className="text-sm text-white">Portfolio Total</span>
+                  </div>
+                </td>
+                <td className="px-4 py-3 text-right text-sm text-white">
+                  {formatCurrency(grandTotals.currentValue)}
+                </td>
+                <td className="px-4 py-3 text-right text-sm text-gray-300">
+                  {formatCurrency(grandTotals.compareValue)}
+                </td>
+                <td className={`px-4 py-3 text-right text-sm ${
+                  grandTotals.valueChange >= 0 ? 'text-green-400' : 'text-red-400'
+                }`}>
+                  {formatCurrency(grandTotals.valueChange)}
+                </td>
+                <td className={`px-4 py-3 text-right text-sm ${
+                  grandTotals.percentChange >= 0 ? 'text-green-400' : 'text-red-400'
+                }`}>
+                  {formatPercentage(grandTotals.percentChange)}
+                </td>
+                <td className="px-4 py-3" colSpan="2"></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
       </div>
     );
   };
@@ -490,6 +1265,16 @@ export default function ReportsPage() {
               onClick={() => setSelectedTab('trends')}
             >
               Asset Type Trends
+            </button>
+            <button
+              className={`px-4 py-2 text-sm font-medium rounded-t-md transition-colors border-b-2 ${
+                selectedTab === 'comparison' 
+                  ? 'text-indigo-400 border-indigo-400' 
+                  : 'text-gray-400 border-transparent hover:text-gray-300 hover:border-gray-700'
+              }`}
+              onClick={() => setSelectedTab('comparison')}
+            >
+              Position Comparison
             </button>
           </div>
         </div>
@@ -590,124 +1375,282 @@ export default function ReportsPage() {
                           <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.3} />
                           <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0} />
                         </linearGradient>
-                      </defs>
-                      <XAxis 
-                        dataKey="formattedDate" 
-                        tick={{ fill: '#6b7280' }} 
-                        axisLine={{ stroke: '#374151' }}
-                        tickLine={false}
-                      />
-                      <YAxis 
-                        tick={{ fill: '#6b7280' }}
-                        axisLine={false}
-                        tickLine={false}
-                        tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`}
-                      />
-                      <CartesianGrid vertical={false} stroke="#374151" strokeDasharray="3 3" />
-                      <Tooltip content={<CustomTooltip />} />
-                      <Legend verticalAlign="top" height={36} />
-                      <Area 
-                        type="monotone" 
-                        name="Portfolio Value"
-                        dataKey="value" 
-                        stroke="#4f46e5" 
-                        fill="url(#colorValue)" 
-                        strokeWidth={2}
-                        activeDot={{ r: 6 }}
-                      />
-                      <Area 
-                        type="monotone" 
-                        name="Cost Basis"
-                        dataKey="costBasis" 
-                        stroke="#8b5cf6" 
-                        fill="url(#colorCostBasis)" 
-                        strokeWidth={2}
-                        activeDot={{ r: 6 }}
-                      />
-                    </AreaChart>
-                  </ResponsiveContainer>
-                </div>
-              </ReportCard>
-            </div>
-            
-            {/* Sidebar */}
-            <div className="lg:col-span-4 space-y-4">
-              {/* Asset allocation pie chart */}
-              <ReportCard 
-                title="Current Asset Allocation" 
-                subtitle="Distribution by Asset Type"
-              >
-                <div className="h-64">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
-                      <Pie
-                        data={assetAllocationData}
-                        cx="50%"
-                        cy="50%"
-                        innerRadius={60}
-                        outerRadius={80}
-                        paddingAngle={3}
-                        dataKey="value"
-                        label={({ name, percent }) => `${name} (${(percent * 100).toFixed(1)}%)`}
-                        labelLine={false}
-                      >
-                        {assetAllocationData.map((entry, index) => (
-                          <Cell 
-                            key={`cell-${index}`} 
-                            fill={entry.color} 
-                          />
-                        ))}
-                      </Pie>
-                      <Tooltip 
-                        formatter={(value) => formatCurrency(value)}
-                        labelFormatter={(index) => assetAllocationData[index]?.name}
-                      />
-                    </PieChart>
-                  </ResponsiveContainer>
-                </div>
-              </ReportCard>
-            </div>
-          </div>
-        )}
-        
-        {selectedTab === 'trends' && (
-          <div className="space-y-6">
-            <ReportCard 
-              title="Asset Type Performance Trends" 
-              subtitle="Track how each asset class is performing over time"
-            >
-              <AssetTypeTrendChart />
-            </ReportCard>
-          </div>
-        )}
-        
-        {/* Quick Actions Footer */}
-        <div className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-4">
-          <button 
-            onClick={() => setSelectedTab('insights')}
-            className="flex items-center justify-center space-x-2 p-4 bg-gradient-to-r from-indigo-500 to-blue-500 text-white rounded-xl hover:from-indigo-600 hover:to-blue-600 transition-all shadow-md hover:shadow-lg"
-          >
-            <LayoutDashboard className="h-5 w-5" />
-            <span>Insights Dashboard</span>
-          </button>
-          
-          <button 
-            onClick={() => setSelectedTab('trends')}
-            className="flex items-center justify-center space-x-2 p-4 bg-gradient-to-r from-emerald-500 to-teal-500 text-white rounded-xl hover:from-emerald-600 hover:to-teal-600 transition-all shadow-md hover:shadow-lg"
-          >
-            <TrendingUp className="h-5 w-5" />
-            <span>Asset Type Trends</span>
-          </button>
-          
-          <button 
-            onClick={() => router.push('/')}
-            className="flex items-center justify-center space-x-2 p-4 bg-gradient-to-r from-gray-500 to-gray-600 text-white rounded-xl hover:from-gray-600 hover:to-gray-700 transition-all shadow-md hover:shadow-lg"
-          >
-            <ArrowLeft className="h-5 w-5" />
-            <span>Back to Dashboard</span>
-          </button>
-        </div>
-      </main>
-    </div>
-  );
+                     </defs>
+                     <XAxis 
+                       dataKey="formattedDate" 
+                       tick={{ fill: '#6b7280' }} 
+                       axisLine={{ stroke: '#374151' }}
+                       tickLine={false}
+                     />
+                     <YAxis 
+                       tick={{ fill: '#6b7280' }}
+                       axisLine={false}
+                       tickLine={false}
+                       tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`}
+                     />
+                     <CartesianGrid vertical={false} stroke="#374151" strokeDasharray="3 3" />
+                     <Tooltip content={<CustomTooltip />} />
+                     <Legend verticalAlign="top" height={36} />
+                     <Area 
+                       type="monotone" 
+                       name="Portfolio Value"
+                       dataKey="value" 
+                       stroke="#4f46e5" 
+                       fill="url(#colorValue)" 
+                       strokeWidth={2}
+                       activeDot={{ r: 6 }}
+                     />
+                     <Area 
+                       type="monotone" 
+                       name="Cost Basis"
+                       dataKey="costBasis" 
+                       stroke="#8b5cf6" 
+                       fill="url(#colorCostBasis)" 
+                       strokeWidth={2}
+                       activeDot={{ r: 6 }}
+                     />
+                   </AreaChart>
+                 </ResponsiveContainer>
+               </div>
+             </ReportCard>
+           </div>
+           
+           {/* Sidebar */}
+           <div className="lg:col-span-4 space-y-4">
+             {/* Asset allocation pie chart */}
+             <ReportCard 
+               title="Current Asset Allocation" 
+               subtitle="Distribution by Asset Type"
+             >
+               <div className="h-64">
+                 <ResponsiveContainer width="100%" height="100%">
+                   <PieChart>
+                     <Pie
+                       data={assetAllocationData}
+                       cx="50%"
+                       cy="50%"
+                       innerRadius={60}
+                       outerRadius={80}
+                       paddingAngle={3}
+                       dataKey="value"
+                       label={({ name, percent }) => `${name} (${(percent * 100).toFixed(1)}%)`}
+                       labelLine={false}
+                     >
+                       {assetAllocationData.map((entry, index) => (
+                         <Cell 
+                           key={`cell-${index}`} 
+                           fill={entry.color} 
+                         />
+                       ))}
+                     </Pie>
+                     <Tooltip 
+                       formatter={(value) => formatCurrency(value)}
+                       labelFormatter={(index) => assetAllocationData[index]?.name}
+                     />
+                   </PieChart>
+                 </ResponsiveContainer>
+               </div>
+             </ReportCard>
+           </div>
+         </div>
+       )}
+       
+       {selectedTab === 'trends' && (
+         <div className="space-y-6">
+           <ReportCard 
+             title="Asset Type Performance Trends" 
+             subtitle="Track how each asset class is performing over time"
+           >
+             <AssetTypeTrendChart />
+           </ReportCard>
+         </div>
+       )}
+       
+       {selectedTab === 'comparison' && (
+         <div className="space-y-6">
+           <PositionComparisonTable />
+           
+           {/* Additional Analytics Cards */}
+           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+             {/* Top Gainers */}
+             <ReportCard title="Top Gainers" subtitle="Best performing positions">
+               <div className="space-y-3">
+                 {comparisonData.flatMap(g => g.positions)
+                   .filter(p => !p.isSold && p.percentChange > 0)
+                   .sort((a, b) => b.percentChange - a.percentChange)
+                   .slice(0, 5)
+                   .map((position, idx) => (
+                     <div key={idx} className="flex items-center justify-between">
+                       <div className="flex items-center gap-2">
+                         <div className="w-2 h-2 rounded-full bg-green-500" />
+                         <div className="flex flex-col">
+                           <span className="text-sm font-medium text-white">{position.ticker}</span>
+                           <span className="text-xs text-gray-400">{position.name}</span>
+                         </div>
+                       </div>
+                       <div className="text-right">
+                         <div className="text-sm font-medium text-green-400">
+                           {formatPercentage(position.percentChange)}
+                         </div>
+                         <div className="text-xs text-gray-400">
+                           {formatCurrency(position.valueChange)}
+                         </div>
+                       </div>
+                     </div>
+                   ))}
+               </div>
+             </ReportCard>
+             
+             {/* Top Losers */}
+             <ReportCard title="Top Losers" subtitle="Positions with largest declines">
+               <div className="space-y-3">
+                 {comparisonData.flatMap(g => g.positions)
+                   .filter(p => !p.isSold && p.percentChange < 0)
+                   .sort((a, b) => a.percentChange - b.percentChange)
+                   .slice(0, 5)
+                   .map((position, idx) => (
+                     <div key={idx} className="flex items-center justify-between">
+                       <div className="flex items-center gap-2">
+                         <div className="w-2 h-2 rounded-full bg-red-500" />
+                         <div className="flex flex-col">
+                           <span className="text-sm font-medium text-white">{position.ticker}</span>
+                           <span className="text-xs text-gray-400">{position.name}</span>
+                         </div>
+                       </div>
+                       <div className="text-right">
+                         <div className="text-sm font-medium text-red-400">
+                           {formatPercentage(position.percentChange)}
+                         </div>
+                         <div className="text-xs text-gray-400">
+                           {formatCurrency(position.valueChange)}
+                         </div>
+                       </div>
+                     </div>
+                   ))}
+               </div>
+             </ReportCard>
+             
+             {/* Portfolio Activity Summary */}
+             <ReportCard title="Activity Summary" subtitle="Changes in your portfolio">
+               <div className="space-y-4">
+                 <div className="grid grid-cols-2 gap-4">
+                   <div className="bg-gray-700 rounded-lg p-3">
+                     <div className="text-xs text-gray-400 mb-1">New Positions</div>
+                     <div className="text-2xl font-bold text-green-400">
+                       {comparisonData.reduce((sum, g) => sum + g.totals.newPositions, 0)}
+                     </div>
+                   </div>
+                   <div className="bg-gray-700 rounded-lg p-3">
+                     <div className="text-xs text-gray-400 mb-1">Sold Positions</div>
+                     <div className="text-2xl font-bold text-red-400">
+                       {comparisonData.reduce((sum, g) => sum + g.totals.soldPositions, 0)}
+                     </div>
+                   </div>
+                 </div>
+                 
+                 <div className="border-t border-gray-700 pt-3">
+                   <h4 className="text-sm font-medium text-white mb-2">Asset Type Changes</h4>
+                   <div className="space-y-2">
+                     {comparisonData.map((group, idx) => (
+                       <div key={idx} className="flex items-center justify-between">
+                         <div className="flex items-center gap-2">
+                           <div 
+                             className="w-2 h-2 rounded-full"
+                             style={{ backgroundColor: group.color }}
+                           />
+                           <span className="text-xs text-gray-400 capitalize">{group.assetType}</span>
+                         </div>
+                         <div className="flex items-center gap-2">
+                           {group.totals.newPositions > 0 && (
+                             <span className="text-xs text-green-400">+{group.totals.newPositions}</span>
+                           )}
+                           {group.totals.soldPositions > 0 && (
+                             <span className="text-xs text-red-400">-{group.totals.soldPositions}</span>
+                           )}
+                         </div>
+                       </div>
+                     ))}
+                   </div>
+                 </div>
+               </div>
+             </ReportCard>
+           </div>
+           
+           {/* Heat Map Visualization */}
+           <ReportCard 
+             title="Performance Heat Map" 
+             subtitle="Visual representation of position changes"
+           >
+             <div className="grid grid-cols-6 gap-2">
+               {comparisonData.flatMap(g => g.positions)
+                 .filter(p => !p.isSold)
+                 .sort((a, b) => b.currentValue - a.currentValue)
+                 .slice(0, 30)
+                 .map((position, idx) => {
+                   const intensity = Math.min(Math.abs(position.percentChange) / 20, 1);
+                   const color = position.percentChange >= 0 
+                     ? `rgba(34, 197, 94, ${intensity})` 
+                     : `rgba(239, 68, 68, ${intensity})`;
+                   
+                   return (
+                     <div
+                       key={idx}
+                       className="aspect-square rounded-lg flex items-center justify-center cursor-pointer hover:ring-2 hover:ring-indigo-400 transition-all"
+                       style={{ backgroundColor: color }}
+                       title={`${position.ticker}: ${formatPercentage(position.percentChange)}`}
+                     >
+                       <span className="text-xs font-medium text-white">
+                         {position.ticker}
+                       </span>
+                     </div>
+                   );
+                 })}
+             </div>
+             <div className="mt-4 flex items-center justify-center gap-8">
+               <div className="flex items-center gap-2">
+                 <div className="w-4 h-4 bg-red-500 rounded" />
+                 <span className="text-xs text-gray-400">Negative</span>
+               </div>
+               <div className="flex items-center gap-2">
+                 <div className="w-4 h-4 bg-gray-600 rounded" />
+                 <span className="text-xs text-gray-400">Neutral</span>
+               </div>
+               <div className="flex items-center gap-2">
+                 <div className="w-4 h-4 bg-green-500 rounded" />
+                 <span className="text-xs text-gray-400">Positive</span>
+               </div>
+             </div>
+           </ReportCard>
+         </div>
+       )}
+       
+       {/* Quick Actions Footer */}
+       <div className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-4">
+         <button 
+           onClick={() => setSelectedTab('insights')}
+           className="flex items-center justify-center space-x-2 p-4 bg-gradient-to-r from-indigo-500 to-blue-500 text-white rounded-xl hover:from-indigo-600 hover:to-blue-600 transition-all shadow-md hover:shadow-lg"
+         >
+           <LayoutDashboard className="h-5 w-5" />
+           <span>Insights Dashboard</span>
+         </button>
+         
+         <button 
+           onClick={() => setSelectedTab('trends')}
+           className="flex items-center justify-center space-x-2 p-4 bg-gradient-to-r from-emerald-500 to-teal-500 text-white rounded-xl hover:from-emerald-600 hover:to-teal-600 transition-all shadow-md hover:shadow-lg"
+         >
+           <TrendingUp className="h-5 w-5" />
+           <span>Asset Type Trends</span>
+         </button>
+         
+         <button 
+           onClick={() => setSelectedTab('comparison')}
+           className="flex items-center justify-center space-x-2 p-4 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-xl hover:from-purple-600 hover:to-pink-600 transition-all shadow-md hover:shadow-lg"
+         >
+           <Table className="h-5 w-5" />
+           <span>Position Comparison</span>
+         </button>
+       </div>
+     </main>
+   </div>
+ );
 }
