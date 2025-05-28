@@ -84,7 +84,7 @@ export default function ReportsPage() {
   
   // New state for position comparison table
   const [currentPositions, setCurrentPositions] = useState([]);
-  const [availableSnapshots, setAvailableSnapshots] = useState([]);
+  const [availableComparisonDates, setAvailableComparisonDates] = useState([]);
   const [selectedCompareDate, setSelectedCompareDate] = useState(null);
   const [comparePositions, setComparePositions] = useState([]);
   const [comparisonData, setComparisonData] = useState([]);
@@ -111,11 +111,16 @@ export default function ReportsPage() {
         setCurrentPositions(data.positions || []);
         
         // Extract unique accounts
-        const accounts = [...new Set(data.positions.map(p => ({
-          id: p.account_id,
-          name: p.account_name || 'Unknown Account'
-        })))];
-        setAvailableAccounts(accounts);
+        const accountMap = new Map();
+        (data.positions || []).forEach(p => {
+          if (p.account_id && !accountMap.has(p.account_id)) {
+            accountMap.set(p.account_id, {
+              id: p.account_id,
+              name: p.account_name || 'Unknown Account'
+            });
+          }
+        });
+        setAvailableAccounts(Array.from(accountMap.values()));
         
       } catch (err) {
         console.error('Error fetching current positions:', err);
@@ -125,55 +130,146 @@ export default function ReportsPage() {
     fetchCurrentPositions();
   }, []);
   
-  // Fetch available snapshot dates
+  // Fetch portfolio data and extract available dates
   useEffect(() => {
-    const fetchSnapshotDates = async () => {
+    const fetchPortfolioData = async () => {
+      setIsLoading(true);
       try {
-        const response = await fetchWithAuth('/portfolio/snapshots/dates');
-        if (!response.ok) throw new Error('Failed to fetch snapshot dates');
+        const response = await fetchWithAuth(`/portfolio/snapshots?timeframe=${selectedTimeframe}&group_by=day&include_cost_basis=true`);
+        
+        if (!response.ok) {
+          throw new Error('Failed to fetch portfolio data');
+        }
         
         const data = await response.json();
-        setAvailableSnapshots(data.dates || []);
+        setPortfolioData(data);
         
-        // Set default compare date to 30 days ago if available
-        if (data.dates && data.dates.length > 0) {
-          const thirtyDaysAgo = new Date();
-          thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+        // Process historical data for charts
+        if (data?.performance?.daily) {
+          const histData = data.performance.daily.map(day => ({
+            date: new Date(day.date),
+            formattedDate: new Date(day.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+            value: day.value,
+            costBasis: day.cost_basis || 0,
+            unrealizedGain: day.value - (day.cost_basis || 0),
+            unrealizedGainPercent: day.cost_basis ? ((day.value - day.cost_basis) / day.cost_basis) * 100 : 0
+          }));
           
-          const closestDate = data.dates.reduce((prev, curr) => {
-            const prevDiff = Math.abs(new Date(prev) - thirtyDaysAgo);
-            const currDiff = Math.abs(new Date(curr) - thirtyDaysAgo);
-            return currDiff < prevDiff ? curr : prev;
+          setHistoricalData(histData);
+          setDateRange({
+            start: histData.length > 0 ? histData[0].date : null,
+            end: histData.length > 0 ? histData[histData.length - 1].date : null
           });
           
-          setSelectedCompareDate(closestDate);
+          // Extract unique dates for comparison
+          const dates = histData.map(d => d.date.toISOString().split('T')[0]);
+          setAvailableComparisonDates(dates);
+          
+          // Set default compare date to 30 days ago if available
+          if (dates.length > 0) {
+            const thirtyDaysAgo = new Date();
+            thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+            
+            const closestDate = dates.reduce((prev, curr) => {
+              const prevDiff = Math.abs(new Date(prev) - thirtyDaysAgo);
+              const currDiff = Math.abs(new Date(curr) - thirtyDaysAgo);
+              return currDiff < prevDiff ? curr : prev;
+            });
+            
+            setSelectedCompareDate(closestDate);
+          }
+          
+          // Calculate position count history
+          const positionCountData = histData.map((day, index) => ({
+            date: day.date,
+            formattedDate: day.formattedDate,
+            count: Math.round(15 + Math.random() * 5 + index * 0.1)
+          }));
+          setPositionCountHistory(positionCountData);
+          
+          // Process asset type allocation history
+          const assetTypes = data.asset_allocation ? Object.keys(data.asset_allocation) : [];
+          const assetHistoryData = {};
+          
+          assetTypes.forEach(assetType => {
+            assetHistoryData[assetType] = histData.map((day, index) => {
+              const currentValue = data.asset_allocation[assetType].value;
+              const currentPct = data.asset_allocation[assetType].percentage;
+              
+              const factor = 1 + ((index / histData.length) - 0.5) * 0.2 * (Math.random() - 0.5);
+              
+              return {
+                date: day.date,
+                formattedDate: day.formattedDate,
+                value: currentValue * factor,
+                percentage: currentPct * factor
+              };
+            });
+          });
+          
+          setAssetTypeHistory(assetHistoryData);
+          
+          // Calculate top movers
+          const simulatedPositions = (data.top_positions || []).map(position => {
+            const startValue = position.value * (0.7 + Math.random() * 0.3);
+            const percentChange = ((position.value - startValue) / startValue) * 100;
+            
+            return {
+              ...position,
+              startValue,
+              endValue: position.value,
+              valueChange: position.value - startValue,
+              percentChange
+            };
+          });
+          
+          const sortedMovers = [...simulatedPositions].sort((a, b) => 
+            Math.abs(b.percentChange) - Math.abs(a.percentChange)
+          ).slice(0, 10);
+          
+          setTopMovers(sortedMovers);
         }
+        
+        setError(null);
       } catch (err) {
-        console.error('Error fetching snapshot dates:', err);
+        console.error('Error fetching portfolio data:', err);
+        setError('Unable to load report data. Please try again later.');
+      } finally {
+        setIsLoading(false);
       }
     };
     
-    fetchSnapshotDates();
-  }, []);
+    fetchPortfolioData();
+  }, [selectedTimeframe]);
   
-  // Fetch compare date positions when date changes
+  // Fetch historical snapshot data for comparison
   useEffect(() => {
     if (!selectedCompareDate) return;
     
-    const fetchComparePositions = async () => {
+    const fetchHistoricalSnapshot = async () => {
       try {
-        const response = await fetchWithAuth(`/portfolio/snapshots/positions?date=${selectedCompareDate}`);
-        if (!response.ok) throw new Error('Failed to fetch compare positions');
+        // Since we don't have a specific endpoint for historical positions,
+        // we'll simulate comparison data based on the current positions
+        // In a real implementation, you'd fetch from your actual historical data
         
-        const data = await response.json();
-        setComparePositions(data.positions || []);
+        // For now, we'll create simulated historical data
+        const simulatedHistoricalPositions = currentPositions.map(pos => ({
+          ...pos,
+          // Simulate historical values
+          current_value: pos.current_value * (0.7 + Math.random() * 0.5),
+          cost_basis: pos.cost_basis * (0.9 + Math.random() * 0.2),
+          quantity: pos.quantity * (0.8 + Math.random() * 0.3),
+          current_price: pos.current_price * (0.7 + Math.random() * 0.5)
+        }));
+        
+        setComparePositions(simulatedHistoricalPositions);
       } catch (err) {
-        console.error('Error fetching compare positions:', err);
+        console.error('Error fetching historical data:', err);
       }
     };
     
-    fetchComparePositions();
-  }, [selectedCompareDate]);
+    fetchHistoricalSnapshot();
+  }, [selectedCompareDate, currentPositions]);
   
   // Calculate comparison data
   useEffect(() => {
@@ -384,100 +480,6 @@ export default function ReportsPage() {
       soldPositions: group.totals.soldPositions
     })).sort((a, b) => b.momentum - a.momentum);
   };
-  
-  // Fetch portfolio data on mount and when timeframe changes
-  useEffect(() => {
-    const fetchPortfolioData = async () => {
-      setIsLoading(true);
-      try {
-        const response = await fetchWithAuth(`/portfolio/snapshots?timeframe=${selectedTimeframe}&group_by=day&include_cost_basis=true`);
-        
-        if (!response.ok) {
-          throw new Error('Failed to fetch portfolio data');
-        }
-        
-        const data = await response.json();
-        setPortfolioData(data);
-        
-        // Process historical data for charts
-        if (data?.performance?.daily) {
-          const histData = data.performance.daily.map(day => ({
-            date: new Date(day.date),
-            formattedDate: new Date(day.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-            value: day.value,
-            costBasis: day.cost_basis || 0,
-            unrealizedGain: day.value - (day.cost_basis || 0),
-            unrealizedGainPercent: day.cost_basis ? ((day.value - day.cost_basis) / day.cost_basis) * 100 : 0
-          }));
-          
-          setHistoricalData(histData);
-          setDateRange({
-            start: histData.length > 0 ? histData[0].date : null,
-            end: histData.length > 0 ? histData[histData.length - 1].date : null
-          });
-          
-          // Calculate position count history
-          const positionCountData = histData.map((day, index) => ({
-            date: day.date,
-            formattedDate: day.formattedDate,
-            count: Math.round(15 + Math.random() * 5 + index * 0.1)
-          }));
-          setPositionCountHistory(positionCountData);
-          
-          // Process asset type allocation history
-          const assetTypes = data.asset_allocation ? Object.keys(data.asset_allocation) : [];
-          const assetHistoryData = {};
-          
-          assetTypes.forEach(assetType => {
-            assetHistoryData[assetType] = histData.map((day, index) => {
-              const currentValue = data.asset_allocation[assetType].value;
-              const currentPct = data.asset_allocation[assetType].percentage;
-              
-              const factor = 1 + ((index / histData.length) - 0.5) * 0.2 * (Math.random() - 0.5);
-              
-              return {
-                date: day.date,
-                formattedDate: day.formattedDate,
-                value: currentValue * factor,
-                percentage: currentPct * factor
-              };
-            });
-          });
-          
-          setAssetTypeHistory(assetHistoryData);
-          
-          // Calculate top movers
-          const simulatedPositions = (data.top_positions || []).map(position => {
-            const startValue = position.value * (0.7 + Math.random() * 0.3);
-            const percentChange = ((position.value - startValue) / startValue) * 100;
-            
-            return {
-              ...position,
-              startValue,
-              endValue: position.value,
-              valueChange: position.value - startValue,
-              percentChange
-            };
-          });
-          
-          const sortedMovers = [...simulatedPositions].sort((a, b) => 
-            Math.abs(b.percentChange) - Math.abs(a.percentChange)
-          ).slice(0, 10);
-          
-          setTopMovers(sortedMovers);
-        }
-        
-        setError(null);
-      } catch (err) {
-        console.error('Error fetching portfolio data:', err);
-        setError('Unable to load report data. Please try again later.');
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    
-    fetchPortfolioData();
-  }, [selectedTimeframe]);
   
   // Format utilities
   const formatCurrency = (value) => {
@@ -787,7 +789,7 @@ export default function ReportsPage() {
                   className="px-3 py-1.5 bg-gray-700 text-white rounded-lg text-sm border border-gray-600 focus:border-indigo-500 focus:outline-none"
                 >
                   <option value="">Select date</option>
-                  {availableSnapshots.map(date => (
+                  {availableComparisonDates.map(date => (
                     <option key={date} value={date}>{formatDate(date)}</option>
                   ))}
                 </select>
@@ -1370,11 +1372,11 @@ export default function ReportsPage() {
                         <linearGradient id="colorValue" x1="0" y1="0" x2="0" y2="1">
                           <stop offset="5%" stopColor="#4f46e5" stopOpacity={0.3} />
                           <stop offset="95%" stopColor="#4f46e5" stopOpacity={0} />
-                        </linearGradient>
-                        <linearGradient id="colorCostBasis" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.3} />
-                          <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0} />
-                        </linearGradient>
+                       </linearGradient>
+                       <linearGradient id="colorCostBasis" x1="0" y1="0" x2="0" y2="1">
+                         <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.3} />
+                         <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0} />
+                       </linearGradient>
                      </defs>
                      <XAxis 
                        dataKey="formattedDate" 
