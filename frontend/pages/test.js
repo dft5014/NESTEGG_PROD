@@ -10,7 +10,12 @@ export default function PositionComparisonMinimal() {
   const [error, setError] = useState(null);
   const [currentPositions, setCurrentPositions] = useState([]);
   const [comparisonData, setComparisonData] = useState([]);
+  const [tickerGroupedData, setTickerGroupedData] = useState([]);
   const [expandedGroups, setExpandedGroups] = useState(new Set(['security', 'crypto', 'cash']));
+  const [expandedTickers, setExpandedTickers] = useState(new Set());
+  const [groupBy, setGroupBy] = useState('asset_type'); // 'asset_type' or 'ticker'
+  const [historicalSnapshots, setHistoricalSnapshots] = useState([]);
+  const [selectedDates, setSelectedDates] = useState([]);
   
   // Format utilities
   const formatCurrency = (value) => {
@@ -28,6 +33,11 @@ export default function PositionComparisonMinimal() {
     return `${value > 0 ? '+' : ''}${value.toFixed(2)}%`;
   };
   
+  const formatDate = (dateStr) => {
+    const date = new Date(dateStr);
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  };
+  
   // Asset type colors
   const getAssetColor = (type) => {
     const colors = {
@@ -41,6 +51,23 @@ export default function PositionComparisonMinimal() {
     return colors[type] || colors.other;
   };
   
+  // Generate color for ticker
+  const getTickerColor = (ticker) => {
+    const colors = [
+      'from-indigo-500 to-indigo-600',
+      'from-pink-500 to-pink-600',
+      'from-teal-500 to-teal-600',
+      'from-amber-500 to-amber-600',
+      'from-rose-500 to-rose-600',
+      'from-cyan-500 to-cyan-600'
+    ];
+    let hash = 0;
+    for (let i = 0; i < ticker.length; i++) {
+      hash = ticker.charCodeAt(i) + ((hash << 5) - hash);
+    }
+    return colors[Math.abs(hash) % colors.length];
+  };
+  
   // Toggle group expansion
   const toggleGroup = (assetType) => {
     const newExpanded = new Set(expandedGroups);
@@ -52,68 +79,67 @@ export default function PositionComparisonMinimal() {
     setExpandedGroups(newExpanded);
   };
   
-  // Fetch positions
+  // Toggle ticker expansion
+  const toggleTicker = (ticker) => {
+    const newExpanded = new Set(expandedTickers);
+    if (newExpanded.has(ticker)) {
+      newExpanded.delete(ticker);
+    } else {
+      newExpanded.add(ticker);
+    }
+    setExpandedTickers(newExpanded);
+  };
+  
+  // Fetch all data
   useEffect(() => {
     const fetchData = async () => {
       setIsLoading(true);
       setError(null);
       
       try {
+        // Fetch current positions
         console.log('Fetching positions...');
-        const response = await fetchWithAuth('/positions/unified');
+        const posResponse = await fetchWithAuth('/positions/unified');
         
-        if (!response.ok) {
-          throw new Error(`Failed to fetch positions: ${response.status}`);
+        if (!posResponse.ok) {
+          throw new Error(`Failed to fetch positions: ${posResponse.status}`);
         }
         
-        const data = await response.json();
-        console.log('Received positions:', data.positions?.length || 0);
-        
-        const positions = data.positions || [];
+        const posData = await posResponse.json();
+        const positions = posData.positions || [];
         setCurrentPositions(positions);
         
-        // Group by asset type with calculations
-        const grouped = {};
-        positions.forEach(pos => {
-          const type = pos.asset_type || 'other';
-          if (!grouped[type]) {
-            grouped[type] = {
-              assetType: type,
-              positions: [],
-              totalValue: 0,
-              totalCostBasis: 0,
-              totalGainLoss: 0
-            };
+        // Fetch historical snapshots
+        console.log('Fetching historical snapshots...');
+        const snapResponse = await fetchWithAuth('/portfolio/snapshots?timeframe=all&group_by=day&include_cost_basis=true');
+        
+        if (snapResponse.ok) {
+          const snapData = await snapResponse.json();
+          if (snapData.performance?.daily) {
+            setHistoricalSnapshots(snapData.performance.daily);
+            
+            // Select some interesting dates (last 7 days + weekly intervals)
+            const allDates = snapData.performance.daily.map(d => d.date);
+            const selectedDates = [];
+            
+            // Get last 7 days
+            for (let i = Math.max(0, allDates.length - 7); i < allDates.length; i++) {
+              selectedDates.push(allDates[i]);
+            }
+            
+            // Add some weekly intervals before that
+            for (let i = allDates.length - 14; i >= 0; i -= 7) {
+              if (i >= 0 && !selectedDates.includes(allDates[i])) {
+                selectedDates.unshift(allDates[i]);
+              }
+            }
+            
+            setSelectedDates(selectedDates.slice(-10)); // Keep last 10 dates
           }
-          
-          const value = pos.current_value || 0;
-          const costBasis = pos.cost_basis || pos.total_cost_basis || 0;
-          const gainLoss = value - costBasis;
-          const gainLossPercent = costBasis > 0 ? (gainLoss / costBasis) * 100 : 0;
-          
-          grouped[type].positions.push({
-            ...pos,
-            value,
-            costBasis,
-            gainLoss,
-            gainLossPercent
-          });
-          
-          grouped[type].totalValue += value;
-          grouped[type].totalCostBasis += costBasis;
-          grouped[type].totalGainLoss += gainLoss;
-        });
+        }
         
-        // Calculate percentages and sort
-        const comparison = Object.values(grouped).map(group => ({
-          ...group,
-          totalGainLossPercent: group.totalCostBasis > 0 
-            ? (group.totalGainLoss / group.totalCostBasis) * 100 
-            : 0,
-          positions: group.positions.sort((a, b) => b.value - a.value)
-        })).sort((a, b) => b.totalValue - a.totalValue);
-        
-        setComparisonData(comparison);
+        // Process data for both grouping methods
+        processData(positions);
         
       } catch (err) {
         console.error('Error:', err);
@@ -126,8 +152,97 @@ export default function PositionComparisonMinimal() {
     fetchData();
   }, []);
   
+  // Process data for grouping
+  const processData = (positions) => {
+    // Group by asset type
+    const assetGrouped = {};
+    const tickerGrouped = {};
+    
+    positions.forEach(pos => {
+      const value = pos.current_value || 0;
+      const costBasis = pos.cost_basis || pos.total_cost_basis || 0;
+      const gainLoss = value - costBasis;
+      const gainLossPercent = costBasis > 0 ? (gainLoss / costBasis) * 100 : 0;
+      
+      const enrichedPos = {
+        ...pos,
+        value,
+        costBasis,
+        gainLoss,
+        gainLossPercent
+      };
+      
+      // Group by asset type
+      const type = pos.asset_type || 'other';
+      if (!assetGrouped[type]) {
+        assetGrouped[type] = {
+          assetType: type,
+          positions: [],
+          totalValue: 0,
+          totalCostBasis: 0,
+          totalGainLoss: 0,
+          totalQuantity: 0
+        };
+      }
+      
+      assetGrouped[type].positions.push(enrichedPos);
+      assetGrouped[type].totalValue += value;
+      assetGrouped[type].totalCostBasis += costBasis;
+      assetGrouped[type].totalGainLoss += gainLoss;
+      assetGrouped[type].totalQuantity += (pos.quantity || 0);
+      
+      // Group by ticker
+      const ticker = pos.ticker || pos.identifier || 'Unknown';
+      if (!tickerGrouped[ticker]) {
+        tickerGrouped[ticker] = {
+          ticker,
+          name: pos.name || ticker,
+          positions: [],
+          totalValue: 0,
+          totalCostBasis: 0,
+          totalGainLoss: 0,
+          totalQuantity: 0,
+          assetTypes: new Set()
+        };
+      }
+      
+      tickerGrouped[ticker].positions.push(enrichedPos);
+      tickerGrouped[ticker].totalValue += value;
+      tickerGrouped[ticker].totalCostBasis += costBasis;
+      tickerGrouped[ticker].totalGainLoss += gainLoss;
+      tickerGrouped[ticker].totalQuantity += (pos.quantity || 0);
+      tickerGrouped[ticker].assetTypes.add(type);
+    });
+    
+    // Process asset grouped data
+    const assetComparison = Object.values(assetGrouped).map(group => ({
+      ...group,
+      totalGainLossPercent: group.totalCostBasis > 0 
+        ? (group.totalGainLoss / group.totalCostBasis) * 100 
+        : 0,
+      positions: group.positions.sort((a, b) => b.value - a.value)
+    })).sort((a, b) => b.totalValue - a.totalValue);
+    
+    // Process ticker grouped data
+    const tickerComparison = Object.values(tickerGrouped).map(group => ({
+      ...group,
+      totalGainLossPercent: group.totalCostBasis > 0 
+        ? (group.totalGainLoss / group.totalCostBasis) * 100 
+        : 0,
+      avgPrice: group.totalQuantity > 0 ? group.totalValue / group.totalQuantity : 0,
+      avgCostBasis: group.totalQuantity > 0 ? group.totalCostBasis / group.totalQuantity : 0,
+      positions: group.positions.sort((a, b) => b.value - a.value)
+    })).sort((a, b) => b.totalValue - a.totalValue);
+    
+    setComparisonData(assetComparison);
+    setTickerGroupedData(tickerComparison);
+  };
+  
+  // Get display data based on grouping
+  const displayData = groupBy === 'asset_type' ? comparisonData : tickerGroupedData;
+  
   // Calculate totals
-  const grandTotals = comparisonData.reduce((acc, group) => ({
+  const grandTotals = displayData.reduce((acc, group) => ({
     value: acc.value + group.totalValue,
     costBasis: acc.costBasis + group.totalCostBasis,
     gainLoss: acc.gainLoss + group.totalGainLoss
@@ -218,22 +333,55 @@ export default function PositionComparisonMinimal() {
             </div>
             
             <div className="bg-gradient-to-br from-gray-800 to-gray-700 rounded-xl p-6 shadow-xl">
-              <div className="text-gray-400 text-sm mb-1">Asset Types</div>
-              <div className="text-2xl font-bold text-white">{comparisonData.length}</div>
-              <div className="text-xs text-gray-500 mt-1">Diversified portfolio</div>
+              <div className="text-gray-400 text-sm mb-1">Unique Securities</div>
+              <div className="text-2xl font-bold text-white">{tickerGroupedData.length}</div>
+              <div className="text-xs text-gray-500 mt-1">Across {comparisonData.length} asset types</div>
             </div>
           </div>
         </div>
         
-        {/* Main Table */}
-        <div className="max-w-7xl mx-auto">
+        {/* Grouping Toggle */}
+        <div className="max-w-7xl mx-auto mb-6">
+          <div className="flex items-center space-x-4">
+            <span className="text-gray-400">Group by:</span>
+            <div className="bg-gray-800 rounded-lg p-1 inline-flex">
+              <button
+                onClick={() => setGroupBy('asset_type')}
+                className={`px-4 py-2 rounded-md transition-colors ${
+                  groupBy === 'asset_type' 
+                    ? 'bg-indigo-600 text-white' 
+                    : 'text-gray-400 hover:text-white'
+                }`}
+              >
+                Asset Type
+              </button>
+              <button
+                onClick={() => setGroupBy('ticker')}
+                className={`px-4 py-2 rounded-md transition-colors ${
+                  groupBy === 'ticker' 
+                    ? 'bg-indigo-600 text-white' 
+                    : 'text-gray-400 hover:text-white'
+                }`}
+              >
+                Security
+              </button>
+            </div>
+          </div>
+        </div>
+        
+        {/* Current Positions Table */}
+        <div className="max-w-7xl mx-auto mb-12">
+          <h2 className="text-2xl font-bold text-white mb-4">Current Positions</h2>
           <div className="bg-gray-800 rounded-xl shadow-2xl overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead>
                   <tr className="bg-gray-900">
                     <th className="px-6 py-4 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
-                      Asset / Position
+                      {groupBy === 'asset_type' ? 'Asset Type / Position' : 'Security / Account'}
+                    </th>
+                    <th className="px-6 py-4 text-right text-xs font-medium text-gray-400 uppercase tracking-wider">
+                      Quantity
                     </th>
                     <th className="px-6 py-4 text-right text-xs font-medium text-gray-400 uppercase tracking-wider">
                       Market Value
@@ -250,40 +398,72 @@ export default function PositionComparisonMinimal() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-700">
-                  {comparisonData.map((group, idx) => (
+                  {displayData.map((group, idx) => (
                     <React.Fragment key={idx}>
-                      {/* Asset Type Header Row */}
+                      {/* Group Header Row */}
                       <tr 
-                        className={`bg-gradient-to-r ${getAssetColor(group.assetType)} bg-opacity-10 hover:bg-opacity-20 cursor-pointer transition-all`}
-                        onClick={() => toggleGroup(group.assetType)}
+                        className={`bg-gradient-to-r ${
+                          groupBy === 'asset_type' 
+                            ? getAssetColor(group.assetType) 
+                            : getTickerColor(group.ticker)
+                        } bg-opacity-10 hover:bg-opacity-20 cursor-pointer transition-all`}
+                        onClick={() => groupBy === 'asset_type' ? toggleGroup(group.assetType) : toggleTicker(group.ticker)}
                       >
                         <td className="px-6 py-4">
                           <div className="flex items-center">
-                            <div className={`w-1 h-8 bg-gradient-to-b ${getAssetColor(group.assetType)} rounded-full mr-3`}></div>
+                            <div className={`w-1 h-8 bg-gradient-to-b ${
+                              groupBy === 'asset_type' 
+                                ? getAssetColor(group.assetType) 
+                                : getTickerColor(group.ticker)
+                            } rounded-full mr-3`}></div>
                             <div>
                               <div className="flex items-center">
-                                <span className="text-sm font-semibold text-white capitalize">
-                                  {group.assetType}
+                                <span className="text-sm font-semibold text-white">
+                                  {groupBy === 'asset_type' 
+                                    ? group.assetType.charAt(0).toUpperCase() + group.assetType.slice(1)
+                                    : group.ticker
+                                  }
                                 </span>
                                 <span className="ml-2 text-xs text-gray-400">
-                                  ({group.positions.length})
+                                  ({group.positions.length} {group.positions.length === 1 ? 'position' : 'positions'})
                                 </span>
                               </div>
+                              {groupBy === 'ticker' && (
+                                <div className="text-xs text-gray-500">{group.name}</div>
+                              )}
                               <div className="text-xs text-gray-500">
-                                {expandedGroups.has(group.assetType) ? 'Click to collapse' : 'Click to expand'}
+                                {(groupBy === 'asset_type' ? expandedGroups.has(group.assetType) : expandedTickers.has(group.ticker)) 
+                                  ? 'Click to collapse' 
+                                  : 'Click to expand'
+                                }
                               </div>
                             </div>
                           </div>
                         </td>
                         <td className="px-6 py-4 text-right">
                           <div className="text-sm font-semibold text-white">
+                            {group.totalQuantity > 0 ? group.totalQuantity.toFixed(2) : '-'}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 text-right">
+                          <div className="text-sm font-semibold text-white">
                             {formatCurrency(group.totalValue)}
                           </div>
+                          {groupBy === 'ticker' && group.avgPrice > 0 && (
+                            <div className="text-xs text-gray-500">
+                              avg @ {formatCurrency(group.avgPrice)}
+                            </div>
+                          )}
                         </td>
                         <td className="px-6 py-4 text-right">
                           <div className="text-sm font-semibold text-gray-300">
                             {formatCurrency(group.totalCostBasis)}
                           </div>
+                          {groupBy === 'ticker' && group.avgCostBasis > 0 && (
+                            <div className="text-xs text-gray-500">
+                              avg @ {formatCurrency(group.avgCostBasis)}
+                            </div>
+                          )}
                         </td>
                         <td className="px-6 py-4 text-right">
                           <div className={`text-sm font-semibold ${group.totalGainLoss >= 0 ? 'text-green-400' : 'text-red-400'}`}>
@@ -302,25 +482,38 @@ export default function PositionComparisonMinimal() {
                       </tr>
                       
                       {/* Individual Positions */}
-                      {expandedGroups.has(group.assetType) && group.positions.map((pos, posIdx) => (
+                      {((groupBy === 'asset_type' && expandedGroups.has(group.assetType)) || 
+                        (groupBy === 'ticker' && expandedTickers.has(group.ticker))) && 
+                        group.positions.map((pos, posIdx) => (
                         <tr key={posIdx} className="hover:bg-gray-750 transition-colors">
                           <td className="px-6 py-3 pl-14">
                             <div>
                               <div className="text-sm font-medium text-white">
-                                {pos.ticker || pos.identifier || 'Unknown'}
+                                {groupBy === 'asset_type' 
+                                  ? (pos.ticker || pos.identifier || 'Unknown')
+                                  : pos.account_name
+                                }
                               </div>
                               <div className="text-xs text-gray-400">
-                                {pos.name || pos.account_name}
+                                {groupBy === 'asset_type' 
+                                  ? pos.account_name
+                                  : `${pos.asset_type} position`
+                                }
                               </div>
+                            </div>
+                          </td>
+                          <td className="px-6 py-3 text-right">
+                            <div className="text-sm text-white">
+                              {pos.quantity || '-'}
                             </div>
                           </td>
                           <td className="px-6 py-3 text-right">
                             <div className="text-sm text-white">
                               {formatCurrency(pos.value)}
                             </div>
-                            {pos.quantity && (
+                            {pos.current_price && (
                               <div className="text-xs text-gray-500">
-                                {pos.quantity} @ {formatCurrency(pos.current_price)}
+                                @ {formatCurrency(pos.current_price)}
                               </div>
                             )}
                           </td>
@@ -352,6 +545,9 @@ export default function PositionComparisonMinimal() {
                         <span className="text-sm text-white">Portfolio Total</span>
                       </div>
                     </td>
+                    <td className="px-6 py-4 text-right text-sm text-gray-400">
+                      -
+                    </td>
                     <td className="px-6 py-4 text-right text-sm text-white">
                       {formatCurrency(grandTotals.value)}
                     </td>
@@ -378,6 +574,121 @@ export default function PositionComparisonMinimal() {
             </div>
           </div>
         </div>
+        
+        {/* Historical Snapshots Table */}
+        {historicalSnapshots.length > 0 && selectedDates.length > 0 && (
+          <div className="max-w-7xl mx-auto">
+            <h2 className="text-2xl font-bold text-white mb-4">Historical Performance</h2>
+            <p className="text-gray-400 mb-4">Portfolio value over selected dates</p>
+            
+            <div className="bg-gray-800 rounded-xl shadow-2xl overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="bg-gray-900">
+                      <th className="px-6 py-4 text-left text-xs font-medium text-gray-400 uppercase tracking-wider sticky left-0 bg-gray-900 z-10">
+                        Date
+                      </th>
+                      {selectedDates.map((date, idx) => (
+                        <th key={idx} className="px-6 py-4 text-right text-xs font-medium text-gray-400 uppercase tracking-wider min-w-[120px]">
+                          {formatDate(date)}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-700">
+                    {/* Portfolio Value Row */}
+                    <tr className="hover:bg-gray-750">
+                      <td className="px-6 py-4 text-sm font-medium text-white sticky left-0 bg-gray-800">
+                        Portfolio Value
+                      </td>
+                      {selectedDates.map((date, idx) => {
+                        const snapshot = historicalSnapshots.find(s => s.date === date);
+                        return (
+                          <td key={idx} className="px-6 py-4 text-right">
+                            <div className="text-sm text-white">
+                              {snapshot ? formatCurrency(snapshot.value) : '-'}
+                            </div>
+                          </td>
+                        );
+                      })}
+                    </tr>
+                    
+                    {/* Cost Basis Row */}
+                    <tr className="hover:bg-gray-750">
+                      <td className="px-6 py-4 text-sm font-medium text-white sticky left-0 bg-gray-800">
+                        Cost Basis
+                      </td>
+                      {selectedDates.map((date, idx) => {
+                        const snapshot = historicalSnapshots.find(s => s.date === date);
+                        return (
+                          <td key={idx} className="px-6 py-4 text-right">
+                            <div className="text-sm text-gray-300">
+                              {snapshot ? formatCurrency(snapshot.cost_basis) : '-'}
+                            </div>
+                          </td>
+                        );
+                      })}
+                    </tr>
+                    
+                    {/* Gain/Loss Row */}
+                    <tr className="hover:bg-gray-750">
+                      <td className="px-6 py-4 text-sm font-medium text-white sticky left-0 bg-gray-800">
+                        Gain/Loss
+                      </td>
+                      {selectedDates.map((date, idx) => {
+                        const snapshot = historicalSnapshots.find(s => s.date === date);
+                        const gainLoss = snapshot ? (snapshot.value - snapshot.cost_basis) : 0;
+                        const gainLossPercent = snapshot && snapshot.cost_basis > 0 
+                          ? ((snapshot.value - snapshot.cost_basis) / snapshot.cost_basis) * 100 
+                          : 0;
+                        
+                        return (
+                          <td key={idx} className="px-6 py-4 text-right">
+                            <div className={`text-sm font-semibold ${gainLoss >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                              {snapshot ? formatCurrency(gainLoss) : '-'}
+                            </div>
+                            <div className={`text-xs ${gainLoss >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                              {snapshot ? formatPercentage(gainLossPercent) : '-'}
+                            </div>
+                          </td>
+                        );
+                      })}
+                    </tr>
+                    
+                    {/* Day-over-day Change Row */}
+                    <tr className="hover:bg-gray-750 bg-gray-850">
+                      <td className="px-6 py-4 text-sm font-medium text-white sticky left-0 bg-gray-850">
+                        Daily Change
+                      </td>
+                      {selectedDates.map((date, idx) => {
+                        const snapshot = historicalSnapshots.find(s => s.date === date);
+                        const prevIdx = idx > 0 ? historicalSnapshots.findIndex(s => s.date === selectedDates[idx - 1]) : -1;
+                        const prevSnapshot = prevIdx >= 0 ? historicalSnapshots[prevIdx] : null;
+                        
+                        const dayChange = snapshot && prevSnapshot ? snapshot.value - prevSnapshot.value : 0;
+                        const dayChangePercent = prevSnapshot && prevSnapshot.value > 0 
+                          ? ((snapshot.value - prevSnapshot.value) / prevSnapshot.value) * 100 
+                          : 0;
+                        
+                        return (
+                          <td key={idx} className="px-6 py-4 text-right">
+                            <div className={`text-sm ${dayChange >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                              {snapshot && prevSnapshot ? formatCurrency(dayChange) : '-'}
+                            </div>
+                            <div className={`text-xs ${dayChange >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                              {snapshot && prevSnapshot ? formatPercentage(dayChangePercent) : '-'}
+                            </div>
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
