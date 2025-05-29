@@ -31,7 +31,7 @@ export function UpdateCheckProvider({ children }) {
       }
       
       // Try to fetch update status, but handle 404 gracefully
-      const response = await fetchWithAuth('/system/update_status');
+      const response = await fetchWithAuth('/system/update-status');
       
       if (response.ok) {
         const data = await response.json();
