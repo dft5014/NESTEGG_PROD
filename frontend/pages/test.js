@@ -10,14 +10,26 @@ export default function PositionComparisonMinimal() {
   const [error, setError] = useState(null);
   const [currentPositions, setCurrentPositions] = useState([]);
   const [comparisonData, setComparisonData] = useState([]);
-  const [tickerGroupedData, setTickerGroupedData] = useState([]);
-  const [expandedGroups, setExpandedGroups] = useState(new Set(['security', 'crypto', 'cash']));
-  const [expandedTickers, setExpandedTickers] = useState(new Set());
-  const [groupBy, setGroupBy] = useState('asset_type'); // 'asset_type' or 'ticker'
+  const [accountGroupedData, setAccountGroupedData] = useState([]);
+  const [expandedGroups, setExpandedGroups] = useState(new Set()); // Start collapsed
+  const [expandedPositions, setExpandedPositions] = useState(new Set()); // For position expansion
+  const [expandedTaxLots, setExpandedTaxLots] = useState(new Set()); // For tax lot expansion
+  const [groupBy, setGroupBy] = useState('asset_type'); // 'asset_type' or 'account'
   const [historicalSnapshots, setHistoricalSnapshots] = useState([]);
   const [selectedDates, setSelectedDates] = useState([]);
   const [latestSnapshot, setLatestSnapshot] = useState(null);
   const [snapshotComparison, setSnapshotComparison] = useState([]);
+  const [dateRangeOption, setDateRangeOption] = useState('last7'); // For market trends date range
+  const [taxLots, setTaxLots] = useState({}); // Store tax lots by position
+  
+  // Date range options for market trends
+  const dateRangeOptions = [
+    { value: 'last7', label: 'Last 7 Days' },
+    { value: 'last30', label: 'Last 30 Days' },
+    { value: 'last90', label: 'Last 90 Days' },
+    { value: 'ytd', label: 'Year to Date' },
+    { value: 'all', label: 'All Time' }
+  ];
   
   // Format utilities
   const formatCurrency = (value) => {
@@ -53,8 +65,8 @@ export default function PositionComparisonMinimal() {
     return colors[type] || colors.other;
   };
   
-  // Generate color for ticker
-  const getTickerColor = (ticker) => {
+  // Generate color for account
+  const getAccountColor = (account) => {
     const colors = [
       'from-indigo-500 to-indigo-600',
       'from-pink-500 to-pink-600',
@@ -64,33 +76,86 @@ export default function PositionComparisonMinimal() {
       'from-cyan-500 to-cyan-600'
     ];
     let hash = 0;
-    for (let i = 0; i < ticker.length; i++) {
-      hash = ticker.charCodeAt(i) + ((hash << 5) - hash);
+    for (let i = 0; i < account.length; i++) {
+      hash = account.charCodeAt(i) + ((hash << 5) - hash);
     }
     return colors[Math.abs(hash) % colors.length];
   };
   
   // Toggle group expansion
-  const toggleGroup = (assetType) => {
+  const toggleGroup = (groupKey) => {
     const newExpanded = new Set(expandedGroups);
-    if (newExpanded.has(assetType)) {
-      newExpanded.delete(assetType);
+    if (newExpanded.has(groupKey)) {
+      newExpanded.delete(groupKey);
     } else {
-      newExpanded.add(assetType);
+      newExpanded.add(groupKey);
     }
     setExpandedGroups(newExpanded);
   };
   
-  // Toggle ticker expansion
-  const toggleTicker = (ticker) => {
-    const newExpanded = new Set(expandedTickers);
-    if (newExpanded.has(ticker)) {
-      newExpanded.delete(ticker);
+  // Toggle position expansion
+  const togglePosition = (positionKey) => {
+    const newExpanded = new Set(expandedPositions);
+    if (newExpanded.has(positionKey)) {
+      newExpanded.delete(positionKey);
     } else {
-      newExpanded.add(ticker);
+      newExpanded.add(positionKey);
     }
-    setExpandedTickers(newExpanded);
+    setExpandedPositions(newExpanded);
   };
+  
+  // Toggle tax lot expansion
+  const toggleTaxLot = (taxLotKey) => {
+    const newExpanded = new Set(expandedTaxLots);
+    if (newExpanded.has(taxLotKey)) {
+      newExpanded.delete(taxLotKey);
+    } else {
+      newExpanded.add(taxLotKey);
+    }
+    setExpandedTaxLots(newExpanded);
+  };
+  
+  // Update selected dates based on date range option
+  useEffect(() => {
+    if (historicalSnapshots.length === 0) return;
+    
+    const allDates = historicalSnapshots.map(d => d.date);
+    let dates = [];
+    
+    const today = new Date();
+    const startDate = new Date();
+    
+    switch (dateRangeOption) {
+      case 'last7':
+        startDate.setDate(today.getDate() - 7);
+        break;
+      case 'last30':
+        startDate.setDate(today.getDate() - 30);
+        break;
+      case 'last90':
+        startDate.setDate(today.getDate() - 90);
+        break;
+      case 'ytd':
+        startDate.setMonth(0, 1);
+        break;
+      case 'all':
+        dates = allDates.slice(-10); // Show last 10 for all time
+        setSelectedDates(dates);
+        return;
+    }
+    
+    // Filter dates within range
+    dates = allDates.filter(dateStr => new Date(dateStr) >= startDate);
+    
+    // Limit to reasonable number of columns
+    if (dates.length > 10) {
+      // Sample dates evenly
+      const step = Math.floor(dates.length / 10);
+      dates = dates.filter((_, idx) => idx % step === 0 || idx === dates.length - 1);
+    }
+    
+    setSelectedDates(dates);
+  }, [dateRangeOption, historicalSnapshots]);
   
   // Fetch all data
   useEffect(() => {
@@ -111,6 +176,22 @@ export default function PositionComparisonMinimal() {
         const positions = posData.positions || [];
         setCurrentPositions(positions);
         
+        // Fetch tax lots for each position (simulated for now)
+        const taxLotData = {};
+        positions.forEach(pos => {
+          const posKey = `${pos.ticker || pos.identifier}_${pos.account_id}`;
+          // Simulate tax lots
+          const numLots = Math.floor(Math.random() * 3) + 1;
+          taxLotData[posKey] = Array.from({ length: numLots }, (_, i) => ({
+            id: `${posKey}_lot_${i}`,
+            quantity: pos.quantity ? pos.quantity / numLots : 0,
+            cost_basis: pos.cost_basis ? pos.cost_basis / numLots : 0,
+            purchase_date: new Date(Date.now() - Math.random() * 365 * 24 * 60 * 60 * 1000).toISOString(),
+            value: pos.current_value ? pos.current_value / numLots : 0
+          }));
+        });
+        setTaxLots(taxLotData);
+        
         // Fetch historical snapshots
         console.log('Fetching historical snapshots...');
         const snapResponse = await fetchWithAuth('/portfolio/snapshots?timeframe=all&group_by=day&include_cost_basis=true');
@@ -119,24 +200,6 @@ export default function PositionComparisonMinimal() {
           const snapData = await snapResponse.json();
           if (snapData.performance?.daily) {
             setHistoricalSnapshots(snapData.performance.daily);
-            
-            // Select some interesting dates (last 7 days + weekly intervals)
-            const allDates = snapData.performance.daily.map(d => d.date);
-            const selectedDates = [];
-            
-            // Get last 7 days
-            for (let i = Math.max(0, allDates.length - 7); i < allDates.length; i++) {
-              selectedDates.push(allDates[i]);
-            }
-            
-            // Add some weekly intervals before that
-            for (let i = allDates.length - 14; i >= 0; i -= 7) {
-              if (i >= 0 && !selectedDates.includes(allDates[i])) {
-                selectedDates.unshift(allDates[i]);
-              }
-            }
-            
-            setSelectedDates(selectedDates.slice(-10)); // Keep last 10 dates
             
             // Get the latest snapshot
             if (snapData.performance.daily.length > 0) {
@@ -169,45 +232,45 @@ export default function PositionComparisonMinimal() {
   
   // Create comparison between unified positions and latest snapshot
   const createSnapshotComparison = () => {
+    // For real data, we would match positions from the snapshot
+    // For now, calculate based on portfolio totals and distribute proportionally
+    const currentTotal = currentPositions.reduce((sum, pos) => sum + (pos.current_value || 0), 0);
+    const snapshotTotal = latestSnapshot.value || 0;
+    const ratio = snapshotTotal / currentTotal;
+    
     const comparisonMap = new Map();
     
-    // First, add all current positions
+    // Create comparison data for each position
     currentPositions.forEach(pos => {
       const key = `${pos.ticker || pos.identifier}_${pos.account_id}`;
-      const value = pos.current_value || 0;
+      const unifiedValue = pos.current_value || 0;
+      const snapshotValue = unifiedValue * ratio; // Proportional distribution
       
       comparisonMap.set(key, {
         ticker: pos.ticker || pos.identifier || 'Unknown',
         name: pos.name,
         account_name: pos.account_name,
+        account_id: pos.account_id,
         asset_type: pos.asset_type || 'other',
-        unifiedValue: value,
-        snapshotValue: 0, // Will be filled from snapshot
-        difference: 0,
-        differencePercent: 0
+        unifiedValue,
+        snapshotValue,
+        difference: unifiedValue - snapshotValue,
+        differencePercent: snapshotValue > 0 
+          ? ((unifiedValue - snapshotValue) / snapshotValue) * 100 
+          : 0
       });
     });
     
-    // Simulate snapshot values (in real implementation, this would come from actual snapshot data)
-    // For now, we'll create random variations
-    comparisonMap.forEach((item, key) => {
-      // Simulate snapshot value as unified value with some random variation
-      item.snapshotValue = item.unifiedValue * (0.95 + Math.random() * 0.1);
-      item.difference = item.unifiedValue - item.snapshotValue;
-      item.differencePercent = item.snapshotValue > 0 
-        ? (item.difference / item.snapshotValue) * 100 
-        : 0;
-    });
-    
-    // Group by asset type or ticker based on current grouping
+    // Group by asset type or account based on current grouping
     const grouped = {};
     comparisonMap.forEach((item) => {
-      const groupKey = groupBy === 'asset_type' ? item.asset_type : item.ticker;
+      const groupKey = groupBy === 'asset_type' ? item.asset_type : item.account_id;
+      const groupName = groupBy === 'asset_type' ? item.asset_type : item.account_name;
       
       if (!grouped[groupKey]) {
         grouped[groupKey] = {
           key: groupKey,
-          name: groupBy === 'asset_type' ? groupKey : item.name,
+          name: groupName,
           positions: [],
           totalUnified: 0,
           totalSnapshot: 0,
@@ -237,7 +300,7 @@ export default function PositionComparisonMinimal() {
   const processData = (positions) => {
     // Group by asset type
     const assetGrouped = {};
-    const tickerGrouped = {};
+    const accountGrouped = {};
     
     positions.forEach(pos => {
       const value = pos.current_value || 0;
@@ -272,12 +335,13 @@ export default function PositionComparisonMinimal() {
       assetGrouped[type].totalGainLoss += gainLoss;
       assetGrouped[type].totalQuantity += (pos.quantity || 0);
       
-      // Group by ticker
-      const ticker = pos.ticker || pos.identifier || 'Unknown';
-      if (!tickerGrouped[ticker]) {
-        tickerGrouped[ticker] = {
-          ticker,
-          name: pos.name || ticker,
+      // Group by account
+      const accountId = pos.account_id || 'unknown';
+      const accountName = pos.account_name || 'Unknown Account';
+      if (!accountGrouped[accountId]) {
+        accountGrouped[accountId] = {
+          accountId,
+          accountName,
           positions: [],
           totalValue: 0,
           totalCostBasis: 0,
@@ -287,12 +351,12 @@ export default function PositionComparisonMinimal() {
         };
       }
       
-      tickerGrouped[ticker].positions.push(enrichedPos);
-      tickerGrouped[ticker].totalValue += value;
-      tickerGrouped[ticker].totalCostBasis += costBasis;
-      tickerGrouped[ticker].totalGainLoss += gainLoss;
-      tickerGrouped[ticker].totalQuantity += (pos.quantity || 0);
-      tickerGrouped[ticker].assetTypes.add(type);
+      accountGrouped[accountId].positions.push(enrichedPos);
+      accountGrouped[accountId].totalValue += value;
+      accountGrouped[accountId].totalCostBasis += costBasis;
+      accountGrouped[accountId].totalGainLoss += gainLoss;
+      accountGrouped[accountId].totalQuantity += (pos.quantity || 0);
+      accountGrouped[accountId].assetTypes.add(type);
     });
     
     // Process asset grouped data
@@ -304,23 +368,21 @@ export default function PositionComparisonMinimal() {
       positions: group.positions.sort((a, b) => b.value - a.value)
     })).sort((a, b) => b.totalValue - a.totalValue);
     
-    // Process ticker grouped data
-    const tickerComparison = Object.values(tickerGrouped).map(group => ({
+    // Process account grouped data
+    const accountComparison = Object.values(accountGrouped).map(group => ({
       ...group,
       totalGainLossPercent: group.totalCostBasis > 0 
         ? (group.totalGainLoss / group.totalCostBasis) * 100 
         : 0,
-      avgPrice: group.totalQuantity > 0 ? group.totalValue / group.totalQuantity : 0,
-      avgCostBasis: group.totalQuantity > 0 ? group.totalCostBasis / group.totalQuantity : 0,
       positions: group.positions.sort((a, b) => b.value - a.value)
     })).sort((a, b) => b.totalValue - a.totalValue);
     
     setComparisonData(assetComparison);
-    setTickerGroupedData(tickerComparison);
+    setAccountGroupedData(accountComparison);
   };
   
   // Get display data based on grouping
-  const displayData = groupBy === 'asset_type' ? comparisonData : tickerGroupedData;
+  const displayData = groupBy === 'asset_type' ? comparisonData : accountGroupedData;
   
   // Calculate totals
   const grandTotals = displayData.reduce((acc, group) => ({
@@ -343,6 +405,17 @@ export default function PositionComparisonMinimal() {
   snapshotTotals.differencePercent = snapshotTotals.snapshot > 0 
     ? (snapshotTotals.difference / snapshotTotals.snapshot) * 100 
     : 0;
+  
+  // Get historical value for a position on a specific date
+  const getHistoricalValue = (position, date, dateIndex) => {
+    // Use actual snapshot data if available
+    if (historicalSnapshots[dateIndex]) {
+      const snapshot = historicalSnapshots[dateIndex];
+      const portfolioRatio = snapshot.value / grandTotals.value;
+      return position.value * portfolioRatio;
+    }
+    return position.value;
+  };
   
   if (isLoading) {
     return (
@@ -425,8 +498,8 @@ export default function PositionComparisonMinimal() {
             </div>
             
             <div className="bg-gradient-to-br from-gray-800 to-gray-700 rounded-xl p-6 shadow-xl">
-              <div className="text-gray-400 text-sm mb-1">Unique Securities</div>
-              <div className="text-2xl font-bold text-white">{tickerGroupedData.length}</div>
+              <div className="text-gray-400 text-sm mb-1">Accounts</div>
+              <div className="text-2xl font-bold text-white">{accountGroupedData.length}</div>
               <div className="text-xs text-gray-500 mt-1">Across {comparisonData.length} asset types</div>
             </div>
           </div>
@@ -448,14 +521,14 @@ export default function PositionComparisonMinimal() {
                 Asset Type
               </button>
               <button
-                onClick={() => setGroupBy('ticker')}
+                onClick={() => setGroupBy('account')}
                 className={`px-4 py-2 rounded-md transition-colors ${
-                  groupBy === 'ticker' 
+                  groupBy === 'account' 
                     ? 'bg-indigo-600 text-white' 
                     : 'text-gray-400 hover:text-white'
                 }`}
               >
-                Security
+                Account
               </button>
             </div>
           </div>
@@ -470,7 +543,7 @@ export default function PositionComparisonMinimal() {
                 <thead>
                   <tr className="bg-gray-900">
                     <th className="px-6 py-4 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
-                      {groupBy === 'asset_type' ? 'Asset Type / Position' : 'Security / Account'}
+                      {groupBy === 'asset_type' ? 'Asset Type / Position / Tax Lots' : 'Account / Position / Tax Lots'}
                     </th>
                     <th className="px-6 py-4 text-right text-xs font-medium text-gray-400 uppercase tracking-wider">
                       Quantity
@@ -490,144 +563,184 @@ export default function PositionComparisonMinimal() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-700">
-                  {displayData.map((group, idx) => (
-                    <React.Fragment key={idx}>
-                      {/* Group Header Row */}
-                      <tr 
-                        className={`bg-gradient-to-r ${
-                          groupBy === 'asset_type' 
-                            ? getAssetColor(group.assetType) 
-                            : getTickerColor(group.ticker)
-                        } bg-opacity-10 hover:bg-opacity-20 cursor-pointer transition-all`}
-                        onClick={() => groupBy === 'asset_type' ? toggleGroup(group.assetType) : toggleTicker(group.ticker)}
-                      >
-                        <td className="px-6 py-4">
-                          <div className="flex items-center">
-                            <div className={`w-1 h-8 bg-gradient-to-b ${
-                              groupBy === 'asset_type' 
-                                ? getAssetColor(group.assetType) 
-                                : getTickerColor(group.ticker)
-                            } rounded-full mr-3`}></div>
-                            <div>
-                              <div className="flex items-center">
-                                <span className="text-sm font-semibold text-white">
-                                  {groupBy === 'asset_type' 
-                                    ? group.assetType.charAt(0).toUpperCase() + group.assetType.slice(1)
-                                    : group.ticker
-                                  }
-                                </span>
-                                <span className="ml-2 text-xs text-gray-400">
-                                  ({group.positions.length} {group.positions.length === 1 ? 'position' : 'positions'})
-                                </span>
-                              </div>
-                              {groupBy === 'ticker' && (
-                                <div className="text-xs text-gray-500">{group.name}</div>
-                              )}
-                              <div className="text-xs text-gray-500">
-                                {(groupBy === 'asset_type' ? expandedGroups.has(group.assetType) : expandedTickers.has(group.ticker)) 
-                                  ? 'Click to collapse' 
-                                  : 'Click to expand'
-                                }
-                              </div>
-                            </div>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 text-right">
-                          <div className="text-sm font-semibold text-white">
-                            {group.totalQuantity > 0 ? group.totalQuantity.toFixed(2) : '-'}
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 text-right">
-                          <div className="text-sm font-semibold text-white">
-                            {formatCurrency(group.totalValue)}
-                          </div>
-                          {groupBy === 'ticker' && group.avgPrice > 0 && (
-                            <div className="text-xs text-gray-500">
-                              avg @ {formatCurrency(group.avgPrice)}
-                            </div>
-                          )}
-                        </td>
-                        <td className="px-6 py-4 text-right">
-                          <div className="text-sm font-semibold text-gray-300">
-                            {formatCurrency(group.totalCostBasis)}
-                          </div>
-                          {groupBy === 'ticker' && group.avgCostBasis > 0 && (
-                            <div className="text-xs text-gray-500">
-                              avg @ {formatCurrency(group.avgCostBasis)}
-                            </div>
-                          )}
-                        </td>
-                        <td className="px-6 py-4 text-right">
-                          <div className={`text-sm font-semibold ${group.totalGainLoss >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                            {formatCurrency(group.totalGainLoss)}
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 text-right">
-                          <div className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                            group.totalGainLossPercent >= 0 
-                              ? 'bg-green-900/50 text-green-400' 
-                              : 'bg-red-900/50 text-red-400'
-                          }`}>
-                            {formatPercentage(group.totalGainLossPercent)}
-                          </div>
-                        </td>
-                      </tr>
-                      
-                      {/* Individual Positions */}
-                      {((groupBy === 'asset_type' && expandedGroups.has(group.assetType)) || 
-                        (groupBy === 'ticker' && expandedTickers.has(group.ticker))) && 
-                        group.positions.map((pos, posIdx) => (
-                        <tr key={posIdx} className="hover:bg-gray-750 transition-colors">
-                          <td className="px-6 py-3 pl-14">
-                            <div>
-                              <div className="text-sm font-medium text-white">
-                                {groupBy === 'asset_type' 
-                                  ? (pos.ticker || pos.identifier || 'Unknown')
-                                  : pos.account_name
-                                }
-                              </div>
-                              <div className="text-xs text-gray-400">
-                                {groupBy === 'asset_type' 
-                                  ? pos.account_name
-                                  : `${pos.asset_type} position`
-                                }
+                  {displayData.map((group, idx) => {
+                    const groupKey = groupBy === 'asset_type' ? group.assetType : group.accountId;
+                    return (
+                      <React.Fragment key={idx}>
+                        {/* Group Header Row */}
+                        <tr 
+                          className={`bg-gradient-to-r ${
+                            groupBy === 'asset_type' 
+                              ? getAssetColor(group.assetType) 
+                              : getAccountColor(group.accountName)
+                          } bg-opacity-10 hover:bg-opacity-20 cursor-pointer transition-all`}
+                          onClick={() => toggleGroup(groupKey)}
+                        >
+                          <td className="px-6 py-4">
+                            <div className="flex items-center">
+                              <div className={`w-1 h-8 bg-gradient-to-b ${
+                                groupBy === 'asset_type' 
+                                  ? getAssetColor(group.assetType) 
+                                  : getAccountColor(group.accountName)
+                              } rounded-full mr-3`}></div>
+                              <div>
+                                <div className="flex items-center">
+                                  <span className="text-sm font-semibold text-white">
+                                    {groupBy === 'asset_type' 
+                                      ? group.assetType.charAt(0).toUpperCase() + group.assetType.slice(1)
+                                      : group.accountName
+                                    }
+                                  </span>
+                                  <span className="ml-2 text-xs text-gray-400">
+                                    ({group.positions.length} {group.positions.length === 1 ? 'position' : 'positions'})
+                                  </span>
+                                </div>
+                                <div className="text-xs text-gray-500">
+                                  {expandedGroups.has(groupKey) ? 'Click to collapse' : 'Click to expand'}
+                                </div>
                               </div>
                             </div>
                           </td>
-                          <td className="px-6 py-3 text-right">
-                            <div className="text-sm text-white">
-                              {pos.quantity || '-'}
+                          <td className="px-6 py-4 text-right">
+                            <div className="text-sm font-semibold text-white">
+                              {group.totalQuantity > 0 ? group.totalQuantity.toFixed(2) : '-'}
                             </div>
                           </td>
-                          <td className="px-6 py-3 text-right">
-                            <div className="text-sm text-white">
-                              {formatCurrency(pos.value)}
-                            </div>
-                            {pos.current_price && (
-                              <div className="text-xs text-gray-500">
-                                @ {formatCurrency(pos.current_price)}
-                              </div>
-                            )}
-                          </td>
-                          <td className="px-6 py-3 text-right">
-                            <div className="text-sm text-gray-300">
-                              {formatCurrency(pos.costBasis)}
+                          <td className="px-6 py-4 text-right">
+                            <div className="text-sm font-semibold text-white">
+                              {formatCurrency(group.totalValue)}
                             </div>
                           </td>
-                          <td className="px-6 py-3 text-right">
-                            <div className={`text-sm ${pos.gainLoss >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                              {formatCurrency(pos.gainLoss)}
+                          <td className="px-6 py-4 text-right">
+                            <div className="text-sm font-semibold text-gray-300">
+                              {formatCurrency(group.totalCostBasis)}
                             </div>
                           </td>
-                          <td className="px-6 py-3 text-right">
-                            <div className={`text-sm ${pos.gainLossPercent >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                              {formatPercentage(pos.gainLossPercent)}
+                          <td className="px-6 py-4 text-right">
+                            <div className={`text-sm font-semibold ${group.totalGainLoss >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                              {formatCurrency(group.totalGainLoss)}
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 text-right">
+                            <div className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                              group.totalGainLossPercent >= 0 
+                                ? 'bg-green-900/50 text-green-400' 
+                                : 'bg-red-900/50 text-red-400'
+                            }`}>
+                              {formatPercentage(group.totalGainLossPercent)}
                             </div>
                           </td>
                         </tr>
-                      ))}
-                    </React.Fragment>
-                  ))}
+                        
+                        {/* Individual Positions */}
+                        {expandedGroups.has(groupKey) && group.positions.map((pos, posIdx) => {
+                          const posKey = `${pos.ticker || pos.identifier}_${pos.account_id}`;
+                          const positionKey = `${groupKey}_${posKey}`;
+                          const hasTaxLots = taxLots[posKey] && taxLots[posKey].length > 1;
+                          
+                          return (
+                            <React.Fragment key={posIdx}>
+                              <tr className="hover:bg-gray-750 transition-colors">
+                                <td className="px-6 py-3 pl-14">
+                                  <div className="flex items-center">
+                                    {hasTaxLots && (
+                                      <button
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          togglePosition(positionKey);
+                                        }}
+                                        className="mr-2 text-gray-400 hover:text-white"
+                                      >
+                                        {expandedPositions.has(positionKey) ? '▼' : '▶'}
+                                      </button>
+                                    )}
+                                    <div>
+                                      <div className="text-sm font-medium text-white">
+                                        {pos.ticker || pos.identifier || 'Unknown'}
+                                      </div>
+                                      <div className="text-xs text-gray-400">
+                                        {groupBy === 'asset_type' 
+                                          ? pos.account_name
+                                          : pos.asset_type
+                                        }
+                                        {hasTaxLots && ` (${taxLots[posKey].length} lots)`}
+                                      </div>
+                                    </div>
+                                  </div>
+                                </td>
+                                <td className="px-6 py-3 text-right">
+                                  <div className="text-sm text-white">
+                                    {pos.quantity || '-'}
+                                  </div>
+                                </td>
+                                <td className="px-6 py-3 text-right">
+                                  <div className="text-sm text-white">
+                                    {formatCurrency(pos.value)}
+                                  </div>
+                                  {pos.current_price && (
+                                    <div className="text-xs text-gray-500">
+                                      @ {formatCurrency(pos.current_price)}
+                                    </div>
+                                  )}
+                                </td>
+                                <td className="px-6 py-3 text-right">
+                                  <div className="text-sm text-gray-300">
+                                    {formatCurrency(pos.costBasis)}
+                                  </div>
+                                </td>
+                                <td className="px-6 py-3 text-right">
+                                  <div className={`text-sm ${pos.gainLoss >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                    {formatCurrency(pos.gainLoss)}
+                                  </div>
+                                </td>
+                                <td className="px-6 py-3 text-right">
+                                  <div className={`text-sm ${pos.gainLossPercent >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                    {formatPercentage(pos.gainLossPercent)}
+                                  </div>
+                                </td>
+                              </tr>
+                              
+                              {/* Tax Lots */}
+                              {expandedPositions.has(positionKey) && taxLots[posKey] && taxLots[posKey].map((lot, lotIdx) => (
+                                <tr key={lotIdx} className="bg-gray-850 hover:bg-gray-750 transition-colors">
+                                  <td className="px-6 py-2 pl-20">
+                                    <div className="text-xs text-gray-400">
+                                      Lot {lotIdx + 1} • {formatDate(lot.purchase_date)}
+                                    </div>
+                                  </td>
+                                  <td className="px-6 py-2 text-right">
+                                    <div className="text-xs text-gray-400">
+                                      {lot.quantity.toFixed(2)}
+                                    </div>
+                                  </td>
+                                  <td className="px-6 py-2 text-right">
+                                    <div className="text-xs text-gray-400">
+                                      {formatCurrency(lot.value)}
+                                    </div>
+                                  </td>
+                                  <td className="px-6 py-2 text-right">
+                                    <div className="text-xs text-gray-400">
+                                      {formatCurrency(lot.cost_basis)}
+                                    </div>
+                                  </td>
+                                  <td className="px-6 py-2 text-right">
+                                    <div className={`text-xs ${lot.value - lot.cost_basis >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                      {formatCurrency(lot.value - lot.cost_basis)}
+                                    </div>
+                                  </td>
+                                  <td className="px-6 py-2 text-right">
+                                    <div className={`text-xs ${lot.value - lot.cost_basis >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                      {formatPercentage(lot.cost_basis > 0 ? ((lot.value - lot.cost_basis) / lot.cost_basis) * 100 : 0)}
+                                    </div>
+                                  </td>
+                                </tr>
+                              ))}
+                            </React.Fragment>
+                          );
+                        })}
+                      </React.Fragment>
+                    );
+                  })}
                   
                   {/* Grand Total Row */}
                   <tr className="bg-gray-900 font-bold">
@@ -681,7 +794,7 @@ export default function PositionComparisonMinimal() {
                 <thead>
                   <tr className="bg-gray-900">
                     <th className="px-6 py-4 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
-                      {groupBy === 'asset_type' ? 'Asset Type / Position' : 'Security / Account'}
+                      {groupBy === 'asset_type' ? 'Asset Type / Position' : 'Account / Position'}
                     </th>
                     <th className="px-6 py-4 text-right text-xs font-medium text-gray-400 uppercase tracking-wider">
                       Unified Value
@@ -705,32 +818,29 @@ export default function PositionComparisonMinimal() {
                         className={`bg-gradient-to-r ${
                           groupBy === 'asset_type' 
                             ? getAssetColor(group.key) 
-                            : getTickerColor(group.key)
+                            : getAccountColor(group.name)
                         } bg-opacity-10 hover:bg-opacity-20 cursor-pointer transition-all`}
-                        onClick={() => groupBy === 'asset_type' ? toggleGroup(group.key) : toggleTicker(group.key)}
+                        onClick={() => toggleGroup(group.key)}
                       >
                         <td className="px-6 py-4">
                           <div className="flex items-center">
                             <div className={`w-1 h-8 bg-gradient-to-b ${
                               groupBy === 'asset_type' 
                                 ? getAssetColor(group.key) 
-                                : getTickerColor(group.key)
+                                : getAccountColor(group.name)
                             } rounded-full mr-3`}></div>
                             <div>
                               <div className="flex items-center">
                                 <span className="text-sm font-semibold text-white">
                                   {groupBy === 'asset_type' 
                                     ? group.key.charAt(0).toUpperCase() + group.key.slice(1)
-                                    : group.key
+                                    : group.name
                                   }
                                 </span>
                                 <span className="ml-2 text-xs text-gray-400">
                                   ({group.positions.length})
                                 </span>
                               </div>
-                              {groupBy === 'ticker' && (
-                                <div className="text-xs text-gray-500">{group.name}</div>
-                              )}
                             </div>
                           </div>
                         </td>
@@ -761,9 +871,7 @@ export default function PositionComparisonMinimal() {
                       </tr>
                       
                       {/* Individual Positions */}
-                      {((groupBy === 'asset_type' && expandedGroups.has(group.key)) || 
-                        (groupBy === 'ticker' && expandedTickers.has(group.key))) && 
-                        group.positions.map((pos, posIdx) => (
+                      {expandedGroups.has(group.key) && group.positions.map((pos, posIdx) => (
                         <tr key={posIdx} className="hover:bg-gray-750 transition-colors">
                           <td className="px-6 py-3 pl-14">
                             <div>
@@ -771,7 +879,10 @@ export default function PositionComparisonMinimal() {
                                 {pos.ticker}
                               </div>
                               <div className="text-xs text-gray-400">
-                                {pos.account_name}
+                                {groupBy === 'asset_type' 
+                                  ? pos.account_name
+                                  : pos.asset_type
+                                }
                               </div>
                             </div>
                           </td>
@@ -838,8 +949,23 @@ export default function PositionComparisonMinimal() {
         {/* Position-Level Market Value Trends */}
         {historicalSnapshots.length > 0 && selectedDates.length > 0 && (
           <div className="max-w-7xl mx-auto">
-            <h2 className="text-2xl font-bold text-white mb-4">Position Market Value Trends</h2>
-            <p className="text-gray-400 mb-4">Market value trends for each position over time</p>
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h2 className="text-2xl font-bold text-white">Position Market Value Trends</h2>
+                <p className="text-gray-400">Market value trends for each position over time</p>
+              </div>
+              <select
+                value={dateRangeOption}
+                onChange={(e) => setDateRangeOption(e.target.value)}
+                className="px-4 py-2 bg-gray-700 text-white rounded-lg border border-gray-600 focus:border-indigo-500 focus:outline-none"
+              >
+                {dateRangeOptions.map(option => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </div>
             
             <div className="bg-gray-800 rounded-xl shadow-2xl overflow-hidden">
               <div className="overflow-x-auto">
@@ -847,7 +973,7 @@ export default function PositionComparisonMinimal() {
                   <thead>
                     <tr className="bg-gray-900">
                       <th className="px-6 py-4 text-left text-xs font-medium text-gray-400 uppercase tracking-wider sticky left-0 bg-gray-900 z-10">
-                        {groupBy === 'asset_type' ? 'Asset Type / Position' : 'Security / Account'}
+                        {groupBy === 'asset_type' ? 'Asset Type / Position' : 'Account / Position'}
                       </th>
                       {selectedDates.map((date, idx) => (
                         <th key={idx} className="px-6 py-4 text-right text-xs font-medium text-gray-400 uppercase tracking-wider min-w-[120px]">
@@ -857,102 +983,118 @@ export default function PositionComparisonMinimal() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-700">
-                    {displayData.map((group, idx) => (
-                      <React.Fragment key={idx}>
-                        {/* Group Header Row */}
-                        <tr 
-                          className={`bg-gradient-to-r ${
-                            groupBy === 'asset_type' 
-                              ? getAssetColor(group.assetType) 
-                              : getTickerColor(group.ticker)
-                          } bg-opacity-10 hover:bg-opacity-20 cursor-pointer transition-all`}
-                          onClick={() => groupBy === 'asset_type' ? toggleGroup(group.assetType) : toggleTicker(group.ticker)}
-                        >
-                          <td className="px-6 py-4 sticky left-0 bg-gray-800">
-                            <div className="flex items-center">
-                              <div className={`w-1 h-8 bg-gradient-to-b ${
-                                groupBy === 'asset_type' 
-                                  ? getAssetColor(group.assetType) 
-                                  : getTickerColor(group.ticker)
-                              } rounded-full mr-3`}></div>
-                              <div>
-                                <div className="flex items-center">
-                                  <span className="text-sm font-semibold text-white">
-                                    {groupBy === 'asset_type' 
-                                      ? group.assetType.charAt(0).toUpperCase() + group.assetType.slice(1)
-                                      : group.ticker
-                                    }
-                                  </span>
-                                </div>
-                                {groupBy === 'ticker' && (
-                                  <div className="text-xs text-gray-500">{group.name}</div>
-                                )}
-                              </div>
-                            </div>
-                          </td>
-                          {selectedDates.map((date, dateIdx) => {
-                            // Calculate group total for this date (simulated)
-                            const baseValue = group.totalValue;
-                            const daysFromEnd = selectedDates.length - dateIdx - 1;
-                            const historicalValue = baseValue * (1 - (daysFromEnd * 0.02) + (Math.random() * 0.04 - 0.02));
-                            
-                            return (
-                              <td key={dateIdx} className="px-6 py-4 text-right">
-                                <div className="text-sm font-semibold text-white">
-                                  {formatCurrency(historicalValue)}
-                                </div>
-                              </td>
-                            );
-                          })}
-                        </tr>
-                        
-                        {/* Individual Positions */}
-                        {((groupBy === 'asset_type' && expandedGroups.has(group.assetType)) || 
-                          (groupBy === 'ticker' && expandedTickers.has(group.ticker))) && 
-                          group.positions.map((pos, posIdx) => (
-                          <tr key={posIdx} className="hover:bg-gray-750 transition-colors">
-                            <td className="px-6 py-3 pl-14 sticky left-0 bg-gray-800">
-                              <div>
-                                <div className="text-sm font-medium text-white">
-                                  {groupBy === 'asset_type' 
-                                    ? (pos.ticker || pos.identifier || 'Unknown')
-                                    : pos.account_name
-                                  }
-                                </div>
-                                <div className="text-xs text-gray-400">
-                                  {groupBy === 'asset_type' 
-                                    ? pos.account_name
-                                    : `${pos.asset_type} position`
-                                  }
+                    {displayData.map((group, idx) => {
+                      const groupKey = groupBy === 'asset_type' ? group.assetType : group.accountId;
+                      
+                      return (
+                        <React.Fragment key={idx}>
+                          {/* Group Header Row */}
+                          <tr 
+                            className={`bg-gradient-to-r ${
+                              groupBy === 'asset_type' 
+                                ? getAssetColor(group.assetType) 
+                                : getAccountColor(group.accountName)
+                            } bg-opacity-10 hover:bg-opacity-20 cursor-pointer transition-all`}
+                            onClick={() => toggleGroup(groupKey)}
+                          >
+                            <td className="px-6 py-4 sticky left-0 bg-gray-800">
+                              <div className="flex items-center">
+                                <div className={`w-1 h-8 bg-gradient-to-b ${
+                                  groupBy === 'asset_type' 
+                                    ? getAssetColor(group.assetType) 
+                                    : getAccountColor(group.accountName)
+                                } rounded-full mr-3`}></div>
+                                <div>
+                                  <div className="flex items-center">
+                                    <span className="text-sm font-semibold text-white">
+                                      {groupBy === 'asset_type' 
+                                        ? group.assetType.charAt(0).toUpperCase() + group.assetType.slice(1)
+                                        : group.accountName
+                                      }
+                                    </span>
+                                  </div>
                                 </div>
                               </div>
                             </td>
                             {selectedDates.map((date, dateIdx) => {
-                              // Simulate historical values for each position
-                              const baseValue = pos.value;
-                              const daysFromEnd = selectedDates.length - dateIdx - 1;
-                              const historicalValue = baseValue * (1 - (daysFromEnd * 0.02) + (Math.random() * 0.04 - 0.02));
-                              const previousValue = dateIdx > 0 ? baseValue * (1 - ((daysFromEnd + 1) * 0.02) + (Math.random() * 0.04 - 0.02)) : null;
-                              const change = previousValue ? historicalValue - previousValue : 0;
-                              const changePercent = previousValue ? (change / previousValue) * 100 : 0;
+                              // Calculate group total from actual snapshot data
+                              const snapshot = historicalSnapshots.find(s => s.date === date);
+                              const portfolioRatio = snapshot ? snapshot.value / grandTotals.value : 1;
+                              const historicalValue = group.totalValue * portfolioRatio;
                               
                               return (
-                                <td key={dateIdx} className="px-6 py-3 text-right">
-                                  <div className="text-sm text-white">
+                                <td key={dateIdx} className="px-6 py-4 text-right">
+                                  <div className="text-sm font-semibold text-white">
                                     {formatCurrency(historicalValue)}
                                   </div>
-                                  {dateIdx > 0 && (
-                                    <div className={`text-xs ${change >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                                      {change >= 0 ? '+' : ''}{formatPercentage(changePercent)}
-                                    </div>
-                                  )}
                                 </td>
                               );
                             })}
                           </tr>
-                        ))}
-                      </React.Fragment>
-                    ))}
+                          
+                          {/* Individual Positions */}
+                          {expandedGroups.has(groupKey) && group.positions.map((pos, posIdx) => (
+                            <tr key={posIdx} className="hover:bg-gray-750 transition-colors">
+                              <td className="px-6 py-3 pl-14 sticky left-0 bg-gray-800">
+                                <div>
+                                  <div className="text-sm font-medium text-white">
+                                    {pos.ticker || pos.identifier || 'Unknown'}
+                                  </div>
+                                  <div className="text-xs text-gray-400">
+                                    {groupBy === 'asset_type' 
+                                      ? pos.account_name
+                                      : pos.asset_type
+                                    }
+                                  </div>
+                                </div>
+                              </td>
+                              {selectedDates.map((date, dateIdx) => {
+                                const historicalValue = getHistoricalValue(pos, date, dateIdx);
+                                const prevDateIdx = dateIdx > 0 ? dateIdx - 1 : null;
+                                const previousValue = prevDateIdx !== null ? getHistoricalValue(pos, selectedDates[prevDateIdx], prevDateIdx) : null;
+                                const change = previousValue ? historicalValue - previousValue : 0;
+                                const changePercent = previousValue ? (change / previousValue) * 100 : 0;
+                                
+                                return (
+                                  <td key={dateIdx} className="px-6 py-3 text-right">
+                                    <div className="text-sm text-white">
+                                      {formatCurrency(historicalValue)}
+                                    </div>
+                                    {dateIdx > 0 && (
+                                      <div className={`text-xs ${change >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                                        {change >= 0 ? '+' : ''}{formatPercentage(changePercent)}
+                                      </div>
+                                    )}
+                                  </td>
+                                );
+                              })}
+                            </tr>
+                          ))}
+                        </React.Fragment>
+                      );
+                    })}
+                    
+                    {/* Portfolio Total Row */}
+                    <tr className="bg-gray-900 font-bold">
+                      <td className="px-6 py-4 sticky left-0 bg-gray-900">
+                        <div className="flex items-center">
+                          <div className="w-1 h-8 bg-gradient-to-b from-indigo-500 to-purple-500 rounded-full mr-3"></div>
+                          <span className="text-sm text-white">Portfolio Total</span>
+                        </div>
+                      </td>
+                      {selectedDates.map((date, idx) => {
+                        const snapshot = historicalSnapshots.find(s => s.date === date);
+                        const value = snapshot ? snapshot.value : grandTotals.value;
+                        
+                        return (
+                          <td key={idx} className="px-6 py-4 text-right">
+                            <div className="text-sm font-semibold text-white">
+                              {formatCurrency(value)}
+                            </div>
+                          </td>
+                        );
+                      })}
+                    </tr>
                   </tbody>
                 </table>
               </div>
