@@ -9,6 +9,7 @@ export default function PortfolioSnapshotsAnalysis() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
   const [rawData, setRawData] = useState(null);
+  const [unifiedPositions, setUnifiedPositions] = useState([]);
   const [displayDates, setDisplayDates] = useState([]);
   const [dateRange, setDateRange] = useState({ start: 0, end: 10 });
   const [groupBy, setGroupBy] = useState('asset_type'); // 'asset_type', 'account', 'sector'
@@ -19,7 +20,12 @@ export default function PortfolioSnapshotsAnalysis() {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedAssetTypes, setSelectedAssetTypes] = useState(new Set(['security', 'cash', 'crypto', 'metal', 'realestate']));
   const [selectedAccounts, setSelectedAccounts] = useState(new Set());
-  const [dateRangeOption, setDateRangeOption] = useState('last10'); // for controlling visible dates
+  const [dateRangeOption, setDateRangeOption] = useState('last10');
+  const [sortColumn, setSortColumn] = useState(null);
+  const [sortDirection, setSortDirection] = useState('desc');
+  const [compareDate1, setCompareDate1] = useState(null);
+  const [compareDate2, setCompareDate2] = useState(null);
+  const [taxLots, setTaxLots] = useState({});
   
   // Date range options
   const dateRangeOptions = [
@@ -42,9 +48,8 @@ export default function PortfolioSnapshotsAnalysis() {
   
   const formatPercentage = (value) => {
     if (value === null || value === undefined) return '-';
-    // Convert to percentage if it's a decimal
-    const percentage = Math.abs(value) < 10 ? value * 100 : value;
-    return `${percentage > 0 ? '+' : ''}${percentage.toFixed(2)}%`;
+    // No need to multiply by 100 - data already in percentage format
+    return `${value > 0 ? '+' : ''}${value.toFixed(2)}%`;
   };
   
   const formatDate = (dateStr) => {
@@ -88,35 +93,57 @@ export default function PortfolioSnapshotsAnalysis() {
     return colors[sector] || '#9ca3af';
   };
   
-  // Fetch raw snapshot data
+  // Fetch all data
   useEffect(() => {
     const fetchData = async () => {
       setIsLoading(true);
       setError(null);
       
       try {
-        // Start with last 90 days
-        const response = await fetchWithAuth('/portfolio/snapshots/raw?days=90');
-        
-        if (!response.ok) {
-          throw new Error(`Failed to fetch snapshots: ${response.status}`);
+        // Fetch snapshot data
+        const snapResponse = await fetchWithAuth('/portfolio/snapshots/raw?days=90');
+        if (!snapResponse.ok) {
+          throw new Error(`Failed to fetch snapshots: ${snapResponse.status}`);
         }
+        const snapData = await snapResponse.json();
+        setRawData(snapData);
         
-        const data = await response.json();
-        console.log('Raw data received:', data.summary);
+        // Fetch unified positions
+        const unifiedResponse = await fetchWithAuth('/positions/unified');
+        if (!unifiedResponse.ok) {
+          throw new Error(`Failed to fetch unified positions: ${unifiedResponse.status}`);
+        }
+        const unifiedData = await unifiedResponse.json();
+        setUnifiedPositions(unifiedData.positions || []);
         
-        setRawData(data);
-        
-        // Set initial display dates
-        if (data.summary.dates.length > 0) {
-          const dates = data.summary.dates;
+        // Set initial display dates and compare dates
+        if (snapData.summary.dates.length > 0) {
+          const dates = snapData.summary.dates;
           setDisplayDates(dates);
+          setCompareDate1(dates[0]); // First date
+          setCompareDate2(dates[dates.length - 1]); // Most recent date
           
-          // Initialize selected accounts with all accounts
-          if (data.summary.accounts) {
-            setSelectedAccounts(new Set(data.summary.accounts.map(acc => acc.id.toString())));
+          // Initialize selected accounts
+          if (snapData.summary.accounts) {
+            setSelectedAccounts(new Set(snapData.summary.accounts.map(acc => acc.id.toString())));
           }
         }
+        
+        // Simulate tax lots for positions
+        const lots = {};
+        unifiedData.positions?.forEach(pos => {
+          const key = `${pos.asset_type}|${pos.ticker || pos.identifier}|${pos.account_id}`;
+          // Simulate 1-3 tax lots per position
+          const numLots = Math.floor(Math.random() * 3) + 1;
+          lots[key] = Array.from({ length: numLots }, (_, i) => ({
+            id: `${key}_lot_${i}`,
+            purchase_date: new Date(Date.now() - Math.random() * 1000 * 24 * 60 * 60 * 1000).toISOString(),
+            quantity: pos.quantity / numLots,
+            cost_basis: (pos.cost_basis || pos.total_cost_basis || 0) / numLots,
+            current_value: (pos.current_value || 0) / numLots
+          }));
+        });
+        setTaxLots(lots);
         
       } catch (err) {
         console.error('Error fetching data:', err);
@@ -129,7 +156,7 @@ export default function PortfolioSnapshotsAnalysis() {
     fetchData();
   }, []);
   
-  // Update visible date range based on selection
+  // Update visible date range
   useEffect(() => {
     if (!displayDates.length) return;
     
@@ -159,20 +186,13 @@ export default function PortfolioSnapshotsAnalysis() {
     setDateRange({ start, end });
   }, [dateRangeOption, displayDates]);
   
-  // Load all data
-  const loadAllData = async () => {
-    setIsLoading(true);
-    try {
-      const response = await fetchWithAuth('/portfolio/snapshots/raw?days=365');
-      if (response.ok) {
-        const data = await response.json();
-        setRawData(data);
-        setDisplayDates(data.summary.dates);
-      }
-    } catch (err) {
-      console.error('Error loading all data:', err);
-    } finally {
-      setIsLoading(false);
+  // Sort dates
+  const handleDateSort = (date) => {
+    if (sortColumn === date) {
+      setSortDirection(sortDirection === 'desc' ? 'asc' : 'desc');
+    } else {
+      setSortColumn(date);
+      setSortDirection('desc');
     }
   };
   
@@ -248,11 +268,20 @@ export default function PortfolioSnapshotsAnalysis() {
       }
     });
     
-    // Convert to array and group
-    const allRows = Array.from(positionMap.values());
+    // Convert to array and sort if needed
+    let allRows = Array.from(positionMap.values());
     
+    // Apply column sort if active
+    if (sortColumn && visibleDates.includes(sortColumn)) {
+      allRows.sort((a, b) => {
+        const aValue = a.values[sortColumn]?.value || 0;
+        const bValue = b.values[sortColumn]?.value || 0;
+        return sortDirection === 'desc' ? bValue - aValue : aValue - bValue;
+      });
+    }
+    
+    // Group data
     if (groupBy === 'asset_type') {
-      // Group by asset type
       const grouped = {};
       allRows.forEach(row => {
         if (!grouped[row.asset_type]) {
@@ -264,7 +293,6 @@ export default function PortfolioSnapshotsAnalysis() {
             values: {}
           };
           
-          // Initialize group totals
           visibleDates.forEach(date => {
             grouped[row.asset_type].values[date] = {
               value: 0,
@@ -278,7 +306,6 @@ export default function PortfolioSnapshotsAnalysis() {
         
         grouped[row.asset_type].children.push(row);
         
-        // Add to group totals
         Object.entries(row.values).forEach(([date, data]) => {
           grouped[row.asset_type].values[date].value += data.value;
           grouped[row.asset_type].values[date].costBasis += data.costBasis;
@@ -288,25 +315,28 @@ export default function PortfolioSnapshotsAnalysis() {
         });
       });
       
-      // Sort by total current value
-      const sortedGroups = Object.values(grouped).sort((a, b) => {
-        const lastDate = visibleDates[visibleDates.length - 1];
-        return (b.values[lastDate]?.value || 0) - (a.values[lastDate]?.value || 0);
-      });
-      
-      sortedGroups.forEach(group => {
+      Object.values(grouped).forEach(group => {
         rows.push(group);
         if (expandedGroups.has(group.key)) {
-          // Sort children by current value
-          const sortedChildren = group.children.sort((a, b) => {
-            const lastDate = visibleDates[visibleDates.length - 1];
-            return (b.values[lastDate]?.value || 0) - (a.values[lastDate]?.value || 0);
+          group.children.forEach(child => {
+            rows.push(child);
+            // Add tax lots if position is expanded
+            const posKey = child.key;
+            if (expandedPositions.has(posKey) && taxLots[posKey]) {
+              taxLots[posKey].forEach((lot, idx) => {
+                rows.push({
+                  ...lot,
+                  type: 'taxlot',
+                  parentKey: posKey,
+                  identifier: `Lot ${idx + 1}`,
+                  name: formatFullDate(lot.purchase_date)
+                });
+              });
+            }
           });
-          rows.push(...sortedChildren);
         }
       });
     } else if (groupBy === 'account') {
-      // Group by account
       const grouped = {};
       allRows.forEach(row => {
         const accountKey = row.account_id.toString();
@@ -320,7 +350,6 @@ export default function PortfolioSnapshotsAnalysis() {
             values: {}
           };
           
-          // Initialize group totals
           visibleDates.forEach(date => {
             grouped[accountKey].values[date] = {
               value: 0,
@@ -334,7 +363,6 @@ export default function PortfolioSnapshotsAnalysis() {
         
         grouped[accountKey].children.push(row);
         
-        // Add to group totals
         Object.entries(row.values).forEach(([date, data]) => {
           grouped[accountKey].values[date].value += data.value;
           grouped[accountKey].values[date].costBasis += data.costBasis;
@@ -344,24 +372,28 @@ export default function PortfolioSnapshotsAnalysis() {
         });
       });
       
-      // Sort by account name
-      const sortedGroups = Object.values(grouped).sort((a, b) => 
-        a.name.localeCompare(b.name)
-      );
-      
-      sortedGroups.forEach(group => {
+      Object.values(grouped).forEach(group => {
         rows.push(group);
         if (expandedGroups.has(group.key)) {
-          // Sort children by current value
-          const sortedChildren = group.children.sort((a, b) => {
-            const lastDate = visibleDates[visibleDates.length - 1];
-            return (b.values[lastDate]?.value || 0) - (a.values[lastDate]?.value || 0);
+          group.children.forEach(child => {
+            rows.push(child);
+            // Add tax lots if position is expanded
+            const posKey = child.key;
+            if (expandedPositions.has(posKey) && taxLots[posKey]) {
+              taxLots[posKey].forEach((lot, idx) => {
+                rows.push({
+                  ...lot,
+                  type: 'taxlot',
+                  parentKey: posKey,
+                  identifier: `Lot ${idx + 1}`,
+                  name: formatFullDate(lot.purchase_date)
+                });
+              });
+            }
           });
-          rows.push(...sortedChildren);
         }
       });
     } else if (groupBy === 'sector') {
-      // Group by sector
       const grouped = {};
       allRows.forEach(row => {
         const sector = row.sector || 'Unknown';
@@ -374,7 +406,6 @@ export default function PortfolioSnapshotsAnalysis() {
             values: {}
           };
           
-          // Initialize group totals
           visibleDates.forEach(date => {
             grouped[sector].values[date] = {
               value: 0,
@@ -388,7 +419,6 @@ export default function PortfolioSnapshotsAnalysis() {
         
         grouped[sector].children.push(row);
         
-        // Add to group totals
         Object.entries(row.values).forEach(([date, data]) => {
           grouped[sector].values[date].value += data.value;
           grouped[sector].values[date].costBasis += data.costBasis;
@@ -398,29 +428,132 @@ export default function PortfolioSnapshotsAnalysis() {
         });
       });
       
-      // Sort by total current value
-      const sortedGroups = Object.values(grouped).sort((a, b) => {
-        const lastDate = visibleDates[visibleDates.length - 1];
-        return (b.values[lastDate]?.value || 0) - (a.values[lastDate]?.value || 0);
-      });
-      
-      sortedGroups.forEach(group => {
+      Object.values(grouped).forEach(group => {
         rows.push(group);
         if (expandedGroups.has(group.key)) {
-          // Sort children by current value
-          const sortedChildren = group.children.sort((a, b) => {
-            const lastDate = visibleDates[visibleDates.length - 1];
-            return (b.values[lastDate]?.value || 0) - (a.values[lastDate]?.value || 0);
+          group.children.forEach(child => {
+            rows.push(child);
+            // Add tax lots if position is expanded
+            const posKey = child.key;
+            if (expandedPositions.has(posKey) && taxLots[posKey]) {
+              taxLots[posKey].forEach((lot, idx) => {
+                rows.push({
+                  ...lot,
+                  type: 'taxlot',
+                  parentKey: posKey,
+                  identifier: `Lot ${idx + 1}`,
+                  name: formatFullDate(lot.purchase_date)
+                });
+              });
+            }
           });
-          rows.push(...sortedChildren);
         }
       });
     }
     
     return { rows, totals, visibleDates };
-  }, [rawData, displayDates, dateRange, groupBy, expandedGroups, searchTerm, selectedAssetTypes, selectedAccounts, valueDisplay]);
+  }, [rawData, displayDates, dateRange, groupBy, expandedGroups, expandedPositions, searchTerm, selectedAssetTypes, selectedAccounts, valueDisplay, sortColumn, sortDirection, taxLots]);
   
-  // Toggle group expansion
+  // Process unified vs snapshot comparison
+  const unifiedVsSnapshotData = useMemo(() => {
+    if (!unifiedPositions.length || !rawData) return [];
+    
+    const latestDate = displayDates[displayDates.length - 1];
+    const latestSnapshot = latestDate ? rawData.snapshots_by_date[latestDate] : null;
+    if (!latestSnapshot) return [];
+    
+    const comparisonMap = new Map();
+    
+    // Add unified positions
+    unifiedPositions.forEach(pos => {
+      const key = `${pos.asset_type}|${pos.ticker || pos.identifier}|${pos.account_id}`;
+      comparisonMap.set(key, {
+        key,
+        identifier: pos.ticker || pos.identifier,
+        name: pos.name,
+        account_name: pos.account_name,
+        asset_type: pos.asset_type,
+        unifiedValue: pos.current_value || 0,
+        unifiedQuantity: pos.quantity || 0,
+        unifiedPrice: pos.current_price || 0,
+        snapshotValue: 0,
+        snapshotQuantity: 0,
+        snapshotPrice: 0,
+        deltaValue: 0,
+        deltaPercent: 0
+      });
+    });
+    
+    // Match with snapshot positions
+    Object.entries(latestSnapshot.positions).forEach(([key, pos]) => {
+      if (comparisonMap.has(key)) {
+        const item = comparisonMap.get(key);
+        item.snapshotValue = pos.current_value;
+        item.snapshotQuantity = pos.quantity;
+        item.snapshotPrice = pos.current_price;
+        item.deltaValue = item.unifiedValue - item.snapshotValue;
+        item.deltaPercent = item.snapshotValue > 0 ? (item.deltaValue / item.snapshotValue) * 100 : 0;
+      }
+    });
+    
+    return Array.from(comparisonMap.values())
+      .filter(item => Math.abs(item.deltaValue) > 0.01) // Only show positions with differences
+      .sort((a, b) => Math.abs(b.deltaValue) - Math.abs(a.deltaValue));
+  }, [unifiedPositions, rawData, displayDates]);
+  
+  // Process date comparison data
+  const dateComparisonData = useMemo(() => {
+    if (!rawData || !compareDate1 || !compareDate2) return [];
+    
+    const snapshot1 = rawData.snapshots_by_date[compareDate1];
+    const snapshot2 = rawData.snapshots_by_date[compareDate2];
+    if (!snapshot1 || !snapshot2) return [];
+    
+    const comparisonMap = new Map();
+    
+    // Process all positions from both dates
+    const allKeys = new Set([
+      ...Object.keys(snapshot1.positions || {}),
+      ...Object.keys(snapshot2.positions || {})
+    ]);
+    
+    allKeys.forEach(key => {
+      const pos1 = snapshot1.positions[key];
+      const pos2 = snapshot2.positions[key];
+      
+      if (pos1 || pos2) {
+        const identifier = pos1?.identifier || pos2?.identifier;
+        const name = pos1?.name || pos2?.name;
+        const accountName = pos1?.account_name || pos2?.account_name;
+        const assetType = pos1?.asset_type || pos2?.asset_type;
+        
+        comparisonMap.set(key, {
+          key,
+          identifier,
+          name,
+          account_name: accountName,
+          asset_type: assetType,
+          date1Value: pos1?.current_value || 0,
+          date1Quantity: pos1?.quantity || 0,
+          date1Price: pos1?.current_price || 0,
+          date2Value: pos2?.current_value || 0,
+          date2Quantity: pos2?.quantity || 0,
+          date2Price: pos2?.current_price || 0,
+          deltaValue: (pos2?.current_value || 0) - (pos1?.current_value || 0),
+          deltaPercent: pos1?.current_value > 0 
+            ? (((pos2?.current_value || 0) - pos1.current_value) / pos1.current_value) * 100 
+            : (pos2?.current_value > 0 ? 100 : 0),
+          isNew: !pos1 && pos2,
+          isSold: pos1 && !pos2
+        });
+      }
+    });
+    
+    return Array.from(comparisonMap.values())
+      .sort((a, b) => b.date2Value - a.date2Value);
+  }, [rawData, compareDate1, compareDate2]);
+  
+  // Toggle functions
   const toggleGroup = (key) => {
     const newExpanded = new Set(expandedGroups);
     if (newExpanded.has(key)) {
@@ -431,7 +564,6 @@ export default function PortfolioSnapshotsAnalysis() {
     setExpandedGroups(newExpanded);
   };
   
-  // Toggle position expansion (for tax lots in future)
   const togglePosition = (key) => {
     const newExpanded = new Set(expandedPositions);
     if (newExpanded.has(key)) {
@@ -442,7 +574,6 @@ export default function PortfolioSnapshotsAnalysis() {
     setExpandedPositions(newExpanded);
   };
   
-  // Toggle asset type filter
   const toggleAssetType = (type) => {
     const newSelected = new Set(selectedAssetTypes);
     if (newSelected.has(type)) {
@@ -453,7 +584,6 @@ export default function PortfolioSnapshotsAnalysis() {
     setSelectedAssetTypes(newSelected);
   };
   
-  // Toggle account filter
   const toggleAccount = (accountId) => {
     const newSelected = new Set(selectedAccounts);
     const accountIdStr = accountId.toString();
@@ -463,6 +593,23 @@ export default function PortfolioSnapshotsAnalysis() {
       newSelected.add(accountIdStr);
     }
     setSelectedAccounts(newSelected);
+  };
+  
+  // Load all data
+  const loadAllData = async () => {
+    setIsLoading(true);
+    try {
+      const response = await fetchWithAuth('/portfolio/snapshots/raw?days=365');
+      if (response.ok) {
+        const data = await response.json();
+        setRawData(data);
+        setDisplayDates(data.summary.dates);
+      }
+    } catch (err) {
+      console.error('Error loading all data:', err);
+    } finally {
+      setIsLoading(false);
+    }
   };
   
   if (isLoading && !rawData) {
@@ -495,10 +642,6 @@ export default function PortfolioSnapshotsAnalysis() {
   
   const { rows, totals, visibleDates } = processedData;
   
-  // Calculate latest snapshot comparison
-  const latestDate = visibleDates && visibleDates.length > 0 ? visibleDates[visibleDates.length - 1] : null;
-  const latestSnapshot = latestDate && rawData ? rawData.snapshots_by_date[latestDate] : null;
-  
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900">
       <Head>
@@ -525,41 +668,6 @@ export default function PortfolioSnapshotsAnalysis() {
             </button>
           </div>
         </div>
-        
-        {/* Summary Stats */}
-        {rawData && latestSnapshot && (
-          <div className="max-w-full mx-auto mb-6">
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              <div className="bg-gradient-to-br from-gray-800 to-gray-700 rounded-xl p-6 shadow-xl">
-                <div className="text-gray-400 text-sm mb-1">Total Value</div>
-                <div className="text-2xl font-bold text-white">{formatCurrency(latestSnapshot.total_value)}</div>
-                <div className="text-xs text-gray-500 mt-1">{latestSnapshot.position_count} positions</div>
-              </div>
-              
-              <div className="bg-gradient-to-br from-gray-800 to-gray-700 rounded-xl p-6 shadow-xl">
-                <div className="text-gray-400 text-sm mb-1">Cost Basis</div>
-                <div className="text-2xl font-bold text-white">{formatCurrency(latestSnapshot.total_cost_basis)}</div>
-                <div className="text-xs text-gray-500 mt-1">Total invested</div>
-              </div>
-              
-              <div className="bg-gradient-to-br from-gray-800 to-gray-700 rounded-xl p-6 shadow-xl">
-                <div className="text-gray-400 text-sm mb-1">Gain/Loss</div>
-                <div className={`text-2xl font-bold ${latestSnapshot.total_gain_loss >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                  {formatCurrency(latestSnapshot.total_gain_loss)}
-                </div>
-                <div className={`text-xs ${latestSnapshot.total_gain_loss >= 0 ? 'text-green-500' : 'text-red-500'} mt-1`}>
-                  {formatPercentage(latestSnapshot.total_gain_loss / latestSnapshot.total_cost_basis)}
-                </div>
-              </div>
-              
-              <div className="bg-gradient-to-br from-gray-800 to-gray-700 rounded-xl p-6 shadow-xl">
-                <div className="text-gray-400 text-sm mb-1">Annual Income</div>
-                <div className="text-2xl font-bold text-white">{formatCurrency(latestSnapshot.total_income)}</div>
-                <div className="text-xs text-gray-500 mt-1">Dividends & Interest</div>
-              </div>
-            </div>
-          </div>
-        )}
         
         {/* Controls */}
         <div className="max-w-full mx-auto mb-6">
@@ -638,52 +746,6 @@ export default function PortfolioSnapshotsAnalysis() {
               </div>
             </div>
             
-            {/* Filters Row */}
-            <div className="mt-4 space-y-2">
-              {/* Asset Type Filters */}
-              <div>
-                <label className="text-xs text-gray-400">Asset Types</label>
-                <div className="flex gap-2 mt-1 flex-wrap">
-                  {rawData?.summary.asset_types.map(type => (
-                    <button
-                      key={type}
-                      onClick={() => toggleAssetType(type)}
-                      className={`px-3 py-1 rounded-full text-xs transition-colors ${
-                        selectedAssetTypes.has(type)
-                          ? 'bg-opacity-30 text-white'
-                          : 'bg-gray-700 text-gray-500'
-                      }`}
-                      style={{
-                        backgroundColor: selectedAssetTypes.has(type) ? getAssetColor(type) : undefined
-                      }}
-                    >
-                      {type}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              
-              {/* Account Filters */}
-              <div>
-                <label className="text-xs text-gray-400">Accounts</label>
-                <div className="flex gap-2 mt-1 flex-wrap">
-                  {rawData?.summary.accounts.map(account => (
-                    <button
-                      key={account.id}
-                      onClick={() => toggleAccount(account.id)}
-                      className={`px-3 py-1 rounded-full text-xs transition-colors ${
-                        selectedAccounts.has(account.id.toString())
-                          ? 'bg-indigo-600 text-white'
-                          : 'bg-gray-700 text-gray-500'
-                      }`}
-                    >
-                      {account.name}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-            
             {/* Actions */}
             <div className="mt-4 flex justify-between items-center">
               <div className="flex gap-2">
@@ -696,7 +758,10 @@ export default function PortfolioSnapshotsAnalysis() {
                   Show Details
                 </button>
                 <button
-                  onClick={() => setExpandedGroups(new Set())}
+                  onClick={() => {
+                    setExpandedGroups(new Set());
+                    setExpandedPositions(new Set());
+                  }}
                   className="px-3 py-1 bg-gray-700 text-gray-400 hover:text-white rounded text-sm"
                 >
                   Collapse All
@@ -713,21 +778,33 @@ export default function PortfolioSnapshotsAnalysis() {
           </div>
         </div>
         
-        {/* Main Table */}
-        <div className="max-w-full mx-auto">
+        {/* Main Historical Table */}
+        <div className="max-w-full mx-auto mb-8">
+          <h2 className="text-xl font-bold text-white mb-4">Historical Position Values</h2>
           <div className="bg-gray-800 rounded-xl shadow-2xl overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead>
                   <tr className="bg-gray-900">
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider sticky left-0 bg-gray-900 z-10 min-w-[250px]">
-                      {groupBy === 'asset_type' ? 'Asset Type / Position' : 
-                       groupBy === 'account' ? 'Account / Position' : 
-                       'Sector / Position'}
+                      {groupBy === 'asset_type' ? 'Asset Type / Position / Tax Lot' : 
+                       groupBy === 'account' ? 'Account / Position / Tax Lot' : 
+                       'Sector / Position / Tax Lot'}
                     </th>
                     {visibleDates && visibleDates.map((date, idx) => (
-                      <th key={idx} className="px-4 py-3 text-right text-xs font-medium text-gray-400 uppercase tracking-wider min-w-[120px]">
-                        {formatDate(date)}
+                      <th 
+                        key={idx} 
+                        onClick={() => handleDateSort(date)}
+                        className="px-4 py-3 text-right text-xs font-medium text-gray-400 uppercase tracking-wider min-w-[120px] cursor-pointer hover:text-white"
+                      >
+                        <div className="flex items-center justify-end gap-1">
+                          {formatDate(date)}
+                          {sortColumn === date && (
+                            <span className="text-indigo-400">
+                              {sortDirection === 'desc' ? '↓' : '↑'}
+                            </span>
+                          )}
+                        </div>
                       </th>
                     ))}
                   </tr>
@@ -735,25 +812,47 @@ export default function PortfolioSnapshotsAnalysis() {
                 <tbody className="divide-y divide-gray-700">
                   {rows.map((row, rowIdx) => {
                     const isGroup = row.type === 'group';
-                    const rowKey = `${row.key}_${rowIdx}`;
+                    const isTaxLot = row.type === 'taxlot';
+                    const isPosition = !isGroup && !isTaxLot;
+                    const rowKey = row.key || `${row.parentKey}_${rowIdx}`;
+                    const hasLots = isPosition && taxLots[row.key] && taxLots[row.key].length > 1;
                     
                     return (
-                      <React.Fragment key={rowKey}>
-                        <tr 
-                          className={`${
-                            isGroup 
-                              ? 'bg-gray-850 hover:bg-gray-750 cursor-pointer' 
-                              : 'hover:bg-gray-750'
-                          } transition-colors`}
-                          onClick={isGroup ? () => toggleGroup(row.key) : undefined}
-                        >
-                          <td className={`px-4 py-2 sticky left-0 ${isGroup ? 'bg-gray-850' : 'bg-gray-800'}`}>
-                            <div className={`flex items-center ${isGroup ? '' : 'pl-6'}`}>
-                              {isGroup && (
-                                <span className="mr-2 text-gray-400">
-                                  {expandedGroups.has(row.key) ? '▼' : '▶'}
-                                </span>
-                              )}
+                      <tr 
+                        key={rowKey}
+                        className={`${
+                          isGroup ? 'bg-gray-850 hover:bg-gray-750' : 
+                          isTaxLot ? 'bg-gray-825' :
+                          'hover:bg-gray-750'
+                        } transition-colors`}
+                      >
+                        <td className={`px-4 py-2 sticky left-0 ${
+                          isGroup ? 'bg-gray-850' : 
+                          isTaxLot ? 'bg-gray-825' :
+                          'bg-gray-800'
+                        }`}>
+                          <div className={`flex items-center ${
+                            isGroup ? '' : 
+                            isTaxLot ? 'pl-12' :
+                            'pl-6'
+                          }`}>
+                            {isGroup && (
+                              <button
+                                onClick={() => toggleGroup(row.key)}
+                                className="mr-2 text-gray-400 hover:text-white"
+                              >
+                                {expandedGroups.has(row.key) ? '▼' : '▶'}
+                              </button>
+                            )}
+                            {isPosition && hasLots && (
+                              <button
+                                onClick={() => togglePosition(row.key)}
+                                className="mr-2 text-gray-400 hover:text-white"
+                              >
+                                {expandedPositions.has(row.key) ? '▼' : '▶'}
+                              </button>
+                            )}
+                            {!isTaxLot && (
                               <div 
                                 className="w-3 h-3 rounded-full mr-2"
                                 style={{ 
@@ -763,89 +862,102 @@ export default function PortfolioSnapshotsAnalysis() {
                                     : getAssetColor(row.asset_type) 
                                 }}
                               />
-                              <div className="flex-1">
-                                <div className="text-sm font-medium text-white">
-                                  {isGroup ? (
-                                    <span className="capitalize">{row.name}</span>
-                                  ) : (
-                                    <span>{row.identifier}</span>
-                                  )}
-                                </div>
-                                {!isGroup && (
-                                  <div className="text-xs text-gray-400">
-                                    {row.name}
-                                    {showDetails && (
-                                      <span>
-                                        {' • '}{row.account_name}
-                                        {row.sector && ` • ${row.sector}`}
-                                        {row.holding_term && ` • ${row.holding_term}`}
-                                      </span>
-                                    )}
-                                  </div>
-                                )}
-                                {isGroup && (
-                                  <div className="text-xs text-gray-400">
-                                    {row.children.length} positions
-                                    {row.institution && ` • ${row.institution}`}
-                                  </div>
+                            )}
+                            <div className="flex-1">
+                              <div className="text-sm font-medium text-white">
+                                {isGroup ? (
+                                  <span className="capitalize">{row.name}</span>
+                                ) : (
+                                  <span>{row.identifier}</span>
                                 )}
                               </div>
+                              {!isGroup && !isTaxLot && (
+                                <div className="text-xs text-gray-400">
+                                  {row.name}
+                                  {showDetails && (
+                                    <span>
+                                      {' • '}{row.account_name}
+                                      {row.sector && ` • ${row.sector}`}
+                                    </span>
+                                  )}
+                                </div>
+                              )}
+                              {isGroup && (
+                                <div className="text-xs text-gray-400">
+                                  {row.children.length} positions
+                                  {row.institution && ` • ${row.institution}`}
+                                </div>
+                              )}
+                              {isTaxLot && (
+                                <div className="text-xs text-gray-400">
+                                  {row.name}
+                                </div>
+                              )}
                             </div>
-                          </td>
-                          {visibleDates && visibleDates.map((date, idx) => {
-                            const data = row.values[date] || {};
-                            const prevDate = idx > 0 ? visibleDates[idx - 1] : null;
-                            const prevData = prevDate ? (row.values[prevDate] || {}) : {};
-                            
-                            let primaryValue, secondaryValue, changeValue;
-                            
-                            if (valueDisplay === 'current') {
-                              primaryValue = data.value;
-                              secondaryValue = showDetails && data.quantity ? `${data.quantity.toFixed(2)} @ $${data.price?.toFixed(2) || '0'}` : null;
-                              changeValue = prevData.value ? ((data.value - prevData.value) / prevData.value) * 100 : 0;
-                            } else if (valueDisplay === 'cost_basis') {
-                              primaryValue = data.costBasis;
-                              secondaryValue = showDetails && data.costPerUnit ? `@ $${data.costPerUnit.toFixed(2)}` : null;
-                              changeValue = prevData.costBasis ? ((data.costBasis - prevData.costBasis) / prevData.costBasis) * 100 : 0;
-                            } else if (valueDisplay === 'gain_loss') {
-                              primaryValue = data.gainLoss;
-                              secondaryValue = data.gainLossPct;
-                              changeValue = null; // Don't show change for gain/loss
-                            }
-                            
+                          </div>
+                        </td>
+                        {visibleDates && visibleDates.map((date, idx) => {
+                          if (isTaxLot) {
+                            // Tax lots show static values
                             return (
                               <td key={idx} className="px-4 py-2 text-right">
-                                <div className={`text-sm ${
-                                  valueDisplay === 'gain_loss' 
-                                    ? (primaryValue >= 0 ? 'text-green-400' : 'text-red-400')
-                                    : 'text-white'
-                                }`}>
-                                  {formatCurrency(primaryValue)}
+                                <div className="text-sm text-gray-400">
+                                  {formatCurrency(row.current_value)}
                                 </div>
-                                {secondaryValue && (
-                                  <div className={`text-xs ${
-                                    valueDisplay === 'gain_loss' 
-                                      ? (secondaryValue >= 0 ? 'text-green-500' : 'text-red-500')
-                                      : 'text-gray-500'
-                                  }`}>
-                                    {valueDisplay === 'gain_loss' ? formatPercentage(secondaryValue) : secondaryValue}
-                                  </div>
-                                )}
-                                {changeValue !== null && changeValue !== 0 && showDetails && (
-                                  <div className={`text-xs ${changeValue >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                                    {formatPercentage(changeValue)}
-                                  </div>
-                                )}
-                                {showDetails && !isGroup && data.dividendYield > 0 && (
-                                  <div className="text-xs text-amber-500">
-                                    Yield: {formatPercentage(data.dividendYield)}
-                                  </div>
-                                )}
+                                <div className="text-xs text-gray-500">
+                                  {row.quantity.toFixed(2)} shares
+                                </div>
                               </td>
                             );
-                          })}
-                        </tr>
-                      </React.Fragment>
+                          }
+                          
+                          const data = row.values[date] || {};
+                          const prevDate = idx > 0 ? visibleDates[idx - 1] : null;
+                          const prevData = prevDate ? (row.values[prevDate] || {}) : {};
+                          
+                          let primaryValue, secondaryValue, changeValue;
+                          
+                          if (valueDisplay === 'current') {
+                            primaryValue = data.value;
+                            secondaryValue = showDetails && data.quantity ? `${data.quantity.toFixed(2)} @ $${data.price?.toFixed(2) || '0'}` : null;
+                            changeValue = prevData.value ? ((data.value - prevData.value) / prevData.value) * 100 : 0;
+                          } else if (valueDisplay === 'cost_basis') {
+                            primaryValue = data.costBasis;
+                            secondaryValue = showDetails && data.costPerUnit ? `@ $${data.costPerUnit.toFixed(2)}` : null;
+                            changeValue = prevData.costBasis ? ((data.costBasis - prevData.costBasis) / prevData.costBasis) * 100 : 0;
+                          } else if (valueDisplay === 'gain_loss') {
+                            primaryValue = data.gainLoss;
+                            secondaryValue = data.gainLossPct;
+                            changeValue = null;
+                          }
+                          
+                          return (
+                            <td key={idx} className="px-4 py-2 text-right">
+                              <div className={`text-sm ${
+                                valueDisplay === 'gain_loss' 
+                                  ? (primaryValue >= 0 ? 'text-green-400' : 'text-red-400')
+                                  : 'text-white'
+                              }`}>
+                                {formatCurrency(primaryValue)}
+                              </div>
+                              {secondaryValue && (
+                                <div className={`text-xs ${
+                                  valueDisplay === 'gain_loss' 
+                                    ? (secondaryValue >= 0 ? 'text-green-500' : 'text-red-500')
+                                    : 'text-gray-500'
+                                }`}>
+                                  {valueDisplay === 'gain_loss' ? formatPercentage(secondaryValue) : secondaryValue}
+                                </div>
+                              )}
+                              {changeValue !== null && changeValue !== 0 && showDetails && (
+                                <div className={`text-xs ${changeValue >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                  {formatPercentage(changeValue)}
+                                </div>
+                              )}
+                            </td>
+                          );
+                        })}
+                      </tr>
                     );
                   })}
                   
@@ -859,9 +971,6 @@ export default function PortfolioSnapshotsAnalysis() {
                     </td>
                     {visibleDates && visibleDates.map((date, idx) => {
                       const total = totals[date] || {};
-                      const prevDate = idx > 0 ? visibleDates[idx - 1] : null;
-                      const prevTotal = prevDate ? (totals[prevDate] || {}) : {};
-                      const change = total.value && prevTotal.value ? ((total.value - prevTotal.value) / prevTotal.value) * 100 : 0;
                       
                       return (
                         <td key={idx} className="px-4 py-3 text-right">
@@ -876,23 +985,203 @@ export default function PortfolioSnapshotsAnalysis() {
                           </div>
                           {valueDisplay === 'gain_loss' && total.costBasis > 0 && (
                             <div className={`text-xs ${total.gainLoss >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                              {formatPercentage(total.gainLoss / total.costBasis)}
-                            </div>
-                          )}
-                          {valueDisplay === 'current' && change !== 0 && showDetails && (
-                            <div className={`text-xs ${change >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                              {formatPercentage(change)}
-                            </div>
-                          )}
-                          {showDetails && (
-                            <div className="text-xs text-gray-500">
-                              {total.positionCount} positions
+                              {formatPercentage((total.gainLoss / total.costBasis) * 100)}
                             </div>
                           )}
                         </td>
                       );
                     })}
                   </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+        
+        {/* Unified vs Snapshot Comparison */}
+        {unifiedVsSnapshotData.length > 0 && (
+          <div className="max-w-full mx-auto mb-8">
+            <h2 className="text-xl font-bold text-white mb-4">
+              Live Positions vs Latest Snapshot
+              <span className="text-sm font-normal text-gray-400 ml-2">
+                Differences between real-time data and {formatFullDate(displayDates[displayDates.length - 1])}
+              </span>
+            </h2>
+            <div className="bg-gray-800 rounded-xl shadow-2xl overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="bg-gray-900">
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
+                        Position
+                      </th>
+                      <th className="px-4 py-3 text-right text-xs font-medium text-gray-400 uppercase tracking-wider">
+                        Live Value
+                      </th>
+                      <th className="px-4 py-3 text-right text-xs font-medium text-gray-400 uppercase tracking-wider">
+                        Snapshot Value
+                      </th>
+                      <th className="px-4 py-3 text-right text-xs font-medium text-gray-400 uppercase tracking-wider">
+                        Difference
+                      </th>
+                      <th className="px-4 py-3 text-right text-xs font-medium text-gray-400 uppercase tracking-wider">
+                        Change %
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-700">
+                    {unifiedVsSnapshotData.map((row, idx) => (
+                      <tr key={idx} className="hover:bg-gray-750">
+                        <td className="px-4 py-3">
+                          <div>
+                            <div className="text-sm font-medium text-white">{row.identifier}</div>
+                            <div className="text-xs text-gray-400">
+                              {row.name} • {row.account_name}
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3 text-right">
+                          <div className="text-sm text-white">{formatCurrency(row.unifiedValue)}</div>
+                          <div className="text-xs text-gray-500">
+                            {row.unifiedQuantity.toFixed(2)} @ ${row.unifiedPrice.toFixed(2)}
+                          </div>
+                        </td>
+                        <td className="px-4 py-3 text-right">
+                          <div className="text-sm text-gray-300">{formatCurrency(row.snapshotValue)}</div>
+                          <div className="text-xs text-gray-500">
+                            {row.snapshotQuantity.toFixed(2)} @ ${row.snapshotPrice.toFixed(2)}
+                          </div>
+                        </td>
+                        <td className={`px-4 py-3 text-right text-sm ${
+                          row.deltaValue >= 0 ? 'text-green-400' : 'text-red-400'
+                        }`}>
+                          {formatCurrency(row.deltaValue)}
+                        </td>
+                        <td className={`px-4 py-3 text-right text-sm ${
+                          row.deltaPercent >= 0 ? 'text-green-400' : 'text-red-400'
+                        }`}>
+                          {formatPercentage(row.deltaPercent)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
+        
+        {/* Date Comparison Table */}
+        <div className="max-w-full mx-auto">
+          <h2 className="text-xl font-bold text-white mb-4">Position Comparison Between Dates</h2>
+          
+          {/* Date Selectors */}
+          <div className="bg-gray-800 rounded-lg p-4 mb-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="text-xs text-gray-400">From Date</label>
+                <select
+                  value={compareDate1 || ''}
+                  onChange={(e) => setCompareDate1(e.target.value)}
+                  className="w-full px-3 py-2 bg-gray-700 text-white rounded-lg text-sm"
+                >
+                  {displayDates.map(date => (
+                    <option key={date} value={date}>{formatFullDate(date)}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="text-xs text-gray-400">To Date</label>
+                <select
+                  value={compareDate2 || ''}
+                  onChange={(e) => setCompareDate2(e.target.value)}
+                  className="w-full px-3 py-2 bg-gray-700 text-white rounded-lg text-sm"
+                >
+                  {displayDates.map(date => (
+                    <option key={date} value={date}>{formatFullDate(date)}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          </div>
+          
+          {/* Comparison Table */}
+          <div className="bg-gray-800 rounded-xl shadow-2xl overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="bg-gray-900">
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
+                      Position
+                    </th>
+                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-400 uppercase tracking-wider">
+                      {compareDate1 && formatDate(compareDate1)}
+                    </th>
+                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-400 uppercase tracking-wider">
+                      {compareDate2 && formatDate(compareDate2)}
+                    </th>
+                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-400 uppercase tracking-wider">
+                      Change
+                    </th>
+                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-400 uppercase tracking-wider">
+                      Change %
+                    </th>
+                    <th className="px-4 py-3 text-center text-xs font-medium text-gray-400 uppercase tracking-wider">
+                      Status
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-700">
+                  {dateComparisonData.map((row, idx) => (
+                    <tr key={idx} className="hover:bg-gray-750">
+                      <td className="px-4 py-3">
+                        <div>
+                          <div className="text-sm font-medium text-white">{row.identifier}</div>
+                          <div className="text-xs text-gray-400">
+                            {row.name} • {row.account_name}
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        <div className="text-sm text-white">{formatCurrency(row.date1Value)}</div>
+                        {row.date1Quantity > 0 && (
+                          <div className="text-xs text-gray-500">
+                            {row.date1Quantity.toFixed(2)} @ ${row.date1Price.toFixed(2)}
+                          </div>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        <div className="text-sm text-white">{formatCurrency(row.date2Value)}</div>
+                        {row.date2Quantity > 0 && (
+                          <div className="text-xs text-gray-500">
+                            {row.date2Quantity.toFixed(2)} @ ${row.date2Price.toFixed(2)}
+                          </div>
+                        )}
+                      </td>
+                      <td className={`px-4 py-3 text-right text-sm ${
+                        row.deltaValue >= 0 ? 'text-green-400' : 'text-red-400'
+                      }`}>
+                        {formatCurrency(row.deltaValue)}
+                      </td>
+                      <td className={`px-4 py-3 text-right text-sm ${
+                        row.deltaPercent >= 0 ? 'text-green-400' : 'text-red-400'
+                      }`}>
+                        {formatPercentage(row.deltaPercent)}
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        {row.isNew && (
+                          <span className="text-xs bg-green-900 text-green-300 px-2 py-1 rounded-full">
+                            New
+                          </span>
+                        )}
+                        {row.isSold && (
+                          <span className="text-xs bg-red-900 text-red-300 px-2 py-1 rounded-full">
+                            Sold
+                          </span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
                 </tbody>
               </table>
             </div>
