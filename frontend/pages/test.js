@@ -111,7 +111,7 @@ const Report = () => {
       setLoading(true);
       try {
         // Fetch snapshot data
-        const snapResponse = await fetchWithAuth(`/api/portfolio/snapshots/raw?days=${selectedTimeframe}`);
+        const snapResponse = await fetchWithAuth(`/portfolio/snapshots/raw?days=${selectedTimeframe}`);
         if (snapResponse.ok) {
           const snapData = await snapResponse.json();
           setRawData(snapData);
@@ -130,7 +130,7 @@ const Report = () => {
         }
 
         // Fetch unified positions
-        const unifiedResponse = await fetchWithAuth('/api/positions/unified');
+        const unifiedResponse = await fetchWithAuth('/positions/unified');
         if (unifiedResponse.ok) {
           const unifiedData = await unifiedResponse.json();
           setUnifiedPositions(unifiedData.positions || []);
