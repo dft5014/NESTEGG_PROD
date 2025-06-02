@@ -3,46 +3,101 @@ import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import Head from 'next/head';
 import { useRouter } from 'next/router';
 import { fetchWithAuth } from '@/utils/api';
-import { 
-  Download, 
-  Filter, 
-  TrendingUp, 
-  TrendingDown, 
-  Calendar,
-  Eye,
-  EyeOff,
-  ChevronDown,
-  ChevronRight,
-  AlertCircle,
-  Save,
-  FileText,
-  Settings,
-  BarChart3,
-  PieChart,
-  Activity,
-  DollarSign,
-  Percent,
-  Clock,
-  Search,
-  X,
-  Plus,
-  Minus,
-  ChevronUp,
-  Info,
-  CheckCircle,
-  XCircle,
-  ArrowUpRight,
-  ArrowDownRight,
-  Maximize2,
-  Minimize2,
-  BookOpen,
-  Target,
-  Shield,
-  Zap
-} from 'lucide-react';
+
+// Import Lucide icons individually to avoid potential bundling issues
+import { Download } from 'lucide-react';
+import { Filter } from 'lucide-react';
+import { TrendingUp } from 'lucide-react';
+import { TrendingDown } from 'lucide-react';
+import { Calendar } from 'lucide-react';
+import { Eye } from 'lucide-react';
+import { EyeOff } from 'lucide-react';
+import { ChevronDown } from 'lucide-react';
+import { ChevronRight } from 'lucide-react';
+import { AlertCircle } from 'lucide-react';
+import { Save } from 'lucide-react';
+import { FileText } from 'lucide-react';
+import { Settings } from 'lucide-react';
+import { BarChart3 } from 'lucide-react';
+import { PieChart } from 'lucide-react';
+import { Activity } from 'lucide-react';
+import { DollarSign } from 'lucide-react';
+import { Percent } from 'lucide-react';
+import { Clock } from 'lucide-react';
+import { Search } from 'lucide-react';
+import { X } from 'lucide-react';
+import { Plus } from 'lucide-react';
+import { Minus } from 'lucide-react';
+import { ChevronUp } from 'lucide-react';
+import { Info } from 'lucide-react';
+import { CheckCircle } from 'lucide-react';
+import { XCircle } from 'lucide-react';
+import { ArrowUpRight } from 'lucide-react';
+import { ArrowDownRight } from 'lucide-react';
+import { Maximize2 } from 'lucide-react';
+import { Minimize2 } from 'lucide-react';
+import { BookOpen } from 'lucide-react';
+import { Target } from 'lucide-react';
+import { Shield } from 'lucide-react';
+import { Zap } from 'lucide-react';
+
+// Format utilities - moved outside component to avoid recreation
+const formatCurrency = (value, compact = false) => {
+  if (value === null || value === undefined || value === 0) return '-';
+  
+  if (compact && Math.abs(value) >= 1000) {
+    const formatter = new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
+      notation: 'compact',
+      maximumFractionDigits: 1
+    });
+    return formatter.format(value);
+  }
+  
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0
+  }).format(value);
+};
+
+const formatPercentage = (value, showSign = true) => {
+  if (value === null || value === undefined) return '-';
+  const sign = showSign && value > 0 ? '+' : '';
+  return `${sign}${value.toFixed(2)}%`;
+};
+
+const formatDate = (dateStr, format = 'short') => {
+  const date = new Date(dateStr);
+  if (format === 'short') {
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  } else if (format === 'full') {
+    return date.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+  } else if (format === 'time') {
+    return date.toLocaleString('en-US', { 
+      month: 'short', 
+      day: 'numeric', 
+      hour: '2-digit', 
+      minute: '2-digit' 
+    });
+  }
+};
+
+const formatNumber = (value, decimals = 2) => {
+  if (value === null || value === undefined) return '-';
+  return new Intl.NumberFormat('en-US', {
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals
+  }).format(value);
+};
 
 export default function PortfolioSnapshotsAnalysis() {
   const router = useRouter();
+  const chartContainerRef = useRef(null);
+  
+  // Initialize all state variables first to avoid hoisting issues
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
   const [rawData, setRawData] = useState(null);
@@ -73,13 +128,12 @@ export default function PortfolioSnapshotsAnalysis() {
   const [selectedMetric, setSelectedMetric] = useState('value');
   const [showRiskMetrics, setShowRiskMetrics] = useState(false);
   const [alertThresholds, setAlertThresholds] = useState({ gain: 20, loss: -10 });
-  const [viewMode, setViewMode] = useState('table'); // 'table', 'cards', 'chart'
-  const [chartType, setChartType] = useState('line'); // 'line', 'bar', 'area'
+  const [viewMode, setViewMode] = useState('table');
+  const [chartType, setChartType] = useState('line');
   const [exportFormat, setExportFormat] = useState('csv');
   const [customColumns, setCustomColumns] = useState(['value', 'gain_loss', 'gain_loss_pct']);
   const [dataIntegrityIssues, setDataIntegrityIssues] = useState([]);
   const [performanceAttribution, setPerformanceAttribution] = useState(null);
-  const chartContainerRef = useRef(null);
   
   // Enhanced date range options
   const dateRangeOptions = [
@@ -476,9 +530,11 @@ export default function PortfolioSnapshotsAnalysis() {
         setTaxLots(lots);
 
         // Load saved views from localStorage
-        const saved = localStorage.getItem('portfolioAnalysisViews');
-        if (saved) {
-          setSavedViews(JSON.parse(saved));
+        if (typeof window !== 'undefined') {
+          const saved = localStorage.getItem('portfolioAnalysisViews');
+          if (saved) {
+            setSavedViews(JSON.parse(saved));
+          }
         }
 
         // Simulate benchmark data (S&P 500)
@@ -814,7 +870,7 @@ export default function PortfolioSnapshotsAnalysis() {
   }, [rawData, compareDate1, compareDate2, selectedAssetTypes, selectedAccounts, searchTerm]);
 
   // Save/Load views
-  const saveCurrentView = (name) => {
+  const saveCurrentView = useCallback((name) => {
     const view = {
       id: Date.now(),
       name,
@@ -829,13 +885,17 @@ export default function PortfolioSnapshotsAnalysis() {
       compareDate2
     };
 
-    const newViews = [...savedViews, view];
-    setSavedViews(newViews);
-    localStorage.setItem('portfolioAnalysisViews', JSON.stringify(newViews));
+    setSavedViews(prev => {
+      const newViews = [...prev, view];
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('portfolioAnalysisViews', JSON.stringify(newViews));
+      }
+      return newViews;
+    });
     setCurrentView(view);
-  };
+  }, [dateRangeOption, groupBy, valueDisplay, selectedAssetTypes, selectedAccounts, showDetails, customColumns, compareDate1, compareDate2]);
 
-  const loadView = (view) => {
+  const loadView = useCallback((view) => {
     setDateRangeOption(view.dateRange);
     setGroupBy(view.groupBy);
     setValueDisplay(view.valueDisplay);
@@ -846,19 +906,23 @@ export default function PortfolioSnapshotsAnalysis() {
     setCompareDate1(view.compareDate1);
     setCompareDate2(view.compareDate2);
     setCurrentView(view);
-  };
+  }, []);
 
-  const deleteView = (viewId) => {
-    const newViews = savedViews.filter(v => v.id !== viewId);
-    setSavedViews(newViews);
-    localStorage.setItem('portfolioAnalysisViews', JSON.stringify(newViews));
+  const deleteView = useCallback((viewId) => {
+    setSavedViews(prev => {
+      const newViews = prev.filter(v => v.id !== viewId);
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('portfolioAnalysisViews', JSON.stringify(newViews));
+      }
+      return newViews;
+    });
     if (currentView?.id === viewId) {
       setCurrentView(null);
     }
-  };
+  }, [currentView]);
 
   // Export functionality
-  const exportData = () => {
+  const exportData = useCallback(() => {
     const { rows, visibleDates } = processedData;
     
     if (exportFormat === 'csv') {
@@ -889,7 +953,7 @@ export default function PortfolioSnapshotsAnalysis() {
       a.click();
       URL.revokeObjectURL(url);
     }
-  };
+  }, [processedData, exportFormat]);
 
   // Render loading state
   if (isLoading && !rawData) {
