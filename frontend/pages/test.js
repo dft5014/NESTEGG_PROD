@@ -1226,7 +1226,7 @@ const Report = () => {
                           y: {
                             ticks: {
                               callback: function(value) {
-                                return ' + value.toLocaleString();
+                                return '$' + value.toLocaleString();
                               },
                               color: darkMode ? '#9ca3af' : '#6b7280'
                             },
