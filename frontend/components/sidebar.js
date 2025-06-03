@@ -59,7 +59,7 @@ const Sidebar = () => {
     { href: "/AccountReconciliation", label: "Account Reconciliations", icon: <CheckSquare size={24} className={iconClasses} /> },
     { href: "/todo", label: "To Do List", icon: <CheckSquare size={24} className={iconClasses} /> },
     { href: "/data-summary", label: "Data Summary", icon: <Database size={24} className={iconClasses} /> },
-    { href: "/watchlist", label: "Watchlist", icon: <Info size={24} className={iconClasses} /> },
+    { href: "/portfolio-command-center", label: "Portfolio Command Center", icon: <Info size={24} className={iconClasses} /> },
     { 
       label: "Testing",
       items: [
