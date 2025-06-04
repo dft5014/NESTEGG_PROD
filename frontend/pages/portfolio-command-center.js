@@ -240,7 +240,7 @@ const MetricCard = ({ title, value, change, trend, icon, color, format = 'curren
                     {isPositive ? '↑' : '↓'}
                   </motion.span>
                   {formatPercentage(Math.abs(change), false)}
-                </span>
+                </motion.span>
               )}
             </div>
           </div>
