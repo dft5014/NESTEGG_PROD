@@ -6019,6 +6019,179 @@ async def get_portfolio_snapshots(
             detail=f"Failed to fetch portfolio snapshots: {str(e)}"
         )
 
+@app.get("/portfolio/snapshots/raw")
+async def get_portfolio_snapshots_raw(
+    start_date: Optional[date] = Query(None, description="Start date for snapshots"),
+    end_date: Optional[date] = Query(None, description="End date for snapshots"),
+    days: Optional[int] = Query(90, description="Number of days to fetch if no date range specified"),
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Get raw portfolio snapshot data with minimal processing.
+    Returns individual position-level snapshots grouped by date.
+    """
+    try:
+        user_id = current_user["id"]
+        
+        # Determine date range
+        if not end_date:
+            end_date = datetime.now().date()
+        
+        if not start_date:
+            if days:
+                start_date = end_date - timedelta(days=days)
+            else:
+                # Get earliest snapshot date
+                earliest_query = """
+                SELECT MIN(snapshot_date) FROM portfolio_daily_snapshots
+                WHERE user_id = :user_id
+                """
+                earliest_result = await database.fetch_one(earliest_query, {"user_id": user_id})
+                start_date = earliest_result[0] if earliest_result and earliest_result[0] else end_date - timedelta(days=365)
+        
+        # Get all snapshots - NO JOIN NEEDED!
+        query = """
+        SELECT 
+            id,
+            original_id,
+            snapshot_date,
+            snapshot_time,
+            account_id,
+            account_name,
+            institution,
+            type as account_type,
+            account_category,
+            asset_type,
+            identifier,
+            name,
+            quantity,
+            current_value,
+            total_cost_basis,
+            gain_loss_amt,
+            gain_loss_pct,
+            current_price_per_unit,
+            purchase_date,
+            position_age,
+            holding_term,
+            sector,
+            industry,
+            dividend_rate,
+            dividend_yield,
+            position_income,
+            cost_per_unit,
+            price_updated_at,
+            updated_at
+        FROM portfolio_daily_snapshots
+        WHERE 
+            user_id = :user_id AND
+            snapshot_date BETWEEN :start_date AND :end_date
+        ORDER BY snapshot_date DESC, asset_type, identifier
+        """
+        
+        snapshots = await database.fetch_all(
+            query, 
+            {
+                "user_id": user_id,
+                "start_date": start_date,
+                "end_date": end_date
+            }
+        )
+        
+        # Convert to dict and organize by date
+        snapshots_by_date = {}
+        all_positions = set()  # Track unique position identifiers
+        asset_types = set()
+        accounts = set()
+        
+        for snapshot in snapshots:
+            date_str = str(snapshot["snapshot_date"])
+            position_key = f"{snapshot['asset_type']}|{snapshot['identifier']}|{snapshot['account_id']}"
+            all_positions.add(position_key)
+            asset_types.add(snapshot['asset_type'])
+            accounts.add(f"{snapshot['account_id']}|{snapshot['account_name']}|{snapshot['institution']}")
+            
+            if date_str not in snapshots_by_date:
+                snapshots_by_date[date_str] = {
+                    "date": date_str,
+                    "positions": {},
+                    "total_value": 0,
+                    "total_cost_basis": 0,
+                    "total_gain_loss": 0,
+                    "total_income": 0,
+                    "position_count": 0
+                }
+            
+            # Store position data with all fields
+            position_data = {
+                "id": snapshot["id"],
+                "original_id": snapshot["original_id"],
+                "account_id": snapshot["account_id"],
+                "account_name": snapshot["account_name"],
+                "institution": snapshot["institution"],
+                "account_type": snapshot["account_type"],
+                "account_category": snapshot["account_category"],
+                "asset_type": snapshot["asset_type"],
+                "identifier": snapshot["identifier"],
+                "name": snapshot["name"],
+                "quantity": float(snapshot["quantity"]) if snapshot["quantity"] else 0,
+                "current_price": float(snapshot["current_price_per_unit"]) if snapshot["current_price_per_unit"] else 0,
+                "current_value": float(snapshot["current_value"]) if snapshot["current_value"] else 0,
+                "total_cost_basis": float(snapshot["total_cost_basis"]) if snapshot["total_cost_basis"] else 0,
+                "gain_loss_amt": float(snapshot["gain_loss_amt"]) if snapshot["gain_loss_amt"] else 0,
+                "gain_loss_pct": float(snapshot["gain_loss_pct"]) if snapshot["gain_loss_pct"] else 0,
+                "cost_per_unit": float(snapshot["cost_per_unit"]) if snapshot["cost_per_unit"] else 0,
+                "position_income": float(snapshot["position_income"]) if snapshot["position_income"] else 0,
+                "purchase_date": str(snapshot["purchase_date"]) if snapshot["purchase_date"] else None,
+                "position_age": snapshot["position_age"],
+                "holding_term": snapshot["holding_term"],
+                "sector": snapshot["sector"],
+                "industry": snapshot["industry"],
+                "dividend_rate": float(snapshot["dividend_rate"]) if snapshot["dividend_rate"] else 0,
+                "dividend_yield": float(snapshot["dividend_yield"]) if snapshot["dividend_yield"] else 0,
+                "price_updated_at": str(snapshot["price_updated_at"]) if snapshot["price_updated_at"] else None
+            }
+            
+            snapshots_by_date[date_str]["positions"][position_key] = position_data
+            snapshots_by_date[date_str]["total_value"] += position_data["current_value"]
+            snapshots_by_date[date_str]["total_cost_basis"] += position_data["total_cost_basis"]
+            snapshots_by_date[date_str]["total_gain_loss"] += position_data["gain_loss_amt"]
+            snapshots_by_date[date_str]["total_income"] += position_data["position_income"]
+            snapshots_by_date[date_str]["position_count"] += 1
+        
+        # Get summary statistics
+        dates = sorted(snapshots_by_date.keys())
+        
+        # Parse account info
+        account_list = []
+        for acc_str in accounts:
+            parts = acc_str.split('|')
+            account_list.append({
+                "id": int(parts[0]),
+                "name": parts[1],
+                "institution": parts[2]
+            })
+        
+        summary = {
+            "start_date": start_date.isoformat(),
+            "end_date": end_date.isoformat(),
+            "total_dates": len(dates),
+            "total_records": len(snapshots),
+            "unique_positions": len(all_positions),
+            "asset_types": sorted(list(asset_types)),
+            "accounts": sorted(account_list, key=lambda x: x['name']),
+            "dates": dates
+        }
+        
+        return {
+            "summary": summary,
+            "snapshots_by_date": snapshots_by_date,
+            "all_positions": sorted(list(all_positions))
+        }
+        
+    except Exception as e:
+        logger.error(f"Error fetching raw snapshots: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 # ----- Potentially Delete -----
 
 
