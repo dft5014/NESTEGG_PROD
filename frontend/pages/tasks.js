@@ -1,66 +1,78 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { CheckCircle2, Circle, Clock, Calendar, DollarSign, Zap, Tag, FolderOpen, Plus, Search, Filter, ChevronDown, ChevronRight, MoreVertical, Trash2, Edit2, Copy, Link2, MapPin, Smartphone, TrendingUp, Target, Brain, Coffee, Moon, Sun, Briefcase, Home, Heart, GraduationCap, ShoppingCart, Receipt, PiggyBank, X, Check, AlertCircle, Activity, BarChart3, Sparkles, Trophy, Flame, ArrowRight, Archive, Eye, EyeOff, Repeat, Star, Flag, Users, ChevronUp, Layers, Timer, BatteryLow, Battery, BatteryFull, Wind, Gauge, CalendarClock, ListTodo, Lightbulb, ArrowUpRight, Coins, Wallet, TrendingDown, Shield, RefreshCw, FileText, Calculator } from 'lucide-react';
-import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, BarChart, Bar, XAxis, YAxis, CartesianGrid, LineChart, Line, Area, AreaChart } from 'recharts';
+import { CheckCircle2, Circle, Clock, Calendar, DollarSign, Zap, Tag, Plus, Search, ChevronDown, ChevronRight, MoreVertical, Trash2, Edit2, X, Check, AlertCircle, Activity, Trophy, Timer, BatteryLow, Battery, BatteryFull, Gauge, ListTodo, Lightbulb, ArrowRight, Target, Briefcase, Home, Heart, GraduationCap, ShoppingCart, Receipt, TrendingUp, Users, ChevronUp, Flag, Star, Smartphone, RefreshCw, BarChart3, PieChart as PieChartIcon, Layers } from 'lucide-react';
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts';
 import { fetchWithAuth } from '@/utils/api';
-import { formatCurrency, formatPercentage } from '@/utils/formatters';
+import { formatCurrency } from '@/utils/formatters';
 
 const TodoDashboard = () => {
   // State Management
   const [tasks, setTasks] = useState([]);
-  const [groups, setGroups] = useState([]);
-  const [tags, setTags] = useState([]);
+  const [categories, setCategories] = useState([]);
   const [stats, setStats] = useState(null);
-  const [productivityData, setProductivityData] = useState([]);
   const [suggestions, setSuggestions] = useState([]);
   const [selectedTask, setSelectedTask] = useState(null);
   const [showNewTask, setShowNewTask] = useState(false);
   const [filters, setFilters] = useState({
     status: [],
     priority: [],
-    category: [],
+    category_id: null,
+    tags: [],
     search: '',
-    view: 'all' // all, today, week, overdue, financial, mobile
+    view: 'all'
   });
   const [sortBy, setSortBy] = useState('due_date');
-  const [viewMode, setViewMode] = useState('list'); // list, kanban, calendar
   const [suggestionContext, setSuggestionContext] = useState('now');
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
-  // Constants with NestEgg color scheme
-  const categories = {
-    work: { icon: Briefcase, color: 'indigo', gradient: 'from-indigo-500 to-indigo-600' },
-    personal: { icon: Home, color: 'blue', gradient: 'from-blue-500 to-blue-600' },
-    financial: { icon: DollarSign, color: 'green', gradient: 'from-green-500 to-green-600' },
-    health: { icon: Heart, color: 'red', gradient: 'from-red-500 to-red-600' },
-    home: { icon: Home, color: 'purple', gradient: 'from-purple-500 to-purple-600' },
-    family: { icon: Users, color: 'pink', gradient: 'from-pink-500 to-pink-600' },
-    learning: { icon: GraduationCap, color: 'yellow', gradient: 'from-yellow-500 to-yellow-600' },
-    shopping: { icon: ShoppingCart, color: 'orange', gradient: 'from-orange-500 to-orange-600' },
-    bills: { icon: Receipt, color: 'rose', gradient: 'from-rose-500 to-rose-600' },
-    investments: { icon: TrendingUp, color: 'emerald', gradient: 'from-emerald-500 to-emerald-600' },
-    other: { icon: Layers, color: 'gray', gradient: 'from-gray-500 to-gray-600' }
+  // Icon mapping for categories
+  const categoryIcons = {
+    'briefcase': Briefcase,
+    'home': Home,
+    'dollar-sign': DollarSign,
+    'heart': Heart,
+    'users': Users,
+    'graduation-cap': GraduationCap,
+    'shopping-cart': ShoppingCart,
+    'receipt': Receipt,
+    'trending-up': TrendingUp,
+    'layers': Layers
   };
 
   const priorities = {
-    critical: { icon: AlertCircle, color: 'red', label: 'Critical', gradient: 'from-red-600 to-red-700' },
-    high: { icon: ChevronUp, color: 'orange', label: 'High', gradient: 'from-orange-500 to-orange-600' },
-    medium: { icon: Flag, color: 'yellow', label: 'Medium', gradient: 'from-yellow-500 to-yellow-600' },
-    low: { icon: ChevronDown, color: 'blue', label: 'Low', gradient: 'from-blue-500 to-blue-600' },
-    someday: { icon: Star, color: 'gray', label: 'Someday', gradient: 'from-gray-500 to-gray-600' }
+    critical: { icon: AlertCircle, color: 'red', label: 'Critical' },
+    high: { icon: ChevronUp, color: 'orange', label: 'High' },
+    medium: { icon: Flag, color: 'yellow', label: 'Medium' },
+    low: { icon: ChevronDown, color: 'blue', label: 'Low' }
   };
 
   const energyLevels = {
-    high: { icon: BatteryFull, color: 'green', label: 'High Energy', gradient: 'from-green-500 to-green-600' },
-    medium: { icon: Battery, color: 'yellow', label: 'Medium Energy', gradient: 'from-yellow-500 to-yellow-600' },
-    low: { icon: BatteryLow, color: 'orange', label: 'Low Energy', gradient: 'from-orange-500 to-orange-600' },
-    minimal: { icon: Wind, color: 'blue', label: 'Minimal Effort', gradient: 'from-blue-400 to-blue-500' }
+    high: { icon: BatteryFull, color: 'green', label: 'High Energy' },
+    medium: { icon: Battery, color: 'yellow', label: 'Medium Energy' },
+    low: { icon: BatteryLow, color: 'orange', label: 'Low Energy' },
+    minimal: { icon: Gauge, color: 'blue', label: 'Minimal Effort' }
   };
 
   // Load initial data
   useEffect(() => {
+    loadCategories();
+  }, []);
+
+  useEffect(() => {
     loadDashboardData();
-  }, [filters, sortBy]);
+  }, [filters, sortBy, suggestionContext]);
+
+  const loadCategories = async () => {
+    try {
+      const response = await fetchWithAuth('/api/categories');
+      if (response.ok) {
+        const data = await response.json();
+        setCategories(data);
+      }
+    } catch (error) {
+      console.error('Failed to load categories:', error);
+    }
+  };
 
   const loadDashboardData = async () => {
     setLoading(true);
@@ -73,16 +85,23 @@ const TodoDashboard = () => {
       });
 
       if (filters.search) params.append('search', filters.search);
-      if (filters.status.length) filters.status.forEach(s => params.append('status', s));
-      if (filters.priority.length) filters.priority.forEach(p => params.append('priority', p));
-      if (filters.category.length) filters.category.forEach(c => params.append('category', c));
+      filters.status.forEach(s => params.append('status', s));
+      filters.priority.forEach(p => params.append('priority', p));
+      if (filters.category_id) params.append('category_id', filters.category_id);
+      filters.tags.forEach(t => params.append('tags', t));
 
       // Apply view filters
       if (filters.view === 'today') {
-        params.append('due_before', new Date(Date.now() + 86400000).toISOString());
-        params.append('due_after', new Date().toISOString());
+        const tomorrow = new Date();
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        params.append('due_before', tomorrow.toISOString());
+        params.append('due_after', today.toISOString());
       } else if (filters.view === 'week') {
-        params.append('due_before', new Date(Date.now() + 604800000).toISOString());
+        const nextWeek = new Date();
+        nextWeek.setDate(nextWeek.getDate() + 7);
+        params.append('due_before', nextWeek.toISOString());
       } else if (filters.view === 'overdue') {
         params.append('overdue_only', 'true');
       } else if (filters.view === 'financial') {
@@ -91,26 +110,24 @@ const TodoDashboard = () => {
         params.append('is_mobile_friendly', 'true');
       }
 
-      // Fetch all data in parallel
-      const [tasksData, groupsData, statsData, suggestionsData] = await Promise.all([
+      // Fetch data
+      const [tasksResponse, statsResponse, suggestionsResponse] = await Promise.all([
         fetchWithAuth(`/api/tasks?${params}`),
-        fetchWithAuth('/api/tasks/groups'),
-        fetchWithAuth('/api/tasks/stats/summary'),
+        fetchWithAuth('/api/tasks/stats'),
         fetchWithAuth(`/api/tasks/suggestions?context=${suggestionContext}`)
       ]);
 
-      setTasks(tasksData);
-      setGroups(groupsData);
-      setStats(statsData);
-      setSuggestions(suggestionsData.suggestions);
+      if (!tasksResponse.ok || !statsResponse.ok || !suggestionsResponse.ok) {
+        throw new Error('Failed to fetch data');
+      }
 
-      // Load productivity data for the last 30 days
-      const endDate = new Date();
-      const startDate = new Date(Date.now() - 30 * 86400000);
-      const productivityData = await fetchWithAuth(
-        `/api/tasks/stats/productivity?start_date=${startDate.toISOString().split('T')[0]}&end_date=${endDate.toISOString().split('T')[0]}`
-      );
-      setProductivityData(productivityData);
+      const tasksData = await tasksResponse.json();
+      const statsData = await statsResponse.json();
+      const suggestionsData = await suggestionsResponse.json();
+
+      setTasks(tasksData);
+      setStats(statsData);
+      setSuggestions(suggestionsData);
 
     } catch (error) {
       console.error('Failed to load dashboard data:', error);
@@ -129,13 +146,18 @@ const TodoDashboard = () => {
   // Task Management Functions
   const createTask = async (taskData) => {
     try {
-      const newTask = await fetchWithAuth('/api/tasks', {
+      const response = await fetchWithAuth('/api/tasks', {
         method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(taskData)
       });
+      
+      if (!response.ok) throw new Error('Failed to create task');
+      
+      const newTask = await response.json();
       setTasks([newTask, ...tasks]);
       setShowNewTask(false);
-      loadDashboardData(); // Refresh stats
+      loadDashboardData();
     } catch (error) {
       console.error('Failed to create task:', error);
     }
@@ -143,13 +165,18 @@ const TodoDashboard = () => {
 
   const updateTask = async (taskId, updates) => {
     try {
-      const updatedTask = await fetchWithAuth(`/api/tasks/${taskId}`, {
+      const response = await fetchWithAuth(`/api/tasks/${taskId}`, {
         method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updates)
       });
+      
+      if (!response.ok) throw new Error('Failed to update task');
+      
+      const updatedTask = await response.json();
       setTasks(tasks.map(t => t.id === taskId ? updatedTask : t));
       if (selectedTask?.id === taskId) setSelectedTask(updatedTask);
-      loadDashboardData(); // Refresh stats
+      loadDashboardData();
     } catch (error) {
       console.error('Failed to update task:', error);
     }
@@ -157,12 +184,15 @@ const TodoDashboard = () => {
 
   const deleteTask = async (taskId) => {
     try {
-      await fetchWithAuth(`/api/tasks/${taskId}`, {
+      const response = await fetchWithAuth(`/api/tasks/${taskId}`, {
         method: 'DELETE'
       });
+      
+      if (!response.ok) throw new Error('Failed to delete task');
+      
       setTasks(tasks.filter(t => t.id !== taskId));
       if (selectedTask?.id === taskId) setSelectedTask(null);
-      loadDashboardData(); // Refresh stats
+      loadDashboardData();
     } catch (error) {
       console.error('Failed to delete task:', error);
     }
@@ -176,27 +206,35 @@ const TodoDashboard = () => {
     await updateTask(task.id, updates);
   };
 
+  // Helper function to get category icon
+  const getCategoryIcon = (category) => {
+    if (!category) return Layers;
+    const IconComponent = categoryIcons[category.icon] || Layers;
+    return IconComponent;
+  };
+
   // Quick Add Task Component
   const QuickAddTask = () => {
     const [title, setTitle] = useState('');
-    const [category, setCategory] = useState('personal');
+    const [categoryId, setCategoryId] = useState('');
     const [priority, setPriority] = useState('medium');
     const [dueDate, setDueDate] = useState('');
     const [estimatedCost, setEstimatedCost] = useState('');
     const [tagInput, setTagInput] = useState('');
     const [taskTags, setTaskTags] = useState([]);
 
-    const handleSubmit = (e) => {
+    const handleSubmit = async (e) => {
       e.preventDefault();
-      createTask({
+      const selectedCategory = categories.find(c => c.id === categoryId);
+      await createTask({
         title,
-        category,
+        category_id: categoryId || null,
         priority,
         due_date: dueDate || null,
-        estimated_cost: estimatedCost ? parseFloat(estimatedCost) : null,
+        estimated_cost: estimatedCost ? parseFloat(estimatedCost) : 0,
         tags: taskTags,
-        is_financial: category === 'financial' || category === 'bills' || category === 'investments',
-        is_mobile_friendly: category === 'shopping' || priority === 'low'
+        is_financial: selectedCategory && ['Financial', 'Bills', 'Investments'].includes(selectedCategory.name),
+        is_mobile_friendly: selectedCategory && selectedCategory.name === 'Shopping' || priority === 'low'
       });
       setTitle('');
       setDueDate('');
@@ -231,7 +269,7 @@ const TodoDashboard = () => {
                 type="text"
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
-                className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-white placeholder-gray-400"
+                className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-white placeholder-gray-400"
                 placeholder="Enter task title..."
                 required
                 autoFocus
@@ -244,13 +282,14 @@ const TodoDashboard = () => {
                   Category
                 </label>
                 <select
-                  value={category}
-                  onChange={(e) => setCategory(e.target.value)}
-                  className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-white"
+                  value={categoryId}
+                  onChange={(e) => setCategoryId(e.target.value)}
+                  className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-white"
                 >
-                  {Object.entries(categories).map(([key, { icon: Icon }]) => (
-                    <option key={key} value={key}>
-                      {key.charAt(0).toUpperCase() + key.slice(1)}
+                  <option value="">Select category...</option>
+                  {categories.map((category) => (
+                    <option key={category.id} value={category.id}>
+                      {category.name}
                     </option>
                   ))}
                 </select>
@@ -263,7 +302,7 @@ const TodoDashboard = () => {
                 <select
                   value={priority}
                   onChange={(e) => setPriority(e.target.value)}
-                  className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-white"
+                  className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-white"
                 >
                   {Object.entries(priorities).map(([key, { label }]) => (
                     <option key={key} value={key}>{label}</option>
@@ -281,7 +320,7 @@ const TodoDashboard = () => {
                   type="datetime-local"
                   value={dueDate}
                   onChange={(e) => setDueDate(e.target.value)}
-                  className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-white"
+                  className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-white"
                 />
               </div>
 
@@ -295,7 +334,7 @@ const TodoDashboard = () => {
                     type="number"
                     value={estimatedCost}
                     onChange={(e) => setEstimatedCost(e.target.value)}
-                    className="w-full pl-8 pr-4 py-3 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-white placeholder-gray-400"
+                    className="w-full pl-8 pr-4 py-3 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-white placeholder-gray-400"
                     placeholder="0.00"
                     step="0.01"
                   />
@@ -305,19 +344,19 @@ const TodoDashboard = () => {
 
             <div>
               <label className="block text-sm font-medium text-gray-300 mb-2">
-                Tags
+                Tags (optional)
               </label>
               <div className="flex flex-wrap gap-2 mb-2">
                 {taskTags.map((tag, index) => (
                   <span
                     key={index}
-                    className="px-3 py-1 bg-blue-500/20 text-blue-400 rounded-full text-sm flex items-center gap-1 border border-blue-500/30"
+                    className="px-3 py-1 bg-blue-500/20 text-blue-400 rounded-full text-sm flex items-center gap-1"
                   >
                     {tag}
                     <button
                       type="button"
                       onClick={() => setTaskTags(taskTags.filter((_, i) => i !== index))}
-                      className="hover:bg-blue-500/30 rounded-full p-0.5 transition-colors"
+                      className="hover:bg-blue-500/30 rounded-full p-0.5"
                     >
                       <X className="w-3 h-3" />
                     </button>
@@ -335,7 +374,7 @@ const TodoDashboard = () => {
                     setTagInput('');
                   }
                 }}
-                className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-white placeholder-gray-400"
+                className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-white placeholder-gray-400"
                 placeholder="Type and press Enter to add tags..."
               />
             </div>
@@ -367,7 +406,21 @@ const TodoDashboard = () => {
     const [editedTask, setEditedTask] = useState(task);
 
     const handleSave = async () => {
-      await updateTask(task.id, editedTask);
+      const updates = {};
+      
+      if (editedTask.title !== task.title) updates.title = editedTask.title;
+      if (editedTask.description !== task.description) updates.description = editedTask.description;
+      if (editedTask.priority !== task.priority) updates.priority = editedTask.priority;
+      if (editedTask.category_id !== task.category_id) updates.category_id = editedTask.category_id;
+      if (editedTask.energy_level !== task.energy_level) updates.energy_level = editedTask.energy_level;
+      if (editedTask.estimated_cost !== task.estimated_cost) updates.estimated_cost = editedTask.estimated_cost;
+      if (editedTask.actual_cost !== task.actual_cost) updates.actual_cost = editedTask.actual_cost;
+      if (editedTask.due_date !== task.due_date) updates.due_date = editedTask.due_date;
+      if (JSON.stringify(editedTask.tags) !== JSON.stringify(task.tags)) updates.tags = editedTask.tags;
+      
+      if (Object.keys(updates).length > 0) {
+        await updateTask(task.id, updates);
+      }
       setIsEditing(false);
     };
 
@@ -420,11 +473,9 @@ const TodoDashboard = () => {
               <div className="bg-gray-700/50 rounded-lg p-3 border border-gray-600">
                 <div className="text-sm text-gray-400 mb-1">Priority</div>
                 <div className="flex items-center gap-2">
-                  {priorities[task.priority].icon && 
-                    React.createElement(priorities[task.priority].icon, {
-                      className: `w-4 h-4 text-${priorities[task.priority].color}-400`
-                    })
-                  }
+                  {React.createElement(priorities[task.priority].icon, {
+                    className: `w-4 h-4 text-${priorities[task.priority].color}-400`
+                  })}
                   <span className="font-medium text-white">{priorities[task.priority].label}</span>
                 </div>
               </div>
@@ -432,23 +483,20 @@ const TodoDashboard = () => {
               <div className="bg-gray-700/50 rounded-lg p-3 border border-gray-600">
                 <div className="text-sm text-gray-400 mb-1">Category</div>
                 <div className="flex items-center gap-2">
-                  {categories[task.category].icon && 
-                    React.createElement(categories[task.category].icon, {
-                      className: `w-4 h-4 text-${categories[task.category].color}-400`
-                    })
-                  }
-                  <span className="font-medium text-white capitalize">{task.category}</span>
+                  {task.category && React.createElement(getCategoryIcon(task.category), {
+                    className: 'w-4 h-4',
+                    style: { color: task.category.color }
+                  })}
+                  <span className="font-medium text-white">{task.category?.name || 'Uncategorized'}</span>
                 </div>
               </div>
 
               <div className="bg-gray-700/50 rounded-lg p-3 border border-gray-600">
                 <div className="text-sm text-gray-400 mb-1">Energy Level</div>
                 <div className="flex items-center gap-2">
-                  {energyLevels[task.energy_level].icon && 
-                    React.createElement(energyLevels[task.energy_level].icon, {
-                      className: `w-4 h-4 text-${energyLevels[task.energy_level].color}-400`
-                    })
-                  }
+                  {React.createElement(energyLevels[task.energy_level].icon, {
+                    className: `w-4 h-4 text-${energyLevels[task.energy_level].color}-400`
+                  })}
                   <span className="font-medium text-white">{energyLevels[task.energy_level].label}</span>
                 </div>
               </div>
@@ -482,7 +530,7 @@ const TodoDashboard = () => {
             )}
 
             {/* Financial Information */}
-            {(task.estimated_cost || task.actual_cost) && (
+            {(task.estimated_cost > 0 || task.actual_cost > 0) && (
               <div className="bg-gradient-to-r from-green-900/20 to-emerald-900/20 rounded-lg p-4 border border-green-800/30">
                 <h3 className="font-semibold mb-3 flex items-center gap-2 text-green-400">
                   <DollarSign className="w-5 h-5" />
@@ -491,48 +539,12 @@ const TodoDashboard = () => {
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <div className="text-sm text-gray-400">Estimated Cost</div>
-                    <div className="text-lg font-semibold text-white">${task.estimated_cost || '0.00'}</div>
+                    <div className="text-lg font-semibold text-white">${task.estimated_cost.toFixed(2)}</div>
                   </div>
                   <div>
                     <div className="text-sm text-gray-400">Actual Cost</div>
-                    <div className="text-lg font-semibold text-white">${task.actual_cost || '0.00'}</div>
+                    <div className="text-lg font-semibold text-white">${task.actual_cost.toFixed(2)}</div>
                   </div>
-                </div>
-                {task.actual_cost && task.estimated_cost && (
-                  <div className="mt-3 pt-3 border-t border-gray-700">
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm text-gray-400">Variance</span>
-                      <span className={`font-medium ${task.actual_cost > task.estimated_cost ? 'text-red-400' : 'text-green-400'}`}>
-                        {task.actual_cost > task.estimated_cost ? '+' : '-'}
-                        ${Math.abs(task.actual_cost - task.estimated_cost).toFixed(2)}
-                      </span>
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Subtasks */}
-            {task.subtasks && task.subtasks.length > 0 && (
-              <div>
-                <h3 className="font-semibold mb-3 text-gray-300">Subtasks</h3>
-                <div className="space-y-2">
-                  {task.subtasks.map((subtask) => (
-                    <div key={subtask.id} className="flex items-center gap-3 p-2 hover:bg-gray-700/50 rounded-lg transition-colors">
-                      <button
-                        onClick={() => {/* Handle subtask toggle */}}
-                        className="p-1"
-                      >
-                        {subtask.is_completed ? 
-                          <CheckCircle2 className="w-4 h-4 text-green-500" /> : 
-                          <Circle className="w-4 h-4 text-gray-400" />
-                        }
-                      </button>
-                      <span className={`${subtask.is_completed ? 'line-through text-gray-500' : 'text-gray-300'}`}>
-                        {subtask.title}
-                      </span>
-                    </div>
-                  ))}
                 </div>
               </div>
             )}
@@ -542,12 +554,12 @@ const TodoDashboard = () => {
               <div>
                 <h3 className="font-semibold mb-3 text-gray-300">Tags</h3>
                 <div className="flex flex-wrap gap-2">
-                  {task.tags.map((tag) => (
+                  {task.tags.map((tag, index) => (
                     <span
-                      key={tag.id}
+                      key={index}
                       className="px-3 py-1 bg-blue-500/20 text-blue-400 rounded-full text-sm border border-blue-500/30"
                     >
-                      {tag.name}
+                      {tag}
                     </span>
                   ))}
                 </div>
@@ -557,22 +569,15 @@ const TodoDashboard = () => {
             {/* Actions */}
             <div className="flex justify-between items-center pt-4 border-t border-gray-700">
               <button
-                onClick={() => deleteTask(task.id)}
+                onClick={() => {
+                  deleteTask(task.id);
+                  onClose();
+                }}
                 className="px-4 py-2 text-red-400 hover:bg-red-900/20 rounded-lg transition-all flex items-center gap-2"
               >
                 <Trash2 className="w-4 h-4" />
                 Delete Task
               </button>
-              <div className="flex gap-2">
-                <button className="px-4 py-2 border border-gray-600 rounded-lg hover:bg-gray-700 transition-all flex items-center gap-2 text-gray-300">
-                  <Copy className="w-4 h-4" />
-                  Duplicate
-                </button>
-                <button className="px-4 py-2 border border-gray-600 rounded-lg hover:bg-gray-700 transition-all flex items-center gap-2 text-gray-300">
-                  <Archive className="w-4 h-4" />
-                  Archive
-                </button>
-              </div>
             </div>
           </div>
         </div>
@@ -583,7 +588,7 @@ const TodoDashboard = () => {
   // Task Card Component
   const TaskCard = ({ task }) => {
     const isOverdue = task.due_date && new Date(task.due_date) < new Date() && task.status !== 'completed';
-    const CategoryIcon = categories[task.category]?.icon || Layers;
+    const CategoryIcon = getCategoryIcon(task.category);
     const PriorityIcon = priorities[task.priority]?.icon || Flag;
     const EnergyIcon = energyLevels[task.energy_level]?.icon || Battery;
 
@@ -619,7 +624,7 @@ const TodoDashboard = () => {
           </div>
           <div className="flex items-center gap-1 ml-2">
             <PriorityIcon className={`w-4 h-4 text-${priorities[task.priority].color}-400`} />
-            <CategoryIcon className={`w-4 h-4 text-${categories[task.category].color}-400`} />
+            <CategoryIcon className="w-4 h-4" style={{ color: task.category?.color || '#6B7280' }} />
             <EnergyIcon className={`w-4 h-4 text-${energyLevels[task.energy_level].color}-400`} />
           </div>
         </div>
@@ -632,13 +637,13 @@ const TodoDashboard = () => {
                 <span>{new Date(task.due_date).toLocaleDateString()}</span>
               </div>
             )}
-            {task.estimated_cost && (
+            {task.estimated_cost > 0 && (
               <div className="flex items-center gap-1 text-green-400">
                 <DollarSign className="w-3 h-3" />
-                <span>${task.estimated_cost}</span>
+                <span>${task.estimated_cost.toFixed(2)}</span>
               </div>
             )}
-            {task.estimated_duration_minutes && (
+            {task.estimated_duration_minutes > 0 && (
               <div className="flex items-center gap-1 text-blue-400">
                 <Clock className="w-3 h-3" />
                 <span>{task.estimated_duration_minutes}m</span>
@@ -647,29 +652,24 @@ const TodoDashboard = () => {
           </div>
           <div className="flex items-center gap-2">
             {task.is_financial && (
-              <span className="px-2 py-0.5 bg-green-500/20 text-green-400 rounded-full text-xs border border-green-500/30">
+              <span className="px-2 py-0.5 bg-green-500/20 text-green-400 rounded-full text-xs">
                 Financial
               </span>
             )}
             {task.is_mobile_friendly && (
               <Smartphone className="w-3 h-3 text-blue-400" />
             )}
-            {task.subtasks && task.subtasks.length > 0 && (
-              <span className="text-xs text-gray-500">
-                {task.subtasks.filter(s => s.is_completed).length}/{task.subtasks.length}
-              </span>
-            )}
           </div>
         </div>
 
         {task.tags && task.tags.length > 0 && (
           <div className="flex flex-wrap gap-1 mt-2">
-            {task.tags.slice(0, 3).map((tag) => (
+            {task.tags.slice(0, 3).map((tag, index) => (
               <span
-                key={tag.id}
+                key={index}
                 className="px-2 py-0.5 text-xs rounded-full bg-gray-700/50 text-gray-400 border border-gray-600"
               >
-                {tag.name}
+                {tag}
               </span>
             ))}
             {task.tags.length > 3 && (
@@ -687,11 +687,11 @@ const TodoDashboard = () => {
   const SmartSuggestions = () => {
     const contextIcons = {
       now: Zap,
-      morning: Sun,
-      evening: Moon,
-      weekend: Coffee,
+      morning: Activity,
+      evening: Clock,
+      weekend: Calendar,
       low_energy: BatteryLow,
-      high_focus: Brain,
+      high_focus: Target,
       financial: DollarSign,
       mobile: Smartphone
     };
@@ -723,10 +723,7 @@ const TodoDashboard = () => {
             {Object.entries(contextIcons).map(([context, Icon]) => (
               <button
                 key={context}
-                onClick={() => {
-                  setSuggestionContext(context);
-                  loadDashboardData();
-                }}
+                onClick={() => setSuggestionContext(context)}
                 className={`p-2 rounded-lg transition-all ${
                   suggestionContext === context 
                     ? 'bg-blue-600 shadow-lg' 
@@ -742,7 +739,7 @@ const TodoDashboard = () => {
 
         {suggestions.length > 0 ? (
           <div className="grid gap-3">
-            {suggestions.slice(0, 5).map((task) => (
+            {suggestions.map((task) => (
               <div
                 key={task.id}
                 className="bg-gray-800/50 rounded-lg p-3 flex items-center justify-between hover:bg-gray-700/50 transition-all cursor-pointer group"
@@ -766,8 +763,8 @@ const TodoDashboard = () => {
                         {priorities[task.priority].label}
                       </span>
                       <span className="flex items-center gap-1">
-                        {React.createElement(categories[task.category].icon, { className: 'w-3 h-3' })}
-                        {task.category}
+                        {React.createElement(getCategoryIcon(task.category), { className: 'w-3 h-3' })}
+                        {task.category?.name || 'Uncategorized'}
                       </span>
                       {task.due_date && (
                         <span className="flex items-center gap-1">
@@ -791,26 +788,21 @@ const TodoDashboard = () => {
     );
   };
 
-  // Stats Dashboard Component with Charts
+  // Stats Dashboard Component
   const StatsDashboard = () => {
     if (!stats) return null;
 
-    const { counts, insights, category_stats } = stats;
-    const completionRate = Math.round(insights.completion_rate * 100);
+    const completionRate = Math.round(stats.completion_rate * 100);
 
     // Prepare chart data
-    const categoryChartData = category_stats?.map(cat => ({
-      name: cat.category,
-      completed: cat.completed,
-      pending: cat.total - cat.completed,
-      total: cat.total
-    })) || [];
+    const categoryData = Object.entries(stats.category_breakdown || {}).map(([category, data]) => ({
+      name: category,
+      value: data.total,
+      completed: data.completed
+    }));
 
-    const productivityTrend = productivityData?.map(day => ({
-      date: new Date(day.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-      completed: day.tasks_completed,
-      score: day.focus_score
-    })) || [];
+    // Show popular tags
+    const popularTags = stats.popular_tags || [];
 
     return (
       <>
@@ -850,15 +842,15 @@ const TodoDashboard = () => {
                 <h3 className="text-sm font-medium text-gray-400">Active Tasks</h3>
                 <Activity className="w-5 h-5 text-blue-400" />
               </div>
-              <div className="text-3xl font-bold text-white">{counts.pending_count + counts.in_progress_count}</div>
+              <div className="text-3xl font-bold text-white">{stats.pending_count + stats.in_progress_count}</div>
               <div className="flex items-center gap-4 mt-2 text-sm">
                 <span className="flex items-center gap-1 text-orange-400">
                   <Circle className="w-3 h-3" />
-                  {counts.pending_count} pending
+                  {stats.pending_count} pending
                 </span>
                 <span className="flex items-center gap-1 text-blue-400">
                   <Clock className="w-3 h-3" />
-                  {counts.in_progress_count} active
+                  {stats.in_progress_count} active
                 </span>
               </div>
             </div>
@@ -866,11 +858,11 @@ const TodoDashboard = () => {
             <div className="bg-gray-800/50 rounded-xl p-4 border border-gray-700">
               <div className="flex items-center justify-between mb-2">
                 <h3 className="text-sm font-medium text-gray-400">Financial Impact</h3>
-                <Wallet className="w-5 h-5 text-green-400" />
+                <DollarSign className="w-5 h-5 text-green-400" />
               </div>
-              <div className="text-3xl font-bold text-white">${insights.financial_impact.toFixed(2)}</div>
+              <div className="text-3xl font-bold text-white">${stats.total_spent.toFixed(2)}</div>
               <div className="text-sm text-gray-400 mt-2">
-                ${counts.budget_remaining?.toFixed(2) || '0.00'} budgeted
+                ${stats.total_estimated.toFixed(2)} budgeted
               </div>
             </div>
 
@@ -879,60 +871,54 @@ const TodoDashboard = () => {
                 <h3 className="text-sm font-medium text-gray-400">Time Invested</h3>
                 <Timer className="w-5 h-5 text-purple-400" />
               </div>
-              <div className="text-3xl font-bold text-white">{insights.total_time_hours.toFixed(1)}h</div>
+              <div className="text-3xl font-bold text-white">{stats.total_time_hours.toFixed(1)}h</div>
               <div className="text-sm text-gray-400 mt-2">
-                {insights.avg_daily_completions.toFixed(1)} tasks/day
+                {stats.overdue_count} overdue tasks
               </div>
             </div>
           </div>
         </div>
 
-        {/* Charts Section */}
+        {/* Category Chart and Popular Tags */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-          {/* Category Performance */}
-          <div className="bg-gray-800/70 backdrop-blur-sm rounded-xl p-4 border border-gray-700">
-            <h3 className="text-lg font-semibold text-white mb-4">Category Performance</h3>
-            <div className="h-64">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={categoryChartData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-                  <XAxis dataKey="name" tick={{ fill: '#9CA3AF' }} />
-                  <YAxis tick={{ fill: '#9CA3AF' }} />
-                  <Tooltip 
-                    contentStyle={{ backgroundColor: '#1F2937', border: '1px solid #374151' }}
-                    itemStyle={{ color: '#E5E7EB' }}
-                  />
-                  <Bar dataKey="completed" stackId="a" fill="#10B981" />
-                  <Bar dataKey="pending" stackId="a" fill="#EF4444" />
-                </BarChart>
-              </ResponsiveContainer>
+          {categoryData.length > 0 && (
+            <div className="bg-gray-800/70 backdrop-blur-sm rounded-xl p-4 border border-gray-700">
+              <h3 className="text-lg font-semibold text-white mb-4">Tasks by Category</h3>
+              <div className="h-64">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={categoryData}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                    <XAxis dataKey="name" tick={{ fill: '#9CA3AF' }} />
+                    <YAxis tick={{ fill: '#9CA3AF' }} />
+                    <Tooltip 
+                      contentStyle={{ backgroundColor: '#1F2937', border: '1px solid #374151' }}
+                      itemStyle={{ color: '#E5E7EB' }}
+                    />
+                    <Bar dataKey="value" fill="#3B82F6" />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
             </div>
-          </div>
+          )}
 
-          {/* Productivity Trend */}
-          <div className="bg-gray-800/70 backdrop-blur-sm rounded-xl p-4 border border-gray-700">
-            <h3 className="text-lg font-semibold text-white mb-4">30-Day Productivity Trend</h3>
-            <div className="h-64">
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={productivityTrend}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-                  <XAxis dataKey="date" tick={{ fill: '#9CA3AF' }} />
-                  <YAxis tick={{ fill: '#9CA3AF' }} />
-                  <Tooltip 
-                    contentStyle={{ backgroundColor: '#1F2937', border: '1px solid #374151' }}
-                    itemStyle={{ color: '#E5E7EB' }}
-                  />
-                  <Area 
-                    type="monotone" 
-                    dataKey="completed" 
-                    stroke="#3B82F6" 
-                    fill="#3B82F6" 
-                    fillOpacity={0.3}
-                  />
-                </AreaChart>
-              </ResponsiveContainer>
+          {popularTags.length > 0 && (
+            <div className="bg-gray-800/70 backdrop-blur-sm rounded-xl p-4 border border-gray-700">
+              <h3 className="text-lg font-semibold text-white mb-4">Popular Tags</h3>
+              <div className="space-y-3">
+                {popularTags.map((tag, index) => (
+                  <div key={index} className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <Tag className="w-4 h-4 text-blue-400" />
+                      <span className="text-white">{tag.name}</span>
+                    </div>
+                    <span className="px-3 py-1 bg-blue-500/20 text-blue-400 rounded-full text-sm">
+                      {tag.count} tasks
+                    </span>
+                  </div>
+                ))}
+              </div>
             </div>
-          </div>
+          )}
         </div>
       </>
     );
@@ -970,7 +956,7 @@ const TodoDashboard = () => {
         {/* Smart Suggestions */}
         <SmartSuggestions />
 
-        {/* Filters and View Controls */}
+        {/* Filters */}
         <div className="bg-gray-800/70 backdrop-blur-sm rounded-xl border border-gray-700 p-4 mb-6">
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div className="flex items-center gap-4">
@@ -1028,15 +1014,6 @@ const TodoDashboard = () => {
                   <DollarSign className="w-4 h-4" />
                   Financial
                 </button>
-                <button
-                  onClick={() => setFilters({...filters, view: 'mobile'})}
-                  className={`px-3 py-1 rounded-lg transition-all flex items-center gap-1 ${
-                    filters.view === 'mobile' ? 'bg-blue-600 text-white' : 'hover:bg-gray-700 text-gray-300'
-                  }`}
-                >
-                  <Smartphone className="w-4 h-4" />
-                  Mobile
-                </button>
               </div>
             </div>
 
@@ -1051,27 +1028,6 @@ const TodoDashboard = () => {
                 <option value="created_at">Created</option>
                 <option value="status">Status</option>
               </select>
-              
-              <div className="flex border border-gray-600 rounded-lg overflow-hidden">
-                <button
-                  onClick={() => setViewMode('list')}
-                  className={`p-2 ${viewMode === 'list' ? 'bg-gray-700' : ''} hover:bg-gray-700 transition-colors`}
-                >
-                  <ListTodo className="w-4 h-4" />
-                </button>
-                <button
-                  onClick={() => setViewMode('kanban')}
-                  className={`p-2 ${viewMode === 'kanban' ? 'bg-gray-700' : ''} hover:bg-gray-700 transition-colors`}
-                >
-                  <Layers className="w-4 h-4" />
-                </button>
-                <button
-                  onClick={() => setViewMode('calendar')}
-                  className={`p-2 ${viewMode === 'calendar' ? 'bg-gray-700' : ''} hover:bg-gray-700 transition-colors`}
-                >
-                  <CalendarClock className="w-4 h-4" />
-                </button>
-              </div>
             </div>
           </div>
         </div>
@@ -1082,7 +1038,7 @@ const TodoDashboard = () => {
             <div className="text-center py-12">
               <div className="inline-flex items-center gap-3">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-400"></div>
-                <span className="text-gray-400">Loading your productivity dashboard...</span>
+                <span className="text-gray-400">Loading your tasks...</span>
               </div>
             </div>
           ) : tasks.length === 0 ? (
@@ -1110,42 +1066,45 @@ const TodoDashboard = () => {
           )}
         </div>
 
-        {/* Quick Tips Footer */}
-        <div className="mt-12 bg-gradient-to-r from-indigo-900/30 to-purple-900/30 rounded-xl p-6 border border-indigo-800/30">
-          <div className="flex items-center gap-3 mb-4">
-            <Shield className="w-6 h-6 text-indigo-400" />
-            <h3 className="text-lg font-semibold text-white">Pro Tips for Maximum Productivity</h3>
+        {/* Upcoming Tasks Section */}
+        {stats && stats.upcoming_tasks && stats.upcoming_tasks.length > 0 && (
+          <div className="mt-8 bg-gray-800/70 backdrop-blur-sm rounded-xl border border-gray-700 p-6">
+            <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+              <Calendar className="w-5 h-5 text-blue-400" />
+              Upcoming Tasks
+            </h3>
+            <div className="grid gap-3">
+              {stats.upcoming_tasks.slice(0, 5).map((task) => {
+                const CategoryIcon = getCategoryIcon(task.category);
+                return (
+                  <div
+                    key={task.id}
+                    className="flex items-center justify-between p-3 bg-gray-700/50 rounded-lg hover:bg-gray-700 transition-all cursor-pointer"
+                    onClick={() => setSelectedTask(task)}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="p-1 rounded" style={{ backgroundColor: `${task.category?.color}20` }}>
+                        <CategoryIcon className="w-4 h-4" style={{ color: task.category?.color || '#6B7280' }} />
+                      </div>
+                      <div>
+                        <h4 className="font-medium text-white">{task.title}</h4>
+                        <p className="text-sm text-gray-400">
+                          Due {new Date(task.due_date).toLocaleDateString()}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {task.estimated_cost > 0 && (
+                        <span className="text-sm text-green-400">${task.estimated_cost.toFixed(2)}</span>
+                      )}
+                      <ArrowRight className="w-4 h-4 text-gray-400" />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           </div>
-          <div className="grid md:grid-cols-3 gap-4">
-            <div className="flex items-start gap-3">
-              <Calculator className="w-5 h-5 text-green-400 flex-shrink-0 mt-0.5" />
-              <div>
-                <h4 className="font-medium text-white mb-1">Track Financial Impact</h4>
-                <p className="text-sm text-gray-400">
-                  Add cost estimates to see how tasks affect your budget and build better financial habits.
-                </p>
-              </div>
-            </div>
-            <div className="flex items-start gap-3">
-              <Coins className="w-5 h-5 text-yellow-400 flex-shrink-0 mt-0.5" />
-              <div>
-                <h4 className="font-medium text-white mb-1">Time = Money</h4>
-                <p className="text-sm text-gray-400">
-                  Every hour saved is an hour you can invest in building wealth. Prioritize high-impact tasks!
-                </p>
-              </div>
-            </div>
-            <div className="flex items-start gap-3">
-              <TrendingUp className="w-5 h-5 text-blue-400 flex-shrink-0 mt-0.5" />
-              <div>
-                <h4 className="font-medium text-white mb-1">Track Your Progress</h4>
-                <p className="text-sm text-gray-400">
-                  Monitor your productivity trends to identify patterns and optimize your daily routine.
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
+        )}
       </div>
 
       {/* Modals */}
