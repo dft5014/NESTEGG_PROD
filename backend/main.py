@@ -13,6 +13,7 @@ from typing import Optional, List, Any
 from datetime import date
 from typing import Dict, Optional
 from uuid import UUID
+from enum import Enum
 
 # Third-party imports
 import bcrypt
@@ -25,7 +26,7 @@ from fastapi import FastAPI, Depends, HTTPException, status, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
-from pydantic import BaseModel, validator
+from pydantic import BaseModel, validator, Field
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.sql import select
 from sqlalchemy import func, case, literal_column
