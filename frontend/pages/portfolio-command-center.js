@@ -48,6 +48,10 @@ const usePortfolioData = () => {
     }
   }, []);
 
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
+
   return { rawData, unifiedPositions, isLoading, error, dataAge, refetch: fetchData };
 };
 
