@@ -1,6 +1,7 @@
-// pages/about.js
+// pages/index.js
 import React from 'react';
 import Head from 'next/head';
+import Link from 'next/link';
 import { motion } from 'framer-motion';
 import { 
  Shield, TrendingUp, PiggyBank, Calculator, Smartphone, Lock,
@@ -9,7 +10,7 @@ import {
  DollarSign, Eye, Zap, Award, HeartHandshake, Sparkles
 } from 'lucide-react';
 
-export default function AboutPage() {
+export default function HomePage() {
  const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false);
  const [faqOpen, setFaqOpen] = React.useState({});
 
@@ -188,12 +189,12 @@ export default function AboutPage() {
          <div className="container mx-auto px-4">
            <div className="flex items-center justify-between h-16">
              <div className="flex items-center">
-               <a href="/" className="flex items-center space-x-2">
+               <Link href="/" className="flex items-center space-x-2">
                  <div className="w-8 h-8 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-lg flex items-center justify-center">
                    <Sparkles className="h-5 w-5 text-white" />
                  </div>
                  <span className="text-xl font-bold">NestEgg</span>
-               </a>
+               </Link>
              </div>
              
              {/* Desktop Navigation */}
@@ -203,9 +204,12 @@ export default function AboutPage() {
                <a href="#testimonials" className="text-gray-300 hover:text-white transition-colors">Reviews</a>
                <a href="#pricing" className="text-gray-300 hover:text-white transition-colors">Pricing</a>
                <a href="#faq" className="text-gray-300 hover:text-white transition-colors">FAQ</a>
-               <button className="px-6 py-2 bg-gradient-to-r from-indigo-500 to-purple-600 rounded-full font-medium hover:shadow-lg hover:shadow-indigo-500/25 transition-all">
+               <Link href="/login" className="text-gray-300 hover:text-white transition-colors">
+                 Login
+               </Link>
+               <Link href="/signup" className="px-6 py-2 bg-gradient-to-r from-indigo-500 to-purple-600 rounded-full font-medium hover:shadow-lg hover:shadow-indigo-500/25 transition-all inline-block">
                  Get Started Free
-               </button>
+               </Link>
              </div>
              
              {/* Mobile Menu Button */}
@@ -232,9 +236,12 @@ export default function AboutPage() {
                <a href="#testimonials" className="block text-gray-300 hover:text-white transition-colors">Reviews</a>
                <a href="#pricing" className="block text-gray-300 hover:text-white transition-colors">Pricing</a>
                <a href="#faq" className="block text-gray-300 hover:text-white transition-colors">FAQ</a>
-               <button className="w-full px-6 py-2 bg-gradient-to-r from-indigo-500 to-purple-600 rounded-full font-medium">
+               <Link href="/login" className="block text-gray-300 hover:text-white transition-colors">
+                 Login
+               </Link>
+               <Link href="/signup" className="block w-full px-6 py-2 bg-gradient-to-r from-indigo-500 to-purple-600 rounded-full font-medium text-center">
                  Get Started Free
-               </button>
+               </Link>
              </div>
            </motion.div>
          )}
@@ -257,13 +264,13 @@ export default function AboutPage() {
                The secure, low-cost alternative to Mint and YNAB.
              </p>
              <div className="flex flex-col sm:flex-row gap-4 justify-center">
-               <button className="px-8 py-4 bg-white text-purple-700 rounded-full font-semibold text-lg hover:shadow-xl hover:scale-105 transition-all flex items-center justify-center">
+               <Link href="/signup" className="px-8 py-4 bg-white text-purple-700 rounded-full font-semibold text-lg hover:shadow-xl hover:scale-105 transition-all flex items-center justify-center">
                  Get Started - 30 Days Free
                  <ArrowRight className="ml-2 h-5 w-5" />
-               </button>
-               <button className="px-8 py-4 bg-transparent border-2 border-white text-white rounded-full font-semibold text-lg hover:bg-white hover:text-purple-700 transition-all">
-                 Watch Demo
-               </button>
+               </Link>
+               <Link href="/login" className="px-8 py-4 bg-transparent border-2 border-white text-white rounded-full font-semibold text-lg hover:bg-white hover:text-purple-700 transition-all flex items-center justify-center">
+                 Sign In
+               </Link>
              </div>
              <div className="mt-8 flex flex-wrap justify-center gap-6 text-sm">
                <div className="flex items-center">
@@ -445,9 +452,9 @@ export default function AboutPage() {
                    <span className="text-gray-300">Healthcare cost estimates in retirement</span>
                  </li>
                </ul>
-               <button className="px-8 py-3 bg-gradient-to-r from-indigo-500 to-purple-600 rounded-full font-semibold hover:shadow-lg hover:shadow-indigo-500/25 transition-all">
+               <Link href="/signup" className="inline-block px-8 py-3 bg-gradient-to-r from-indigo-500 to-purple-600 rounded-full font-semibold hover:shadow-lg hover:shadow-indigo-500/25 transition-all">
                  Try Retirement Planner
-               </button>
+               </Link>
              </motion.div>
              
              <motion.div
@@ -599,9 +606,9 @@ export default function AboutPage() {
                </li>
              </ul>
              
-             <button className="w-full px-8 py-4 bg-gradient-to-r from-indigo-500 to-purple-600 rounded-full font-semibold text-lg hover:shadow-lg hover:shadow-indigo-500/25 transition-all">
+             <Link href="/signup" className="block w-full px-8 py-4 bg-gradient-to-r from-indigo-500 to-purple-600 rounded-full font-semibold text-lg hover:shadow-lg hover:shadow-indigo-500/25 transition-all text-center">
                Start Free Trial
-             </button>
+             </Link>
              
              <p className="text-center text-sm text-gray-400 mt-4">
                No credit card required • 30-day money-back guarantee
@@ -694,13 +701,13 @@ export default function AboutPage() {
                powerful DIY tools. Your single-stop finance solution awaits.
              </p>
              <div className="flex flex-col sm:flex-row gap-4 justify-center">
-               <button className="px-8 py-4 bg-white text-purple-700 rounded-full font-semibold text-lg hover:shadow-xl hover:scale-105 transition-all flex items-center justify-center">
+               <Link href="/signup" className="px-8 py-4 bg-white text-purple-700 rounded-full font-semibold text-lg hover:shadow-xl hover:scale-105 transition-all flex items-center justify-center">
                  Start Your Free Trial
                  <ArrowRight className="ml-2 h-5 w-5" />
-               </button>
-               <button className="px-8 py-4 bg-transparent border-2 border-white text-white rounded-full font-semibold text-lg hover:bg-white hover:text-purple-700 transition-all">
-                 Schedule Demo
-               </button>
+               </Link>
+               <Link href="/login" className="px-8 py-4 bg-transparent border-2 border-white text-white rounded-full font-semibold text-lg hover:bg-white hover:text-purple-700 transition-all">
+                 Sign In to Your Account
+               </Link>
              </div>
              <p className="text-sm text-gray-200 mt-6">
                No credit card required • 30-day free trial • Cancel anytime
@@ -760,19 +767,13 @@ export default function AboutPage() {
              <p className="text-gray-400 text-sm mb-4 md:mb-0">
                © 2024 NestEgg. All rights reserved.
              </p>
-             <div className="flex space-x-4">
-               <a href="https://twitter.com/nestegg" aria-label="Twitter" className="text-gray-400 hover:text-white transition-colors">
-                 <Twitter className="h-5 w-5" />
-               </a>
-               <a href="https://linkedin.com/company/nestegg" aria-label="LinkedIn" className="text-gray-400 hover:text-white transition-colors">
-                 <Linkedin className="h-5 w-5" />
-               </a>
-               <a href="https://facebook.com/nestegg" aria-label="Facebook" className="text-gray-400 hover:text-white transition-colors">
-                 <Facebook className="h-5 w-5" />
-               </a>
-               <a href="mailto:hello@nestegg.app" aria-label="Email" className="text-gray-400 hover:text-white transition-colors">
-                 <Mail className="h-5 w-5" />
-               </a>
+             <div className="flex items-center space-x-6">
+               <Link href="/login" className="text-gray-400 hover:text-white transition-colors text-sm">
+                 Sign In
+               </Link>
+               <Link href="/signup" className="text-blue-400 hover:text-blue-300 transition-colors text-sm font-medium">
+                 Get Started Free
+               </Link>
              </div>
            </div>
          </div>
