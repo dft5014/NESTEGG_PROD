@@ -18,7 +18,7 @@ import {
   LineChart as LineChartIcon, PieChart as PieChartIcon, Save,
   RefreshCw, Download, Share2, ArrowUpRight, ArrowDownRight,
   ChevronDown, Filter, Table, FileText, Building2, Hash,
-  MoreVertical, Maximize2, Minimize2, TrendingFlat, AlertTriangle,
+  MoreVertical, Maximize2, Minimize2, Minus, AlertTriangle,
   ArrowUpDown
 } from 'lucide-react';
 
@@ -1152,7 +1152,7 @@ export default function ReportsPage() {
                           ) : position.percentChange < 0 ? (
                             <TrendingDown className="h-3 w-3" />
                           ) : (
-                            <TrendingFlat className="h-3 w-3" />
+                            <Minus className="h-3 w-3" />
                           )}
                           {formatPercentage(position.percentChange)}
                         </div>

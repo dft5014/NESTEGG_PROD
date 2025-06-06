@@ -36,6 +36,9 @@ const Sidebar = () => {
 
   // Handle resize for responsive behavior
   useEffect(() => {
+    // Only run on client side
+    if (typeof window === 'undefined') return;
+    
     const handleResize = () => {
       if (window.innerWidth < 768) {
         setSidebarCollapsed(true);
@@ -175,7 +178,7 @@ const Sidebar = () => {
     <>
       {/* Mobile overlay */}
       <AnimatePresence>
-        {!sidebarCollapsed && window.innerWidth < 768 && (
+        {!sidebarCollapsed && typeof window !== 'undefined' && window.innerWidth < 768 && (
           <motion.div 
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
