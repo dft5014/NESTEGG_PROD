@@ -53,16 +53,15 @@ const Sidebar = () => {
       items: [
         { href: "/accounts", label: "Accounts", icon: <Home size={24} className={iconClasses} /> },
         { href: "/positions", label: "Positions", icon: <TrendingUp size={24} className={iconClasses} /> },
-        { href: "/reports", label: "Reports", icon: <BarChart2 size={24} className={iconClasses} /> },
+        { href: "/AccountReconciliation", label: "Account Reconciliations", icon: <Database size={24} className={iconClasses} /> },
       ]
     },
-    { href: "/AccountReconciliation", label: "Account Reconciliations", icon: <CheckSquare size={24} className={iconClasses} /> },
-    { href: "/tasks", label: "Tasks", icon: <Database size={24} className={iconClasses} /> },
+    { href: "/tasks", label: "Task Tracker", icon: <CheckSquare size={24} className={iconClasses} /> },
     { 
-      label: "Testing",
+      label: "Feature Testing",
       items: [
-        { href: "/income", label: "Test 123", icon: <Settings size={24} className={iconClasses} /> },
-        { href: "/test", label: "Test Accounts", icon: <Shield size={24} className={iconClasses} /> },
+        { href: "/income", label: "Report V1", icon: <Settings size={24} className={iconClasses} /> },
+        { href: "/test", label: "Report V2", icon: <Shield size={24} className={iconClasses} /> },
       ]
     }
   ];

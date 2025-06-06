@@ -9,8 +9,8 @@ import { UpdateCheckProvider } from '@/context/UpdateCheckContext';
 
 export default function App({ Component, pageProps }) {
   const router = useRouter();
-  const noAuthRequired = ["/login", "/signup"];
-  const hideNavigation = ["/login", "/signup"];
+  const noAuthRequired = ["/",  "/login", "/signup"];
+  const hideNavigation = ["/",  "/login", "/signup"];
 
   return (
     <AuthProvider>
