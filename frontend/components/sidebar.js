@@ -46,8 +46,8 @@ const Sidebar = () => {
 
   // Menu structure for better organization
   const menuItems = [
-    { href: "/", label: "Dashboard", icon: <Gauge size={24} className={iconClasses} /> },
     { href: "/portfolio", label: "NestEgg", icon: <span className="text-xl">🥚</span> },
+    { href: "/portfolio-command-center", label: "Portfolio Command Center", icon: <Gauge size={24} className={iconClasses}  /> },
     { 
       label: "Portfolio Management",
       items: [
@@ -57,9 +57,7 @@ const Sidebar = () => {
       ]
     },
     { href: "/AccountReconciliation", label: "Account Reconciliations", icon: <CheckSquare size={24} className={iconClasses} /> },
-    { href: "/todo", label: "To Do List", icon: <CheckSquare size={24} className={iconClasses} /> },
     { href: "/tasks", label: "Tasks", icon: <Database size={24} className={iconClasses} /> },
-    { href: "/portfolio-command-center", label: "Portfolio Command Center", icon: <Info size={24} className={iconClasses} /> },
     { 
       label: "Testing",
       items: [
