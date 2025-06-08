@@ -347,6 +347,11 @@ const Navbar = () => {
     const [showValues, setShowValues] = useState(true);
     const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
 
+    // Modal states for quick actions
+    const [showAddAccount, setShowAddAccount] = useState(false);
+    const [showAddPosition, setShowAddPosition] = useState(false);
+    const [showBulkUpload, setShowBulkUpload] = useState(false);
+
     const { user, logout } = useContext(AuthContext);
     const router = useRouter();
     const navbarRef = useRef(null);
@@ -402,52 +407,37 @@ const Navbar = () => {
         return () => document.removeEventListener('keydown', handleKeyDown);
     }, []);
 
-    // Action items configuration
+    // Action items configuration - now with modal triggers
     const actionItems = [
         {
-            component: AddAccountButton,
-            props: { onAccountAdded: loadAccounts },
             icon: <Wallet className="w-4 h-4" />,
             label: "Add Account",
             gradient: "from-emerald-600 to-green-600",
-            hoverGradient: "hover:from-emerald-700 hover:to-green-700"
+            onClick: () => setShowAddAccount(true)
         },
         {
-            component: AddPositionButton,
-            props: { onPositionAdded: () => {} },
             icon: <PlusCircle className="w-4 h-4" />,
             label: "Add Position",
             gradient: "from-blue-600 to-indigo-600",
-            hoverGradient: "hover:from-blue-700 hover:to-indigo-700"
+            onClick: () => setShowAddPosition(true)
         },
         {
-            component: BulkPositionButton,
-            props: {
-                accounts,
-                fetchAccounts: loadAccounts,
-                fetchPositions: () => {},
-                fetchPortfolioSummary: () => {}
-            },
             icon: <Upload className="w-4 h-4" />,
             label: "Bulk Add",
             gradient: "from-purple-600 to-pink-600",
-            hoverGradient: "hover:from-purple-700 hover:to-pink-700",
+            onClick: () => setShowBulkUpload(true),
             disabled: isLoadingAccounts || accountError || !accounts || accounts.length === 0
         },
         {
-            custom: true,
             icon: <GitBranch className="w-4 h-4" />,
             label: "Reconcile",
             gradient: "from-orange-600 to-amber-600",
-            hoverGradient: "hover:from-orange-700 hover:to-amber-700",
             onClick: () => router.push('/reconcile')
         },
         {
-            custom: true,
             icon: <ArrowRightLeft className="w-4 h-4" />,
             label: "Add Transaction",
             gradient: "from-cyan-600 to-blue-600",
-            hoverGradient: "hover:from-cyan-700 hover:to-blue-700",
             onClick: () => router.push('/transactions/add')
         }
     ];
@@ -563,26 +553,13 @@ const Navbar = () => {
                                                 animate={{ opacity: 1, y: 0 }}
                                                 transition={{ delay: index * 0.1 }}
                                             >
-                                                {item.custom ? (
-                                                    <ActionButton
-                                                        icon={item.icon}
-                                                        label={item.label}
-                                                        onClick={item.onClick}
-                                                        gradient={item.gradient}
-                                                        disabled={item.disabled}
-                                                    />
-                                                ) : (
-                                                    <item.component
-                                                        {...item.props}
-                                                        className={`
-                                                            px-4 py-2.5 rounded-xl font-medium transition-all
-                                                            flex items-center space-x-2 group
-                                                            bg-gradient-to-r ${item.gradient} text-white 
-                                                            shadow-lg hover:shadow-xl ${item.hoverGradient}
-                                                            ${item.disabled ? 'opacity-50 cursor-not-allowed' : ''}
-                                                        `}
-                                                    />
-                                                )}
+                                                <ActionButton
+                                                    icon={item.icon}
+                                                    label={item.label}
+                                                    onClick={item.onClick}
+                                                    gradient={item.gradient}
+                                                    disabled={item.disabled}
+                                                />
                                             </motion.div>
                                         ))}
                                     </div>
@@ -859,27 +836,14 @@ const Navbar = () => {
                                         animate={{ opacity: 1, x: 0 }}
                                         transition={{ delay: index * 0.1 }}
                                     >
-                                        {item.custom ? (
-                                            <ActionButton
-                                                icon={item.icon}
-                                                label={item.label}
-                                                onClick={item.onClick}
-                                                gradient={item.gradient}
-                                                disabled={item.disabled}
-                                                className="w-full justify-center"
-                                            />
-                                        ) : (
-                                            <item.component
-                                                {...item.props}
-                                                className={`
-                                                    w-full px-4 py-3 rounded-xl font-medium transition-all
-                                                    flex items-center justify-center space-x-2 group
-                                                    bg-gradient-to-r ${item.gradient} text-white 
-                                                    shadow-lg ${item.hoverGradient}
-                                                    ${item.disabled ? 'opacity-50 cursor-not-allowed' : ''}
-                                                `}
-                                            />
-                                        )}
+                                        <ActionButton
+                                            icon={item.icon}
+                                            label={item.label}
+                                            onClick={item.onClick}
+                                            gradient={item.gradient}
+                                            disabled={item.disabled}
+                                            className="w-full justify-center"
+                                        />
                                     </motion.div>
                                 ))}
                             </div>
@@ -976,13 +940,14 @@ const Navbar = () => {
                                             className="w-full flex items-center space-x-3 p-3 hover:bg-white/10 rounded-lg text-left"
                                             onClick={() => {
                                                 setIsCommandPaletteOpen(false);
-                                                item.onClick?.();
+                                                item.onClick();
                                             }}
+                                            disabled={item.disabled}
                                         >
-                                            <div className={`p-2 rounded-lg bg-gradient-to-r ${item.gradient}`}>
+                                            <div className={`p-2 rounded-lg bg-gradient-to-r ${item.gradient} ${item.disabled ? 'opacity-50' : ''}`}>
                                                 {item.icon}
                                             </div>
-                                            <span className="text-white">{item.label}</span>
+                                            <span className={`text-white ${item.disabled ? 'opacity-50' : ''}`}>{item.label}</span>
                                         </motion.button>
                                     ))}
                                 </div>
@@ -991,6 +956,40 @@ const Navbar = () => {
                     </>
                 )}
             </AnimatePresence>
+
+            {/* Modals for Quick Actions */}
+            {showAddAccount && (
+                <div className="fixed inset-0 z-50">
+                    <AddAccountButton
+                        onAccountAdded={loadAccounts}
+                        isModalOpen={true}
+                        onClose={() => setShowAddAccount(false)}
+                    />
+                </div>
+            )}
+
+            {showAddPosition && (
+                <div className="fixed inset-0 z-50">
+                    <AddPositionButton
+                        onPositionAdded={() => {}}
+                        isModalOpen={true}
+                        onClose={() => setShowAddPosition(false)}
+                    />
+                </div>
+            )}
+
+            {showBulkUpload && (
+                <div className="fixed inset-0 z-50">
+                    <BulkPositionButton
+                        accounts={accounts}
+                        fetchAccounts={loadAccounts}
+                        fetchPositions={() => {}}
+                        fetchPortfolioSummary={() => {}}
+                        isModalOpen={true}
+                        onClose={() => setShowBulkUpload(false)}
+                    />
+                </div>
+            )}
         </motion.div>
     );
 };
