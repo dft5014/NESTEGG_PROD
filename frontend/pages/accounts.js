@@ -712,7 +712,7 @@ export default function AccountsPage() {
                     <div className="relative z-10">
                       <div className="flex items-center justify-between mb-3">
                         <h4 className="text-lg font-semibold">{institution.name}</h4>
-                        <span className="text-2xl font-bold">{formatPercentage(institution.percentage * 100)}</span>
+                        <span className="text-2xl font-bold">{formatPercentage(institution.percentage)}</span>
                       </div>
                       <div className="flex items-center justify-between text-sm text-gray-400">
                         <span>{showValues ? formatCurrency(institution.value) : '••••'}</span>
@@ -841,7 +841,7 @@ export default function AccountsPage() {
                       {type.config.icon}
                     </motion.div>
                     <h4 className="font-semibold mb-1">{type.name}</h4>
-                    <p className="text-2xl font-bold mb-1">{formatPercentage(type.percentage * 100)}</p>
+                    <p className="text-2xl font-bold mb-1">{formatPercentage(type.percentage)}</p>
                     <p className="text-sm text-gray-400">{showValues ? formatCurrency(type.value) : '••••'}</p>
                     <p className="text-xs text-gray-500">{type.accounts} accounts</p>
                   </div>
@@ -878,7 +878,7 @@ export default function AccountsPage() {
                   >
                     <div className="flex justify-between items-center mb-2">
                       <span className="capitalize font-medium">{type}</span>
-                      <span className="text-sm text-gray-400">{formatPercentage(data.percentage * 100)}</span>
+                      <span className="text-sm text-gray-400">{formatPercentage(data.percentage)}</span>
                     </div>
                     <div className="w-full bg-white/10 rounded-full h-2 overflow-hidden">
                       <motion.div

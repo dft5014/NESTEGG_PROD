@@ -249,7 +249,7 @@ export default function PositionsPage() {
       const currentValue = parseFloat(position.current_value) || 0;
       const costBasis = parseFloat(position.total_cost_basis) || 0;
       const gainLoss = currentValue - costBasis;
-      const gainLossPercent = costBasis > 0 ? (gainLoss / costBasis) * 100 : 0;
+      const gainLossPercent = costBasis > 0 ? (gainLoss / costBasis) : 0;
       const assetType = position.asset_type || 'other';
       const sector = position.sector || 'Unknown';
       
@@ -259,7 +259,7 @@ export default function PositionsPage() {
           name: position.name || position.identifier,
           identifier: position.identifier,
           value: currentValue,
-          percentage: metrics.totalValue > 0 ? (currentValue / metrics.totalValue) * 100 : 0
+          percentage: metrics.totalValue > 0 ? (currentValue / metrics.totalValue) : 0
         };
       }
       
@@ -334,12 +334,12 @@ export default function PositionsPage() {
     // Calculate averages
     Object.values(assetTypeMap).forEach(type => {
       type.avgGainLoss = type.count > 0 ? type.totalGainLoss / type.count : 0;
-      type.avgGainLossPercent = type.value > 0 ? (type.totalGainLoss / type.value) * 100 : 0;
+      type.avgGainLossPercent = type.value > 0 ? (type.totalGainLoss / type.value) : 0;
     });
     
     Object.values(sectorMap).forEach(sector => {
       sector.avgGainLoss = sector.count > 0 ? sector.totalGainLoss / sector.count : 0;
-      sector.avgGainLossPercent = sector.value > 0 ? (sector.totalGainLoss / sector.value) * 100 : 0;
+      sector.avgGainLossPercent = sector.value > 0 ? (sector.totalGainLoss / sector.value) : 0;
     });
     
     // Get portfolio data from API response
@@ -367,7 +367,7 @@ export default function PositionsPage() {
         const currentValue = parseFloat(position.current_value) || 0;
         const costBasis = parseFloat(position.total_cost_basis) || 0;
         const gainLoss = currentValue - costBasis;
-        const gainLossPercent = costBasis > 0 ? (gainLoss / costBasis) * 100 : 0;
+        const gainLossPercent = costBasis > 0 ? (gainLoss / costBasis) : 0;
         
         return {
           name: position.name || position.identifier,
@@ -1010,7 +1010,7 @@ export default function PositionsPage() {
                           <span className="font-medium">{asset.name}</span>
                         </div>
                         <div className="text-right">
-                          <p className="font-semibold">{formatPercentage(asset.percentage * 100)}</p>
+                          <p className="font-semibold">{formatPercentage(asset.percentage)}</p>
                           <p className="text-xs text-gray-400">
                             {showValues ? formatCurrency(asset.value) : '••••'}
                           </p>
@@ -1191,7 +1191,7 @@ export default function PositionsPage() {
                           <div>
                             <h4 className="font-medium">{sector.name}</h4>
                             <p className="text-sm text-gray-400">
-                              {formatPercentage(sector.percentage * 100)} of portfolio
+                              {formatPercentage(sector.percentage)} of portfolio
                             </p>
                           </div>
                           <div className="text-right">
