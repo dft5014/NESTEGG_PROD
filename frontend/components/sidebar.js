@@ -1,18 +1,16 @@
-// components/Sidebar.js - Premium Enhanced Version with Live Data
+// components/Sidebar.js - Premium Enhanced Version
 import Link from 'next/link';
 import { 
   BarChart2, ChevronLeft, ChevronRight, CheckSquare, Settings, 
   Database, Shield, Home, Coins, Bitcoin, ChevronDown, ChevronUp, 
   TrendingUp, Gauge, Info, LineChart, PieChart, LogOut, Search,
   Bell, User, Sparkles, Activity, DollarSign, Target, Zap,
-  Moon, Sun, Menu, X, Plus, Filter, ArrowUpRight, ArrowDownRight,
-  RefreshCw, AlertCircle
+  Moon, Sun, Menu, X, Plus, Filter, ArrowUpRight, ArrowDownRight
 } from 'lucide-react';
 import { useContext, useState, useEffect, useRef } from 'react';
 import { AuthContext } from '@/context/AuthContext';
 import { useRouter } from 'next/router';
 import { motion, AnimatePresence } from 'framer-motion';
-import { fetchWithAuth } from '@/utils/api';
 
 const Sidebar = () => {
   const { logout, user } = useContext(AuthContext);
@@ -22,75 +20,19 @@ const Sidebar = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [showSearch, setShowSearch] = useState(false);
   const [hoveredItem, setHoveredItem] = useState(null);
+  const [notifications, setNotifications] = useState(3);
   const [darkMode, setDarkMode] = useState(true);
   const [showQuickStats, setShowQuickStats] = useState(true);
   const searchRef = useRef(null);
   const router = useRouter();
 
-  // State for sidebar stats
-  const [sidebarStats, setSidebarStats] = useState(null);
-  const [isLoadingStats, setIsLoadingStats] = useState(true);
-  const [lastRefresh, setLastRefresh] = useState(null);
-
-  // Portfolio stats with live data
-  const portfolioStats = {
-    totalValue: sidebarStats?.portfolio?.total_value || 0,
-    dayChange: sidebarStats?.portfolio?.day_change || 0,
-    dayChangePercent: sidebarStats?.portfolio?.day_change_percent || 0,
-    weekChangePercent: sidebarStats?.portfolio?.week_change_percent || 0
-  };
-
-  // Fetch sidebar stats with caching
-  const fetchSidebarStats = async () => {
-    // Check if we have cached data that's less than 5 minutes old
-    const cachedData = sessionStorage.getItem('sidebarStats');
-    const cachedTime = sessionStorage.getItem('sidebarStatsTime');
-    
-    if (cachedData && cachedTime) {
-      const timeDiff = Date.now() - parseInt(cachedTime);
-      if (timeDiff < 5 * 60 * 1000) { // 5 minutes
-        setSidebarStats(JSON.parse(cachedData));
-        setLastRefresh(new Date(parseInt(cachedTime)));
-        setIsLoadingStats(false);
-        return;
-      }
-    }
-
-    // Fetch fresh data
-    setIsLoadingStats(true);
-    try {
-      const response = await fetchWithAuth('/portfolio/sidebar-stats');
-      if (!response.ok) throw new Error('Failed to fetch sidebar stats');
-      
-      const data = await response.json();
-      setSidebarStats(data);
-      
-      // Cache the data
-      sessionStorage.setItem('sidebarStats', JSON.stringify(data));
-      sessionStorage.setItem('sidebarStatsTime', Date.now().toString());
-      
-      setLastRefresh(new Date());
-    } catch (error) {
-      console.error('Error fetching sidebar stats:', error);
-    } finally {
-      setIsLoadingStats(false);
-    }
-  };
-
-  // Force refresh stats
-  const refreshStats = async () => {
-    // Clear cache
-    sessionStorage.removeItem('sidebarStats');
-    sessionStorage.removeItem('sidebarStatsTime');
-    
-    // Fetch fresh data
-    await fetchSidebarStats();
-  };
-
-  // Load stats on mount
-  useEffect(() => {
-    fetchSidebarStats();
-  }, []);
+  // Portfolio stats (mock data - replace with real data)
+  const [portfolioStats] = useState({
+    totalValue: 284567.89,
+    dayChange: 2847.33,
+    dayChangePercent: 1.01,
+    weekChangePercent: 3.47
+  });
 
   // Handle resize for responsive behavior
   useEffect(() => {
@@ -123,7 +65,7 @@ const Sidebar = () => {
     return router.pathname === path || router.pathname.startsWith(`${path}/`);
   };
 
-  // Enhanced menu structure with live data
+  // Enhanced menu structure with metadata
   const menuItems = [
     { 
       href: "/portfolio", 
@@ -148,23 +90,23 @@ const Sidebar = () => {
           href: "/accounts", 
           label: "Accounts", 
           icon: <Home className="w-5 h-5" />,
-          count: sidebarStats?.accounts?.total || 0,
-          trend: sidebarStats?.accounts?.recent_additions > 0 ? "up" : null,
-          trendValue: sidebarStats?.accounts?.recent_additions > 0 ? `+${sidebarStats.accounts.recent_additions}` : null
+          count: 12,
+          trend: "up",
+          trendValue: "+2"
         },
         { 
           href: "/positions", 
           label: "Positions", 
           icon: <TrendingUp className="w-5 h-5" />,
-          count: sidebarStats?.positions?.total || 0,
-          trend: sidebarStats?.positions?.recent_additions > 0 ? "up" : null,
-          trendValue: sidebarStats?.positions?.recent_additions > 0 ? `+${sidebarStats.positions.recent_additions}` : null
+          count: 48,
+          trend: "up",
+          trendValue: "+5"
         },
         { 
           href: "/AccountReconciliation", 
           label: "Reconciliations", 
           icon: <Database className="w-5 h-5" />,
-          badge: sidebarStats?.tasks?.pending > 0 ? sidebarStats.tasks.pending : null,
+          badge: notifications > 0 ? notifications : null,
           badgeColor: "bg-red-500"
         },
       ]
@@ -173,7 +115,7 @@ const Sidebar = () => {
       href: "/tasks", 
       label: "Task Tracker", 
       icon: <CheckSquare className="w-5 h-5" />,
-      count: sidebarStats?.tasks?.pending || 0,
+      count: 7,
       description: "Pending tasks"
     },
     { 
@@ -356,32 +298,20 @@ const Sidebar = () => {
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
                   <span className="text-xs text-gray-400">Portfolio Value</span>
-                  <div className="flex items-center space-x-2">
-                    <motion.button
-                      whileHover={{ scale: 1.1, rotate: 180 }}
-                      whileTap={{ scale: 0.9 }}
-                      onClick={refreshStats}
-                      className="p-1 hover:bg-gray-800 rounded"
-                      title="Refresh data"
-                    >
-                      <RefreshCw className={`w-3 h-3 text-gray-400 ${isLoadingStats ? 'animate-spin' : ''}`} />
-                    </motion.button>
-                    <motion.button
-                      whileHover={{ scale: 1.1 }}
-                      whileTap={{ scale: 0.9 }}
-                      onClick={() => setShowQuickStats(false)}
-                      className="p-1 hover:bg-gray-800 rounded"
-                    >
-                      <ChevronUp className="w-3 h-3 text-gray-400" />
-                    </motion.button>
-                  </div>
+                  <motion.button
+                    whileHover={{ scale: 1.1 }}
+                    whileTap={{ scale: 0.9 }}
+                    onClick={() => setShowQuickStats(false)}
+                    className="p-1 hover:bg-gray-800 rounded"
+                  >
+                    <ChevronUp className="w-3 h-3 text-gray-400" />
+                  </motion.button>
                 </div>
                 <div className="space-y-1">
                   <motion.div 
                     className="text-2xl font-bold"
                     initial={{ scale: 0.9 }}
                     animate={{ scale: 1 }}
-                    key={portfolioStats.totalValue}
                   >
                     ${portfolioStats.totalValue.toLocaleString()}
                   </motion.div>
@@ -395,13 +325,11 @@ const Sidebar = () => {
                         <ArrowDownRight className="w-3 h-3" />
                       )}
                       <span>${Math.abs(portfolioStats.dayChange).toLocaleString()}</span>
-                      <span>({portfolioStats.dayChangePercent.toFixed(2)}%)</span>
+                      <span>({portfolioStats.dayChangePercent}%)</span>
                     </div>
                   </div>
                   <div className="flex gap-4 text-xs text-gray-400">
-                    <span>Week: <span className={portfolioStats.weekChangePercent > 0 ? 'text-green-400' : 'text-red-400'}>
-                      {portfolioStats.weekChangePercent > 0 ? '+' : ''}{portfolioStats.weekChangePercent.toFixed(2)}%
-                    </span></span>
+                    <span>Week: <span className="text-green-400">+{portfolioStats.weekChangePercent}%</span></span>
                   </div>
                 </div>
                 <motion.div 
@@ -413,15 +341,10 @@ const Sidebar = () => {
                   <motion.div 
                     className="h-full bg-gradient-to-r from-blue-500 to-purple-500"
                     initial={{ width: 0 }}
-                    animate={{ width: `${Math.min((portfolioStats.totalValue / 1000000) * 100, 100)}%` }}
+                    animate={{ width: '68%' }}
                     transition={{ duration: 1, delay: 0.5 }}
                   />
                 </motion.div>
-                {lastRefresh && (
-                  <div className="text-[10px] text-gray-500 text-center">
-                    Updated {lastRefresh.toLocaleTimeString()}
-                  </div>
-                )}
               </div>
             </motion.div>
           )}
@@ -545,7 +468,7 @@ const Sidebar = () => {
                                         </div>
                                       )}
                                       
-                                      {subItem.count !== undefined && (
+                                      {subItem.count && (
                                         <span className="text-xs text-gray-400">
                                           {subItem.count}
                                         </span>
@@ -585,7 +508,7 @@ const Sidebar = () => {
                                     className="absolute left-full ml-2 px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg shadow-xl z-50 whitespace-nowrap"
                                   >
                                     <span className="text-sm font-medium">{subItem.label}</span>
-                                    {subItem.count !== undefined && (
+                                    {subItem.count && (
                                       <span className="ml-2 text-xs text-gray-400">({subItem.count})</span>
                                     )}
                                   </motion.div>
@@ -645,7 +568,7 @@ const Sidebar = () => {
                           
                           {/* Badges and counts */}
                           <div className="flex items-center gap-2">
-                            {item.count !== undefined && (
+                            {item.count && (
                               <span className="text-xs text-gray-400">
                                 {item.count}
                               </span>
@@ -674,7 +597,7 @@ const Sidebar = () => {
                           className="absolute left-full ml-2 px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg shadow-xl z-50 whitespace-nowrap"
                         >
                           <span className="text-sm font-medium">{item.label}</span>
-                          {item.count !== undefined && (
+                          {item.count && (
                             <span className="ml-2 text-xs text-gray-400">({item.count})</span>
                           )}
                         </motion.div>
@@ -693,7 +616,6 @@ const Sidebar = () => {
             <motion.button
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
-              onClick={() => router.push('/positions/add')}
               className="w-full flex items-center justify-center gap-2 px-4 py-2.5 
                        bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700
                        text-white font-medium rounded-lg shadow-lg shadow-blue-600/20
@@ -730,7 +652,7 @@ const Sidebar = () => {
                     className="p-1.5 hover:bg-gray-800 rounded-lg transition-colors relative"
                   >
                     <Bell className="w-4 h-4 text-gray-400" />
-                    {(sidebarStats?.tasks?.pending || 0) > 0 && (
+                    {notifications > 0 && (
                       <span className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-red-500 rounded-full" />
                     )}
                   </motion.button>
