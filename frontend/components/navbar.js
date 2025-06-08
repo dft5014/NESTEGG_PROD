@@ -6,12 +6,12 @@ import { AuthContext } from '@/context/AuthContext';
 import {
     User, Settings, LogOut, HelpCircle, Bell, ChartLine,
     PlusCircle, Shield, Clock, Menu, X, LineChart, BarChart4,
-    ChevronLeft, ChevronRight, Upload, Loader2, AlertCircle,
-    Wallet, TrendingUp, Activity, Zap, Star, Moon, Sun,
-    Command, Search, Home, PieChart, DollarSign, Globe,
+    Upload, Loader2, AlertCircle, Wallet, TrendingUp, Activity, 
+    Zap, Star, Moon, Sun, Command, Search, DollarSign, Globe,
     ArrowUpRight, ArrowDownRight, Sparkles, Cpu, Lock,
-    CheckCircle, XCircle, Info, ChevronDown, Layers,
-    Database, RefreshCw, Eye, EyeOff, Bitcoin, Gem
+    CheckCircle, Info, ChevronDown, Layers, RefreshCw, Eye, 
+    EyeOff, Award, Target, Flame, CreditCard, FileText,
+    GitBranch, BarChart3, PieChart, Briefcase, ArrowRightLeft
 } from 'lucide-react';
 import UpdateStatusIndicator from '@/components/UpdateStatusIndicator';
 import AddPositionButton from '@/components/AddPositionButton';
@@ -33,9 +33,9 @@ const EggLogo = memo(() => {
             transition={{ type: "spring", stiffness: 300 }}
         >
             <svg
-                width="40"
-                height="40"
-                viewBox="0 0 40 40"
+                width="42"
+                height="42"
+                viewBox="0 0 42 42"
                 xmlns="http://www.w3.org/2000/svg"
                 className="text-blue-400"
             >
@@ -57,7 +57,7 @@ const EggLogo = memo(() => {
                     </filter>
                 </defs>
                 <motion.path
-                    d="M20 4C14 4 8 14 8 24C8 32 13 36 20 36C27 36 32 32 32 24C32 14 26 4 20 4Z"
+                    d="M21 4C15 4 9 14 9 24C9 32 14 36 21 36C28 36 33 32 33 24C33 14 27 4 21 4Z"
                     fill="url(#eggGradient)"
                     stroke="currentColor"
                     strokeWidth="1.5"
@@ -65,27 +65,27 @@ const EggLogo = memo(() => {
                     animate={isHovered ? { strokeWidth: 2 } : { strokeWidth: 1.5 }}
                 />
                 <motion.circle 
-                    cx="16" 
-                    cy="18" 
+                    cx="17" 
+                    cy="19" 
                     r="2" 
                     fill="#1E3A8A"
                     animate={isHovered ? { scale: [1, 1.2, 1] } : {}}
                     transition={{ duration: 0.3 }}
                 />
                 <motion.circle 
-                    cx="24" 
-                    cy="18" 
+                    cx="25" 
+                    cy="19" 
                     r="2" 
                     fill="#1E3A8A"
                     animate={isHovered ? { scale: [1, 1.2, 1] } : {}}
                     transition={{ duration: 0.3, delay: 0.1 }}
                 />
                 <motion.path 
-                    d="M16 26C17.5 27.5 22.5 27.5 24 26" 
+                    d="M17 27C18.5 28.5 23.5 28.5 25 27" 
                     stroke="#1E3A8A" 
                     strokeWidth="2" 
                     strokeLinecap="round"
-                    animate={isHovered ? { d: "M16 26C17.5 28.5 22.5 28.5 24 26" } : {}}
+                    animate={isHovered ? { d: "M17 27C18.5 29.5 23.5 29.5 25 27" } : {}}
                 />
             </svg>
             {isHovered && (
@@ -103,184 +103,253 @@ const EggLogo = memo(() => {
 });
 EggLogo.displayName = 'EggLogo';
 
-// Market ticker component
-const MarketTicker = memo(() => {
-    const [marketData, setMarketData] = useState([
-        { symbol: 'SPY', price: 456.32, change: 1.24, isUp: true },
-        { symbol: 'QQQ', price: 384.56, change: -0.45, isUp: false },
-        { symbol: 'BTC', price: 68420, change: 3.45, isUp: true },
-        { symbol: 'ETH', price: 3842, change: 2.13, isUp: true }
-    ]);
-
+// Action Button Component
+const ActionButton = memo(({ icon, label, onClick, gradient, disabled, loading, className = "" }) => {
     return (
-        <div className="hidden lg:flex items-center space-x-6 text-sm">
-            {marketData.map((item, index) => (
+        <motion.button
+            whileHover={{ scale: disabled ? 1 : 1.05, y: disabled ? 0 : -2 }}
+            whileTap={{ scale: disabled ? 1 : 0.95 }}
+            onClick={onClick}
+            disabled={disabled || loading}
+            className={`
+                relative px-4 py-2.5 rounded-xl font-medium transition-all
+                flex items-center space-x-2 group overflow-hidden
+                ${disabled 
+                    ? 'bg-gray-800/50 text-gray-500 cursor-not-allowed' 
+                    : `bg-gradient-to-r ${gradient} text-white shadow-lg hover:shadow-xl`
+                }
+                ${className}
+            `}
+        >
+            {/* Animated background */}
+            {!disabled && (
                 <motion.div
-                    key={item.symbol}
-                    initial={{ opacity: 0, y: -20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: index * 0.1 }}
-                    className="flex items-center space-x-2"
-                >
-                    <span className="text-gray-400">{item.symbol}</span>
-                    <span className="text-white font-medium">${item.price.toLocaleString()}</span>
-                    <div className={`flex items-center ${item.isUp ? 'text-green-400' : 'text-red-400'}`}>
-                        {item.isUp ? <ArrowUpRight className="w-4 h-4" /> : <ArrowDownRight className="w-4 h-4" />}
-                        <span>{Math.abs(item.change)}%</span>
-                    </div>
-                </motion.div>
-            ))}
-        </div>
+                    className="absolute inset-0 bg-white/20"
+                    initial={{ x: '-100%' }}
+                    whileHover={{ x: '100%' }}
+                    transition={{ duration: 0.5 }}
+                />
+            )}
+            
+            <div className="relative flex items-center space-x-2">
+                {loading ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                    <motion.div
+                        whileHover={{ rotate: disabled ? 0 : 360 }}
+                        transition={{ duration: 0.5 }}
+                    >
+                        {icon}
+                    </motion.div>
+                )}
+                <span className="text-sm font-medium">{label}</span>
+            </div>
+        </motion.button>
     );
 });
-MarketTicker.displayName = 'MarketTicker';
+ActionButton.displayName = 'ActionButton';
 
-// Enhanced Search Bar
-const SearchBar = memo(() => {
-    const [isOpen, setIsOpen] = useState(false);
-    const [searchQuery, setSearchQuery] = useState('');
-    const [searchResults, setSearchResults] = useState([]);
-    const searchRef = useRef(null);
-
-    // Mock search results
-    const mockResults = [
-        { type: 'position', icon: <LineChart className="w-4 h-4" />, title: 'AAPL', subtitle: 'Apple Inc.' },
-        { type: 'account', icon: <Wallet className="w-4 h-4" />, title: 'Retirement Account', subtitle: 'Vanguard' },
-        { type: 'action', icon: <PlusCircle className="w-4 h-4" />, title: 'Add New Position', subtitle: 'Quick action' }
-    ];
+// Portfolio Metrics Component
+const PortfolioMetrics = memo(({ showValues }) => {
+    const [metrics, setMetrics] = useState({
+        totalValue: 0,
+        dayChange: { value: 0, percent: 0 },
+        totalGainLoss: { value: 0, percent: 0 },
+        positions: 0,
+        accounts: 0,
+        lastUpdate: new Date()
+    });
+    const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        if (searchQuery) {
-            setSearchResults(mockResults.filter(item => 
-                item.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                item.subtitle.toLowerCase().includes(searchQuery.toLowerCase())
-            ));
-        } else {
-            setSearchResults([]);
-        }
-    }, [searchQuery]);
-
-    useEffect(() => {
-        const handleKeyDown = (e) => {
-            if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
-                e.preventDefault();
-                setIsOpen(true);
-                searchRef.current?.focus();
-            }
-            if (e.key === 'Escape') {
-                setIsOpen(false);
+        const loadMetrics = async () => {
+            try {
+                const response = await fetchWithAuth('/portfolio/snapshots?timeframe=1d&include_cost_basis=true');
+                const data = await response.json();
+                
+                setMetrics({
+                    totalValue: data.current_value || 0,
+                    dayChange: {
+                        value: data.period_changes?.['1d']?.value_change || 0,
+                        percent: data.period_changes?.['1d']?.percent_change || 0
+                    },
+                    totalGainLoss: {
+                        value: data.unrealized_gain || 0,
+                        percent: data.unrealized_gain_percent || 0
+                    },
+                    positions: data.top_positions?.length || 0,
+                    accounts: data.account_allocation?.length || 0,
+                    lastUpdate: new Date(data.last_updated || new Date())
+                });
+            } catch (error) {
+                console.error("Error loading portfolio metrics:", error);
+            } finally {
+                setLoading(false);
             }
         };
 
-        document.addEventListener('keydown', handleKeyDown);
-        return () => document.removeEventListener('keydown', handleKeyDown);
+        loadMetrics();
+        const interval = setInterval(loadMetrics, 60000); // Refresh every minute
+        return () => clearInterval(interval);
     }, []);
 
-    return (
-        <>
-            <motion.button
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                onClick={() => setIsOpen(true)}
-                className="hidden md:flex items-center space-x-2 px-4 py-2 bg-white/10 hover:bg-white/20 rounded-xl backdrop-blur-sm transition-all group"
-            >
-                <Search className="w-4 h-4 text-gray-300 group-hover:text-white" />
-                <span className="text-gray-300 group-hover:text-white text-sm">Search...</span>
-                <div className="flex items-center space-x-1 ml-8">
-                    <kbd className="px-2 py-1 bg-white/10 rounded text-xs text-gray-400">⌘</kbd>
-                    <kbd className="px-2 py-1 bg-white/10 rounded text-xs text-gray-400">K</kbd>
-                </div>
-            </motion.button>
+    const formatCurrency = (value) => {
+        if (!showValues) return '••••••';
+        return new Intl.NumberFormat('en-US', {
+            style: 'currency',
+            currency: 'USD',
+            minimumFractionDigits: 0,
+            maximumFractionDigits: 0
+        }).format(value);
+    };
 
-            <AnimatePresence>
-                {isOpen && (
-                    <>
+    const formatPercentage = (value) => {
+        return `${value >= 0 ? '+' : ''}${value.toFixed(2)}%`;
+    };
+
+    const formatCompactNumber = (num) => {
+        if (!showValues) return '••';
+        if (num >= 1000000) return `${(num / 1000000).toFixed(1)}M`;
+        if (num >= 1000) return `${(num / 1000).toFixed(1)}K`;
+        return num.toString();
+    };
+
+    return (
+        <div className="flex items-center space-x-8">
+            {/* Total Portfolio Value */}
+            <motion.div
+                initial={{ opacity: 0, y: -20 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="relative"
+            >
+                <div className="flex items-center space-x-4">
+                    <div className="relative">
                         <motion.div
-                            initial={{ opacity: 0 }}
-                            animate={{ opacity: 1 }}
-                            exit={{ opacity: 0 }}
-                            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50"
-                            onClick={() => setIsOpen(false)}
+                            className="absolute inset-0 bg-blue-500/20 rounded-full blur-xl"
+                            animate={{ scale: [1, 1.2, 1] }}
+                            transition={{ duration: 3, repeat: Infinity }}
                         />
-                        <motion.div
-                            initial={{ opacity: 0, scale: 0.95 }}
-                            animate={{ opacity: 1, scale: 1 }}
-                            exit={{ opacity: 0, scale: 0.95 }}
-                            className="fixed top-20 left-1/2 transform -translate-x-1/2 w-full max-w-2xl bg-gray-900 rounded-2xl shadow-2xl border border-white/10 z-50 overflow-hidden"
-                        >
-                            <div className="p-4 border-b border-white/10">
-                                <div className="flex items-center space-x-3">
-                                    <Search className="w-5 h-5 text-gray-400" />
-                                    <input
-                                        ref={searchRef}
-                                        type="text"
-                                        value={searchQuery}
-                                        onChange={(e) => setSearchQuery(e.target.value)}
-                                        placeholder="Search positions, accounts, or actions..."
-                                        className="flex-1 bg-transparent outline-none text-white placeholder-gray-400"
-                                        autoFocus
-                                    />
-                                    <button
-                                        onClick={() => setIsOpen(false)}
-                                        className="text-gray-400 hover:text-white"
-                                    >
-                                        <X className="w-5 h-5" />
-                                    </button>
-                                </div>
+                        <div className="relative bg-gradient-to-br from-blue-500/20 to-purple-500/20 p-3 rounded-xl backdrop-blur-sm">
+                            <Wallet className="w-6 h-6 text-blue-400" />
+                        </div>
+                    </div>
+                    <div>
+                        <p className="text-xs text-gray-400 font-medium">Total Portfolio</p>
+                        <div className="flex items-baseline space-x-2">
+                            <motion.h2 
+                                className="text-2xl font-bold text-white"
+                                initial={{ scale: 0.5 }}
+                                animate={{ scale: 1 }}
+                                transition={{ type: "spring", stiffness: 200 }}
+                            >
+                                {loading ? (
+                                    <div className="h-8 w-32 bg-white/10 rounded animate-pulse" />
+                                ) : (
+                                    formatCurrency(metrics.totalValue)
+                                )}
+                            </motion.h2>
+                            <div className={`flex items-center text-sm font-medium ${metrics.dayChange.percent >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                {metrics.dayChange.percent >= 0 ? <ArrowUpRight className="w-4 h-4" /> : <ArrowDownRight className="w-4 h-4" />}
+                                <span>{formatPercentage(metrics.dayChange.percent)}</span>
                             </div>
-                            
-                            {searchResults.length > 0 && (
-                                <div className="p-2 max-h-96 overflow-y-auto">
-                                    {searchResults.map((result, index) => (
-                                        <motion.div
-                                            key={index}
-                                            initial={{ opacity: 0, x: -20 }}
-                                            animate={{ opacity: 1, x: 0 }}
-                                            transition={{ delay: index * 0.05 }}
-                                            className="flex items-center space-x-3 p-3 hover:bg-white/10 rounded-lg cursor-pointer group"
-                                        >
-                                            <div className="p-2 bg-white/10 rounded-lg group-hover:bg-white/20">
-                                                {result.icon}
-                                            </div>
-                                            <div className="flex-1">
-                                                <p className="text-white font-medium">{result.title}</p>
-                                                <p className="text-gray-400 text-sm">{result.subtitle}</p>
-                                            </div>
-                                            <ChevronRight className="w-4 h-4 text-gray-400 group-hover:text-white" />
-                                        </motion.div>
-                                    ))}
-                                </div>
-                            )}
-                        </motion.div>
-                    </>
-                )}
-            </AnimatePresence>
-        </>
+                        </div>
+                    </div>
+                </div>
+            </motion.div>
+
+            {/* Divider */}
+            <div className="h-12 w-px bg-white/10" />
+
+            {/* Day Change */}
+            <motion.div
+                initial={{ opacity: 0, y: -20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.1 }}
+                className="hidden lg:block"
+            >
+                <p className="text-xs text-gray-400 font-medium">Day Change</p>
+                <div className={`flex items-center space-x-2 ${metrics.dayChange.value >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                    <motion.div
+                        animate={{ y: [0, -2, 0] }}
+                        transition={{ duration: 2, repeat: Infinity }}
+                    >
+                        {metrics.dayChange.value >= 0 ? <TrendingUp className="w-5 h-5" /> : <TrendingUp className="w-5 h-5 rotate-180" />}
+                    </motion.div>
+                    <span className="text-lg font-semibold">
+                        {formatCurrency(Math.abs(metrics.dayChange.value))}
+                    </span>
+                </div>
+            </motion.div>
+
+            {/* Total Gain/Loss */}
+            <motion.div
+                initial={{ opacity: 0, y: -20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.2 }}
+                className="hidden xl:block"
+            >
+                <p className="text-xs text-gray-400 font-medium">Total Return</p>
+                <div className={`flex items-center space-x-2 ${metrics.totalGainLoss.value >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                    <Target className="w-5 h-5" />
+                    <span className="text-lg font-semibold">
+                        {formatCurrency(Math.abs(metrics.totalGainLoss.value))}
+                    </span>
+                    <span className="text-sm">
+                        ({formatPercentage(metrics.totalGainLoss.percent)})
+                    </span>
+                </div>
+            </motion.div>
+
+            {/* Quick Stats */}
+            <motion.div
+                initial={{ opacity: 0, y: -20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.3 }}
+                className="hidden 2xl:flex items-center space-x-6"
+            >
+                <div className="flex items-center space-x-2">
+                    <Layers className="w-4 h-4 text-purple-400" />
+                    <div>
+                        <p className="text-xs text-gray-400">Positions</p>
+                        <p className="text-sm font-semibold text-white">{metrics.positions}</p>
+                    </div>
+                </div>
+                <div className="flex items-center space-x-2">
+                    <Briefcase className="w-4 h-4 text-blue-400" />
+                    <div>
+                        <p className="text-xs text-gray-400">Accounts</p>
+                        <p className="text-sm font-semibold text-white">{metrics.accounts}</p>
+                    </div>
+                </div>
+            </motion.div>
+
+            {/* Live Indicator */}
+            <motion.div
+                animate={{ opacity: [0.5, 1, 0.5] }}
+                transition={{ duration: 2, repeat: Infinity }}
+                className="hidden lg:flex items-center space-x-2 text-xs"
+            >
+                <div className="w-2 h-2 bg-green-400 rounded-full" />
+                <span className="text-gray-400">Live</span>
+            </motion.div>
+        </div>
     );
 });
-SearchBar.displayName = 'SearchBar';
+PortfolioMetrics.displayName = 'PortfolioMetrics';
 
 const Navbar = () => {
     const [isDropdownOpen, setIsDropdownOpen] = useState(false);
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-    const [isQuickActionsOpen, setIsQuickActionsOpen] = useState(true);
     const [scrolledDown, setScrolledDown] = useState(false);
     const [showNotifications, setShowNotifications] = useState(false);
     const [unreadNotifications, setUnreadNotifications] = useState(3);
     const [isDarkMode, setIsDarkMode] = useState(true);
-    const [portfolioValue, setPortfolioValue] = useState(null);
-    const [dayChange, setDayChange] = useState(null);
+    const [showValues, setShowValues] = useState(true);
+    const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
 
     const { user, logout } = useContext(AuthContext);
     const router = useRouter();
-
-    // Mouse parallax effect
-    const mouseX = useMotionValue(0);
-    const mouseY = useMotionValue(0);
     const navbarRef = useRef(null);
-
-    const parallaxX = useTransform(mouseX, [0, 1], [-10, 10]);
-    const parallaxY = useTransform(mouseY, [0, 1], [-5, 5]);
 
     // Account fetching state
     const [accounts, setAccounts] = useState([]);
@@ -308,39 +377,9 @@ const Navbar = () => {
         }
     }, [user]);
 
-    // Load portfolio value
-    const loadPortfolioValue = useCallback(async () => {
-        if (!user) return;
-        try {
-            const response = await fetchWithAuth('/portfolio/snapshots?timeframe=1d');
-            const data = await response.json();
-            setPortfolioValue(data.current_value);
-            setDayChange(data.period_changes?.['1d']);
-        } catch (error) {
-            console.error("Error loading portfolio value:", error);
-        }
-    }, [user]);
-
     useEffect(() => {
         loadAccounts();
-        loadPortfolioValue();
-    }, [loadAccounts, loadPortfolioValue]);
-
-    // Handle mouse move for parallax
-    useEffect(() => {
-        const handleMouseMove = (e) => {
-            if (navbarRef.current) {
-                const rect = navbarRef.current.getBoundingClientRect();
-                const x = (e.clientX - rect.left) / rect.width;
-                const y = (e.clientY - rect.top) / rect.height;
-                mouseX.set(x);
-                mouseY.set(y);
-            }
-        };
-
-        window.addEventListener('mousemove', handleMouseMove);
-        return () => window.removeEventListener('mousemove', handleMouseMove);
-    }, [mouseX, mouseY]);
+    }, [loadAccounts]);
 
     // Handle scroll
     useEffect(() => {
@@ -351,37 +390,75 @@ const Navbar = () => {
         return () => window.removeEventListener('scroll', handleScroll);
     }, []);
 
-    // Navigation items with enhanced styling
-    const navItems = [
-        { href: '/', label: 'Dashboard', icon: <Home className="w-4 h-4" /> },
-        { href: '/portfolio', label: 'Portfolio', icon: <PieChart className="w-4 h-4" /> },
-        { href: '/positions', label: 'Positions', icon: <LineChart className="w-4 h-4" /> },
-        { href: '/accounts', label: 'Accounts', icon: <Wallet className="w-4 h-4" /> },
-        { href: '/transactions', label: 'Transactions', icon: <DollarSign className="w-4 h-4" /> }
-    ];
+    // Command palette shortcut
+    useEffect(() => {
+        const handleKeyDown = (e) => {
+            if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+                e.preventDefault();
+                setIsCommandPaletteOpen(true);
+            }
+        };
+        document.addEventListener('keydown', handleKeyDown);
+        return () => document.removeEventListener('keydown', handleKeyDown);
+    }, []);
 
-    const dropdownItems = [
-        { icon: <User className="w-5 h-5" />, label: "Profile", href: "/profile" },
-        { icon: <Shield className="w-5 h-5" />, label: "Admin", href: "/admin" },
-        { icon: <Settings className="w-5 h-5" />, label: "Settings", href: "/settings" },
-        { icon: <Clock className="w-5 h-5" />, label: "Activity", href: "/activity" },
-        { icon: <HelpCircle className="w-5 h-5" />, label: "Help & Support", href: "/help" },
-        { divider: true },
+    // Action items configuration
+    const actionItems = [
         {
-            icon: <LogOut className="w-5 h-5 text-red-500" />,
-            label: "Logout",
-            action: logout,
-            className: "text-red-500 hover:bg-red-50"
+            component: AddAccountButton,
+            props: { onAccountAdded: loadAccounts },
+            icon: <Wallet className="w-4 h-4" />,
+            label: "Add Account",
+            gradient: "from-emerald-600 to-green-600",
+            hoverGradient: "hover:from-emerald-700 hover:to-green-700"
+        },
+        {
+            component: AddPositionButton,
+            props: { onPositionAdded: () => {} },
+            icon: <PlusCircle className="w-4 h-4" />,
+            label: "Add Position",
+            gradient: "from-blue-600 to-indigo-600",
+            hoverGradient: "hover:from-blue-700 hover:to-indigo-700"
+        },
+        {
+            component: BulkPositionButton,
+            props: {
+                accounts,
+                fetchAccounts: loadAccounts,
+                fetchPositions: () => {},
+                fetchPortfolioSummary: () => {}
+            },
+            icon: <Upload className="w-4 h-4" />,
+            label: "Bulk Add",
+            gradient: "from-purple-600 to-pink-600",
+            hoverGradient: "hover:from-purple-700 hover:to-pink-700",
+            disabled: isLoadingAccounts || accountError || !accounts || accounts.length === 0
+        },
+        {
+            custom: true,
+            icon: <GitBranch className="w-4 h-4" />,
+            label: "Reconcile",
+            gradient: "from-orange-600 to-amber-600",
+            hoverGradient: "hover:from-orange-700 hover:to-amber-700",
+            onClick: () => router.push('/reconcile')
+        },
+        {
+            custom: true,
+            icon: <ArrowRightLeft className="w-4 h-4" />,
+            label: "Add Transaction",
+            gradient: "from-cyan-600 to-blue-600",
+            hoverGradient: "hover:from-cyan-700 hover:to-blue-700",
+            onClick: () => router.push('/transactions/add')
         }
     ];
 
-    // Enhanced notifications with categories
+    // Enhanced notifications
     const notifications = [
         { 
             id: 1, 
-            category: 'market',
-            title: "Market Alert", 
-            message: "AAPL reached your price target of $180", 
+            category: 'portfolio',
+            title: "Portfolio Milestone", 
+            message: "Your portfolio value increased by 5% this month", 
             time: "2 min ago", 
             isNew: true,
             icon: <TrendingUp className="w-4 h-4 text-green-400" />
@@ -397,12 +474,28 @@ const Navbar = () => {
         },
         { 
             id: 3, 
-            category: 'portfolio',
-            title: "Portfolio Milestone", 
-            message: "Your portfolio crossed $100,000!", 
+            category: 'alert',
+            title: "Price Alert", 
+            message: "AAPL reached your target price of $180", 
             time: "3 hours ago", 
             isNew: true,
-            icon: <Star className="w-4 h-4 text-yellow-400" />
+            icon: <Bell className="w-4 h-4 text-yellow-400" />
+        }
+    ];
+
+    const dropdownItems = [
+        { icon: <User className="w-5 h-5" />, label: "Profile", href: "/profile" },
+        { icon: <Activity className="w-5 h-5" />, label: "Activity", href: "/activity" },
+        { icon: <BarChart3 className="w-5 h-5" />, label: "Analytics", href: "/analytics" },
+        { icon: <Settings className="w-5 h-5" />, label: "Settings", href: "/settings" },
+        { icon: <Shield className="w-5 h-5" />, label: "Security", href: "/security" },
+        { icon: <HelpCircle className="w-5 h-5" />, label: "Help & Support", href: "/help" },
+        { divider: true },
+        {
+            icon: <LogOut className="w-5 h-5 text-red-500" />,
+            label: "Logout",
+            action: logout,
+            className: "text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20"
         }
     ];
 
@@ -421,21 +514,6 @@ const Navbar = () => {
         return 'U';
     }, [user]);
 
-    const formatCurrency = (value) => {
-        if (!value) return '$0.00';
-        return new Intl.NumberFormat('en-US', {
-            style: 'currency',
-            currency: 'USD',
-            minimumFractionDigits: 0,
-            maximumFractionDigits: 0
-        }).format(value);
-    };
-
-    const formatPercentage = (value) => {
-        if (!value) return '0.00%';
-        return `${value >= 0 ? '+' : ''}${value.toFixed(2)}%`;
-    };
-
     return (
         <motion.div 
             ref={navbarRef}
@@ -444,7 +522,7 @@ const Navbar = () => {
             animate={{ y: 0 }}
             transition={{ type: "spring", stiffness: 100 }}
         >
-            {/* Premium glass navbar */}
+            {/* Main Navbar */}
             <nav className={`
                 ${scrolledDown 
                     ? 'bg-gray-900/95 backdrop-blur-xl shadow-2xl' 
@@ -452,24 +530,13 @@ const Navbar = () => {
                 } 
                 transition-all duration-500 border-b border-white/10
             `}>
-                {/* Market ticker bar */}
-                {user && (
-                    <div className="border-b border-white/10 bg-black/20">
-                        <div className="container mx-auto px-4 py-2">
-                            <MarketTicker />
-                        </div>
-                    </div>
-                )}
-
                 <div className="container mx-auto px-4">
-                    <div className="h-20 flex justify-between items-center">
-                        {/* Logo and Navigation */}
-                        <div className="flex items-center space-x-8">
+                    <div className="h-20 flex items-center justify-between">
+                        {/* Left Section: Logo & Actions */}
+                        <div className="flex items-center space-x-6">
+                            {/* Logo */}
                             <Link href="/" className="flex items-center group">
-                                <motion.div 
-                                    className="mr-3"
-                                    style={{ x: parallaxX, y: parallaxY }}
-                                >
+                                <motion.div className="mr-3">
                                     <EggLogo />
                                 </motion.div>
                                 <div className="flex flex-col">
@@ -479,123 +546,79 @@ const Navbar = () => {
                                     >
                                         NestEgg
                                     </motion.span>
-                                    <span className="text-xs text-blue-300">Grow Your Wealth</span>
+                                    <span className="text-xs text-blue-300">Financial Command Center</span>
                                 </div>
                             </Link>
 
-                            {/* Main Navigation */}
+                            {/* Action Buttons */}
                             {user && (
-                                <nav className="hidden lg:flex items-center space-x-1">
-                                    {navItems.map((item, index) => {
-                                        const isActive = router.pathname === item.href;
-                                        return (
+                                <>
+                                    <div className="h-12 w-px bg-white/10 hidden lg:block" />
+                                    
+                                    <div className="hidden lg:flex items-center space-x-3">
+                                        {actionItems.map((item, index) => (
                                             <motion.div
-                                                key={item.href}
+                                                key={index}
                                                 initial={{ opacity: 0, y: -20 }}
                                                 animate={{ opacity: 1, y: 0 }}
                                                 transition={{ delay: index * 0.1 }}
                                             >
-                                                <Link
-                                                    href={item.href}
-                                                    className={`
-                                                        flex items-center space-x-2 px-4 py-2 rounded-xl
-                                                        transition-all duration-300 relative group
-                                                        ${isActive 
-                                                            ? 'text-white bg-white/20' 
-                                                            : 'text-gray-300 hover:text-white hover:bg-white/10'
-                                                        }
-                                                    `}
-                                                >
-                                                    <motion.div
-                                                        whileHover={{ scale: 1.2, rotate: 360 }}
-                                                        transition={{ duration: 0.3 }}
-                                                    >
-                                                        {item.icon}
-                                                    </motion.div>
-                                                    <span className="font-medium">{item.label}</span>
-                                                    
-                                                    {isActive && (
-                                                        <motion.div
-                                                            layoutId="activeTab"
-                                                            className="absolute inset-0 bg-gradient-to-r from-blue-500/20 to-purple-500/20 rounded-xl -z-10"
-                                                            initial={false}
-                                                            transition={{ type: "spring", stiffness: 300 }}
-                                                        />
-                                                    )}
-                                                </Link>
+                                                {item.custom ? (
+                                                    <ActionButton
+                                                        icon={item.icon}
+                                                        label={item.label}
+                                                        onClick={item.onClick}
+                                                        gradient={item.gradient}
+                                                        disabled={item.disabled}
+                                                    />
+                                                ) : (
+                                                    <item.component
+                                                        {...item.props}
+                                                        className={`
+                                                            px-4 py-2.5 rounded-xl font-medium transition-all
+                                                            flex items-center space-x-2 group
+                                                            bg-gradient-to-r ${item.gradient} text-white 
+                                                            shadow-lg hover:shadow-xl ${item.hoverGradient}
+                                                            ${item.disabled ? 'opacity-50 cursor-not-allowed' : ''}
+                                                        `}
+                                                    />
+                                                )}
                                             </motion.div>
-                                        );
-                                    })}
-                                </nav>
+                                        ))}
+                                    </div>
+                                </>
                             )}
                         </div>
 
-                        {/* Center Section */}
+                        {/* Center Section: Portfolio Metrics */}
                         {user && (
-                            <div className="hidden md:flex items-center space-x-4">
-                                <SearchBar />
-                                
-                                {/* Portfolio Value Display */}
-                                {portfolioValue && (
-                                    <motion.div
-                                        initial={{ opacity: 0, scale: 0.9 }}
-                                        animate={{ opacity: 1, scale: 1 }}
-                                        className="hidden xl:flex items-center space-x-4 px-4 py-2 bg-white/10 rounded-xl backdrop-blur-sm"
-                                    >
-                                        <div>
-                                            <p className="text-xs text-gray-400">Portfolio Value</p>
-                                            <p className="text-lg font-bold text-white">{formatCurrency(portfolioValue)}</p>
-                                        </div>
-                                        {dayChange && (
-                                            <div className={`flex items-center ${dayChange.percent_change >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                                                {dayChange.percent_change >= 0 ? <ArrowUpRight /> : <ArrowDownRight />}
-                                                <span className="font-medium">{formatPercentage(dayChange.percent_change)}</span>
-                                            </div>
-                                        )}
-                                    </motion.div>
-                                )}
+                            <div className="hidden lg:block flex-1 mx-8">
+                                <PortfolioMetrics showValues={showValues} />
                             </div>
                         )}
 
-                        {/* Right Section */}
+                        {/* Right Section: User Menu */}
                         {user ? (
-                            <div className="flex items-center space-x-4">
-                                {/* Quick Actions */}
-                                <AnimatePresence>
-                                    {isQuickActionsOpen && (
-                                        <motion.div
-                                            initial={{ opacity: 0, width: 0 }}
-                                            animate={{ opacity: 1, width: "auto" }}
-                                            exit={{ opacity: 0, width: 0 }}
-                                            className="hidden lg:flex items-center space-x-2"
-                                        >
-                                            <AddAccountButton
-                                                onAccountAdded={loadAccounts}
-                                                className="flex items-center px-4 py-2 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-xl hover:from-green-700 hover:to-emerald-700 transition-all shadow-lg hover:shadow-green-500/25 group"
-                                            />
-                                            <AddPositionButton
-                                                onPositionAdded={() => {}}
-                                                className="flex items-center px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl hover:from-blue-700 hover:to-indigo-700 transition-all shadow-lg hover:shadow-blue-500/25 group"
-                                            />
-                                            <BulkPositionButton
-                                                accounts={accounts}
-                                                fetchAccounts={loadAccounts}
-                                                fetchPositions={() => {}}
-                                                fetchPortfolioSummary={() => {}}
-                                                className="flex items-center px-4 py-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-xl hover:from-purple-700 hover:to-pink-700 transition-all shadow-lg hover:shadow-purple-500/25 group"
-                                                disabled={isLoadingAccounts || accountError || !accounts || accounts.length === 0}
-                                            />
-                                        </motion.div>
-                                    )}
-                                </AnimatePresence>
+                            <div className="flex items-center space-x-3">
+                                {/* Command Palette Button */}
+                                <motion.button
+                                    whileHover={{ scale: 1.05 }}
+                                    whileTap={{ scale: 0.95 }}
+                                    onClick={() => setIsCommandPaletteOpen(true)}
+                                    className="hidden md:flex items-center space-x-2 px-3 py-2 bg-white/10 hover:bg-white/20 rounded-xl transition-all"
+                                >
+                                    <Command className="w-4 h-4" />
+                                    <span className="text-sm text-gray-300">Cmd+K</span>
+                                </motion.button>
 
+                                {/* Value Toggle */}
                                 <motion.button
                                     whileHover={{ scale: 1.1 }}
                                     whileTap={{ scale: 0.9 }}
-                                    onClick={() => setIsQuickActionsOpen(!isQuickActionsOpen)}
-                                    className="hidden lg:block p-2 rounded-xl bg-white/10 hover:bg-white/20 transition-all"
+                                    onClick={() => setShowValues(!showValues)}
+                                    className="p-2.5 rounded-xl bg-white/10 hover:bg-white/20 transition-all"
                                 >
-                                    {isQuickActionsOpen ? <ChevronLeft className="w-5 h-5" /> : <ChevronRight className="w-5 h-5" />}
+                                    {showValues ? <Eye className="w-5 h-5" /> : <EyeOff className="w-5 h-5" />}
                                 </motion.button>
 
                                 {/* Theme Toggle */}
@@ -603,17 +626,17 @@ const Navbar = () => {
                                     whileHover={{ scale: 1.1, rotate: 180 }}
                                     whileTap={{ scale: 0.9 }}
                                     onClick={() => setIsDarkMode(!isDarkMode)}
-                                    className="p-2 rounded-xl bg-white/10 hover:bg-white/20 transition-all"
+                                    className="p-2.5 rounded-xl bg-white/10 hover:bg-white/20 transition-all"
                                 >
                                     {isDarkMode ? <Sun className="w-5 h-5 text-yellow-400" /> : <Moon className="w-5 h-5 text-blue-400" />}
                                 </motion.button>
 
-                                {/* Enhanced Notifications */}
+                                {/* Notifications */}
                                 <div className="relative">
                                     <motion.button
                                         whileHover={{ scale: 1.1 }}
                                         whileTap={{ scale: 0.9 }}
-                                        className="relative p-2 rounded-xl bg-white/10 hover:bg-white/20 transition-all"
+                                        className="relative p-2.5 rounded-xl bg-white/10 hover:bg-white/20 transition-all"
                                         onClick={() => setShowNotifications(!showNotifications)}
                                     >
                                         <Bell className="w-5 h-5" />
@@ -686,7 +709,7 @@ const Navbar = () => {
                                     </AnimatePresence>
                                 </div>
 
-                                {/* Enhanced User Menu */}
+                                {/* User Menu */}
                                 <div className="relative">
                                     <motion.button
                                         whileHover={{ scale: 1.05 }}
@@ -724,7 +747,7 @@ const Navbar = () => {
                                                             <p className="font-bold text-lg text-white">{displayName}</p>
                                                             <p className="text-sm text-white/80">{user?.email}</p>
                                                             <div className="flex items-center mt-1">
-                                                                <Star className="w-4 h-4 text-yellow-400 mr-1" />
+                                                                <Award className="w-4 h-4 text-yellow-400 mr-1" />
                                                                 <span className="text-xs text-yellow-400">Premium Member</span>
                                                             </div>
                                                         </div>
@@ -778,6 +801,16 @@ const Navbar = () => {
                                         )}
                                     </AnimatePresence>
                                 </div>
+
+                                {/* Mobile menu button */}
+                                <motion.button
+                                    whileHover={{ scale: 1.1 }}
+                                    whileTap={{ scale: 0.9 }}
+                                    className="lg:hidden text-white p-2 rounded-xl bg-white/10 hover:bg-white/20"
+                                    onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+                                >
+                                    {isMobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+                                </motion.button>
                             </div>
                         ) : (
                             // Non-authenticated state
@@ -798,16 +831,6 @@ const Navbar = () => {
                                 </motion.div>
                             </div>
                         )}
-
-                        {/* Mobile menu button */}
-                        <motion.button
-                            whileHover={{ scale: 1.1 }}
-                            whileTap={{ scale: 0.9 }}
-                            className="lg:hidden text-white p-2 rounded-xl bg-white/10 hover:bg-white/20"
-                            onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-                        >
-                            {isMobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
-                        </motion.button>
                     </div>
                 </div>
             </nav>
@@ -821,30 +844,45 @@ const Navbar = () => {
                         exit={{ opacity: 0, height: 0 }}
                         className="lg:hidden bg-gray-900/95 backdrop-blur-xl border-b border-white/10"
                     >
-                        <div className="container mx-auto px-4 py-4">
-                            {/* Mobile Navigation */}
-                            <nav className="space-y-2 mb-4">
-                                {navItems.map((item) => {
-                                    const isActive = router.pathname === item.href;
-                                    return (
-                                        <Link
-                                            key={item.href}
-                                            href={item.href}
-                                            onClick={() => setIsMobileMenuOpen(false)}
-                                            className={`
-                                                flex items-center space-x-3 px-4 py-3 rounded-xl
-                                                ${isActive 
-                                                    ? 'bg-white/20 text-white' 
-                                                    : 'text-gray-300 hover:bg-white/10 hover:text-white'
-                                                }
-                                            `}
-                                        >
-                                            {item.icon}
-                                            <span className="font-medium">{item.label}</span>
-                                        </Link>
-                                    );
-                                })}
-                            </nav>
+                        <div className="container mx-auto px-4 py-6">
+                            {/* Mobile Portfolio Metrics */}
+                            <div className="mb-6 p-4 bg-white/5 rounded-xl">
+                                <PortfolioMetrics showValues={showValues} />
+                            </div>
+
+                            {/* Mobile Actions */}
+                            <div className="space-y-3 mb-6">
+                                {actionItems.map((item, index) => (
+                                    <motion.div
+                                        key={index}
+                                        initial={{ opacity: 0, x: -20 }}
+                                        animate={{ opacity: 1, x: 0 }}
+                                        transition={{ delay: index * 0.1 }}
+                                    >
+                                        {item.custom ? (
+                                            <ActionButton
+                                                icon={item.icon}
+                                                label={item.label}
+                                                onClick={item.onClick}
+                                                gradient={item.gradient}
+                                                disabled={item.disabled}
+                                                className="w-full justify-center"
+                                            />
+                                        ) : (
+                                            <item.component
+                                                {...item.props}
+                                                className={`
+                                                    w-full px-4 py-3 rounded-xl font-medium transition-all
+                                                    flex items-center justify-center space-x-2 group
+                                                    bg-gradient-to-r ${item.gradient} text-white 
+                                                    shadow-lg ${item.hoverGradient}
+                                                    ${item.disabled ? 'opacity-50 cursor-not-allowed' : ''}
+                                                `}
+                                            />
+                                        )}
+                                    </motion.div>
+                                ))}
+                            </div>
 
                             {/* Mobile User Info */}
                             <div className="border-t border-white/10 pt-4">
@@ -899,33 +937,60 @@ const Navbar = () => {
                 )}
             </AnimatePresence>
 
-            {/* Mobile Bottom Bar */}
-            {user && (
-                <motion.div
-                    initial={{ y: 100 }}
-                    animate={{ y: 0 }}
-                    className="lg:hidden fixed bottom-0 left-0 right-0 bg-gray-900/95 backdrop-blur-xl border-t border-white/10 z-50"
-                >
-                    <div className="grid grid-cols-3 items-center">
-                        <AddAccountButton
-                            onAccountAdded={loadAccounts}
-                            className="flex flex-col items-center justify-center py-4 text-white hover:bg-white/10 transition-all"
+            {/* Command Palette */}
+            <AnimatePresence>
+                {isCommandPaletteOpen && (
+                    <>
+                        <motion.div
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50"
+                            onClick={() => setIsCommandPaletteOpen(false)}
                         />
-                        <AddPositionButton
-                            onPositionAdded={() => {}}
-                            className="flex flex-col items-center justify-center py-4 text-white hover:bg-white/10 transition-all border-x border-white/10"
-                        />
-                        <BulkPositionButton
-                            accounts={accounts}
-                            fetchAccounts={loadAccounts}
-                            fetchPositions={() => {}}
-                            fetchPortfolioSummary={() => {}}
-                            className="flex flex-col items-center justify-center py-4 text-white hover:bg-white/10 transition-all"
-                            disabled={isLoadingAccounts || accountError || !accounts || accounts.length === 0}
-                        />
-                    </div>
-                </motion.div>
-            )}
+                        <motion.div
+                            initial={{ opacity: 0, scale: 0.95 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            exit={{ opacity: 0, scale: 0.95 }}
+                            className="fixed top-20 left-1/2 transform -translate-x-1/2 w-full max-w-2xl bg-gray-900 rounded-2xl shadow-2xl border border-white/10 z-50 overflow-hidden"
+                        >
+                            <div className="p-4 border-b border-white/10">
+                                <div className="flex items-center space-x-3">
+                                    <Search className="w-5 h-5 text-gray-400" />
+                                    <input
+                                        type="text"
+                                        placeholder="Search actions, accounts, or positions..."
+                                        className="flex-1 bg-transparent outline-none text-white placeholder-gray-400"
+                                        autoFocus
+                                    />
+                                </div>
+                            </div>
+                            
+                            <div className="p-4">
+                                <p className="text-sm text-gray-400 mb-3">Quick Actions</p>
+                                <div className="space-y-2">
+                                    {actionItems.map((item, index) => (
+                                        <motion.button
+                                            key={index}
+                                            whileHover={{ x: 5 }}
+                                            className="w-full flex items-center space-x-3 p-3 hover:bg-white/10 rounded-lg text-left"
+                                            onClick={() => {
+                                                setIsCommandPaletteOpen(false);
+                                                item.onClick?.();
+                                            }}
+                                        >
+                                            <div className={`p-2 rounded-lg bg-gradient-to-r ${item.gradient}`}>
+                                                {item.icon}
+                                            </div>
+                                            <span className="text-white">{item.label}</span>
+                                        </motion.button>
+                                    ))}
+                                </div>
+                            </div>
+                        </motion.div>
+                    </>
+                )}
+            </AnimatePresence>
         </motion.div>
     );
 };
