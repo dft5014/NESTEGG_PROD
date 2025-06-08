@@ -1,18 +1,16 @@
-// components/Sidebar.js - Premium Enhanced Version with Live Data
+// components/Sidebar.js - Premium Enhanced Version
 import Link from 'next/link';
 import { 
   BarChart2, ChevronLeft, ChevronRight, CheckSquare, Settings, 
   Database, Shield, Home, Coins, Bitcoin, ChevronDown, ChevronUp, 
   TrendingUp, Gauge, Info, LineChart, PieChart, LogOut, Search,
   Bell, User, Sparkles, Activity, DollarSign, Target, Zap,
-  Moon, Sun, Menu, X, Plus, Filter, ArrowUpRight, ArrowDownRight,
-  RefreshCw, AlertCircle
+  Moon, Sun, Menu, X, Plus, Filter, ArrowUpRight, ArrowDownRight
 } from 'lucide-react';
 import { useContext, useState, useEffect, useRef } from 'react';
 import { AuthContext } from '@/context/AuthContext';
 import { useRouter } from 'next/router';
 import { motion, AnimatePresence } from 'framer-motion';
-import { fetchWithAuth } from '@/utils/api';
 
 const Sidebar = () => {
   const { logout, user } = useContext(AuthContext);
@@ -22,124 +20,19 @@ const Sidebar = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [showSearch, setShowSearch] = useState(false);
   const [hoveredItem, setHoveredItem] = useState(null);
-  const [notifications, setNotifications] = useState(0);
+  const [notifications, setNotifications] = useState(3);
   const [darkMode, setDarkMode] = useState(true);
   const [showQuickStats, setShowQuickStats] = useState(true);
   const searchRef = useRef(null);
   const router = useRouter();
 
-  // State for live data
-  const [portfolioData, setPortfolioData] = useState(null);
-  const [accountsData, setAccountsData] = useState(null);
-  const [positionsData, setPositionsData] = useState(null);
-  const [tasksData, setTasksData] = useState(null);
-  const [isLoadingData, setIsLoadingData] = useState(true);
-  const [dataError, setDataError] = useState(null);
-  const [lastRefresh, setLastRefresh] = useState(null);
-
-  // Portfolio stats from API
-  const [portfolioStats, setPortfolioStats] = useState({
-    totalValue: 0,
-    dayChange: 0,
-    dayChangePercent: 0,
-    weekChangePercent: 0
+  // Portfolio stats (mock data - replace with real data)
+  const [portfolioStats] = useState({
+    totalValue: 284567.89,
+    dayChange: 2847.33,
+    dayChangePercent: 1.01,
+    weekChangePercent: 3.47
   });
-
-  // Fetch portfolio data
-  const fetchPortfolioData = async () => {
-    try {
-      const response = await fetchWithAuth('/portfolio/snapshots?timeframe=1w&group_by=day&include_cost_basis=true');
-      if (!response.ok) throw new Error('Failed to fetch portfolio data');
-      
-      const data = await response.json();
-      setPortfolioData(data);
-      
-      // Update portfolio stats
-      const periodChanges = data.period_changes || {};
-      setPortfolioStats({
-        totalValue: data.current_value || 0,
-        dayChange: periodChanges['1d']?.value_change || 0,
-        dayChangePercent: periodChanges['1d']?.percent_change || 0,
-        weekChangePercent: periodChanges['1w']?.percent_change || 0
-      });
-    } catch (error) {
-      console.error('Error fetching portfolio data:', error);
-      setDataError('Failed to load portfolio data');
-    }
-  };
-
-  // Fetch accounts data
-  const fetchAccountsData = async () => {
-    try {
-      const response = await fetchWithAuth('/accounts');
-      if (!response.ok) throw new Error('Failed to fetch accounts');
-      
-      const data = await response.json();
-      setAccountsData(data);
-    } catch (error) {
-      console.error('Error fetching accounts:', error);
-    }
-  };
-
-  // Fetch positions data
-  const fetchPositionsData = async () => {
-    try {
-      const response = await fetchWithAuth('/positions');
-      if (!response.ok) throw new Error('Failed to fetch positions');
-      
-      const data = await response.json();
-      setPositionsData(data);
-    } catch (error) {
-      console.error('Error fetching positions:', error);
-    }
-  };
-
-  // Fetch tasks data
-  const fetchTasksData = async () => {
-    try {
-      const response = await fetchWithAuth('/tasks');
-      if (!response.ok) throw new Error('Failed to fetch tasks');
-      
-      const data = await response.json();
-      setTasksData(data);
-      
-      // Count pending tasks for notifications
-      const pendingTasks = data.filter(task => !task.completed).length;
-      setNotifications(pendingTasks);
-    } catch (error) {
-      console.error('Error fetching tasks:', error);
-    }
-  };
-
-  // Fetch all data
-  const fetchAllData = async () => {
-    setIsLoadingData(true);
-    setDataError(null);
-    
-    try {
-      await Promise.all([
-        fetchPortfolioData(),
-        fetchAccountsData(),
-        fetchPositionsData(),
-        fetchTasksData()
-      ]);
-      setLastRefresh(new Date());
-    } catch (error) {
-      console.error('Error fetching data:', error);
-    } finally {
-      setIsLoadingData(false);
-    }
-  };
-
-  // Load data on mount and set up refresh interval
-  useEffect(() => {
-    fetchAllData();
-    
-    // Refresh data every 5 minutes
-    const interval = setInterval(fetchAllData, 5 * 60 * 1000);
-    
-    return () => clearInterval(interval);
-  }, []);
 
   // Handle resize for responsive behavior
   useEffect(() => {
@@ -172,17 +65,7 @@ const Sidebar = () => {
     return router.pathname === path || router.pathname.startsWith(`${path}/`);
   };
 
-  // Format currency
-  const formatCurrency = (value) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0
-    }).format(value);
-  };
-
-  // Enhanced menu structure with live data
+  // Enhanced menu structure with metadata
   const menuItems = [
     { 
       href: "/portfolio", 
@@ -207,17 +90,17 @@ const Sidebar = () => {
           href: "/accounts", 
           label: "Accounts", 
           icon: <Home className="w-5 h-5" />,
-          count: accountsData?.length || 0,
-          trend: accountsData?.length > 0 ? "up" : null,
-          trendValue: accountsData?.length > 0 ? `${accountsData.length}` : null
+          count: 12,
+          trend: "up",
+          trendValue: "+2"
         },
         { 
           href: "/positions", 
           label: "Positions", 
           icon: <TrendingUp className="w-5 h-5" />,
-          count: positionsData?.length || 0,
-          trend: positionsData?.length > 0 ? "up" : null,
-          trendValue: positionsData?.length > 0 ? `${positionsData.length}` : null
+          count: 48,
+          trend: "up",
+          trendValue: "+5"
         },
         { 
           href: "/AccountReconciliation", 
@@ -232,7 +115,7 @@ const Sidebar = () => {
       href: "/tasks", 
       label: "Task Tracker", 
       icon: <CheckSquare className="w-5 h-5" />,
-      count: tasksData?.filter(t => !t.completed).length || 0,
+      count: 7,
       description: "Pending tasks"
     },
     { 
@@ -415,86 +298,53 @@ const Sidebar = () => {
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
                   <span className="text-xs text-gray-400">Portfolio Value</span>
-                  <div className="flex items-center space-x-2">
-                    <motion.button
-                      whileHover={{ scale: 1.1, rotate: 180 }}
-                      whileTap={{ scale: 0.9 }}
-                      onClick={() => fetchAllData()}
-                      className="p-1 hover:bg-gray-800 rounded"
-                      title="Refresh data"
-                    >
-                      <RefreshCw className={`w-3 h-3 text-gray-400 ${isLoadingData ? 'animate-spin' : ''}`} />
-                    </motion.button>
-                    <motion.button
-                      whileHover={{ scale: 1.1 }}
-                      whileTap={{ scale: 0.9 }}
-                      onClick={() => setShowQuickStats(false)}
-                      className="p-1 hover:bg-gray-800 rounded"
-                    >
-                      <ChevronUp className="w-3 h-3 text-gray-400" />
-                    </motion.button>
+                  <motion.button
+                    whileHover={{ scale: 1.1 }}
+                    whileTap={{ scale: 0.9 }}
+                    onClick={() => setShowQuickStats(false)}
+                    className="p-1 hover:bg-gray-800 rounded"
+                  >
+                    <ChevronUp className="w-3 h-3 text-gray-400" />
+                  </motion.button>
+                </div>
+                <div className="space-y-1">
+                  <motion.div 
+                    className="text-2xl font-bold"
+                    initial={{ scale: 0.9 }}
+                    animate={{ scale: 1 }}
+                  >
+                    ${portfolioStats.totalValue.toLocaleString()}
+                  </motion.div>
+                  <div className="flex items-center gap-2">
+                    <div className={`flex items-center gap-1 text-xs ${
+                      portfolioStats.dayChange > 0 ? 'text-green-400' : 'text-red-400'
+                    }`}>
+                      {portfolioStats.dayChange > 0 ? (
+                        <ArrowUpRight className="w-3 h-3" />
+                      ) : (
+                        <ArrowDownRight className="w-3 h-3" />
+                      )}
+                      <span>${Math.abs(portfolioStats.dayChange).toLocaleString()}</span>
+                      <span>({portfolioStats.dayChangePercent}%)</span>
+                    </div>
+                  </div>
+                  <div className="flex gap-4 text-xs text-gray-400">
+                    <span>Week: <span className="text-green-400">+{portfolioStats.weekChangePercent}%</span></span>
                   </div>
                 </div>
-                
-                {dataError ? (
-                  <div className="flex items-center space-x-2 text-red-400 text-xs">
-                    <AlertCircle className="w-3 h-3" />
-                    <span>{dataError}</span>
-                  </div>
-                ) : (
-                  <>
-                    <div className="space-y-1">
-                      <motion.div 
-                        className="text-2xl font-bold"
-                        initial={{ scale: 0.9 }}
-                        animate={{ scale: 1 }}
-                        key={portfolioStats.totalValue}
-                      >
-                        {formatCurrency(portfolioStats.totalValue)}
-                      </motion.div>
-                      <div className="flex items-center gap-2">
-                        <div className={`flex items-center gap-1 text-xs ${
-                          portfolioStats.dayChange > 0 ? 'text-green-400' : 'text-red-400'
-                        }`}>
-                          {portfolioStats.dayChange > 0 ? (
-                            <ArrowUpRight className="w-3 h-3" />
-                          ) : (
-                            <ArrowDownRight className="w-3 h-3" />
-                          )}
-                          <span>{formatCurrency(Math.abs(portfolioStats.dayChange))}</span>
-                          <span>({portfolioStats.dayChangePercent.toFixed(2)}%)</span>
-                        </div>
-                      </div>
-                      <div className="flex gap-4 text-xs text-gray-400">
-                        <span>Week: <span className={portfolioStats.weekChangePercent > 0 ? 'text-green-400' : 'text-red-400'}>
-                          {portfolioStats.weekChangePercent > 0 ? '+' : ''}{portfolioStats.weekChangePercent.toFixed(2)}%
-                        </span></span>
-                      </div>
-                    </div>
-                    
-                    {portfolioData && (
-                      <motion.div 
-                        className="h-1 bg-gray-800 rounded-full overflow-hidden"
-                        initial={{ scaleX: 0 }}
-                        animate={{ scaleX: 1 }}
-                        transition={{ duration: 1, delay: 0.2 }}
-                      >
-                        <motion.div 
-                          className="h-full bg-gradient-to-r from-blue-500 to-purple-500"
-                          initial={{ width: 0 }}
-                          animate={{ width: `${Math.min((portfolioStats.totalValue / 1000000) * 100, 100)}%` }}
-                          transition={{ duration: 1, delay: 0.5 }}
-                        />
-                      </motion.div>
-                    )}
-                    
-                    {lastRefresh && (
-                      <div className="text-xs text-gray-500 text-center">
-                        Last updated: {lastRefresh.toLocaleTimeString()}
-                      </div>
-                    )}
-                  </>
-                )}
+                <motion.div 
+                  className="h-1 bg-gray-800 rounded-full overflow-hidden"
+                  initial={{ scaleX: 0 }}
+                  animate={{ scaleX: 1 }}
+                  transition={{ duration: 1, delay: 0.2 }}
+                >
+                  <motion.div 
+                    className="h-full bg-gradient-to-r from-blue-500 to-purple-500"
+                    initial={{ width: 0 }}
+                    animate={{ width: '68%' }}
+                    transition={{ duration: 1, delay: 0.5 }}
+                  />
+                </motion.div>
               </div>
             </motion.div>
           )}
@@ -618,7 +468,7 @@ const Sidebar = () => {
                                         </div>
                                       )}
                                       
-                                      {subItem.count !== undefined && subItem.count > 0 && (
+                                      {subItem.count && (
                                         <span className="text-xs text-gray-400">
                                           {subItem.count}
                                         </span>
@@ -658,7 +508,7 @@ const Sidebar = () => {
                                     className="absolute left-full ml-2 px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg shadow-xl z-50 whitespace-nowrap"
                                   >
                                     <span className="text-sm font-medium">{subItem.label}</span>
-                                    {subItem.count !== undefined && subItem.count > 0 && (
+                                    {subItem.count && (
                                       <span className="ml-2 text-xs text-gray-400">({subItem.count})</span>
                                     )}
                                   </motion.div>
@@ -718,7 +568,7 @@ const Sidebar = () => {
                           
                           {/* Badges and counts */}
                           <div className="flex items-center gap-2">
-                            {item.count !== undefined && item.count > 0 && (
+                            {item.count && (
                               <span className="text-xs text-gray-400">
                                 {item.count}
                               </span>
@@ -747,7 +597,7 @@ const Sidebar = () => {
                           className="absolute left-full ml-2 px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg shadow-xl z-50 whitespace-nowrap"
                         >
                           <span className="text-sm font-medium">{item.label}</span>
-                          {item.count !== undefined && item.count > 0 && (
+                          {item.count && (
                             <span className="ml-2 text-xs text-gray-400">({item.count})</span>
                           )}
                         </motion.div>
@@ -766,7 +616,6 @@ const Sidebar = () => {
             <motion.button
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
-              onClick={() => router.push('/positions/add')}
               className="w-full flex items-center justify-center gap-2 px-4 py-2.5 
                        bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700
                        text-white font-medium rounded-lg shadow-lg shadow-blue-600/20
