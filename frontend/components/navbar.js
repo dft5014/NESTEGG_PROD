@@ -1,48 +1,264 @@
-// components/Navbar.js
-import { useState, useContext, useEffect, useCallback, memo } from 'react';
+import { useState, useContext, useEffect, useCallback, memo, useRef } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
+import { motion, AnimatePresence, useMotionValue, useTransform, useSpring } from 'framer-motion';
 import { AuthContext } from '@/context/AuthContext';
 import {
     User, Settings, LogOut, HelpCircle, Bell, ChartLine,
     PlusCircle, Shield, Clock, Menu, X, LineChart, BarChart4,
-    ChevronLeft, ChevronRight, Upload, Loader2, AlertCircle // Added Loader2, AlertCircle for status
+    ChevronLeft, ChevronRight, Upload, Loader2, AlertCircle,
+    Wallet, TrendingUp, Activity, Zap, Star, Moon, Sun,
+    Command, Search, Home, PieChart, DollarSign, Globe,
+    ArrowUpRight, ArrowDownRight, Sparkles, Cpu, Lock,
+    CheckCircle, XCircle, Info, ChevronDown, Layers,
+    Database, RefreshCw, Eye, EyeOff, Bitcoin, Gem
 } from 'lucide-react';
 import UpdateStatusIndicator from '@/components/UpdateStatusIndicator';
 import AddPositionButton from '@/components/AddPositionButton';
 import AddAccountButton from '@/components/AddAccountButton';
 import BulkPositionButton from '@/components/BulkPositionButton';
 import { fetchAccounts } from '@/utils/apimethods/accountMethods';
+import { fetchWithAuth } from '@/utils/api';
 
-// Memoized EggLogo component (no changes)
-const EggLogo = memo(() => (
-    <div className="relative">
-        <svg
-            width="36"
-            height="36"
-            viewBox="0 0 36 36"
-            xmlns="http://www.w3.org/2000/svg"
-            className="text-blue-400"
+// Enhanced 3D Egg Logo with animation
+const EggLogo = memo(() => {
+    const [isHovered, setIsHovered] = useState(false);
+    
+    return (
+        <motion.div 
+            className="relative"
+            onHoverStart={() => setIsHovered(true)}
+            onHoverEnd={() => setIsHovered(false)}
+            whileHover={{ scale: 1.1, rotate: [0, -5, 5, 0] }}
+            transition={{ type: "spring", stiffness: 300 }}
         >
-            <defs>
-                <linearGradient id="eggGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                    <stop offset="0%" stopColor="#60A5FA" />
-                    <stop offset="100%" stopColor="#93C5FD" />
-                </linearGradient>
-            </defs>
-            <path
-                d="M18 2C12 2 6 12 6 22C6 30 11 34 18 34C25 34 30 30 30 22C30 12 24 2 18 2Z"
-                fill="url(#eggGradient)"
-                stroke="currentColor"
-                strokeWidth="1.5"
-            />
-            <circle cx="14" cy="16" r="1.5" fill="#1E3A8A" />
-            <circle cx="22" cy="16" r="1.5" fill="#1E3A8A" />
-            <path d="M15 24C16.5 25.5 19.5 25.5 21 24" stroke="#1E3A8A" strokeWidth="1.5" strokeLinecap="round" />
-        </svg>
-    </div>
-));
+            <svg
+                width="40"
+                height="40"
+                viewBox="0 0 40 40"
+                xmlns="http://www.w3.org/2000/svg"
+                className="text-blue-400"
+            >
+                <defs>
+                    <linearGradient id="eggGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                        <stop offset="0%" stopColor="#60A5FA">
+                            <animate attributeName="stop-color" values="#60A5FA;#A78BFA;#60A5FA" dur="3s" repeatCount="indefinite" />
+                        </stop>
+                        <stop offset="100%" stopColor="#93C5FD">
+                            <animate attributeName="stop-color" values="#93C5FD;#C7D2FE;#93C5FD" dur="3s" repeatCount="indefinite" />
+                        </stop>
+                    </linearGradient>
+                    <filter id="glow">
+                        <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
+                        <feMerge>
+                            <feMergeNode in="coloredBlur"/>
+                            <feMergeNode in="SourceGraphic"/>
+                        </feMerge>
+                    </filter>
+                </defs>
+                <motion.path
+                    d="M20 4C14 4 8 14 8 24C8 32 13 36 20 36C27 36 32 32 32 24C32 14 26 4 20 4Z"
+                    fill="url(#eggGradient)"
+                    stroke="currentColor"
+                    strokeWidth="1.5"
+                    filter={isHovered ? "url(#glow)" : ""}
+                    animate={isHovered ? { strokeWidth: 2 } : { strokeWidth: 1.5 }}
+                />
+                <motion.circle 
+                    cx="16" 
+                    cy="18" 
+                    r="2" 
+                    fill="#1E3A8A"
+                    animate={isHovered ? { scale: [1, 1.2, 1] } : {}}
+                    transition={{ duration: 0.3 }}
+                />
+                <motion.circle 
+                    cx="24" 
+                    cy="18" 
+                    r="2" 
+                    fill="#1E3A8A"
+                    animate={isHovered ? { scale: [1, 1.2, 1] } : {}}
+                    transition={{ duration: 0.3, delay: 0.1 }}
+                />
+                <motion.path 
+                    d="M16 26C17.5 27.5 22.5 27.5 24 26" 
+                    stroke="#1E3A8A" 
+                    strokeWidth="2" 
+                    strokeLinecap="round"
+                    animate={isHovered ? { d: "M16 26C17.5 28.5 22.5 28.5 24 26" } : {}}
+                />
+            </svg>
+            {isHovered && (
+                <motion.div
+                    className="absolute inset-0 -z-10"
+                    initial={{ opacity: 0, scale: 0.8 }}
+                    animate={{ opacity: 1, scale: 1.5 }}
+                    exit={{ opacity: 0, scale: 0.8 }}
+                >
+                    <div className="w-full h-full bg-blue-400/20 rounded-full blur-xl" />
+                </motion.div>
+            )}
+        </motion.div>
+    );
+});
 EggLogo.displayName = 'EggLogo';
+
+// Market ticker component
+const MarketTicker = memo(() => {
+    const [marketData, setMarketData] = useState([
+        { symbol: 'SPY', price: 456.32, change: 1.24, isUp: true },
+        { symbol: 'QQQ', price: 384.56, change: -0.45, isUp: false },
+        { symbol: 'BTC', price: 68420, change: 3.45, isUp: true },
+        { symbol: 'ETH', price: 3842, change: 2.13, isUp: true }
+    ]);
+
+    return (
+        <div className="hidden lg:flex items-center space-x-6 text-sm">
+            {marketData.map((item, index) => (
+                <motion.div
+                    key={item.symbol}
+                    initial={{ opacity: 0, y: -20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: index * 0.1 }}
+                    className="flex items-center space-x-2"
+                >
+                    <span className="text-gray-400">{item.symbol}</span>
+                    <span className="text-white font-medium">${item.price.toLocaleString()}</span>
+                    <div className={`flex items-center ${item.isUp ? 'text-green-400' : 'text-red-400'}`}>
+                        {item.isUp ? <ArrowUpRight className="w-4 h-4" /> : <ArrowDownRight className="w-4 h-4" />}
+                        <span>{Math.abs(item.change)}%</span>
+                    </div>
+                </motion.div>
+            ))}
+        </div>
+    );
+});
+MarketTicker.displayName = 'MarketTicker';
+
+// Enhanced Search Bar
+const SearchBar = memo(() => {
+    const [isOpen, setIsOpen] = useState(false);
+    const [searchQuery, setSearchQuery] = useState('');
+    const [searchResults, setSearchResults] = useState([]);
+    const searchRef = useRef(null);
+
+    // Mock search results
+    const mockResults = [
+        { type: 'position', icon: <LineChart className="w-4 h-4" />, title: 'AAPL', subtitle: 'Apple Inc.' },
+        { type: 'account', icon: <Wallet className="w-4 h-4" />, title: 'Retirement Account', subtitle: 'Vanguard' },
+        { type: 'action', icon: <PlusCircle className="w-4 h-4" />, title: 'Add New Position', subtitle: 'Quick action' }
+    ];
+
+    useEffect(() => {
+        if (searchQuery) {
+            setSearchResults(mockResults.filter(item => 
+                item.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                item.subtitle.toLowerCase().includes(searchQuery.toLowerCase())
+            ));
+        } else {
+            setSearchResults([]);
+        }
+    }, [searchQuery]);
+
+    useEffect(() => {
+        const handleKeyDown = (e) => {
+            if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+                e.preventDefault();
+                setIsOpen(true);
+                searchRef.current?.focus();
+            }
+            if (e.key === 'Escape') {
+                setIsOpen(false);
+            }
+        };
+
+        document.addEventListener('keydown', handleKeyDown);
+        return () => document.removeEventListener('keydown', handleKeyDown);
+    }, []);
+
+    return (
+        <>
+            <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={() => setIsOpen(true)}
+                className="hidden md:flex items-center space-x-2 px-4 py-2 bg-white/10 hover:bg-white/20 rounded-xl backdrop-blur-sm transition-all group"
+            >
+                <Search className="w-4 h-4 text-gray-300 group-hover:text-white" />
+                <span className="text-gray-300 group-hover:text-white text-sm">Search...</span>
+                <div className="flex items-center space-x-1 ml-8">
+                    <kbd className="px-2 py-1 bg-white/10 rounded text-xs text-gray-400">⌘</kbd>
+                    <kbd className="px-2 py-1 bg-white/10 rounded text-xs text-gray-400">K</kbd>
+                </div>
+            </motion.button>
+
+            <AnimatePresence>
+                {isOpen && (
+                    <>
+                        <motion.div
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50"
+                            onClick={() => setIsOpen(false)}
+                        />
+                        <motion.div
+                            initial={{ opacity: 0, scale: 0.95 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            exit={{ opacity: 0, scale: 0.95 }}
+                            className="fixed top-20 left-1/2 transform -translate-x-1/2 w-full max-w-2xl bg-gray-900 rounded-2xl shadow-2xl border border-white/10 z-50 overflow-hidden"
+                        >
+                            <div className="p-4 border-b border-white/10">
+                                <div className="flex items-center space-x-3">
+                                    <Search className="w-5 h-5 text-gray-400" />
+                                    <input
+                                        ref={searchRef}
+                                        type="text"
+                                        value={searchQuery}
+                                        onChange={(e) => setSearchQuery(e.target.value)}
+                                        placeholder="Search positions, accounts, or actions..."
+                                        className="flex-1 bg-transparent outline-none text-white placeholder-gray-400"
+                                        autoFocus
+                                    />
+                                    <button
+                                        onClick={() => setIsOpen(false)}
+                                        className="text-gray-400 hover:text-white"
+                                    >
+                                        <X className="w-5 h-5" />
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            {searchResults.length > 0 && (
+                                <div className="p-2 max-h-96 overflow-y-auto">
+                                    {searchResults.map((result, index) => (
+                                        <motion.div
+                                            key={index}
+                                            initial={{ opacity: 0, x: -20 }}
+                                            animate={{ opacity: 1, x: 0 }}
+                                            transition={{ delay: index * 0.05 }}
+                                            className="flex items-center space-x-3 p-3 hover:bg-white/10 rounded-lg cursor-pointer group"
+                                        >
+                                            <div className="p-2 bg-white/10 rounded-lg group-hover:bg-white/20">
+                                                {result.icon}
+                                            </div>
+                                            <div className="flex-1">
+                                                <p className="text-white font-medium">{result.title}</p>
+                                                <p className="text-gray-400 text-sm">{result.subtitle}</p>
+                                            </div>
+                                            <ChevronRight className="w-4 h-4 text-gray-400 group-hover:text-white" />
+                                        </motion.div>
+                                    ))}
+                                </div>
+                            )}
+                        </motion.div>
+                    </>
+                )}
+            </AnimatePresence>
+        </>
+    );
+});
+SearchBar.displayName = 'SearchBar';
 
 const Navbar = () => {
     const [isDropdownOpen, setIsDropdownOpen] = useState(false);
@@ -50,12 +266,23 @@ const Navbar = () => {
     const [isQuickActionsOpen, setIsQuickActionsOpen] = useState(true);
     const [scrolledDown, setScrolledDown] = useState(false);
     const [showNotifications, setShowNotifications] = useState(false);
-    const [unreadNotifications, setUnreadNotifications] = useState(3); // Mock data
+    const [unreadNotifications, setUnreadNotifications] = useState(3);
+    const [isDarkMode, setIsDarkMode] = useState(true);
+    const [portfolioValue, setPortfolioValue] = useState(null);
+    const [dayChange, setDayChange] = useState(null);
 
     const { user, logout } = useContext(AuthContext);
     const router = useRouter();
 
-    // --- Account Fetching State & Logic ---
+    // Mouse parallax effect
+    const mouseX = useMotionValue(0);
+    const mouseY = useMotionValue(0);
+    const navbarRef = useRef(null);
+
+    const parallaxX = useTransform(mouseX, [0, 1], [-10, 10]);
+    const parallaxY = useTransform(mouseY, [0, 1], [-5, 5]);
+
+    // Account fetching state
     const [accounts, setAccounts] = useState([]);
     const [isLoadingAccounts, setIsLoadingAccounts] = useState(false);
     const [accountError, setAccountError] = useState(null);
@@ -70,27 +297,52 @@ const Navbar = () => {
         setIsLoadingAccounts(true);
         setAccountError(null);
         try {
-            // console.log("Navbar: Fetching accounts...");
             const accountsData = await fetchAccounts();
             setAccounts(accountsData || []);
-            // console.log("Navbar: Accounts fetched:", accountsData ? accountsData.length : 0);
         } catch (error) {
             console.error("Navbar: Error fetching accounts:", error);
-            setAccountError("Failed to load accounts."); // Set error message
+            setAccountError("Failed to load accounts.");
             setAccounts([]);
         } finally {
             setIsLoadingAccounts(false);
         }
-    }, [user]); // Dependency on user context
+    }, [user]);
+
+    // Load portfolio value
+    const loadPortfolioValue = useCallback(async () => {
+        if (!user) return;
+        try {
+            const response = await fetchWithAuth('/portfolio/snapshots?timeframe=1d');
+            const data = await response.json();
+            setPortfolioValue(data.current_value);
+            setDayChange(data.period_changes?.['1d']);
+        } catch (error) {
+            console.error("Error loading portfolio value:", error);
+        }
+    }, [user]);
 
     useEffect(() => {
         loadAccounts();
-    }, [loadAccounts]); // Dependency on the useCallback memoized function
+        loadPortfolioValue();
+    }, [loadAccounts, loadPortfolioValue]);
 
-    // --- End Account Fetching Logic ---
+    // Handle mouse move for parallax
+    useEffect(() => {
+        const handleMouseMove = (e) => {
+            if (navbarRef.current) {
+                const rect = navbarRef.current.getBoundingClientRect();
+                const x = (e.clientX - rect.left) / rect.width;
+                const y = (e.clientY - rect.top) / rect.height;
+                mouseX.set(x);
+                mouseY.set(y);
+            }
+        };
 
+        window.addEventListener('mousemove', handleMouseMove);
+        return () => window.removeEventListener('mousemove', handleMouseMove);
+    }, [mouseX, mouseY]);
 
-    // Handle scroll events for navbar appearance
+    // Handle scroll
     useEffect(() => {
         const handleScroll = () => {
             setScrolledDown(window.scrollY > 10);
@@ -99,44 +351,58 @@ const Navbar = () => {
         return () => window.removeEventListener('scroll', handleScroll);
     }, []);
 
-    // Close dropdowns when clicking outside
-    useEffect(() => {
-        const handleClickOutside = (event) => {
-            // Close User Dropdown
-            const userDropdown = event.target.closest('.user-dropdown');
-            if (isDropdownOpen && !userDropdown) {
-                // Check if the click was on the button that opens the dropdown
-                 const userDropdownButton = event.target.closest('.user-dropdown-button');
-                 if (!userDropdownButton) {
-                     setIsDropdownOpen(false);
-                 }
-            }
-             // Close Notifications Dropdown
-             const notificationDropdown = event.target.closest('.notification-dropdown');
-             if (showNotifications && !notificationDropdown) {
-                 // Check if the click was on the button that opens the dropdown
-                 const notificationButton = event.target.closest('.notification-button');
-                 if (!notificationButton) {
-                     setShowNotifications(false);
-                 }
-             }
-        };
-        document.addEventListener('mousedown', handleClickOutside);
-        return () => document.removeEventListener('mousedown', handleClickOutside);
-    }, [isDropdownOpen, showNotifications]);
-
+    // Navigation items with enhanced styling
+    const navItems = [
+        { href: '/', label: 'Dashboard', icon: <Home className="w-4 h-4" /> },
+        { href: '/portfolio', label: 'Portfolio', icon: <PieChart className="w-4 h-4" /> },
+        { href: '/positions', label: 'Positions', icon: <LineChart className="w-4 h-4" /> },
+        { href: '/accounts', label: 'Accounts', icon: <Wallet className="w-4 h-4" /> },
+        { href: '/transactions', label: 'Transactions', icon: <DollarSign className="w-4 h-4" /> }
+    ];
 
     const dropdownItems = [
-        { icon: <User className="w-5 h-5 mr-2" />, label: "Profile", href: "/profile" },
-        { icon: <Shield className="w-5 h-5 mr-2" />, label: "Admin", href: "/admin" },
-        { icon: <Settings className="w-5 h-5 mr-2" />, label: "Settings", href: "/settings" },
-        { icon: <Clock className="w-5 h-5 mr-2" />, label: "Scheduler", href: "/scheduler" },
-        { icon: <HelpCircle className="w-5 h-5 mr-2" />, label: "Help", href: "/help" },
+        { icon: <User className="w-5 h-5" />, label: "Profile", href: "/profile" },
+        { icon: <Shield className="w-5 h-5" />, label: "Admin", href: "/admin" },
+        { icon: <Settings className="w-5 h-5" />, label: "Settings", href: "/settings" },
+        { icon: <Clock className="w-5 h-5" />, label: "Activity", href: "/activity" },
+        { icon: <HelpCircle className="w-5 h-5" />, label: "Help & Support", href: "/help" },
+        { divider: true },
         {
-            icon: <LogOut className="w-5 h-5 mr-2 text-red-500" />,
+            icon: <LogOut className="w-5 h-5 text-red-500" />,
             label: "Logout",
             action: logout,
-            className: "text-red-500 border-t border-gray-200 mt-2 pt-2"
+            className: "text-red-500 hover:bg-red-50"
+        }
+    ];
+
+    // Enhanced notifications with categories
+    const notifications = [
+        { 
+            id: 1, 
+            category: 'market',
+            title: "Market Alert", 
+            message: "AAPL reached your price target of $180", 
+            time: "2 min ago", 
+            isNew: true,
+            icon: <TrendingUp className="w-4 h-4 text-green-400" />
+        },
+        { 
+            id: 2, 
+            category: 'account',
+            title: "Account Synced", 
+            message: "Your Vanguard account has been updated", 
+            time: "1 hour ago", 
+            isNew: true,
+            icon: <CheckCircle className="w-4 h-4 text-blue-400" />
+        },
+        { 
+            id: 3, 
+            category: 'portfolio',
+            title: "Portfolio Milestone", 
+            message: "Your portfolio crossed $100,000!", 
+            time: "3 hours ago", 
+            isNew: true,
+            icon: <Star className="w-4 h-4 text-yellow-400" />
         }
     ];
 
@@ -155,342 +421,512 @@ const Navbar = () => {
         return 'U';
     }, [user]);
 
-    // Notifications mock data
-    const notifications = [
-        { id: 1, title: "Account Updated", message: "Your retirement account has been synced", time: "2 minutes ago", isNew: true },
-        { id: 2, title: "Market Alert", message: "AAPL is up 3.5% today", time: "1 hour ago", isNew: true },
-        { id: 3, title: "Balance Change", message: "Your portfolio increased by 1.2%", time: "3 hours ago", isNew: true },
-        { id: 4, title: "New Feature", message: "Crypto tracking now available", time: "Yesterday", isNew: false },
-    ];
-
-    // Placeholder functions for BulkPositionButton
-    const placeholderFetchPositions = () => {
-        console.warn('Navbar: fetchPositions function is not implemented or passed down.');
-        // TODO: Implement actual refresh logic, likely via context or state management
-    };
-    const placeholderFetchPortfolioSummary = () => {
-        console.warn('Navbar: fetchPortfolioSummary function is not implemented or passed down.');
-         // TODO: Implement actual refresh logic, likely via context or state management
+    const formatCurrency = (value) => {
+        if (!value) return '$0.00';
+        return new Intl.NumberFormat('en-US', {
+            style: 'currency',
+            currency: 'USD',
+            minimumFractionDigits: 0,
+            maximumFractionDigits: 0
+        }).format(value);
     };
 
-    // Determine if bulk actions should be disabled
-    const bulkDisabled = isLoadingAccounts || accountError || !accounts || accounts.length === 0;
-    const bulkTitle = isLoadingAccounts ? "Loading accounts..."
-                    : accountError ? accountError
-                    : (!accounts || accounts.length === 0) ? "Add an account first"
-                    : "Bulk upload positions";
-
+    const formatPercentage = (value) => {
+        if (!value) return '0.00%';
+        return `${value >= 0 ? '+' : ''}${value.toFixed(2)}%`;
+    };
 
     return (
-        // Use pb-[height_of_mobile_bar] on the main layout container in _app.js or layout file
-        // if the fixed mobile bar overlaps content at the bottom of the page.
-        // The height here is py-3 * 2 + h-6 icon + mb-1 = roughly 55-60px? Measure button height. Let's estimate pb-16 needed on main content.
-        <div className="sticky top-0 z-40">
-            {/* Main Navbar */}
-            <nav className={`${scrolledDown ? 'bg-gray-900/95 shadow-lg' : 'bg-gradient-to-r from-gray-900 to-blue-900'} transition-all duration-300`}>
+        <motion.div 
+            ref={navbarRef}
+            className="sticky top-0 z-50"
+            initial={{ y: -100 }}
+            animate={{ y: 0 }}
+            transition={{ type: "spring", stiffness: 100 }}
+        >
+            {/* Premium glass navbar */}
+            <nav className={`
+                ${scrolledDown 
+                    ? 'bg-gray-900/95 backdrop-blur-xl shadow-2xl' 
+                    : 'bg-gradient-to-r from-gray-900/90 via-blue-900/90 to-purple-900/90 backdrop-blur-md'
+                } 
+                transition-all duration-500 border-b border-white/10
+            `}>
+                {/* Market ticker bar */}
+                {user && (
+                    <div className="border-b border-white/10 bg-black/20">
+                        <div className="container mx-auto px-4 py-2">
+                            <MarketTicker />
+                        </div>
+                    </div>
+                )}
+
                 <div className="container mx-auto px-4">
-                    <div className="h-16 flex justify-between items-center">
-                        {/* Logo and App Name */}
-                        <div className="flex items-center">
-                            <Link href="/" className="flex items-center">
-                                <div className={`mr-3 ${scrolledDown ? '' : 'animate-pulse'}`}>
+                    <div className="h-20 flex justify-between items-center">
+                        {/* Logo and Navigation */}
+                        <div className="flex items-center space-x-8">
+                            <Link href="/" className="flex items-center group">
+                                <motion.div 
+                                    className="mr-3"
+                                    style={{ x: parallaxX, y: parallaxY }}
+                                >
                                     <EggLogo />
-                                </div>
+                                </motion.div>
                                 <div className="flex flex-col">
-                                    <span className="text-xl font-bold text-white">NestEgg</span>
-                                    <span className="text-xs text-blue-300">Plan Your Future</span>
+                                    <motion.span 
+                                        className="text-2xl font-bold text-white"
+                                        whileHover={{ scale: 1.05 }}
+                                    >
+                                        NestEgg
+                                    </motion.span>
+                                    <span className="text-xs text-blue-300">Grow Your Wealth</span>
                                 </div>
                             </Link>
+
+                            {/* Main Navigation */}
+                            {user && (
+                                <nav className="hidden lg:flex items-center space-x-1">
+                                    {navItems.map((item, index) => {
+                                        const isActive = router.pathname === item.href;
+                                        return (
+                                            <motion.div
+                                                key={item.href}
+                                                initial={{ opacity: 0, y: -20 }}
+                                                animate={{ opacity: 1, y: 0 }}
+                                                transition={{ delay: index * 0.1 }}
+                                            >
+                                                <Link
+                                                    href={item.href}
+                                                    className={`
+                                                        flex items-center space-x-2 px-4 py-2 rounded-xl
+                                                        transition-all duration-300 relative group
+                                                        ${isActive 
+                                                            ? 'text-white bg-white/20' 
+                                                            : 'text-gray-300 hover:text-white hover:bg-white/10'
+                                                        }
+                                                    `}
+                                                >
+                                                    <motion.div
+                                                        whileHover={{ scale: 1.2, rotate: 360 }}
+                                                        transition={{ duration: 0.3 }}
+                                                    >
+                                                        {item.icon}
+                                                    </motion.div>
+                                                    <span className="font-medium">{item.label}</span>
+                                                    
+                                                    {isActive && (
+                                                        <motion.div
+                                                            layoutId="activeTab"
+                                                            className="absolute inset-0 bg-gradient-to-r from-blue-500/20 to-purple-500/20 rounded-xl -z-10"
+                                                            initial={false}
+                                                            transition={{ type: "spring", stiffness: 300 }}
+                                                        />
+                                                    )}
+                                                </Link>
+                                            </motion.div>
+                                        );
+                                    })}
+                                </nav>
+                            )}
                         </div>
 
-                        {/* Center: Quick Actions and Toggle */}
+                        {/* Center Section */}
                         {user && (
                             <div className="hidden md:flex items-center space-x-4">
-                                <div className="flex items-center">
+                                <SearchBar />
+                                
+                                {/* Portfolio Value Display */}
+                                {portfolioValue && (
+                                    <motion.div
+                                        initial={{ opacity: 0, scale: 0.9 }}
+                                        animate={{ opacity: 1, scale: 1 }}
+                                        className="hidden xl:flex items-center space-x-4 px-4 py-2 bg-white/10 rounded-xl backdrop-blur-sm"
+                                    >
+                                        <div>
+                                            <p className="text-xs text-gray-400">Portfolio Value</p>
+                                            <p className="text-lg font-bold text-white">{formatCurrency(portfolioValue)}</p>
+                                        </div>
+                                        {dayChange && (
+                                            <div className={`flex items-center ${dayChange.percent_change >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                                {dayChange.percent_change >= 0 ? <ArrowUpRight /> : <ArrowDownRight />}
+                                                <span className="font-medium">{formatPercentage(dayChange.percent_change)}</span>
+                                            </div>
+                                        )}
+                                    </motion.div>
+                                )}
+                            </div>
+                        )}
+
+                        {/* Right Section */}
+                        {user ? (
+                            <div className="flex items-center space-x-4">
+                                {/* Quick Actions */}
+                                <AnimatePresence>
                                     {isQuickActionsOpen && (
-                                        <div className="flex space-x-4 items-center"> {/* Added items-center */}
+                                        <motion.div
+                                            initial={{ opacity: 0, width: 0 }}
+                                            animate={{ opacity: 1, width: "auto" }}
+                                            exit={{ opacity: 0, width: 0 }}
+                                            className="hidden lg:flex items-center space-x-2"
+                                        >
                                             <AddAccountButton
                                                 onAccountAdded={loadAccounts}
-                                                className="flex items-center text-white py-1 px-4 transition-colors group" // Ensure consistent styling
+                                                className="flex items-center px-4 py-2 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-xl hover:from-green-700 hover:to-emerald-700 transition-all shadow-lg hover:shadow-green-500/25 group"
                                             />
                                             <AddPositionButton
-                                                onPositionAdded={placeholderFetchPositions} // Example: Trigger position refresh
-                                                className="flex items-center text-white py-1 px-4 transition-colors group" // Ensure consistent styling
+                                                onPositionAdded={() => {}}
+                                                className="flex items-center px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl hover:from-blue-700 hover:to-indigo-700 transition-all shadow-lg hover:shadow-blue-500/25 group"
                                             />
-                                            {/* Updated Bulk Button Call */}
                                             <BulkPositionButton
                                                 accounts={accounts}
                                                 fetchAccounts={loadAccounts}
-                                                fetchPositions={placeholderFetchPositions}
-                                                fetchPortfolioSummary={placeholderFetchPortfolioSummary}
-                                                className="flex items-center text-white py-1 px-4 transition-colors group" // Basic styling
-                                                buttonIcon={
-                                                    isLoadingAccounts ? <Loader2 className="w-6 h-6 mr-2 text-white animate-spin" />
-                                                    : accountError ? <AlertCircle className="w-6 h-6 mr-2 text-red-400" />
-                                                    : <Upload className="w-6 h-6 mr-2 text-white group-hover:text-blue-300" />
-                                                }
-                                                buttonText={
-                                                   <span className={`text-sm ${accountError ? 'text-red-300' : 'text-gray-200 group-hover:text-white'}`}>Bulk Upload</span>
-                                                }
-                                                disabled={bulkDisabled}
-                                                title={bulkTitle}
+                                                fetchPositions={() => {}}
+                                                fetchPortfolioSummary={() => {}}
+                                                className="flex items-center px-4 py-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-xl hover:from-purple-700 hover:to-pink-700 transition-all shadow-lg hover:shadow-purple-500/25 group"
+                                                disabled={isLoadingAccounts || accountError || !accounts || accounts.length === 0}
                                             />
-                                             {/* Loading/Error indicator for accounts (subtle alternative) */}
-                                             {/* {isLoadingAccounts && <Loader2 className="w-5 h-5 text-blue-300 animate-spin ml-2" />} */}
-                                             {/* {accountError && <AlertCircle className="w-5 h-5 text-red-400 ml-2" title={accountError} />} */}
-                                        </div>
+                                        </motion.div>
                                     )}
-                                    <button
-                                        onClick={() => setIsQuickActionsOpen(!isQuickActionsOpen)}
-                                        className="text-white p-2 hover:bg-blue-800/30 rounded-lg transition-colors ml-2" // Added ml-2 for spacing
-                                    >
-                                        {isQuickActionsOpen ? <ChevronLeft className="w-5 h-5" /> : <ChevronRight className="w-5 h-5" />}
-                                    </button>
-                                </div>
-                            </div>
-                        )}
+                                </AnimatePresence>
 
-                        {/* Right: Market Update Status, Notifications, and Profile */}
-                        {user && (
-                            <div className="hidden md:flex items-center space-x-4">
-                                {/* Market Update Status */}
-                                <div className="bg-green-800/80 px-4 py-1.5 rounded-full flex items-center text-green-100">
-                                    <UpdateStatusIndicator /> {/* Assumes this component shows actual status */}
-                                    <span className="ml-2 text-sm">Prices up to date</span> {/* TODO: Make dynamic */}
-                                </div>
+                                <motion.button
+                                    whileHover={{ scale: 1.1 }}
+                                    whileTap={{ scale: 0.9 }}
+                                    onClick={() => setIsQuickActionsOpen(!isQuickActionsOpen)}
+                                    className="hidden lg:block p-2 rounded-xl bg-white/10 hover:bg-white/20 transition-all"
+                                >
+                                    {isQuickActionsOpen ? <ChevronLeft className="w-5 h-5" /> : <ChevronRight className="w-5 h-5" />}
+                                </motion.button>
 
-                                {/* Notifications */}
-                                <div className="relative notification-dropdown">
-                                     {/* Added class for click outside detection */}
-                                    <button
-                                        className="text-gray-300 hover:text-white relative p-1 rounded-full hover:bg-gray-800/50 transition-colors notification-button"
+                                {/* Theme Toggle */}
+                                <motion.button
+                                    whileHover={{ scale: 1.1, rotate: 180 }}
+                                    whileTap={{ scale: 0.9 }}
+                                    onClick={() => setIsDarkMode(!isDarkMode)}
+                                    className="p-2 rounded-xl bg-white/10 hover:bg-white/20 transition-all"
+                                >
+                                    {isDarkMode ? <Sun className="w-5 h-5 text-yellow-400" /> : <Moon className="w-5 h-5 text-blue-400" />}
+                                </motion.button>
+
+                                {/* Enhanced Notifications */}
+                                <div className="relative">
+                                    <motion.button
+                                        whileHover={{ scale: 1.1 }}
+                                        whileTap={{ scale: 0.9 }}
+                                        className="relative p-2 rounded-xl bg-white/10 hover:bg-white/20 transition-all"
                                         onClick={() => setShowNotifications(!showNotifications)}
-                                        aria-haspopup="true"
-                                        aria-expanded={showNotifications}
                                     >
-                                        <Bell className="w-6 h-6" />
+                                        <Bell className="w-5 h-5" />
                                         {unreadNotifications > 0 && (
-                                            <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
-                                                {unreadNotifications} {/* TODO: Make dynamic */}
-                                            </span>
+                                            <motion.span
+                                                initial={{ scale: 0 }}
+                                                animate={{ scale: 1 }}
+                                                className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-6 h-6 flex items-center justify-center font-bold"
+                                            >
+                                                {unreadNotifications}
+                                            </motion.span>
                                         )}
-                                    </button>
-                                    {showNotifications && (
-                                         // Dropdown Content (no changes from previous)
-                                        <div className="absolute right-0 mt-2 w-80 bg-white rounded-lg shadow-xl overflow-hidden z-20">
-                                             {/* ... header ... */}
-                                             {/* ... list ... */}
-                                             {/* ... footer link ... */}
-                                             <div className="bg-gradient-to-r from-blue-700 to-blue-600 p-3 text-white border-b border-blue-500">
-                                                <div className="flex justify-between items-center">
-                                                    <h3 className="font-medium">Notifications</h3>
-                                                    {/* TODO: Implement mark as read */}
-                                                    <button className="text-blue-200 hover:text-white text-xs">Mark all as read</button>
-                                                </div>
-                                            </div>
-                                            <div className="max-h-96 overflow-y-auto">
-                                                {/* TODO: Replace with real notification data */}
-                                                {notifications.map(notification => (
-                                                    <div
-                                                        key={notification.id}
-                                                        className={`p-3 border-b border-gray-100 hover:bg-gray-50 transition-colors cursor-pointer ${notification.isNew ? 'bg-blue-50' : ''}`}
-                                                        // TODO: Add onClick to navigate or mark as read
-                                                    >
-                                                        <div className="flex justify-between">
-                                                            <h4 className="font-medium text-gray-900">{notification.title}</h4>
-                                                            <span className="text-xs text-gray-500">{notification.time}</span>
-                                                        </div>
-                                                        <p className="text-sm text-gray-600 mt-1">{notification.message}</p>
+                                    </motion.button>
+
+                                    <AnimatePresence>
+                                        {showNotifications && (
+                                            <motion.div
+                                                initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                                                animate={{ opacity: 1, y: 0, scale: 1 }}
+                                                exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                                                className="absolute right-0 mt-2 w-96 bg-gray-900 rounded-2xl shadow-2xl overflow-hidden border border-white/10 backdrop-blur-xl"
+                                            >
+                                                <div className="bg-gradient-to-r from-blue-600 to-purple-600 p-4 text-white">
+                                                    <div className="flex justify-between items-center">
+                                                        <h3 className="text-lg font-bold">Notifications</h3>
+                                                        <button className="text-white/80 hover:text-white text-sm">
+                                                            Mark all as read
+                                                        </button>
                                                     </div>
-                                                ))}
-                                                 {notifications.length === 0 && (
-                                                    <p className="p-4 text-sm text-gray-500 text-center">No new notifications</p>
-                                                )}
-                                            </div>
-                                            <div className="p-2 text-center bg-gray-50 border-t border-gray-100">
+                                                </div>
+                                                
+                                                <div className="max-h-96 overflow-y-auto">
+                                                    {notifications.map((notification, index) => (
+                                                        <motion.div
+                                                            key={notification.id}
+                                                            initial={{ opacity: 0, x: -20 }}
+                                                            animate={{ opacity: 1, x: 0 }}
+                                                            transition={{ delay: index * 0.1 }}
+                                                            className={`
+                                                                p-4 border-b border-white/10 hover:bg-white/5 cursor-pointer
+                                                                ${notification.isNew ? 'bg-blue-500/10' : ''}
+                                                            `}
+                                                        >
+                                                            <div className="flex items-start space-x-3">
+                                                                <div className="p-2 bg-white/10 rounded-lg">
+                                                                    {notification.icon}
+                                                                </div>
+                                                                <div className="flex-1">
+                                                                    <h4 className="font-medium text-white">{notification.title}</h4>
+                                                                    <p className="text-sm text-gray-400 mt-1">{notification.message}</p>
+                                                                    <p className="text-xs text-gray-500 mt-2">{notification.time}</p>
+                                                                </div>
+                                                                {notification.isNew && (
+                                                                    <div className="w-2 h-2 bg-blue-400 rounded-full animate-pulse" />
+                                                                )}
+                                                            </div>
+                                                        </motion.div>
+                                                    ))}
+                                                </div>
+                                                
                                                 <Link
-                                                     href="/notifications"
-                                                     onClick={() => setShowNotifications(false)}
-                                                     className="text-sm text-blue-600 hover:text-blue-800"
-                                                 >
+                                                    href="/notifications"
+                                                    className="block p-3 text-center text-blue-400 hover:text-blue-300 bg-white/5 font-medium"
+                                                    onClick={() => setShowNotifications(false)}
+                                                >
                                                     View all notifications
                                                 </Link>
-                                            </div>
-                                        </div>
-                                    )}
+                                            </motion.div>
+                                        )}
+                                    </AnimatePresence>
                                 </div>
 
-                                {/* User Dropdown */}
-                                <div className="relative user-dropdown">
-                                    {/* Added class for click outside detection */}
-                                    <button
+                                {/* Enhanced User Menu */}
+                                <div className="relative">
+                                    <motion.button
+                                        whileHover={{ scale: 1.05 }}
+                                        whileTap={{ scale: 0.95 }}
                                         onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-                                        className="flex items-center space-x-2 hover:bg-blue-800/30 p-2 rounded-lg transition-colors text-white user-dropdown-button"
-                                        aria-expanded={isDropdownOpen}
-                                        aria-haspopup="true"
+                                        className="flex items-center space-x-3 px-3 py-2 rounded-xl bg-white/10 hover:bg-white/20 transition-all"
                                     >
-                                        <div className="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center text-white">
+                                        <motion.div 
+                                            className="w-10 h-10 rounded-xl bg-gradient-to-r from-blue-500 to-purple-500 flex items-center justify-center text-white font-bold shadow-lg"
+                                            whileHover={{ rotate: [0, -5, 5, 0] }}
+                                        >
                                             {getInitials()}
+                                        </motion.div>
+                                        <div className="hidden md:block text-left">
+                                            <p className="text-sm font-medium text-white">{displayName}</p>
+                                            <p className="text-xs text-gray-400">Premium Account</p>
                                         </div>
-                                        <span className="text-sm font-medium">{displayName}</span>
-                                         {/* Add loading/error indicator near profile */}
-                                         {isLoadingAccounts && <Loader2 className="w-5 h-5 text-blue-300 animate-spin ml-2" />}
-                                         {accountError && <AlertCircle className="w-5 h-5 text-red-400 ml-2" title={accountError} />}
-                                    </button>
-                                    {isDropdownOpen && (
-                                        // Dropdown Content (added onClick handlers to close)
-                                        <div className="absolute right-0 mt-2 w-60 bg-white rounded-lg shadow-xl z-20 overflow-hidden">
-                                             <div className="bg-gradient-to-r from-blue-600 to-blue-700 p-4">
-                                                 <p className="font-medium text-lg text-white">{displayName}</p>
-                                                 <p className="text-sm text-blue-100 truncate">{user.email}</p>
-                                             </div>
-                                             <div className="py-1">
-                                                {dropdownItems.map((item, index) => (
-                                                    item.action ? (
-                                                        <button
-                                                            key={index}
-                                                            onClick={() => { item.action(); setIsDropdownOpen(false); }} // Close dropdown
-                                                            className={`flex w-full items-center px-4 py-3 hover:bg-gray-100 transition-colors text-left text-gray-800 ${item.className || ''}`}
-                                                        >
-                                                            {item.icon}
-                                                            {item.label}
-                                                        </button>
-                                                    ) : (
-                                                        <Link
-                                                            key={index}
-                                                            href={item.href}
-                                                            onClick={() => setIsDropdownOpen(false)} // Close dropdown
-                                                            className={`flex items-center px-4 py-3 hover:bg-gray-100 transition-colors text-gray-800 ${item.className || ''}`}
-                                                        >
-                                                            {item.icon}
-                                                            {item.label}
-                                                        </Link>
-                                                    )
-                                                ))}
-                                            </div>
-                                        </div>
-                                    )}
+                                        <ChevronDown className={`w-4 h-4 transition-transform ${isDropdownOpen ? 'rotate-180' : ''}`} />
+                                    </motion.button>
+
+                                    <AnimatePresence>
+                                        {isDropdownOpen && (
+                                            <motion.div
+                                                initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                                                animate={{ opacity: 1, y: 0, scale: 1 }}
+                                                exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                                                className="absolute right-0 mt-2 w-72 bg-gray-900 rounded-2xl shadow-2xl overflow-hidden border border-white/10 backdrop-blur-xl"
+                                            >
+                                                <div className="bg-gradient-to-r from-blue-600 to-purple-600 p-4">
+                                                    <div className="flex items-center space-x-3">
+                                                        <div className="w-16 h-16 rounded-xl bg-white/20 flex items-center justify-center text-white text-2xl font-bold">
+                                                            {getInitials()}
+                                                        </div>
+                                                        <div>
+                                                            <p className="font-bold text-lg text-white">{displayName}</p>
+                                                            <p className="text-sm text-white/80">{user?.email}</p>
+                                                            <div className="flex items-center mt-1">
+                                                                <Star className="w-4 h-4 text-yellow-400 mr-1" />
+                                                                <span className="text-xs text-yellow-400">Premium Member</span>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                <div className="p-2">
+                                                    {dropdownItems.map((item, index) => (
+                                                        item.divider ? (
+                                                            <div key={index} className="h-px bg-white/10 my-2" />
+                                                        ) : (
+                                                            <motion.div
+                                                                key={index}
+                                                                whileHover={{ x: 5 }}
+                                                                whileTap={{ scale: 0.95 }}
+                                                            >
+                                                                {item.action ? (
+                                                                    <button
+                                                                        onClick={() => {
+                                                                            item.action();
+                                                                            setIsDropdownOpen(false);
+                                                                        }}
+                                                                        className={`
+                                                                            flex items-center w-full px-4 py-3 rounded-xl
+                                                                            hover:bg-white/10 transition-all text-left
+                                                                            ${item.className || 'text-gray-300 hover:text-white'}
+                                                                        `}
+                                                                    >
+                                                                        {item.icon}
+                                                                        <span className="ml-3">{item.label}</span>
+                                                                    </button>
+                                                                ) : (
+                                                                    <Link
+                                                                        href={item.href}
+                                                                        onClick={() => setIsDropdownOpen(false)}
+                                                                        className={`
+                                                                            flex items-center px-4 py-3 rounded-xl
+                                                                            hover:bg-white/10 transition-all
+                                                                            ${item.className || 'text-gray-300 hover:text-white'}
+                                                                        `}
+                                                                    >
+                                                                        {item.icon}
+                                                                        <span className="ml-3">{item.label}</span>
+                                                                    </Link>
+                                                                )}
+                                                            </motion.div>
+                                                        )
+                                                    ))}
+                                                </div>
+                                            </motion.div>
+                                        )}
+                                    </AnimatePresence>
                                 </div>
                             </div>
-                        )}
-
-                        {/* Mobile Menu Button */}
-                        <button
-                            className="md:hidden text-white focus:outline-none"
-                            onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-                            aria-label="Toggle menu" // Added aria-label
-                        >
-                            {isMobileMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
-                        </button>
-
-                        {/* Non-Authenticated Links */}
-                        {!user && (
-                             <div className="flex items-center space-x-4">
-                                <Link href="/login" className="text-gray-300 hover:text-white transition-colors">
+                        ) : (
+                            // Non-authenticated state
+                            <div className="flex items-center space-x-4">
+                                <Link
+                                    href="/login"
+                                    className="px-6 py-2 text-white hover:text-blue-300 transition-colors font-medium"
+                                >
                                     Login
                                 </Link>
-                                <Link
-                                    href="/signup"
-                                    className="bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white px-4 py-2 rounded-lg transition-colors shadow-md hover:shadow-lg"
-                                >
-                                    Sign up
-                                </Link>
+                                <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+                                    <Link
+                                        href="/signup"
+                                        className="px-6 py-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl font-medium shadow-lg hover:shadow-blue-500/25 transition-all"
+                                    >
+                                        Get Started
+                                    </Link>
+                                </motion.div>
                             </div>
                         )}
+
+                        {/* Mobile menu button */}
+                        <motion.button
+                            whileHover={{ scale: 1.1 }}
+                            whileTap={{ scale: 0.9 }}
+                            className="lg:hidden text-white p-2 rounded-xl bg-white/10 hover:bg-white/20"
+                            onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+                        >
+                            {isMobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+                        </motion.button>
                     </div>
                 </div>
             </nav>
 
             {/* Mobile Menu */}
-            {isMobileMenuOpen && user && (
-                 <div className="md:hidden bg-gray-900 text-white">
-                    {/* ... (Mobile menu content - no changes from previous) ... */}
-                     <div className="p-4 space-y-3">
-                         {/* ... header ... */}
-                         {/* ... list ... */}
-                          <div className="flex items-center justify-between border-b border-gray-800 pb-3">
-                            <div className="flex items-center">
-                                <div className="w-12 h-12 rounded-full bg-blue-600 flex items-center justify-center text-white mr-3">
-                                    {getInitials()}
-                                </div>
-                                <div>
-                                    <div className="font-medium">{displayName}</div>
-                                    <div className="text-xs text-gray-400">{user.email}</div>
-                                </div>
-                            </div>
-                             {/* Optional: Add loading/error indicator in mobile menu header */}
-                             {isLoadingAccounts && <Loader2 className="w-5 h-5 text-blue-300 animate-spin" />}
-                             {accountError && <AlertCircle className="w-5 h-5 text-red-400" title={accountError} />}
-                        </div>
-                        <div className="space-y-2 py-2">
-                            {dropdownItems.map((item, index) => (
-                                item.action ? (
-                                    <button
-                                        key={index}
-                                        onClick={() => {
-                                            setIsMobileMenuOpen(false);
-                                            item.action();
-                                        }}
-                                        className={`flex w-full items-center p-3 hover:bg-gray-800 rounded-lg transition-colors ${item.className || ''}`}
-                                    >
-                                        {item.icon}
-                                        {item.label}
-                                    </button>
-                                ) : (
-                                    <Link
-                                        key={index}
-                                        href={item.href}
-                                        className={`flex items-center p-3 hover:bg-gray-800 rounded-lg transition-colors ${item.className || ''}`}
-                                        onClick={() => setIsMobileMenuOpen(false)}
-                                    >
-                                        {item.icon}
-                                        {item.label}
-                                    </Link>
-                                )
-                            ))}
-                        </div>
-                     </div>
-                 </div>
-            )}
+            <AnimatePresence>
+                {isMobileMenuOpen && user && (
+                    <motion.div
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: "auto" }}
+                        exit={{ opacity: 0, height: 0 }}
+                        className="lg:hidden bg-gray-900/95 backdrop-blur-xl border-b border-white/10"
+                    >
+                        <div className="container mx-auto px-4 py-4">
+                            {/* Mobile Navigation */}
+                            <nav className="space-y-2 mb-4">
+                                {navItems.map((item) => {
+                                    const isActive = router.pathname === item.href;
+                                    return (
+                                        <Link
+                                            key={item.href}
+                                            href={item.href}
+                                            onClick={() => setIsMobileMenuOpen(false)}
+                                            className={`
+                                                flex items-center space-x-3 px-4 py-3 rounded-xl
+                                                ${isActive 
+                                                    ? 'bg-white/20 text-white' 
+                                                    : 'text-gray-300 hover:bg-white/10 hover:text-white'
+                                                }
+                                            `}
+                                        >
+                                            {item.icon}
+                                            <span className="font-medium">{item.label}</span>
+                                        </Link>
+                                    );
+                                })}
+                            </nav>
 
-            {/* Mobile Quick Actions Bar (Fixed) */}
+                            {/* Mobile User Info */}
+                            <div className="border-t border-white/10 pt-4">
+                                <div className="flex items-center space-x-3 mb-4">
+                                    <div className="w-12 h-12 rounded-xl bg-gradient-to-r from-blue-500 to-purple-500 flex items-center justify-center text-white font-bold">
+                                        {getInitials()}
+                                    </div>
+                                    <div>
+                                        <p className="font-medium text-white">{displayName}</p>
+                                        <p className="text-sm text-gray-400">{user?.email}</p>
+                                    </div>
+                                </div>
+
+                                {/* Mobile Menu Items */}
+                                {dropdownItems.filter(item => !item.divider).map((item, index) => (
+                                    <motion.div
+                                        key={index}
+                                        whileTap={{ scale: 0.95 }}
+                                    >
+                                        {item.action ? (
+                                            <button
+                                                onClick={() => {
+                                                    item.action();
+                                                    setIsMobileMenuOpen(false);
+                                                }}
+                                                className={`
+                                                    flex items-center w-full px-4 py-3 rounded-xl
+                                                    ${item.className || 'text-gray-300 hover:bg-white/10 hover:text-white'}
+                                                `}
+                                            >
+                                                {item.icon}
+                                                <span className="ml-3">{item.label}</span>
+                                            </button>
+                                        ) : (
+                                            <Link
+                                                href={item.href}
+                                                onClick={() => setIsMobileMenuOpen(false)}
+                                                className={`
+                                                    flex items-center px-4 py-3 rounded-xl
+                                                    ${item.className || 'text-gray-300 hover:bg-white/10 hover:text-white'}
+                                                `}
+                                            >
+                                                {item.icon}
+                                                <span className="ml-3">{item.label}</span>
+                                            </Link>
+                                        )}
+                                    </motion.div>
+                                ))}
+                            </div>
+                        </div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
+            {/* Mobile Bottom Bar */}
             {user && (
-                <div className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-blue-900 border-t border-blue-800 shadow-lg">
-                    <div className="grid grid-cols-3 text-center">
-                        {/* Pass className for consistent mobile styling */}
+                <motion.div
+                    initial={{ y: 100 }}
+                    animate={{ y: 0 }}
+                    className="lg:hidden fixed bottom-0 left-0 right-0 bg-gray-900/95 backdrop-blur-xl border-t border-white/10 z-50"
+                >
+                    <div className="grid grid-cols-3 items-center">
                         <AddAccountButton
-                            className="flex flex-col items-center justify-center py-3 text-white group w-full hover:bg-blue-800 transition-colors"
                             onAccountAdded={loadAccounts}
-                            // Assuming internal icon/text rendering suitable for mobile
+                            className="flex flex-col items-center justify-center py-4 text-white hover:bg-white/10 transition-all"
                         />
                         <AddPositionButton
-                            className="flex flex-col items-center justify-center py-3 text-white group w-full hover:bg-blue-800 transition-colors"
-                            onPositionAdded={placeholderFetchPositions}
-                            // Assuming internal icon/text rendering suitable for mobile
-                         />
-                        {/* Updated Bulk Button call for mobile */}
+                            onPositionAdded={() => {}}
+                            className="flex flex-col items-center justify-center py-4 text-white hover:bg-white/10 transition-all border-x border-white/10"
+                        />
                         <BulkPositionButton
                             accounts={accounts}
                             fetchAccounts={loadAccounts}
-                            fetchPositions={placeholderFetchPositions}
-                            fetchPortfolioSummary={placeholderFetchPortfolioSummary}
-                            className="flex flex-col items-center justify-center py-3 text-white group w-full hover:bg-blue-800 transition-colors"
-                             // Pass simplified/different props if needed for mobile rendering, or assume internal rendering handles it
-                             buttonIcon={ // Example: Assuming BulkPositionButton uses these props
-                                 isLoadingAccounts ? <Loader2 className="h-6 w-6 mb-1 text-white animate-spin" />
-                                 : accountError ? <AlertCircle className="h-6 w-6 mb-1 text-red-400" />
-                                 : <Upload className="h-6 w-6 mb-1 text-white group-hover:text-blue-300" />
-                             }
-                             buttonText={ // Example: Assuming BulkPositionButton uses these props
-                                 <span className={`text-xs ${accountError ? 'text-red-300' : 'text-gray-200 group-hover:text-white'}`}>Bulk Upload</span>
-                             }
-                             disabled={bulkDisabled}
-                             title={bulkTitle} // Title helps accessibility on mobile too
+                            fetchPositions={() => {}}
+                            fetchPortfolioSummary={() => {}}
+                            className="flex flex-col items-center justify-center py-4 text-white hover:bg-white/10 transition-all"
+                            disabled={isLoadingAccounts || accountError || !accounts || accounts.length === 0}
                         />
                     </div>
-                </div>
+                </motion.div>
             )}
-        </div>
+        </motion.div>
     );
 };
 
