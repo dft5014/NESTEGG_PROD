@@ -9,7 +9,8 @@ import {
   Shield, BarChart2, LineChart, Plus, RefreshCw,
   TrendingUp, TrendingDown, Zap, Sparkles, ChevronRight,
   Activity, ArrowUpRight, ArrowDownRight, Eye, EyeOff,
-  Wallet, PiggyBank, Target, Award, Info
+  Wallet, PiggyBank, Target, Award, Info, Calendar,
+  Clock, Star, AlertCircle, ChevronUp, ChevronDown
 } from 'lucide-react';
 import KpiCard from '@/components/ui/KpiCard';
 import AccountTable from '@/components/tables/UnifiedAccountTable';
@@ -20,6 +21,7 @@ import AddAccountButton from '@/components/AddAccountButton';
 
 export default function AccountsPage() {
   const [accounts, setAccounts] = useState([]);
+  const [portfolioData, setPortfolioData] = useState(null);
   const [accountsMetrics, setAccountsMetrics] = useState({});
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -27,6 +29,9 @@ export default function AccountsPage() {
   const [showValues, setShowValues] = useState(true);
   const [hoveredInstitution, setHoveredInstitution] = useState(null);
   const [hoveredAccountType, setHoveredAccountType] = useState(null);
+  const [hoveredPosition, setHoveredPosition] = useState(null);
+  const [selectedTimeframe, setSelectedTimeframe] = useState('1m');
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const containerRef = useRef(null);
   
   const router = useRouter();
@@ -68,115 +73,157 @@ export default function AccountsPage() {
     'Other': { icon: <Zap className="w-5 h-5" />, gradient: 'from-gray-500 to-gray-700' }
   };
 
-  // Load accounts on component mount
+  // Load data on component mount
   useEffect(() => {
-    loadAccounts();
+    loadAllData();
   }, []);
 
-  // Function to load accounts data
-  const loadAccounts = async () => {
+  // Load portfolio data when timeframe changes
+  useEffect(() => {
+    if (portfolioData) {
+      loadPortfolioData();
+    }
+  }, [selectedTimeframe]);
+
+  // Function to load all data
+  const loadAllData = async () => {
     setIsLoading(true);
     setError(null);
     try {
-      const fetchedAccounts = await fetchAllAccounts();
-      setAccounts(fetchedAccounts);
+      // Load accounts and portfolio data in parallel
+      const [fetchedAccounts, portfolioResponse] = await Promise.all([
+        fetchAllAccounts(),
+        fetchWithAuth(`/portfolio/snapshots?timeframe=${selectedTimeframe}&include_cost_basis=true`)
+      ]);
+
+      const portfolioJson = await portfolioResponse.json();
       
-      const metrics = calculateAccountMetrics(fetchedAccounts);
+      setAccounts(fetchedAccounts);
+      setPortfolioData(portfolioJson);
+      
+      // Calculate metrics using both accounts and portfolio data
+      const metrics = calculateAccountMetrics(fetchedAccounts, portfolioJson);
       setAccountsMetrics(metrics);
     } catch (error) {
-      console.error("Error loading accounts:", error);
-      setError(error.message || "Failed to load accounts");
+      console.error("Error loading data:", error);
+      setError(error.message || "Failed to load data");
     } finally {
       setIsLoading(false);
     }
   };
 
-  // Calculate account metrics
-  const calculateAccountMetrics = (accounts) => {
+  // Function to load portfolio data
+  const loadPortfolioData = async () => {
+    try {
+      const response = await fetchWithAuth(`/portfolio/snapshots?timeframe=${selectedTimeframe}&include_cost_basis=true`);
+      const data = await response.json();
+      setPortfolioData(data);
+      
+      // Recalculate metrics with new portfolio data
+      if (accounts.length > 0) {
+        const metrics = calculateAccountMetrics(accounts, data);
+        setAccountsMetrics(metrics);
+      }
+    } catch (error) {
+      console.error("Error loading portfolio data:", error);
+    }
+  };
+
+  // Calculate account metrics using both accounts and portfolio data
+  const calculateAccountMetrics = (accounts, portfolio) => {
     const metrics = {
       totalAccounts: accounts.length,
-      totalValue: 0,
+      totalValue: portfolio?.current_value || 0,
+      totalCostBasis: portfolio?.total_cost_basis || 0,
+      unrealizedGain: portfolio?.unrealized_gain || 0,
+      unrealizedGainPercent: portfolio?.unrealized_gain_percent || 0,
+      annualIncome: portfolio?.annual_income || 0,
+      yieldPercentage: portfolio?.yield_percentage || 0,
       largestAccount: null,
       avgAccountValue: 0,
       totalInstitutions: new Set(),
       accountTypes: {},
       institutionBreakdown: [],
       accountTypeBreakdown: [],
-      recentGrowth: 0.0237,
-      monthlyGrowth: 0.0854,
-      yearlyGrowth: 0.1247,
+      periodChanges: portfolio?.period_changes || {},
+      lastUpdated: portfolio?.last_updated || new Date().toISOString(),
+      topPositions: portfolio?.top_positions || [],
+      assetAllocation: portfolio?.asset_allocation || {},
+      sectorAllocation: portfolio?.sector_allocation || {},
+      accountAllocation: portfolio?.account_allocation || []
     };
     
-    const institutionMap = {};
-    const accountTypeMap = {};
-    
-    accounts.forEach(account => {
-      const value = parseFloat(account.total_value || account.balance || 0);
-      const institution = account.institution || 'Other';
-      const accountType = account.account_type || 'Other';
+    // Process account allocation from portfolio data
+    if (portfolio?.account_allocation) {
+      // Group by institution
+      const institutionMap = {};
+      portfolio.account_allocation.forEach(account => {
+        const institution = account.institution || 'Other';
+        if (!institutionMap[institution]) {
+          institutionMap[institution] = {
+            name: institution,
+            value: 0,
+            accounts: 0,
+            percentage: 0,
+            gradient: institutionGradients[institution] || institutionGradients.Other
+          };
+        }
+        institutionMap[institution].value += account.value;
+        institutionMap[institution].accounts += 1;
+        institutionMap[institution].percentage += account.percentage;
+      });
       
-      metrics.totalValue += value;
+      metrics.institutionBreakdown = Object.values(institutionMap)
+        .sort((a, b) => b.value - a.value);
       
-      if (!metrics.largestAccount || value > metrics.largestAccount.value) {
+      // Group by account type
+      const accountTypeMap = {};
+      portfolio.account_allocation.forEach(account => {
+        const accountType = account.account_type || 'Other';
+        if (!accountTypeMap[accountType]) {
+          accountTypeMap[accountType] = {
+            name: accountType,
+            value: 0,
+            accounts: 0,
+            percentage: 0,
+            config: accountTypeConfig[accountType] || accountTypeConfig.Other
+          };
+        }
+        accountTypeMap[accountType].value += account.value;
+        accountTypeMap[accountType].accounts += 1;
+        accountTypeMap[accountType].percentage += account.percentage;
+      });
+      
+      metrics.accountTypeBreakdown = Object.values(accountTypeMap)
+        .sort((a, b) => b.value - a.value);
+      
+      // Find largest account
+      const largestAcc = portfolio.account_allocation.reduce((max, acc) => 
+        acc.value > (max?.value || 0) ? acc : max, null);
+      
+      if (largestAcc) {
         metrics.largestAccount = {
-          name: account.account_name,
-          value: value,
-          institution: institution
+          name: largestAcc.account_name,
+          value: largestAcc.value,
+          institution: largestAcc.institution
         };
       }
-      
-      metrics.totalInstitutions.add(institution);
-      
-      if (!metrics.accountTypes[accountType]) {
-        metrics.accountTypes[accountType] = { count: 0, value: 0 };
-      }
-      metrics.accountTypes[accountType].count++;
-      metrics.accountTypes[accountType].value += value;
-      
-      if (!institutionMap[institution]) {
-        institutionMap[institution] = { name: institution, value: 0, accounts: 0 };
-      }
-      institutionMap[institution].value += value;
-      institutionMap[institution].accounts++;
-      
-      if (!accountTypeMap[accountType]) {
-        accountTypeMap[accountType] = { name: accountType, value: 0, accounts: 0 };
-      }
-      accountTypeMap[accountType].value += value;
-      accountTypeMap[accountType].accounts++;
-    });
+    }
     
+    // Calculate derived metrics
+    metrics.totalInstitutionsCount = metrics.institutionBreakdown.length;
     metrics.avgAccountValue = metrics.totalValue / (accounts.length || 1);
-    metrics.totalInstitutionsCount = metrics.totalInstitutions.size;
-    delete metrics.totalInstitutions;
     
-    metrics.institutionBreakdown = Object.values(institutionMap)
-      .sort((a, b) => b.value - a.value)
-      .map(item => ({
-        ...item,
-        percentage: metrics.totalValue > 0 ? item.value / metrics.totalValue : 0,
-        gradient: institutionGradients[item.name] || institutionGradients.Other
-      }));
-    
-    metrics.accountTypeBreakdown = Object.values(accountTypeMap)
-      .sort((a, b) => b.value - a.value)
-      .map(item => ({
-        ...item,
-        percentage: metrics.totalValue > 0 ? item.value / metrics.totalValue : 0,
-        config: accountTypeConfig[item.name] || accountTypeConfig.Other
-      }));
-    
-    Object.keys(metrics.accountTypes).forEach(type => {
-      const typeData = metrics.accountTypes[type];
-      typeData.percentage = metrics.totalValue > 0 ? typeData.value / metrics.totalValue : 0;
-      typeData.avgValue = typeData.value / (typeData.count || 1);
+    // Add enriched account data
+    accounts.forEach(account => {
+      metrics.totalInstitutions.add(account.institution || 'Other');
     });
     
     return metrics;
   };
 
   const handleRefreshAccounts = async () => {
-    setIsLoading(true);
+    setIsRefreshing(true);
     try {
       const response = await fetchWithAuth('/accounts/refresh', {
         method: 'POST'
@@ -186,17 +233,17 @@ export default function AccountsPage() {
         throw new Error('Failed to refresh accounts');
       }
       
-      await loadAccounts();
+      await loadAllData();
     } catch (error) {
       console.error("Error refreshing accounts:", error);
       setError(error.message || "Failed to refresh accounts");
     } finally {
-      setIsLoading(false);
+      setIsRefreshing(false);
     }
   };
 
   const handleAccountAdded = async () => {
-    await loadAccounts();
+    await loadAllData();
   };
 
   // 3D Card component
@@ -240,6 +287,19 @@ export default function AccountsPage() {
       </motion.div>
     );
   };
+
+  // Get current period change based on selected timeframe
+  const getCurrentPeriodChange = () => {
+    const periodMap = {
+      '1d': accountsMetrics.periodChanges?.['1d'],
+      '1w': accountsMetrics.periodChanges?.['1w'],
+      '1m': accountsMetrics.periodChanges?.['1m'],
+      'ytd': accountsMetrics.periodChanges?.['ytd']
+    };
+    return periodMap[selectedTimeframe] || accountsMetrics.periodChanges?.['1m'];
+  };
+
+  const currentPeriodChange = getCurrentPeriodChange();
 
   return (
     <div ref={containerRef} className="min-h-screen bg-black text-white overflow-hidden">
@@ -292,12 +352,13 @@ export default function AccountsPage() {
                 Accounts
               </motion.h1>
               <motion.p 
-                className="text-gray-400 text-lg"
+                className="text-gray-400 text-lg flex items-center"
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ delay: 0.2 }}
               >
-                Your financial command center
+                <Calendar className="w-4 h-4 mr-2" />
+                Last updated: {accountsMetrics.lastUpdated ? new Date(accountsMetrics.lastUpdated).toLocaleString() : 'Never'}
               </motion.p>
             </div>
             <motion.div 
@@ -320,9 +381,9 @@ export default function AccountsPage() {
                 whileTap={{ scale: 0.95 }}
                 onClick={handleRefreshAccounts}
                 className="flex items-center px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 rounded-xl font-medium shadow-lg shadow-purple-500/25 hover:shadow-purple-500/40 transition-all"
-                disabled={isLoading}
+                disabled={isRefreshing}
               >
-                <RefreshCw className={`w-5 h-5 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
+                <RefreshCw className={`w-5 h-5 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
                 Refresh
               </motion.button>
               
@@ -334,7 +395,7 @@ export default function AccountsPage() {
           </motion.div>
         </motion.header>
 
-        {/* Total Portfolio Value Hero */}
+        {/* Total Portfolio Value Hero with Time Period Selector */}
         <motion.section
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -343,8 +404,28 @@ export default function AccountsPage() {
         >
           <Card3D className="bg-gradient-to-br from-purple-900/50 to-blue-900/50 backdrop-blur-xl rounded-3xl p-8 border border-white/10 shadow-2xl">
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center">
-              <div>
-                <p className="text-gray-400 mb-2">Total Portfolio Value</p>
+              <div className="flex-1">
+                <div className="flex items-center justify-between mb-4">
+                  <p className="text-gray-400">Total Portfolio Value</p>
+                  <div className="flex items-center space-x-2">
+                    {['1d', '1w', '1m', 'ytd'].map((period) => (
+                      <motion.button
+                        key={period}
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
+                        onClick={() => setSelectedTimeframe(period)}
+                        className={`px-3 py-1 rounded-lg text-sm font-medium transition-all ${
+                          selectedTimeframe === period
+                            ? 'bg-white/20 text-white'
+                            : 'bg-white/5 text-gray-400 hover:bg-white/10'
+                        }`}
+                      >
+                        {period.toUpperCase()}
+                      </motion.button>
+                    ))}
+                  </div>
+                </div>
+                
                 <motion.h2 
                   className="text-5xl md:text-7xl font-bold mb-4"
                   initial={{ scale: 0.5, opacity: 0 }}
@@ -353,6 +434,7 @@ export default function AccountsPage() {
                 >
                   {showValues ? formatCurrency(accountsMetrics.totalValue) : '••••••'}
                 </motion.h2>
+                
                 <div className="flex items-center space-x-6">
                   <motion.div
                     initial={{ opacity: 0, x: -20 }}
@@ -360,11 +442,13 @@ export default function AccountsPage() {
                     transition={{ delay: 0.7 }}
                     className="flex items-center space-x-2"
                   >
-                    <div className={`flex items-center ${accountsMetrics.recentGrowth > 0 ? 'text-green-400' : 'text-red-400'}`}>
-                      {accountsMetrics.recentGrowth > 0 ? <ArrowUpRight /> : <ArrowDownRight />}
-                      <span className="text-2xl font-semibold">{formatPercentage(accountsMetrics.recentGrowth * 100)}</span>
+                    <div className={`flex items-center ${currentPeriodChange?.percent_change > 0 ? 'text-green-400' : 'text-red-400'}`}>
+                      {currentPeriodChange?.percent_change > 0 ? <ArrowUpRight /> : <ArrowDownRight />}
+                      <span className="text-2xl font-semibold">
+                        {currentPeriodChange ? formatPercentage(currentPeriodChange.percent_change) : '0.00%'}
+                      </span>
                     </div>
-                    <span className="text-gray-400">today</span>
+                    <span className="text-gray-400">{selectedTimeframe}</span>
                   </motion.div>
                   
                   <motion.div
@@ -373,19 +457,52 @@ export default function AccountsPage() {
                     transition={{ delay: 0.8 }}
                     className="flex items-center space-x-2"
                   >
-                    <span className="text-gray-400">Month:</span>
-                    <span className={`text-xl font-semibold ${accountsMetrics.monthlyGrowth > 0 ? 'text-green-400' : 'text-red-400'}`}>
-                      {formatPercentage(accountsMetrics.monthlyGrowth * 100)}
+                    <span className="text-gray-400">Change:</span>
+                    <span className={`text-xl font-semibold ${currentPeriodChange?.value_change > 0 ? 'text-green-400' : 'text-red-400'}`}>
+                      {showValues && currentPeriodChange ? formatCurrency(currentPeriodChange.value_change) : '••••'}
                     </span>
                   </motion.div>
                 </div>
+                
+                {/* Additional metrics */}
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.9 }}
+                  className="mt-6 grid grid-cols-2 md:grid-cols-4 gap-4"
+                >
+                  <div>
+                    <p className="text-gray-500 text-sm">Cost Basis</p>
+                    <p className="text-lg font-semibold">
+                      {showValues ? formatCurrency(accountsMetrics.totalCostBasis) : '••••'}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-gray-500 text-sm">Unrealized Gain</p>
+                    <p className={`text-lg font-semibold ${accountsMetrics.unrealizedGain > 0 ? 'text-green-400' : 'text-red-400'}`}>
+                      {showValues ? formatCurrency(accountsMetrics.unrealizedGain) : '••••'}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-gray-500 text-sm">Annual Income</p>
+                    <p className="text-lg font-semibold text-blue-400">
+                      {showValues ? formatCurrency(accountsMetrics.annualIncome) : '••••'}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-gray-500 text-sm">Yield</p>
+                    <p className="text-lg font-semibold text-purple-400">
+                      {formatPercentage(accountsMetrics.yieldPercentage)}
+                    </p>
+                  </div>
+                </motion.div>
               </div>
               
               <motion.div
                 initial={{ opacity: 0, scale: 0 }}
                 animate={{ opacity: 1, scale: 1 }}
                 transition={{ delay: 0.9, type: "spring" }}
-                className="mt-6 md:mt-0"
+                className="mt-6 md:mt-0 md:ml-8"
               >
                 <div className="relative w-32 h-32">
                   <svg className="w-32 h-32 transform -rotate-90">
@@ -406,20 +523,24 @@ export default function AccountsPage() {
                       fill="none"
                       strokeDasharray={`${2 * Math.PI * 56}`}
                       initial={{ strokeDashoffset: 2 * Math.PI * 56 }}
-                      animate={{ strokeDashoffset: 2 * Math.PI * 56 * (1 - accountsMetrics.yearlyGrowth) }}
+                      animate={{ 
+                        strokeDashoffset: 2 * Math.PI * 56 * (1 - Math.abs(accountsMetrics.unrealizedGainPercent / 100))
+                      }}
                       transition={{ duration: 1.5, ease: "easeOut" }}
                       strokeLinecap="round"
                     />
                     <defs>
                       <linearGradient id="gradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                        <stop offset="0%" stopColor="#10b981" />
-                        <stop offset="100%" stopColor="#3b82f6" />
+                        <stop offset="0%" stopColor={accountsMetrics.unrealizedGainPercent > 0 ? "#10b981" : "#ef4444"} />
+                        <stop offset="100%" stopColor={accountsMetrics.unrealizedGainPercent > 0 ? "#3b82f6" : "#f59e0b"} />
                       </linearGradient>
                     </defs>
                   </svg>
                   <div className="absolute inset-0 flex flex-col items-center justify-center">
-                    <span className="text-2xl font-bold">{formatPercentage(accountsMetrics.yearlyGrowth * 100)}</span>
-                    <span className="text-xs text-gray-400">YTD</span>
+                    <span className={`text-2xl font-bold ${accountsMetrics.unrealizedGainPercent > 0 ? 'text-green-400' : 'text-red-400'}`}>
+                      {formatPercentage(accountsMetrics.unrealizedGainPercent)}
+                    </span>
+                    <span className="text-xs text-gray-400">Total Return</span>
                   </div>
                 </div>
               </motion.div>
@@ -495,6 +616,70 @@ export default function AccountsPage() {
               </Card3D>
             </motion.div>
           ))}
+        </motion.section>
+
+        {/* Top Positions */}
+        <motion.section
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.7 }}
+          className="mb-12"
+        >
+          <h3 className="text-2xl font-bold mb-6 flex items-center">
+            <Star className="w-6 h-6 mr-2 text-yellow-400" />
+            Top Positions
+          </h3>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {accountsMetrics.topPositions?.slice(0, 6).map((position, index) => (
+              <motion.div
+                key={`${position.ticker}-${index}`}
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ delay: 0.8 + index * 0.1 }}
+                whileHover={{ scale: 1.02 }}
+                onHoverStart={() => setHoveredPosition(position.ticker)}
+                onHoverEnd={() => setHoveredPosition(null)}
+              >
+                <Card3D>
+                  <div className="relative bg-white/5 backdrop-blur-sm rounded-2xl p-6 border border-white/10 overflow-hidden hover:bg-white/10 transition-all">
+                    <div className="flex items-start justify-between mb-3">
+                      <div>
+                        <h4 className="text-lg font-bold">{position.ticker}</h4>
+                        <p className="text-sm text-gray-400 truncate max-w-[200px]">{position.name}</p>
+                      </div>
+                      <div className={`flex items-center ${position.gain_loss_percent > 0 ? 'text-green-400' : 'text-red-400'}`}>
+                        {position.gain_loss_percent > 0 ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                        <span className="text-sm font-semibold">{formatPercentage(position.gain_loss_percent)}</span>
+                      </div>
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <div className="flex justify-between items-center">
+                        <span className="text-gray-400 text-sm">Value</span>
+                        <span className="font-semibold">{showValues ? formatCurrency(position.value) : '••••'}</span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-gray-400 text-sm">Price</span>
+                        <span className="text-sm">{formatCurrency(position.price)}</span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-gray-400 text-sm">Shares</span>
+                        <span className="text-sm">{position.quantity.toLocaleString()}</span>
+                      </div>
+                    </div>
+                    
+                    <motion.div
+                      className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent"
+                      initial={{ x: '-200%' }}
+                      animate={{ x: hoveredPosition === position.ticker ? '200%' : '-200%' }}
+                      transition={{ duration: 0.8 }}
+                    />
+                  </div>
+                </Card3D>
+              </motion.div>
+            ))}
+          </div>
         </motion.section>
 
         {/* Institution Distribution */}
@@ -663,6 +848,85 @@ export default function AccountsPage() {
                 </Card3D>
               </motion.div>
             ))}
+          </div>
+        </motion.section>
+
+        {/* Asset Allocation */}
+        <motion.section
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 1.1 }}
+          className="mb-12"
+        >
+          <h3 className="text-2xl font-bold mb-6 flex items-center">
+            <BarChart2 className="w-6 h-6 mr-2 text-blue-400" />
+            Asset Allocation
+          </h3>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            {/* Asset Types */}
+            <div>
+              <h4 className="text-lg font-semibold mb-4">By Asset Type</h4>
+              <div className="space-y-3">
+                {Object.entries(accountsMetrics.assetAllocation || {}).map(([type, data], index) => (
+                  <motion.div
+                    key={type}
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: 1.2 + index * 0.1 }}
+                    className="bg-white/5 backdrop-blur-sm rounded-xl p-4 border border-white/10"
+                  >
+                    <div className="flex justify-between items-center mb-2">
+                      <span className="capitalize font-medium">{type}</span>
+                      <span className="text-sm text-gray-400">{formatPercentage(data.percentage * 100)}</span>
+                    </div>
+                    <div className="w-full bg-white/10 rounded-full h-2 overflow-hidden">
+                      <motion.div
+                        className="h-full bg-gradient-to-r from-blue-500 to-purple-500"
+                        initial={{ width: 0 }}
+                        animate={{ width: `${data.percentage * 100}%` }}
+                        transition={{ delay: 1.3 + index * 0.1, duration: 0.8 }}
+                      />
+                    </div>
+                    <p className="text-sm text-gray-400 mt-1">
+                      {showValues ? formatCurrency(data.value) : '••••'}
+                    </p>
+                  </motion.div>
+                ))}
+              </div>
+            </div>
+            
+            {/* Sector Allocation */}
+            <div>
+              <h4 className="text-lg font-semibold mb-4">By Sector</h4>
+              <div className="space-y-3">
+                {Object.entries(accountsMetrics.sectorAllocation || {}).slice(0, 5).map(([sector, data], index) => (
+                  <motion.div
+                    key={sector}
+                    initial={{ opacity: 0, x: 20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: 1.2 + index * 0.1 }}
+                    className="bg-white/5 backdrop-blur-sm rounded-xl p-4 border border-white/10"
+                  >
+                    <div className="flex justify-between items-center mb-2">
+                      <span className="capitalize font-medium">{sector}</span>
+                      <span className="text-sm text-gray-400">{formatPercentage(data.percentage * 100)}</span>
+                    </div>
+                    <div className="w-full bg-white/10 rounded-full h-2 overflow-hidden">
+                      <motion.div
+                        className="h-full bg-gradient-to-r from-green-500 to-emerald-500"
+                        initial={{ width: 0 }}
+                        animate={{ width: `${data.percentage * 100}%` }}
+                        transition={{ delay: 1.3 + index * 0.1, duration: 0.8 }}
+                      />
+                    </div>
+                    <p className="text-sm text-gray-400 mt-1">
+                      {showValues ? formatCurrency(data.value) : '••••'}
+                    </p>
+                  </motion.div>
+                ))}
+              </div>
+            </div>
           </div>
         </motion.section>
 
