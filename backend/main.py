@@ -6288,6 +6288,151 @@ async def get_portfolio_snapshots_raw(
         logger.error(f"Error fetching raw snapshots: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+
+@app.get("/portfolio/sidebar-stats")
+async def get_sidebar_stats(
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Get summary statistics for sidebar display.
+    Returns current portfolio value, changes, and counts.
+    """
+    try:
+        user_id = current_user["id"]
+        
+        # Get current portfolio value and recent changes
+        portfolio_query = """
+        WITH latest_snapshot AS (
+            SELECT 
+                MAX(snapshot_date) as max_date,
+                SUM(current_value) as total_value
+            FROM portfolio_daily_snapshots
+            WHERE user_id = :user_id
+            GROUP BY snapshot_date
+            ORDER BY snapshot_date DESC
+            LIMIT 1
+        ),
+        week_ago_snapshot AS (
+            SELECT 
+                SUM(current_value) as total_value
+            FROM portfolio_daily_snapshots
+            WHERE 
+                user_id = :user_id AND
+                snapshot_date = CURRENT_DATE - INTERVAL '7 days'
+        ),
+        day_ago_snapshot AS (
+            SELECT 
+                SUM(current_value) as total_value
+            FROM portfolio_daily_snapshots
+            WHERE 
+                user_id = :user_id AND
+                snapshot_date = CURRENT_DATE - INTERVAL '1 day'
+        )
+        SELECT 
+            COALESCE(l.total_value, 0) as current_value,
+            COALESCE(l.total_value - d.total_value, 0) as day_change,
+            CASE 
+                WHEN d.total_value > 0 THEN ((l.total_value - d.total_value) / d.total_value * 100)
+                ELSE 0
+            END as day_change_percent,
+            COALESCE(l.total_value - w.total_value, 0) as week_change,
+            CASE 
+                WHEN w.total_value > 0 THEN ((l.total_value - w.total_value) / w.total_value * 100)
+                ELSE 0
+            END as week_change_percent
+        FROM latest_snapshot l
+        CROSS JOIN week_ago_snapshot w
+        CROSS JOIN day_ago_snapshot d
+        """
+        
+        portfolio_stats = await database.fetch_one(portfolio_query, {"user_id": user_id})
+        
+        # Get account count and recent change
+        account_query = """
+        WITH current_accounts AS (
+            SELECT COUNT(*) as count
+            FROM accounts
+            WHERE user_id = :user_id AND is_active = true
+        ),
+        recent_accounts AS (
+            SELECT COUNT(*) as count
+            FROM accounts
+            WHERE 
+                user_id = :user_id AND 
+                is_active = true AND
+                created_at >= CURRENT_DATE - INTERVAL '7 days'
+        )
+        SELECT 
+            c.count as total_count,
+            r.count as recent_additions
+        FROM current_accounts c
+        CROSS JOIN recent_accounts r
+        """
+        
+        account_stats = await database.fetch_one(account_query, {"user_id": user_id})
+        
+        # Get position count and recent change
+        position_query = """
+        WITH current_positions AS (
+            SELECT COUNT(*) as count
+            FROM positions
+            WHERE user_id = :user_id AND is_active = true
+        ),
+        recent_positions AS (
+            SELECT COUNT(*) as count
+            FROM positions
+            WHERE 
+                user_id = :user_id AND 
+                is_active = true AND
+                created_at >= CURRENT_DATE - INTERVAL '7 days'
+        )
+        SELECT 
+            c.count as total_count,
+            r.count as recent_additions
+        FROM current_positions c
+        CROSS JOIN recent_positions r
+        """
+        
+        position_stats = await database.fetch_one(position_query, {"user_id": user_id})
+        
+        # Get pending tasks count (optional)
+        task_query = """
+        SELECT COUNT(*) as pending_count
+        FROM tasks
+        WHERE user_id = :user_id AND status = 'pending'
+        """
+        
+        task_stats = await database.fetch_one(task_query, {"user_id": user_id})
+        
+        return {
+            "portfolio": {
+                "total_value": float(portfolio_stats["current_value"]) if portfolio_stats else 0,
+                "day_change": float(portfolio_stats["day_change"]) if portfolio_stats else 0,
+                "day_change_percent": float(portfolio_stats["day_change_percent"]) if portfolio_stats else 0,
+                "week_change": float(portfolio_stats["week_change"]) if portfolio_stats else 0,
+                "week_change_percent": float(portfolio_stats["week_change_percent"]) if portfolio_stats else 0,
+            },
+            "accounts": {
+                "total": account_stats["total_count"] if account_stats else 0,
+                "recent_additions": account_stats["recent_additions"] if account_stats else 0,
+            },
+            "positions": {
+                "total": position_stats["total_count"] if position_stats else 0,
+                "recent_additions": position_stats["recent_additions"] if position_stats else 0,
+            },
+            "tasks": {
+                "pending": task_stats["pending_count"] if task_stats else 0,
+            },
+            "last_updated": datetime.now().isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"Error fetching sidebar stats: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to fetch sidebar statistics: {str(e)}"
+        )
+
 # ----- Potentially Delete -----
 
 
