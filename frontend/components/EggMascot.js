@@ -1,662 +1,424 @@
-import { useState, useEffect, useRef } from 'react';
-import { motion, AnimatePresence, useAnimation } from 'framer-motion';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { motion, AnimatePresence, useAnimation, useMotionValue, useTransform } from 'framer-motion';
 
-const EggMascot = ({ 
-  portfolioValue = 0, 
-  userTenureDays = 0,
-  isDoingCartwheel = false 
-}) => {
-  // Evolution stages based on portfolio value and tenure
-  const getEvolutionStage = () => {
-    const value = portfolioValue;
-    const days = userTenureDays;
-    
-    if (value < 10000 && days < 30) return 'baby';
-    if (value < 50000 && days < 90) return 'child';
-    if (value < 100000 && days < 180) return 'teen';
-    if (value < 500000 && days < 365) return 'adult';
-    return 'wise';
-  };
-
-  const [evolutionStage, setEvolutionStage] = useState(getEvolutionStage());
-  const [mood, setMood] = useState('happy');
-  const [isBlinking, setIsBlinking] = useState(false);
-  const [isTalking, setIsTalking] = useState(false);
-  const [message, setMessage] = useState('');
-  const [isAnimating, setIsAnimating] = useState(false);
-  const [accessories, setAccessories] = useState([]);
-  const controls = useAnimation();
-
-  // Update evolution stage when props change
-  useEffect(() => {
-    setEvolutionStage(getEvolutionStage());
-  }, [portfolioValue, userTenureDays]);
-
-  // Character traits by evolution stage
-  const stageTraits = {
+// --- Static Data ---
+// In a larger app, these would be in separate files (e.g., src/data/stageTraits.js)
+const stageTraits = {
     baby: {
-      size: 0.8,
-      eyeSize: 12,
-      pupilSize: 8,
-      headRatio: 0.6,
-      voicePitch: 1.5,
-      bounceHeight: 15,
-      accessories: [],
-      messages: ["Goo goo! 👶", "Me help! 🥚", "Yay money! 💰", "Up up! 📈"],
-      eyeSparkles: 2,
-      cheekSize: 6,
-      armLength: 'short'
+        size: 0.8, name: "Hatchling", eyeSize: 12, pupilSize: 8, headRatio: 0.6,
+        bounceHeight: 15, accessories: [], cheekSize: 6, armLength: 'short',
+        messages: ["Goo goo! 👶", "Me help! 🥚", "Yay money! 💰", "Up up! 📈"],
+        specialMoves: ['giggle', 'peekaboo']
     },
     child: {
-      size: 0.9,
-      eyeSize: 11,
-      pupilSize: 7,
-      headRatio: 0.55,
-      voicePitch: 1.3,
-      bounceHeight: 12,
-      accessories: ['cap'],
-      messages: ["We're growing! 🌱", "Save more! 🐷", "Good job! ⭐", "I'm learning! 📚"],
-      eyeSparkles: 2,
-      cheekSize: 5,
-      armLength: 'medium'
+        size: 0.9, name: "Kiddo", eyeSize: 11, pupilSize: 7, headRatio: 0.55,
+        bounceHeight: 12, accessories: ['cap'], cheekSize: 5, armLength: 'medium',
+        messages: ["We're growing! 🌱", "Save more! 🐷", "Good job! ⭐", "Let's play! 🎮"],
+        specialMoves: ['hopscotch', 'spinJump']
     },
     teen: {
-      size: 1,
-      eyeSize: 10,
-      pupilSize: 6,
-      headRatio: 0.5,
-      voicePitch: 1.1,
-      bounceHeight: 10,
-      accessories: ['glasses', 'headphones'],
-      messages: ["Looking good! 😎", "Compound interest! 📊", "Let's invest! 💎", "Portfolio goals! 🎯"],
-      eyeSparkles: 1,
-      cheekSize: 4,
-      armLength: 'medium'
+        size: 1, name: "Cool Egg", eyeSize: 10, pupilSize: 6, headRatio: 0.5,
+        bounceHeight: 10, accessories: ['glasses', 'headphones'], cheekSize: 4, armLength: 'medium',
+        messages: ["Looking good! 😎", "Compound interest! 📊", "To the moon! 🚀"],
+        specialMoves: ['breakdance', 'dab']
     },
     adult: {
-      size: 1.1,
-      eyeSize: 9,
-      pupilSize: 5,
-      headRatio: 0.45,
-      voicePitch: 1,
-      bounceHeight: 8,
-      accessories: ['tie', 'watch'],
-      messages: ["Excellent strategy! 💼", "Diversify wisely! 🌍", "Strong returns! 💪", "Keep it up! 🚀"],
-      eyeSparkles: 1,
-      cheekSize: 3,
-      armLength: 'long'
+        size: 1.1, name: "Eggsecutive", eyeSize: 9, pupilSize: 5, headRatio: 0.45,
+        bounceHeight: 8, accessories: ['tie', 'watch'], cheekSize: 3, armLength: 'long',
+        messages: ["Excellent strategy! 💼", "Diversify wisely! 🌍", "Strong returns! 💪"],
+        specialMoves: ['presentation', 'meditation']
     },
     wise: {
-      size: 1.15,
-      eyeSize: 9,
-      pupilSize: 5,
-      headRatio: 0.45,
-      voicePitch: 0.9,
-      bounceHeight: 6,
-      accessories: ['monocle', 'tophat', 'mustache'],
-      messages: ["Wealth wisdom! 🎩", "Legacy building! 🏛️", "Master investor! 👑", "Sage advice! 🦉"],
-      eyeSparkles: 0,
-      cheekSize: 2,
-      armLength: 'long'
+        size: 1.15, name: "Sage", eyeSize: 9, pupilSize: 5, headRatio: 0.45,
+        bounceHeight: 6, accessories: ['monocle', 'tophat', 'mustache'], cheekSize: 2, armLength: 'long',
+        messages: ["Wealth wisdom! 🎩", "Legacy building! 🏛️", "Master investor! 👑"],
+        specialMoves: ['magicTrick', 'philosopher']
     }
-  };
+};
 
-  const currentTraits = stageTraits[evolutionStage];
+const achievementsList = {
+  NEW_INVESTOR: { name: "New Investor", description: "You've started your journey!", icon: "🌱" },
+  TENACIOUS_TRADER: { name: "Tenacious Trader", description: "Reached 'Teen' stage.", icon: "😎" },
+  PORTFOLIO_PRO: { name: "Portfolio Pro", description: "Reached 'Adult' stage.", icon: "💼" },
+  WEALTH_WIZARD: { name: "Wealth Wizard", description: "Reached 'Wise' stage.", icon: "👑" },
+  COMBO_KING: { name: "Combo King", description: "Achieved a 10x combo!", icon: "🔥" },
+  CENTURY_CLUB: { name: "Century Club", description: "Clicked 100 times.", icon: "💯" },
+  HIGH_ROLLER: { name: "High Roller", description: "Portfolio value over $500,000.", icon: "💎" },
+};
 
-  // Realistic blinking
-  useEffect(() => {
-    const blinkInterval = setInterval(() => {
-      if (Math.random() > 0.9) {
-        setIsBlinking(true);
-        setTimeout(() => setIsBlinking(false), 150);
-      }
-    }, 2000);
-    return () => clearInterval(blinkInterval);
-  }, []);
 
-  // Random idle animations
-  useEffect(() => {
-    const idleAnimations = async () => {
-      const animations = ['lookAround', 'stretch', 'yawn', 'dance'];
-      const randomAnim = animations[Math.floor(Math.random() * animations.length)];
+const EggMascot = ({
+    portfolioValue = 0,
+    userTenureDays = 0,
+}) => {
+    // --- State Management ---
+    const [evolutionStage, setEvolutionStage] = useState('baby');
+    const [mood, setMood] = useState('happy');
+    const [message, setMessage] = useState('');
+    const [isAnimating, setIsAnimating] = useState(false);
+    const [isBlinking, setIsBlinking] = useState(false);
+    const [isWaving, setIsWaving] = useState(false);
+    const [isDancing, setIsDancing] = useState(false);
+    const [isJumping, setIsJumping] = useState(false);
+    const [isSleeping, setIsSleeping] = useState(false);
+    const [clickCount, setClickCount] = useState(0);
+    const [comboCount, setComboCount] = useState(0);
+    const [lastClickTime, setLastClickTime] = useState(0);
+    const [particles, setParticles] = useState([]);
+    const [specialEffect, setSpecialEffect] = useState(null); // 'evolution', 'rainbow', 'heartBurst'
+    const [unlockedAchievements, setUnlockedAchievements] = useState(new Set());
+    const [latestAchievement, setLatestAchievement] = useState(null);
+
+    // --- Animation & Refs ---
+    const controls = useAnimation();
+    const mascotRef = useRef(null);
+    const particleIdRef = useRef(0);
+    const comboTimeoutRef = useRef(null);
+
+    // --- 3D Mouse Follow Effect ---
+    const mouseX = useMotionValue(0);
+    const mouseY = useMotionValue(0);
+    const rotateX = useTransform(mouseY, [-300, 300], [25, -25]);
+    const rotateY = useTransform(mouseX, [-300, 300], [-25, 25]);
+
+    useEffect(() => {
+        const handleMouseMove = (e) => {
+            if (!mascotRef.current) return;
+            const rect = mascotRef.current.getBoundingClientRect();
+            const centerX = rect.left + rect.width / 2;
+            const centerY = rect.top + rect.height / 2;
+            mouseX.set(e.clientX - centerX);
+            mouseY.set(e.clientY - centerY);
+        };
+        window.addEventListener('mousemove', handleMouseMove);
+        return () => window.removeEventListener('mousemove', handleMouseMove);
+    }, [mouseX, mouseY]);
+
+    const currentTraits = stageTraits[evolutionStage];
+    
+    // --- Core Logic Hooks ---
+
+    // Evolution Logic
+    useEffect(() => {
+        const getEvolutionStage = () => {
+            if (portfolioValue < 10000 && userTenureDays < 30) return 'baby';
+            if (portfolioValue < 50000 && userTenureDays < 90) return 'child';
+            if (portfolioValue < 100000 && userTenureDays < 180) return 'teen';
+            if (portfolioValue < 500000 && userTenureDays < 365) return 'adult';
+            return 'wise';
+        };
+        const newStage = getEvolutionStage();
+        if (newStage !== evolutionStage) {
+            setEvolutionStage(newStage);
+            setSpecialEffect('evolution');
+            for (let i = 0; i < 20; i++) setTimeout(() => createParticle('star'), i * 50);
+            setTimeout(() => setSpecialEffect(null), 3000);
+        }
+    }, [portfolioValue, userTenureDays, evolutionStage]);
+
+    // Achievement Logic
+    useEffect(() => {
+        const unlock = (id) => {
+            if (!unlockedAchievements.has(id)) {
+                setUnlockedAchievements(prev => new Set(prev).add(id));
+                setLatestAchievement(id);
+                setTimeout(() => setLatestAchievement(null), 3000); // Highlight for 3s
+            }
+        };
+        if (portfolioValue > 0) unlock('NEW_INVESTOR');
+        if (evolutionStage === 'teen') unlock('TENACIOUS_TRADER');
+        if (evolutionStage === 'adult') unlock('PORTFOLIO_PRO');
+        if (evolutionStage === 'wise') unlock('WEALTH_WIZARD');
+        if (portfolioValue > 500000) unlock('HIGH_ROLLER');
+        if (comboCount >= 10) unlock('COMBO_KING');
+        if (clickCount >= 100) unlock('CENTURY_CLUB');
+    }, [portfolioValue, evolutionStage, comboCount, clickCount, unlockedAchievements]);
+
+    // Blinking Logic
+    useEffect(() => {
+        const blinkInterval = setInterval(() => {
+            if (Math.random() > 0.85 && !isSleeping) {
+                setIsBlinking(true);
+                setTimeout(() => setIsBlinking(false), 150);
+            }
+        }, 2500);
+        return () => clearInterval(blinkInterval);
+    }, [isSleeping]);
+
+    // --- Particle System ---
+    const createParticle = useCallback((type, count = 1, area = 40) => {
+        for (let i = 0; i < count; i++) {
+            const id = particleIdRef.current++;
+            const particle = {
+                id, type,
+                x: (Math.random() - 0.5) * area,
+                y: (Math.random() - 0.5) * area,
+                vx: (Math.random() - 0.5) * 5,
+                vy: -Math.random() * 10 - 5,
+                size: Math.random() * 0.5 + 0.5
+            };
+            setParticles(prev => [...prev, particle]);
+            setTimeout(() => {
+                setParticles(prev => prev.filter(p => p.id !== id));
+            }, 2000);
+        }
+    }, []);
+
+    // --- Animation Library ---
+    const setTemporaryState = (states, duration = 2000) => {
+      // Set initial states
+      Object.keys(states).forEach(key => {
+        if (key === 'mood') setMood(states[key]);
+        if (key === 'message') setMessage(states[key]);
+        if (key === 'isWaving') setIsWaving(states[key]);
+        if (key === 'isDancing') setIsDancing(states[key]);
+      });
+      setIsAnimating(true);
       
-      switch(randomAnim) {
-        case 'lookAround':
-          await controls.start({ 
-            rotateY: [0, 20, -20, 0],
-            transition: { duration: 2 }
-          });
-          break;
-        case 'stretch':
-          await controls.start({ 
-            scaleY: [1, 1.1, 1],
-            scaleX: [1, 0.95, 1],
-            transition: { duration: 1.5 }
-          });
-          break;
-        case 'yawn':
-          setMood('yawning');
-          setTimeout(() => setMood('happy'), 2000);
-          break;
-        case 'dance':
-          await controls.start({ 
-            rotate: [-5, 5, -5, 5, 0],
-            y: [0, -10, 0, -10, 0],
-            transition: { duration: 1 }
-          });
-          break;
-      }
+      // Set timeout to reset states
+      setTimeout(() => {
+        setMood('happy');
+        setMessage('');
+        setIsWaving(false);
+        setIsDancing(false);
+        setIsAnimating(false);
+      }, duration);
     };
 
-    const interval = setInterval(idleAnimations, 10000);
-    return () => clearInterval(interval);
-  }, [controls]);
+    const performWave = async () => {
+        setTemporaryState({ isWaving: true, mood: 'happy', message: "Hello there! 👋" });
+        await controls.start({ rotate: [0, -15, 15, -15, 15, 0], transition: { duration: 1.2, ease: 'easeInOut' } });
+    };
 
-  // Handle cartwheel
-  useEffect(() => {
-    if (isDoingCartwheel) {
-      handleCartwheel();
-    }
-  }, [isDoingCartwheel]);
+    const performBounce = async () => {
+        setTemporaryState({ mood: 'excited', message: currentTraits.messages[Math.floor(Math.random() * currentTraits.messages.length)] }, 2500);
+        await controls.start({ y: [0, -currentTraits.bounceHeight * 1.5, 0], scaleY: [1, 0.8, 1], scaleX: [1, 1.2, 1], transition: { type: "spring", stiffness: 400, damping: 10 } });
+    };
 
-  const handleCartwheel = async () => {
-    setIsAnimating(true);
-    setMood('excited');
+    const performDance = async () => {
+        setIsAnimating(true);
+        setIsDancing(true);
+        setMood('excited');
+        setMessage("Let's party! 🎉");
+        setSpecialEffect('rainbow');
+        const partyInterval = setInterval(() => createParticle('confetti', 2), 200);
+
+        for (let i = 0; i < 3; i++) {
+            await controls.start({ rotate: [-10, 10, 0], y: [0, -15, 0], x: [-8, 8, 0], transition: { duration: 0.4, ease: 'easeInOut' } });
+        }
+
+        clearInterval(partyInterval);
+        setIsAnimating(false);
+        setIsDancing(false);
+        setMood('happy');
+        setMessage("");
+        setSpecialEffect(null);
+    };
+
+    const performCartwheel = async () => {
+        setIsAnimating(true);
+        setMood('excited');
+        setMessage("Wheee! 🤸");
+        for (let i = 0; i < 5; i++) setTimeout(() => createParticle('trail', 1, 10), i * 80);
+        
+        await controls.start({
+            rotate: [0, 180, 360],
+            x: [0, 80, 0],
+            y: [0, -60, 0],
+            scale: [1, 0.9, 1],
+            transition: { duration: 1.5, ease: "easeInOut" }
+        });
+
+        setMood('dizzy');
+        await controls.start({ rotate: [-5, 5, -2, 2, 0], transition: { duration: 0.8 } });
+        
+        setIsAnimating(false);
+        setTimeout(() => setMood('happy'), 2000);
+    };
+
+    // --- Main Click Handler ---
+    const handleClick = async () => {
+        if (isAnimating) return;
+        
+        const now = Date.now();
+        const timeSinceLastClick = now - lastClickTime;
+        setLastClickTime(now);
+
+        const newComboCount = timeSinceLastClick < 400 ? comboCount + 1 : 1;
+        setComboCount(newComboCount);
+        if (newComboCount > 1) createParticle('combo', 1, 20);
+
+        if (comboTimeoutRef.current) clearTimeout(comboTimeoutRef.current);
+        comboTimeoutRef.current = setTimeout(() => setComboCount(0), 1000);
+
+        setClickCount(prev => prev + 1);
+        createParticle('click');
+        
+        const actions = [performBounce, performWave, performCartwheel, performDance, ...currentTraits.specialMoves];
+        const randomAction = actions[Math.floor(Math.random() * actions.length)];
+        
+        if (typeof randomAction === 'function') {
+           await randomAction();
+        } else {
+            // Placeholder for special moves like 'giggle'
+            setTemporaryState({ mood: 'excited', message: `${randomAction}!` });
+            await performBounce();
+        }
+    };
     
-    await controls.start({
-      rotate: [0, 360, 720],
-      x: [0, 150, 0],
-      y: [0, -100, 0],
-      transition: { duration: 1.5, ease: "easeInOut" }
-    });
-    
-    setIsAnimating(false);
-    setMood('dizzy');
-    setTimeout(() => setMood('happy'), 2000);
-  };
-
-  const handleClick = () => {
-    const messages = currentTraits.messages;
-    const randomMessage = messages[Math.floor(Math.random() * messages.length)];
-    setMessage(randomMessage);
-    setIsTalking(true);
-    
-    // Bounce animation
-    controls.start({
-      y: [0, -currentTraits.bounceHeight, 0],
-      scale: [1, 1.05, 1],
-      transition: { duration: 0.5, type: "spring" }
-    });
-    
-    setTimeout(() => {
-      setMessage('');
-      setIsTalking(false);
-    }, 3000);
-  };
-
-  const handleMouseEnter = () => {
-    setMood('curious');
-    controls.start({ scale: 1.05 });
-  };
-
-  const handleMouseLeave = () => {
-    setMood('happy');
-    controls.start({ scale: 1 });
-  };
-
-  // Get eye path based on mood and blinking
-  const getEyePath = (isLeft) => {
-    if (isBlinking) return `M${isLeft ? 20 : 60} 50 Q${isLeft ? 30 : 70} 50 ${isLeft ? 40 : 80} 50`;
-    
-    switch(mood) {
-      case 'happy':
-        return null; // Use regular circles
-      case 'excited':
-        return `M${isLeft ? 20 : 60} 45 Q${isLeft ? 30 : 70} 40 ${isLeft ? 40 : 80} 45`;
-      case 'yawning':
-        return `M${isLeft ? 25 : 65} 55 Q${isLeft ? 30 : 70} 60 ${isLeft ? 35 : 75} 55`;
-      case 'dizzy':
-        return `M${isLeft ? 25 : 65} 45 L${isLeft ? 35 : 75} 55 M${isLeft ? 35 : 75} 45 L${isLeft ? 25 : 65} 55`;
-      case 'curious':
-        return null; // Use larger circles
-      default:
-        return null;
-    }
-  };
-
-  return (
-    <motion.div 
-      className="fixed bottom-8 right-8 z-50"
-      initial={{ scale: 0, rotate: -360 }}
-      animate={{ scale: currentTraits.size, rotate: 0 }}
-      transition={{ type: "spring", stiffness: 100, damping: 15, duration: 1 }}
-    >
-      {/* Evolution effect */}
-      <AnimatePresence>
-        {evolutionStage !== 'baby' && (
-          <motion.div
-            className="absolute inset-0 pointer-events-none"
-            initial={{ scale: 1.5, opacity: 0 }}
-            animate={{ scale: 1, opacity: [0, 0.5, 0] }}
-            transition={{ duration: 2 }}
-          >
-            <div className="absolute inset-0 bg-gradient-radial from-yellow-300 to-transparent rounded-full blur-xl" />
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Message bubble */}
-      <AnimatePresence>
-        {message && (
-          <motion.div
-            initial={{ opacity: 0, y: 10, scale: 0.8 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -10, scale: 0.8 }}
-            className="absolute -top-20 left-1/2 transform -translate-x-1/2 bg-gradient-to-r from-blue-600 to-purple-600 text-white px-4 py-2 rounded-2xl text-sm whitespace-nowrap shadow-xl"
-          >
+    // --- Render ---
+    return (
+        <>
+            {/* Achievements Display */}
+            <div className="fixed top-4 left-4 flex flex-col gap-2 z-[100]">
+                <AnimatePresence>
+                    {Array.from(unlockedAchievements).map((id) => {
+                        const achievement = achievementsList[id];
+                        if (!achievement) return null;
+                        return (
+                            <motion.div
+                                key={id} layout initial={{ opacity: 0, x: -50 }}
+                                animate={{ opacity: 1, x: 0, transition: { type: 'spring' } }}
+                                exit={{ opacity: 0, x: 50 }}
+                                className={`flex items-center gap-3 p-3 rounded-xl shadow-lg border bg-slate-800/80 backdrop-blur-sm transition-all duration-300 ${latestAchievement === id ? 'border-yellow-400 scale-105' : 'border-slate-700'}`}
+                            >
+                                <div className="text-3xl">{achievement.icon}</div>
+                                <div>
+                                    <h4 className="font-bold text-yellow-300">{achievement.name}</h4>
+                                    <p className="text-sm text-slate-300">{achievement.description}</p>
+                                </div>
+                            </motion.div>
+                        );
+                    })}
+                </AnimatePresence>
+            </div>
+            
+            {/* Main Mascot Container */}
             <motion.div
-              animate={{ y: [0, -2, 0] }}
-              transition={{ duration: 2, repeat: Infinity }}
+                ref={mascotRef}
+                className="fixed bottom-16 right-16 z-50 select-none cursor-grab active:cursor-grabbing"
+                drag dragConstraints={{ top: -200, left: -400, right: 100, bottom: 50 }}
+                dragTransition={{ bounceStiffness: 600, bounceDamping: 20 }}
+                initial={{ scale: 0, rotate: -180 }}
+                animate={{ scale: currentTraits.size, rotate: 0 }}
+                transition={{ type: "spring", stiffness: 100, damping: 15 }}
+                style={{ perspective: 1000, transformStyle: 'preserve-3d' }}
+                onMouseEnter={() => !isAnimating && setMood('curious')}
+                onMouseLeave={() => !isAnimating && setMood('happy')}
             >
-              {message}
-            </motion.div>
-            <div className="absolute -bottom-2 left-1/2 transform -translate-x-1/2 w-4 h-4 bg-gradient-to-br from-blue-600 to-purple-600 rotate-45" />
-          </motion.div>
-        )}
-      </AnimatePresence>
+                {/* Combo Counter */}
+                <AnimatePresence>
+                    {comboCount > 2 && (
+                        <motion.div
+                            initial={{ scale: 0, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0, y: -20 }}
+                            className="absolute -top-8 left-1/2 -translate-x-1/2"
+                        >
+                            <div className="bg-gradient-to-r from-yellow-400 to-orange-500 text-white px-3 py-1 rounded-full font-bold text-sm shadow-lg">
+                                {comboCount}x COMBO! 🔥
+                            </div>
+                        </motion.div>
+                    )}
+                </AnimatePresence>
 
-      {/* Main character */}
-      <motion.div
-        className="relative cursor-pointer select-none"
-        animate={controls}
-        whileHover={{ scale: currentTraits.size * 1.05 }}
-        whileTap={{ scale: currentTraits.size * 0.95 }}
-        onClick={handleClick}
-        onMouseEnter={handleMouseEnter}
-        onMouseLeave={handleMouseLeave}
-      >
-        <motion.div
-          animate={{ 
-            y: [0, -currentTraits.bounceHeight/3, 0],
-            rotate: [-1, 1, -1]
-          }}
-          transition={{ 
-            duration: 3 + (evolutionStage === 'wise' ? 1 : 0), 
-            repeat: Infinity,
-            ease: "easeInOut"
-          }}
-        >
-          <svg width="120" height="150" viewBox="0 0 120 150" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <defs>
-              {/* Gradients for 3D effect */}
-              <radialGradient id="bodyGradient" cx="50%" cy="40%" r="60%">
-                <stop offset="0%" stopColor="#FFFFFF" />
-                <stop offset="70%" stopColor="#F8F8F8" />
-                <stop offset="100%" stopColor="#E8E8E8" />
-              </radialGradient>
-              
-              <radialGradient id="shadowGradient">
-                <stop offset="0%" stopColor="rgba(0,0,0,0.3)" />
-                <stop offset="100%" stopColor="rgba(0,0,0,0)" />
-              </radialGradient>
+                {/* Particle & Effect Layers */}
+                <ParticleSystem particles={particles} onRemove={(id) => setParticles(p => p.filter(x => x.id !== id))} />
+                <AnimatePresence>{specialEffect && <EffectLayer effect={specialEffect} />}</AnimatePresence>
 
-              <filter id="softGlow">
-                <feGaussianBlur stdDeviation="3"/>
-                <feComponentTransfer>
-                  <feFuncA type="discrete" tableValues="0 .8"/>
-                </feComponentTransfer>
-              </filter>
-            </defs>
+                <MessageBubble message={message} />
 
-            {/* Shadow */}
-            <motion.ellipse
-              cx="60"
-              cy="140"
-              rx="35"
-              ry="8"
-              fill="url(#shadowGradient)"
-              animate={{ 
-                scaleX: isAnimating ? 0 : 1,
-                opacity: isAnimating ? 0 : 0.3
-              }}
-            />
-
-            {/* Arms - behind body */}
-            <g className="arms">
-              {/* Left arm */}
-              <motion.path
-                d={currentTraits.armLength === 'short' ? "M35 75 Q25 70 20 65" :
-                   currentTraits.armLength === 'medium' ? "M35 75 Q20 70 15 60" :
-                   "M35 75 Q15 70 10 55"}
-                stroke="#4A5568"
-                strokeWidth="8"
-                strokeLinecap="round"
-                fill="none"
-                animate={{
-                  d: isTalking ? 
-                    (currentTraits.armLength === 'short' ? "M35 75 Q25 65 20 60" : "M35 75 Q20 60 15 50") :
-                    (currentTraits.armLength === 'short' ? "M35 75 Q25 70 20 65" : "M35 75 Q20 70 15 60")
-                }}
-              />
-              
-              {/* Right arm */}
-              <motion.path
-                d={currentTraits.armLength === 'short' ? "M85 75 Q95 70 100 65" :
-                   currentTraits.armLength === 'medium' ? "M85 75 Q100 70 105 60" :
-                   "M85 75 Q105 70 110 55"}
-                stroke="#4A5568"
-                strokeWidth="8"
-                strokeLinecap="round"
-                fill="none"
-                animate={{
-                  d: isTalking ? 
-                    (currentTraits.armLength === 'short' ? "M85 75 Q95 65 100 60" : "M85 75 Q100 60 105 50") :
-                    (currentTraits.armLength === 'short' ? "M85 75 Q95 70 100 65" : "M85 75 Q100 70 105 60")
-                }}
-              />
-            </g>
-
-            {/* Body */}
-            <motion.ellipse
-              cx="60"
-              cy="80"
-              rx="45"
-              ry="55"
-              fill="url(#bodyGradient)"
-              stroke="#4A5568"
-              strokeWidth="3"
-              filter="url(#softGlow)"
-              animate={{
-                scaleY: mood === 'yawning' ? 1.05 : 1
-              }}
-            />
-
-            {/* Face region */}
-            <g transform={`translate(0, ${-55 * currentTraits.headRatio})`}>
-              {/* Eyes */}
-              <g className="eyes">
-                {/* Left eye */}
-                {getEyePath(true) ? (
-                  <path d={getEyePath(true)} stroke="#1A202C" strokeWidth="3" fill="none" />
-                ) : (
-                  <g>
-                    <circle
-                      cx="40"
-                      cy="50"
-                      r={mood === 'curious' ? currentTraits.eyeSize * 1.2 : currentTraits.eyeSize}
-                      fill="white"
-                      stroke="#1A202C"
-                      strokeWidth="2"
-                    />
-                    <motion.circle
-                      cx="40"
-                      cy="50"
-                      r={currentTraits.pupilSize}
-                      fill="#1A202C"
-                      animate={{
-                        cx: mood === 'curious' ? [40, 42, 40] : 40,
-                        cy: mood === 'curious' ? [50, 48, 50] : 50
-                      }}
-                      transition={{ duration: 2, repeat: Infinity }}
-                    />
-                    {/* Eye sparkles */}
-                    {[...Array(currentTraits.eyeSparkles)].map((_, i) => (
-                      <circle
-                        key={i}
-                        cx={42 + i * 2}
-                        cy={48 - i}
-                        r="2"
-                        fill="white"
-                        opacity="0.8"
-                      />
-                    ))}
-                  </g>
-                )}
-
-                {/* Right eye */}
-                {getEyePath(false) ? (
-                  <path d={getEyePath(false)} stroke="#1A202C" strokeWidth="3" fill="none" />
-                ) : (
-                  <g>
-                    <circle
-                      cx="80"
-                      cy="50"
-                      r={mood === 'curious' ? currentTraits.eyeSize * 1.2 : currentTraits.eyeSize}
-                      fill="white"
-                      stroke="#1A202C"
-                      strokeWidth="2"
-                    />
-                    <motion.circle
-                      cx="80"
-                      cy="50"
-                      r={currentTraits.pupilSize}
-                      fill="#1A202C"
-                      animate={{
-                        cx: mood === 'curious' ? [80, 78, 80] : 80,
-                        cy: mood === 'curious' ? [50, 48, 50] : 50
-                      }}
-                      transition={{ duration: 2, repeat: Infinity }}
-                    />
-                    {/* Eye sparkles */}
-                    {[...Array(currentTraits.eyeSparkles)].map((_, i) => (
-                      <circle
-                        key={i}
-                        cx={82 + i * 2}
-                        cy={48 - i}
-                        r="2"
-                        fill="white"
-                        opacity="0.8"
-                      />
-                    ))}
-                  </g>
-                )}
-
-                {/* Eyebrows */}
-                {evolutionStage !== 'baby' && (
-                  <>
-                    <motion.path
-                      d="M30 40 Q40 35 50 40"
-                      stroke="#1A202C"
-                      strokeWidth="2.5"
-                      fill="none"
-                      strokeLinecap="round"
-                      animate={{
-                        d: mood === 'curious' ? "M30 35 Q40 30 50 35" : 
-                           mood === 'excited' ? "M30 35 Q40 32 50 35" : 
-                           "M30 40 Q40 35 50 40"
-                      }}
-                    />
-                    <motion.path
-                      d="M70 40 Q80 35 90 40"
-                      stroke="#1A202C"
-                      strokeWidth="2.5"
-                      fill="none"
-                      strokeLinecap="round"
-                      animate={{
-                        d: mood === 'curious' ? "M70 35 Q80 30 90 35" : 
-                           mood === 'excited' ? "M70 35 Q80 32 90 35" : 
-                           "M70 40 Q80 35 90 40"
-                      }}
-                    />
-                  </>
-                )}
-              </g>
-
-              {/* Nose (for older stages) */}
-              {(evolutionStage === 'adult' || evolutionStage === 'wise') && (
-                <ellipse cx="60" cy="65" rx="4" ry="3" fill="#E8D8D8" />
-              )}
-
-              {/* Mouth */}
-              <motion.path
-                d={mood === 'yawning' ? "M50 75 Q60 85 70 75" :
-                   isTalking ? "M45 75 Q60 85 75 75" :
-                   "M45 75 Q60 80 75 75"}
-                stroke="#1A202C"
-                strokeWidth="3"
-                fill={mood === 'yawning' ? "#FF6B6B" : "none"}
-                strokeLinecap="round"
-                animate={{
-                  d: isTalking ? 
-                    ["M45 75 Q60 85 75 75", "M45 75 Q60 80 75 75", "M45 75 Q60 85 75 75"] :
-                    mood === 'yawning' ? "M50 75 Q60 85 70 75" :
-                    "M45 75 Q60 80 75 75"
-                }}
-                transition={{ duration: 0.3, repeat: isTalking ? Infinity : 0 }}
-              />
-
-              {/* Cheeks */}
-              <circle
-                cx="25"
-                cy="65"
-                r={currentTraits.cheekSize}
-                fill="#FFB6C1"
-                opacity="0.6"
-              />
-              <circle
-                cx="95"
-                cy="65"
-                r={currentTraits.cheekSize}
-                fill="#FFB6C1"
-                opacity="0.6"
-              />
-            </g>
-
-            {/* Accessories based on evolution */}
-            <g className="accessories">
-              {/* Cap for child */}
-              {evolutionStage === 'child' && (
-                <g>
-                  <path d="M30 30 Q60 20 90 30 L85 40 L35 40 Z" fill="#FF6B6B" stroke="#C92A2A" strokeWidth="2" />
-                  <ellipse cx="60" cy="35" rx="30" ry="3" fill="#C92A2A" />
-                </g>
-              )}
-
-              {/* Glasses for teen */}
-              {evolutionStage === 'teen' && (
-                <g>
-                  <circle cx="40" cy="50" r="18" fill="none" stroke="#4A5568" strokeWidth="3" />
-                  <circle cx="80" cy="50" r="18" fill="none" stroke="#4A5568" strokeWidth="3" />
-                  <path d="M58 50 L62 50" stroke="#4A5568" strokeWidth="3" />
-                </g>
-              )}
-
-              {/* Tie for adult */}
-              {evolutionStage === 'adult' && (
-                <path d="M60 100 L55 110 L60 125 L65 110 Z" fill="#4C6EF5" stroke="#364FC7" strokeWidth="2" />
-              )}
-
-              {/* Top hat and monocle for wise */}
-              {evolutionStage === 'wise' && (
-                <g>
-                  {/* Top hat */}
-                  <rect x="40" y="10" width="40" height="25" fill="#1A202C" stroke="#000" strokeWidth="2" />
-                  <ellipse cx="60" cy="35" rx="25" ry="3" fill="#1A202C" />
-                  <ellipse cx="60" cy="10" rx="20" ry="3" fill="#2D3748" />
-                  
-                  {/* Monocle */}
-                  <circle cx="80" cy="50" r="20" fill="none" stroke="#D4AF37" strokeWidth="3" />
-                  <path d="M100 50 Q105 55 105 60" stroke="#D4AF37" strokeWidth="2" fill="none" />
-                  
-                  {/* Mustache */}
-                  <path d="M50 72 Q60 75 70 72" stroke="#4A5568" strokeWidth="3" fill="none" strokeLinecap="round" />
-                </g>
-              )}
-            </g>
-
-            {/* Legs */}
-            <g className="legs">
-              <motion.ellipse
-                cx="45"
-                cy="125"
-                rx="8"
-                ry="15"
-                fill="#4A5568"
-                animate={{
-                  rotate: isAnimating ? [0, -20, 20, 0] : 0,
-                  y: isTalking ? [0, -3, 0] : 0
-                }}
-                transition={{ duration: 0.5, repeat: isTalking ? Infinity : 0 }}
-              />
-              <motion.ellipse
-                cx="75"
-                cy="125"
-                rx="8"
-                ry="15"
-                fill="#4A5568"
-                animate={{
-                  rotate: isAnimating ? [0, 20, -20, 0] : 0,
-                  y: isTalking ? [0, -3, 0] : [0, -3, 0]
-                }}
-                transition={{ 
-                  duration: 0.5, 
-                  repeat: isTalking ? Infinity : 0,
-                  delay: isTalking ? 0.25 : 0 
-                }}
-              />
-            </g>
-          </svg>
-        </motion.div>
-
-        {/* Evolution particles */}
-        <AnimatePresence>
-          {evolutionStage === 'wise' && (
-            <motion.div className="absolute inset-0 pointer-events-none">
-              {[...Array(3)].map((_, i) => (
+                {/* The Character Itself */}
                 <motion.div
-                  key={i}
-                  className="absolute"
-                  initial={{ opacity: 0 }}
-                  animate={{
-                    opacity: [0, 1, 0],
-                    y: [-20, -40],
-                    x: [0, (i - 1) * 20]
-                  }}
-                  transition={{
-                    duration: 3,
-                    repeat: Infinity,
-                    delay: i * 1,
-                    ease: "easeOut"
-                  }}
-                  style={{
-                    left: '50%',
-                    bottom: '100%',
-                    transform: 'translateX(-50%)'
-                  }}
+                    onClick={handleClick}
+                    animate={controls}
+                    whileTap={{ scale: 0.95, transition: { type: 'spring', stiffness: 400, damping: 15 } }}
+                    style={{ rotateX, rotateY, transformStyle: 'preserve-3d' }}
                 >
-                  ✨
+                   {/* This is an inline version of CharacterSVG.jsx for a single-file component */}
+                   <CharacterSVG_Inline traits={currentTraits} state={{ mood, isBlinking, isWaving, isDancing, isJumping, isSleeping, isAnimating }} />
                 </motion.div>
-              ))}
             </motion.div>
-          )}
-        </AnimatePresence>
-      </motion.div>
+        </>
+    );
+};
 
-      {/* Evolution indicator */}
-      <motion.div
-        className="absolute -bottom-12 left-1/2 transform -translate-x-1/2"
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ delay: 1 }}
-      >
-        <div className="flex items-center space-x-1">
-          {Object.keys(stageTraits).map((stage, index) => (
-            <div
-              key={stage}
-              className={`h-2 w-2 rounded-full transition-all ${
-                index <= Object.keys(stageTraits).indexOf(evolutionStage)
-                  ? 'bg-gradient-to-r from-blue-500 to-purple-500'
-                  : 'bg-gray-600'
-              }`}
-            />
-          ))}
-        </div>
-        <p className="text-xs text-gray-500 mt-1 text-center capitalize">
-          {evolutionStage} Egg
-        </p>
-      </motion.div>
-    </motion.div>
-  );
+
+// --- Inline Sub-Components for single-file structure ---
+
+const EffectLayer = ({ effect }) => {
+    if (effect === 'evolution') {
+        return (
+            <motion.div
+                className="absolute inset-0 pointer-events-none"
+                initial={{ scale: 1, opacity: 0 }}
+                animate={{ scale: [1.5, 2.5], opacity: [0, 1, 0] }}
+                transition={{ duration: 2 }}
+            >
+                <div className="absolute inset-0 bg-gradient-radial from-yellow-300 via-orange-300 to-transparent rounded-full blur-xl" />
+            </motion.div>
+        );
+    }
+    // Add other effects like 'rainbow' here
+    return null;
+}
+
+const MessageBubble = ({ message }) => (
+    <AnimatePresence>
+        {message && (
+            <motion.div
+                initial={{ opacity: 0, y: 10, scale: 0.8, rotate: -5 }}
+                animate={{ opacity: 1, y: 0, scale: 1, rotate: 0 }}
+                exit={{ opacity: 0, y: -10, scale: 0.8, rotate: 5, transition: { duration: 0.2 } }}
+                transition={{ type: 'spring', stiffness: 300, damping: 20 }}
+                className="absolute -top-24 left-1/2 -translate-x-1/2 z-50"
+            >
+                <div className="relative">
+                    <div className="bg-gradient-to-r from-blue-600 to-purple-600 text-white px-4 py-2 rounded-2xl text-base whitespace-nowrap shadow-xl relative overflow-hidden font-semibold">
+                        <div className="relative z-10 animate-float">{message}</div>
+                        <div className="absolute inset-0 bg-gradient-to-r from-white/20 to-transparent animate-shine opacity-50" />
+                    </div>
+                    <div className="absolute -bottom-2 left-1/2 w-4 h-4 bg-purple-600 rotate-45 transform -translate-x-1/2" style={{ clipPath: 'polygon(50% 50%, 100% 100%, 0 100%)' }} />
+                </div>
+            </motion.div>
+        )}
+    </AnimatePresence>
+);
+
+const CharacterSVG_Inline = ({ traits, state }) => {
+    // This is the SVG rendering logic, kept separate for clarity even in a single file.
+    const { mood, isBlinking, isAnimating } = state;
+
+    return (
+        <motion.div animate={{ y: isAnimating ? 0 : [0, -traits.bounceHeight / 4, 0] }} transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}>
+             <svg width="120" height="150" viewBox="0 0 120 150" fill="none" xmlns="http://www.w3.org/2000/svg">
+                {/* SVG defs, gradients, filters... */}
+                 <defs>
+                    <radialGradient id="bodyGradient" cx="50%" cy="40%" r="60%"><stop offset="0%" stopColor="#FFFFFF" /><stop offset="70%" stopColor="#F8F8F8" /><stop offset="100%" stopColor="#E8E8E8" /></radialGradient>
+                    <radialGradient id="shadowGradient"><stop offset="0%" stopColor="rgba(0,0,0,0.3)" /><stop offset="100%" stopColor="rgba(0,0,0,0)" /></radialGradient>
+                </defs>
+                {/* Shadow */}
+                <motion.ellipse cx="60" cy="140" rx="35" ry="8" fill="url(#shadowGradient)" animate={{ scaleX: state.isJumping || isAnimating ? 0.8 : 1, opacity: state.isJumping ? 0.2 : 0.4 }}/>
+                {/* Body */}
+                <motion.ellipse cx="60" cy="80" rx="45" ry="55" fill="url(#bodyGradient)" stroke="#4A5568" strokeWidth="3" />
+                {/* Face */}
+                <g transform={`translate(0, ${-55 * traits.headRatio})`}>
+                    <g>
+                        {/* Eyes */}
+                         <motion.circle cx="40" cy="50" fill="white" stroke="#1A202C" strokeWidth="2" animate={{ r: isBlinking ? 2 : traits.eyeSize }}/>
+                         <motion.circle cx="80" cy="50" fill="white" stroke="#1A202C" strokeWidth="2" animate={{ r: isBlinking ? 2 : traits.eyeSize }}/>
+                         <motion.circle cx="40" cy="50" fill="#1A202C" animate={{ r: isBlinking ? 0 : traits.pupilSize }}/>
+                         <motion.circle cx="80" cy="50" fill="#1A202C" animate={{ r: isBlinking ? 0 : traits.pupilSize }}/>
+                    </g>
+                    {/* Mouth */}
+                    <motion.path d="M45 75 Q60 80 75 75" stroke="#1A202C" strokeWidth="3" fill="none" strokeLinecap="round" animate={{ d: mood === 'excited' ? "M45 72 Q60 85 75 72" : "M45 75 Q60 80 75 75" }}/>
+                </g>
+                 {/* Accessories */}
+                <g>
+                    {traits.accessories.includes('cap') && (<path d="M30 30 Q60 20 90 30 L85 40 L35 40 Z" fill="#FF6B6B" stroke="#C92A2A" strokeWidth="2" />)}
+                    {traits.accessories.includes('tie') && (<path d="M60 100 L55 110 L60 125 L65 110 Z" fill="#4C6EF5" stroke="#364FC7" strokeWidth="2" />)}
+                </g>
+            </svg>
+        </motion.div>
+    );
 };
 
 export default EggMascot;
