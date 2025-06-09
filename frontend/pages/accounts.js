@@ -11,11 +11,11 @@ import {
     Globe, Filter, Search, Download, Settings, Bell,
     CheckCircle, XCircle, Layers, MoreHorizontal, Copy,
     ExternalLink, FileText, Users, Banknote, Lock,
-    Maximize2, Minimize2, BadgeCheck, Gem, Crown,
+    Maximize2, Minimize2, BadgeCheck, Gem, Crown, Gauge,
     Rocket, HandCoins, Scale, ShoppingBag, Trash2, Edit3,
     CandlestickChart, Calculator, Receipt, FileBarChart, PieChart,
     CheckSquare, Square,
-    Percent, Hash, AtSign
+    Percent, Hash, AtSign, Waves
 } from 'lucide-react';
 
 // --- Reusable UI Components ---
@@ -217,7 +217,6 @@ export default function AccountsPage() {
     const [hoveredInstitution, setHoveredInstitution] = useState(null);
     const [sortBy, setSortBy] = useState('value');
     const [sortOrder, setSortOrder] = useState('desc');
-    const [showFilters, setShowFilters] = useState(false);
     
     const containerRef = useRef(null);
     const { scrollYProgress } = useScroll({ target: containerRef, offset: ["start start", "end start"] });
@@ -236,23 +235,6 @@ export default function AccountsPage() {
         'E*TRADE': 'from-purple-500 to-indigo-600',
         'Other': 'from-gray-500 to-gray-700'
     }), []);
-
-    const accountTypeConfig = useMemo(() => ({
-        'Brokerage': { icon: <CandlestickChart className="w-5 h-5" />, gradient: 'from-indigo-500 to-purple-600', description: 'Trading & Investments' },
-        'Retirement': { icon: <PiggyBank className="w-5 h-5" />, gradient: 'from-emerald-500 to-cyan-600', description: 'Long-term Savings' },
-        'Savings': { icon: <Shield className="w-5 h-5" />, gradient: 'from-blue-500 to-teal-600', description: 'Emergency Fund' },
-        'Checking': { icon: <CreditCard className="w-5 h-5" />, gradient: 'from-orange-500 to-pink-600', description: 'Daily Transactions' },
-        'IRA': { icon: <Shield className="w-5 h-5" />, gradient: 'from-purple-500 to-rose-600', description: 'Tax-Advantaged' },
-        'Roth IRA': { icon: <Crown className="w-5 h-5" />, gradient: 'from-pink-500 to-red-600', description: 'Tax-Free Growth' },
-        '401k': { icon: <Target className="w-5 h-5" />, gradient: 'from-cyan-500 to-indigo-600', description: 'Employer Sponsored' },
-        'Other': { icon: <Zap className="w-5 h-5" />, gradient: 'from-gray-500 to-gray-700', description: 'Miscellaneous' }
-    }), []);
-
-    const notifications = useMemo(() => [
-        { id: 1, type: 'success', message: 'Portfolio up 2.5% today!', icon: <TrendingUp className="w-4 h-4" />, time: '2m ago' },
-        { id: 2, type: 'info', message: 'Market closes in 2 hours', icon: <Clock className="w-4 h-4" />, time: '15m ago' },
-        { id: 3, type: 'warning', message: 'Review your asset allocation', icon: <AlertCircle className="w-4 h-4" />, time: '1h ago' },
-    ], []);
 
     const insights = useMemo(() => [
         { id: 1, title: 'Diversification', value: 85, status: 'good', description: 'Well balanced across sectors', icon: <Gem className="w-5 h-5" /> },
@@ -284,7 +266,6 @@ export default function AccountsPage() {
             totalAccounts: accountsData.length,
             totalInstitutionsCount: institutionBreakdown.length,
             institutionBreakdown,
-            // ... add other metric calculations here
         };
     }, [institutionGradients]);
 
@@ -457,46 +438,58 @@ export default function AccountsPage() {
                             </div>
                         </div>
                         <div className="relative h-[300px] flex items-center justify-center">
-                             <motion.div 
-                                className="w-64 h-64 relative"
+                             <motion.svg 
+                                viewBox="0 0 256 256"
+                                className="w-64 h-64"
                                 animate={{ rotate: 360 }}
                                 transition={{ duration: 30, repeat: Infinity, ease: "linear" }}
-                                style={{ transformStyle: 'preserve-3d' }}
                             >
-                                {accountsMetrics.institutionBreakdown?.map((inst, index, arr) => {
-                                    const startAngle = arr.slice(0, index).reduce((sum, i) => sum + i.percentage, 0);
-                                    const sweep = inst.percentage;
-                                    if(sweep === 0) return null;
-                                    const startRad = (startAngle / 100) * 2 * Math.PI - Math.PI / 2;
-                                    const endRad = ((startAngle + sweep) / 100) * 2 * Math.PI - Math.PI / 2;
-                                    const largeArcFlag = sweep > 50 ? 1 : 0;
-                                    const pathD = `M 128 128 L ${128 + 128 * Math.cos(startRad)} ${128 + 128 * Math.sin(startRad)} A 128 128 0 ${largeArcFlag} 1 ${128 + 128 * Math.cos(endRad)} ${128 + 128 * Math.sin(endRad)} Z`;
-                                    
-                                    return (
-                                        <motion.path
-                                            key={inst.name}
-                                            d={pathD}
-                                            className={`bg-gradient-to-r ${inst.gradient}`}
-                                            fill={`url(#grad-${index})`}
-                                            initial={{ opacity: 0 }}
-                                            animate={{ opacity: 1 }}
-                                            whileHover={{ opacity: 1, scale: 1.05, transition: { duration: 0.2 } }}
-                                            style={{
-                                                opacity: hoveredInstitution === null || hoveredInstitution === inst.name ? 0.8 : 0.4,
-                                                transformOrigin: '128px 128px'
-                                            }}
-                                        >
-                                            <defs>
-                                                <linearGradient id={`grad-${index}`} x1="0%" y1="0%" x2="100%" y2="100%">
-                                                    <stop offset="0%" stopColor={inst.gradient.split(' ')[0].replace('from-','')} />
-                                                    <stop offset="100%" stopColor={inst.gradient.split(' ')[2].replace('to-','')} />
-                                                </linearGradient>
-                                            </defs>
-                                        </motion.path>
-                                    );
-                                })}
+                                <defs>
+                                    {accountsMetrics.institutionBreakdown?.map((inst, index) => (
+                                        <linearGradient key={`grad-${inst.name}`} id={`grad-${index}`} x1="0%" y1="0%" x2="100%" y2="100%">
+                                            <stop offset="0%" stopColor={inst.gradient.split(' ')[0].replace('from-','')} />
+                                            <stop offset="100%" stopColor={inst.gradient.split(' ')[1].replace('to-','')} />
+                                        </linearGradient>
+                                    ))}
+                                </defs>
+                                <g transform="rotate(-90 128 128)">
+                                    {accountsMetrics.institutionBreakdown?.map((inst, index, arr) => {
+                                        const startAngle = arr.slice(0, index).reduce((sum, i) => sum + i.percentage, 0);
+                                        const sweep = inst.percentage;
+                                        if (sweep === 0) return null;
+                                        
+                                        const startRad = (startAngle / 100) * 2 * Math.PI;
+                                        const endRad = ((startAngle + sweep) / 100) * 2 * Math.PI;
+                                        const largeArcFlag = sweep > 50 ? 1 : 0;
+                                        
+                                        const x1 = 128 + 128 * Math.cos(startRad);
+                                        const y1 = 128 + 128 * Math.sin(startRad);
+                                        const x2 = 128 + 128 * Math.cos(endRad);
+                                        const y2 = 128 + 128 * Math.sin(endRad);
+
+                                        const pathD = `M 128 128 L ${x1} ${y1} A 128 128 0 ${largeArcFlag} 1 ${x2} ${y2} Z`;
+                                        
+                                        return (
+                                            <motion.path
+                                                key={inst.name}
+                                                d={pathD}
+                                                fill={`url(#grad-${index})`}
+                                                initial={{ opacity: 0 }}
+                                                animate={{ opacity: hoveredInstitution === null || hoveredInstitution === inst.name ? 1 : 0.5 }}
+                                                whileHover={{ scale: 1.05, transition: { duration: 0.2 } }}
+                                                style={{ transformOrigin: '128px 128px', transition: 'opacity 0.2s, transform 0.2s' }}
+                                            />
+                                        );
+                                    })}
+                                </g>
                                 <circle cx="128" cy="128" r="60" fill="black" />
-                            </motion.div>
+                                <text x="128" y="128" textAnchor="middle" dominantBaseline="middle" fill="white" fontSize="48" fontWeight="bold">
+                                    {accountsMetrics.totalInstitutionsCount}
+                                </text>
+                                 <text x="128" y="155" textAnchor="middle" dominantBaseline="middle" fill="gray" fontSize="16">
+                                    Institutions
+                                </text>
+                            </motion.svg>
                         </div>
                     </div>
                 </motion.section>
@@ -504,4 +497,3 @@ export default function AccountsPage() {
         </div>
     );
 }
-
