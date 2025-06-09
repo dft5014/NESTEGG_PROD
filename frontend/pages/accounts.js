@@ -402,7 +402,7 @@ export default function AccountsPage() {
           transition={{ delay: 0.3 }}
           className="mb-12"
         >
-          <Card3D className="bg-gradient-to-br from-purple-900/50 to-blue-900/50 backdrop-blur-xl rounded-3xl p-8 border border-white/10 shadow-2xl">
+                      <Card className="bg-gradient-to-br from-purple-900/50 to-blue-900/50 backdrop-blur-xl rounded-3xl p-8 border border-white/10 shadow-2xl">
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center">
               <div className="flex-1">
                 <div className="flex items-center justify-between mb-4">
@@ -545,7 +545,7 @@ export default function AccountsPage() {
                 </div>
               </motion.div>
             </div>
-          </Card3D>
+                                      </Card>
         </motion.section>
 
         {/* Key Metrics Grid */}
@@ -613,7 +613,7 @@ export default function AccountsPage() {
                     <p className="text-sm text-gray-500 truncate">{metric.subtitle}</p>
                   )}
                 </div>
-              </Card3D>
+              </Card>
             </motion.div>
           ))}
         </motion.section>
@@ -676,7 +676,7 @@ export default function AccountsPage() {
                       transition={{ duration: 0.8 }}
                     />
                   </div>
-                </Card3D>
+                                        </Card>
               </motion.div>
             ))}
           </div>
@@ -845,7 +845,7 @@ export default function AccountsPage() {
                     <p className="text-sm text-gray-400">{showValues ? formatCurrency(type.value) : '••••'}</p>
                     <p className="text-xs text-gray-500">{type.accounts} accounts</p>
                   </div>
-                </Card3D>
+                </Card>
               </motion.div>
             ))}
           </div>
@@ -884,7 +884,7 @@ export default function AccountsPage() {
                       <motion.div
                         className="h-full bg-gradient-to-r from-blue-500 to-purple-500"
                         initial={{ width: 0 }}
-                        animate={{ width: `${data.percentage * 100}%` }}
+                        animate={{ width: `${data.percentage}%` }}
                         transition={{ delay: 1.3 + index * 0.1, duration: 0.8 }}
                       />
                     </div>
@@ -910,13 +910,13 @@ export default function AccountsPage() {
                   >
                     <div className="flex justify-between items-center mb-2">
                       <span className="capitalize font-medium">{sector}</span>
-                      <span className="text-sm text-gray-400">{formatPercentage(data.percentage * 100)}</span>
+                      <span className="text-sm text-gray-400">{formatPercentage(data.percentage)}</span>
                     </div>
                     <div className="w-full bg-white/10 rounded-full h-2 overflow-hidden">
                       <motion.div
                         className="h-full bg-gradient-to-r from-green-500 to-emerald-500"
                         initial={{ width: 0 }}
-                        animate={{ width: `${data.percentage * 100}%` }}
+                        animate={{ width: `${data.percentage}%` }}
                         transition={{ delay: 1.3 + index * 0.1, duration: 0.8 }}
                       />
                     </div>

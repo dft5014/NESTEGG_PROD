@@ -502,42 +502,13 @@ export default function PositionsPage() {
 
   const currentPeriodChange = getCurrentPeriodChange();
 
-  // 3D Card Component
-  const Card3D = ({ children, className = "", intensity = 10 }) => {
-    const [rotateX, setRotateX] = useState(0);
-    const [rotateY, setRotateY] = useState(0);
-    const cardRef = useRef(null);
-
-    const handleMouseMove = (e) => {
-      if (!cardRef.current) return;
-      const rect = cardRef.current.getBoundingClientRect();
-      const x = e.clientX - rect.left;
-      const y = e.clientY - rect.top;
-      const centerX = rect.width / 2;
-      const centerY = rect.height / 2;
-      const rotateX = (y - centerY) / intensity;
-      const rotateY = (centerX - x) / intensity;
-      
-      setRotateX(rotateX);
-      setRotateY(rotateY);
-    };
-
-    const handleMouseLeave = () => {
-      setRotateX(0);
-      setRotateY(0);
-    };
-
+  // Subtle Card Component - removed 3D effects
+  const Card = ({ children, className = "" }) => {
     return (
       <motion.div
-        ref={cardRef}
         className={`relative ${className}`}
-        onMouseMove={handleMouseMove}
-        onMouseLeave={handleMouseLeave}
-        style={{
-          transformStyle: "preserve-3d",
-          transform: `perspective(1000px) rotateX(${rotateX}deg) rotateY(${rotateY}deg)`
-        }}
-        transition={{ type: "spring", stiffness: 300, damping: 30 }}
+        whileHover={{ y: -2 }}
+        transition={{ type: "spring", stiffness: 400, damping: 25 }}
       >
         {children}
       </motion.div>
@@ -571,29 +542,13 @@ export default function PositionsPage() {
         <link rel="icon" href="/favicon.ico" />
       </Head>
       
-      {/* Dynamic Background */}
+      {/* Animated Background */}
       <div className="fixed inset-0 z-0">
         <div className="absolute inset-0 bg-gradient-to-br from-indigo-900/20 via-black to-purple-900/20" />
         
-        {/* Animated orbs */}
-        <motion.div
-          className="absolute top-20 left-20 w-[600px] h-[600px] bg-blue-500/10 rounded-full blur-3xl"
-          animate={{
-            x: [0, 100, 0],
-            y: [0, -100, 0],
-            scale: [1, 1.2, 1],
-          }}
-          transition={{ duration: 25, repeat: Infinity, ease: "linear" }}
-        />
-        <motion.div
-          className="absolute bottom-20 right-20 w-[800px] h-[800px] bg-purple-500/10 rounded-full blur-3xl"
-          animate={{
-            x: [0, -150, 0],
-            y: [0, 150, 0],
-            scale: [1, 0.8, 1],
-          }}
-          transition={{ duration: 30, repeat: Infinity, ease: "linear" }}
-        />
+        {/* Subtle gradient orbs */}
+        <div className="absolute top-20 left-20 w-[600px] h-[600px] bg-blue-500/5 rounded-full blur-3xl" />
+        <div className="absolute bottom-20 right-20 w-[800px] h-[800px] bg-purple-500/5 rounded-full blur-3xl" />
         
         {/* Grid pattern overlay */}
         <div className="absolute inset-0 bg-[url('/grid.svg')] opacity-5" />
@@ -691,7 +646,7 @@ export default function PositionsPage() {
           transition={{ delay: 0.3 }}
           className="mb-12"
         >
-          <Card3D className="bg-gradient-to-br from-indigo-900/50 to-purple-900/50 backdrop-blur-xl rounded-3xl p-8 border border-white/10 shadow-2xl">
+          <Card className="bg-gradient-to-br from-indigo-900/50 to-purple-900/50 backdrop-blur-xl rounded-3xl p-8 border border-white/10 shadow-2xl">
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
               {/* Main metrics */}
               <div className="lg:col-span-2">
@@ -863,7 +818,7 @@ export default function PositionsPage() {
                 </motion.div>
               </div>
             </div>
-          </Card3D>
+          </Card>
         </motion.section>
 
         {/* Key Metrics Cards */}
@@ -913,12 +868,13 @@ export default function PositionsPage() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.6 + index * 0.1 }}
             >
-              <Card3D className="h-full" intensity={15}>
+              <Card className="h-full">
                 <div className="bg-white/5 backdrop-blur-sm rounded-2xl p-6 border border-white/10 h-full hover:bg-white/10 transition-all group">
                   <div className="flex items-start justify-between mb-4">
                     <motion.div 
                       className={`p-3 rounded-xl bg-gradient-to-r ${metric.gradient} shadow-lg`}
-                      whileHover={{ scale: 1.1, rotate: 5 }}
+                      whileHover={{ scale: 1.05 }}
+                      transition={{ type: "spring", stiffness: 400 }}
                     >
                       {metric.icon}
                     </motion.div>
@@ -937,7 +893,7 @@ export default function PositionsPage() {
                     <p className="text-sm text-gray-500 truncate">{metric.subtitle}</p>
                   )}
                 </div>
-              </Card3D>
+              </Card>
             </motion.div>
           ))}
         </motion.section>
@@ -955,7 +911,7 @@ export default function PositionsPage() {
               Asset Allocation
             </h3>
             
-            <Card3D className="h-full">
+            <Card className="h-full">
               <div className="bg-white/5 backdrop-blur-sm rounded-2xl p-6 border border-white/10 h-full">
                 <div className="grid grid-cols-2 gap-6">
                   {/* Pie Chart */}
@@ -1020,7 +976,7 @@ export default function PositionsPage() {
                   </div>
                 </div>
               </div>
-            </Card3D>
+            </Card>
           </motion.section>
 
           {/* Top Movers */}
@@ -1036,7 +992,7 @@ export default function PositionsPage() {
             
             <div className="space-y-4">
               {/* Gainers */}
-              <Card3D>
+                                    <Card>
                 <div className="bg-white/5 backdrop-blur-sm rounded-2xl p-6 border border-white/10">
                   <h4 className="text-lg font-semibold mb-4 flex items-center">
                     <TrendingUp className="w-5 h-5 mr-2 text-green-400" />
@@ -1072,11 +1028,12 @@ export default function PositionsPage() {
                     ))}
                   </div>
                 </div>
-              </Card3D>
+                                    </Card>
               
               {/* Losers */}
-              <Card3D>
-                <div className="bg-white/5 backdrop-blur-sm rounded-2xl p-6 border border-white/10">
+              <Card>
+                <div className="flex items-center justify-between p-3 bg-red-500/10 rounded-xl border border-red-500/20"
+                  whileHover={{ scale: 1.02 }}>
                   <h4 className="text-lg font-semibold mb-4 flex items-center">
                     <TrendingDown className="w-5 h-5 mr-2 text-red-400" />
                     Top Losers
@@ -1111,7 +1068,7 @@ export default function PositionsPage() {
                     ))}
                   </div>
                 </div>
-              </Card3D>
+              </Card>
             </div>
           </motion.section>
         </div>
@@ -1128,7 +1085,7 @@ export default function PositionsPage() {
             Sector Analysis
           </h3>
           
-          <Card3D>
+          <Card>
             <div className="bg-white/5 backdrop-blur-sm rounded-2xl p-6 border border-white/10">
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                 {/* Bar Chart */}
@@ -1217,7 +1174,7 @@ export default function PositionsPage() {
                 </div>
               </div>
             </div>
-          </Card3D>
+          </Card>
         </motion.section>
 
         {/* Positions Table Section */}
@@ -1364,7 +1321,7 @@ export default function PositionsPage() {
                 animate={{ opacity: 1, scale: 1 }}
                 transition={{ delay: 1.2 + index * 0.1 }}
               >
-                <Card3D>
+                                  <Card>
                   <div className="bg-white/5 backdrop-blur-sm rounded-2xl p-6 border border-white/10 h-full">
                     <div className="flex items-center justify-between mb-4">
                       <h4 className="text-lg font-semibold">{insight.title}</h4>
@@ -1414,7 +1371,7 @@ export default function PositionsPage() {
                       ))}
                     </div>
                   </div>
-                </Card3D>
+                                  </Card>
               </motion.div>
             ))}
           </div>
@@ -1427,7 +1384,7 @@ export default function PositionsPage() {
           transition={{ delay: 1.3 }}
           className="mb-12"
         >
-          <Card3D>
+          <Card>
             <div className="bg-gradient-to-r from-indigo-900/30 to-purple-900/30 backdrop-blur-xl rounded-3xl p-8 border border-indigo-500/20">
               <div className="flex items-center justify-between">
                 <div className="flex items-start space-x-6">
@@ -1477,7 +1434,7 @@ export default function PositionsPage() {
                 </motion.div>
               </div>
             </div>
-          </Card3D>
+          </Card>
         </motion.section>
 
         {/* Quick Actions */}
@@ -1521,42 +1478,21 @@ export default function PositionsPage() {
               whileHover={{ y: -5 }}
             >
               <Link href={action.href}>
-                <Card3D className="h-full" intensity={20}>
-                  <div className={`relative bg-gradient-to-r ${action.gradient} rounded-2xl p-6 h-full group cursor-pointer overflow-hidden`}>
-                    <div className="relative z-10">
-                      <div className="mb-4">{action.icon}</div>
-                      <h4 className="text-xl font-bold mb-2">{action.title}</h4>
-                      <p className="text-white/80 text-sm mb-3">{action.description}</p>
-                      <p className="text-white/60 text-xs">{action.stats}</p>
-                    </div>
-                    
-                    {/* Animated background elements */}
-                    <motion.div
-                      className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full blur-2xl"
-                      animate={{
-                        x: [0, 20, 0],
-                        y: [0, -20, 0],
-                      }}
-                      transition={{ duration: 4, repeat: Infinity }}
-                    />
-                    
-                    <motion.div
-                      className="absolute bottom-0 left-0 w-24 h-24 bg-white/10 rounded-full blur-2xl"
-                      animate={{
-                        x: [0, -20, 0],
-                        y: [0, 20, 0],
-                      }}
-                      transition={{ duration: 5, repeat: Infinity }}
-                    />
-                    
-                    <motion.div
-                      className="absolute bottom-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity"
-                      whileHover={{ x: 5 }}
-                    >
-                      <ChevronRight className="w-6 h-6" />
-                    </motion.div>
+                <div className={`relative bg-gradient-to-r ${action.gradient} rounded-2xl p-6 h-full group cursor-pointer overflow-hidden transition-all hover:shadow-xl`}>
+                  <div className="relative z-10">
+                    <div className="mb-4">{action.icon}</div>
+                    <h4 className="text-xl font-bold mb-2">{action.title}</h4>
+                    <p className="text-white/80 text-sm mb-3">{action.description}</p>
+                    <p className="text-white/60 text-xs">{action.stats}</p>
                   </div>
-                </Card3D>
+                  
+                  <motion.div
+                    className="absolute bottom-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity"
+                    whileHover={{ x: 5 }}
+                  >
+                    <ChevronRight className="w-6 h-6" />
+                  </motion.div>
+                </div>
               </Link>
             </motion.div>
           ))}
