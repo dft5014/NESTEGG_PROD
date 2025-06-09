@@ -1,38 +1,16 @@
 import { useState, useEffect, useRef } from 'react';
-import { motion, AnimatePresence, useMotionValue, useTransform } from 'framer-motion';
-import * as THREE from 'three';
+import { motion, AnimatePresence, useAnimation } from 'framer-motion';
 
 const EggMascot = ({ 
   portfolioValue = 0, 
   userTenureDays = 0,
   isDoingCartwheel = false 
 }) => {
-  const containerRef = useRef(null);
-  const sceneRef = useRef(null);
-  const rendererRef = useRef(null);
-  const eggRef = useRef(null);
-  const leftEyeRef = useRef(null);
-  const rightEyeRef = useRef(null);
-  const frameRef = useRef(null);
-  
-  const [isHovered, setIsHovered] = useState(false);
-  const [evolutionStage, setEvolutionStage] = useState('baby');
-  const [mood, setMood] = useState('happy');
-  const [message, setMessage] = useState('');
-  const [showParticles, setShowParticles] = useState(false);
-  const [isJumping, setIsJumping] = useState(false);
-  const [isDancing, setIsDancing] = useState(false);
-  const [isBlinking, setIsBlinking] = useState(false);
-  const [eyeFollow, setEyeFollow] = useState({ x: 0, y: 0 });
-  
-  const mouseX = useMotionValue(0);
-  const mouseY = useMotionValue(0);
-  const rotateX = useTransform(mouseY, [-300, 300], [10, -10]);
-  const rotateY = useTransform(mouseX, [-300, 300], [-10, 10]);
-
+  // Evolution stages based on portfolio value and tenure
   const getEvolutionStage = () => {
     const value = portfolioValue;
     const days = userTenureDays;
+    
     if (value < 10000 && days < 30) return 'baby';
     if (value < 50000 && days < 90) return 'child';
     if (value < 100000 && days < 180) return 'teen';
@@ -40,420 +18,642 @@ const EggMascot = ({
     return 'wise';
   };
 
+  const [evolutionStage, setEvolutionStage] = useState(getEvolutionStage());
+  const [mood, setMood] = useState('happy');
+  const [isBlinking, setIsBlinking] = useState(false);
+  const [isTalking, setIsTalking] = useState(false);
+  const [message, setMessage] = useState('');
+  const [isAnimating, setIsAnimating] = useState(false);
+  const [accessories, setAccessories] = useState([]);
+  const controls = useAnimation();
+
+  // Update evolution stage when props change
   useEffect(() => {
     setEvolutionStage(getEvolutionStage());
   }, [portfolioValue, userTenureDays]);
 
+  // Character traits by evolution stage
   const stageTraits = {
-    baby: { scale: 0.9, eggColor: '#D4A574', accentColor: '#B8885A', eyeSize: 0.22, pupilSize: 0.08, irisColor: '#4A90E2', bounceSpeed: 2, accessories: [], messages: ["Goo goo! 👶", "Save save! 💰"], particleColor: '#FFD700', personality: 'playful', eyebrowThickness: 0.02, mouthWidth: 0.35 },
-    child: { scale: 0.95, eggColor: '#C19660', accentColor: '#A67C52', eyeSize: 0.21, pupilSize: 0.075, irisColor: '#52C41A', bounceSpeed: 2.5, accessories: ['overalls'], messages: ["Growing strong! 💪", "Compound magic! ✨"], particleColor: '#FFA500', personality: 'energetic', eyebrowThickness: 0.025, mouthWidth: 0.4 },
-    teen: { scale: 1, eggColor: '#B8885A', accentColor: '#9B6F47', eyeSize: 0.2, pupilSize: 0.07, irisColor: '#722ED1', bounceSpeed: 3, accessories: ['overalls'], messages: ["Investing smart! 🧠", "Diversify! 🌍"], particleColor: '#FF69B4', personality: 'confident', eyebrowThickness: 0.03, mouthWidth: 0.35 },
-    adult: { scale: 1.05, eggColor: '#A67C52', accentColor: '#8B6F47', eyeSize: 0.19, pupilSize: 0.065, irisColor: '#1890FF', bounceSpeed: 3.5, accessories: ['overalls'], messages: ["Strategic growth! 📊", "Success! 🎯"], particleColor: '#4169E1', personality: 'sophisticated', eyebrowThickness: 0.035, mouthWidth: 0.3 },
-    wise: { scale: 1.1, eggColor: '#8B6F47', accentColor: '#6B5637', eyeSize: 0.18, pupilSize: 0.06, irisColor: '#52616B', bounceSpeed: 4, accessories: ['overalls'], messages: ["Sage wisdom! 🦉", "Legacy secured! 🏛️"], particleColor: '#9370DB', personality: 'wise', eyebrowThickness: 0.04, mouthWidth: 0.25 }
+    baby: {
+      size: 0.8,
+      eyeSize: 12,
+      pupilSize: 8,
+      headRatio: 0.6,
+      voicePitch: 1.5,
+      bounceHeight: 15,
+      accessories: [],
+      messages: ["Goo goo! 👶", "Me help! 🥚", "Yay money! 💰", "Up up! 📈"],
+      eyeSparkles: 2,
+      cheekSize: 6,
+      armLength: 'short'
+    },
+    child: {
+      size: 0.9,
+      eyeSize: 11,
+      pupilSize: 7,
+      headRatio: 0.55,
+      voicePitch: 1.3,
+      bounceHeight: 12,
+      accessories: ['cap'],
+      messages: ["We're growing! 🌱", "Save more! 🐷", "Good job! ⭐", "I'm learning! 📚"],
+      eyeSparkles: 2,
+      cheekSize: 5,
+      armLength: 'medium'
+    },
+    teen: {
+      size: 1,
+      eyeSize: 10,
+      pupilSize: 6,
+      headRatio: 0.5,
+      voicePitch: 1.1,
+      bounceHeight: 10,
+      accessories: ['glasses', 'headphones'],
+      messages: ["Looking good! 😎", "Compound interest! 📊", "Let's invest! 💎", "Portfolio goals! 🎯"],
+      eyeSparkles: 1,
+      cheekSize: 4,
+      armLength: 'medium'
+    },
+    adult: {
+      size: 1.1,
+      eyeSize: 9,
+      pupilSize: 5,
+      headRatio: 0.45,
+      voicePitch: 1,
+      bounceHeight: 8,
+      accessories: ['tie', 'watch'],
+      messages: ["Excellent strategy! 💼", "Diversify wisely! 🌍", "Strong returns! 💪", "Keep it up! 🚀"],
+      eyeSparkles: 1,
+      cheekSize: 3,
+      armLength: 'long'
+    },
+    wise: {
+      size: 1.15,
+      eyeSize: 9,
+      pupilSize: 5,
+      headRatio: 0.45,
+      voicePitch: 0.9,
+      bounceHeight: 6,
+      accessories: ['monocle', 'tophat', 'mustache'],
+      messages: ["Wealth wisdom! 🎩", "Legacy building! 🏛️", "Master investor! 👑", "Sage advice! 🦉"],
+      eyeSparkles: 0,
+      cheekSize: 2,
+      armLength: 'long'
+    }
   };
 
   const currentTraits = stageTraits[evolutionStage];
 
+  // Realistic blinking
   useEffect(() => {
     const blinkInterval = setInterval(() => {
       if (Math.random() > 0.9) {
         setIsBlinking(true);
         setTimeout(() => setIsBlinking(false), 150);
       }
-    }, 3000);
+    }, 2000);
     return () => clearInterval(blinkInterval);
   }, []);
 
+  // Random idle animations
   useEffect(() => {
-    if (!containerRef.current) return;
-
-    const scene = new THREE.Scene();
-    scene.background = null;
-    sceneRef.current = scene;
-
-    const camera = new THREE.PerspectiveCamera(40, 1, 0.1, 1000);
-    camera.position.set(0, 0.5, 3.5);
-    camera.lookAt(0, -0.2, 0);
-
-    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-    renderer.setSize(160, 200);
-    renderer.shadowMap.enabled = true;
-    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-    rendererRef.current = renderer;
-    containerRef.current.appendChild(renderer.domElement);
-
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
-    scene.add(ambientLight);
-
-    const mainLight = new THREE.DirectionalLight(0xffffff, 0.8);
-    mainLight.position.set(2, 3, 3);
-    mainLight.castShadow = true;
-    mainLight.shadow.mapSize.width = 1024;
-    mainLight.shadow.mapSize.height = 1024;
-    scene.add(mainLight);
-
-    const rimLight = new THREE.DirectionalLight(0xffffff, 0.3);
-    rimLight.position.set(-2, 1, -2);
-    scene.add(rimLight);
-
-    const fillLight = new THREE.DirectionalLight(0xffd4a3, 0.2);
-    fillLight.position.set(-1, 0, 2);
-    scene.add(fillLight);
-
-    const createEggbert = () => {
-      const group = new THREE.Group();
-
-      // Egg body
-      const eggGeometry = new THREE.SphereGeometry(0.6, 32, 32);
-      eggGeometry.scale(1, 1.3, 1);
-      const eggMaterial = new THREE.MeshPhongMaterial({ color: new THREE.Color(currentTraits.eggColor), shininess: 60, specular: 0xffffff, emissive: new THREE.Color(currentTraits.eggColor), emissiveIntensity: 0.05 });
-      const eggMesh = new THREE.Mesh(eggGeometry, eggMaterial);
-      eggMesh.castShadow = true;
-      eggMesh.receiveShadow = true;
-      group.add(eggMesh);
-
-      // Overalls
-      if (currentTraits.accessories.includes('overalls')) {
-        const overallsGeometry = new THREE.BoxGeometry(0.8, 0.6, 0.6);
-        const overallsMaterial = new THREE.MeshPhongMaterial({ color: 0x4682B4, shininess: 50 });
-        const overalls = new THREE.Mesh(overallsGeometry, overallsMaterial);
-        overalls.position.y = -0.2;
-        overalls.scale.set(1, 0.8, 1);
-        const buttonGeometry = new THREE.SphereGeometry(0.05, 16, 16);
-        const buttonMaterial = new THREE.MeshPhongMaterial({ color: 0xD3D3D3 });
-        const button = new THREE.Mesh(buttonGeometry, buttonMaterial);
-        button.position.set(0, 0.2, 0.31);
-        overalls.add(button);
-        group.add(overalls);
+    const idleAnimations = async () => {
+      const animations = ['lookAround', 'stretch', 'yawn', 'dance'];
+      const randomAnim = animations[Math.floor(Math.random() * animations.length)];
+      
+      switch(randomAnim) {
+        case 'lookAround':
+          await controls.start({ 
+            rotateY: [0, 20, -20, 0],
+            transition: { duration: 2 }
+          });
+          break;
+        case 'stretch':
+          await controls.start({ 
+            scaleY: [1, 1.1, 1],
+            scaleX: [1, 0.95, 1],
+            transition: { duration: 1.5 }
+          });
+          break;
+        case 'yawn':
+          setMood('yawning');
+          setTimeout(() => setMood('happy'), 2000);
+          break;
+        case 'dance':
+          await controls.start({ 
+            rotate: [-5, 5, -5, 5, 0],
+            y: [0, -10, 0, -10, 0],
+            transition: { duration: 1 }
+          });
+          break;
       }
-
-      // Face group
-      const faceGroup = new THREE.Group();
-      faceGroup.position.y = 0.3;
-
-      const createEye = (xPos) => {
-        const eyeGroup = new THREE.Group();
-        const socketGeometry = new THREE.SphereGeometry(currentTraits.eyeSize * 1.2, 32, 32);
-        const socketMaterial = new THREE.MeshPhongMaterial({ color: new THREE.Color(currentTraits.eggColor).multiplyScalar(0.95), shininess: 30 });
-        const socket = new THREE.Mesh(socketGeometry, socketMaterial);
-        socket.position.z = -0.02;
-        eyeGroup.add(socket);
-        const eyeWhiteGeometry = new THREE.SphereGeometry(currentTraits.eyeSize, 32, 32);
-        const eyeWhiteMaterial = new THREE.MeshPhongMaterial({ color: 0xffffff, shininess: 90, emissive: 0xffffff, emissiveIntensity: 0.02 });
-        const eyeWhite = new THREE.Mesh(eyeWhiteGeometry, eyeWhiteMaterial);
-        eyeGroup.add(eyeWhite);
-        const irisGeometry = new THREE.CircleGeometry(currentTraits.eyeSize * 0.55, 32);
-        const irisMaterial = new THREE.MeshPhongMaterial({ color: new THREE.Color(currentTraits.irisColor), shininess: 80 });
-        const iris = new THREE.Mesh(irisGeometry, irisMaterial);
-        iris.position.z = currentTraits.eyeSize * 0.9;
-        eyeGroup.add(iris);
-        const pupilGeometry = new THREE.CircleGeometry(currentTraits.pupilSize, 32);
-        const pupilMaterial = new THREE.MeshPhongMaterial({ color: 0x000000, shininess: 100 });
-        const pupil = new THREE.Mesh(pupilGeometry, pupilMaterial);
-        pupil.position.z = currentTraits.eyeSize * 0.92;
-        eyeGroup.add(pupil);
-        const highlightGeometry = new THREE.SphereGeometry(currentTraits.eyeSize * 0.12, 16, 16);
-        const highlightMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff, opacity: 0.9, transparent: true });
-        const highlight = new THREE.Mesh(highlightGeometry, highlightMaterial);
-        highlight.position.set(currentTraits.eyeSize * 0.15, currentTraits.eyeSize * 0.15, currentTraits.eyeSize * 0.95);
-        eyeGroup.add(highlight);
-        eyeGroup.position.set(xPos * 0.35, 0, 0.48);
-        return eyeGroup;
-      };
-
-      const leftEye = createEye(-1);
-      const rightEye = createEye(1);
-      leftEyeRef.current = leftEye;
-      rightEyeRef.current = rightEye;
-      faceGroup.add(leftEye);
-      faceGroup.add(rightEye);
-
-      if (isBlinking) {
-        const createEyelid = (xPos) => {
-          const eyelidGeometry = new THREE.SphereGeometry(currentTraits.eyeSize * 1.1, 32, 16, 0, Math.PI * 2, 0, Math.PI / 2);
-          const eyelidMaterial = new THREE.MeshPhongMaterial({ color: new THREE.Color(currentTraits.eggColor), side: THREE.DoubleSide });
-          const eyelid = new THREE.Mesh(eyelidGeometry, eyelidMaterial);
-          eyelid.position.set(xPos * 0.35, 0, 0.49);
-          return eyelid;
-        };
-        faceGroup.add(createEyelid(-1));
-        faceGroup.add(createEyelid(1));
-      }
-
-      const eyebrowGeometry = new THREE.BoxGeometry(0.18, currentTraits.eyebrowThickness, 0.05);
-      const eyebrowMaterial = new THREE.MeshPhongMaterial({ color: new THREE.Color(currentTraits.eggColor).multiplyScalar(0.6) });
-      const leftEyebrow = new THREE.Mesh(eyebrowGeometry, eyebrowMaterial);
-      leftEyebrow.position.set(-0.35, 0.25, 0.5);
-      leftEyebrow.rotation.z = 0.1;
-      faceGroup.add(leftEyebrow);
-      const rightEyebrow = new THREE.Mesh(eyebrowGeometry, eyebrowMaterial);
-      rightEyebrow.position.set(0.35, 0.25, 0.5);
-      rightEyebrow.rotation.z = -0.1;
-      faceGroup.add(rightEyebrow);
-
-      const mouthCurve = new THREE.EllipseCurve(0, 0, currentTraits.mouthWidth, currentTraits.mouthWidth * 0.3, 0, Math.PI, false, 0);
-      const points = mouthCurve.getPoints(32);
-      const mouthGeometry = new THREE.BufferGeometry().setFromPoints(points);
-      const mouthMaterial = new THREE.LineBasicMaterial({ color: 0x333333, linewidth: 3 });
-      const mouth = new THREE.Line(mouthGeometry, mouthMaterial);
-      mouth.position.set(0, -0.15, 0.52);
-      mouth.rotation.z = Math.PI;
-      faceGroup.add(mouth);
-
-      group.add(faceGroup);
-
-      // Arms with gloves
-      const createArm = (side) => {
-        const armGroup = new THREE.Group();
-        const upperArmGeometry = new THREE.CapsuleGeometry(0.06, 0.25, 8, 16);
-        const armMaterial = new THREE.MeshPhongMaterial({ color: new THREE.Color(currentTraits.eggColor).multiplyScalar(0.95), shininess: 60 });
-        const upperArm = new THREE.Mesh(upperArmGeometry, armMaterial);
-        upperArm.position.y = -0.12;
-        upperArm.rotation.z = side * 0.3;
-        armGroup.add(upperArm);
-        const lowerArmGeometry = new THREE.CapsuleGeometry(0.05, 0.2, 8, 16);
-        const lowerArm = new THREE.Mesh(lowerArmGeometry, armMaterial);
-        lowerArm.position.set(side * 0.08, -0.3, 0);
-        lowerArm.rotation.z = side * 0.2;
-        armGroup.add(lowerArm);
-        const gloveGeometry = new THREE.SphereGeometry(0.08, 16, 16);
-        const gloveMaterial = new THREE.MeshPhongMaterial({ color: 0x8B4513 });
-        const glove = new THREE.Mesh(gloveGeometry, gloveMaterial);
-        glove.position.set(side * 0.12, -0.45, 0);
-        glove.scale.set(1, 1.1, 0.8);
-        armGroup.add(glove);
-        armGroup.position.set(side * 0.55, 0.1, 0);
-        return armGroup;
-      };
-      group.add(createArm(-1));
-      group.add(createArm(1));
-
-      // Legs with shoes
-      const createLeg = (side) => {
-        const legGroup = new THREE.Group();
-        const upperLegGeometry = new THREE.CapsuleGeometry(0.08, 0.3, 8, 16);
-        const legMaterial = new THREE.MeshPhongMaterial({ color: new THREE.Color(currentTraits.eggColor).multiplyScalar(0.95), shininess: 60 });
-        const upperLeg = new THREE.Mesh(upperLegGeometry, legMaterial);
-        upperLeg.position.y = -0.15;
-        legGroup.add(upperLeg);
-        const lowerLegGeometry = new THREE.CapsuleGeometry(0.06, 0.25, 8, 16);
-        const lowerLeg = new THREE.Mesh(lowerLegGeometry, legMaterial);
-        lowerLeg.position.y = -0.42;
-        legGroup.add(lowerLeg);
-        const shoeGeometry = new THREE.BoxGeometry(0.15, 0.08, 0.22);
-        const shoeMaterial = new THREE.MeshPhongMaterial({ color: 0x8B4513, shininess: 80 });
-        const shoe = new THREE.Mesh(shoeGeometry, shoeMaterial);
-        shoe.position.y = -0.6;
-        legGroup.add(shoe);
-        legGroup.position.set(side * 0.2, -0.65, 0);
-        return legGroup;
-      };
-      group.add(createLeg(-1));
-      group.add(createLeg(1));
-
-      const shadowGeometry = new THREE.PlaneGeometry(2, 2);
-      const shadowMaterial = new THREE.ShadowMaterial({ opacity: 0.5 });
-      const shadowPlane = new THREE.Mesh(shadowGeometry, shadowMaterial);
-      shadowPlane.rotation.x = -Math.PI / 2;
-      shadowPlane.position.y = -1.33;
-      shadowPlane.receiveShadow = true;
-      scene.add(shadowPlane);
-
-      group.scale.set(currentTraits.scale, currentTraits.scale, currentTraits.scale);
-      return group;
     };
 
-    const eggbert = createEggbert();
-    scene.add(eggbert);
-    eggRef.current = eggbert;
+    const interval = setInterval(idleAnimations, 10000);
+    return () => clearInterval(interval);
+  }, [controls]);
 
-    const clock = new THREE.Clock();
-    let time = 0;
-    const animate = () => {
-      frameRef.current = requestAnimationFrame(animate);
-      const deltaTime = clock.getDelta();
-      time += deltaTime;
-
-      if (eggRef.current) {
-        eggRef.current.scale.y = currentTraits.scale * (1 + Math.sin(time * 2) * 0.01);
-        eggRef.current.rotation.z = Math.sin(time * 1.5) * 0.02;
-        eggRef.current.position.y = Math.sin(time * currentTraits.bounceSpeed) * 0.02;
-
-        if (isDoingCartwheel) {
-          eggRef.current.rotation.x += deltaTime * 5;
-          eggRef.current.position.y = Math.sin(time * 5) * 0.5;
-        }
-
-        if (leftEyeRef.current && rightEyeRef.current) {
-          const maxRotation = 0.15;
-          leftEyeRef.current.rotation.x = eyeFollow.y * maxRotation;
-          leftEyeRef.current.rotation.y = eyeFollow.x * maxRotation;
-          rightEyeRef.current.rotation.x = eyeFollow.y * maxRotation;
-          rightEyeRef.current.rotation.y = eyeFollow.x * maxRotation;
-        }
-
-        const arms = eggRef.current.children.filter(child => Math.abs(child.position.x) === 0.55);
-        arms.forEach((arm, index) => {
-          const side = arm.position.x > 0 ? 1 : -1;
-          arm.rotation.z = side * 0.05 + Math.sin(time * 2 + index * Math.PI) * 0.03;
-          if (isHovered && side > 0) {
-            arm.rotation.z = Math.sin(time * 5) * 0.2;
-            arm.rotation.x = Math.cos(time * 5) * 0.1;
-          }
-        });
-      }
-
-      renderer.render(scene, camera);
-    };
-    animate();
-
-    return () => {
-      if (frameRef.current) cancelAnimationFrame(frameRef.current);
-      if (containerRef.current && renderer.domElement) containerRef.current.removeChild(renderer.domElement);
-      renderer.dispose();
-    };
-  }, [evolutionStage, currentTraits, isHovered, eyeFollow, isJumping, isDancing, isBlinking, isDoingCartwheel]);
-
+  // Handle cartwheel
   useEffect(() => {
-    const handleMouseMove = (e) => {
-      const rect = containerRef.current?.getBoundingClientRect();
-      if (rect) {
-        const centerX = rect.left + rect.width / 2;
-        const centerY = rect.top + rect.height / 2;
-        const x = (e.clientX - centerX) / rect.width;
-        const y = (e.clientY - centerY) / rect.height;
-        setEyeFollow({ x: Math.max(-1, Math.min(1, x)), y: Math.max(-1, Math.min(1, -y)) });
-        mouseX.set(e.clientX - centerX);
-        mouseY.set(e.clientY - centerY);
-      }
-    };
-    window.addEventListener('mousemove', handleMouseMove);
-    return () => window.removeEventListener('mousemove', handleMouseMove);
-  }, [mouseX, mouseY]);
+    if (isDoingCartwheel) {
+      handleCartwheel();
+    }
+  }, [isDoingCartwheel]);
 
-  const handleClick = () => {
-    const randomMessage = currentTraits.messages[Math.floor(Math.random() * currentTraits.messages.length)];
-    setMessage(randomMessage);
-    setIsJumping(true);
-    setShowParticles(true);
+  const handleCartwheel = async () => {
+    setIsAnimating(true);
     setMood('excited');
-    setTimeout(() => {
-      setMessage('');
-      setIsJumping(false);
-      setMood('happy');
-    }, 3000);
-    setTimeout(() => setShowParticles(false), 2000);
+    
+    await controls.start({
+      rotate: [0, 360, 720],
+      x: [0, 150, 0],
+      y: [0, -100, 0],
+      transition: { duration: 1.5, ease: "easeInOut" }
+    });
+    
+    setIsAnimating(false);
+    setMood('dizzy');
+    setTimeout(() => setMood('happy'), 2000);
   };
 
-  const handleDoubleClick = () => {
-    setIsDancing(true);
-    setMood('excited');
+  const handleClick = () => {
+    const messages = currentTraits.messages;
+    const randomMessage = messages[Math.floor(Math.random() * messages.length)];
+    setMessage(randomMessage);
+    setIsTalking(true);
+    
+    // Bounce animation
+    controls.start({
+      y: [0, -currentTraits.bounceHeight, 0],
+      scale: [1, 1.05, 1],
+      transition: { duration: 0.5, type: "spring" }
+    });
+    
     setTimeout(() => {
-      setIsDancing(false);
-      setMood('happy');
-    }, 5000);
+      setMessage('');
+      setIsTalking(false);
+    }, 3000);
+  };
+
+  const handleMouseEnter = () => {
+    setMood('curious');
+    controls.start({ scale: 1.05 });
+  };
+
+  const handleMouseLeave = () => {
+    setMood('happy');
+    controls.start({ scale: 1 });
+  };
+
+  // Get eye path based on mood and blinking
+  const getEyePath = (isLeft) => {
+    if (isBlinking) return `M${isLeft ? 20 : 60} 50 Q${isLeft ? 30 : 70} 50 ${isLeft ? 40 : 80} 50`;
+    
+    switch(mood) {
+      case 'happy':
+        return null; // Use regular circles
+      case 'excited':
+        return `M${isLeft ? 20 : 60} 45 Q${isLeft ? 30 : 70} 40 ${isLeft ? 40 : 80} 45`;
+      case 'yawning':
+        return `M${isLeft ? 25 : 65} 55 Q${isLeft ? 30 : 70} 60 ${isLeft ? 35 : 75} 55`;
+      case 'dizzy':
+        return `M${isLeft ? 25 : 65} 45 L${isLeft ? 35 : 75} 55 M${isLeft ? 35 : 75} 45 L${isLeft ? 25 : 65} 55`;
+      case 'curious':
+        return null; // Use larger circles
+      default:
+        return null;
+    }
   };
 
   return (
     <motion.div 
-      className="fixed bottom-2 right-2 z-50"
-      initial={{ scale: 0, opacity: 0 }}
-      animate={{ scale: 1, opacity: 1 }}
-      transition={{ type: "spring", stiffness: 260, damping: 20 }}
+      className="fixed bottom-8 right-8 z-50"
+      initial={{ scale: 0, rotate: -360 }}
+      animate={{ scale: currentTraits.size, rotate: 0 }}
+      transition={{ type: "spring", stiffness: 100, damping: 15, duration: 1 }}
     >
+      {/* Evolution effect */}
+      <AnimatePresence>
+        {evolutionStage !== 'baby' && (
+          <motion.div
+            className="absolute inset-0 pointer-events-none"
+            initial={{ scale: 1.5, opacity: 0 }}
+            animate={{ scale: 1, opacity: [0, 0.5, 0] }}
+            transition={{ duration: 2 }}
+          >
+            <div className="absolute inset-0 bg-gradient-radial from-yellow-300 to-transparent rounded-full blur-xl" />
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Message bubble */}
       <AnimatePresence>
         {message && (
           <motion.div
             initial={{ opacity: 0, y: 10, scale: 0.8 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -10, scale: 0.8 }}
-            className="absolute -top-16 left-1/2 transform -translate-x-1/2 z-10"
+            className="absolute -top-20 left-1/2 transform -translate-x-1/2 bg-gradient-to-r from-blue-600 to-purple-600 text-white px-4 py-2 rounded-2xl text-sm whitespace-nowrap shadow-xl"
           >
-            <div className="bg-gradient-to-r from-blue-600 to-purple-600 text-white px-4 py-2 rounded-xl text-xs font-bold shadow-lg">
-              <motion.div
-                animate={{ y: [0, -1, 0] }}
-                transition={{ duration: 2, repeat: Infinity }}
-              >
-                {message}
-              </motion.div>
-              <div className="absolute -bottom-1.5 left-1/2 transform -translate-x-1/2 w-3 h-3 bg-gradient-to-br from-blue-600 to-purple-600 rotate-45" />
-            </div>
+            <motion.div
+              animate={{ y: [0, -2, 0] }}
+              transition={{ duration: 2, repeat: Infinity }}
+            >
+              {message}
+            </motion.div>
+            <div className="absolute -bottom-2 left-1/2 transform -translate-x-1/2 w-4 h-4 bg-gradient-to-br from-blue-600 to-purple-600 rotate-45" />
           </motion.div>
         )}
       </AnimatePresence>
 
+      {/* Main character */}
       <motion.div
-        ref={containerRef}
         className="relative cursor-pointer select-none"
-        style={{ rotateX, rotateY, transformStyle: "preserve-3d" }}
-        whileHover={{ scale: 1.1, transition: { duration: 0.3 } }}
-        whileTap={{ scale: 0.9, transition: { duration: 0.2 } }}
+        animate={controls}
+        whileHover={{ scale: currentTraits.size * 1.05 }}
+        whileTap={{ scale: currentTraits.size * 0.95 }}
         onClick={handleClick}
-        onDoubleClick={handleDoubleClick}
-        onMouseEnter={() => setIsHovered(true)}
-        onMouseLeave={() => setIsHovered(false)}
-        animate={{
-          y: isJumping ? [0, -30, -15, 0] : 0,
-          rotate: isDancing ? [0, 360] : 0,
-          x: isDoingCartwheel ? [-50, 50, 0] : 0
-        }}
-        transition={{
-          y: { duration: 0.8, times: [0, 0.3, 0.6, 1], ease: "easeOut" },
-          rotate: { duration: 1, repeat: isDancing ? Infinity : 0, ease: "linear" },
-          x: { duration: 1, ease: "easeInOut" }
-        }}
-      />
+        onMouseEnter={handleMouseEnter}
+        onMouseLeave={handleMouseLeave}
+      >
+        <motion.div
+          animate={{ 
+            y: [0, -currentTraits.bounceHeight/3, 0],
+            rotate: [-1, 1, -1]
+          }}
+          transition={{ 
+            duration: 3 + (evolutionStage === 'wise' ? 1 : 0), 
+            repeat: Infinity,
+            ease: "easeInOut"
+          }}
+        >
+          <svg width="120" height="150" viewBox="0 0 120 150" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+              {/* Gradients for 3D effect */}
+              <radialGradient id="bodyGradient" cx="50%" cy="40%" r="60%">
+                <stop offset="0%" stopColor="#FFFFFF" />
+                <stop offset="70%" stopColor="#F8F8F8" />
+                <stop offset="100%" stopColor="#E8E8E8" />
+              </radialGradient>
+              
+              <radialGradient id="shadowGradient">
+                <stop offset="0%" stopColor="rgba(0,0,0,0.3)" />
+                <stop offset="100%" stopColor="rgba(0,0,0,0)" />
+              </radialGradient>
 
-      <AnimatePresence>
-        {showParticles && (
-          <motion.div className="absolute inset-0 pointer-events-none">
-            {[...Array(8)].map((_, i) => (
-              <motion.div
-                key={i}
-                className="absolute"
-                initial={{ opacity: 1, scale: 0, x: 0, y: 0 }}
+              <filter id="softGlow">
+                <feGaussianBlur stdDeviation="3"/>
+                <feComponentTransfer>
+                  <feFuncA type="discrete" tableValues="0 .8"/>
+                </feComponentTransfer>
+              </filter>
+            </defs>
+
+            {/* Shadow */}
+            <motion.ellipse
+              cx="60"
+              cy="140"
+              rx="35"
+              ry="8"
+              fill="url(#shadowGradient)"
+              animate={{ 
+                scaleX: isAnimating ? 0 : 1,
+                opacity: isAnimating ? 0 : 0.3
+              }}
+            />
+
+            {/* Arms - behind body */}
+            <g className="arms">
+              {/* Left arm */}
+              <motion.path
+                d={currentTraits.armLength === 'short' ? "M35 75 Q25 70 20 65" :
+                   currentTraits.armLength === 'medium' ? "M35 75 Q20 70 15 60" :
+                   "M35 75 Q15 70 10 55"}
+                stroke="#4A5568"
+                strokeWidth="8"
+                strokeLinecap="round"
+                fill="none"
                 animate={{
-                  opacity: [1, 1, 0],
-                  scale: [0, 1, 0.5],
-                  x: (Math.random() - 0.5) * 120,
-                  y: -Math.random() * 100 - 20,
-                  rotate: Math.random() * 360
+                  d: isTalking ? 
+                    (currentTraits.armLength === 'short' ? "M35 75 Q25 65 20 60" : "M35 75 Q20 60 15 50") :
+                    (currentTraits.armLength === 'short' ? "M35 75 Q25 70 20 65" : "M35 75 Q20 70 15 60")
                 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 1.5, delay: i * 0.05, ease: "easeOut" }}
-                style={{ left: '50%', top: '50%', transform: 'translate(-50%, -50%)' }}
-              >
-                <div className="text-lg" style={{ color: currentTraits.particleColor, filter: 'drop-shadow(0 0 8px currentColor)' }}>
-                  {['💰', '📈', '✨', '🌟', '💎', '🚀', '🎯', '💸'][i % 8]}
-                </div>
-              </motion.div>
-            ))}
-          </motion.div>
-        )}
-      </AnimatePresence>
+              />
+              
+              {/* Right arm */}
+              <motion.path
+                d={currentTraits.armLength === 'short' ? "M85 75 Q95 70 100 65" :
+                   currentTraits.armLength === 'medium' ? "M85 75 Q100 70 105 60" :
+                   "M85 75 Q105 70 110 55"}
+                stroke="#4A5568"
+                strokeWidth="8"
+                strokeLinecap="round"
+                fill="none"
+                animate={{
+                  d: isTalking ? 
+                    (currentTraits.armLength === 'short' ? "M85 75 Q95 65 100 60" : "M85 75 Q100 60 105 50") :
+                    (currentTraits.armLength === 'short' ? "M85 75 Q95 70 100 65" : "M85 75 Q100 70 105 60")
+                }}
+              />
+            </g>
 
+            {/* Body */}
+            <motion.ellipse
+              cx="60"
+              cy="80"
+              rx="45"
+              ry="55"
+              fill="url(#bodyGradient)"
+              stroke="#4A5568"
+              strokeWidth="3"
+              filter="url(#softGlow)"
+              animate={{
+                scaleY: mood === 'yawning' ? 1.05 : 1
+              }}
+            />
+
+            {/* Face region */}
+            <g transform={`translate(0, ${-55 * currentTraits.headRatio})`}>
+              {/* Eyes */}
+              <g className="eyes">
+                {/* Left eye */}
+                {getEyePath(true) ? (
+                  <path d={getEyePath(true)} stroke="#1A202C" strokeWidth="3" fill="none" />
+                ) : (
+                  <g>
+                    <circle
+                      cx="40"
+                      cy="50"
+                      r={mood === 'curious' ? currentTraits.eyeSize * 1.2 : currentTraits.eyeSize}
+                      fill="white"
+                      stroke="#1A202C"
+                      strokeWidth="2"
+                    />
+                    <motion.circle
+                      cx="40"
+                      cy="50"
+                      r={currentTraits.pupilSize}
+                      fill="#1A202C"
+                      animate={{
+                        cx: mood === 'curious' ? [40, 42, 40] : 40,
+                        cy: mood === 'curious' ? [50, 48, 50] : 50
+                      }}
+                      transition={{ duration: 2, repeat: Infinity }}
+                    />
+                    {/* Eye sparkles */}
+                    {[...Array(currentTraits.eyeSparkles)].map((_, i) => (
+                      <circle
+                        key={i}
+                        cx={42 + i * 2}
+                        cy={48 - i}
+                        r="2"
+                        fill="white"
+                        opacity="0.8"
+                      />
+                    ))}
+                  </g>
+                )}
+
+                {/* Right eye */}
+                {getEyePath(false) ? (
+                  <path d={getEyePath(false)} stroke="#1A202C" strokeWidth="3" fill="none" />
+                ) : (
+                  <g>
+                    <circle
+                      cx="80"
+                      cy="50"
+                      r={mood === 'curious' ? currentTraits.eyeSize * 1.2 : currentTraits.eyeSize}
+                      fill="white"
+                      stroke="#1A202C"
+                      strokeWidth="2"
+                    />
+                    <motion.circle
+                      cx="80"
+                      cy="50"
+                      r={currentTraits.pupilSize}
+                      fill="#1A202C"
+                      animate={{
+                        cx: mood === 'curious' ? [80, 78, 80] : 80,
+                        cy: mood === 'curious' ? [50, 48, 50] : 50
+                      }}
+                      transition={{ duration: 2, repeat: Infinity }}
+                    />
+                    {/* Eye sparkles */}
+                    {[...Array(currentTraits.eyeSparkles)].map((_, i) => (
+                      <circle
+                        key={i}
+                        cx={82 + i * 2}
+                        cy={48 - i}
+                        r="2"
+                        fill="white"
+                        opacity="0.8"
+                      />
+                    ))}
+                  </g>
+                )}
+
+                {/* Eyebrows */}
+                {evolutionStage !== 'baby' && (
+                  <>
+                    <motion.path
+                      d="M30 40 Q40 35 50 40"
+                      stroke="#1A202C"
+                      strokeWidth="2.5"
+                      fill="none"
+                      strokeLinecap="round"
+                      animate={{
+                        d: mood === 'curious' ? "M30 35 Q40 30 50 35" : 
+                           mood === 'excited' ? "M30 35 Q40 32 50 35" : 
+                           "M30 40 Q40 35 50 40"
+                      }}
+                    />
+                    <motion.path
+                      d="M70 40 Q80 35 90 40"
+                      stroke="#1A202C"
+                      strokeWidth="2.5"
+                      fill="none"
+                      strokeLinecap="round"
+                      animate={{
+                        d: mood === 'curious' ? "M70 35 Q80 30 90 35" : 
+                           mood === 'excited' ? "M70 35 Q80 32 90 35" : 
+                           "M70 40 Q80 35 90 40"
+                      }}
+                    />
+                  </>
+                )}
+              </g>
+
+              {/* Nose (for older stages) */}
+              {(evolutionStage === 'adult' || evolutionStage === 'wise') && (
+                <ellipse cx="60" cy="65" rx="4" ry="3" fill="#E8D8D8" />
+              )}
+
+              {/* Mouth */}
+              <motion.path
+                d={mood === 'yawning' ? "M50 75 Q60 85 70 75" :
+                   isTalking ? "M45 75 Q60 85 75 75" :
+                   "M45 75 Q60 80 75 75"}
+                stroke="#1A202C"
+                strokeWidth="3"
+                fill={mood === 'yawning' ? "#FF6B6B" : "none"}
+                strokeLinecap="round"
+                animate={{
+                  d: isTalking ? 
+                    ["M45 75 Q60 85 75 75", "M45 75 Q60 80 75 75", "M45 75 Q60 85 75 75"] :
+                    mood === 'yawning' ? "M50 75 Q60 85 70 75" :
+                    "M45 75 Q60 80 75 75"
+                }}
+                transition={{ duration: 0.3, repeat: isTalking ? Infinity : 0 }}
+              />
+
+              {/* Cheeks */}
+              <circle
+                cx="25"
+                cy="65"
+                r={currentTraits.cheekSize}
+                fill="#FFB6C1"
+                opacity="0.6"
+              />
+              <circle
+                cx="95"
+                cy="65"
+                r={currentTraits.cheekSize}
+                fill="#FFB6C1"
+                opacity="0.6"
+              />
+            </g>
+
+            {/* Accessories based on evolution */}
+            <g className="accessories">
+              {/* Cap for child */}
+              {evolutionStage === 'child' && (
+                <g>
+                  <path d="M30 30 Q60 20 90 30 L85 40 L35 40 Z" fill="#FF6B6B" stroke="#C92A2A" strokeWidth="2" />
+                  <ellipse cx="60" cy="35" rx="30" ry="3" fill="#C92A2A" />
+                </g>
+              )}
+
+              {/* Glasses for teen */}
+              {evolutionStage === 'teen' && (
+                <g>
+                  <circle cx="40" cy="50" r="18" fill="none" stroke="#4A5568" strokeWidth="3" />
+                  <circle cx="80" cy="50" r="18" fill="none" stroke="#4A5568" strokeWidth="3" />
+                  <path d="M58 50 L62 50" stroke="#4A5568" strokeWidth="3" />
+                </g>
+              )}
+
+              {/* Tie for adult */}
+              {evolutionStage === 'adult' && (
+                <path d="M60 100 L55 110 L60 125 L65 110 Z" fill="#4C6EF5" stroke="#364FC7" strokeWidth="2" />
+              )}
+
+              {/* Top hat and monocle for wise */}
+              {evolutionStage === 'wise' && (
+                <g>
+                  {/* Top hat */}
+                  <rect x="40" y="10" width="40" height="25" fill="#1A202C" stroke="#000" strokeWidth="2" />
+                  <ellipse cx="60" cy="35" rx="25" ry="3" fill="#1A202C" />
+                  <ellipse cx="60" cy="10" rx="20" ry="3" fill="#2D3748" />
+                  
+                  {/* Monocle */}
+                  <circle cx="80" cy="50" r="20" fill="none" stroke="#D4AF37" strokeWidth="3" />
+                  <path d="M100 50 Q105 55 105 60" stroke="#D4AF37" strokeWidth="2" fill="none" />
+                  
+                  {/* Mustache */}
+                  <path d="M50 72 Q60 75 70 72" stroke="#4A5568" strokeWidth="3" fill="none" strokeLinecap="round" />
+                </g>
+              )}
+            </g>
+
+            {/* Legs */}
+            <g className="legs">
+              <motion.ellipse
+                cx="45"
+                cy="125"
+                rx="8"
+                ry="15"
+                fill="#4A5568"
+                animate={{
+                  rotate: isAnimating ? [0, -20, 20, 0] : 0,
+                  y: isTalking ? [0, -3, 0] : 0
+                }}
+                transition={{ duration: 0.5, repeat: isTalking ? Infinity : 0 }}
+              />
+              <motion.ellipse
+                cx="75"
+                cy="125"
+                rx="8"
+                ry="15"
+                fill="#4A5568"
+                animate={{
+                  rotate: isAnimating ? [0, 20, -20, 0] : 0,
+                  y: isTalking ? [0, -3, 0] : [0, -3, 0]
+                }}
+                transition={{ 
+                  duration: 0.5, 
+                  repeat: isTalking ? Infinity : 0,
+                  delay: isTalking ? 0.25 : 0 
+                }}
+              />
+            </g>
+          </svg>
+        </motion.div>
+
+        {/* Evolution particles */}
+        <AnimatePresence>
+          {evolutionStage === 'wise' && (
+            <motion.div className="absolute inset-0 pointer-events-none">
+              {[...Array(3)].map((_, i) => (
+                <motion.div
+                  key={i}
+                  className="absolute"
+                  initial={{ opacity: 0 }}
+                  animate={{
+                    opacity: [0, 1, 0],
+                    y: [-20, -40],
+                    x: [0, (i - 1) * 20]
+                  }}
+                  transition={{
+                    duration: 3,
+                    repeat: Infinity,
+                    delay: i * 1,
+                    ease: "easeOut"
+                  }}
+                  style={{
+                    left: '50%',
+                    bottom: '100%',
+                    transform: 'translateX(-50%)'
+                  }}
+                >
+                  ✨
+                </motion.div>
+              ))}
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </motion.div>
+
+      {/* Evolution indicator */}
       <motion.div
         className="absolute -bottom-12 left-1/2 transform -translate-x-1/2"
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
-        transition={{ delay: 0.5 }}
+        transition={{ delay: 1 }}
       >
-        <div className="text-center">
-          <h3 className="text-sm font-bold text-gray-800">Eggbert</h3>
-          <div className="flex items-center justify-center space-x-1 mt-1">
-            {Object.keys(stageTraits).map((stage, index) => (
-              <motion.div
-                key={stage}
-                className={`h-1.5 w-1.5 rounded-full transition-all ${
-                  index <= Object.keys(stageTraits).indexOf(evolutionStage)
-                    ? 'bg-gradient-to-r from-blue-500 to-purple-500'
-                    : 'bg-gray-400'
-                }`}
-                whileHover={{ scale: 1.5, transition: { duration: 0.2 } }}
-              />
-            ))}
-          </div>
+        <div className="flex items-center space-x-1">
+          {Object.keys(stageTraits).map((stage, index) => (
+            <div
+              key={stage}
+              className={`h-2 w-2 rounded-full transition-all ${
+                index <= Object.keys(stageTraits).indexOf(evolutionStage)
+                  ? 'bg-gradient-to-r from-blue-500 to-purple-500'
+                  : 'bg-gray-600'
+              }`}
+            />
+          ))}
         </div>
+        <p className="text-xs text-gray-500 mt-1 text-center capitalize">
+          {evolutionStage} Egg
+        </p>
       </motion.div>
     </motion.div>
   );
