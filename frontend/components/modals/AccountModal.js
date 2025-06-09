@@ -1,7 +1,7 @@
 // components/modals/AccountModal.js
 import React, { useState, useEffect } from 'react';
 import FixedModal from './FixedModal';
-import { fetchWithAuth } from '@/utils/api';
+import { fetchWithAuth, API_BASE_URL } from '@/utils/api'; // Import API_BASE_URL here
 import { popularBrokerages } from '@/utils/constants';
 import { ChevronDown, Check, X, CreditCard, DollarSign, Building, Landmark, Briefcase, Bitcoin, Database, Home } from 'lucide-react';
 
@@ -99,9 +99,9 @@ const AccountModal = ({ isOpen, onClose, onAccountAdded, editAccount = null }) =
     setFormMessage("");
   
     try {
-      // Prepare payload - DO NOT trim accountName here, do it in the onChange handler
+      // Prepare payload
       const payload = {
-        account_name: accountName,  // Ensure this is properly formatted
+        account_name: accountName,
         institution: institution || null,
         type: accountType,
         account_category: accountCategory,
@@ -113,28 +113,20 @@ const AccountModal = ({ isOpen, onClose, onAccountAdded, editAccount = null }) =
       let response;
       
       if (isEditMode) {
-        // Update existing account
-        response = await fetch(`${API_BASE_URL}/accounts/${editAccount.id}`, {
+        // Update existing account - use fetchWithAuth
+        response = await fetchWithAuth(`/accounts/${editAccount.id}`, {
           method: "PUT",
-          headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${localStorage.getItem("token")}`
-          },
           body: JSON.stringify(payload)
         });
       } else {
-        // Create new account
-        response = await fetch(`${API_BASE_URL}/accounts`, {
+        // Create new account - use fetchWithAuth
+        response = await fetchWithAuth('/accounts', {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${localStorage.getItem("token")}`
-          },
           body: JSON.stringify(payload)
         });
       }
   
-      console.log("API response status:", response.status);
+      console.log("API response:", response);
       
       if (response.ok) {
         const responseData = await response.json();

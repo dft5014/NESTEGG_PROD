@@ -22,11 +22,7 @@ import { fetchWithAuth } from '@/utils/api';
 
 // Memoized EggLogo component with enhanced animation
 const EggLogo = memo(() => (
-    <motion.div 
-        className="relative"
-        whileHover={{ scale: 1.05 }}
-        whileTap={{ scale: 0.95 }}
-    >
+    <div className="relative">
         <svg
             width="36"
             height="36"
@@ -48,23 +44,15 @@ const EggLogo = memo(() => (
                     </feMerge>
                 </filter>
             </defs>
-            <motion.path
+            <path
                 d="M18 2C12 2 6 12 6 22C6 30 11 34 18 34C25 34 30 30 30 22C30 12 24 2 18 2Z"
                 fill="url(#eggGradient)"
                 stroke="currentColor"
                 strokeWidth="1.5"
                 filter="url(#glow)"
-                animate={{
-                    strokeWidth: [1.5, 2, 1.5],
-                }}
-                transition={{
-                    duration: 2,
-                    repeat: Infinity,
-                    ease: "easeInOut"
-                }}
             />
-            <circle cx="14" cy="16" r="1.5" fill="#1E3A8A" />
-            <circle cx="22" cy="16" r="1.5" fill="#1E3A8A" />
+            <circle cx={14} cy={16} r={1.5} fill="#1E3A8A" />
+            <circle cx={22} cy={16} r={1.5} fill="#1E3A8A" />
             <path d="M15 24C16.5 25.5 19.5 25.5 21 24" stroke="#1E3A8A" strokeWidth="1.5" strokeLinecap="round" />
         </svg>
         <motion.div
@@ -79,7 +67,7 @@ const EggLogo = memo(() => (
                 ease: "easeInOut"
             }}
         />
-    </motion.div>
+    </div>
 ));
 EggLogo.displayName = 'EggLogo';
 
@@ -265,6 +253,7 @@ const Navbar = () => {
     // Get auth context - properly destructure loading state
     const { user, logout, loading: authLoading } = useContext(AuthContext);
     const router = useRouter();
+    const mountedRef = useRef(false);
 
     // Portfolio data state
     const [portfolioData, setPortfolioData] = useState(null);
@@ -276,6 +265,14 @@ const Navbar = () => {
     const [isLoadingAccounts, setIsLoadingAccounts] = useState(false);
     const [accountError, setAccountError] = useState(null);
 
+    // Track component mount state
+    useEffect(() => {
+        mountedRef.current = true;
+        return () => {
+            mountedRef.current = false;
+        };
+    }, []);
+
     // Debug logging
     useEffect(() => {
         console.log('[Navbar] Auth state:', { user, authLoading });
@@ -283,7 +280,7 @@ const Navbar = () => {
 
     // Fetch portfolio data
     const loadPortfolioData = useCallback(async () => {
-        if (!user || authLoading) {
+        if (!user || authLoading || !mountedRef.current) {
             setPortfolioData(null);
             return;
         }
@@ -296,19 +293,25 @@ const Navbar = () => {
             if (!response.ok) throw new Error('Failed to fetch portfolio data');
             
             const data = await response.json();
-            setPortfolioData(data);
             
-            // Update market data status
-            setMarketDataStatus({
-                status: 'connected',
-                lastUpdate: data.last_updated || new Date().toISOString()
-            });
+            // Only update state if component is still mounted
+            if (mountedRef.current) {
+                setPortfolioData(data);
+                setMarketDataStatus({
+                    status: 'connected',
+                    lastUpdate: data.last_updated || new Date().toISOString()
+                });
+            }
         } catch (error) {
             console.error('Error fetching portfolio:', error);
-            setPortfolioError(error.message);
-            setMarketDataStatus({ status: 'error', lastUpdate: null });
+            if (mountedRef.current) {
+                setPortfolioError(error.message);
+                setMarketDataStatus({ status: 'error', lastUpdate: null });
+            }
         } finally {
-            setIsLoadingPortfolio(false);
+            if (mountedRef.current) {
+                setIsLoadingPortfolio(false);
+            }
         }
     }, [user, authLoading]);
 
@@ -321,7 +324,7 @@ const Navbar = () => {
 
     // Load accounts
     const loadAccounts = useCallback(async () => {
-        if (!user || authLoading) {
+        if (!user || authLoading || !mountedRef.current) {
             setAccounts([]);
             setIsLoadingAccounts(false);
             setAccountError(null);
@@ -333,13 +336,19 @@ const Navbar = () => {
         
         try {
             const accountsData = await fetchAccounts();
-            setAccounts(accountsData || []);
+            if (mountedRef.current) {
+                setAccounts(accountsData || []);
+            }
         } catch (error) {
             console.error("Navbar: Error fetching accounts:", error);
-            setAccountError("Failed to load accounts.");
-            setAccounts([]);
+            if (mountedRef.current) {
+                setAccountError("Failed to load accounts.");
+                setAccounts([]);
+            }
         } finally {
-            setIsLoadingAccounts(false);
+            if (mountedRef.current) {
+                setIsLoadingAccounts(false);
+            }
         }
     }, [user, authLoading]);
 
@@ -469,9 +478,13 @@ const Navbar = () => {
                         {/* Logo and App Name - Always visible */}
                         <div className="flex items-center">
                             <Link href="/" className="flex items-center group">
-                                <div className={`mr-3 ${scrolledDown ? '' : 'animate-pulse'} group-hover:scale-105 transition-transform`}>
+                                <motion.div 
+                                    className={`mr-3 ${scrolledDown ? '' : 'animate-pulse'} group-hover:scale-105 transition-transform`}
+                                    whileHover={{ scale: 1.05 }}
+                                    whileTap={{ scale: 0.95 }}
+                                >
                                     <EggLogo />
-                                </div>
+                                </motion.div>
                                 <div className="flex flex-col">
                                     <span className="text-xl font-bold text-white group-hover:text-blue-300 transition-colors">NestEgg</span>
                                     <span className="text-xs text-blue-300">Plan Your Future</span>
