@@ -14,7 +14,7 @@ import {
     Maximize2, Minimize2, BadgeCheck, Gem, Crown, Gauge,
     Rocket, HandCoins, Scale, ShoppingBag, Trash2, Edit3,
     CandlestickChart, Calculator, Receipt, FileBarChart, PieChart,
-    CheckSquare, Square,
+    CheckSquare, Square, CircleDollarSign,
     Percent, Hash, AtSign, Waves
 } from 'lucide-react';
 
@@ -215,8 +215,6 @@ export default function AccountsPage() {
     const [showValues, setShowValues] = useState(true);
     const [selectedTimeframe, setSelectedTimeframe] = useState('1m');
     const [hoveredInstitution, setHoveredInstitution] = useState(null);
-    const [sortBy, setSortBy] = useState('value');
-    const [sortOrder, setSortOrder] = useState('desc');
     
     const containerRef = useRef(null);
     const { scrollYProgress } = useScroll({ target: containerRef, offset: ["start start", "end start"] });
@@ -235,12 +233,6 @@ export default function AccountsPage() {
         'E*TRADE': 'from-purple-500 to-indigo-600',
         'Other': 'from-gray-500 to-gray-700'
     }), []);
-
-    const insights = useMemo(() => [
-        { id: 1, title: 'Diversification', value: 85, status: 'good', description: 'Well balanced across sectors', icon: <Gem className="w-5 h-5" /> },
-        { id: 2, title: 'Risk Assessment', value: 'Moderate', status: 'neutral', description: 'Aligned with your goals', icon: <Gauge className="w-5 h-5" /> },
-        { id: 3, title: 'Rebalance Alert', value: 'Not needed', status: 'good', description: 'Portfolio in target range', icon: <Scale className="w-5 h-5" /> },
-    ], []);
 
     // --- Data Loading and Processing ---
     const calculateAccountMetrics = useCallback((accountsData, portfolioInfo) => {
