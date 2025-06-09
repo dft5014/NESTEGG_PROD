@@ -21,7 +21,7 @@ import {
 // --- Reusable UI Components ---
 
 // Particle System Component for background ambiance
-const ParticleField = ({ count = 30 }) => {
+const ParticleSystem = ({ count = 30 }) => {
     const particles = useMemo(() => {
         return Array.from({ length: count }, (_, i) => ({
             id: i,
@@ -119,7 +119,7 @@ const AnimatedBackground = () => {
             <div className="absolute inset-0 bg-gradient-to-br from-purple-900/10 via-black to-blue-900/10" />
             <GlowingOrb color="rgba(168, 85, 247, 0.3)" size="400px" x="10%" y="20%" />
             <GlowingOrb color="rgba(59, 130, 246, 0.3)" size="500px" x="70%" y="50%" delay={2} />
-            <ParticleField />
+            <ParticleSystem />
             <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent" />
         </div>
     );
