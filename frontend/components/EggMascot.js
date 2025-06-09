@@ -1,462 +1,284 @@
-import { useState, useEffect, useRef } from 'react';
-import { motion, AnimatePresence, useMotionValue, useTransform } from 'framer-motion';
-import * as THREE from 'three';
+import React, { useState, useEffect, useMemo } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 
-const EggMascot = ({ 
-  portfolioValue = 0, 
-  userTenureDays = 0,
-  isDoingCartwheel = false 
-}) => {
-  const containerRef = useRef(null);
-  const sceneRef = useRef(null);
-  const rendererRef = useRef(null);
-  const eggRef = useRef(null);
-  const leftEyeRef = useRef(null);
-  const rightEyeRef = useRef(null);
-  const frameRef = useRef(null);
-  
-  const [isHovered, setIsHovered] = useState(false);
-  const [evolutionStage, setEvolutionStage] = useState('baby');
-  const [mood, setMood] = useState('happy');
-  const [message, setMessage] = useState('');
-  const [showParticles, setShowParticles] = useState(false);
-  const [isJumping, setIsJumping] = useState(false);
-  const [isDancing, setIsDancing] = useState(false);
-  const [isBlinking, setIsBlinking] = useState(false);
-  const [eyeFollow, setEyeFollow] = useState({ x: 0, y: 0 });
-  
-  const mouseX = useMotionValue(0);
-  const mouseY = useMotionValue(0);
-  const rotateX = useTransform(mouseY, [-300, 300], [10, -10]);
-  const rotateY = useTransform(mouseX, [-300, 300], [-10, 10]);
+// --- Sub-components for a cleaner SVG structure ---
 
-  const getEvolutionStage = () => {
-    const value = portfolioValue;
-    const days = userTenureDays;
-    if (value < 10000 && days < 30) return 'baby';
-    if (value < 50000 && days < 90) return 'child';
-    if (value < 100000 && days < 180) return 'teen';
-    if (value < 500000 && days < 365) return 'adult';
-    return 'wise';
-  };
+const Face = ({ isBlinking, mouthOpen, isThinking }) => {
+    // Defines the smiling mouth path
+    const smilePath = "M 80 145 Q 100 160 120 145";
+    // Defines the open "O" mouth path for when talking
+    const openMouthPath = "M 85 145 Q 100 155 115 145";
 
-  useEffect(() => {
-    setEvolutionStage(getEvolutionStage());
-  }, [portfolioValue, userTenureDays]);
+    return (
+        <>
+            {/* Eyes */}
+            <circle cx="75" cy="110" r="12" fill="#fff" />
+            <circle cx="125" cy="110" r="12" fill="#fff" />
 
-  const stageTraits = {
-    baby: { scale: 0.9, eggColor: '#D4A574', accentColor: '#B8885A', eyeSize: 0.22, pupilSize: 0.08, irisColor: '#4A90E2', bounceSpeed: 2, accessories: [], messages: ["Goo goo! 👶", "Save save! 💰"], particleColor: '#FFD700', personality: 'playful', eyebrowThickness: 0.02, mouthWidth: 0.35 },
-    child: { scale: 0.95, eggColor: '#C19660', accentColor: '#A67C52', eyeSize: 0.21, pupilSize: 0.075, irisColor: '#52C41A', bounceSpeed: 2.5, accessories: ['overalls'], messages: ["Growing strong! 💪", "Compound magic! ✨"], particleColor: '#FFA500', personality: 'energetic', eyebrowThickness: 0.025, mouthWidth: 0.4 },
-    teen: { scale: 1, eggColor: '#B8885A', accentColor: '#9B6F47', eyeSize: 0.2, pupilSize: 0.07, irisColor: '#722ED1', bounceSpeed: 3, accessories: ['overalls'], messages: ["Investing smart! 🧠", "Diversify! 🌍"], particleColor: '#FF69B4', personality: 'confident', eyebrowThickness: 0.03, mouthWidth: 0.35 },
-    adult: { scale: 1.05, eggColor: '#A67C52', accentColor: '#8B6F47', eyeSize: 0.19, pupilSize: 0.065, irisColor: '#1890FF', bounceSpeed: 3.5, accessories: ['overalls'], messages: ["Strategic growth! 📊", "Success! 🎯"], particleColor: '#4169E1', personality: 'sophisticated', eyebrowThickness: 0.035, mouthWidth: 0.3 },
-    wise: { scale: 1.1, eggColor: '#8B6F47', accentColor: '#6B5637', eyeSize: 0.18, pupilSize: 0.06, irisColor: '#52616B', bounceSpeed: 4, accessories: ['overalls'], messages: ["Sage wisdom! 🦉", "Legacy secured! 🏛️"], particleColor: '#9370DB', personality: 'wise', eyebrowThickness: 0.04, mouthWidth: 0.25 }
-  };
+            <AnimatePresence>
+                {!isBlinking && (
+                    <motion.g initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+                        {/* Pupils */}
+                        <circle cx="75" cy="110" r="6" fill="#353535" />
+                        <circle cx="125" cy="110" r="6" fill="#353535" />
+                        {/* Eye Glimmer */}
+                        <circle cx="80" cy="105" r="2" fill="#fff" />
+                        <circle cx="130" cy="105" r="2" fill="#fff" />
+                    </motion.g>
+                )}
+            </AnimatePresence>
 
-  const currentTraits = stageTraits[evolutionStage];
+            {isBlinking && (
+                <>
+                    {/* Blinking lines */}
+                    <line x1="63" y1="110" x2="87" y2="110" stroke="#353535" strokeWidth="4" strokeLinecap="round" />
+                    <line x1="113" y1="110" x2="137" y2="110" stroke="#353535" strokeWidth="4" strokeLinecap="round" />
+                </>
+            )}
 
-  useEffect(() => {
-    const blinkInterval = setInterval(() => {
-      if (Math.random() > 0.9) {
-        setIsBlinking(true);
-        setTimeout(() => setIsBlinking(false), 150);
-      }
-    }, 3000);
-    return () => clearInterval(blinkInterval);
-  }, []);
+            {/* Eyebrows */}
+             <motion.path
+                d="M 65 95 Q 75 90 85 95"
+                stroke="#5C2E00" strokeWidth="5" fill="transparent" strokeLinecap="round"
+                animate={{ y: isThinking ? -5 : 0, rotate: isThinking ? -5: 0 }}
+             />
+             <motion.path
+                d="M 115 95 Q 125 90 135 95"
+                stroke="#5C2E00" strokeWidth="5" fill="transparent" strokeLinecap="round"
+                animate={{ y: isThinking ? -5 : 0, rotate: isThinking ? 5: 0 }}
+             />
 
-  useEffect(() => {
-    if (!containerRef.current) return;
+            {/* Mouth */}
+            <motion.path
+                d={mouthOpen ? openMouthPath : smilePath}
+                stroke="#333"
+                strokeWidth="4"
+                fill="transparent"
+                strokeLinecap="round"
+                transition={{ duration: 0.2 }}
+            />
+        </>
+    );
+};
 
-    const scene = new THREE.Scene();
-    scene.background = null;
-    sceneRef.current = scene;
+const Hat = ({ stage }) => {
+    const hats = {
+        baby: null, // No hat for baby
+        child: ( // A simple baseball cap
+            <motion.g initial={{ y: -20, opacity: 0 }} animate={{ y: 0, opacity: 1 }}>
+                <path d="M 60 70 Q 100 50 140 70 L 120 70 Q 100 80 80 70 Z" fill="#4A90E2" />
+                <path d="M 120 70 C 140 70 150 65 140 60" fill="#357ABD" />
+            </motion.g>
+        ),
+        teen: ( // Cool beanie
+             <motion.g initial={{ y: -20, opacity: 0 }} animate={{ y: 0, opacity: 1 }}>
+                <path d="M 65 75 Q 100 45 135 75 Z" fill="#50C878"/>
+                <rect x="65" y="70" width="70" height="10" fill="#40A060" />
+            </motion.g>
+        ),
+        adult: ( // A stylish fedora
+             <motion.g initial={{ y: -20, opacity: 0 }} animate={{ y: 0, opacity: 1 }}>
+                <ellipse cx="100" cy="60" rx="55" ry="15" fill="#6A5ACD" />
+                <rect x="65" y="40" width="70" height="20" fill="#5A4AAD" />
+                <rect x="60" y="55" width="80" height="5" fill="#333" opacity="0.5" />
+             </motion.g>
+        ),
+        wise: ( // A classic top hat
+            <motion.g initial={{ y: -20, opacity: 0 }} animate={{ y: 0, opacity: 1 }}>
+                <ellipse cx="100" cy="65" rx="50" ry="10" fill="#333" />
+                <rect x="70" y="25" width="60" height="40" fill="#444" />
+                <rect x="65" y="45" width="70" height="5" fill="#E74C3C" />
+            </motion.g>
+        ),
+    };
+    return <AnimatePresence>{hats[stage]}</AnimatePresence>;
+};
 
-    const camera = new THREE.PerspectiveCamera(40, 1, 0.1, 1000);
-    camera.position.set(0, 0.5, 3.5);
-    camera.lookAt(0, -0.2, 0);
+const Suit = ({ color, stage }) => {
+    const suitPath = "M40 160 Q100 180 160 160 L160 210 Q100 240 40 210 Z";
+    const bowtie = (
+        <g>
+            <polygon points="95,155 80,165 95,175 105,165" fill="#e74c3c" />
+            <circle cx="100" cy="165" r="5" fill="#C0392B" />
+        </g>
+    );
 
-    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-    renderer.setSize(160, 200);
-    renderer.shadowMap.enabled = true;
-    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-    rendererRef.current = renderer;
-    containerRef.current.appendChild(renderer.domElement);
+    return (
+        <motion.g initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.2 }}>
+            <path d={suitPath} fill={color} stroke={new THREE.Color(color).darken(0.5).getStyle()} strokeWidth="3" />
+            {stage !== 'baby' && bowtie}
+        </motion.g>
+    );
+};
 
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
-    scene.add(ambientLight);
+// --- Main Mascot Component ---
 
-    const mainLight = new THREE.DirectionalLight(0xffffff, 0.8);
-    mainLight.position.set(2, 3, 3);
-    mainLight.castShadow = true;
-    mainLight.shadow.mapSize.width = 1024;
-    mainLight.shadow.mapSize.height = 1024;
-    scene.add(mainLight);
+const EggMascot = ({ portfolioValue = 0, userTenureDays = 0 }) => {
+    const [isBlinking, setIsBlinking] = useState(false);
+    const [isWaving, setIsWaving] = useState(false);
+    const [message, setMessage] = useState('');
+    const [isThinking, setIsThinking] = useState(false);
 
-    const rimLight = new THREE.DirectionalLight(0xffffff, 0.3);
-    rimLight.position.set(-2, 1, -2);
-    scene.add(rimLight);
+    // --- Evolution Logic ---
+    const evolutionStage = useMemo(() => {
+        if (portfolioValue < 10000 && userTenureDays < 30) return 'baby';
+        if (portfolioValue < 50000 && userTenureDays < 90) return 'child';
+        if (portfolioValue < 100000 && userTenureDays < 180) return 'teen';
+        if (portfolioValue < 500000 && userTenureDays < 365) return 'adult';
+        return 'wise';
+    }, [portfolioValue, userTenureDays]);
 
-    const fillLight = new THREE.DirectionalLight(0xffd4a3, 0.2);
-    fillLight.position.set(-1, 0, 2);
-    scene.add(fillLight);
+    const stageTraits = useMemo(() => ({
+        baby: { name: "Baby Eggbert", suitColor: "#ADD8E6" },
+        child: { name: "Kid Eggbert", suitColor: "#90EE90" },
+        teen: { name: "Teen Eggbert", suitColor: "#FFB6C1" },
+        adult: { name: "Adult Eggbert", suitColor: "#D3D3D3" },
+        wise: { name: "Wise Eggbert", suitColor: "#4a90e2" },
+    }), []);
+    
+    const currentTraits = stageTraits[evolutionStage];
 
-    const createEggbert = () => {
-      const group = new THREE.Group();
+    // --- Animations & Effects ---
+    useEffect(() => { // Blinking timer
+        const id = setInterval(() => {
+            setIsBlinking(true);
+            setTimeout(() => setIsBlinking(false), 200);
+        }, 4000);
+        return () => clearInterval(id);
+    }, []);
 
-      // Egg body
-      const eggGeometry = new THREE.SphereGeometry(0.6, 32, 32);
-      eggGeometry.scale(1, 1.3, 1);
-      const eggMaterial = new THREE.MeshPhongMaterial({ color: new THREE.Color(currentTraits.eggColor), shininess: 60, specular: 0xffffff, emissive: new THREE.Color(currentTraits.eggColor), emissiveIntensity: 0.05 });
-      const eggMesh = new THREE.Mesh(eggGeometry, eggMaterial);
-      eggMesh.castShadow = true;
-      eggMesh.receiveShadow = true;
-      group.add(eggMesh);
-
-      // Overalls
-      if (currentTraits.accessories.includes('overalls')) {
-        const overallsGeometry = new THREE.BoxGeometry(0.8, 0.6, 0.6);
-        const overallsMaterial = new THREE.MeshPhongMaterial({ color: 0x4682B4, shininess: 50 });
-        const overalls = new THREE.Mesh(overallsGeometry, overallsMaterial);
-        overalls.position.y = -0.2;
-        overalls.scale.set(1, 0.8, 1);
-        const buttonGeometry = new THREE.SphereGeometry(0.05, 16, 16);
-        const buttonMaterial = new THREE.MeshPhongMaterial({ color: 0xD3D3D3 });
-        const button = new THREE.Mesh(buttonGeometry, buttonMaterial);
-        button.position.set(0, 0.2, 0.31);
-        overalls.add(button);
-        group.add(overalls);
-      }
-
-      // Face group
-      const faceGroup = new THREE.Group();
-      faceGroup.position.y = 0.3;
-
-      const createEye = (xPos) => {
-        const eyeGroup = new THREE.Group();
-        const socketGeometry = new THREE.SphereGeometry(currentTraits.eyeSize * 1.2, 32, 32);
-        const socketMaterial = new THREE.MeshPhongMaterial({ color: new THREE.Color(currentTraits.eggColor).multiplyScalar(0.95), shininess: 30 });
-        const socket = new THREE.Mesh(socketGeometry, socketMaterial);
-        socket.position.z = -0.02;
-        eyeGroup.add(socket);
-        const eyeWhiteGeometry = new THREE.SphereGeometry(currentTraits.eyeSize, 32, 32);
-        const eyeWhiteMaterial = new THREE.MeshPhongMaterial({ color: 0xffffff, shininess: 90, emissive: 0xffffff, emissiveIntensity: 0.02 });
-        const eyeWhite = new THREE.Mesh(eyeWhiteGeometry, eyeWhiteMaterial);
-        eyeGroup.add(eyeWhite);
-        const irisGeometry = new THREE.CircleGeometry(currentTraits.eyeSize * 0.55, 32);
-        const irisMaterial = new THREE.MeshPhongMaterial({ color: new THREE.Color(currentTraits.irisColor), shininess: 80 });
-        const iris = new THREE.Mesh(irisGeometry, irisMaterial);
-        iris.position.z = currentTraits.eyeSize * 0.9;
-        eyeGroup.add(iris);
-        const pupilGeometry = new THREE.CircleGeometry(currentTraits.pupilSize, 32);
-        const pupilMaterial = new THREE.MeshPhongMaterial({ color: 0x000000, shininess: 100 });
-        const pupil = new THREE.Mesh(pupilGeometry, pupilMaterial);
-        pupil.position.z = currentTraits.eyeSize * 0.92;
-        eyeGroup.add(pupil);
-        const highlightGeometry = new THREE.SphereGeometry(currentTraits.eyeSize * 0.12, 16, 16);
-        const highlightMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff, opacity: 0.9, transparent: true });
-        const highlight = new THREE.Mesh(highlightGeometry, highlightMaterial);
-        highlight.position.set(currentTraits.eyeSize * 0.15, currentTraits.eyeSize * 0.15, currentTraits.eyeSize * 0.95);
-        eyeGroup.add(highlight);
-        eyeGroup.position.set(xPos * 0.35, 0, 0.48);
-        return eyeGroup;
-      };
-
-      const leftEye = createEye(-1);
-      const rightEye = createEye(1);
-      leftEyeRef.current = leftEye;
-      rightEyeRef.current = rightEye;
-      faceGroup.add(leftEye);
-      faceGroup.add(rightEye);
-
-      if (isBlinking) {
-        const createEyelid = (xPos) => {
-          const eyelidGeometry = new THREE.SphereGeometry(currentTraits.eyeSize * 1.1, 32, 16, 0, Math.PI * 2, 0, Math.PI / 2);
-          const eyelidMaterial = new THREE.MeshPhongMaterial({ color: new THREE.Color(currentTraits.eggColor), side: THREE.DoubleSide });
-          const eyelid = new THREE.Mesh(eyelidGeometry, eyelidMaterial);
-          eyelid.position.set(xPos * 0.35, 0, 0.49);
-          return eyelid;
-        };
-        faceGroup.add(createEyelid(-1));
-        faceGroup.add(createEyelid(1));
-      }
-
-      const eyebrowGeometry = new THREE.BoxGeometry(0.18, currentTraits.eyebrowThickness, 0.05);
-      const eyebrowMaterial = new THREE.MeshPhongMaterial({ color: new THREE.Color(currentTraits.eggColor).multiplyScalar(0.6) });
-      const leftEyebrow = new THREE.Mesh(eyebrowGeometry, eyebrowMaterial);
-      leftEyebrow.position.set(-0.35, 0.25, 0.5);
-      leftEyebrow.rotation.z = 0.1;
-      faceGroup.add(leftEyebrow);
-      const rightEyebrow = new THREE.Mesh(eyebrowGeometry, eyebrowMaterial);
-      rightEyebrow.position.set(0.35, 0.25, 0.5);
-      rightEyebrow.rotation.z = -0.1;
-      faceGroup.add(rightEyebrow);
-
-      const mouthCurve = new THREE.EllipseCurve(0, 0, currentTraits.mouthWidth, currentTraits.mouthWidth * 0.3, 0, Math.PI, false, 0);
-      const points = mouthCurve.getPoints(32);
-      const mouthGeometry = new THREE.BufferGeometry().setFromPoints(points);
-      const mouthMaterial = new THREE.LineBasicMaterial({ color: 0x333333, linewidth: 3 });
-      const mouth = new THREE.Line(mouthGeometry, mouthMaterial);
-      mouth.position.set(0, -0.15, 0.52);
-      mouth.rotation.z = Math.PI;
-      faceGroup.add(mouth);
-
-      group.add(faceGroup);
-
-      // Arms with gloves
-      const createArm = (side) => {
-        const armGroup = new THREE.Group();
-        const upperArmGeometry = new THREE.CapsuleGeometry(0.06, 0.25, 8, 16);
-        const armMaterial = new THREE.MeshPhongMaterial({ color: new THREE.Color(currentTraits.eggColor).multiplyScalar(0.95), shininess: 60 });
-        const upperArm = new THREE.Mesh(upperArmGeometry, armMaterial);
-        upperArm.position.y = -0.12;
-        upperArm.rotation.z = side * 0.3;
-        armGroup.add(upperArm);
-        const lowerArmGeometry = new THREE.CapsuleGeometry(0.05, 0.2, 8, 16);
-        const lowerArm = new THREE.Mesh(lowerArmGeometry, armMaterial);
-        lowerArm.position.set(side * 0.08, -0.3, 0);
-        lowerArm.rotation.z = side * 0.2;
-        armGroup.add(lowerArm);
-        const gloveGeometry = new THREE.SphereGeometry(0.08, 16, 16);
-        const gloveMaterial = new THREE.MeshPhongMaterial({ color: 0x8B4513 });
-        const glove = new THREE.Mesh(gloveGeometry, gloveMaterial);
-        glove.position.set(side * 0.12, -0.45, 0);
-        glove.scale.set(1, 1.1, 0.8);
-        armGroup.add(glove);
-        armGroup.position.set(side * 0.55, 0.1, 0);
-        return armGroup;
-      };
-      group.add(createArm(-1));
-      group.add(createArm(1));
-
-      // Legs with shoes
-      const createLeg = (side) => {
-        const legGroup = new THREE.Group();
-        const upperLegGeometry = new THREE.CapsuleGeometry(0.08, 0.3, 8, 16);
-        const legMaterial = new THREE.MeshPhongMaterial({ color: new THREE.Color(currentTraits.eggColor).multiplyScalar(0.95), shininess: 60 });
-        const upperLeg = new THREE.Mesh(upperLegGeometry, legMaterial);
-        upperLeg.position.y = -0.15;
-        legGroup.add(upperLeg);
-        const lowerLegGeometry = new THREE.CapsuleGeometry(0.06, 0.25, 8, 16);
-        const lowerLeg = new THREE.Mesh(lowerLegGeometry, legMaterial);
-        lowerLeg.position.y = -0.42;
-        legGroup.add(lowerLeg);
-        const shoeGeometry = new THREE.BoxGeometry(0.15, 0.08, 0.22);
-        const shoeMaterial = new THREE.MeshPhongMaterial({ color: 0x8B4513, shininess: 80 });
-        const shoe = new THREE.Mesh(shoeGeometry, shoeMaterial);
-        shoe.position.y = -0.6;
-        legGroup.add(shoe);
-        legGroup.position.set(side * 0.2, -0.65, 0);
-        return legGroup;
-      };
-      group.add(createLeg(-1));
-      group.add(createLeg(1));
-
-      const shadowGeometry = new THREE.PlaneGeometry(2, 2);
-      const shadowMaterial = new THREE.ShadowMaterial({ opacity: 0.5 });
-      const shadowPlane = new THREE.Mesh(shadowGeometry, shadowMaterial);
-      shadowPlane.rotation.x = -Math.PI / 2;
-      shadowPlane.position.y = -1.33;
-      shadowPlane.receiveShadow = true;
-      scene.add(shadowPlane);
-
-      group.scale.set(currentTraits.scale, currentTraits.scale, currentTraits.scale);
-      return group;
+    const handleWave = () => { // Simple wave on click
+        if (isWaving || isThinking) return;
+        setIsWaving(true);
+        setTimeout(() => setIsWaving(false), 1200);
     };
 
-    const eggbert = createEggbert();
-    scene.add(eggbert);
-    eggRef.current = eggbert;
+    // --- Gemini API Interaction ---
+    const handleGetAdvice = async () => {
+        if (isThinking || isWaving) return;
+        setIsThinking(true);
+        setMessage('');
 
-    const clock = new THREE.Clock();
-    let time = 0;
-    const animate = () => {
-      frameRef.current = requestAnimationFrame(animate);
-      const deltaTime = clock.getDelta();
-      time += deltaTime;
+        const prompt = `You are a financial mascot named Eggbert. Your current evolution is '${evolutionStage}'. Give a user with a portfolio of $${portfolioValue} a single, short, encouraging financial tip (under 20 words) that matches your personality.`;
+        
+        try {
+            const apiKey = ""; // Provided by environment
+            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+            const payload = {
+                contents: [{ role: "user", parts: [{ text: prompt }] }],
+                generationConfig: { maxOutputTokens: 60, temperature: 0.7 }
+            };
 
-      if (eggRef.current) {
-        eggRef.current.scale.y = currentTraits.scale * (1 + Math.sin(time * 2) * 0.01);
-        eggRef.current.rotation.z = Math.sin(time * 1.5) * 0.02;
-        eggRef.current.position.y = Math.sin(time * currentTraits.bounceSpeed) * 0.02;
+            const response = await fetch(apiUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
 
-        if (isDoingCartwheel) {
-          eggRef.current.rotation.x += deltaTime * 5;
-          eggRef.current.position.y = Math.sin(time * 5) * 0.5;
+            if (!response.ok) throw new Error(`API Error: ${response.status}`);
+
+            const result = await response.json();
+            const advice = result.candidates?.[0]?.content?.parts?.[0]?.text.trim().replace(/"/g, '') || "Thinking is hard! Try again.";
+            setMessage(advice);
+        } catch (error) {
+            console.error("Gemini API call failed:", error);
+            setMessage("My circuits fizzled! Please try again.");
+        } finally {
+            setIsThinking(false);
+            setTimeout(() => setMessage(''), 5000); // Clear message after 5s
         }
-
-        if (leftEyeRef.current && rightEyeRef.current) {
-          const maxRotation = 0.15;
-          leftEyeRef.current.rotation.x = eyeFollow.y * maxRotation;
-          leftEyeRef.current.rotation.y = eyeFollow.x * maxRotation;
-          rightEyeRef.current.rotation.x = eyeFollow.y * maxRotation;
-          rightEyeRef.current.rotation.y = eyeFollow.x * maxRotation;
-        }
-
-        const arms = eggRef.current.children.filter(child => Math.abs(child.position.x) === 0.55);
-        arms.forEach((arm, index) => {
-          const side = arm.position.x > 0 ? 1 : -1;
-          arm.rotation.z = side * 0.05 + Math.sin(time * 2 + index * Math.PI) * 0.03;
-          if (isHovered && side > 0) {
-            arm.rotation.z = Math.sin(time * 5) * 0.2;
-            arm.rotation.x = Math.cos(time * 5) * 0.1;
-          }
-        });
-      }
-
-      renderer.render(scene, camera);
     };
-    animate();
-
-    return () => {
-      if (frameRef.current) cancelAnimationFrame(frameRef.current);
-      if (containerRef.current && renderer.domElement) containerRef.current.removeChild(renderer.domElement);
-      renderer.dispose();
+    
+    // Framer Motion variants
+    const armVariants = {
+        idle: { rotate: 0 },
+        wave: { 
+            rotate: [0, -60, 60, -45, 0], 
+            transition: { times: [0, 0.2, 0.5, 0.8, 1], duration: 1.2, ease: "easeInOut" } 
+        },
     };
-  }, [evolutionStage, currentTraits, isHovered, eyeFollow, isJumping, isDancing, isBlinking, isDoingCartwheel]);
-
-  useEffect(() => {
-    const handleMouseMove = (e) => {
-      const rect = containerRef.current?.getBoundingClientRect();
-      if (rect) {
-        const centerX = rect.left + rect.width / 2;
-        const centerY = rect.top + rect.height / 2;
-        const x = (e.clientX - centerX) / rect.width;
-        const y = (e.clientY - centerY) / rect.height;
-        setEyeFollow({ x: Math.max(-1, Math.min(1, x)), y: Math.max(-1, Math.min(1, -y)) });
-        mouseX.set(e.clientX - centerX);
-        mouseY.set(e.clientY - centerY);
-      }
+    
+    const mascotVariants = {
+        initial: { y: 20, opacity: 0 },
+        animate: { y: 0, opacity: 1 },
+        hover: { scale: 1.05, rotate: -3, transition: { duration: 0.3 } },
+        tap: { scale: 0.95 }
     };
-    window.addEventListener('mousemove', handleMouseMove);
-    return () => window.removeEventListener('mousemove', handleMouseMove);
-  }, [mouseX, mouseY]);
 
-  const handleClick = () => {
-    const randomMessage = currentTraits.messages[Math.floor(Math.random() * currentTraits.messages.length)];
-    setMessage(randomMessage);
-    setIsJumping(true);
-    setShowParticles(true);
-    setMood('excited');
-    setTimeout(() => {
-      setMessage('');
-      setIsJumping(false);
-      setMood('happy');
-    }, 3000);
-    setTimeout(() => setShowParticles(false), 2000);
-  };
+    return (
+        <div className="relative flex flex-col items-center p-4 bg-gray-100 dark:bg-gray-800 rounded-2xl shadow-lg w-72">
+            
+            {/* Message Bubble */}
+            <AnimatePresence>
+            {message && (
+                <motion.div
+                    initial={{ opacity: 0, y: 10, scale: 0.8 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: -10 }}
+                    className="absolute -top-4 bg-white dark:bg-gray-700 text-gray-800 dark:text-white text-center px-4 py-2 rounded-xl text-sm font-semibold shadow-md mb-4"
+                >
+                    {message}
+                </motion.div>
+            )}
+            </AnimatePresence>
 
-  const handleDoubleClick = () => {
-    setIsDancing(true);
-    setMood('excited');
-    setTimeout(() => {
-      setIsDancing(false);
-      setMood('happy');
-    }, 5000);
-  };
+            {/* SVG Mascot */}
+            <motion.svg
+                width={200}
+                height={260}
+                viewBox="0 0 200 260"
+                onClick={handleWave}
+                variants={mascotVariants}
+                initial="initial"
+                animate="animate"
+                whileHover="hover"
+                whileTap="tap"
+                style={{ cursor: 'pointer' }}
+            >
+                {/* Idle breathing animation */}
+                <motion.g animate={{ scale: [1, 1.02, 1], y: [0, -2, 0] }} transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut' }}>
+                    {/* Body */}
+                    <ellipse cx="100" cy="130" rx="60" ry="85" fill="#fff1da" stroke="#e0cda9" strokeWidth="4" />
+                    <Suit color={currentTraits.suitColor} stage={evolutionStage} />
+                    <Face isBlinking={isBlinking} mouthOpen={!!message} isThinking={isThinking} />
 
-  return (
-    <motion.div 
-      className="fixed bottom-2 right-2 z-50"
-      initial={{ scale: 0, opacity: 0 }}
-      animate={{ scale: 1, opacity: 1 }}
-      transition={{ type: "spring", stiffness: 260, damping: 20 }}
-    >
-      <AnimatePresence>
-        {message && (
-          <motion.div
-            initial={{ opacity: 0, y: 10, scale: 0.8 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -10, scale: 0.8 }}
-            className="absolute -top-16 left-1/2 transform -translate-x-1/2 z-10"
-          >
-            <div className="bg-gradient-to-r from-blue-600 to-purple-600 text-white px-4 py-2 rounded-xl text-xs font-bold shadow-lg">
-              <motion.div
-                animate={{ y: [0, -1, 0] }}
-                transition={{ duration: 2, repeat: Infinity }}
-              >
-                {message}
-              </motion.div>
-              <div className="absolute -bottom-1.5 left-1/2 transform -translate-x-1/2 w-3 h-3 bg-gradient-to-br from-blue-600 to-purple-600 rotate-45" />
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      <motion.div
-        ref={containerRef}
-        className="relative cursor-pointer select-none"
-        style={{ rotateX, rotateY, transformStyle: "preserve-3d" }}
-        whileHover={{ scale: 1.1, transition: { duration: 0.3 } }}
-        whileTap={{ scale: 0.9, transition: { duration: 0.2 } }}
-        onClick={handleClick}
-        onDoubleClick={handleDoubleClick}
-        onMouseEnter={() => setIsHovered(true)}
-        onMouseLeave={() => setIsHovered(false)}
-        animate={{
-          y: isJumping ? [0, -30, -15, 0] : 0,
-          rotate: isDancing ? [0, 360] : 0,
-          x: isDoingCartwheel ? [-50, 50, 0] : 0
-        }}
-        transition={{
-          y: { duration: 0.8, times: [0, 0.3, 0.6, 1], ease: "easeOut" },
-          rotate: { duration: 1, repeat: isDancing ? Infinity : 0, ease: "linear" },
-          x: { duration: 1, ease: "easeInOut" }
-        }}
-      />
-
-      <AnimatePresence>
-        {showParticles && (
-          <motion.div className="absolute inset-0 pointer-events-none">
-            {[...Array(8)].map((_, i) => (
-              <motion.div
-                key={i}
-                className="absolute"
-                initial={{ opacity: 1, scale: 0, x: 0, y: 0 }}
-                animate={{
-                  opacity: [1, 1, 0],
-                  scale: [0, 1, 0.5],
-                  x: (Math.random() - 0.5) * 120,
-                  y: -Math.random() * 100 - 20,
-                  rotate: Math.random() * 360
-                }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 1.5, delay: i * 0.05, ease: "easeOut" }}
-                style={{ left: '50%', top: '50%', transform: 'translate(-50%, -50%)' }}
-              >
-                <div className="text-lg" style={{ color: currentTraits.particleColor, filter: 'drop-shadow(0 0 8px currentColor)' }}>
-                  {['💰', '📈', '✨', '🌟', '💎', '🚀', '🎯', '💸'][i % 8]}
+                    {/* Arms */}
+                    <motion.line x1="40" y1="160" x2="20" y2="190" stroke="#fff1da" strokeWidth="15" strokeLinecap="round" variants={armVariants} animate={isWaving ? "wave" : "idle"}/>
+                    <motion.line x1="160" y1="160" x2="180" y2="190" stroke="#fff1da" strokeWidth="15" strokeLinecap="round" />
+                    
+                    {/* Legs */}
+                    <line x1="80" y1="215" x2="70" y2="250" stroke="#fff1da" strokeWidth="15" strokeLinecap="round" />
+                    <line x1="120" y1="215" x2="130" y2="250" stroke="#fff1da" strokeWidth="15" strokeLinecap="round" />
+                </motion.g>
+                <Hat stage={evolutionStage} />
+            </motion.svg>
+            
+            {/* UI Section */}
+            <div className="text-center mt-4 w-full">
+                <h3 className="text-lg font-bold text-gray-800 dark:text-gray-200">{currentTraits.name}</h3>
+                
+                {/* Evolution Progress Bar */}
+                <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2.5 my-2">
+                    <motion.div
+                        className="bg-gradient-to-r from-green-400 to-blue-500 h-2.5 rounded-full"
+                        initial={{ width: '0%' }}
+                        animate={{ width: `${(Object.keys(stageTraits).indexOf(evolutionStage) + 1) / Object.keys(stageTraits).length * 100}%` }}
+                        transition={{ duration: 1, ease: 'easeOut' }}
+                    />
                 </div>
-              </motion.div>
-            ))}
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      <motion.div
-        className="absolute -bottom-12 left-1/2 transform -translate-x-1/2"
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ delay: 0.5 }}
-      >
-        <div className="text-center">
-          <h3 className="text-sm font-bold text-gray-800">Eggbert</h3>
-          <div className="flex items-center justify-center space-x-1 mt-1">
-            {Object.keys(stageTraits).map((stage, index) => (
-              <motion.div
-                key={stage}
-                className={`h-1.5 w-1.5 rounded-full transition-all ${
-                  index <= Object.keys(stageTraits).indexOf(evolutionStage)
-                    ? 'bg-gradient-to-r from-blue-500 to-purple-500'
-                    : 'bg-gray-400'
-                }`}
-                whileHover={{ scale: 1.5, transition: { duration: 0.2 } }}
-              />
-            ))}
-          </div>
+                
+                <motion.button
+                    onClick={handleGetAdvice}
+                    disabled={isThinking}
+                    className="w-full mt-2 bg-indigo-600 text-white font-bold py-2 px-4 rounded-lg shadow-md disabled:bg-gray-400"
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                >
+                    {isThinking ? 'Thinking...' : 'Get a Tip ✨'}
+                </motion.button>
+            </div>
         </div>
-      </motion.div>
-    </motion.div>
-  );
+    );
 };
 
 export default EggMascot;
