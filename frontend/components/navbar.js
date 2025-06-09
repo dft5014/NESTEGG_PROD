@@ -9,8 +9,7 @@ import {
     ChevronLeft, ChevronRight, Upload, Loader2, AlertCircle,
     TrendingUp, TrendingDown, Eye, EyeOff, Activity, RefreshCw,
     DollarSign, Sparkles, ArrowUp, ArrowDown, Zap, Database,
-    Moon, Sun, Monitor, Smartphone, Briefcase, Calculator,
-    Wallet, PiggyBank, CreditCard, Info, ExternalLink
+    Moon, Sun, Monitor, Smartphone, Briefcase, Calculator
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import UpdateStatusIndicator from '@/components/UpdateStatusIndicator';
@@ -128,31 +127,16 @@ const PortfolioBalance = memo(({
 
     return (
         <motion.div 
-            className="flex items-center space-x-4 px-4 py-2 bg-gradient-to-r from-gray-800/50 to-blue-900/30 rounded-lg backdrop-blur-sm border border-gray-700/50 relative overflow-hidden"
+            className="flex items-center space-x-4 px-4 py-2 bg-gray-800/50 rounded-lg backdrop-blur-sm border border-gray-700/50"
             initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.3 }}
         >
-            {/* Animated background gradient */}
-            <motion.div
-                className="absolute inset-0 bg-gradient-to-r from-blue-600/10 to-purple-600/10"
-                animate={{
-                    x: ['-100%', '100%'],
-                }}
-                transition={{
-                    duration: 10,
-                    repeat: Infinity,
-                    ease: "linear"
-                }}
-            />
-            
             {/* Balance Display */}
-            <div className="flex items-center space-x-3 relative z-10">
-                <motion.button
+            <div className="flex items-center space-x-3">
+                <button
                     onClick={onToggleVisibility}
                     className="p-1.5 hover:bg-gray-700/50 rounded-md transition-colors group"
-                    whileHover={{ scale: 1.1 }}
-                    whileTap={{ scale: 0.9 }}
                     aria-label={isVisible ? "Hide balance" : "Show balance"}
                 >
                     {isVisible ? (
@@ -160,23 +144,14 @@ const PortfolioBalance = memo(({
                     ) : (
                         <Eye className="w-4 h-4 text-gray-400 group-hover:text-white" />
                     )}
-                </motion.button>
+                </button>
                 
                 <div>
                     <div className="flex items-center space-x-2">
-                        <div className="flex items-center">
-                            <Wallet className="w-4 h-4 text-blue-400 mr-2" />
-                            <span className="text-xs text-gray-400 mr-2">Portfolio Value</span>
-                        </div>
-                        <motion.span 
-                            className="text-lg font-semibold text-white"
-                            key={balance}
-                            initial={{ opacity: 0, y: -5 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            transition={{ duration: 0.3 }}
-                        >
+                        <DollarSign className="w-4 h-4 text-blue-400" />
+                        <span className="text-lg font-semibold text-white">
                             {isVisible ? formatCurrency(balance) : '••••••'}
-                        </motion.span>
+                        </span>
                     </div>
                     {isVisible && (
                         <motion.div 
@@ -186,64 +161,40 @@ const PortfolioBalance = memo(({
                             transition={{ delay: 0.1 }}
                         >
                             {/* Daily Change */}
-                            <motion.div 
-                                className={`flex items-center space-x-1 ${dailyChange?.percent_change > 0 ? 'text-green-400' : dailyChange?.percent_change < 0 ? 'text-red-400' : 'text-gray-400'}`}
-                                whileHover={{ scale: 1.05 }}
-                            >
+                            <div className={`flex items-center space-x-1 ${dailyChange?.percent_change > 0 ? 'text-green-400' : dailyChange?.percent_change < 0 ? 'text-red-400' : 'text-gray-400'}`}>
                                 {dailyChange?.percent_change > 0 ? (
                                     <ArrowUp className="w-3 h-3" />
                                 ) : dailyChange?.percent_change < 0 ? (
                                     <ArrowDown className="w-3 h-3" />
                                 ) : null}
-                                <span className="font-medium">{formatPercentage(dailyChange?.percent_change || 0)}</span>
-                                <span className="text-gray-500">Today</span>
-                            </motion.div>
-                            
-                            <span className="text-gray-600">|</span>
+                                <span>{formatPercentage(dailyChange?.percent_change || 0)}</span>
+                                <span className="text-gray-500">1D</span>
+                            </div>
                             
                             {/* Weekly Change */}
-                            <motion.div 
-                                className={`flex items-center space-x-1 ${weeklyChange?.percent_change > 0 ? 'text-green-400' : weeklyChange?.percent_change < 0 ? 'text-red-400' : 'text-gray-400'}`}
-                                whileHover={{ scale: 1.05 }}
-                            >
+                            <div className={`flex items-center space-x-1 ${weeklyChange?.percent_change > 0 ? 'text-green-400' : weeklyChange?.percent_change < 0 ? 'text-red-400' : 'text-gray-400'}`}>
                                 {weeklyChange?.percent_change > 0 ? (
                                     <ArrowUp className="w-3 h-3" />
                                 ) : weeklyChange?.percent_change < 0 ? (
                                     <ArrowDown className="w-3 h-3" />
                                 ) : null}
-                                <span className="font-medium">{formatPercentage(weeklyChange?.percent_change || 0)}</span>
-                                <span className="text-gray-500">Week</span>
-                            </motion.div>
+                                <span>{formatPercentage(weeklyChange?.percent_change || 0)}</span>
+                                <span className="text-gray-500">1W</span>
+                            </div>
                         </motion.div>
                     )}
                 </div>
             </div>
 
-            {/* Sparkline visualization */}
+            {/* Sparkline placeholder */}
             {isVisible && (
                 <motion.div 
-                    className="hidden lg:flex items-center h-8 w-16 relative"
+                    className="hidden lg:flex items-center h-8 w-16"
                     initial={{ opacity: 0, scale: 0.8 }}
                     animate={{ opacity: 1, scale: 1 }}
                     transition={{ delay: 0.2 }}
                 >
-                    <svg className="w-full h-full" viewBox="0 0 64 32">
-                        <motion.path
-                            d="M 0,20 Q 16,10 32,15 T 64,5"
-                            fill="none"
-                            stroke="url(#sparkline-gradient)"
-                            strokeWidth="2"
-                            initial={{ pathLength: 0 }}
-                            animate={{ pathLength: 1 }}
-                            transition={{ duration: 1, delay: 0.3 }}
-                        />
-                        <defs>
-                            <linearGradient id="sparkline-gradient" x1="0%" y1="0%" x2="100%" y2="0%">
-                                <stop offset="0%" stopColor="#60A5FA" />
-                                <stop offset="100%" stopColor="#C084FC" />
-                            </linearGradient>
-                        </defs>
-                    </svg>
+                    <Sparkles className="w-4 h-4 text-blue-400/50" />
                 </motion.div>
             )}
         </motion.div>
@@ -261,7 +212,6 @@ const Navbar = () => {
     const [balanceVisible, setBalanceVisible] = useState(false);
     const [isAuthChecking, setIsAuthChecking] = useState(true);
     const [marketDataStatus, setMarketDataStatus] = useState({ status: 'loading', lastUpdate: null });
-    const [showMarketDataModal, setShowMarketDataModal] = useState(false);
 
     const { user, logout, isLoading: authLoading } = useContext(AuthContext);
     const router = useRouter();
@@ -285,7 +235,7 @@ const Navbar = () => {
 
         authCheckRef.current = setTimeout(() => {
             setIsAuthChecking(false);
-        }, 500);
+        }, 500); // Wait 500ms for auth state to stabilize
 
         return () => {
             if (authCheckRef.current) {
@@ -389,18 +339,10 @@ const Navbar = () => {
                     setShowNotifications(false);
                 }
             }
-
-            const marketDataModal = event.target.closest('.market-data-modal');
-            if (showMarketDataModal && !marketDataModal) {
-                const marketDataButton = event.target.closest('.market-data-button');
-                if (!marketDataButton) {
-                    setShowMarketDataModal(false);
-                }
-            }
         };
         document.addEventListener('mousedown', handleClickOutside);
         return () => document.removeEventListener('mousedown', handleClickOutside);
-    }, [isDropdownOpen, showNotifications, showMarketDataModal]);
+    }, [isDropdownOpen, showNotifications]);
 
     // Format market data status
     const getMarketStatusDisplay = () => {
@@ -518,9 +460,21 @@ const Navbar = () => {
                             </Link>
                         </div>
 
-                        {/* Center: Quick Actions */}
+                        {/* Center: Portfolio Balance and Quick Actions */}
                         {user && (
                             <div className="hidden md:flex items-center space-x-4">
+                                {/* Portfolio Balance */}
+                                <PortfolioBalance
+                                    balance={portfolioData?.current_value || 0}
+                                    dailyChange={portfolioData?.period_changes?.['1d']}
+                                    weeklyChange={portfolioData?.period_changes?.['1w']}
+                                    isVisible={balanceVisible}
+                                    onToggleVisibility={() => setBalanceVisible(!balanceVisible)}
+                                    isLoading={isLoadingPortfolio}
+                                    error={portfolioError}
+                                />
+
+                                {/* Quick Actions */}
                                 <div className="flex items-center">
                                     <AnimatePresence mode="wait">
                                         {isQuickActionsOpen && (
@@ -572,19 +526,6 @@ const Navbar = () => {
                                             {isQuickActionsOpen ? <ChevronLeft className="w-5 h-5" /> : <ChevronRight className="w-5 h-5" />}
                                         </motion.div>
                                     </motion.button>
-                                </div>
-
-                                {/* Portfolio Balance - Right of Actions */}
-                                <div className="ml-6">
-                                    <PortfolioBalance
-                                        balance={portfolioData?.current_value || 0}
-                                        dailyChange={portfolioData?.period_changes?.['1d']}
-                                        weeklyChange={portfolioData?.period_changes?.['1w']}
-                                        isVisible={balanceVisible}
-                                        onToggleVisibility={() => setBalanceVisible(!balanceVisible)}
-                                        isLoading={isLoadingPortfolio}
-                                        error={portfolioError}
-                                    />
                                 </div>
                             </div>
                         )}
@@ -715,24 +656,16 @@ const Navbar = () => {
                                                     </div>
                                                     
                                                     {/* Market Data Status in Dropdown */}
-                                                    <motion.button
-                                                        onClick={() => setShowMarketDataModal(true)}
-                                                        className="mt-3 w-full flex items-center justify-between bg-white/10 backdrop-blur-sm rounded-lg px-3 py-2 hover:bg-white/20 transition-colors market-data-button"
-                                                        whileHover={{ scale: 1.02 }}
-                                                        whileTap={{ scale: 0.98 }}
-                                                    >
+                                                    <div className="mt-3 flex items-center justify-between bg-white/10 backdrop-blur-sm rounded-lg px-3 py-2">
                                                         <div className="flex items-center space-x-2">
                                                             <Database className="w-4 h-4 text-white/70" />
                                                             <span className="text-sm text-white/90">Market Data</span>
                                                         </div>
-                                                        <div className="flex items-center space-x-2">
-                                                            <div className={`flex items-center space-x-1 ${marketStatus.color}`}>
-                                                                {marketStatus.icon}
-                                                                <span className="text-xs font-medium">{marketStatus.text}</span>
-                                                            </div>
-                                                            <ExternalLink className="w-3 h-3 text-white/50" />
+                                                        <div className={`flex items-center space-x-1 ${marketStatus.color}`}>
+                                                            {marketStatus.icon}
+                                                            <span className="text-xs font-medium">{marketStatus.text}</span>
                                                         </div>
-                                                    </motion.button>
+                                                    </div>
                                                 </div>
                                                 
                                                 <div className="py-1">
@@ -771,24 +704,16 @@ const Navbar = () => {
                                                 {/* Quick Stats in Dropdown */}
                                                 <div className="p-3 bg-gray-50 border-t border-gray-200">
                                                     <div className="grid grid-cols-2 gap-3 text-xs">
-                                                        <motion.div 
-                                                            className="bg-white rounded-lg p-2 text-center cursor-pointer hover:shadow-md transition-shadow"
-                                                            whileHover={{ scale: 1.05 }}
-                                                            onClick={() => { router.push('/accounts'); setIsDropdownOpen(false); }}
-                                                        >
+                                                        <div className="bg-white rounded-lg p-2 text-center">
                                                             <Briefcase className="w-4 h-4 mx-auto text-blue-500 mb-1" />
                                                             <p className="text-gray-500">Accounts</p>
                                                             <p className="font-semibold text-gray-900">{accounts.length || 0}</p>
-                                                        </motion.div>
-                                                        <motion.div 
-                                                            className="bg-white rounded-lg p-2 text-center cursor-pointer hover:shadow-md transition-shadow"
-                                                            whileHover={{ scale: 1.05 }}
-                                                            onClick={() => { router.push('/positions'); setIsDropdownOpen(false); }}
-                                                        >
+                                                        </div>
+                                                        <div className="bg-white rounded-lg p-2 text-center">
                                                             <Calculator className="w-4 h-4 mx-auto text-green-500 mb-1" />
                                                             <p className="text-gray-500">Positions</p>
                                                             <p className="font-semibold text-gray-900">{portfolioData?.position_count || 0}</p>
-                                                        </motion.div>
+                                                        </div>
                                                     </div>
                                                 </div>
                                             </motion.div>
@@ -838,149 +763,6 @@ const Navbar = () => {
                     </div>
                 </div>
             </nav>
-
-            {/* Market Data Modal/Popout */}
-            <AnimatePresence>
-                {showMarketDataModal && (
-                    <>
-                        <motion.div
-                            className="fixed inset-0 bg-black/50 z-40"
-                            initial={{ opacity: 0 }}
-                            animate={{ opacity: 1 }}
-                            exit={{ opacity: 0 }}
-                            onClick={() => setShowMarketDataModal(false)}
-                        />
-                        <motion.div
-                            className="fixed inset-x-4 top-20 md:inset-x-auto md:right-8 md:left-auto md:w-96 bg-white rounded-lg shadow-2xl z-50 market-data-modal"
-                            initial={{ opacity: 0, scale: 0.9, y: -20 }}
-                            animate={{ opacity: 1, scale: 1, y: 0 }}
-                            exit={{ opacity: 0, scale: 0.9, y: -20 }}
-                            transition={{ type: "spring", stiffness: 300, damping: 30 }}
-                        >
-                            <div className="bg-gradient-to-r from-blue-600 to-purple-600 p-4 rounded-t-lg">
-                                <div className="flex items-center justify-between">
-                                    <h3 className="text-lg font-semibold text-white flex items-center">
-                                        <Database className="w-5 h-5 mr-2" />
-                                        Market Data Status
-                                    </h3>
-                                    <button
-                                        onClick={() => setShowMarketDataModal(false)}
-                                        className="text-white/80 hover:text-white transition-colors"
-                                    >
-                                        <X className="w-5 h-5" />
-                                    </button>
-                                </div>
-                            </div>
-                            
-                            <div className="p-6">
-                                {/* Connection Status */}
-                                <div className="flex items-center justify-between mb-6">
-                                    <span className="text-gray-700 font-medium">Connection Status</span>
-                                    <div className={`flex items-center space-x-2 ${marketStatus.color}`}>
-                                        {marketStatus.icon}
-                                        <span className="font-medium">{marketStatus.text}</span>
-                                    </div>
-                                </div>
-                                
-                                {/* Data Sources */}
-                                <div className="space-y-4">
-                                    <h4 className="text-sm font-semibold text-gray-700 uppercase tracking-wider">Data Sources</h4>
-                                    
-                                    <div className="space-y-3">
-                                        <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                                            <div className="flex items-center space-x-3">
-                                                <div className="w-8 h-8 bg-purple-100 rounded-full flex items-center justify-center">
-                                                    <Activity className="w-4 h-4 text-purple-600" />
-                                                </div>
-                                                <div>
-                                                    <p className="font-medium text-gray-900">Yahoo Finance</p>
-                                                    <p className="text-xs text-gray-500">Primary Source</p>
-                                                </div>
-                                            </div>
-                                            <div className="flex items-center space-x-1 text-green-500">
-                                                <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-                                                <span className="text-xs font-medium">Active</span>
-                                            </div>
-                                        </div>
-                                        
-                                        <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                                            <div className="flex items-center space-x-3">
-                                                <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
-                                                    <BarChart4 className="w-4 h-4 text-blue-600" />
-                                                </div>
-                                                <div>
-                                                    <p className="font-medium text-gray-900">Alpha Vantage</p>
-                                                    <p className="text-xs text-gray-500">Backup Source</p>
-                                                </div>
-                                            </div>
-                                            <div className="flex items-center space-x-1 text-gray-400">
-                                                <div className="w-2 h-2 bg-gray-400 rounded-full"></div>
-                                                <span className="text-xs font-medium">Standby</span>
-                                            </div>
-                                        </div>
-                                        
-                                        <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                                            <div className="flex items-center space-x-3">
-                                                <div className="w-8 h-8 bg-amber-100 rounded-full flex items-center justify-center">
-                                                    <LineChart className="w-4 h-4 text-amber-600" />
-                                                </div>
-                                                <div>
-                                                    <p className="font-medium text-gray-900">Polygon.io</p>
-                                                    <p className="text-xs text-gray-500">Real-time Data</p>
-                                                </div>
-                                            </div>
-                                            <div className="flex items-center space-x-1 text-amber-500">
-                                                <div className="w-2 h-2 bg-amber-500 rounded-full"></div>
-                                                <span className="text-xs font-medium">Limited</span>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                                
-                                {/* Last Update Info */}
-                                <div className="mt-6 p-4 bg-blue-50 rounded-lg">
-                                    <div className="flex items-start space-x-3">
-                                        <Info className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
-                                        <div className="text-sm text-blue-900">
-                                            <p className="font-medium mb-1">Update Information</p>
-                                            <p className="text-blue-700">
-                                                {marketDataStatus.lastUpdate 
-                                                    ? `Last successful update: ${new Date(marketDataStatus.lastUpdate).toLocaleString()}`
-                                                    : 'No recent updates available'
-                                                }
-                                            </p>
-                                        </div>
-                                    </div>
-                                </div>
-                                
-                                {/* Actions */}
-                                <div className="mt-6 flex space-x-3">
-                                    <motion.button
-                                        className="flex-1 bg-blue-600 text-white py-2 px-4 rounded-lg font-medium hover:bg-blue-700 transition-colors flex items-center justify-center space-x-2"
-                                        whileHover={{ scale: 1.02 }}
-                                        whileTap={{ scale: 0.98 }}
-                                        onClick={() => {
-                                            loadPortfolioData();
-                                            setShowMarketDataModal(false);
-                                        }}
-                                    >
-                                        <RefreshCw className="w-4 h-4" />
-                                        <span>Refresh Data</span>
-                                    </motion.button>
-                                    <motion.button
-                                        className="flex-1 bg-gray-200 text-gray-700 py-2 px-4 rounded-lg font-medium hover:bg-gray-300 transition-colors"
-                                        whileHover={{ scale: 1.02 }}
-                                        whileTap={{ scale: 0.98 }}
-                                        onClick={() => setShowMarketDataModal(false)}
-                                    >
-                                        Close
-                                    </motion.button>
-                                </div>
-                            </div>
-                        </motion.div>
-                    </>
-                )}
-            </AnimatePresence>
 
             {/* Mobile Menu */}
             <AnimatePresence>
