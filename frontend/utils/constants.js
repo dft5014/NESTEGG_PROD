@@ -14,6 +14,8 @@ export const popularBrokerages = [
   { name: "Merrill Lynch", logo: "https://cdn.brandfetch.io/idYBqNSmTx/w/400/h/400/theme/dark/icon.png?c=1dxbfHSJFAPEGdCLU4o5B" },
   { name: "T. Rowe Price", logo: "https://cdn.brandfetch.io/idwrcDPtwt/w/153/h/153/theme/dark/icon.png?c=1dxbfHSJFAPEGdCLU4o5B" },
   { name: "Ally Invest", logo: "https://cdn.brandfetch.io/idI-Y5B6sm/w/400/h/400/theme/dark/icon.jpeg?c=1dxbfHSJFAPEGdCLU4o5B" },
+  { name: "Raymond James", logo: "https://cdn.brandfetch.io/idfD3yY14s/w/400/h/400/theme/dark/icon.png?c=1dxbfHSJFAPEGdCLU4o5B" },
+  { name: "Muriel Siebert", logo: "https://cdn.brandfetch.io/idviqPU3Nu/w/500/h/500/theme/dark/icon.jpeg?c=1dxbfHSJFAPEGdCLU4o5B" },
   
   // Major Banks
   { name: "JPMorgan Chase", logo: "https://cdn.brandfetch.io/idudVYts5w/w/400/h/400/theme/dark/icon.jpeg?c=1dxbfHSJFAPEGdCLU4o5B" },
@@ -34,6 +36,7 @@ export const popularBrokerages = [
   { name: "Gemini", logo: "https://cdn.brandfetch.io/id08hfGdfR/w/400/h/400/theme/dark/icon.jpeg?c=1dxbfHSJFAPEGdCLU4o5B" },
   { name: "Crypto.com", logo: "https://cdn.brandfetch.io/idpjmprSKf/w/400/h/400/theme/dark/icon.jpeg?c=1dxbfHSJFAPEGdCLU4o5B" },
   { name: "Bitstamp", logo: "https://cdn.brandfetch.io/idshfikpus/w/748/h/187/theme/dark/logo.png?c=1dxbfHSJFAPEGdCLU4o5B" },
+  { name: "Uphold", logo: "https://cdn.brandfetch.io/idtqeCHW1H/w/400/h/400/theme/dark/icon.jpeg?c=1dxbfHSJFAPEGdCLU4o5B" },
   
   // International & Other
   { name: "Barclays", logo: "https://cdn.brandfetch.io/id4ARY8hPv/w/199/h/199/theme/dark/icon.png?c=1dxbfHSJFAPEGdCLU4o5B" },
@@ -59,16 +62,27 @@ export const popularBrokerages = [
   { name: "Truist", logo: "https://cdn.brandfetch.io/idWhFVqLoy/w/180/h/180/theme/dark/icon.jpeg?c=1dxbfHSJFAPEGdCLU4o5B" },
   { name: "Citizens Bank", logo: "https://cdn.brandfetch.io/idM3CAp7wS/w/400/h/400/theme/dark/icon.jpeg?c=1dxbfHSJFAPEGdCLU4o5B" },
   
-  // New Additions
+  // Newer Platforms
   { name: "River Financial", logo: "https://cdn.brandfetch.io/id-MFa5JSr/w/400/h/400/theme/dark/icon.jpeg?c=1dxbfHSJFAPEGdCLU4o5B" },
   { name: "Public.com", logo: "https://cdn.brandfetch.io/idFU-B1h_2/w/400/h/400/theme/dark/icon.jpeg?c=1dxbfHSJFAPEGdCLU4o5B" },
   { name: "SoFi", logo: "https://cdn.brandfetch.io/idtFgUuCT8/w/400/h/400/theme/dark/icon.jpeg?c=1dxbfHSJFAPEGdCLU4o5B" },
   { name: "PayPal", logo: "https://cdn.brandfetch.io/id-Wd4a4TS/w/400/h/400/theme/dark/icon.jpeg?c=1dxbfHSJFAPEGdCLU4o5B" },
   { name: "Venmo", logo: "https://cdn.brandfetch.io/idzxDKVd5k/w/400/h/400/theme/dark/icon.png?c=1dxbfHSJFAPEGdCLU4o5B" },
+  
+  // Specialized Platforms
+  { name: "iTrustCapital", logo: "https://cdn.brandfetch.io/idO1rlg2to/theme/dark/logo.svg?c=1dxbfHSJFAPEGdCLU4o5B" },
+  { name: "Money Metals Exchange", logo: "https://cdn.brandfetch.io/idlGDYopj6/w/200/h/200/theme/dark/logo.png?c=1dxbfHSJFAPEGdCLU4o5B" },
+  
+  // Credit Unions
+  { name: "PSECU", logo: "https://cdn.brandfetch.io/id-989KUqr/w/180/h/180/theme/dark/icon.jpeg?c=1dxbfHSJFAPEGdCLU4o5B" },
+  { name: "PenFed Credit Union", logo: "https://cdn.brandfetch.io/idd5CjbQjj/w/200/h/200/theme/dark/icon.jpeg?c=1dxbfHSJFAPEGdCLU4o5B" },
+  
+  // Custom Options
   { name: "Other", logo: null },
   { name: "None", logo: null },
   { name: "Self-Directed/Custom", logo: null },
 ];
+
 
 // Additional constants for application use
 export const ACCOUNT_CATEGORIES = ['brokerage', 'retirement', 'cash', 'crypto', 'metals', 'realestate', 'other'];
