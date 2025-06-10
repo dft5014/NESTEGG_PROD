@@ -2,7 +2,6 @@
 import { useState, useContext, useEffect, useCallback, memo } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
-import { QuickStartButton } from '@/components/QuickStartModal';
 import { AuthContext } from '@/context/AuthContext';
 import {
     User, Settings, LogOut, HelpCircle, Bell, ChartLine,
@@ -13,6 +12,7 @@ import UpdateStatusIndicator from '@/components/UpdateStatusIndicator';
 import AddPositionButton from '@/components/AddPositionButton';
 import AddAccountButton from '@/components/AddAccountButton';
 import BulkPositionButton from '@/components/BulkPositionButton';
+import { QuickStartButton } from '@/components/QuickStartModal'; // Add this import
 import { fetchAccounts } from '@/utils/apimethods/accountMethods';
 
 // Memoized EggLogo component (no changes)
@@ -53,7 +53,7 @@ const Navbar = () => {
     const [showNotifications, setShowNotifications] = useState(false);
     const [unreadNotifications, setUnreadNotifications] = useState(3); // Mock data
 
-    const { user, logout } = useContext(AuthContext);
+    const { user, logout, loading: authLoading } = useContext(AuthContext);
     const router = useRouter();
 
     // --- Account Fetching State & Logic ---
@@ -181,7 +181,6 @@ const Navbar = () => {
                     : (!accounts || accounts.length === 0) ? "Add an account first"
                     : "Bulk upload positions";
 
-
     return (
         // Use pb-[height_of_mobile_bar] on the main layout container in _app.js or layout file
         // if the fixed mobile bar overlaps content at the bottom of the page.
@@ -208,41 +207,44 @@ const Navbar = () => {
                         <div className="hidden md:flex items-center space-x-4">
                             <div className="flex items-center">
                                 {isQuickActionsOpen && (
-                                    <div className="flex space-x-4 items-center">
+                                    <div className="flex space-x-4 items-center"> {/* Added items-center */}
                                         {/* Quick Start Button - NEW */}
                                         <QuickStartButton className="mr-2" />
                                         
-                                        {/* Existing buttons */}
                                         <AddAccountButton
                                             onAccountAdded={loadAccounts}
-                                            className="flex items-center text-white py-1 px-4 transition-colors group"
+                                            className="flex items-center text-white py-1 px-4 transition-colors group" // Ensure consistent styling
                                         />
                                         <AddPositionButton
-                                            onPositionAdded={placeholderFetchPositions}
-                                            className="flex items-center text-white py-1 px-4 transition-colors group"
+                                            onPositionAdded={placeholderFetchPositions} // Example: Trigger position refresh
+                                            className="flex items-center text-white py-1 px-4 transition-colors group" // Ensure consistent styling
                                         />
+                                        {/* Updated Bulk Button Call */}
                                         <BulkPositionButton
                                             accounts={accounts}
                                             fetchAccounts={loadAccounts}
                                             fetchPositions={placeholderFetchPositions}
                                             fetchPortfolioSummary={placeholderFetchPortfolioSummary}
-                                            className="flex items-center text-white py-1 px-4 transition-colors group"
+                                            className="flex items-center text-white py-1 px-4 transition-colors group" // Basic styling
                                             buttonIcon={
                                                 isLoadingAccounts ? <Loader2 className="w-6 h-6 mr-2 text-white animate-spin" />
                                                 : accountError ? <AlertCircle className="w-6 h-6 mr-2 text-red-400" />
                                                 : <Upload className="w-6 h-6 mr-2 text-white group-hover:text-blue-300" />
                                             }
                                             buttonText={
-                                            <span className={`text-sm ${accountError ? 'text-red-300' : 'text-gray-200 group-hover:text-white'}`}>Bulk Upload</span>
+                                               <span className={`text-sm ${accountError ? 'text-red-300' : 'text-gray-200 group-hover:text-white'}`}>Bulk Upload</span>
                                             }
                                             disabled={bulkDisabled}
                                             title={bulkTitle}
                                         />
+                                         {/* Loading/Error indicator for accounts (subtle alternative) */}
+                                         {/* {isLoadingAccounts && <Loader2 className="w-5 h-5 text-blue-300 animate-spin ml-2" />} */}
+                                         {/* {accountError && <AlertCircle className="w-5 h-5 text-red-400 ml-2" title={accountError} />} */}
                                     </div>
                                 )}
                                 <button
                                     onClick={() => setIsQuickActionsOpen(!isQuickActionsOpen)}
-                                    className="text-white p-2 hover:bg-blue-800/30 rounded-lg transition-colors ml-2"
+                                    className="text-white p-2 hover:bg-blue-800/30 rounded-lg transition-colors ml-2" // Added ml-2 for spacing
                                 >
                                     {isQuickActionsOpen ? <ChevronLeft className="w-5 h-5" /> : <ChevronRight className="w-5 h-5" />}
                                 </button>
@@ -402,9 +404,9 @@ const Navbar = () => {
                  <div className="md:hidden bg-gray-900 text-white">
                     {/* ... (Mobile menu content - no changes from previous) ... */}
                      <div className="p-4 space-y-3">
-                         {/* ... header ... */}
-                         {/* ... list ... */}
-                         {user ? (
+                        {/* ... header ... */}
+                        {/* ... list ... */}
+                        {user ? (
                             <>
                                 <div className="flex items-center justify-between border-b border-gray-800 pb-3">
                                     <div className="flex items-center">
@@ -448,7 +450,7 @@ const Navbar = () => {
                                     ))}
                                 </div>
                             </>
-                         ) : (
+                        ) : (
                             <div className="space-y-2">
                                 <Link 
                                     href="/login" 
@@ -465,7 +467,7 @@ const Navbar = () => {
                                     Sign up
                                 </Link>
                             </div>
-                         )}
+                        )}
                      </div>
                  </div>
             )}
@@ -473,7 +475,14 @@ const Navbar = () => {
             {/* Mobile Quick Actions Bar (Fixed) - Only show when user is authenticated */}
             {user && (
                 <div className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-blue-900 border-t border-blue-800 shadow-lg">
-                    <div className="grid grid-cols-3 text-center">
+                    <div className="grid grid-cols-4 text-center"> {/* Changed to grid-cols-4 */}
+                        {/* Quick Start Button for Mobile - NEW */}
+                        <div className="relative">
+                            <QuickStartButton 
+                                className="flex flex-col items-center justify-center py-3 text-white group w-full hover:bg-blue-800 transition-colors"
+                            />
+                        </div>
+                        
                         {/* Pass className for consistent mobile styling */}
                         <AddAccountButton
                             className="flex flex-col items-center justify-center py-3 text-white group w-full hover:bg-blue-800 transition-colors"
