@@ -297,7 +297,9 @@ const PortfolioBalance = memo(({
 
     const formatPercentage = (value) => {
         if (value === null || value === undefined) return '-';
-        return `${value > 0 ? '+' : ''}${value.toFixed(2)}%`;
+        const numValue = parseFloat(value);
+        if (isNaN(numValue)) return '-';
+        return `${numValue > 0 ? '+' : ''}${numValue.toFixed(2)}%`;
     };
 
     const formatChange = (changeData) => {
