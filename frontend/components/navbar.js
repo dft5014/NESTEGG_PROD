@@ -2,6 +2,7 @@
 import { useState, useContext, useEffect, useCallback, memo } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
+import { QuickStartButton } from '@/components/QuickStartModal';
 import { AuthContext } from '@/context/AuthContext';
 import {
     User, Settings, LogOut, HelpCircle, Bell, ChartLine,
@@ -180,8 +181,6 @@ const Navbar = () => {
                     : (!accounts || accounts.length === 0) ? "Add an account first"
                     : "Bulk upload positions";
 
-    // Only render if user is authenticated
-    if (!user) return null;
 
     return (
         // Use pb-[height_of_mobile_bar] on the main layout container in _app.js or layout file
@@ -209,41 +208,41 @@ const Navbar = () => {
                         <div className="hidden md:flex items-center space-x-4">
                             <div className="flex items-center">
                                 {isQuickActionsOpen && (
-                                    <div className="flex space-x-4 items-center"> {/* Added items-center */}
+                                    <div className="flex space-x-4 items-center">
+                                        {/* Quick Start Button - NEW */}
+                                        <QuickStartButton className="mr-2" />
+                                        
+                                        {/* Existing buttons */}
                                         <AddAccountButton
                                             onAccountAdded={loadAccounts}
-                                            className="flex items-center text-white py-1 px-4 transition-colors group" // Ensure consistent styling
+                                            className="flex items-center text-white py-1 px-4 transition-colors group"
                                         />
                                         <AddPositionButton
-                                            onPositionAdded={placeholderFetchPositions} // Example: Trigger position refresh
-                                            className="flex items-center text-white py-1 px-4 transition-colors group" // Ensure consistent styling
+                                            onPositionAdded={placeholderFetchPositions}
+                                            className="flex items-center text-white py-1 px-4 transition-colors group"
                                         />
-                                        {/* Updated Bulk Button Call */}
                                         <BulkPositionButton
                                             accounts={accounts}
                                             fetchAccounts={loadAccounts}
                                             fetchPositions={placeholderFetchPositions}
                                             fetchPortfolioSummary={placeholderFetchPortfolioSummary}
-                                            className="flex items-center text-white py-1 px-4 transition-colors group" // Basic styling
+                                            className="flex items-center text-white py-1 px-4 transition-colors group"
                                             buttonIcon={
                                                 isLoadingAccounts ? <Loader2 className="w-6 h-6 mr-2 text-white animate-spin" />
                                                 : accountError ? <AlertCircle className="w-6 h-6 mr-2 text-red-400" />
                                                 : <Upload className="w-6 h-6 mr-2 text-white group-hover:text-blue-300" />
                                             }
                                             buttonText={
-                                               <span className={`text-sm ${accountError ? 'text-red-300' : 'text-gray-200 group-hover:text-white'}`}>Bulk Upload</span>
+                                            <span className={`text-sm ${accountError ? 'text-red-300' : 'text-gray-200 group-hover:text-white'}`}>Bulk Upload</span>
                                             }
                                             disabled={bulkDisabled}
                                             title={bulkTitle}
                                         />
-                                         {/* Loading/Error indicator for accounts (subtle alternative) */}
-                                         {/* {isLoadingAccounts && <Loader2 className="w-5 h-5 text-blue-300 animate-spin ml-2" />} */}
-                                         {/* {accountError && <AlertCircle className="w-5 h-5 text-red-400 ml-2" title={accountError} />} */}
                                     </div>
                                 )}
                                 <button
                                     onClick={() => setIsQuickActionsOpen(!isQuickActionsOpen)}
-                                    className="text-white p-2 hover:bg-blue-800/30 rounded-lg transition-colors ml-2" // Added ml-2 for spacing
+                                    className="text-white p-2 hover:bg-blue-800/30 rounded-lg transition-colors ml-2"
                                 >
                                     {isQuickActionsOpen ? <ChevronLeft className="w-5 h-5" /> : <ChevronRight className="w-5 h-5" />}
                                 </button>
@@ -320,56 +319,70 @@ const Navbar = () => {
                             </div>
 
                             {/* User Dropdown */}
-                            <div className="relative user-dropdown">
-                                {/* Added class for click outside detection */}
-                                <button
-                                    onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-                                    className="flex items-center space-x-2 hover:bg-blue-800/30 p-2 rounded-lg transition-colors text-white user-dropdown-button"
-                                    aria-expanded={isDropdownOpen}
-                                    aria-haspopup="true"
-                                >
-                                    <div className="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center text-white">
-                                        {getInitials()}
-                                    </div>
-                                    <span className="text-sm font-medium">{displayName}</span>
-                                     {/* Add loading/error indicator near profile */}
-                                     {isLoadingAccounts && <Loader2 className="w-5 h-5 text-blue-300 animate-spin ml-2" />}
-                                     {accountError && <AlertCircle className="w-5 h-5 text-red-400 ml-2" title={accountError} />}
-                                </button>
-                                {isDropdownOpen && (
-                                    // Dropdown Content (added onClick handlers to close)
-                                    <div className="absolute right-0 mt-2 w-60 bg-white rounded-lg shadow-xl z-20 overflow-hidden">
-                                         <div className="bg-gradient-to-r from-blue-600 to-blue-700 p-4">
-                                             <p className="font-medium text-lg text-white">{displayName}</p>
-                                             <p className="text-sm text-blue-100 truncate">{user.email}</p>
-                                         </div>
-                                         <div className="py-1">
-                                            {dropdownItems.map((item, index) => (
-                                                item.action ? (
-                                                    <button
-                                                        key={index}
-                                                        onClick={() => { item.action(); setIsDropdownOpen(false); }} // Close dropdown
-                                                        className={`flex w-full items-center px-4 py-3 hover:bg-gray-100 transition-colors text-left text-gray-800 ${item.className || ''}`}
-                                                    >
-                                                        {item.icon}
-                                                        {item.label}
-                                                    </button>
-                                                ) : (
-                                                    <Link
-                                                        key={index}
-                                                        href={item.href}
-                                                        onClick={() => setIsDropdownOpen(false)} // Close dropdown
-                                                        className={`flex items-center px-4 py-3 hover:bg-gray-100 transition-colors text-gray-800 ${item.className || ''}`}
-                                                    >
-                                                        {item.icon}
-                                                        {item.label}
-                                                    </Link>
-                                                )
-                                            ))}
+                            {user ? (
+                                <div className="relative user-dropdown">
+                                    {/* Added class for click outside detection */}
+                                    <button
+                                        onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+                                        className="flex items-center space-x-2 hover:bg-blue-800/30 p-2 rounded-lg transition-colors text-white user-dropdown-button"
+                                        aria-expanded={isDropdownOpen}
+                                        aria-haspopup="true"
+                                    >
+                                        <div className="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center text-white">
+                                            {getInitials()}
                                         </div>
-                                    </div>
-                                )}
-                            </div>
+                                        <span className="text-sm font-medium">{displayName}</span>
+                                         {/* Add loading/error indicator near profile */}
+                                         {isLoadingAccounts && <Loader2 className="w-5 h-5 text-blue-300 animate-spin ml-2" />}
+                                         {accountError && <AlertCircle className="w-5 h-5 text-red-400 ml-2" title={accountError} />}
+                                    </button>
+                                    {isDropdownOpen && (
+                                        // Dropdown Content (added onClick handlers to close)
+                                        <div className="absolute right-0 mt-2 w-60 bg-white rounded-lg shadow-xl z-20 overflow-hidden">
+                                             <div className="bg-gradient-to-r from-blue-600 to-blue-700 p-4">
+                                                 <p className="font-medium text-lg text-white">{displayName}</p>
+                                                 <p className="text-sm text-blue-100 truncate">{user.email}</p>
+                                             </div>
+                                             <div className="py-1">
+                                                {dropdownItems.map((item, index) => (
+                                                    item.action ? (
+                                                        <button
+                                                            key={index}
+                                                            onClick={() => { item.action(); setIsDropdownOpen(false); }} // Close dropdown
+                                                            className={`flex w-full items-center px-4 py-3 hover:bg-gray-100 transition-colors text-left text-gray-800 ${item.className || ''}`}
+                                                        >
+                                                            {item.icon}
+                                                            {item.label}
+                                                        </button>
+                                                    ) : (
+                                                        <Link
+                                                            key={index}
+                                                            href={item.href}
+                                                            onClick={() => setIsDropdownOpen(false)} // Close dropdown
+                                                            className={`flex items-center px-4 py-3 hover:bg-gray-100 transition-colors text-gray-800 ${item.className || ''}`}
+                                                        >
+                                                            {item.icon}
+                                                            {item.label}
+                                                        </Link>
+                                                    )
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            ) : (
+                                <div className="flex items-center space-x-4">
+                                    <Link href="/login" className="text-gray-300 hover:text-white transition-colors">
+                                        Login
+                                    </Link>
+                                    <Link
+                                        href="/signup"
+                                        className="bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white px-4 py-2 rounded-lg transition-colors shadow-md hover:shadow-lg"
+                                    >
+                                        Sign up
+                                    </Link>
+                                </div>
+                            )}
                         </div>
 
                         {/* Mobile Menu Button */}
@@ -389,88 +402,111 @@ const Navbar = () => {
                  <div className="md:hidden bg-gray-900 text-white">
                     {/* ... (Mobile menu content - no changes from previous) ... */}
                      <div className="p-4 space-y-3">
-                        {/* ... header ... */}
-                        {/* ... list ... */}
-                        <div className="flex items-center justify-between border-b border-gray-800 pb-3">
-                            <div className="flex items-center">
-                                <div className="w-12 h-12 rounded-full bg-blue-600 flex items-center justify-center text-white mr-3">
-                                    {getInitials()}
+                         {/* ... header ... */}
+                         {/* ... list ... */}
+                         {user ? (
+                            <>
+                                <div className="flex items-center justify-between border-b border-gray-800 pb-3">
+                                    <div className="flex items-center">
+                                        <div className="w-12 h-12 rounded-full bg-blue-600 flex items-center justify-center text-white mr-3">
+                                            {getInitials()}
+                                        </div>
+                                        <div>
+                                            <div className="font-medium">{displayName}</div>
+                                            <div className="text-xs text-gray-400">{user.email}</div>
+                                        </div>
+                                    </div>
+                                     {/* Optional: Add loading/error indicator in mobile menu header */}
+                                     {isLoadingAccounts && <Loader2 className="w-5 h-5 text-blue-300 animate-spin" />}
+                                     {accountError && <AlertCircle className="w-5 h-5 text-red-400" title={accountError} />}
                                 </div>
-                                <div>
-                                    <div className="font-medium">{displayName}</div>
-                                    <div className="text-xs text-gray-400">{user.email}</div>
+                                <div className="space-y-2 py-2">
+                                    {dropdownItems.map((item, index) => (
+                                        item.action ? (
+                                            <button
+                                                key={index}
+                                                onClick={() => {
+                                                    setIsMobileMenuOpen(false);
+                                                    item.action();
+                                                }}
+                                                className={`flex w-full items-center p-3 hover:bg-gray-800 rounded-lg transition-colors ${item.className || ''}`}
+                                            >
+                                                {item.icon}
+                                                {item.label}
+                                            </button>
+                                        ) : (
+                                            <Link
+                                                key={index}
+                                                href={item.href}
+                                                className={`flex items-center p-3 hover:bg-gray-800 rounded-lg transition-colors ${item.className || ''}`}
+                                                onClick={() => setIsMobileMenuOpen(false)}
+                                            >
+                                                {item.icon}
+                                                {item.label}
+                                            </Link>
+                                        )
+                                    ))}
                                 </div>
+                            </>
+                         ) : (
+                            <div className="space-y-2">
+                                <Link 
+                                    href="/login" 
+                                    className="block w-full text-center p-3 text-gray-300 hover:text-white hover:bg-gray-800 rounded-lg transition-colors"
+                                    onClick={() => setIsMobileMenuOpen(false)}
+                                >
+                                    Login
+                                </Link>
+                                <Link
+                                    href="/signup"
+                                    className="block w-full text-center p-3 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white rounded-lg transition-colors shadow-md hover:shadow-lg"
+                                    onClick={() => setIsMobileMenuOpen(false)}
+                                >
+                                    Sign up
+                                </Link>
                             </div>
-                             {/* Optional: Add loading/error indicator in mobile menu header */}
-                             {isLoadingAccounts && <Loader2 className="w-5 h-5 text-blue-300 animate-spin" />}
-                             {accountError && <AlertCircle className="w-5 h-5 text-red-400" title={accountError} />}
-                        </div>
-                        <div className="space-y-2 py-2">
-                            {dropdownItems.map((item, index) => (
-                                item.action ? (
-                                    <button
-                                        key={index}
-                                        onClick={() => {
-                                            setIsMobileMenuOpen(false);
-                                            item.action();
-                                        }}
-                                        className={`flex w-full items-center p-3 hover:bg-gray-800 rounded-lg transition-colors ${item.className || ''}`}
-                                    >
-                                        {item.icon}
-                                        {item.label}
-                                    </button>
-                                ) : (
-                                    <Link
-                                        key={index}
-                                        href={item.href}
-                                        className={`flex items-center p-3 hover:bg-gray-800 rounded-lg transition-colors ${item.className || ''}`}
-                                        onClick={() => setIsMobileMenuOpen(false)}
-                                    >
-                                        {item.icon}
-                                        {item.label}
-                                    </Link>
-                                )
-                            ))}
-                        </div>
+                         )}
                      </div>
                  </div>
             )}
 
-            {/* Mobile Quick Actions Bar (Fixed) */}
-            <div className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-blue-900 border-t border-blue-800 shadow-lg">
-                <div className="grid grid-cols-3 text-center">
-                    {/* Pass className for consistent mobile styling */}
-                    <AddAccountButton
-                        className="flex flex-col items-center justify-center py-3 text-white group w-full hover:bg-blue-800 transition-colors"
-                        onAccountAdded={loadAccounts}
-                        // Assuming internal icon/text rendering suitable for mobile
-                    />
-                    <AddPositionButton
-                        className="flex flex-col items-center justify-center py-3 text-white group w-full hover:bg-blue-800 transition-colors"
-                        onPositionAdded={placeholderFetchPositions}
-                        // Assuming internal icon/text rendering suitable for mobile
-                     />
-                    {/* Updated Bulk Button call for mobile */}
-                    <BulkPositionButton
-                        accounts={accounts}
-                        fetchAccounts={loadAccounts}
-                        fetchPositions={placeholderFetchPositions}
-                        fetchPortfolioSummary={placeholderFetchPortfolioSummary}
-                        className="flex flex-col items-center justify-center py-3 text-white group w-full hover:bg-blue-800 transition-colors"
-                         // Pass simplified/different props if needed for mobile rendering, or assume internal rendering handles it
-                         buttonIcon={ // Example: Assuming BulkPositionButton uses these props
-                             isLoadingAccounts ? <Loader2 className="h-6 w-6 mb-1 text-white animate-spin" />
-                             : accountError ? <AlertCircle className="h-6 w-6 mb-1 text-red-400" />
-                             : <Upload className="h-6 w-6 mb-1 text-white group-hover:text-blue-300" />
-                         }
-                         buttonText={ // Example: Assuming BulkPositionButton uses these props
-                             <span className={`text-xs ${accountError ? 'text-red-300' : 'text-gray-200 group-hover:text-white'}`}>Bulk Upload</span>
-                         }
-                         disabled={bulkDisabled}
-                         title={bulkTitle} // Title helps accessibility on mobile too
-                    />
+            {/* Mobile Quick Actions Bar (Fixed) - Only show when user is authenticated */}
+            {user && (
+                <div className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-blue-900 border-t border-blue-800 shadow-lg">
+                    <div className="grid grid-cols-3 text-center">
+                        {/* Pass className for consistent mobile styling */}
+                        <AddAccountButton
+                            className="flex flex-col items-center justify-center py-3 text-white group w-full hover:bg-blue-800 transition-colors"
+                            onAccountAdded={loadAccounts}
+                            // Assuming internal icon/text rendering suitable for mobile
+                        />
+                        <AddPositionButton
+                            className="flex flex-col items-center justify-center py-3 text-white group w-full hover:bg-blue-800 transition-colors"
+                            onPositionAdded={placeholderFetchPositions}
+                            // Assuming internal icon/text rendering suitable for mobile
+                         />
+                        {/* Updated Bulk Button call for mobile */}
+                        <BulkPositionButton
+                            accounts={accounts}
+                            fetchAccounts={loadAccounts}
+                            fetchPositions={placeholderFetchPositions}
+                            fetchPortfolioSummary={placeholderFetchPortfolioSummary}
+                            className="flex flex-col items-center justify-center py-3 text-white group w-full hover:bg-blue-800 transition-colors"
+                             // Pass simplified/different props if needed for mobile rendering, or assume internal rendering handles it
+                             buttonIcon={ // Example: Assuming BulkPositionButton uses these props
+                                 isLoadingAccounts ? <Loader2 className="h-6 w-6 mb-1 text-white animate-spin" />
+                                 : accountError ? <AlertCircle className="h-6 w-6 mb-1 text-red-400" />
+                                 : <Upload className="h-6 w-6 mb-1 text-white group-hover:text-blue-300" />
+                             }
+                             buttonText={ // Example: Assuming BulkPositionButton uses these props
+                                 <span className={`text-xs ${accountError ? 'text-red-300' : 'text-gray-200 group-hover:text-white'}`}>Bulk Upload</span>
+                             }
+                             disabled={bulkDisabled}
+                             title={bulkTitle} // Title helps accessibility on mobile too
+                        />
+                    </div>
                 </div>
-            </div>
+            )}
         </div>
     );
 };
