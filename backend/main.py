@@ -33,6 +33,21 @@ from sqlalchemy import func, case, literal_column
 from sqlalchemy.sql import select, join, text # Ensure text is imported
 from sqlalchemy import Table, Column, Integer, String, Float, Boolean, DateTime, ForeignKey, MetaData, select
 
+# excel
+from backend.services.excel_templates import ExcelTemplateService
+from backend.utils.constants import (
+    INSTITUTION_LIST, 
+    ACCOUNT_TYPES, 
+    ACCOUNT_CATEGORIES,
+    METAL_UNITS,
+    CASH_TYPES,
+    INTEREST_PERIODS,
+    CRYPTO_STORAGE_TYPES,
+    PROPERTY_TYPES
+)
+from fastapi.responses import StreamingResponse
+import io
+
 # Load environment variables first
 env_path = Path(__file__).resolve().parent / ".env"
 load_dotenv(dotenv_path=env_path)
@@ -6434,7 +6449,169 @@ async def get_sidebar_stats(
         )
 
 # ----- Potentially Delete -----
+# ----- EXCEL TEMPLATE ENDPOINTS -----
+@app.get("/api/templates/accounts/download")
+async def download_accounts_template(current_user: dict = Depends(get_current_user)):
+    """
+    Download the accounts import template as an Excel file.
+    This template includes dropdowns for institutions, account types, and categories.
+    """
+    try:
+        # Log the request
+        logger.info(f"User {current_user['id']} downloading accounts template")
+        
+        # Create template service instance
+        template_service = ExcelTemplateService()
+        
+        # Generate the Excel file
+        excel_file = template_service.create_accounts_template()
+        
+        # Create response with proper headers
+        return StreamingResponse(
+            io.BytesIO(excel_file.getvalue()),
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            headers={
+                "Content-Disposition": f"attachment; filename=NestEgg_Accounts_Template_{datetime.now().strftime('%Y%m%d')}.xlsx"
+            }
+        )
+    except Exception as e:
+        logger.error(f"Error generating accounts template: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
+            detail=f"Failed to generate accounts template: {str(e)}"
+        )
 
+@app.get("/api/templates/positions/download")
+async def download_positions_template(current_user: dict = Depends(get_current_user)):
+    """
+    Download the positions import template customized with user's accounts.
+    User must have at least one account before downloading this template.
+    """
+    try:
+        # Log the request
+        logger.info(f"User {current_user['id']} downloading positions template")
+        
+        # Check if user has any accounts
+        accounts_query = accounts.select().where(accounts.c.user_id == current_user["id"])
+        user_accounts = await database.fetch_all(accounts_query)
+        
+        if not user_accounts:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="You must create at least one account before downloading the positions template"
+            )
+        
+        # Create template service instance
+        template_service = ExcelTemplateService()
+        
+        # Generate the Excel file with user's accounts
+        excel_file = await template_service.create_positions_template(
+            user_id=current_user["id"],
+            database=database
+        )
+        
+        # Create response with proper headers
+        return StreamingResponse(
+            io.BytesIO(excel_file.getvalue()),
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            headers={
+                "Content-Disposition": f"attachment; filename=NestEgg_Positions_Template_{datetime.now().strftime('%Y%m%d')}.xlsx"
+            }
+        )
+    except HTTPException:
+        # Re-raise HTTP exceptions
+        raise
+    except Exception as e:
+        logger.error(f"Error generating positions template: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
+            detail=f"Failed to generate positions template: {str(e)}"
+        )
+
+# Bulk Import Endpoints (placeholder for future implementation)
+@app.post("/api/bulk-import/accounts")
+async def bulk_import_accounts(
+    file: UploadFile = File(...),
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Import multiple accounts from an Excel template.
+    Validates the data and creates accounts in bulk.
+    """
+    try:
+        # Validate file type
+        if not file.filename.endswith(('.xlsx', '.xls')):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="File must be an Excel file (.xlsx or .xls)"
+            )
+        
+        # Read file content
+        contents = await file.read()
+        
+        # TODO: Implement the actual import logic
+        # 1. Parse Excel file
+        # 2. Validate data
+        # 3. Check for duplicates
+        # 4. Create accounts in database
+        # 5. Return results
+        
+        return {
+            "success": True,
+            "message": "Bulk import functionality coming soon",
+            "filename": file.filename
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error in bulk account import: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to import accounts: {str(e)}"
+        )
+
+@app.post("/api/bulk-import/positions")
+async def bulk_import_positions(
+    file: UploadFile = File(...),
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Import positions from an Excel template.
+    Validates the data and creates positions across multiple asset types.
+    """
+    try:
+        # Validate file type
+        if not file.filename.endswith(('.xlsx', '.xls')):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="File must be an Excel file (.xlsx or .xls)"
+            )
+        
+        # Read file content
+        contents = await file.read()
+        
+        # TODO: Implement the actual import logic
+        # 1. Parse Excel file with multiple sheets
+        # 2. Validate each position type
+        # 3. Map account names to account IDs
+        # 4. Create positions in appropriate tables
+        # 5. Return detailed results
+        
+        return {
+            "success": True,
+            "message": "Bulk import functionality coming soon",
+            "filename": file.filename
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error in bulk position import: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to import positions: {str(e)}"
+        )
 
 # ----- Category Endpoints -----
 @app.get("/api/categories", response_model=List[Category])
