@@ -275,49 +275,7 @@ const Navbar = () => {
                                         </span>
                                     )}
                                 </button>
-                                {showNotifications && (
-                                     // Dropdown Content (no changes from previous)
-                                    <div className="absolute right-0 mt-2 w-80 bg-white rounded-lg shadow-xl overflow-hidden z-20">
-                                         {/* ... header ... */}
-                                         {/* ... list ... */}
-                                         {/* ... footer link ... */}
-                                         <div className="bg-gradient-to-r from-blue-700 to-blue-600 p-3 text-white border-b border-blue-500">
-                                            <div className="flex justify-between items-center">
-                                                <h3 className="font-medium">Notifications</h3>
-                                                {/* TODO: Implement mark as read */}
-                                                <button className="text-blue-200 hover:text-white text-xs">Mark all as read</button>
-                                            </div>
-                                        </div>
-                                        <div className="max-h-96 overflow-y-auto">
-                                            {/* TODO: Replace with real notification data */}
-                                            {notifications.map(notification => (
-                                                <div
-                                                    key={notification.id}
-                                                    className={`p-3 border-b border-gray-100 hover:bg-gray-50 transition-colors cursor-pointer ${notification.isNew ? 'bg-blue-50' : ''}`}
-                                                    // TODO: Add onClick to navigate or mark as read
-                                                >
-                                                    <div className="flex justify-between">
-                                                        <h4 className="font-medium text-gray-900">{notification.title}</h4>
-                                                        <span className="text-xs text-gray-500">{notification.time}</span>
-                                                    </div>
-                                                    <p className="text-sm text-gray-600 mt-1">{notification.message}</p>
-                                                </div>
-                                            ))}
-                                             {notifications.length === 0 && (
-                                                <p className="p-4 text-sm text-gray-500 text-center">No new notifications</p>
-                                            )}
-                                        </div>
-                                        <div className="p-2 text-center bg-gray-50 border-t border-gray-100">
-                                            <Link
-                                                 href="/notifications"
-                                                 onClick={() => setShowNotifications(false)}
-                                                 className="text-sm text-blue-600 hover:text-blue-800"
-                                             >
-                                                View all notifications
-                                            </Link>
-                                        </div>
-                                    </div>
-                                )}
+
                             </div>
 
                             {/* User Dropdown */}
