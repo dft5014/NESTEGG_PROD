@@ -8,6 +8,7 @@ import {
     AlertCircle, 
     Info,
     ArrowRight,
+    ArrowLeft,
     Shield,
     Clock,
     Users,
@@ -17,9 +18,6 @@ import {
     Loader2,
     Plus,
     Trash2,
-    Edit2,
-    Save,
-    ChevronUp,
     ChevronDown,
     Check,
     MousePointer,
@@ -30,23 +28,15 @@ import {
     CreditCard,
     Wallet,
     PiggyBank,
-    BarChart3,
-    Eye,
-    EyeOff,
     Copy,
     ArrowUpDown,
     Import,
     Search,
     Hash,
     Briefcase,
-    Calculator,
     ListPlus,
     Table,
-    Star,
-    ArrowUp,
-    ArrowDown,
-    GripVertical,
-    Layers
+    Star
 } from 'lucide-react';
 import { fetchWithAuth } from '@/utils/api';
 import { popularBrokerages } from '@/utils/constants';
