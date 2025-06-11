@@ -721,302 +721,305 @@ const QuickStartModal = ({ isOpen, onClose }) => {
     );
 
     const renderUIAccountCreation = () => (
-        <div className="space-y-6 animate-fadeIn">
+        <div className="space-y-8 animate-fadeIn">
             <div className="text-center">
-                <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-indigo-500 to-indigo-600 rounded-full mb-4">
-                    <ListPlus className="w-8 h-8 text-white" />
+                <div className="inline-flex items-center justify-center w-20 h-20 bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 rounded-full mb-6 shadow-2xl shadow-purple-500/30">
+                    <ListPlus className="w-10 h-10 text-white" />
                 </div>
-                <h3 className="text-2xl font-bold text-gray-900 mb-2">Quick Add Accounts</h3>
-                <p className="text-gray-600">
-                    Add your investment accounts quickly using our streamlined form
+                <h3 className="text-3xl font-bold text-gray-900 mb-3">Quick Add Accounts</h3>
+                <p className="text-lg text-gray-600 max-w-2xl mx-auto">
+                    Build your investment portfolio by adding your accounts below
                 </p>
             </div>
 
-            {/* Stats Bar */}
-            <div className="bg-gradient-to-r from-indigo-50 via-purple-50 to-pink-50 rounded-xl p-4 shadow-sm border border-indigo-100">
-                <div className="grid grid-cols-4 gap-4 text-center">
-                    <div className="group cursor-pointer">
-                        <div className="transform group-hover:scale-110 transition-transform duration-200">
-                            <p className="text-2xl font-bold bg-gradient-to-r from-indigo-600 to-indigo-700 bg-clip-text text-transparent">
-                                <AnimatedNumber value={accounts.length} />
-                            </p>
+            {/* Enhanced Stats Bar */}
+            <div className="relative overflow-hidden bg-gradient-to-r from-indigo-50 via-purple-50 to-pink-50 rounded-2xl p-6 shadow-lg border border-white/50 backdrop-blur-sm">
+                <div className="absolute inset-0 bg-gradient-to-r from-indigo-500/5 via-purple-500/5 to-pink-500/5 animate-pulse"></div>
+                <div className="relative grid grid-cols-4 gap-6">
+                    <div className="group cursor-pointer text-center">
+                        <div className="transform group-hover:scale-110 transition-all duration-300">
+                            <div className="inline-flex items-center justify-center w-16 h-16 bg-white rounded-2xl shadow-lg mb-3 group-hover:shadow-xl">
+                                <p className="text-3xl font-black bg-gradient-to-r from-indigo-600 to-indigo-700 bg-clip-text text-transparent">
+                                    <AnimatedNumber value={accounts.length} />
+                                </p>
+                            </div>
                         </div>
-                        <p className="text-sm text-gray-600 mt-1">Total Accounts</p>
+                        <p className="text-sm font-medium text-gray-700">Total Accounts</p>
                     </div>
-                    <div className="group cursor-pointer">
-                        <div className="transform group-hover:scale-110 transition-transform duration-200">
-                            <p className="text-2xl font-bold bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent">
-                                <AnimatedNumber value={validAccounts.length} />
-                            </p>
+                    <div className="group cursor-pointer text-center">
+                        <div className="transform group-hover:scale-110 transition-all duration-300">
+                            <div className="inline-flex items-center justify-center w-16 h-16 bg-white rounded-2xl shadow-lg mb-3 group-hover:shadow-xl">
+                                <p className="text-3xl font-black bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent">
+                                    <AnimatedNumber value={validAccounts.length} />
+                                </p>
+                            </div>
                         </div>
-                        <p className="text-sm text-gray-600 mt-1">Ready to Import</p>
+                        <p className="text-sm font-medium text-gray-700">Ready to Import</p>
                     </div>
-                    <div className="group cursor-pointer">
-                        <div className="transform group-hover:scale-110 transition-transform duration-200">
-                            <p className="text-2xl font-bold bg-gradient-to-r from-purple-600 to-purple-700 bg-clip-text text-transparent">
-                                <AnimatedNumber value={new Set(accounts.map(a => a.institution).filter(Boolean)).size} />
-                            </p>
+                    <div className="group cursor-pointer text-center">
+                        <div className="transform group-hover:scale-110 transition-all duration-300">
+                            <div className="inline-flex items-center justify-center w-16 h-16 bg-white rounded-2xl shadow-lg mb-3 group-hover:shadow-xl">
+                                <p className="text-3xl font-black bg-gradient-to-r from-purple-600 to-purple-700 bg-clip-text text-transparent">
+                                    <AnimatedNumber value={new Set(accounts.map(a => a.institution).filter(Boolean)).size} />
+                                </p>
+                            </div>
                         </div>
-                        <p className="text-sm text-gray-600 mt-1">Institutions</p>
+                        <p className="text-sm font-medium text-gray-700">Institutions</p>
                     </div>
-                    <div className="group cursor-pointer">
-                        <div className="transform group-hover:scale-110 transition-transform duration-200">
-                            <p className="text-2xl font-bold bg-gradient-to-r from-amber-600 to-orange-600 bg-clip-text text-transparent">
-                                <AnimatedNumber value={new Set(accounts.map(a => a.accountCategory).filter(Boolean)).size} />
-                            </p>
+                    <div className="group cursor-pointer text-center">
+                        <div className="transform group-hover:scale-110 transition-all duration-300">
+                            <div className="inline-flex items-center justify-center w-16 h-16 bg-white rounded-2xl shadow-lg mb-3 group-hover:shadow-xl">
+                                <p className="text-3xl font-black bg-gradient-to-r from-amber-600 to-orange-600 bg-clip-text text-transparent">
+                                    <AnimatedNumber value={new Set(accounts.map(a => a.accountCategory).filter(Boolean)).size} />
+                                </p>
+                            </div>
                         </div>
-                        <p className="text-sm text-gray-600 mt-1">Categories</p>
+                        <p className="text-sm font-medium text-gray-700">Categories</p>
                     </div>
                 </div>
             </div>
 
-            {/* Table Header */}
-            <div className="bg-gray-50 rounded-t-lg px-4 py-3 border-b border-gray-200">
-                <div className="grid grid-cols-12 gap-2 text-xs font-medium text-gray-700">
-                    <div className="col-span-3 flex items-center">
-                        <button 
-                            onClick={() => handleSort('accountName')}
-                            className="flex items-center hover:text-gray-900 transition-colors"
-                        >
-                            Account Name
-                            <ArrowUpDown className="w-3 h-3 ml-1" />
-                        </button>
+            {/* Enhanced Table Section */}
+            <div className="bg-gradient-to-br from-gray-50 to-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden">
+                {/* Table Header */}
+                <div className="bg-gradient-to-r from-gray-100 to-gray-50 px-8 py-5 border-b border-gray-200">
+                    <div className="grid grid-cols-12 gap-6 text-sm font-semibold text-gray-700">
+                        <div className="col-span-3 flex items-center">
+                            <button 
+                                onClick={() => handleSort('accountName')}
+                                className="flex items-center hover:text-indigo-600 transition-colors group"
+                            >
+                                <span>Account Name</span>
+                                <ArrowUpDown className="w-4 h-4 ml-2 text-gray-400 group-hover:text-indigo-600" />
+                            </button>
+                        </div>
+                        <div className="col-span-3 flex items-center">
+                            <button 
+                                onClick={() => handleSort('institution')}
+                                className="flex items-center hover:text-indigo-600 transition-colors group"
+                            >
+                                <span>Institution</span>
+                                <ArrowUpDown className="w-4 h-4 ml-2 text-gray-400 group-hover:text-indigo-600" />
+                            </button>
+                        </div>
+                        <div className="col-span-3 flex items-center">
+                            <button 
+                                onClick={() => handleSort('accountCategory')}
+                                className="flex items-center hover:text-indigo-600 transition-colors group"
+                            >
+                                <span>Category</span>
+                                <ArrowUpDown className="w-4 h-4 ml-2 text-gray-400 group-hover:text-indigo-600" />
+                            </button>
+                        </div>
+                        <div className="col-span-2">Account Type</div>
+                        <div className="col-span-1 text-center">Actions</div>
                     </div>
-                    <div className="col-span-3 flex items-center">
-                        <button 
-                            onClick={() => handleSort('institution')}
-                            className="flex items-center hover:text-gray-900 transition-colors"
-                        >
-                            Institution
-                            <ArrowUpDown className="w-3 h-3 ml-1" />
-                        </button>
-                    </div>
-                    <div className="col-span-3 flex items-center">
-                        <button 
-                            onClick={() => handleSort('accountCategory')}
-                            className="flex items-center hover:text-gray-900 transition-colors"
-                        >
-                            Category
-                            <ArrowUpDown className="w-3 h-3 ml-1" />
-                        </button>
-                    </div>
-                    <div className="col-span-2">Account Type</div>
-                    <div className="col-span-1 text-center">Actions</div>
                 </div>
-            </div>
 
-            {/* Account Rows with custom styles */}
-            <div className="space-y-2 max-h-[480px] overflow-y-auto custom-scrollbar">
-                {sortedAccounts.map((account, index) => {
-                    const isValid = account.accountName && account.institution && account.accountCategory && account.accountType;
-                    const selectedInstitution = popularBrokerages.find(b => b.name === account.institution);
-                    const selectedCategory = ACCOUNT_CATEGORIES.find(c => c.id === account.accountCategory);
-                    const accountTypes = ACCOUNT_TYPES_BY_CATEGORY[account.accountCategory] || [];
-                    
-                    return (
-                        <div 
-                            key={account.tempId}
-                            className={`group relative bg-white rounded-lg border transition-all duration-300 transform hover:scale-[1.01] ${
-                                account.isNew ? 'border-indigo-300 shadow-md shadow-indigo-100 slide-in-animation' : 
-                                isValid ? 'border-green-300 hover:shadow-lg hover:border-green-400' : 'border-gray-200 hover:border-gray-300'
-                            }`}
-                        >
-                            <div className="grid grid-cols-12 gap-2 p-3 items-center">
-                                <div className="col-span-3">
-                                    <input
-                                        ref={account.isNew && index === accounts.length - 1 ? newRowRef : null}
-                                        type="text"
-                                        value={account.accountName}
-                                        onChange={(e) => updateAccount(account.tempId, 'accountName', e.target.value)}
-                                        onKeyDown={(e) => {
-                                            if (e.key === 'Enter' && isValid) {
-                                                e.preventDefault();
-                                                addNewAccount();
-                                            }
-                                        }}
-                                        placeholder="My Retirement Account..."
-                                        className="w-full px-3 py-2 bg-transparent border border-gray-200 rounded-md text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-all placeholder-gray-400"
-                                    />
+                {/* Account Rows - No scrolling needed */}
+                <div className="p-6 space-y-4">
+                    {sortedAccounts.map((account, index) => {
+                        const isValid = account.accountName && account.institution && account.accountCategory && account.accountType;
+                        const selectedInstitution = popularBrokerages.find(b => b.name === account.institution);
+                        const selectedCategory = ACCOUNT_CATEGORIES.find(c => c.id === account.accountCategory);
+                        const accountTypes = ACCOUNT_TYPES_BY_CATEGORY[account.accountCategory] || [];
+                        
+                        return (
+                            <div 
+                                key={account.tempId}
+                                className={`group relative bg-white rounded-xl border-2 transition-all duration-300 transform hover:scale-[1.02] hover:shadow-2xl ${
+                                    account.isNew ? 'border-indigo-300 shadow-lg shadow-indigo-100/50 slide-in-animation ring-2 ring-indigo-400/20' : 
+                                    isValid ? 'border-green-300 hover:border-green-400 shadow-md' : 'border-gray-200 hover:border-gray-300'
+                                }`}
+                            >
+                                <div className="grid grid-cols-12 gap-4 p-5 items-center">
+                                    <div className="col-span-3">
+                                        <input
+                                            ref={account.isNew && index === accounts.length - 1 ? newRowRef : null}
+                                            type="text"
+                                            value={account.accountName}
+                                            onChange={(e) => updateAccount(account.tempId, 'accountName', e.target.value)}
+                                            onKeyDown={(e) => {
+                                                if (e.key === 'Enter' && isValid) {
+                                                    e.preventDefault();
+                                                    addNewAccount();
+                                                }
+                                            }}
+                                            placeholder="My Retirement Account..."
+                                            className="w-full px-4 py-3 bg-gray-50 border border-gray-300 rounded-lg text-base focus:bg-white focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/20 transition-all placeholder-gray-400"
+                                        />
+                                    </div>
+                                    <div className="col-span-3 relative">
+                                        <SearchableDropdown
+                                            options={popularBrokerages}
+                                            value={account.institution}
+                                            onChange={(value) => updateAccount(account.tempId, 'institution', value)}
+                                            placeholder="Type to search..."
+                                            showLogos={true}
+                                        />
+                                        {account.institution && !popularBrokerages.find(b => b.name === account.institution) && (
+                                            <div className="absolute -bottom-6 left-0 text-xs text-indigo-600 flex items-center bg-indigo-50 px-2 py-1 rounded-full">
+                                                <Sparkles className="w-3 h-3 mr-1" />
+                                                Custom institution
+                                            </div>
+                                        )}
+                                    </div>
+                                    <div className="col-span-3">
+                                        <select
+                                            value={account.accountCategory}
+                                            onChange={(e) => updateAccount(account.tempId, 'accountCategory', e.target.value)}
+                                            className="w-full px-4 py-3 bg-gray-50 border border-gray-300 rounded-lg text-base focus:bg-white focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/20 transition-all cursor-pointer"
+                                        >
+                                            <option value="">Select category...</option>
+                                            {ACCOUNT_CATEGORIES.map(cat => (
+                                                <option key={cat.id} value={cat.id}>
+                                                    {cat.name}
+                                                </option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                    <div className="col-span-2">
+                                        <select
+                                            value={account.accountType}
+                                            onChange={(e) => updateAccount(account.tempId, 'accountType', e.target.value)}
+                                            className="w-full px-4 py-3 bg-gray-50 border border-gray-300 rounded-lg text-base focus:bg-white focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/20 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                                            disabled={!account.accountCategory}
+                                        >
+                                            <option value="">
+                                                {account.accountCategory ? 'Select type...' : 'Category first'}
+                                            </option>
+                                            {accountTypes.map(type => (
+                                                <option key={type.value} value={type.value}>
+                                                    {type.label}
+                                                </option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                    <div className="col-span-1 flex items-center justify-center space-x-2">
+                                        <button
+                                            onClick={() => duplicateAccount(account)}
+                                            className="p-2 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all transform hover:scale-110"
+                                            title="Duplicate"
+                                        >
+                                            <Copy className="w-5 h-5" />
+                                        </button>
+                                        <button
+                                            onClick={() => deleteAccount(account.tempId)}
+                                            className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all transform hover:scale-110"
+                                            title="Delete"
+                                        >
+                                            <Trash2 className="w-5 h-5" />
+                                        </button>
+                                    </div>
                                 </div>
-                                <div className="col-span-3">
-                                    <SearchableDropdown
-                                        options={popularBrokerages}
-                                        value={account.institution}
-                                        onChange={(value) => updateAccount(account.tempId, 'institution', value)}
-                                        placeholder="Type to search..."
-                                        showLogos={true}
-                                    />
-                                    {account.institution && !popularBrokerages.find(b => b.name === account.institution) && (
-                                        <div className="absolute -bottom-1 left-0 text-xs text-indigo-600 flex items-center">
-                                            <Sparkles className="w-3 h-3 mr-1" />
-                                            Custom institution
+                                
+                                {/* Enhanced Visual status indicator */}
+                                <div className={`absolute left-0 top-0 bottom-0 w-2 rounded-l-xl transition-all duration-500 ${
+                                    account.isNew ? 'bg-gradient-to-b from-indigo-400 via-purple-400 to-pink-400 animate-pulse' :
+                                    isValid ? 'bg-gradient-to-b from-green-400 to-emerald-500' : 'bg-gradient-to-b from-gray-300 to-gray-400'
+                                }`} />
+                                
+                                {/* Category icon preview - Enhanced */}
+                                {selectedCategory && (
+                                    <div className="absolute -right-4 -top-4 opacity-0 group-hover:opacity-100 transition-all duration-300 transform group-hover:scale-110 group-hover:rotate-12">
+                                        <div className="w-14 h-14 rounded-2xl border-2 border-white shadow-2xl bg-gradient-to-br from-white via-gray-50 to-gray-100 flex items-center justify-center">
+                                            <selectedCategory.icon className="w-7 h-7 text-gray-700" />
                                         </div>
-                                    )}
-                                </div>
-                                <div className="col-span-3">
-                                    <select
-                                        value={account.accountCategory}
-                                        onChange={(e) => updateAccount(account.tempId, 'accountCategory', e.target.value)}
-                                        className="w-full px-3 py-2 bg-white border border-gray-200 rounded-md text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-all"
-                                    >
-                                        <option value="">Select category...</option>
-                                        {ACCOUNT_CATEGORIES.map(cat => (
-                                            <option key={cat.id} value={cat.id}>
-                                                {cat.name}
-                                            </option>
-                                        ))}
-                                    </select>
-                                </div>
-                                <div className="col-span-2">
-                                    <select
-                                        value={account.accountType}
-                                        onChange={(e) => updateAccount(account.tempId, 'accountType', e.target.value)}
-                                        className="w-full px-3 py-2 bg-white border border-gray-200 rounded-md text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-all"
-                                        disabled={!account.accountCategory}
-                                    >
-                                        <option value="">
-                                            {account.accountCategory ? 'Select type...' : 'Select category first'}
-                                        </option>
-                                        {accountTypes.map(type => (
-                                            <option key={type.value} value={type.value}>
-                                                {type.label}
-                                            </option>
-                                        ))}
-                                    </select>
-                                </div>
-                                <div className="col-span-1 flex items-center justify-center space-x-1">
-                                    <button
-                                        onClick={() => duplicateAccount(account)}
-                                        className="p-1 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded transition-all"
-                                        title="Duplicate"
-                                    >
-                                        <Copy className="w-4 h-4" />
-                                    </button>
-                                    <button
-                                        onClick={() => deleteAccount(account.tempId)}
-                                        className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-all"
-                                        title="Delete"
-                                    >
-                                        <Trash2 className="w-4 h-4" />
-                                    </button>
-                                </div>
+                                    </div>
+                                )}
+                                
+                                {/* Success checkmark animation - Enhanced */}
+                                {isValid && !account.isNew && (
+                                    <div className="absolute -right-3 bottom-3 opacity-0 group-hover:opacity-100 transition-all duration-300">
+                                        <div className="w-8 h-8 rounded-full bg-gradient-to-r from-green-500 to-emerald-500 flex items-center justify-center transform scale-0 group-hover:scale-100 transition-transform duration-300 shadow-lg">
+                                            <Check className="w-4 h-4 text-white" />
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        );
+                    })}
+
+                    {/* Add Account Button - Integrated into the table */}
+                    <div className="flex justify-center pt-4">
+                        <button
+                            onClick={addNewAccount}
+                            className="group relative flex items-center px-8 py-4 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 text-white rounded-xl hover:from-indigo-600 hover:via-purple-600 hover:to-pink-600 transition-all duration-300 transform hover:scale-105 hover:shadow-2xl overflow-hidden"
+                        >
+                            <div className="absolute inset-0 bg-gradient-to-r from-indigo-400 via-purple-400 to-pink-400 opacity-0 group-hover:opacity-30 transition-opacity duration-300" />
+                            
+                            <div className="relative flex items-center">
+                                <Plus className="w-6 h-6 mr-3 group-hover:rotate-90 transition-transform duration-300" />
+                                <span className="font-semibold text-lg">Add Another Account</span>
                             </div>
                             
-                            {/* Visual status indicator */}
-                            <div className={`absolute left-0 top-0 bottom-0 w-1 rounded-l-lg transition-all duration-500 ${
-                                account.isNew ? 'bg-gradient-to-b from-indigo-400 to-indigo-600 animate-pulse' :
-                                isValid ? 'bg-gradient-to-b from-green-400 to-green-600' : 'bg-gray-300'
-                            }`} />
-                            
-                            {/* Category icon preview */}
-                            {selectedCategory && (
-                                <div className="absolute -right-3 -top-3 opacity-0 group-hover:opacity-100 transition-all duration-300 transform group-hover:scale-110 group-hover:rotate-12">
-                                    <div className="w-10 h-10 rounded-full border-2 border-white shadow-xl bg-gradient-to-br from-white to-gray-50 flex items-center justify-center">
-                                        <selectedCategory.icon className="w-5 h-5 text-gray-700" />
-                                    </div>
-                                </div>
-                            )}
-                            
-                            {/* Success checkmark animation */}
-                            {isValid && !account.isNew && (
-                                <div className="absolute -right-2 bottom-2 opacity-0 group-hover:opacity-100 transition-all duration-300">
-                                    <div className="w-6 h-6 rounded-full bg-green-500 flex items-center justify-center transform scale-0 group-hover:scale-100 transition-transform duration-300">
-                                        <Check className="w-3 h-3 text-white" />
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-                    );
-                })}
-            </div>
-
-            {/* Add Account Button */}
-            <div className="flex justify-center pt-2">
-                <button
-                    onClick={addNewAccount}
-                    className="group relative flex items-center px-6 py-3 bg-gradient-to-r from-indigo-500 to-indigo-600 text-white rounded-lg hover:from-indigo-600 hover:to-indigo-700 transition-all duration-300 transform hover:scale-105 hover:shadow-lg overflow-hidden"
-                >
-                    <div className="absolute inset-0 bg-gradient-to-r from-indigo-400 to-purple-400 opacity-0 group-hover:opacity-30 transition-opacity duration-300" />
-                    
-                    <div className="relative flex items-center">
-                        <Plus className="w-5 h-5 mr-2 group-hover:rotate-90 transition-transform duration-300" />
-                        <span className="font-medium">Add Another Account</span>
-                    </div>
-                    
-                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                        <div className="w-32 h-32 bg-white rounded-full opacity-0 group-hover:opacity-20 transform scale-0 group-hover:scale-150 transition-all duration-700" />
-                    </div>
-                </button>
-            </div>
-
-            {/* Keyboard shortcuts hint */}
-            <div className="bg-gradient-to-r from-indigo-50 to-purple-50 rounded-lg p-4 border border-indigo-100">
-                <div className="flex items-center justify-between">
-                    <div className="flex items-center">
-                        <Keyboard className="w-5 h-5 text-indigo-600 mr-3" />
-                        <p className="text-sm text-gray-700">
-                            <span className="font-medium">Pro tips:</span> Press <kbd className="px-2 py-1 bg-white border border-gray-300 rounded text-xs mx-1">Enter</kbd> to add another account • 
-                            <kbd className="px-2 py-1 bg-white border border-gray-300 rounded text-xs mx-1">Tab</kbd> to navigate fields
-                        </p>
-                    </div>
-                    <div className="flex items-center text-sm text-gray-600">
-                        <Zap className="w-4 h-4 text-amber-500 mr-1" />
-                        <span>Quick entry mode</span>
+                            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                                <div className="w-40 h-40 bg-white rounded-full opacity-0 group-hover:opacity-20 transform scale-0 group-hover:scale-150 transition-all duration-700" />
+                            </div>
+                        </button>
                     </div>
                 </div>
             </div>
 
-            {/* Submit Button */}
+            {/* Enhanced Keyboard shortcuts hint */}
+            <div className="bg-gradient-to-r from-indigo-50 via-purple-50 to-pink-50 rounded-xl p-6 border border-indigo-100/50 shadow-lg">
+                <div className="flex items-center justify-between">
+                    <div className="flex items-center">
+                        <div className="w-12 h-12 bg-white rounded-xl shadow-md flex items-center justify-center mr-4">
+                            <Keyboard className="w-6 h-6 text-indigo-600" />
+                        </div>
+                        <div>
+                            <p className="text-base text-gray-800 font-medium mb-1">Keyboard Shortcuts</p>
+                            <p className="text-sm text-gray-600">
+                                Press <kbd className="px-3 py-1.5 bg-white border border-gray-300 rounded-md text-xs mx-1 shadow-sm font-mono">Enter</kbd> to add another account • 
+                                <kbd className="px-3 py-1.5 bg-white border border-gray-300 rounded-md text-xs mx-1 shadow-sm font-mono">Tab</kbd> to navigate fields
+                            </p>
+                        </div>
+                    </div>
+                    <div className="flex items-center bg-amber-100 px-4 py-2 rounded-lg">
+                        <Zap className="w-5 h-5 text-amber-600 mr-2" />
+                        <span className="text-sm font-medium text-amber-800">Quick entry mode</span>
+                    </div>
+                </div>
+            </div>
+
+            {/* Submit Button - Enhanced */}
             {validAccounts.length > 0 && (
-                <div className="flex justify-center pt-4">
+                <div className="flex justify-center pt-6">
                     <button
                         onClick={handleSubmitAccounts}
                         disabled={isSubmitting}
-                        className="relative group px-8 py-3 bg-gradient-to-r from-green-600 to-green-700 text-white font-medium rounded-lg hover:from-green-700 hover:to-green-800 transition-all duration-200 transform hover:scale-105 hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
+                        className="relative group px-12 py-5 bg-gradient-to-r from-green-600 to-emerald-600 text-white font-semibold text-lg rounded-xl hover:from-green-700 hover:to-emerald-700 transition-all duration-200 transform hover:scale-105 hover:shadow-2xl disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none shadow-xl"
                     >
                         {isSubmitting ? (
                             <>
-                                <Loader2 className="w-5 h-5 mr-2 animate-spin inline" />
+                                <Loader2 className="w-6 h-6 mr-3 animate-spin inline" />
                                 Creating Accounts...
                             </>
                         ) : (
                             <>
-                                <CheckCircle className="w-5 h-5 mr-2 inline group-hover:scale-110 transition-transform" />
-                                Add {validAccounts.length} Account{validAccounts.length !== 1 ? 's' : ''}
+                                <CheckCircle className="w-6 h-6 mr-3 inline group-hover:scale-110 transition-transform" />
+                                Add {validAccounts.length} Account{validAccounts.length !== 1 ? 's' : ''} to Portfolio
                             </>
                         )}
                         
-                        <div className="absolute inset-0 bg-gradient-to-r from-green-400 to-emerald-400 rounded-lg opacity-0 group-hover:opacity-30 blur-xl transition-all duration-300" />
+                        <div className="absolute inset-0 bg-gradient-to-r from-green-400 to-emerald-400 rounded-xl opacity-0 group-hover:opacity-30 blur-xl transition-all duration-300" />
                     </button>
                 </div>
             )}
 
             <style jsx>{`
-                .custom-scrollbar::-webkit-scrollbar {
-                    width: 8px;
-                }
-                .custom-scrollbar::-webkit-scrollbar-track {
-                    background: #f3f4f6;
-                    border-radius: 4px;
-                }
-                .custom-scrollbar::-webkit-scrollbar-thumb {
-                    background: #d1d5db;
-                    border-radius: 4px;
-                }
-                .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-                    background: #9ca3af;
-                }
                 .slide-in-animation {
-                    animation: slideIn 0.3s ease-out;
+                    animation: slideIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
                 }
                 @keyframes slideIn {
                     from {
                         opacity: 0;
-                        transform: translateY(-10px);
+                        transform: translateY(-20px) scale(0.95);
                     }
                     to {
                         opacity: 1;
-                        transform: translateY(0);
+                        transform: translateY(0) scale(1);
                     }
                 }
             `}</style>
