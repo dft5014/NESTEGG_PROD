@@ -887,7 +887,7 @@ const QuickStartModal = ({ isOpen, onClose }) => {
                                                 className="w-full px-3 py-2 bg-gray-50 border border-gray-300 rounded-md text-sm focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-all placeholder-gray-400"
                                             />
                                         </div>
-                                        <div className="col-span-3 relative" style={{ zIndex: 100 }}>
+                                        <div className="col-span-3 relative" style={{ zIndex: 1000 }}>
                                             <SearchableDropdown
                                                 options={popularBrokerages}
                                                 value={account.institution}
