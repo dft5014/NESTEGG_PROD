@@ -36,10 +36,35 @@ import {
     Briefcase,
     ListPlus,
     Table,
-    Star
+    Star,
+    Calendar,
+    PieChart,
+    BarChart3,
+    Coins,
+    Home,
+    Gem,
+    Bitcoin,
+    FileText,
+    Package,
+    Grid3X3,
+    List,
+    Filter,
+    Tag,
+    Activity,
+    Layers,
+    Eye,
+    EyeOff,
+    RefreshCw,
+    Calculator,
+    PercentIcon,
+    CircleDollarSign,
+    Banknote,
+    ChartLine,
+    ChartBar
 } from 'lucide-react';
 import { fetchWithAuth } from '@/utils/api';
 import { popularBrokerages } from '@/utils/constants';
+import QuickAddPositionsModal from './QuickAddPositionsModal';
 
 // Account categories matching AccountModal
 const ACCOUNT_CATEGORIES = [
@@ -106,6 +131,35 @@ const ACCOUNT_TYPES_BY_CATEGORY = {
     ]
 };
 
+// Asset types for positions
+const ASSET_TYPES = [
+    { id: 'stock', name: 'Stock', icon: TrendingUp, color: 'blue', description: 'Common & Preferred Shares' },
+    { id: 'etf', name: 'ETF', icon: PieChart, color: 'green', description: 'Exchange Traded Funds' },
+    { id: 'mutualfund', name: 'Mutual Fund', icon: BarChart3, color: 'purple', description: 'Managed Investment Funds' },
+    { id: 'bond', name: 'Bond', icon: FileText, color: 'amber', description: 'Fixed Income Securities' },
+    { id: 'crypto', name: 'Cryptocurrency', icon: Bitcoin, color: 'orange', description: 'Digital Assets' },
+    { id: 'cash', name: 'Cash', icon: Banknote, color: 'emerald', description: 'Money Market & Cash' },
+    { id: 'commodity', name: 'Commodity', icon: Package, color: 'rose', description: 'Physical Goods & Resources' },
+    { id: 'realestate', name: 'Real Estate', icon: Home, color: 'indigo', description: 'Property & REITs' },
+    { id: 'alternative', name: 'Alternative', icon: Gem, color: 'pink', description: 'Art, Collectibles, Other' },
+];
+
+// Common stock symbols for quick selection
+const POPULAR_SYMBOLS = [
+    { symbol: 'AAPL', name: 'Apple Inc.' },
+    { symbol: 'MSFT', name: 'Microsoft Corp.' },
+    { symbol: 'GOOGL', name: 'Alphabet Inc.' },
+    { symbol: 'AMZN', name: 'Amazon.com Inc.' },
+    { symbol: 'NVDA', name: 'NVIDIA Corp.' },
+    { symbol: 'TSLA', name: 'Tesla Inc.' },
+    { symbol: 'META', name: 'Meta Platforms Inc.' },
+    { symbol: 'BRK.B', name: 'Berkshire Hathaway' },
+    { symbol: 'SPY', name: 'SPDR S&P 500 ETF' },
+    { symbol: 'QQQ', name: 'Invesco QQQ Trust' },
+    { symbol: 'VOO', name: 'Vanguard S&P 500 ETF' },
+    { symbol: 'VTI', name: 'Vanguard Total Stock Market ETF' },
+];
+
 // Component for animated numbers
 const AnimatedNumber = ({ value, duration = 500 }) => {
     const [displayValue, setDisplayValue] = useState(0);
@@ -122,6 +176,29 @@ const AnimatedNumber = ({ value, duration = 500 }) => {
     }, [value, duration]);
     
     return <span>{displayValue}</span>;
+};
+
+// Component for animated values with decimals
+const AnimatedValue = ({ value, prefix = '', suffix = '', decimals = 2 }) => {
+    const [displayValue, setDisplayValue] = useState(0);
+    
+    useEffect(() => {
+        const numValue = parseFloat(value) || 0;
+        let startTime;
+        const animate = (timestamp) => {
+            if (!startTime) startTime = timestamp;
+            const progress = Math.min((timestamp - startTime) / 500, 1);
+            setDisplayValue(progress * numValue);
+            if (progress < 1) requestAnimationFrame(animate);
+        };
+        requestAnimationFrame(animate);
+    }, [value]);
+    
+    return (
+        <span>
+            {prefix}{displayValue.toFixed(decimals)}{suffix}
+        </span>
+    );
 };
 
 // Custom dropdown with search - updated for better positioning and custom input
@@ -217,7 +294,7 @@ const SearchableDropdown = ({ options, value, onChange, placeholder, showLogos =
                     onKeyDown={handleInputKeyDown}
                     onFocus={() => setIsOpen(true)}
                     placeholder={placeholder}
-                    className={`w-full px-3 py-2 bg-white border border-gray-300 rounded-lg hover:border-gray-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all duration-200 pr-10 ${selectedOption?.logo ? 'pl-10' : ''}`}
+                    className="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg hover:border-gray-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all duration-200 pr-10"
                 />
                 {selectedOption?.logo && (
                     <img 
@@ -319,7 +396,7 @@ const SearchableDropdown = ({ options, value, onChange, placeholder, showLogos =
     );
 };
 
-const QuickStartModal = ({ isOpen, onClose }) => {
+const QuickStartModal = ({ isOpen, onClose, existingAccounts = [], onOpenPositions }) => {
     const [activeTab, setActiveTab] = useState('overview');
     const [selectedTemplate, setSelectedTemplate] = useState(null);
     const [uploadedFile, setUploadedFile] = useState(null);
@@ -333,6 +410,16 @@ const QuickStartModal = ({ isOpen, onClose }) => {
     const [isSubmitting, setIsSubmitting] = useState(false);
     const fileInputRef = useRef(null);
     const newRowRef = useRef(null);
+    
+    // Import the positions modal content
+    const [positions, setPositions] = useState([]);
+    const [viewMode, setViewMode] = useState('grid');
+    const [positionsSortConfig, setPositionsSortConfig] = useState({ key: null, direction: 'asc' });
+    const [filterAssetType, setFilterAssetType] = useState('all');
+    const [filterAccount, setFilterAccount] = useState('all');
+    const [bulkEditMode, setBulkEditMode] = useState(false);
+    const [selectedPositions, setSelectedPositions] = useState(new Set());
+    const newPositionRef = useRef(null);
 
     // Initialize with one empty account
     useEffect(() => {
@@ -360,6 +447,13 @@ const QuickStartModal = ({ isOpen, onClose }) => {
                 setImportMethod(null);
                 setAccounts([]);
                 setSortConfig({ key: null, direction: 'asc' });
+                setPositions([]);
+                setViewMode('grid');
+                setPositionsSortConfig({ key: null, direction: 'asc' });
+                setFilterAssetType('all');
+                setFilterAccount('all');
+                setBulkEditMode(false);
+                setSelectedPositions(new Set());
             }, 300);
         }
     }, [isOpen]);
@@ -449,6 +543,13 @@ const QuickStartModal = ({ isOpen, onClose }) => {
                     const errorText = await response.text();
                     throw new Error(`Failed to create account ${account.account_name}: ${errorText}`);
                 }
+            }
+            
+            // Fetch updated accounts list
+            const accountsResponse = await fetchWithAuth('/accounts');
+            if (accountsResponse.ok) {
+                const updatedAccounts = await accountsResponse.json();
+                setAvailableAccounts(updatedAccounts);
             }
             
             setActiveTab('success');
@@ -579,7 +680,14 @@ const QuickStartModal = ({ isOpen, onClose }) => {
 
                 <div 
                     className="group relative bg-gradient-to-br from-purple-50 to-purple-100 p-6 rounded-xl cursor-pointer hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1"
-                    onClick={() => setActiveTab('positions')}
+                    onClick={() => {
+                        const totalAccounts = [...(existingAccounts || []), ...(availableAccounts || [])];
+                        if (totalAccounts.length === 0) {
+                            alert('Please create accounts first before adding positions.');
+                        } else {
+                            setActiveTab('positions');
+                        }
+                    }}
                 >
                     <div className="absolute inset-0 bg-gradient-to-br from-purple-600 to-purple-700 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
                     <div className="relative z-10">
@@ -631,7 +739,104 @@ const QuickStartModal = ({ isOpen, onClose }) => {
         </div>
     );
 
-    const renderAccountImportChoice = () => (
+    const renderAccountImportChoice = () => {
+        // For positions tab, show different choices
+        if (activeTab === 'positions') {
+            return (
+                <div className="space-y-6 animate-fadeIn">
+                    <div className="text-center">
+                        <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-purple-500 to-purple-600 rounded-full mb-4">
+                            <FileSpreadsheet className="w-8 h-8 text-white" />
+                        </div>
+                        <h3 className="text-2xl font-bold text-gray-900 mb-2">Import Positions</h3>
+                        <p className="text-gray-600 max-w-md mx-auto">
+                            Choose how you'd like to add your positions
+                        </p>
+                    </div>
+
+                    <div className="grid md:grid-cols-2 gap-4">
+                        <div 
+                            className="group relative bg-gradient-to-br from-emerald-50 to-green-100 p-6 rounded-xl cursor-pointer hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1"
+                            onClick={() => {
+                                setShowPositionsModal(true);
+                                setImportMethod('ui');
+                            }}
+                        >
+                            <div className="absolute inset-0 bg-gradient-to-br from-emerald-600 to-green-700 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                            <div className="relative z-10">
+                                <div className="flex items-center justify-center w-12 h-12 bg-emerald-200 rounded-full mb-4 group-hover:bg-white/20 transition-colors">
+                                    <TrendingUp className="w-6 h-6 text-emerald-700 group-hover:text-white" />
+                                </div>
+                                <h4 className="text-xl font-semibold text-gray-900 group-hover:text-white mb-2 transition-colors">
+                                    Quick Add UI
+                                </h4>
+                                <p className="text-gray-700 group-hover:text-emerald-100 text-sm transition-colors mb-4">
+                                    Add positions directly with our advanced form
+                                </p>
+                                <div className="space-y-2">
+                                    <div className="flex items-center text-emerald-600 group-hover:text-emerald-100 text-sm transition-colors">
+                                        <Zap className="w-4 h-4 mr-2" />
+                                        <span>Smart symbol search</span>
+                                    </div>
+                                    <div className="flex items-center text-emerald-600 group-hover:text-emerald-100 text-sm transition-colors">
+                                        <Grid3X3 className="w-4 h-4 mr-2" />
+                                        <span>Grid or list view</span>
+                                    </div>
+                                    <div className="flex items-center text-emerald-600 group-hover:text-emerald-100 text-sm transition-colors">
+                                        <Calculator className="w-4 h-4 mr-2" />
+                                        <span>Real-time calculations</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div 
+                            className="group relative bg-gradient-to-br from-purple-50 to-pink-100 p-6 rounded-xl cursor-pointer hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1"
+                            onClick={() => setImportMethod('excel')}
+                        >
+                            <div className="absolute inset-0 bg-gradient-to-br from-purple-600 to-pink-700 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                            <div className="relative z-10">
+                                <div className="flex items-center justify-center w-12 h-12 bg-purple-200 rounded-full mb-4 group-hover:bg-white/20 transition-colors">
+                                    <Table className="w-6 h-6 text-purple-700 group-hover:text-white" />
+                                </div>
+                                <h4 className="text-xl font-semibold text-gray-900 group-hover:text-white mb-2 transition-colors">
+                                    Excel Import
+                                </h4>
+                                <p className="text-gray-700 group-hover:text-purple-100 text-sm transition-colors mb-4">
+                                    Upload a spreadsheet with your positions
+                                </p>
+                                <div className="space-y-2">
+                                    <div className="flex items-center text-purple-600 group-hover:text-purple-100 text-sm transition-colors">
+                                        <FileSpreadsheet className="w-4 h-4 mr-2" />
+                                        <span>Work offline</span>
+                                    </div>
+                                    <div className="flex items-center text-purple-600 group-hover:text-purple-100 text-sm transition-colors">
+                                        <Import className="w-4 h-4 mr-2" />
+                                        <span>Bulk import many positions</span>
+                                    </div>
+                                    <div className="flex items-center text-purple-600 group-hover:text-purple-100 text-sm transition-colors">
+                                        <Copy className="w-4 h-4 mr-2" />
+                                        <span>Copy from existing data</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                        <div className="flex items-center">
+                            <Star className="w-5 h-5 text-blue-600 mr-3 flex-shrink-0" />
+                            <p className="text-sm text-blue-900">
+                                <span className="font-medium">Pro tip:</span> Use the Quick Add UI for visual position entry with real-time validation
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+        
+        // Original accounts import choice
+        return (
         <div className="space-y-6 animate-fadeIn">
             <div className="text-center">
                 <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full mb-4">
@@ -809,7 +1014,7 @@ const QuickStartModal = ({ isOpen, onClose }) => {
             </div>
 
             {/* Compact Table Section */}
-            <div className="bg-white rounded-xl shadow-lg border border-gray-100">
+            <div className="bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden">
                 {/* Compact Table Header */}
                 <div className="bg-gradient-to-r from-gray-50 to-gray-100/50 px-6 py-3 border-b border-gray-200">
                     <div className="grid grid-cols-12 gap-4 text-xs font-semibold text-gray-700 uppercase tracking-wider">
@@ -887,7 +1092,7 @@ const QuickStartModal = ({ isOpen, onClose }) => {
                                                 className="w-full px-3 py-2 bg-gray-50 border border-gray-300 rounded-md text-sm focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-all placeholder-gray-400"
                                             />
                                         </div>
-                                        <div className="col-span-3 relative" style={{ zIndex: 1000 }}>
+                                        <div className="col-span-3 relative" style={{ zIndex: 100 }}>
                                             <SearchableDropdown
                                                 options={popularBrokerages}
                                                 value={account.institution}
@@ -1279,6 +1484,18 @@ const QuickStartModal = ({ isOpen, onClose }) => {
                    </div>
                </div>
            </div>
+           
+           {/* Positions Modal */}
+           {showPositionsModal && (
+               <QuickAddPositionsModal
+                   isOpen={showPositionsModal}
+                   onClose={() => {
+                       setShowPositionsModal(false);
+                       // Stay on positions tab to allow user to choose Excel import if desired
+                   }}
+                   accounts={[...(existingAccounts || []), ...(availableAccounts || [])]}
+               />
+           )}
        </div>
    );
 
