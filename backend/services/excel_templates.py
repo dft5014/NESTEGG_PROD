@@ -8,7 +8,7 @@ import io
 from typing import List, Dict, Optional
 
 # Import from your existing constants (you'll need to create this)
-from utils.constants import INSTITUTION_LIST, ACCOUNT_TYPES, ACCOUNT_CATEGORIES
+from backend.utils.constants import INSTITUTION_LIST, ACCOUNT_TYPES, ACCOUNT_CATEGORIES
 
 class ExcelTemplateService:
     """Service for generating Excel import templates"""
