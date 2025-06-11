@@ -241,14 +241,7 @@ const SearchableDropdown = ({ options, value, onChange, placeholder, showLogos =
             {isOpen && (
                 <div 
                     className="absolute z-[9999] w-full bg-white border border-gray-200 rounded-lg shadow-xl overflow-hidden animate-fadeIn"
-                    style={{
-                        ...dropdownStyle,
-                        position: 'fixed',
-                        width: buttonRef.current?.offsetWidth || 'auto',
-                        left: buttonRef.current?.getBoundingClientRect().left || 0,
-                        top: dropdownStyle.bottom ? 'auto' : (buttonRef.current?.getBoundingClientRect().bottom + 4) || 0,
-                        bottom: dropdownStyle.bottom ? (window.innerHeight - buttonRef.current?.getBoundingClientRect().top + 4) || 0 : 'auto'
-                    }}
+                    style={dropdownStyle}
                 >
                     <div className="max-h-64 overflow-y-auto">
                         {filteredOptions.length === 0 ? (
