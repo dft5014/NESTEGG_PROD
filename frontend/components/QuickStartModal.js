@@ -41,18 +41,70 @@ import {
 import { fetchWithAuth } from '@/utils/api';
 import { popularBrokerages } from '@/utils/constants';
 
-// Account types with icons
-const ACCOUNT_TYPES = [
-    { value: 'brokerage', label: 'Brokerage', icon: TrendingUp, color: 'blue' },
-    { value: 'retirement', label: 'Retirement', icon: PiggyBank, color: 'green' },
-    { value: 'ira', label: 'IRA', icon: Shield, color: 'purple' },
-    { value: 'roth_ira', label: 'Roth IRA', icon: Shield, color: 'indigo' },
-    { value: '401k', label: '401(k)', icon: Briefcase, color: 'amber' },
-    { value: 'hsa', label: 'HSA', icon: CreditCard, color: 'pink' },
-    { value: 'cash', label: 'Cash', icon: DollarSign, color: 'emerald' },
-    { value: 'crypto', label: 'Crypto', icon: Hash, color: 'orange' },
-    { value: 'other', label: 'Other', icon: Wallet, color: 'gray' }
+// Account categories matching AccountModal
+const ACCOUNT_CATEGORIES = [
+    { id: "brokerage", name: "Brokerage", icon: Briefcase },
+    { id: "retirement", name: "Retirement", icon: Building }, // Using Building as Landmark substitute
+    { id: "cash", name: "Cash / Banking", icon: DollarSign },
+    { id: "crypto", name: "Cryptocurrency", icon: Hash }, // Using Hash as Bitcoin substitute
+    { id: "metals", name: "Metals Storage", icon: Shield }, // Using Shield as Database substitute
+    { id: "realestate", name: "Real Estate", icon: Building } // Using Building as Home substitute
 ];
+
+// Account types by category matching AccountModal
+const ACCOUNT_TYPES_BY_CATEGORY = {
+    brokerage: [
+        { value: "Individual", label: "Individual" },
+        { value: "Joint", label: "Joint" },
+        { value: "Custodial", label: "Custodial" },
+        { value: "Trust", label: "Trust" },
+        { value: "Other Brokerage", label: "Other Brokerage" }
+    ],
+    retirement: [
+        { value: "Traditional IRA", label: "Traditional IRA" },
+        { value: "Roth IRA", label: "Roth IRA" },
+        { value: "401(k)", label: "401(k)" },
+        { value: "Roth 401(k)", label: "Roth 401(k)" },
+        { value: "SEP IRA", label: "SEP IRA" },
+        { value: "SIMPLE IRA", label: "SIMPLE IRA" },
+        { value: "403(b)", label: "403(b)" },
+        { value: "Pension", label: "Pension" },
+        { value: "HSA", label: "HSA (Health Savings Account)" },
+        { value: "Other Retirement", label: "Other Retirement" }
+    ],
+    cash: [
+        { value: "Checking", label: "Checking" },
+        { value: "Savings", label: "Savings" },
+        { value: "High Yield Savings", label: "High Yield Savings" },
+        { value: "Money Market", label: "Money Market" },
+        { value: "Certificate of Deposit (CD)", label: "Certificate of Deposit (CD)" },
+        { value: "Other Cash", label: "Other Cash" }
+    ],
+    crypto: [
+        { value: "Exchange Account", label: "Exchange Account" },
+        { value: "Hardware Wallet", label: "Hardware Wallet" },
+        { value: "Software Wallet", label: "Software Wallet" },
+        { value: "Cold Storage", label: "Cold Storage" },
+        { value: "Other Crypto", label: "Other Crypto" }
+    ],
+    metals: [
+        { value: "Home Storage", label: "Home Storage" },
+        { value: "Safe Deposit Box", label: "Safe Deposit Box" },
+        { value: "Third-Party Vault", label: "Third-Party Vault" },
+        { value: "Allocated Storage", label: "Allocated Storage" },
+        { value: "Unallocated Storage", label: "Unallocated Storage" },
+        { value: "Other Metals", label: "Other Metals" }
+    ],
+    realestate: [
+        { value: "Primary Residence", label: "Primary Residence" },
+        { value: "Vacation Home", label: "Vacation Home" },
+        { value: "Rental Property", label: "Rental Property" },
+        { value: "Commercial Property", label: "Commercial Property" },
+        { value: "Land", label: "Land" },
+        { value: "REIT", label: "REIT" },
+        { value: "Other Real Estate", label: "Other Real Estate" }
+    ]
+};
 
 // Component for animated numbers
 const AnimatedNumber = ({ value, duration = 500 }) => {
@@ -72,11 +124,13 @@ const AnimatedNumber = ({ value, duration = 500 }) => {
     return <span>{displayValue}</span>;
 };
 
-// Custom dropdown with search
-const SearchableDropdown = ({ options, value, onChange, placeholder, showLogos = false }) => {
+// Custom dropdown with search - updated for better positioning
+const SearchableDropdown = ({ options, value, onChange, placeholder, showLogos = false, dropdownPosition = 'bottom' }) => {
     const [isOpen, setIsOpen] = useState(false);
     const [search, setSearch] = useState('');
     const dropdownRef = useRef(null);
+    const buttonRef = useRef(null);
+    const [dropdownStyle, setDropdownStyle] = useState({});
     
     useEffect(() => {
         const handleClickOutside = (e) => {
@@ -87,6 +141,35 @@ const SearchableDropdown = ({ options, value, onChange, placeholder, showLogos =
         document.addEventListener('mousedown', handleClickOutside);
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, []);
+
+    // Calculate dropdown position to ensure it's visible
+    useEffect(() => {
+        if (isOpen && buttonRef.current) {
+            const buttonRect = buttonRef.current.getBoundingClientRect();
+            const viewportHeight = window.innerHeight;
+            const spaceBelow = viewportHeight - buttonRect.bottom;
+            const spaceAbove = buttonRect.top;
+            const dropdownHeight = 320; // Max height of dropdown
+            
+            if (spaceBelow < dropdownHeight && spaceAbove > dropdownHeight) {
+                // Show above
+                setDropdownStyle({
+                    bottom: '100%',
+                    top: 'auto',
+                    marginBottom: '0.25rem',
+                    marginTop: 0
+                });
+            } else {
+                // Show below
+                setDropdownStyle({
+                    top: '100%',
+                    bottom: 'auto',
+                    marginTop: '0.25rem',
+                    marginBottom: 0
+                });
+            }
+        }
+    }, [isOpen]);
     
     const filteredOptions = useMemo(() => {
         if (!search) return options;
@@ -100,6 +183,7 @@ const SearchableDropdown = ({ options, value, onChange, placeholder, showLogos =
     return (
         <div ref={dropdownRef} className="relative">
             <button
+                ref={buttonRef}
                 type="button"
                 onClick={() => setIsOpen(!isOpen)}
                 className="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg text-left flex items-center justify-between hover:border-gray-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all duration-200"
@@ -123,7 +207,10 @@ const SearchableDropdown = ({ options, value, onChange, placeholder, showLogos =
             </button>
             
             {isOpen && (
-                <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-xl overflow-hidden animate-fadeIn">
+                <div 
+                    className="absolute z-[9999] w-full bg-white border border-gray-200 rounded-lg shadow-xl overflow-hidden animate-fadeIn"
+                    style={dropdownStyle}
+                >
                     <div className="p-2 border-b border-gray-100">
                         <div className="relative">
                             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
@@ -134,6 +221,7 @@ const SearchableDropdown = ({ options, value, onChange, placeholder, showLogos =
                                 placeholder="Search institutions..."
                                 className="w-full pl-9 pr-3 py-2 bg-gray-50 border border-gray-200 rounded-md text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all"
                                 onClick={(e) => e.stopPropagation()}
+                                autoFocus
                             />
                         </div>
                     </div>
@@ -237,9 +325,8 @@ const QuickStartModal = ({ isOpen, onClose }) => {
             id: Date.now() + Math.random(),
             accountName: '',
             institution: '',
+            accountCategory: '',
             accountType: '',
-            accountNumber: '',
-            notes: '',
             isNew: true
         };
         setAccounts([...accounts, newAccount]);
@@ -247,13 +334,20 @@ const QuickStartModal = ({ isOpen, onClose }) => {
     };
 
     const updateAccount = (id, field, value) => {
-        setAccounts(accounts.map(acc => 
-            acc.id === id ? { ...acc, [field]: value, isNew: false } : acc
-        ));
+        setAccounts(accounts.map(acc => {
+            if (acc.id === id) {
+                // Reset accountType when category changes
+                if (field === 'accountCategory') {
+                    return { ...acc, [field]: value, accountType: '', isNew: false };
+                }
+                return { ...acc, [field]: value, isNew: false };
+            }
+            return acc;
+        }));
     };
 
-    const deleteAccount = (id) => {
-        setAccounts(accounts.filter(acc => acc.id !== id));
+    const deleteAccount = (account) => {
+        setAccounts(accounts.filter(acc => acc.id !== account.id));
     };
 
     const duplicateAccount = (account) => {
@@ -288,7 +382,7 @@ const QuickStartModal = ({ isOpen, onClose }) => {
     }, [accounts, sortConfig]);
 
     const validAccounts = accounts.filter(acc => 
-        acc.accountName && acc.institution && acc.accountType
+        acc.accountName && acc.institution && acc.accountCategory && acc.accountType
     );
 
     const handleSubmitAccounts = async () => {
@@ -296,14 +390,32 @@ const QuickStartModal = ({ isOpen, onClose }) => {
         
         setIsSubmitting(true);
         try {
-            // Simulate API call
-            await new Promise(resolve => setTimeout(resolve, 2000));
+            // Prepare accounts in the correct format
+            const accountsToSubmit = validAccounts.map(acc => ({
+                account_name: acc.accountName,
+                institution: acc.institution,
+                type: acc.accountType,
+                account_category: acc.accountCategory
+            }));
+            
+            // Submit accounts one by one (matching AccountModal behavior)
+            for (const account of accountsToSubmit) {
+                const response = await fetchWithAuth('/accounts', {
+                    method: "POST",
+                    body: JSON.stringify(account)
+                });
+                
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(`Failed to create account ${account.account_name}: ${errorText}`);
+                }
+            }
             
             // Success animation
             setActiveTab('success');
         } catch (error) {
             console.error('Error submitting accounts:', error);
-            alert('Failed to create accounts. Please try again.');
+            alert(`Failed to create accounts: ${error.message}`);
         } finally {
             setIsSubmitting(false);
         }
