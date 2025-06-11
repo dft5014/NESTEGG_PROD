@@ -217,7 +217,7 @@ const SearchableDropdown = ({ options, value, onChange, placeholder, showLogos =
                     onKeyDown={handleInputKeyDown}
                     onFocus={() => setIsOpen(true)}
                     placeholder={placeholder}
-                    className="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg hover:border-gray-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all duration-200 pr-10"
+                    className={`w-full px-3 py-2 bg-white border border-gray-300 rounded-lg hover:border-gray-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all duration-200 pr-10 ${selectedOption?.logo ? 'pl-10' : ''}`}
                 />
                 {selectedOption?.logo && (
                     <img 
