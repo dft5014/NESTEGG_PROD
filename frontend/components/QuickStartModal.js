@@ -805,24 +805,8 @@ const QuickStartModal = ({ isOpen, onClose }) => {
                 </div>
             </div>
 
-            {/* Account Rows */}
+            {/* Account Rows with custom styles */}
             <div className="space-y-2 max-h-[480px] overflow-y-auto custom-scrollbar">
-                <style jsx>{`
-                    .custom-scrollbar::-webkit-scrollbar {
-                        width: 8px;
-                    }
-                    .custom-scrollbar::-webkit-scrollbar-track {
-                        background: #f3f4f6;
-                        border-radius: 4px;
-                    }
-                    .custom-scrollbar::-webkit-scrollbar-thumb {
-                        background: #d1d5db;
-                        border-radius: 4px;
-                    }
-                    .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-                        background: #9ca3af;
-                    }
-                `}</style>
                 {sortedAccounts.map((account, index) => {
                     const isValid = account.accountName && account.institution && account.accountCategory && account.accountType;
                     const selectedInstitution = popularBrokerages.find(b => b.name === account.institution);
@@ -833,25 +817,10 @@ const QuickStartModal = ({ isOpen, onClose }) => {
                         <div 
                             key={account.tempId}
                             className={`group relative bg-white rounded-lg border transition-all duration-300 transform hover:scale-[1.01] ${
-                                account.isNew ? 'border-indigo-300 shadow-md shadow-indigo-100 animate-slideIn' : 
+                                account.isNew ? 'border-indigo-300 shadow-md shadow-indigo-100 slide-in-animation' : 
                                 isValid ? 'border-green-300 hover:shadow-lg hover:border-green-400' : 'border-gray-200 hover:border-gray-300'
                             }`}
-                            style={{
-                                animation: account.isNew ? 'slideIn 0.3s ease-out' : undefined
-                            }}
                         >
-                            <style jsx>{`
-                                @keyframes slideIn {
-                                    from {
-                                        opacity: 0;
-                                        transform: translateY(-10px);
-                                    }
-                                    to {
-                                        opacity: 1;
-                                        transform: translateY(0);
-                                    }
-                                }
-                            `}</style>
                             <div className="grid grid-cols-12 gap-2 p-3 items-center">
                                 <div className="col-span-3">
                                     <input
@@ -1021,6 +990,36 @@ const QuickStartModal = ({ isOpen, onClose }) => {
                     </button>
                 </div>
             )}
+
+            <style jsx>{`
+                .custom-scrollbar::-webkit-scrollbar {
+                    width: 8px;
+                }
+                .custom-scrollbar::-webkit-scrollbar-track {
+                    background: #f3f4f6;
+                    border-radius: 4px;
+                }
+                .custom-scrollbar::-webkit-scrollbar-thumb {
+                    background: #d1d5db;
+                    border-radius: 4px;
+                }
+                .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+                    background: #9ca3af;
+                }
+                .slide-in-animation {
+                    animation: slideIn 0.3s ease-out;
+                }
+                @keyframes slideIn {
+                    from {
+                        opacity: 0;
+                        transform: translateY(-10px);
+                    }
+                    to {
+                        opacity: 1;
+                        transform: translateY(0);
+                    }
+                }
+            `}</style>
         </div>
     );
 
