@@ -969,12 +969,21 @@ export const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, theme
 
         {/* Messages */}
         {message.text && (
-          <div className={`
-            p-4 rounded-lg flex items-center space-x-2 transition-all duration-300 animate-slide-in
-            ${message.type === 'error' ? 'bg-red-900/20 text-red-400 border border-red-800' :
-              message.type === 'warning' ? 'bg-yellow-900/20 text-yellow-400 border border-yellow-800' :
-              'bg-green-900/20 text-green-400 border border-green-800'}
-          `}>
+          <div 
+            className={`
+              p-4 rounded-lg flex items-center space-x-2 transition-all duration-300
+              ${message.type === 'error' ? 'bg-red-900/20 text-red-400 border border-red-800' :
+                message.type === 'warning' ? 'bg-yellow-900/20 text-yellow-400 border border-yellow-800' :
+                'bg-green-900/20 text-green-400 border border-green-800'}
+            `}
+            style={{
+              animation: 'slideIn 0.3s ease-out',
+              '@keyframes slideIn': {
+                from: { transform: 'translateY(-10px)', opacity: 0 },
+                to: { transform: 'translateY(0)', opacity: 1 }
+              }
+            }}
+          >
             {message.type === 'error' ? <AlertCircle className="w-5 h-5" /> :
              message.type === 'warning' ? <AlertCircle className="w-5 h-5" /> :
              <CheckCircle className="w-5 h-5" />}
@@ -1064,25 +1073,5 @@ function debounce(func, wait) {
     timeout = setTimeout(later, wait);
   };
 }
-
-// Add custom animations
-const style = document.createElement('style');
-style.textContent = `
-  @keyframes slide-in {
-    from {
-      transform: translateY(-10px);
-      opacity: 0;
-    }
-    to {
-      transform: translateY(0);
-      opacity: 1;
-    }
-  }
-  
-  .animate-slide-in {
-    animation: slide-in 0.3s ease-out;
-  }
-`;
-document.head.appendChild(style);
 
 export default AddQuickPositionModal;
