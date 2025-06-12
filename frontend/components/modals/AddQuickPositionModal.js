@@ -1,880 +1,632 @@
-// components/modals/AddQuickPositionModal.js
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import FixedModal from './FixedModal';
-import { fetchAllAccounts } from '@/utils/apimethods/accountMethods';
-import { 
-  addSecurityPosition, 
-  addCryptoPosition, 
-  addMetalPosition, 
-  addRealEstatePosition,
-  addCashPosition,
-  searchSecurities,
-  searchFXAssets 
-} from '@/utils/apimethods/positionMethods';
-import { formatCurrency, formatPercentage } from '@/utils/formatters';
-import {
-  Plus, X, Check, TrendingUp, Building2, Coins, DollarSign,
-  Home, BarChart3, Briefcase, Eye, EyeOff, Save, Trash2,
-  AlertCircle, CheckCircle, Clock, Hash, Search, ChevronDown
-} from 'lucide-react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { Plus, Trash2, Copy, Save, Briefcase, FileText, X, AlertCircle, CheckCircle, ChevronDown, Repeat } from 'lucide-react';
 
-export const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, theme = 'dark' }) => {
-  // Check if embedded mode
-  const isEmbedded = isOpen === true && !onClose;
-  const isDark = theme === 'dark' && !isEmbedded;
+// --- Mock API Methods & Utils ---
+// In a real app, these would be imported from your utils/api files.
+const MOCK_API_BASE_URL = '/api';
 
-  // Core state
-  const [inputMode, setInputMode] = useState('byType'); // 'byType' or 'byAccount'
-  const [selectedAccount, setSelectedAccount] = useState(null);
-  const [accounts, setAccounts] = useState([]);
-  const [queuedPositions, setQueuedPositions] = useState([]);
-  const [activeAssetType, setActiveAssetType] = useState('security');
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [showValues, setShowValues] = useState(true);
+const fetchWithAuth = async (url, options = {}) => {
+  console.log('Fetching:', url, options);
+  // Mocking API delay
+  await new Promise(res => setTimeout(res, 500));
   
-  // Form states for each asset type
-  const [securityForm, setSecurityForm] = useState({});
-  const [cryptoForm, setCryptoForm] = useState({});
-  const [metalForm, setMetalForm] = useState({});
-  const [realEstateForm, setRealEstateForm] = useState({});
-  const [cashForm, setCashForm] = useState({});
+  // Mocking auth and token refresh logic
+  const token = localStorage.getItem('access_token');
+  if (!token) {
+    console.error('No access token found.');
+    // In a real app, you might trigger a redirect to login
+    return { ok: false, status: 401, json: async () => ({ message: 'Unauthorized' }) };
+  }
   
-  // Search states
-  const [searchQuery, setSearchQuery] = useState('');
-  const [searchResults, setSearchResults] = useState([]);
-  const [isSearching, setIsSearching] = useState(false);
+  // Mock responses based on URL
+  if (url.includes('/accounts')) {
+    return {
+      ok: true,
+      json: async () => ([
+        { account_id: 101, account_name: 'Fidelity Brokerage', institution: 'Fidelity', account_type: 'Taxable', is_active: true },
+        { account_id: 102, account_name: 'Vanguard IRA', institution: 'Vanguard', account_type: 'Retirement', is_active: true },
+        { account_id: 103, account_name: 'Schwab Checking', institution: 'Charles Schwab', account_type: 'Cash', is_active: true },
+      ]),
+    };
+  }
   
-  // Messages
-  const [message, setMessage] = useState({ type: '', text: '' });
+  if (url.includes('/positions/batch')) {
+    const { positions } = JSON.parse(options.body);
+    // Simulate partial success
+    const successCount = Math.floor(positions.length * 0.8);
+    console.log(`Simulating batch creation: ${successCount} successful, ${positions.length - successCount} failed.`);
+    return {
+      ok: successCount === positions.length,
+      json: async () => ({ 
+        message: 'Batch processing complete.', 
+        success_count: successCount,
+        failed_count: positions.length - successCount,
+        details: positions.slice(successCount).map(p => ({ position: p, error: 'Simulated API error.' })) 
+      }),
+    };
+  }
 
-  // Asset type configuration
-  const assetTypes = {
-    security: {
-      name: 'Securities',
-      icon: <BarChart3 className="w-5 h-5" />,
-      color: 'blue',
-      gradient: 'from-blue-500 to-blue-700',
-      fields: ['ticker', 'shares', 'price', 'cost_basis', 'purchase_date']
-    },
-    crypto: {
-      name: 'Cryptocurrency',
-      icon: <Coins className="w-5 h-5" />,
-      color: 'orange',
-      gradient: 'from-orange-500 to-orange-700',
-      fields: ['symbol', 'quantity', 'purchase_price', 'current_price', 'purchase_date']
-    },
-    metal: {
-      name: 'Precious Metals',
-      icon: <Building2 className="w-5 h-5" />,
-      color: 'yellow',
-      gradient: 'from-yellow-500 to-yellow-700',
-      fields: ['metal_type', 'quantity', 'unit', 'purchase_price', 'current_price_per_unit', 'purchase_date']
-    },
-    realestate: {
-      name: 'Real Estate',
-      icon: <Home className="w-5 h-5" />,
-      color: 'green',
-      gradient: 'from-green-500 to-green-700',
-      fields: ['property_name', 'property_type', 'address', 'purchase_price', 'estimated_value', 'purchase_date']
-    },
-    cash: {
-      name: 'Cash',
-      icon: <DollarSign className="w-5 h-5" />,
-      color: 'purple',
-      gradient: 'from-purple-500 to-purple-700',
-      fields: ['currency', 'amount', 'account_type', 'interest_rate']
-    }
-  };
+  return { ok: true, json: async () => ({}) };
+};
 
-  // Load accounts on mount
+
+const fetchAllAccounts = async () => {
+  const response = await fetchWithAuth(`${MOCK_API_BASE_URL}/accounts`);
+  if (!response.ok) throw new Error('Failed to fetch accounts');
+  return response.json();
+};
+
+const createPositions = async (positions) => {
+  return fetchWithAuth(`${MOCK_API_BASE_URL}/positions/batch`, {
+    method: 'POST',
+    body: JSON.stringify({ positions }),
+  });
+};
+
+const formatCurrency = (value) => {
+    if (value == null) return '$0.00';
+    return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(value);
+};
+
+
+// --- Asset Configuration ---
+// Defines the structure and fields for each asset type.
+const ASSET_CONFIG = {
+  stock: {
+    label: 'Stocks',
+    icon: <Briefcase className="w-4 h-4" />,
+    fields: [
+      { name: 'symbol', label: 'Symbol', type: 'text', required: true, width: 'w-24' },
+      { name: 'quantity', label: 'Quantity', type: 'number', required: true, width: 'w-28' },
+      { name: 'purchase_price', label: 'Purchase Price', type: 'number', required: true, width: 'w-32' },
+      { name: 'purchase_date', label: 'Purchase Date', type: 'date', required: true, width: 'w-40' },
+      { name: 'account_id', label: 'Account', type: 'select', required: true, width: 'w-48' },
+      { name: 'exchange', label: 'Exchange', type: 'text', width: 'w-28' },
+      { name: 'dividend_yield', label: 'Div. Yield (%)', type: 'number', width: 'w-32' },
+    ]
+  },
+  bond: {
+    label: 'Bonds',
+    icon: <FileText className="w-4 h-4" />,
+    fields: [
+      { name: 'symbol', label: 'Symbol/CUSIP', type: 'text', required: true, width: 'w-28' },
+      { name: 'quantity', label: 'Quantity', type: 'number', required: true, width: 'w-28' },
+      { name: 'purchase_price', label: 'Purchase Price', type: 'number', required: true, width: 'w-32' },
+      { name: 'purchase_date', label: 'Purchase Date', type: 'date', required: true, width: 'w-40' },
+      { name: 'account_id', label: 'Account', type: 'select', required: true, width: 'w-48' },
+      { name: 'maturity_date', label: 'Maturity Date', type: 'date', required: true, width: 'w-40' },
+      { name: 'coupon_rate', label: 'Coupon (%)', type: 'number', required: true, width: 'w-28' },
+      { name: 'face_value', label: 'Face Value', type: 'number', required: true, width: 'w-28' },
+    ]
+  },
+  etf: {
+    label: 'ETFs',
+    icon: <Briefcase className="w-4 h-4" />,
+    fields: [
+      { name: 'symbol', label: 'Symbol', type: 'text', required: true, width: 'w-24' },
+      { name: 'quantity', label: 'Quantity', type: 'number', required: true, width: 'w-28' },
+      { name: 'purchase_price', label: 'Purchase Price', type: 'number', required: true, width: 'w-32' },
+      { name: 'purchase_date', label: 'Purchase Date', type: 'date', required: true, width: 'w-40' },
+      { name: 'account_id', label: 'Account', type: 'select', required: true, width: 'w-48' },
+      { name: 'expense_ratio', label: 'Expense Ratio (%)', type: 'number', width: 'w-36' },
+      { name: 'underlying_index', label: 'Index', type: 'text', width: 'w-48' },
+    ]
+  },
+  mutual_fund: {
+    label: 'Mutual Funds',
+    icon: <Briefcase className="w-4 h-4" />,
+    fields: [
+      { name: 'symbol', label: 'Symbol', type: 'text', required: true, width: 'w-24' },
+      { name: 'quantity', label: 'Quantity/Shares', type: 'number', required: true, width: 'w-32' },
+      { name: 'purchase_price', label: 'Purchase Price', type: 'number', required: true, width: 'w-32' },
+      { name: 'purchase_date', label: 'Purchase Date', type: 'date', required: true, width: 'w-40' },
+      { name: 'account_id', label: 'Account', type: 'select', required: true, width: 'w-48' },
+      { name: 'expense_ratio', label: 'Expense Ratio (%)', type: 'number', width: 'w-36' },
+      { name: 'fund_family', label: 'Fund Family', type: 'text', width: 'w-40' },
+    ]
+  },
+};
+
+const ASSET_TYPES = Object.keys(ASSET_CONFIG);
+
+// --- Reusable Components ---
+
+const PositionRow = React.memo(({ position, onUpdate, onDelete, onDuplicate, onKeyDown, accounts, fields, rowIndex, isFocused }) => {
+  const rowRef = useRef(null);
+
   useEffect(() => {
-    if (isOpen || isEmbedded) {
-      loadAccounts();
-      // Reset state when modal opens
-      setQueuedPositions([]);
-      setMessage({ type: '', text: '' });
-      resetAllForms();
+    if (isFocused) {
+      const firstInput = rowRef.current?.querySelector('input, select');
+      firstInput?.focus();
+      firstInput?.select();
     }
-  }, [isOpen, isEmbedded]);
+  }, [isFocused]);
 
-  const loadAccounts = async () => {
-    try {
-      const fetchedAccounts = await fetchAllAccounts();
-      setAccounts(fetchedAccounts);
-      if (fetchedAccounts.length > 0 && inputMode === 'byAccount') {
-        setSelectedAccount(fetchedAccounts[0]);
-      }
-    } catch (error) {
-      console.error('Error loading accounts:', error);
-      setMessage({ type: 'error', text: 'Failed to load accounts' });
+  const handleChange = (e) => {
+    const { name, value, type } = e.target;
+    let finalValue = value;
+    if (type === 'number') {
+      finalValue = value === '' ? null : parseFloat(value);
     }
+    if (type === 'select-one' && name === 'account_id') {
+      finalValue = value === '' ? null : parseInt(value);
+    }
+    onUpdate(position.id, { [name]: finalValue });
   };
 
-  const resetAllForms = () => {
-    setSecurityForm({});
-    setCryptoForm({});
-    setMetalForm({});
-    setRealEstateForm({});
-    setCashForm({});
-    setSearchQuery('');
-    setSearchResults([]);
-  };
-
-  // Calculate queue statistics
-  const queueStats = useMemo(() => {
-    const stats = {
-      totalPositions: queuedPositions.length,
-      byType: {},
-      byAccount: {},
-      totalValue: 0
-    };
-
-    queuedPositions.forEach(pos => {
-      // Count by type
-      stats.byType[pos.type] = (stats.byType[pos.type] || 0) + 1;
-      
-      // Count by account
-      const accountName = pos.accountName || 'Unassigned';
-      stats.byAccount[accountName] = (stats.byAccount[accountName] || 0) + 1;
-      
-      // Calculate total value
-      if (pos.type === 'security') {
-        stats.totalValue += (pos.data.shares || 0) * (pos.data.price || 0);
-      } else if (pos.type === 'crypto') {
-        stats.totalValue += (pos.data.quantity || 0) * (pos.data.current_price || 0);
-      } else if (pos.type === 'metal') {
-        stats.totalValue += (pos.data.quantity || 0) * (pos.data.current_price_per_unit || 0);
-      } else if (pos.type === 'realestate') {
-        stats.totalValue += pos.data.estimated_value || 0;
-      } else if (pos.type === 'cash') {
-        stats.totalValue += pos.data.amount || 0;
-      }
-    });
-
-    return stats;
-  }, [queuedPositions]);
-
-  // Add position to queue
-  const addToQueue = () => {
-    let formData, isValid = true;
-    
-    // Get the appropriate form data
-    switch (activeAssetType) {
-      case 'security':
-        formData = securityForm;
-        if (!formData.ticker || !formData.shares || !formData.price) isValid = false;
-        break;
-      case 'crypto':
-        formData = cryptoForm;
-        if (!formData.symbol || !formData.quantity || !formData.current_price) isValid = false;
-        break;
-      case 'metal':
-        formData = metalForm;
-        if (!formData.metal_type || !formData.quantity || !formData.purchase_price) isValid = false;
-        break;
-      case 'realestate':
-        formData = realEstateForm;
-        if (!formData.property_name || !formData.purchase_price) isValid = false;
-        break;
-      case 'cash':
-        formData = cashForm;
-        if (!formData.currency || !formData.amount) isValid = false;
-        break;
-    }
-
-    if (!isValid) {
-      setMessage({ type: 'error', text: 'Please fill in all required fields' });
-      return;
-    }
-
-    // Add to queue
-    const newPosition = {
-      id: Date.now() + Math.random(), // Unique ID for React keys
-      type: activeAssetType,
-      accountId: inputMode === 'byAccount' ? selectedAccount?.id : formData.accountId,
-      accountName: inputMode === 'byAccount' ? selectedAccount?.account_name : 
-                   accounts.find(a => a.id === formData.accountId)?.account_name,
-      data: { ...formData }
-    };
-
-    setQueuedPositions([...queuedPositions, newPosition]);
-    
-    // Reset form
-    switch (activeAssetType) {
-      case 'security':
-        setSecurityForm({});
-        break;
-      case 'crypto':
-        setCryptoForm({});
-        break;
-      case 'metal':
-        setMetalForm({});
-        break;
-      case 'realestate':
-        setRealEstateForm({});
-        break;
-      case 'cash':
-        setCashForm({});
-        break;
-    }
-    
-    setSearchQuery('');
-    setSearchResults([]);
-    setMessage({ type: 'success', text: `${assetTypes[activeAssetType].name} position added to queue` });
-  };
-
-  // Remove position from queue
-  const removeFromQueue = (positionId) => {
-    setQueuedPositions(queuedPositions.filter(p => p.id !== positionId));
-  };
-
-  // Submit all queued positions
-  const submitAll = async () => {
-    if (queuedPositions.length === 0) {
-      setMessage({ type: 'error', text: 'No positions to submit' });
-      return;
-    }
-
-    // Check if all positions have accounts assigned
-    const unassignedPositions = queuedPositions.filter(p => !p.accountId);
-    if (unassignedPositions.length > 0) {
-      setMessage({ type: 'error', text: `${unassignedPositions.length} positions need account assignment` });
-      return;
-    }
-
-    setIsSubmitting(true);
-    let successCount = 0;
-    let errorCount = 0;
-
-    try {
-      // Group positions by type for batch processing
-      const positionsByType = {
-        security: queuedPositions.filter(p => p.type === 'security'),
-        crypto: queuedPositions.filter(p => p.type === 'crypto'),
-        metal: queuedPositions.filter(p => p.type === 'metal'),
-        realestate: queuedPositions.filter(p => p.type === 'realestate'),
-        cash: queuedPositions.filter(p => p.type === 'cash')
-      };
-
-      // Submit each type
-      for (const [type, positions] of Object.entries(positionsByType)) {
-        for (const position of positions) {
-          try {
-            switch (type) {
-              case 'security':
-                await addSecurityPosition(position.accountId, position.data);
-                break;
-              case 'crypto':
-                await addCryptoPosition(position.accountId, position.data);
-                break;
-              case 'metal':
-                await addMetalPosition(position.accountId, position.data);
-                break;
-              case 'realestate':
-                await addRealEstatePosition(position.accountId, position.data);
-                break;
-              case 'cash':
-                await addCashPosition(position.accountId, position.data);
-                break;
-            }
-            successCount++;
-          } catch (error) {
-            console.error(`Error adding ${type} position:`, error);
-            errorCount++;
-          }
-        }
-      }
-
-      if (errorCount === 0) {
-        setMessage({ type: 'success', text: `All ${successCount} positions added successfully!` });
-        if (onPositionsSaved) {
-          onPositionsSaved(successCount);
-        }
-        setTimeout(() => {
-          if (onClose) {
-            onClose();
-          }
-        }, 2000);
-      } else {
-        setMessage({ 
-          type: 'warning', 
-          text: `${successCount} positions added, ${errorCount} failed` 
-        });
-      }
-    } catch (error) {
-      console.error('Error submitting positions:', error);
-      setMessage({ type: 'error', text: 'Error submitting positions' });
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  // Render position form based on asset type
-  const renderPositionForm = () => {
-    const inputClass = isDark 
-      ? "px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-400 focus:border-blue-500 focus:outline-none"
-      : "px-4 py-2 bg-white border border-gray-300 rounded-lg text-gray-900 placeholder-gray-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20";
-
-    switch (activeAssetType) {
-      case 'security':
-        return (
-          <div className="space-y-4">
-            <div className="relative">
-              <input
-                type="text"
-                placeholder="Search ticker or company..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className={`w-full ${inputClass} pr-10`}
-              />
-              <Search className={`absolute right-3 top-2.5 w-5 h-5 ${isDark ? 'text-gray-400' : 'text-gray-500'}`} />
-            </div>
-            
-            <div className="grid grid-cols-2 gap-4">
-              <input
-                type="text"
-                placeholder="Ticker*"
-                value={securityForm.ticker || ''}
-                onChange={(e) => setSecurityForm({...securityForm, ticker: e.target.value.toUpperCase()})}
-                className={inputClass}
-              />
-              <input
-                type="number"
-                placeholder="Shares*"
-                value={securityForm.shares || ''}
-                onChange={(e) => setSecurityForm({...securityForm, shares: parseFloat(e.target.value)})}
-                className={inputClass}
-              />
-              <input
-                type="number"
-                placeholder="Current Price*"
-                value={securityForm.price || ''}
-                onChange={(e) => setSecurityForm({...securityForm, price: parseFloat(e.target.value)})}
-                className={inputClass}
-              />
-              <input
-                type="number"
-                placeholder="Cost Basis"
-                value={securityForm.cost_basis || ''}
-                onChange={(e) => setSecurityForm({...securityForm, cost_basis: parseFloat(e.target.value)})}
-                className={inputClass}
-              />
-              <input
-                type="date"
-                placeholder="Purchase Date"
-                value={securityForm.purchase_date || ''}
-                onChange={(e) => setSecurityForm({...securityForm, purchase_date: e.target.value})}
-                className={inputClass}
-              />
-              {inputMode === 'byType' && (
-                <select
-                  value={securityForm.accountId || ''}
-                  onChange={(e) => setSecurityForm({...securityForm, accountId: parseInt(e.target.value)})}
-                  className={inputClass}
-                >
-                  <option value="">Select Account*</option>
-                  {accounts.map(account => (
-                    <option key={account.id} value={account.id}>
-                      {account.account_name} - {account.institution}
-                    </option>
-                  ))}
-                </select>
-              )}
-            </div>
-          </div>
-        );
-
-      case 'crypto':
-        return (
-          <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <input
-                type="text"
-                placeholder="Symbol (e.g., BTC)*"
-                value={cryptoForm.symbol || ''}
-                onChange={(e) => setCryptoForm({...cryptoForm, symbol: e.target.value.toUpperCase()})}
-                className={inputClass}
-              />
-              <input
-                type="number"
-                placeholder="Quantity*"
-                value={cryptoForm.quantity || ''}
-                onChange={(e) => setCryptoForm({...cryptoForm, quantity: parseFloat(e.target.value)})}
-                className={inputClass}
-              />
-              <input
-                type="number"
-                placeholder="Purchase Price*"
-                value={cryptoForm.purchase_price || ''}
-                onChange={(e) => setCryptoForm({...cryptoForm, purchase_price: parseFloat(e.target.value)})}
-                className={inputClass}
-              />
-              <input
-                type="number"
-                placeholder="Current Price*"
-                value={cryptoForm.current_price || ''}
-                onChange={(e) => setCryptoForm({...cryptoForm, current_price: parseFloat(e.target.value)})}
-                className={inputClass}
-              />
-              <input
-                type="date"
-                placeholder="Purchase Date"
-                value={cryptoForm.purchase_date || ''}
-                onChange={(e) => setCryptoForm({...cryptoForm, purchase_date: e.target.value})}
-                className={inputClass}
-              />
-              {inputMode === 'byType' && (
-                <select
-                  value={cryptoForm.accountId || ''}
-                  onChange={(e) => setCryptoForm({...cryptoForm, accountId: parseInt(e.target.value)})}
-                  className={inputClass}
-                >
-                  <option value="">Select Account*</option>
-                  {accounts.map(account => (
-                    <option key={account.id} value={account.id}>
-                      {account.account_name} - {account.institution}
-                    </option>
-                  ))}
-                </select>
-              )}
-            </div>
-          </div>
-        );
-
-      case 'metal':
-        return (
-          <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <select
-                value={metalForm.metal_type || ''}
-                onChange={(e) => setMetalForm({...metalForm, metal_type: e.target.value})}
-                className={inputClass}
-              >
-                <option value="">Select Metal*</option>
-                <option value="Gold">Gold</option>
-                <option value="Silver">Silver</option>
-                <option value="Platinum">Platinum</option>
-                <option value="Palladium">Palladium</option>
-              </select>
-              <input
-                type="number"
-                placeholder="Quantity*"
-                value={metalForm.quantity || ''}
-                onChange={(e) => setMetalForm({...metalForm, quantity: parseFloat(e.target.value)})}
-                className={inputClass}
-              />
-              <select
-                value={metalForm.unit || 'oz'}
-                onChange={(e) => setMetalForm({...metalForm, unit: e.target.value})}
-                className={inputClass}
-              >
-                <option value="oz">Ounces</option>
-                <option value="g">Grams</option>
-                <option value="kg">Kilograms</option>
-              </select>
-              <input
-                type="number"
-                placeholder="Purchase Price/Unit*"
-                value={metalForm.purchase_price || ''}
-                onChange={(e) => setMetalForm({...metalForm, purchase_price: parseFloat(e.target.value)})}
-                className={inputClass}
-              />
-              <input
-                type="number"
-                placeholder="Current Price/Unit"
-                value={metalForm.current_price_per_unit || ''}
-                onChange={(e) => setMetalForm({...metalForm, current_price_per_unit: parseFloat(e.target.value)})}
-                className={inputClass}
-              />
-              <input
-                type="date"
-                placeholder="Purchase Date"
-                value={metalForm.purchase_date || ''}
-                onChange={(e) => setMetalForm({...metalForm, purchase_date: e.target.value})}
-                className={inputClass}
-              />
-              {inputMode === 'byType' && (
-                <select
-                  value={metalForm.accountId || ''}
-                  onChange={(e) => setMetalForm({...metalForm, accountId: parseInt(e.target.value)})}
-                  className={`${inputClass} col-span-2`}
-                >
-                  <option value="">Select Account*</option>
-                  {accounts.map(account => (
-                    <option key={account.id} value={account.id}>
-                      {account.account_name} - {account.institution}
-                    </option>
-                  ))}
-                </select>
-              )}
-            </div>
-          </div>
-        );
-
-      case 'realestate':
-        return (
-          <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <input
-                type="text"
-                placeholder="Property Name*"
-                value={realEstateForm.property_name || ''}
-                onChange={(e) => setRealEstateForm({...realEstateForm, property_name: e.target.value})}
-                className={inputClass}
-              />
-              <select
-                value={realEstateForm.property_type || ''}
-                onChange={(e) => setRealEstateForm({...realEstateForm, property_type: e.target.value})}
-                className={inputClass}
-              >
-                <option value="">Property Type</option>
-                <option value="Residential">Residential</option>
-                <option value="Commercial">Commercial</option>
-                <option value="Land">Land</option>
-                <option value="Industrial">Industrial</option>
-              </select>
-              <input
-                type="text"
-                placeholder="Address"
-                value={realEstateForm.address || ''}
-                onChange={(e) => setRealEstateForm({...realEstateForm, address: e.target.value})}
-                className={`${inputClass} col-span-2`}
-              />
-              <input
-                type="number"
-                placeholder="Purchase Price*"
-                value={realEstateForm.purchase_price || ''}
-                onChange={(e) => setRealEstateForm({...realEstateForm, purchase_price: parseFloat(e.target.value)})}
-                className={inputClass}
-              />
-              <input
-                type="number"
-                placeholder="Estimated Value"
-                value={realEstateForm.estimated_value || ''}
-                onChange={(e) => setRealEstateForm({...realEstateForm, estimated_value: parseFloat(e.target.value)})}
-                className={inputClass}
-              />
-              <input
-                type="date"
-                placeholder="Purchase Date"
-                value={realEstateForm.purchase_date || ''}
-                onChange={(e) => setRealEstateForm({...realEstateForm, purchase_date: e.target.value})}
-                className={inputClass}
-              />
-              {inputMode === 'byType' && (
-                <select
-                  value={realEstateForm.accountId || ''}
-                  onChange={(e) => setRealEstateForm({...realEstateForm, accountId: parseInt(e.target.value)})}
-                  className={inputClass}
-                >
-                  <option value="">Select Account*</option>
-                  {accounts.map(account => (
-                    <option key={account.id} value={account.id}>
-                      {account.account_name} - {account.institution}
-                    </option>
-                  ))}
-                </select>
-              )}
-            </div>
-          </div>
-        );
-
-      case 'cash':
-        return (
-          <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <select
-                value={cashForm.currency || 'USD'}
-                onChange={(e) => setCashForm({...cashForm, currency: e.target.value})}
-                className={inputClass}
-              >
-                <option value="USD">USD</option>
-                <option value="EUR">EUR</option>
-                <option value="GBP">GBP</option>
-                <option value="JPY">JPY</option>
-                <option value="CAD">CAD</option>
-              </select>
-              <input
-                type="number"
-                placeholder="Amount*"
-                value={cashForm.amount || ''}
-                onChange={(e) => setCashForm({...cashForm, amount: parseFloat(e.target.value)})}
-                className={inputClass}
-              />
-              <select
-                value={cashForm.account_type || ''}
-                onChange={(e) => setCashForm({...cashForm, account_type: e.target.value})}
-                className={inputClass}
-              >
-                <option value="">Account Type</option>
-                <option value="Savings">Savings</option>
-                <option value="Checking">Checking</option>
-                <option value="Money Market">Money Market</option>
-                <option value="CD">CD</option>
-              </select>
-              <input
-                type="number"
-                placeholder="Interest Rate %"
-                value={cashForm.interest_rate || ''}
-                onChange={(e) => setCashForm({...cashForm, interest_rate: parseFloat(e.target.value)})}
-                className={inputClass}
-              />
-              {inputMode === 'byType' && (
-                <select
-                  value={cashForm.accountId || ''}
-                  onChange={(e) => setCashForm({...cashForm, accountId: parseInt(e.target.value)})}
-                  className={`${inputClass} col-span-2`}
-                >
-                  <option value="">Select Account*</option>
-                  {accounts.map(account => (
-                    <option key={account.id} value={account.id}>
-                      {account.account_name} - {account.institution}
-                    </option>
-                  ))}
-                </select>
-              )}
-            </div>
-          </div>
-        );
-    }
-  };
-
-  // Content to render
-  const content = (
-    <div className="space-y-6">
-      {/* Mode Toggle and Stats */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center space-y-4 md:space-y-0">
-        <div className="flex items-center space-x-4">
-          <div className={`${isDark ? 'bg-gray-800' : 'bg-gray-100'} rounded-lg p-1 flex`}>
-            <button
-              onClick={() => setInputMode('byType')}
-              className={`px-4 py-2 rounded-md transition-all ${
-                inputMode === 'byType' 
-                  ? 'bg-blue-600 text-white' 
-                  : `${isDark ? 'text-gray-400 hover:text-white' : 'text-gray-600 hover:text-gray-900'}`
-              }`}
-            >
-              By Asset Type
-            </button>
-            <button
-              onClick={() => setInputMode('byAccount')}
-              className={`px-4 py-2 rounded-md transition-all ${
-                inputMode === 'byAccount' 
-                  ? 'bg-blue-600 text-white' 
-                  : `${isDark ? 'text-gray-400 hover:text-white' : 'text-gray-600 hover:text-gray-900'}`
-              }`}
-            >
-              By Account
-            </button>
-          </div>
-          
-          <button
-            onClick={() => setShowValues(!showValues)}
-            className={`p-2 ${isDark ? 'bg-gray-800 hover:bg-gray-700' : 'bg-gray-100 hover:bg-gray-200'} rounded-lg transition-colors`}
-          >
-            {showValues ? <Eye className="w-5 h-5" /> : <EyeOff className="w-5 h-5" />}
+  return (
+    <tr ref={rowRef} onKeyDown={(e) => onKeyDown(e, rowIndex)} className="group hover:bg-gray-800 focus-within:bg-gray-800 transition-colors duration-150">
+      <td className="p-1 sticky left-0 bg-gray-900 group-hover:bg-gray-800 group-focus-within:bg-gray-800">
+        <div className="flex items-center space-x-1">
+          <span className="text-gray-600 text-xs w-4 text-center">{rowIndex + 1}</span>
+          <button onClick={() => onDuplicate(position.id)} title="Duplicate Row" className="p-1 text-gray-500 hover:text-blue-400 focus:text-blue-400 rounded focus:outline-none focus:ring-2 focus:ring-blue-500">
+            <Copy size={14} />
+          </button>
+          <button onClick={() => onDelete(position.id)} title="Delete Row" className="p-1 text-gray-500 hover:text-red-400 focus:text-red-400 rounded focus:outline-none focus:ring-2 focus:ring-red-500">
+            <Trash2 size={14} />
           </button>
         </div>
-        
-        {/* Queue Stats */}
-        <div className="flex items-center space-x-6 text-sm">
-          <div className="flex items-center space-x-2">
-            <Hash className={`w-4 h-4 ${isDark ? 'text-gray-400' : 'text-gray-500'}`} />
-            <span className={isDark ? 'text-gray-400' : 'text-gray-600'}>Queued:</span>
-            <span className="font-bold">{queueStats.totalPositions}</span>
-          </div>
-          <div className="flex items-center space-x-2">
-            <TrendingUp className={`w-4 h-4 ${isDark ? 'text-gray-400' : 'text-gray-500'}`} />
-            <span className={isDark ? 'text-gray-400' : 'text-gray-600'}>Total Value:</span>
-            <span className="font-bold">
-              {showValues ? formatCurrency(queueStats.totalValue) : '••••'}
-            </span>
-          </div>
-        </div>
-      </div>
-
-      {/* Account Selector (By Account mode) */}
-      {inputMode === 'byAccount' && (
-        <div className={`${isDark ? 'bg-gray-800' : 'bg-gray-50'} rounded-lg p-4`}>
-          <label className={`block text-sm font-medium ${isDark ? 'text-gray-400' : 'text-gray-700'} mb-2`}>
-            Select Account
-          </label>
-          <select
-            value={selectedAccount?.id || ''}
-            onChange={(e) => {
-              const account = accounts.find(a => a.id === parseInt(e.target.value));
-              setSelectedAccount(account);
-            }}
-            className={`w-full px-4 py-2 ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-900'} border rounded-lg`}
-          >
-            <option value="">Choose an account...</option>
-            {accounts.map(account => (
-              <option key={account.id} value={account.id}>
-                {account.account_name} - {account.institution} ({account.type})
-              </option>
-            ))}
-          </select>
-        </div>
-      )}
-
-      {/* Asset Type Tabs */}
-      <div className={`border-b ${isDark ? 'border-gray-700' : 'border-gray-200'}`}>
-        <div className="flex space-x-1 overflow-x-auto">
-          {Object.entries(assetTypes).map(([key, config]) => (
-            <button
-              key={key}
-              onClick={() => setActiveAssetType(key)}
-              className={`px-4 py-3 flex items-center space-x-2 border-b-2 transition-all whitespace-nowrap ${
-                activeAssetType === key
-                  ? `border-${config.color}-500 ${isDark ? 'text-white' : 'text-gray-900'}`
-                  : `border-transparent ${isDark ? 'text-gray-400 hover:text-white' : 'text-gray-600 hover:text-gray-900'}`
-              }`}
+      </td>
+      {fields.map((field, colIndex) => (
+        <td key={field.name} className="p-0">
+          {field.type === 'select' ? (
+            <select
+              name={field.name}
+              value={position[field.name] || ''}
+              onChange={handleChange}
+              data-col={colIndex}
+              className={`bg-transparent w-full h-full p-1 border-r border-gray-800 text-white focus:outline-none focus:bg-gray-700 ${position.errors?.[field.name] ? 'border-b-2 border-red-500' : ''}`}
             >
-              <div className={`p-1 rounded bg-gradient-to-r ${config.gradient}`}>
-                {config.icon}
-              </div>
-              <span>{config.name}</span>
-              {queueStats.byType[key] > 0 && (
-                <span className={`ml-2 px-2 py-0.5 ${isDark ? 'bg-gray-700' : 'bg-gray-200'} rounded-full text-xs`}>
-                  {queueStats.byType[key]}
-                </span>
-              )}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Position Entry Form */}
-      <div className={`${isDark ? 'bg-gray-800' : 'bg-gray-50'} rounded-lg p-6`}>
-        {renderPositionForm()}
-        
-        <div className="mt-4 flex justify-end">
-          <button
-            onClick={addToQueue}
-            className="px-6 py-2 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-lg hover:from-blue-700 hover:to-blue-800 transition-all flex items-center space-x-2"
-          >
-            <Plus className="w-5 h-5" />
-            <span>Add to Queue</span>
-          </button>
-        </div>
-      </div>
-
-      {/* Messages */}
-      {message.text && (
-        <div className={`p-4 rounded-lg flex items-center space-x-2 ${
-          message.type === 'error' ? 'bg-red-900/20 text-red-400 border border-red-800' :
-          message.type === 'warning' ? 'bg-yellow-900/20 text-yellow-400 border border-yellow-800' :
-          'bg-green-900/20 text-green-400 border border-green-800'
-        }`}>
-          {message.type === 'error' ? <AlertCircle className="w-5 h-5" /> :
-           message.type === 'warning' ? <AlertCircle className="w-5 h-5" /> :
-           <CheckCircle className="w-5 h-5" />}
-          <span>{message.text}</span>
-        </div>
-      )}
-
-      {/* Queue Dashboard */}
-      {queuedPositions.length > 0 && (
-        <div className={`${isDark ? 'bg-gray-800' : 'bg-gray-50'} rounded-lg p-6`}>
-          <h3 className="text-lg font-semibold mb-4 flex items-center">
-            <Clock className="w-5 h-5 mr-2" />
-            Positions Queue ({queueStats.totalPositions})
-          </h3>
-          
-          <div className="space-y-2 max-h-96 overflow-y-auto">
-            {queuedPositions.map((position, index) => (
-              <div key={position.id} className={`${isDark ? 'bg-gray-700' : 'bg-white'} rounded-lg p-4 flex items-center justify-between`}>
-                <div className="flex items-center space-x-4">
-                  <div className={`p-2 rounded bg-gradient-to-r ${assetTypes[position.type].gradient}`}>
-                    {assetTypes[position.type].icon}
-                  </div>
-                  <div>
-                    <div className="font-medium">
-                      {position.type === 'security' && position.data.ticker}
-                      {position.type === 'crypto' && position.data.symbol}
-                      {position.type === 'metal' && `${position.data.metal_type} (${position.data.quantity} ${position.data.unit})`}
-                      {position.type === 'realestate' && position.data.property_name}
-                      {position.type === 'cash' && `${position.data.currency} ${showValues ? formatCurrency(position.data.amount) : '••••'}`}
-                    </div>
-                    <div className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-                      {position.accountName || 'Account not assigned'}
-                    </div>
-                  </div>
-                </div>
-                
-                <button
-                  onClick={() => removeFromQueue(position.id)}
-                  className="p-2 text-red-400 hover:bg-red-900/20 rounded-lg transition-colors"
-                >
-                  <Trash2 className="w-5 h-5" />
-                </button>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Action Buttons */}
-      <div className="flex justify-between">
-        <button
-          onClick={() => {
-            setQueuedPositions([]);
-            resetAllForms();
-            setMessage({ type: 'success', text: 'Queue cleared' });
-          }}
-          className={`px-6 py-2 ${isDark ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-200 hover:bg-gray-300'} ${isDark ? 'text-white' : 'text-gray-700'} rounded-lg transition-colors`}
-          disabled={queuedPositions.length === 0}
-        >
-          Clear Queue
-        </button>
-        
-        <div className="flex space-x-3">
-          {onClose && (
-            <button
-              onClick={onClose}
-              className={`px-6 py-2 ${isDark ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-200 hover:bg-gray-300'} ${isDark ? 'text-white' : 'text-gray-700'} rounded-lg transition-colors`}
-            >
-              Cancel
-            </button>
+              <option value="" className="text-gray-400">Select...</option>
+              {accounts.map(acc => (
+                <option key={acc.account_id} value={acc.account_id} className="bg-gray-800 text-white">
+                  {acc.account_name}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <input
+              type={field.type}
+              name={field.name}
+              value={position[field.name] || ''}
+              placeholder={field.label}
+              onChange={handleChange}
+              data-col={colIndex}
+              className={`bg-transparent w-full h-full p-1 border-r border-gray-800 text-white placeholder-gray-600 focus:outline-none focus:bg-gray-700 ${position.errors?.[field.name] ? 'border-b-2 border-red-500' : ''}`}
+            />
           )}
-          <button
-            onClick={submitAll}
-            disabled={queuedPositions.length === 0 || isSubmitting}
-            className="px-6 py-2 bg-gradient-to-r from-green-600 to-green-700 text-white rounded-lg hover:from-green-700 hover:to-green-800 transition-all flex items-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {isSubmitting ? (
-              <>
-                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
-                <span>Submitting...</span>
-              </>
-            ) : (
-              <>
-                <Save className="w-5 h-5" />
-                <span>Submit All ({queueStats.totalPositions})</span>
-              </>
-            )}
+        </td>
+      ))}
+    </tr>
+  );
+});
+
+// --- Main Modal Component ---
+
+const AddQuickPositionModal = ({ isOpen, onClose }) => {
+  // State
+  const [positions, setPositions] = useState([]);
+  const [accounts, setAccounts] = useState([]);
+  const [view, setView] = useState('byAssetType'); // 'byAssetType' or 'byAccount'
+  const [activeAssetType, setActiveAssetType] = useState(ASSET_TYPES[0]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [message, setMessage] = useState({ type: '', text: '' });
+  const [focusedRowIndex, setFocusedRowIndex] = useState(null);
+
+  const tableContainerRef = useRef(null);
+
+  // Derived State
+  const activeFields = useMemo(() => ASSET_CONFIG[activeAssetType].fields, [activeAssetType]);
+  const positionsForActiveType = useMemo(() => positions.filter(p => p.assetType === activeAssetType), [positions, activeAssetType]);
+  
+  // Methods
+  const getNewPosition = (type, defaults = {}) => {
+    const newPos = {
+      id: `temp_${Date.now()}_${Math.random()}`,
+      assetType: type,
+      errors: {},
+      ...defaults
+    };
+    ASSET_CONFIG[type].fields.forEach(field => {
+      newPos[field.name] = defaults[field.name] || (field.type === 'number' ? null : '');
+    });
+    return newPos;
+  };
+
+  const handleAddRow = useCallback(() => {
+    const newPosition = getNewPosition(activeAssetType);
+    setPositions(prev => [...prev, newPosition]);
+    setFocusedRowIndex(positionsForActiveType.length);
+    // Scroll to bottom of table
+    setTimeout(() => {
+        if (tableContainerRef.current) {
+            tableContainerRef.current.scrollTop = tableContainerRef.current.scrollHeight;
+        }
+    }, 50);
+  }, [activeAssetType, positionsForActiveType.length]);
+
+  const handleUpdatePosition = useCallback((id, updates) => {
+    setPositions(prev =>
+      prev.map(p => (p.id === id ? { ...p, ...updates, errors: {} } : p))
+    );
+    if(message.text) setMessage({ type: '', text: '' });
+  }, [message.text]);
+
+  const handleDeletePosition = useCallback((id) => {
+    setPositions(prev => prev.filter(p => p.id !== id));
+  }, []);
+
+  const handleDuplicatePosition = useCallback((id) => {
+    const sourcePos = positions.find(p => p.id === id);
+    if (!sourcePos) return;
+
+    const { id: oldId, errors, ...dataToCopy } = sourcePos;
+    const newPosition = getNewPosition(activeAssetType, dataToCopy);
+    
+    setPositions(prev => {
+        const sourceIndex = prev.findIndex(p => p.id === id);
+        const newPositions = [...prev];
+        newPositions.splice(sourceIndex + 1, 0, newPosition);
+        return newPositions;
+    });
+    setFocusedRowIndex(positions.filter(p => p.assetType === activeAssetType).findIndex(p => p.id === id) + 1);
+  }, [positions, activeAssetType]);
+  
+  const validatePositions = () => {
+    let allValid = true;
+    let errorCount = 0;
+    
+    const validatedPositions = positions.map(pos => {
+      const config = ASSET_CONFIG[pos.assetType];
+      const errors = {};
+      let hasError = false;
+
+      config.fields.forEach(field => {
+        if (field.required && (pos[field.name] === null || pos[field.name] === '')) {
+          errors[field.name] = `${field.label} is required.`;
+          hasError = true;
+        }
+      });
+      
+      if (hasError) {
+        allValid = false;
+        errorCount++;
+      }
+      
+      return { ...pos, errors };
+    });
+    
+    setPositions(validatedPositions);
+
+    if (!allValid) {
+       setMessage({ type: 'error', text: `Validation failed. Please fix ${errorCount} error(s) in the highlighted rows.` });
+    }
+
+    return allValid;
+  };
+
+  const handleSubmit = async () => {
+    if (positions.length === 0) {
+        setMessage({ type: 'error', text: 'No positions to submit.' });
+        return;
+    }
+
+    if (!validatePositions()) {
+        return;
+    }
+    
+    setIsSubmitting(true);
+    setMessage({ type: 'info', text: `Submitting ${positions.length} positions...`});
+
+    try {
+        const response = await createPositions(positions);
+        const result = await response.json();
+
+        if (!response.ok && result.failed_count > 0) {
+             setMessage({ type: 'warning', text: `Partial success: ${result.success_count} saved, ${result.failed_count} failed.` });
+             // Optionally, highlight or remove the failed positions based on API response
+        } else {
+             setMessage({ type: 'success', text: `Successfully saved all ${positions.length} positions!` });
+             setTimeout(() => {
+                 setPositions([]);
+                 if (onClose) onClose();
+             }, 2000);
+        }
+    } catch (error) {
+        console.error("Submission error:", error);
+        setMessage({ type: 'error', text: 'An unexpected error occurred during submission.' });
+    } finally {
+        setIsSubmitting(false);
+    }
+  };
+
+  const handleKeyDown = useCallback((e, rowIndex) => {
+    const { key, target } = e;
+    const currentColumn = parseInt(target.dataset.col, 10);
+    const totalColumns = activeFields.length;
+    
+    let nextRowIndex = rowIndex;
+    let nextColIndex = currentColumn;
+
+    const focusCell = (row, col) => {
+        const nextInput = tableContainerRef.current?.querySelector(`tr:nth-of-type(${row + 1}) [data-col='${col}']`);
+        nextInput?.focus();
+        nextInput?.select();
+    };
+
+    if (key === 'Enter' || (key === 'Tab' && !e.shiftKey && rowIndex === positionsForActiveType.length - 1 && currentColumn === totalColumns - 1)) {
+        e.preventDefault();
+        handleAddRow();
+    } else if (key === 'ArrowDown') {
+        e.preventDefault();
+        nextRowIndex = Math.min(rowIndex + 1, positionsForActiveType.length - 1);
+        focusCell(nextRowIndex, nextColIndex);
+    } else if (key === 'ArrowUp') {
+        e.preventDefault();
+        nextRowIndex = Math.max(rowIndex - 1, 0);
+        focusCell(nextRowIndex, nextColIndex);
+    } else if (key === 'ArrowRight' && !e.shiftKey) {
+        if(target.selectionStart === target.value.length || target.type !== 'text') {
+            e.preventDefault();
+            nextColIndex = Math.min(currentColumn + 1, totalColumns - 1);
+            focusCell(nextRowIndex, nextColIndex);
+        }
+    } else if (key === 'ArrowLeft' && !e.shiftKey) {
+        if(target.selectionStart === 0 || target.type !== 'text') {
+            e.preventDefault();
+            nextColIndex = Math.max(currentColumn - 1, 0);
+            focusCell(nextRowIndex, nextColIndex);
+        }
+    }
+
+  }, [handleAddRow, activeFields.length, positionsForActiveType.length]);
+
+  // Effects
+  useEffect(() => {
+    if (isOpen) {
+      const loadData = async () => {
+        setIsLoading(true);
+        try {
+          const accs = await fetchAllAccounts();
+          setAccounts(accs);
+          if (positions.length === 0) {
+            // Start with one blank row for the active type
+            setPositions([getNewPosition(activeAssetType)]);
+            setFocusedRowIndex(0);
+          }
+        } catch (error) {
+          console.error('Error loading accounts:', error);
+          setMessage({ type: 'error', text: 'Could not load accounts. Please try again.' });
+        } finally {
+          setIsLoading(false);
+        }
+      };
+      loadData();
+    } else {
+        // Reset state on close
+        setPositions([]);
+        setMessage({ type: '', text: '' });
+        setActiveAssetType(ASSET_TYPES[0]);
+        setView('byAssetType');
+    }
+  }, [isOpen]);
+
+
+  if (!isOpen) {
+    return null;
+  }
+
+  // Render Logic
+  const renderByAssetTypeView = () => (
+    <>
+      <div className="flex items-center border-b border-gray-700 px-4">
+        {ASSET_TYPES.map(type => {
+          const count = positions.filter(p => p.assetType === type).length;
+          return (
+            <button
+              key={type}
+              onClick={() => setActiveAssetType(type)}
+              className={`flex items-center space-x-2 px-3 py-2 text-sm font-medium border-b-2 transition-colors ${
+                activeAssetType === type 
+                ? 'border-blue-500 text-white'
+                : 'border-transparent text-gray-400 hover:text-white hover:border-gray-500'
+              }`}
+            >
+              {ASSET_CONFIG[type].icon}
+              <span>{ASSET_CONFIG[type].label}</span>
+              {count > 0 && <span className="text-xs bg-gray-700 text-gray-300 rounded-full px-2 py-0.5">{count}</span>}
+            </button>
+          );
+        })}
+      </div>
+      <div ref={tableContainerRef} className="flex-grow overflow-auto relative">
+        <table className="w-full border-separate" style={{ borderSpacing: 0 }}>
+          <thead className="sticky top-0 bg-gray-900 z-10">
+            <tr>
+              <th className="p-2 text-left text-xs font-medium text-gray-400 uppercase tracking-wider sticky left-0 bg-gray-900 w-24">Actions</th>
+              {activeFields.map(field => (
+                <th key={field.name} className={`p-2 text-left text-xs font-medium text-gray-400 uppercase tracking-wider border-l border-gray-800 ${field.width}`}>
+                  {field.label} {field.required && <span className="text-red-500">*</span>}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody className="bg-gray-850">
+            {positionsForActiveType.map((pos, index) => (
+              <PositionRow
+                key={pos.id}
+                position={pos}
+                onUpdate={handleUpdatePosition}
+                onDelete={handleDeletePosition}
+                onDuplicate={handleDuplicatePosition}
+                onKeyDown={handleKeyDown}
+                accounts={accounts}
+                fields={activeFields}
+                rowIndex={index}
+                isFocused={index === focusedRowIndex}
+              />
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <div className="flex-shrink-0 p-2 border-t border-gray-700">
+          <button onClick={handleAddRow} className="flex items-center space-x-2 text-sm text-blue-400 hover:text-blue-300 font-medium p-2 rounded focus:outline-none focus:ring-2 focus:ring-blue-500">
+            <Plus size={16} />
+            <span>Add New {ASSET_CONFIG[activeAssetType].label.slice(0, -1)}</span>
           </button>
+      </div>
+    </>
+  );
+  
+  const renderByAccountView = () => {
+    const positionsByAccount = positions.reduce((acc, pos) => {
+        const accountId = pos.account_id || 'unassigned';
+        if (!acc[accountId]) {
+            acc[accountId] = [];
+        }
+        acc[accountId].push(pos);
+        return acc;
+    }, {});
+    
+    const accountMap = accounts.reduce((map, acc) => {
+        map[acc.account_id] = acc;
+        return map;
+    }, {});
+
+    return (
+        <div className="flex-grow overflow-auto p-4 space-y-4">
+            {Object.entries(positionsByAccount).map(([accountId, accountPositions]) => {
+                 const account = accountMap[accountId];
+                 return (
+                    <div key={accountId} className="bg-gray-800 rounded-lg">
+                        <h3 className="font-semibold text-white p-3 border-b border-gray-700">
+                            {account ? `${account.account_name} (${account.institution})` : 'Unassigned Positions'}
+                        </h3>
+                        <ul className="divide-y divide-gray-700">
+                            {accountPositions.map(pos => (
+                                <li key={pos.id} className="flex items-center justify-between p-3">
+                                    <div className="flex items-center space-x-3">
+                                        <div className="text-blue-400">{ASSET_CONFIG[pos.assetType].icon}</div>
+                                        <div>
+                                            <span className="font-bold text-white">{pos.symbol || 'N/A'}</span>
+                                            <span className="text-gray-400 text-sm ml-2">{pos.quantity} units/shares</span>
+                                        </div>
+                                    </div>
+                                    <div className="text-sm text-gray-300">
+                                        Value: {formatCurrency(pos.quantity * pos.purchase_price)}
+                                    </div>
+                                </li>
+                            ))}
+                        </ul>
+                    </div>
+                 )
+            })}
         </div>
+    );
+  };
+  
+  const totalValue = useMemo(() => positions.reduce((sum, pos) => sum + ((pos.quantity || 0) * (pos.purchase_price || 0)), 0), [positions]);
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 p-4">
+      <div className="bg-gray-900 text-white rounded-lg shadow-2xl w-full h-full max-w-7xl max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
+        {/* Header */}
+        <header className="flex items-center justify-between p-4 border-b border-gray-700 flex-shrink-0">
+            <h2 className="text-xl font-bold">NestEgg Quick Position Entry</h2>
+            <div className="flex items-center space-x-4">
+                <div className="flex items-center text-sm space-x-4 bg-gray-800 p-1 rounded-md">
+                    <button 
+                        onClick={() => setView('byAssetType')}
+                        className={`px-3 py-1 rounded ${view === 'byAssetType' ? 'bg-blue-600 text-white' : 'text-gray-400 hover:text-white'}`}
+                    >
+                        By Asset Type
+                    </button>
+                    <button
+                        onClick={() => setView('byAccount')}
+                        className={`px-3 py-1 rounded ${view === 'byAccount' ? 'bg-blue-600 text-white' : 'text-gray-400 hover:text-white'}`}
+                    >
+                       By Account
+                    </button>
+                </div>
+                <button onClick={onClose} className="text-gray-500 hover:text-white">
+                    <X size={24} />
+                </button>
+            </div>
+        </header>
+
+        {/* Main Content */}
+        <main className="flex-grow flex flex-col overflow-hidden">
+            {isLoading ? (
+                <div className="flex-grow flex items-center justify-center">Loading...</div>
+            ) : view === 'byAssetType' ? renderByAssetTypeView() : renderByAccountView()}
+        </main>
+        
+        {/* Footer */}
+        <footer className="flex-shrink-0 p-4 border-t border-gray-700 bg-gray-900 flex items-center justify-between">
+            <div className="flex items-center space-x-6 text-sm">
+                <p><span className="font-bold text-white">{positions.length}</span> <span className="text-gray-400">Positions Queued</span></p>
+                 <p><span className="font-bold text-white">{formatCurrency(totalValue)}</span> <span className="text-gray-400">Total Value</span></p>
+                 {message.text && (
+                    <div className={`flex items-center space-x-2 p-2 rounded-md ${
+                        message.type === 'error' ? 'bg-red-500/10 text-red-400' : 
+                        message.type === 'warning' ? 'bg-yellow-500/10 text-yellow-400' : 
+                        message.type === 'success' ? 'bg-green-500/10 text-green-400' :
+                        'bg-blue-500/10 text-blue-400'
+                    }`}>
+                        {message.type === 'error' || message.type === 'warning' ? <AlertCircle size={16} /> : <CheckCircle size={16} />}
+                        <span>{message.text}</span>
+                    </div>
+                 )}
+            </div>
+            <div className="flex items-center space-x-3">
+                <button 
+                    onClick={onClose} 
+                    className="px-4 py-2 bg-gray-700 text-white rounded-md hover:bg-gray-600 transition-colors"
+                    disabled={isSubmitting}
+                >
+                    Cancel
+                </button>
+                <button 
+                    onClick={handleSubmit} 
+                    className="px-6 py-2 bg-green-600 text-white rounded-md hover:bg-green-500 transition-colors flex items-center space-x-2 disabled:bg-green-800 disabled:cursor-not-allowed"
+                    disabled={isSubmitting || positions.length === 0}
+                >
+                    {isSubmitting ? (
+                        <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                    ) : <Save size={18} />}
+                    <span>{isSubmitting ? 'Submitting...' : `Submit All (${positions.length})`}</span>
+                </button>
+            </div>
+        </footer>
       </div>
     </div>
   );
-
-  // If embedded, return content without modal wrapper
-  if (isEmbedded) {
-    return content;
-  }
-
-  // Otherwise, use FixedModal wrapper
-  return (
-    <FixedModal
-      isOpen={isOpen}
-      onClose={onClose}
-      title="Quick Position Entry"
-      maxWidth="max-w-6xl"
-    >
-      {content}
-    </FixedModal>
-  );
 };
 
-export default AddQuickPositionModal;
+// --- App Component to Demonstrate the Modal ---
+
+export default function App() {
+    const [isModalOpen, setIsModalOpen] = useState(false);
+
+    // This simulates setting a token on login
+    useEffect(() => {
+        localStorage.setItem('access_token', 'mock-jwt-token-for-demo');
+    }, []);
+
+    return (
+        <div className="bg-gray-800 text-white min-h-screen flex items-center justify-center font-sans">
+            <button
+                onClick={() => setIsModalOpen(true)}
+                className="px-6 py-3 bg-blue-600 rounded-lg text-lg font-semibold hover:bg-blue-500 transition-all shadow-lg"
+            >
+                Add Positions
+            </button>
+
+            <AddQuickPositionModal
+                isOpen={isModalOpen}
+                onClose={() => setIsModalOpen(false)}
+            />
+        </div>
+    );
+}
