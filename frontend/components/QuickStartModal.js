@@ -240,7 +240,7 @@ const SearchableDropdown = ({ options, value, onChange, placeholder, showLogos =
             
             {isOpen && (
                 <div 
-                    className="absolute z-[9999] w-full bg-white border border-gray-200 rounded-lg shadow-xl overflow-hidden animate-fadeIn"
+                    className="absolute z-[9999] w-full bg-white border border-gray-200 rounded-lg shadow-xl animate-fadeIn"
                     style={dropdownStyle}
                 >
                     <div className="max-h-64 overflow-y-auto">
@@ -773,7 +773,7 @@ const QuickStartModal = ({ isOpen, onClose }) => {
             <div className="flex items-center justify-between gap-3 bg-gradient-to-r from-gray-50 to-white p-3 rounded-xl border border-gray-100">
                 <button
                     onClick={addNewAccount}
-                    className="group relative flex-1 flex items-center justify-center px-4 py-2.5 bg-gradient-to-r from-indigo-500 to-purple-600 text-white rounded-lg hover:from-indigo-600 hover:to-purple-700 transition-all duration-300 transform hover:scale-[1.02] hover:shadow-lg overflow-hidden"
+                    className="group relative flex-1 flex items-center justify-center px-4 py-2.5 bg-gradient-to-r from-indigo-500 to-purple-600 text-white rounded-lg hover:from-indigo-600 hover:to-purple-700 transition-all duration-300 transform hover:scale-[1.02] hover:shadow-lg"
                 >
                     <div className="absolute inset-0 bg-gradient-to-r from-white/0 to-white/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
                     <div className="relative flex items-center">
@@ -809,7 +809,7 @@ const QuickStartModal = ({ isOpen, onClose }) => {
             </div>
 
             {/* Compact Table Section */}
-            <div className="bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden">
+            <div className="bg-white rounded-xl shadow-lg border border-gray-100">
                 {/* Compact Table Header */}
                 <div className="bg-gradient-to-r from-gray-50 to-gray-100/50 px-6 py-3 border-b border-gray-200">
                     <div className="grid grid-cols-12 gap-4 text-xs font-semibold text-gray-700 uppercase tracking-wider">
