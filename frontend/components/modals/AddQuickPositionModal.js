@@ -687,10 +687,9 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved }) => {
     );
   };
 
-  // The main modal content - wrapped to ensure full width
+  // The main modal content
   const modalContent = (
-    <div className="w-full">
-      <div className="min-h-[600px] max-h-[calc(100vh-200px)] flex flex-col">
+    <div className="min-h-[600px] max-h-[calc(100vh-200px)] flex flex-col">
         {/* Header Section */}
         <div className="flex-shrink-0 space-y-6 mb-6">
         {/* Title with icon */}
@@ -840,7 +839,6 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved }) => {
               </>
             )}
           </button>
-        </div>
       </div>
     </div>
   );
@@ -870,4 +868,5 @@ const debounce = (func, wait) => {
   };
 };
 
+export { AddQuickPositionModal };
 export default AddQuickPositionModal;
