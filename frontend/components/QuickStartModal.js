@@ -809,7 +809,7 @@ const QuickStartModal = ({ isOpen, onClose }) => {
             </div>
 
             {/* Compact Table Section */}
-            <div className="bg-white rounded-xl shadow-lg border border-gray-100">
+            <div className="bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden">
                 {/* Compact Table Header */}
                 <div className="bg-gradient-to-r from-gray-50 to-gray-100/50 px-6 py-3 border-b border-gray-200">
                     <div className="grid grid-cols-12 gap-4 text-xs font-semibold text-gray-700 uppercase tracking-wider">
