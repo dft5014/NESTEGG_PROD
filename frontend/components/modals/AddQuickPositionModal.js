@@ -697,171 +697,162 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved }) => {
       <div className="min-h-[600px] max-h-[calc(100vh-200px)] flex flex-col">
         {/* Header Section */}
         <div className="flex-shrink-0 space-y-6 mb-6">
-        {/* Title with icon */}
-        <div className="text-center">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full mb-4 shadow-lg shadow-blue-500/25">
-            <ListPlus className="w-8 h-8 text-white" />
+          {/* Title with icon */}
+          <div className="text-center">
+            <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full mb-4 shadow-lg shadow-blue-500/25">
+              <ListPlus className="w-8 h-8 text-white" />
+            </div>
+            <h3 className="text-2xl font-bold text-gray-900 mb-2">Quick Position Entry</h3>
+            <p className="text-gray-600 max-w-2xl mx-auto">
+              Add multiple positions across different asset classes. Build your complete portfolio in one place.
+            </p>
           </div>
-          <h3 className="text-2xl font-bold text-gray-900 mb-2">Quick Position Entry</h3>
-          <p className="text-gray-600 max-w-2xl mx-auto">
-            Add multiple positions across different asset classes. Build your complete portfolio in one place.
-          </p>
+
+          {/* Stats Dashboard - QuickStart style */}
+          <div className="relative bg-gradient-to-r from-indigo-50/50 via-purple-50/50 to-pink-50/50 rounded-xl p-4 shadow-sm border border-white/80 backdrop-blur-sm">
+            <div className="grid grid-cols-4 gap-4">
+              <div className="text-center">
+                <div className="inline-flex items-center justify-center w-12 h-12 bg-white rounded-lg shadow-sm mb-2">
+                  <p className="text-2xl font-black bg-gradient-to-r from-indigo-600 to-indigo-700 bg-clip-text text-transparent">
+                    <AnimatedNumber value={stats.totalPositions} />
+                  </p>
+                </div>
+                <p className="text-xs font-medium text-gray-600">Total Positions</p>
+              </div>
+              <div className="text-center">
+                <div className="inline-flex items-center justify-center w-12 h-12 bg-white rounded-lg shadow-sm mb-2">
+                  <p className="text-2xl font-black bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent">
+                    {showValues ? formatCurrency(stats.totalValue) : '••••'}
+                  </p>
+                </div>
+                <p className="text-xs font-medium text-gray-600">Total Value</p>
+              </div>
+              <div className="text-center">
+                <div className="inline-flex items-center justify-center w-12 h-12 bg-white rounded-lg shadow-sm mb-2">
+                  <p className="text-2xl font-black bg-gradient-to-r from-purple-600 to-purple-700 bg-clip-text text-transparent">
+                    <AnimatedNumber value={Object.keys(stats.byAccount).length} />
+                  </p>
+                </div>
+                <p className="text-xs font-medium text-gray-600">Accounts Used</p>
+              </div>
+              <div className="text-center">
+                <div className="inline-flex items-center justify-center w-12 h-12 bg-white rounded-lg shadow-sm mb-2">
+                  <p className="text-2xl font-black bg-gradient-to-r from-amber-600 to-orange-600 bg-clip-text text-transparent">
+                    <AnimatedNumber value={Object.values(stats.byType).filter(v => v > 0).length} />
+                  </p>
+                </div>
+                <p className="text-xs font-medium text-gray-600">Asset Types</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Action buttons and instructions */}
+          <div className="flex items-center justify-between bg-gradient-to-r from-gray-50 to-white p-3 rounded-xl border border-gray-100">
+            <div className="flex items-center space-x-4 text-xs text-gray-600">
+              <div className="flex items-center space-x-1">
+                <Keyboard className="w-4 h-4 text-gray-400" />
+                <span>Tab/Enter to navigate</span>
+              </div>
+              <div className="flex items-center space-x-1">
+                <MousePointer className="w-4 h-4 text-gray-400" />
+                <span>Click any field to edit</span>
+              </div>
+            </div>
+            <div className="flex items-center space-x-3">
+              <button
+                onClick={() => setShowValues(!showValues)}
+                className="p-2 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+                title={showValues ? 'Hide values' : 'Show values'}
+              >
+                {showValues ? <Eye className="w-4 h-4 text-gray-600" /> : <EyeOff className="w-4 h-4 text-gray-600" />}
+              </button>
+              <div className="flex items-center bg-amber-50 px-3 py-1.5 rounded-lg border border-amber-200">
+                <Zap className="w-4 h-4 text-amber-600 mr-1.5" />
+                <span className="text-xs font-medium text-amber-700">Quick Mode</span>
+              </div>
+            </div>
+          </div>
         </div>
 
-        {/* Stats Dashboard - QuickStart style */}
-        <div className="relative bg-gradient-to-r from-indigo-50/50 via-purple-50/50 to-pink-50/50 rounded-xl p-4 shadow-sm border border-white/80 backdrop-blur-sm">
-          <div className="grid grid-cols-4 gap-4">
-            <div className="text-center">
-              <div className="inline-flex items-center justify-center w-12 h-12 bg-white rounded-lg shadow-sm mb-2">
-                <p className="text-2xl font-black bg-gradient-to-r from-indigo-600 to-indigo-700 bg-clip-text text-transparent">
-                  <AnimatedNumber value={stats.totalPositions} />
-                </p>
-              </div>
-              <p className="text-xs font-medium text-gray-600">Total Positions</p>
-            </div>
-            <div className="text-center">
-              <div className="inline-flex items-center justify-center w-12 h-12 bg-white rounded-lg shadow-sm mb-2">
-                <p className="text-2xl font-black bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent">
-                  {showValues ? formatCurrency(stats.totalValue) : '••••'}
-                </p>
-              </div>
-              <p className="text-xs font-medium text-gray-600">Total Value</p>
-            </div>
-            <div className="text-center">
-              <div className="inline-flex items-center justify-center w-12 h-12 bg-white rounded-lg shadow-sm mb-2">
-                <p className="text-2xl font-black bg-gradient-to-r from-purple-600 to-purple-700 bg-clip-text text-transparent">
-                  <AnimatedNumber value={Object.keys(stats.byAccount).length} />
-                </p>
-              </div>
-              <p className="text-xs font-medium text-gray-600">Accounts Used</p>
-            </div>
-            <div className="text-center">
-              <div className="inline-flex items-center justify-center w-12 h-12 bg-white rounded-lg shadow-sm mb-2">
-                <p className="text-2xl font-black bg-gradient-to-r from-amber-600 to-orange-600 bg-clip-text text-transparent">
-                  <AnimatedNumber value={Object.values(stats.byType).filter(v => v > 0).length} />
-                </p>
-              </div>
-              <p className="text-xs font-medium text-gray-600">Asset Types</p>
-            </div>
-          </div>
+        {/* Scrollable Content */}
+        <div className="flex-1 overflow-y-auto space-y-4 px-1">
+          {Object.keys(assetTypes).map(assetType => renderAssetSection(assetType))}
         </div>
 
-        {/* Action buttons and instructions */}
-        <div className="flex items-center justify-between bg-gradient-to-r from-gray-50 to-white p-3 rounded-xl border border-gray-100">
-          <div className="flex items-center space-x-4 text-xs text-gray-600">
-            <div className="flex items-center space-x-1">
-              <Keyboard className="w-4 h-4 text-gray-400" />
-              <span>Tab/Enter to navigate</span>
-            </div>
-            <div className="flex items-center space-x-1">
-              <MousePointer className="w-4 h-4 text-gray-400" />
-              <span>Click any field to edit</span>
-            </div>
+        {/* Messages */}
+        {message.text && (
+          <div className={`mt-4 p-4 rounded-lg flex items-center space-x-2 ${
+            message.type === 'error' ? 'bg-red-50 text-red-700 border border-red-200' :
+            message.type === 'warning' ? 'bg-amber-50 text-amber-700 border border-amber-200' :
+            'bg-green-50 text-green-700 border border-green-200'
+          }`}>
+            {message.type === 'error' ? <AlertCircle className="w-5 h-5 text-red-600" /> :
+             message.type === 'warning' ? <AlertCircle className="w-5 h-5 text-amber-600" /> :
+             <CheckCircle className="w-5 h-5 text-green-600" />}
+            <span className="text-sm font-medium">{message.text}</span>
           </div>
+        )}
+
+        {/* Footer Actions */}
+        <div className="flex-shrink-0 flex justify-between items-center pt-6 mt-6 border-t border-gray-200">
+          <button
+            onClick={() => {
+              const initialPositions = {};
+              Object.keys(assetTypes).forEach(type => {
+                initialPositions[type] = [{
+                  id: Date.now() + Math.random(),
+                  type,
+                  data: {},
+                  errors: {},
+                  isNew: true
+                }];
+              });
+              setPositions(initialPositions);
+              setMessage({ type: 'success', text: 'All positions cleared' });
+            }}
+            className="px-6 py-2.5 bg-white border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 transition-all duration-200 flex items-center space-x-2"
+          >
+            <Trash2 className="w-4 h-4" />
+            <span>Clear All</span>
+          </button>
+          
           <div className="flex items-center space-x-3">
             <button
-              onClick={() => setShowValues(!showValues)}
-              className="p-2 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
-              title={showValues ? 'Hide values' : 'Show values'}
+              onClick={onClose}
+              className="px-6 py-2.5 bg-white border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 transition-all duration-200"
             >
-              {showValues ? <Eye className="w-4 h-4 text-gray-600" /> : <EyeOff className="w-4 h-4 text-gray-600" />}
+              Cancel
             </button>
-            <div className="flex items-center bg-amber-50 px-3 py-1.5 rounded-lg border border-amber-200">
-              <Zap className="w-4 h-4 text-amber-600 mr-1.5" />
-              <span className="text-xs font-medium text-amber-700">Quick Mode</span>
-            </div>
+            <button
+              onClick={submitAll}
+              disabled={stats.totalPositions === 0 || isSubmitting}
+              className={`px-6 py-2.5 font-medium rounded-lg transition-all duration-200 flex items-center space-x-2 ${
+                stats.totalPositions === 0 || isSubmitting
+                  ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                  : 'bg-gradient-to-r from-green-600 to-emerald-600 text-white hover:from-green-700 hover:to-emerald-700 transform hover:scale-[1.02] hover:shadow-lg'
+              }`}
+            >
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>Creating...</span>
+                </>
+              ) : (
+                <>
+                  <CheckCircle className="w-4 h-4" />
+                  <span>Add {stats.totalPositions} Positions</span>
+                </>
+              )}
+            </button>
           </div>
         </div>
       </div>
-
-      {/* Scrollable Content */}
-      <div className="flex-1 overflow-y-auto space-y-4 px-1">
-        {Object.keys(assetTypes).map(assetType => renderAssetSection(assetType))}
-      </div>
-
-      {/* Messages */}
-      {message.text && (
-        <div className={`mt-4 p-4 rounded-lg flex items-center space-x-2 ${
-          message.type === 'error' ? 'bg-red-50 text-red-700 border border-red-200' :
-          message.type === 'warning' ? 'bg-amber-50 text-amber-700 border border-amber-200' :
-          'bg-green-50 text-green-700 border border-green-200'
-        }`}>
-          {message.type === 'error' ? <AlertCircle className="w-5 h-5 text-red-600" /> :
-           message.type === 'warning' ? <AlertCircle className="w-5 h-5 text-amber-600" /> :
-           <CheckCircle className="w-5 h-5 text-green-600" />}
-          <span className="text-sm font-medium">{message.text}</span>
-        </div>
-      )}
-
-      {/* Footer Actions */}
-      <div className="flex-shrink-0 flex justify-between items-center pt-6 mt-6 border-t border-gray-200">
-        <button
-          onClick={() => {
-            const initialPositions = {};
-            Object.keys(assetTypes).forEach(type => {
-              initialPositions[type] = [{
-                id: Date.now() + Math.random(),
-                type,
-                data: {},
-                errors: {},
-                isNew: true
-              }];
-            });
-            setPositions(initialPositions);
-            setMessage({ type: 'success', text: 'All positions cleared' });
-          }}
-          className="px-6 py-2.5 bg-white border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 transition-all duration-200 flex items-center space-x-2"
-        >
-          <Trash2 className="w-4 h-4" />
-          <span>Clear All</span>
-        </button>
-        
-        <div className="flex items-center space-x-3">
-          <button
-            onClick={onClose}
-            className="px-6 py-2.5 bg-white border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 transition-all duration-200"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={submitAll}
-            disabled={stats.totalPositions === 0 || isSubmitting}
-            className={`px-6 py-2.5 font-medium rounded-lg transition-all duration-200 flex items-center space-x-2 ${
-              stats.totalPositions === 0 || isSubmitting
-                ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                : 'bg-gradient-to-r from-green-600 to-emerald-600 text-white hover:from-green-700 hover:to-emerald-700 transform hover:scale-[1.02] hover:shadow-lg'
-            }`}
-          >
-            {isSubmitting ? (
-              <>
-                <Loader2 className="w-4 h-4 animate-spin" />
-                <span>Creating...</span>
-              </>
-            ) : (
-              <>
-                <CheckCircle className="w-4 h-4" />
-                <span>Add {stats.totalPositions} Positions</span>
-              </>
-            )}
-          </button>
-      </div>
-    </div>
-  );
-
-  return (
-    <FixedModal
-      isOpen={isOpen}
-      onClose={onClose}
-      title="Quick Position Entry"
-      size="max-w-[1400px]"
-    >
-      {modalContent}
     </FixedModal>
   );
 };
 
 // Utility functions
-const debounce = (func, wait) => {
+function debounce(func, wait) {
   let timeout;
   return function executedFunction(...args) {
     const later = () => {
@@ -871,7 +862,7 @@ const debounce = (func, wait) => {
     clearTimeout(timeout);
     timeout = setTimeout(later, wait);
   };
-};
+}
 
 export { AddQuickPositionModal };
 export default AddQuickPositionModal;
