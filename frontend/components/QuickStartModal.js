@@ -41,7 +41,7 @@ import {
 } from 'lucide-react';
 import { fetchWithAuth } from '@/utils/api';
 import { popularBrokerages } from '@/utils/constants';
-import { AddQuickPositionModal } from '@/modals/AddQuickPositionModal';
+import { AddQuickPositionModal } from '@components/modals/AddQuickPositionModal';
 
 // Account categories matching AccountModal
 const ACCOUNT_CATEGORIES = [
