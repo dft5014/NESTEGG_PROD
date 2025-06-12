@@ -1039,7 +1039,7 @@ const QuickStartModal = ({ isOpen, onClose }) => {
             `}</style>
         </div>
     );
-        
+    }       
     const renderSuccessScreen = () => (
         <div className="space-y-6 animate-fadeIn text-center">
             <div className="relative">
