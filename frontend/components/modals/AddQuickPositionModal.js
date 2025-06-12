@@ -687,9 +687,14 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved }) => {
     );
   };
 
-  // The main modal content
-  const modalContent = (
-    <div className="min-h-[600px] max-h-[calc(100vh-200px)] flex flex-col">
+  return (
+    <FixedModal
+      isOpen={isOpen}
+      onClose={onClose}
+      title="Quick Position Entry"
+      size="max-w-[1400px]"
+    >
+      <div className="min-h-[600px] max-h-[calc(100vh-200px)] flex flex-col">
         {/* Header Section */}
         <div className="flex-shrink-0 space-y-6 mb-6">
         {/* Title with icon */}
