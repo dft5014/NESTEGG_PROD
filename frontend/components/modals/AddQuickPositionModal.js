@@ -819,21 +819,22 @@ export const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, theme
     <FixedModal
       isOpen={isOpen}
       onClose={onClose}
-      title={
-        <div className="flex items-center space-x-3">
+      title="Quick Position Entry"
+      maxWidth="max-w-7xl"
+    >
+      <div className="space-y-4">
+        {/* Title Header */}
+        <div className="flex items-center space-x-3 pb-2">
           <div className="p-2 rounded-lg bg-gradient-to-r from-blue-500/20 to-purple-500/20">
             <FileSpreadsheet className="w-5 h-5" />
           </div>
-          <span>Quick Position Entry</span>
+          <span className="text-lg font-semibold">Quick Position Entry</span>
           <div className="flex items-center space-x-2 ml-4">
             <Keyboard className="w-4 h-4 text-gray-500" />
             <span className="text-xs text-gray-500">Tab/Enter to navigate</span>
           </div>
         </div>
-      }
-      maxWidth="max-w-7xl"
-    >
-      <div className="space-y-4">
+
         {/* Header Controls */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center space-y-4 sm:space-y-0">
           <div className="flex items-center space-x-4">
@@ -907,7 +908,7 @@ export const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, theme
               <option value="">Choose an account...</option>
               {accounts.map(account => (
                 <option key={account.id} value={account.id}>
-                  {account.account_name} - {account.institution} ({account.type})
+                  {account.account_name} - {account.institution} {account.type ? `(${account.type})` : ''}
                 </option>
               ))}
             </select>
@@ -938,7 +939,7 @@ export const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, theme
                       p-1.5 rounded-lg transition-all duration-200
                       ${activeAssetType === key
                         ? `bg-gradient-to-r ${config.borderGradient} shadow-lg`
-                        : `bg-gradient-to-r ${config.bgGradient} group-hover:${config.hoverGradient}`
+                        : `bg-gradient-to-r ${config.bgGradient}`
                       }
                     `}>
                       <Icon className={`w-4 h-4 ${activeAssetType === key ? 'text-white' : ''}`} />
@@ -971,18 +972,11 @@ export const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, theme
         {message.text && (
           <div 
             className={`
-              p-4 rounded-lg flex items-center space-x-2 transition-all duration-300
+              p-4 rounded-lg flex items-center space-x-2 transition-all duration-300 transform
               ${message.type === 'error' ? 'bg-red-900/20 text-red-400 border border-red-800' :
                 message.type === 'warning' ? 'bg-yellow-900/20 text-yellow-400 border border-yellow-800' :
                 'bg-green-900/20 text-green-400 border border-green-800'}
             `}
-            style={{
-              animation: 'slideIn 0.3s ease-out',
-              '@keyframes slideIn': {
-                from: { transform: 'translateY(-10px)', opacity: 0 },
-                to: { transform: 'translateY(0)', opacity: 1 }
-              }
-            }}
           >
             {message.type === 'error' ? <AlertCircle className="w-5 h-5" /> :
              message.type === 'warning' ? <AlertCircle className="w-5 h-5" /> :
