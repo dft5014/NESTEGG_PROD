@@ -354,6 +354,8 @@ const QuickStartModal = ({ isOpen, onClose }) => {
     const [isSubmitting, setIsSubmitting] = useState(false);
     const fileInputRef = useRef(null);
     const newRowRef = useRef(null);
+    const [openDropdownId, setOpenDropdownId] = useState(null);
+
 
     // Initialize with one empty account
     useEffect(() => {
@@ -742,7 +744,6 @@ const QuickStartModal = ({ isOpen, onClose }) => {
     );
 
     const renderUIAccountCreation = () => {
-        const [openDropdownId, setOpenDropdownId] = useState(null);
 
         return (
         <div className="space-y-4 animate-fadeIn">
