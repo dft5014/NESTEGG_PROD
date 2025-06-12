@@ -255,11 +255,7 @@ const SearchableDropdown = ({ options, value, onChange, placeholder, showLogos =
             
             {isOpen && (
                 <div 
-                    className="absolute z-[99999] w-full bg-white border border-gray-200 rounded-lg shadow-xl animate-fadeIn"
-                    style={{
-                        ...dropdownStyle,
-                        zIndex: 99999
-                    }}
+                    className="absolute z-[99999] w-full bg-white border border-gray-200 rounded-lg shadow-xl animate-fadeIn top-full mt-1"
                 >
                     <div className="max-h-64 overflow-y-auto">
                         {filteredOptions.length === 0 ? (
