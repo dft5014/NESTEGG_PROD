@@ -687,11 +687,12 @@ export const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved }) => 
     );
   };
 
-  // The main modal content
+  // The main modal content - wrapped to ensure full width
   const modalContent = (
-    <div className="min-h-[600px] max-h-[calc(100vh-200px)] flex flex-col">
-      {/* Header Section */}
-      <div className="flex-shrink-0 space-y-6 mb-6">
+    <div className="w-full">
+      <div className="min-h-[600px] max-h-[calc(100vh-200px)] flex flex-col">
+        {/* Header Section */}
+        <div className="flex-shrink-0 space-y-6 mb-6">
         {/* Title with icon */}
         <div className="text-center">
           <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full mb-4 shadow-lg shadow-blue-500/25">
@@ -866,7 +867,7 @@ export const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved }) => 
       isOpen={isOpen}
       onClose={onClose}
       title="Quick Position Entry"
-      maxWidth="max-w-[1400px]"
+      size="max-w-[1400px]"
     >
       {modalContent}
     </FixedModal>
