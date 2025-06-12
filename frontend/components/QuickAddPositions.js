@@ -49,7 +49,7 @@ import {
     CreditCard,
     Receipt,
     Calculator,
-    PercentIcon,
+    Percent,
     CircleDollarSign,
     Banknote,
     ChartLine,
@@ -61,15 +61,87 @@ import { fetchWithAuth } from '@/utils/api';
 
 // Asset types with icons and colors
 const ASSET_TYPES = [
-    { id: 'stock', name: 'Stock', icon: TrendingUp, color: 'blue', description: 'Common & Preferred Shares' },
-    { id: 'etf', name: 'ETF', icon: PieChart, color: 'green', description: 'Exchange Traded Funds' },
-    { id: 'mutualfund', name: 'Mutual Fund', icon: BarChart3, color: 'purple', description: 'Managed Investment Funds' },
-    { id: 'bond', name: 'Bond', icon: FileText, color: 'amber', description: 'Fixed Income Securities' },
-    { id: 'crypto', name: 'Cryptocurrency', icon: Bitcoin, color: 'orange', description: 'Digital Assets' },
-    { id: 'cash', name: 'Cash', icon: Banknote, color: 'emerald', description: 'Money Market & Cash' },
-    { id: 'commodity', name: 'Commodity', icon: Package, color: 'rose', description: 'Physical Goods & Resources' },
-    { id: 'realestate', name: 'Real Estate', icon: Home, color: 'indigo', description: 'Property & REITs' },
-    { id: 'alternative', name: 'Alternative', icon: Gem, color: 'pink', description: 'Art, Collectibles, Other' },
+    { 
+        id: 'stock', 
+        name: 'Stock', 
+        icon: TrendingUp, 
+        color: 'blue', 
+        colorClasses: 'text-blue-600 bg-blue-100',
+        gradientClasses: 'bg-gradient-to-r from-blue-50 to-blue-100',
+        description: 'Common & Preferred Shares' 
+    },
+    { 
+        id: 'etf', 
+        name: 'ETF', 
+        icon: PieChart, 
+        color: 'green', 
+        colorClasses: 'text-green-600 bg-green-100',
+        gradientClasses: 'bg-gradient-to-r from-green-50 to-green-100',
+        description: 'Exchange Traded Funds' 
+    },
+    { 
+        id: 'mutualfund', 
+        name: 'Mutual Fund', 
+        icon: BarChart3, 
+        color: 'purple', 
+        colorClasses: 'text-purple-600 bg-purple-100',
+        gradientClasses: 'bg-gradient-to-r from-purple-50 to-purple-100',
+        description: 'Managed Investment Funds' 
+    },
+    { 
+        id: 'bond', 
+        name: 'Bond', 
+        icon: FileText, 
+        color: 'amber', 
+        colorClasses: 'text-amber-600 bg-amber-100',
+        gradientClasses: 'bg-gradient-to-r from-amber-50 to-amber-100',
+        description: 'Fixed Income Securities' 
+    },
+    { 
+        id: 'crypto', 
+        name: 'Cryptocurrency', 
+        icon: Bitcoin, 
+        color: 'orange', 
+        colorClasses: 'text-orange-600 bg-orange-100',
+        gradientClasses: 'bg-gradient-to-r from-orange-50 to-orange-100',
+        description: 'Digital Assets' 
+    },
+    { 
+        id: 'cash', 
+        name: 'Cash', 
+        icon: Banknote, 
+        color: 'emerald', 
+        colorClasses: 'text-emerald-600 bg-emerald-100',
+        gradientClasses: 'bg-gradient-to-r from-emerald-50 to-emerald-100',
+        description: 'Money Market & Cash' 
+    },
+    { 
+        id: 'commodity', 
+        name: 'Commodity', 
+        icon: Package, 
+        color: 'rose', 
+        colorClasses: 'text-rose-600 bg-rose-100',
+        gradientClasses: 'bg-gradient-to-r from-rose-50 to-rose-100',
+        description: 'Physical Goods & Resources' 
+    },
+    { 
+        id: 'realestate', 
+        name: 'Real Estate', 
+        icon: Home, 
+        color: 'indigo', 
+        colorClasses: 'text-indigo-600 bg-indigo-100',
+        gradientClasses: 'bg-gradient-to-r from-indigo-50 to-indigo-100',
+        description: 'Property & REITs' 
+    },
+    { 
+        id: 'alternative', 
+        name: 'Alternative', 
+        icon: Gem, 
+        color: 'pink', 
+        colorClasses: 'text-pink-600 bg-pink-100',
+        gradientClasses: 'bg-gradient-to-r from-pink-50 to-pink-100',
+        description: 'Art, Collectibles, Other' 
+    },
 ];
 
 // Common stock symbols for quick selection
@@ -456,9 +528,30 @@ const QuickAddPositionsModal = ({ isOpen, onClose, accounts = [] }) => {
         
         setIsSubmitting(true);
         try {
-            // Here you would submit to your API
-            // For now, we'll simulate a delay
-            await new Promise(resolve => setTimeout(resolve, 1500));
+            const positionsToSubmit = validPositions.map(pos => ({
+                account_id: pos.accountId,
+                symbol: pos.symbol,
+                quantity: parseFloat(pos.quantity),
+                purchase_date: pos.purchaseDate,
+                purchase_price: parseFloat(pos.purchasePrice),
+                asset_type: pos.assetType
+            }));
+            
+            // Submit positions one by one
+            for (const position of positionsToSubmit) {
+                const response = await fetchWithAuth('/positions', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(position)
+                });
+                
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(`Failed to create position ${position.symbol}: ${errorText}`);
+                }
+            }
             
             setShowSuccess(true);
         } catch (error) {
@@ -663,7 +756,7 @@ const QuickAddPositionsModal = ({ isOpen, onClose, accounts = [] }) => {
                         }`}
                     >
                         {/* Card Header */}
-                        <div className={`p-4 border-b ${assetType ? `bg-gradient-to-r from-${assetType.color}-50 to-${assetType.color}-100` : 'bg-gray-50'}`}>
+                        <div className={`p-4 border-b ${assetType ? assetType.gradientClasses : 'bg-gray-50'}`}>
                             <div className="flex items-center justify-between mb-3">
                                 <div className="flex items-center gap-2">
                                     {bulkEditMode && (
@@ -703,7 +796,7 @@ const QuickAddPositionsModal = ({ isOpen, onClose, accounts = [] }) => {
                             
                             {assetType && (
                                 <div className="flex items-center gap-2">
-                                    <assetType.icon className={`w-5 h-5 text-${assetType.color}-600`} />
+                                    <assetType.icon className={`w-5 h-5 ${assetType.colorClasses.split(' ')[0]}`} />
                                     <span className="text-sm font-medium text-gray-700">{assetType.description}</span>
                                 </div>
                             )}

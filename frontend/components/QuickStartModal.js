@@ -314,14 +314,14 @@ const QuickStartModal = ({ isOpen, onClose }) => {
             {/* Feature Grid */}
             <div className="grid grid-cols-4 gap-4">
                 {[
-                    { icon: Shield, label: 'Secure & Private', color: 'green' },
-                    { icon: Zap, label: 'Lightning Fast', color: 'blue' },
-                    { icon: Database, label: 'Auto-Saved', color: 'purple' },
-                    { icon: RefreshCw, label: 'Easy Updates', color: 'pink' }
+                    { icon: Shield, label: 'Secure & Private', color: 'green', bgClass: 'bg-green-100', textClass: 'text-green-600' },
+                    { icon: Zap, label: 'Lightning Fast', color: 'blue', bgClass: 'bg-blue-100', textClass: 'text-blue-600' },
+                    { icon: Database, label: 'Auto-Saved', color: 'purple', bgClass: 'bg-purple-100', textClass: 'text-purple-600' },
+                    { icon: RefreshCw, label: 'Easy Updates', color: 'pink', bgClass: 'bg-pink-100', textClass: 'text-pink-600' }
                 ].map((feature, idx) => (
                     <div key={idx} className="text-center group">
-                        <div className={`inline-flex items-center justify-center w-14 h-14 bg-${feature.color}-100 rounded-2xl mb-3 group-hover:scale-110 group-hover:shadow-lg transition-all duration-300`}>
-                            <feature.icon className={`w-7 h-7 text-${feature.color}-600`} />
+                        <div className={`inline-flex items-center justify-center w-14 h-14 ${feature.bgClass} rounded-2xl mb-3 group-hover:scale-110 group-hover:shadow-lg transition-all duration-300`}>
+                            <feature.icon className={`w-7 h-7 ${feature.textClass}`} />
                         </div>
                         <p className="text-sm font-medium text-gray-700">{feature.label}</p>
                     </div>
@@ -509,8 +509,8 @@ const QuickStartModal = ({ isOpen, onClose }) => {
                         }
                     ].map((item) => (
                         <div key={item.step} className="flex items-start">
-                            <div className={`flex-shrink-0 w-8 h-8 bg-${activeSection === 'accounts' ? 'blue' : 'purple'}-100 rounded-full flex items-center justify-center mr-3`}>
-                                <span className={`text-sm font-semibold text-${activeSection === 'accounts' ? 'blue' : 'purple'}-600`}>{item.step}</span>
+                            <div className={`flex-shrink-0 w-8 h-8 ${activeSection === 'accounts' ? 'bg-blue-100' : 'bg-purple-100'} rounded-full flex items-center justify-center mr-3`}>
+                                <span className={`text-sm font-semibold ${activeSection === 'accounts' ? 'text-blue-600' : 'text-purple-600'}`}>{item.step}</span>
                             </div>
                             <div>
                                 <p className="font-medium text-gray-900">{item.title}</p>
