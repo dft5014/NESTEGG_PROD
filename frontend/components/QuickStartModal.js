@@ -906,6 +906,7 @@ const QuickStartModal = ({ isOpen, onClose }) => {
                                                 onKeyDown={(e) => {
                                                     if (e.key === 'Enter' && isValid) {
                                                         e.preventDefault();
+                                                        setOpenDropdownId(null);
                                                         addNewAccount();
                                                     }
                                                 }}
