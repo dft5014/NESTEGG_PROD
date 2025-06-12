@@ -125,13 +125,14 @@ const AnimatedNumber = ({ value, duration = 500 }) => {
 };
 
 // Custom dropdown with search - updated for better positioning and custom input
-const SearchableDropdown = ({ options, value, onChange, placeholder, showLogos = false }) => {
+const SearchableDropdown = ({ options, value, onChange, placeholder, showLogos = false, onOpenChange }) => {
     const [isOpen, setIsOpen] = useState(false);
     const [search, setSearch] = useState('');
     const [inputValue, setInputValue] = useState(value || '');
     const dropdownRef = useRef(null);
     const buttonRef = useRef(null);
     const [dropdownStyle, setDropdownStyle] = useState({});
+    
     
     useEffect(() => {
         setInputValue(value || '');
@@ -141,6 +142,7 @@ const SearchableDropdown = ({ options, value, onChange, placeholder, showLogos =
         const handleClickOutside = (e) => {
             if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
                 setIsOpen(false);
+                if (onOpenChange) onOpenChange(false);
                 if (inputValue && inputValue !== value) {
                     onChange(inputValue);
                 }
@@ -148,7 +150,7 @@ const SearchableDropdown = ({ options, value, onChange, placeholder, showLogos =
         };
         document.addEventListener('mousedown', handleClickOutside);
         return () => document.removeEventListener('mousedown', handleClickOutside);
-    }, [inputValue, value, onChange]);
+    }, [inputValue, value, onChange, onOpenChange]);
 
     // Calculate dropdown position to ensure it's visible
     useEffect(() => {
@@ -191,7 +193,10 @@ const SearchableDropdown = ({ options, value, onChange, placeholder, showLogos =
         const newValue = e.target.value;
         setInputValue(newValue);
         setSearch(newValue);
-        if (!isOpen) setIsOpen(true);
+        if (!isOpen) {
+                    setIsOpen(true);
+                    if (onOpenChange) onOpenChange(true);
+                    }
     };
     
     const handleInputKeyDown = (e) => {
@@ -200,14 +205,16 @@ const SearchableDropdown = ({ options, value, onChange, placeholder, showLogos =
             if (inputValue) {
                 onChange(inputValue);
                 setIsOpen(false);
+                if (onOpenChange) onOpenChange(false);
             }
-        } else if (e.key === 'Escape') {
-            setIsOpen(false);
-        }
+            } else if (e.key === 'Escape') {
+                setIsOpen(false);
+                if (onOpenChange) onOpenChange(false);
+            }
     };
     
     return (
-        <div ref={dropdownRef} className="relative">
+        <div ref={dropdownRef} className={`relative ${isOpen ? 'z-[99999]' : ''}`}>
             <div className="relative">
                 <input
                     ref={buttonRef}
@@ -215,15 +222,19 @@ const SearchableDropdown = ({ options, value, onChange, placeholder, showLogos =
                     value={inputValue}
                     onChange={handleInputChange}
                     onKeyDown={handleInputKeyDown}
-                    onFocus={() => setIsOpen(true)}
+                    onFocus={() => {
+                        setIsOpen(true);
+                        if (onOpenChange) onOpenChange(true);
+                    }}
                     placeholder={placeholder}
                     className="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg hover:border-gray-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all duration-200 pr-10"
+                    style={{ paddingLeft: selectedOption?.logo ? '2.5rem' : undefined }}
                 />
                 {selectedOption?.logo && (
                     <img 
                         src={selectedOption.logo} 
                         alt={selectedOption.name}
-                        className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 rounded"
+                        className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 rounded pointer-events-none"
                         onError={(e) => {
                             e.target.style.display = 'none';
                         }}
@@ -231,7 +242,11 @@ const SearchableDropdown = ({ options, value, onChange, placeholder, showLogos =
                 )}
                 <button
                     type="button"
-                    onClick={() => setIsOpen(!isOpen)}
+                    onClick={() => {
+                        const newState = !isOpen;
+                        setIsOpen(newState);
+                        if (onOpenChange) onOpenChange(newState);
+                    }}
                     className="absolute right-0 top-0 bottom-0 px-3 flex items-center justify-center hover:bg-gray-50 rounded-r-lg transition-colors"
                 >
                     <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
@@ -240,8 +255,11 @@ const SearchableDropdown = ({ options, value, onChange, placeholder, showLogos =
             
             {isOpen && (
                 <div 
-                    className="absolute z-[9999] w-full bg-white border border-gray-200 rounded-lg shadow-xl animate-fadeIn"
-                    style={dropdownStyle}
+                    className="absolute z-[99999] w-full bg-white border border-gray-200 rounded-lg shadow-xl animate-fadeIn"
+                    style={{
+                        ...dropdownStyle,
+                        zIndex: 99999
+                    }}
                 >
                     <div className="max-h-64 overflow-y-auto">
                         {filteredOptions.length === 0 ? (
@@ -253,6 +271,7 @@ const SearchableDropdown = ({ options, value, onChange, placeholder, showLogos =
                                         onClick={() => {
                                             onChange(inputValue);
                                             setIsOpen(false);
+                                            if (onOpenChange) onOpenChange(false);
                                         }}
                                         className="text-sm text-blue-600 hover:text-blue-700 font-medium"
                                     >
@@ -265,10 +284,11 @@ const SearchableDropdown = ({ options, value, onChange, placeholder, showLogos =
                                 {inputValue && !options.find(opt => opt.name.toLowerCase() === inputValue.toLowerCase()) && (
                                     <button
                                         type="button"
-                                        onClick={() => {
-                                            onChange(inputValue);
-                                            setIsOpen(false);
-                                        }}
+                                            onClick={() => {
+                                                onChange(inputValue);
+                                                setIsOpen(false);
+                                                if (onOpenChange) onOpenChange(false);
+                                            }}
                                         className="w-full px-3 py-2 flex items-center bg-blue-50 hover:bg-blue-100 transition-colors border-b border-gray-100"
                                     >
                                         <Plus className="w-4 h-4 mr-3 text-blue-600" />
@@ -279,12 +299,13 @@ const SearchableDropdown = ({ options, value, onChange, placeholder, showLogos =
                                     <button
                                         key={idx}
                                         type="button"
-                                        onClick={() => {
-                                            onChange(option.name);
-                                            setInputValue(option.name);
-                                            setIsOpen(false);
-                                            setSearch('');
-                                        }}
+                                            onClick={() => {
+                                                onChange(option.name);
+                                                setInputValue(option.name);
+                                                setIsOpen(false);
+                                                if (onOpenChange) onOpenChange(false);
+                                                setSearch('');
+                                            }}
                                         className={`w-full px-3 py-2 flex items-center hover:bg-gray-50 transition-colors ${
                                             value === option.name ? 'bg-blue-50' : ''
                                         }`}
@@ -720,7 +741,10 @@ const QuickStartModal = ({ isOpen, onClose }) => {
         </div>
     );
 
-    const renderUIAccountCreation = () => (
+    const renderUIAccountCreation = () => {
+        const [openDropdownId, setOpenDropdownId] = useState(null);
+
+        return (
         <div className="space-y-4 animate-fadeIn">
             {/* Compact Header */}
             <div className="text-center">
@@ -846,7 +870,7 @@ const QuickStartModal = ({ isOpen, onClose }) => {
                 </div>
 
                 {/* Account Rows - Tighter spacing */}
-                <div className="p-3 space-y-2 bg-gradient-to-b from-gray-50/30 to-white">
+                <div className="p-3 space-y-2 bg-gradient-to-b from-gray-50/30 to-white relative overflow-visible" style={{ minHeight: '200px' }}>
                     {sortedAccounts.length === 0 ? (
                         <div className="text-center py-12">
                             <div className="inline-flex items-center justify-center w-16 h-16 bg-gray-100 rounded-full mb-3">
@@ -861,6 +885,8 @@ const QuickStartModal = ({ isOpen, onClose }) => {
                             const selectedCategory = ACCOUNT_CATEGORIES.find(c => c.id === account.accountCategory);
                             const accountTypes = ACCOUNT_TYPES_BY_CATEGORY[account.accountCategory] || [];
                             
+
+                            
                             return (
                                 <div 
                                     key={account.tempId}
@@ -868,7 +894,10 @@ const QuickStartModal = ({ isOpen, onClose }) => {
                                         account.isNew ? 'border-indigo-400 shadow-md shadow-indigo-200/50 slide-in-animation ring-2 ring-indigo-400/20' : 
                                         isValid ? 'border-green-300 hover:border-green-400' : 'border-gray-200 hover:border-gray-300'
                                     }`}
-                                    style={{ zIndex: sortedAccounts.length - index }}
+                                    style={{ 
+                                        zIndex: sortedAccounts.length - index,
+                                        position: 'relative'
+                                    }}
                                 >
                                     <div className="grid grid-cols-12 gap-3 p-3 items-center">
                                         <div className="col-span-3">
@@ -887,13 +916,14 @@ const QuickStartModal = ({ isOpen, onClose }) => {
                                                 className="w-full px-3 py-2 bg-gray-50 border border-gray-300 rounded-md text-sm focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-all placeholder-gray-400"
                                             />
                                         </div>
-                                        <div className="col-span-3 relative" style={{ zIndex: 1000 }}>
+                                            <div className="col-span-3 relative" style={{ zIndex: openDropdownId === account.tempId ? 99999 : 1000 }}>
                                             <SearchableDropdown
                                                 options={popularBrokerages}
                                                 value={account.institution}
                                                 onChange={(value) => updateAccount(account.tempId, 'institution', value)}
                                                 placeholder="Type to search..."
                                                 showLogos={true}
+                                                onOpenChange={(isOpen) => setOpenDropdownId(isOpen ? account.tempId : null)}
                                             />
                                             {account.institution && !popularBrokerages.find(b => b.name === account.institution) && (
                                                 <div className="absolute -bottom-5 left-0 text-[10px] text-indigo-600 flex items-center bg-indigo-50 px-1.5 py-0.5 rounded-full">
@@ -1009,7 +1039,7 @@ const QuickStartModal = ({ isOpen, onClose }) => {
             `}</style>
         </div>
     );
-
+        
     const renderSuccessScreen = () => (
         <div className="space-y-6 animate-fadeIn text-center">
             <div className="relative">
