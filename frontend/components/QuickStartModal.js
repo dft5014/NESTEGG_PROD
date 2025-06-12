@@ -36,10 +36,12 @@ import {
     Briefcase,
     ListPlus,
     Table,
+    BarChart3,
     Star
 } from 'lucide-react';
 import { fetchWithAuth } from '@/utils/api';
 import { popularBrokerages } from '@/utils/constants';
+import { AddQuickPositionModal } from '@/modals/AddQuickPositionModal';
 
 // Account categories matching AccountModal
 const ACCOUNT_CATEGORIES = [
@@ -351,6 +353,7 @@ const QuickStartModal = ({ isOpen, onClose }) => {
     const fileInputRef = useRef(null);
     const newRowRef = useRef(null);
     const [openDropdownId, setOpenDropdownId] = useState(null);
+
 
 
     // Initialize with one empty account
@@ -739,6 +742,113 @@ const QuickStartModal = ({ isOpen, onClose }) => {
         </div>
     );
 
+    const renderPositionImportChoice = () => (
+        <div className="space-y-6 animate-fadeIn">
+            <div className="text-center">
+                <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-purple-500 to-purple-600 rounded-full mb-4">
+                    <FileSpreadsheet className="w-8 h-8 text-white" />
+                </div>
+                <h3 className="text-2xl font-bold text-gray-900 mb-2">Import Positions</h3>
+                <p className="text-gray-600 max-w-md mx-auto">
+                    Choose how you'd like to add your positions
+                </p>
+            </div>
+
+            <div className="grid md:grid-cols-2 gap-4">
+                <div 
+                    className="group relative bg-gradient-to-br from-purple-50 to-purple-100 p-6 rounded-xl cursor-pointer hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1"
+                    onClick={() => setImportMethod('ui')}
+                >
+                    <div className="absolute inset-0 bg-gradient-to-br from-purple-600 to-purple-700 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                    <div className="relative z-10">
+                        <div className="flex items-center justify-center w-12 h-12 bg-purple-200 rounded-full mb-4 group-hover:bg-white/20 transition-colors">
+                            <ListPlus className="w-6 h-6 text-purple-700 group-hover:text-white" />
+                        </div>
+                        <h4 className="text-xl font-semibold text-gray-900 group-hover:text-white mb-2 transition-colors">
+                            Quick Add Positions
+                        </h4>
+                        <p className="text-gray-700 group-hover:text-purple-100 text-sm transition-colors mb-4">
+                            Add multiple positions across different asset types quickly
+                        </p>
+                        <div className="space-y-2">
+                            <div className="flex items-center text-purple-600 group-hover:text-purple-100 text-sm transition-colors">
+                                <Zap className="w-4 h-4 mr-2" />
+                                <span>Add 50+ positions rapidly</span>
+                            </div>
+                            <div className="flex items-center text-purple-600 group-hover:text-purple-100 text-sm transition-colors">
+                                <Hash className="w-4 h-4 mr-2" />
+                                <span>Mix asset types (stocks, crypto, etc.)</span>
+                            </div>
+                            <div className="flex items-center text-purple-600 group-hover:text-purple-100 text-sm transition-colors">
+                                <BarChart3 className="w-4 h-4 mr-2" />
+                                <span>See queue statistics in real-time</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div 
+                    className="group relative bg-gradient-to-br from-green-50 to-green-100 p-6 rounded-xl cursor-pointer hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1"
+                    onClick={() => setImportMethod('excel')}
+                >
+                    <div className="absolute inset-0 bg-gradient-to-br from-green-600 to-green-700 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                    <div className="relative z-10">
+                        <div className="flex items-center justify-center w-12 h-12 bg-green-200 rounded-full mb-4 group-hover:bg-white/20 transition-colors">
+                            <Table className="w-6 h-6 text-green-700 group-hover:text-white" />
+                        </div>
+                        <h4 className="text-xl font-semibold text-gray-900 group-hover:text-white mb-2 transition-colors">
+                            Excel Import
+                        </h4>
+                        <p className="text-gray-700 group-hover:text-green-100 text-sm transition-colors mb-4">
+                            Download a template and upload your completed spreadsheet
+                        </p>
+                        <div className="space-y-2">
+                            <div className="flex items-center text-green-600 group-hover:text-green-100 text-sm transition-colors">
+                                <FileSpreadsheet className="w-4 h-4 mr-2" />
+                                <span>Work offline in Excel</span>
+                            </div>
+                            <div className="flex items-center text-green-600 group-hover:text-green-100 text-sm transition-colors">
+                                <Import className="w-4 h-4 mr-2" />
+                                <span>Import from existing spreadsheets</span>
+                            </div>
+                            <div className="flex items-center text-green-600 group-hover:text-green-100 text-sm transition-colors">
+                                <Copy className="w-4 h-4 mr-2" />
+                                <span>Copy/paste from brokers</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
+                <div className="flex items-center">
+                    <Star className="w-5 h-5 text-purple-600 mr-3 flex-shrink-0" />
+                    <p className="text-sm text-purple-900">
+                        <span className="font-medium">Pro tip:</span> Use Quick Add for diverse portfolios, Excel for single-broker imports
+                    </p>
+                </div>
+            </div>
+        </div>
+    );
+
+    const QuickPositionWrapper = () => {
+        return (
+            <div className="relative">
+                <AddQuickPositionModal
+                    isOpen={true}
+                    onClose={() => {
+                        setImportMethod(null);
+                        // Optionally refresh data or show success
+                    }}
+                    onPositionsSaved={() => {
+                        setActiveTab('success');
+                        setImportMethod(null);
+                    }}
+                />
+            </div>
+        );
+    };
+
     const renderUIAccountCreation = () => {
 
         return (
@@ -1038,68 +1148,108 @@ const QuickStartModal = ({ isOpen, onClose }) => {
         </div>
     );
     }       
-    const renderSuccessScreen = () => (
-        <div className="space-y-6 animate-fadeIn text-center">
-            <div className="relative">
-                <div className="inline-flex items-center justify-center w-20 h-20 bg-gradient-to-br from-green-500 to-green-600 rounded-full mb-4 animate-bounce">
-                    <CheckCircle className="w-10 h-10 text-white" />
-                </div>
-                <div className="absolute inset-0 flex items-center justify-center">
-                    <div className="w-32 h-32 bg-green-500 rounded-full animate-ping opacity-20" />
-                </div>
-            </div>
-            
-            <div>
-                <h3 className="text-2xl font-bold text-gray-900 mb-2">Success!</h3>
-                <p className="text-gray-600">
-                    Successfully created <span className="font-semibold text-green-600">{validAccounts.length}</span> account{validAccounts.length !== 1 ? 's' : ''}
-                </p>
-            </div>
-            
-            <div className="bg-green-50 rounded-xl p-6 max-w-md mx-auto">
-                <h4 className="font-semibold text-gray-900 mb-3">What's Next?</h4>
-                <div className="space-y-3 text-left">
-                    <div className="flex items-start">
-                        <div className="flex-shrink-0 w-6 h-6 bg-green-100 rounded-full flex items-center justify-center mr-3 mt-0.5">
-                            <span className="text-xs font-semibold text-green-600">1</span>
-                        </div>
-                        <div>
-                            <p className="font-medium text-gray-900">Add Positions</p>
-                            <p className="text-sm text-gray-600">Import your investments to these accounts</p>
-                        </div>
+
+    const renderSuccessScreen = () => {
+        const isPositions = activeTab === 'positions';
+        const itemType = isPositions ? 'position' : 'account';
+        const itemCount = isPositions ? 
+            // Get the count from AddQuickPositionModal's queue if it was used
+            (importMethod === 'ui' ? 0 : 0) : // You'll need to pass this from QuickPositionWrapper
+            validAccounts.length;
+        
+        return (
+            <div className="space-y-6 animate-fadeIn text-center">
+                <div className="relative">
+                    <div className="inline-flex items-center justify-center w-20 h-20 bg-gradient-to-br from-green-500 to-green-600 rounded-full mb-4 animate-bounce">
+                        <CheckCircle className="w-10 h-10 text-white" />
                     </div>
-                    <div className="flex items-start">
-                        <div className="flex-shrink-0 w-6 h-6 bg-green-100 rounded-full flex items-center justify-center mr-3 mt-0.5">
-                            <span className="text-xs font-semibold text-green-600">2</span>
-                        </div>
-                        <div>
-                            <p className="font-medium text-gray-900">View Dashboard</p>
-                            <p className="text-sm text-gray-600">See your portfolio overview and analytics</p>
-                        </div>
+                    <div className="absolute inset-0 flex items-center justify-center">
+                        <div className="w-32 h-32 bg-green-500 rounded-full animate-ping opacity-20" />
                     </div>
                 </div>
+                
+                <div>
+                    <h3 className="text-2xl font-bold text-gray-900 mb-2">Success!</h3>
+                    <p className="text-gray-600">
+                        {isPositions ? 
+                            'Successfully imported your positions!' :
+                            <>Successfully created <span className="font-semibold text-green-600">{validAccounts.length}</span> account{validAccounts.length !== 1 ? 's' : ''}</>
+                        }
+                    </p>
+                </div>
+                
+                <div className="bg-green-50 rounded-xl p-6 max-w-md mx-auto">
+                    <h4 className="font-semibold text-gray-900 mb-3">What's Next?</h4>
+                    <div className="space-y-3 text-left">
+                        {isPositions ? (
+                            <>
+                                <div className="flex items-start">
+                                    <div className="flex-shrink-0 w-6 h-6 bg-green-100 rounded-full flex items-center justify-center mr-3 mt-0.5">
+                                        <span className="text-xs font-semibold text-green-600">1</span>
+                                    </div>
+                                    <div>
+                                        <p className="font-medium text-gray-900">View Portfolio</p>
+                                        <p className="text-sm text-gray-600">See your complete portfolio overview</p>
+                                    </div>
+                                </div>
+                                <div className="flex items-start">
+                                    <div className="flex-shrink-0 w-6 h-6 bg-green-100 rounded-full flex items-center justify-center mr-3 mt-0.5">
+                                        <span className="text-xs font-semibold text-green-600">2</span>
+                                    </div>
+                                    <div>
+                                        <p className="font-medium text-gray-900">Track Performance</p>
+                                        <p className="text-sm text-gray-600">Monitor gains, losses, and trends</p>
+                                    </div>
+                                </div>
+                            </>
+                        ) : (
+                            <>
+                                <div className="flex items-start">
+                                    <div className="flex-shrink-0 w-6 h-6 bg-green-100 rounded-full flex items-center justify-center mr-3 mt-0.5">
+                                        <span className="text-xs font-semibold text-green-600">1</span>
+                                    </div>
+                                    <div>
+                                        <p className="font-medium text-gray-900">Add Positions</p>
+                                        <p className="text-sm text-gray-600">Import your investments to these accounts</p>
+                                    </div>
+                                </div>
+                                <div className="flex items-start">
+                                    <div className="flex-shrink-0 w-6 h-6 bg-green-100 rounded-full flex items-center justify-center mr-3 mt-0.5">
+                                        <span className="text-xs font-semibold text-green-600">2</span>
+                                    </div>
+                                    <div>
+                                        <p className="font-medium text-gray-900">View Dashboard</p>
+                                        <p className="text-sm text-gray-600">See your portfolio overview and analytics</p>
+                                    </div>
+                                </div>
+                            </>
+                        )}
+                    </div>
+                </div>
+                
+                <div className="flex justify-center space-x-4">
+                    {!isPositions && (
+                        <button
+                            onClick={() => {
+                                setActiveTab('positions');
+                                setImportMethod(null);
+                                setAccounts([]);
+                            }}
+                            className="px-6 py-2 bg-gradient-to-r from-purple-600 to-purple-700 text-white font-medium rounded-lg hover:from-purple-700 hover:to-purple-800 transition-all duration-200"
+                        >
+                            Import Positions
+                        </button>
+                    )}
+                    <button
+                        onClick={onClose}
+                        className="px-6 py-2 bg-white border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 transition-all duration-200"
+                    >
+                        Done
+                    </button>
+                </div>
             </div>
-            
-            <div className="flex justify-center space-x-4">
-                <button
-                    onClick={() => {
-                        setActiveTab('positions');
-                        setImportMethod(null);
-                        setAccounts([]);
-                    }}
-                    className="px-6 py-2 bg-gradient-to-r from-purple-600 to-purple-700 text-white font-medium rounded-lg hover:from-purple-700 hover:to-purple-800 transition-all duration-200"
-                >
-                    Import Positions
-                </button>
-                <button
-                    onClick={onClose}
-                    className="px-6 py-2 bg-white border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 transition-all duration-200"
-                >
-                    Done
-                </button>
-            </div>
-        </div>
-    );
+        );
+    };
 
     const renderTemplateSection = (type) => {
         const isAccounts = type === 'accounts';
@@ -1337,7 +1487,9 @@ const QuickStartModal = ({ isOpen, onClose }) => {
                        {activeTab === 'accounts' && !importMethod && renderAccountImportChoice()}
                        {activeTab === 'accounts' && importMethod === 'ui' && renderUIAccountCreation()}
                        {activeTab === 'accounts' && importMethod === 'excel' && renderTemplateSection('accounts')}
-                       {activeTab === 'positions' && renderTemplateSection('positions')}
+                        {activeTab === 'positions' && !importMethod && renderPositionImportChoice()}
+                        {activeTab === 'positions' && importMethod === 'ui' && <QuickPositionWrapper />}
+                        {activeTab === 'positions' && importMethod === 'excel' && renderTemplateSection('positions')}
                        {activeTab === 'upload' && renderUploadSection()}
                        {activeTab === 'success' && renderSuccessScreen()}
                    </div>
@@ -1345,19 +1497,21 @@ const QuickStartModal = ({ isOpen, onClose }) => {
                    {activeTab !== 'overview' && activeTab !== 'success' && (
                        <div className="border-t border-gray-200 px-8 py-4">
                            <button
-                               onClick={() => {
-                                   if (activeTab === 'upload') {
-                                       setActiveTab(selectedTemplate === 'accounts' ? 'accounts' : 'positions');
-                                       setUploadedFile(null);
-                                       setValidationStatus(null);
-                                       setUploadProgress(0);
-                                   } else if (importMethod) {
-                                       setImportMethod(null);
-                                       setAccounts([]);
-                                   } else {
-                                       setActiveTab('overview');
-                                   }
-                               }}
+                            onClick={() => {
+                                if (activeTab === 'positions' && importMethod === 'ui') {
+                                    setImportMethod(null);
+                                } else if (activeTab === 'upload') {
+                                    setActiveTab(selectedTemplate === 'accounts' ? 'accounts' : 'positions');
+                                    setUploadedFile(null);
+                                    setValidationStatus(null);
+                                    setUploadProgress(0);
+                                } else if (importMethod) {
+                                    setImportMethod(null);
+                                    setAccounts([]);
+                                } else {
+                                    setActiveTab('overview');
+                                }
+                            }}
                                className="text-sm text-gray-600 hover:text-gray-900 transition-colors inline-flex items-center"
                            >
                                <ArrowLeft className="w-4 h-4 mr-1" />
