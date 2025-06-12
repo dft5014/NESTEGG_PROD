@@ -20,25 +20,33 @@ import {
   Keyboard, MousePointer, MoreVertical, ChevronRight, Shield,
   PieChart, Target, Wallet, CreditCard, Gem, Building,
   ChevronUp, Edit3, CheckSquare, Square, ListPlus, Loader2,
-  ArrowUpDown, Info
+  ArrowUpDown, Info, MinusCircle, PlusCircle, BarChart2
 } from 'lucide-react';
 
-// AnimatedNumber component from QuickStart
-const AnimatedNumber = ({ value, duration = 500 }) => {
+// Compact AnimatedNumber
+const AnimatedNumber = ({ value, prefix = '', suffix = '' }) => {
   const [displayValue, setDisplayValue] = useState(0);
   
   useEffect(() => {
-    let startTime;
-    const animate = (timestamp) => {
-      if (!startTime) startTime = timestamp;
-      const progress = Math.min((timestamp - startTime) / duration, 1);
-      setDisplayValue(Math.floor(progress * value));
-      if (progress < 1) requestAnimationFrame(animate);
-    };
-    requestAnimationFrame(animate);
-  }, [value, duration]);
+    const duration = 300;
+    const steps = 20;
+    const increment = value / steps;
+    let current = 0;
+    
+    const timer = setInterval(() => {
+      current += increment;
+      if (current >= value) {
+        setDisplayValue(value);
+        clearInterval(timer);
+      } else {
+        setDisplayValue(Math.floor(current));
+      }
+    }, duration / steps);
+    
+    return () => clearInterval(timer);
+  }, [value]);
   
-  return <span>{displayValue}</span>;
+  return <span>{prefix}{displayValue.toLocaleString()}{suffix}</span>;
 };
 
 const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved }) => {
@@ -57,128 +65,135 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved }) => {
   const [selectedPositions, setSelectedPositions] = useState(new Set());
   const [focusedCell, setFocusedCell] = useState(null);
   const [message, setMessage] = useState({ type: '', text: '' });
+  const [activeFilter, setActiveFilter] = useState('all');
+  const [searchTerm, setSearchTerm] = useState('');
   
   // Refs
   const cellRefs = useRef({});
-  const newRowRefs = useRef({});
+  const tableRefs = useRef({});
 
-  // Asset type configuration - matching QuickStart's style
+  // Compact asset type configuration
   const assetTypes = {
     security: {
       name: 'Securities',
       icon: BarChart3,
-      color: 'blue',
-      gradient: 'from-blue-500 to-blue-600',
-      lightGradient: 'from-blue-50 to-blue-100',
-      description: 'Stocks, ETFs, Mutual Funds',
+      color: '#3B82F6',
+      bg: 'bg-blue-500',
+      lightBg: 'bg-blue-50',
+      border: 'border-blue-200',
+      text: 'text-blue-700',
       fields: [
-        { key: 'ticker', label: 'Ticker', type: 'text', required: true, width: 'w-32', placeholder: 'AAPL', transform: 'uppercase' },
-        { key: 'shares', label: 'Shares', type: 'number', required: true, width: 'w-28', placeholder: '100' },
-        { key: 'price', label: 'Price', type: 'number', required: true, width: 'w-28', placeholder: '150.00', prefix: '$' },
-        { key: 'cost_basis', label: 'Cost Basis', type: 'number', width: 'w-32', placeholder: '140.00', prefix: '$' },
-        { key: 'purchase_date', label: 'Purchase Date', type: 'date', width: 'w-36' },
-        { key: 'account_id', label: 'Account', type: 'select', required: true, width: 'w-52' }
+        { key: 'ticker', label: 'Ticker', type: 'text', required: true, width: 'w-24', placeholder: 'AAPL', transform: 'uppercase' },
+        { key: 'shares', label: 'Shares', type: 'number', required: true, width: 'w-20', placeholder: '100' },
+        { key: 'price', label: 'Price', type: 'number', required: true, width: 'w-24', placeholder: '150.00', prefix: '$' },
+        { key: 'cost_basis', label: 'Cost', type: 'number', width: 'w-24', placeholder: '140.00', prefix: '$' },
+        { key: 'purchase_date', label: 'Date', type: 'date', width: 'w-32' },
+        { key: 'account_id', label: 'Account', type: 'select', required: true, width: 'w-40' }
       ]
     },
     crypto: {
-      name: 'Cryptocurrency',
+      name: 'Crypto',
       icon: Coins,
-      color: 'orange',
-      gradient: 'from-orange-500 to-orange-600',
-      lightGradient: 'from-orange-50 to-orange-100',
-      description: 'Bitcoin, Ethereum, and other digital assets',
+      color: '#F97316',
+      bg: 'bg-orange-500',
+      lightBg: 'bg-orange-50',
+      border: 'border-orange-200',
+      text: 'text-orange-700',
       fields: [
-        { key: 'symbol', label: 'Symbol', type: 'text', required: true, width: 'w-28', placeholder: 'BTC', transform: 'uppercase' },
-        { key: 'quantity', label: 'Quantity', type: 'number', required: true, width: 'w-32', placeholder: '0.5', step: '0.00000001' },
-        { key: 'purchase_price', label: 'Purchase Price', type: 'number', required: true, width: 'w-32', placeholder: '45000', prefix: '$' },
-        { key: 'current_price', label: 'Current Price', type: 'number', required: true, width: 'w-32', placeholder: '50000', prefix: '$' },
-        { key: 'purchase_date', label: 'Purchase Date', type: 'date', width: 'w-36' },
-        { key: 'account_id', label: 'Account', type: 'select', required: true, width: 'w-52' }
+        { key: 'symbol', label: 'Symbol', type: 'text', required: true, width: 'w-20', placeholder: 'BTC', transform: 'uppercase' },
+        { key: 'quantity', label: 'Qty', type: 'number', required: true, width: 'w-24', placeholder: '0.5', step: '0.00000001' },
+        { key: 'purchase_price', label: 'Buy Price', type: 'number', required: true, width: 'w-28', placeholder: '45000', prefix: '$' },
+        { key: 'current_price', label: 'Current', type: 'number', required: true, width: 'w-28', placeholder: '50000', prefix: '$' },
+        { key: 'purchase_date', label: 'Date', type: 'date', width: 'w-32' },
+        { key: 'account_id', label: 'Account', type: 'select', required: true, width: 'w-40' }
       ]
     },
     metal: {
-      name: 'Precious Metals',
+      name: 'Metals',
       icon: Gem,
-      color: 'yellow',
-      gradient: 'from-yellow-500 to-amber-600',
-      lightGradient: 'from-yellow-50 to-amber-100',
-      description: 'Gold, Silver, Platinum, Palladium',
+      color: '#EAB308',
+      bg: 'bg-yellow-500',
+      lightBg: 'bg-yellow-50',
+      border: 'border-yellow-200',
+      text: 'text-yellow-700',
       fields: [
         { 
           key: 'metal_type', 
           label: 'Metal', 
           type: 'select', 
           required: true, 
-          width: 'w-32',
+          width: 'w-24',
           options: [
-            { value: '', label: 'Select...' },
+            { value: '', label: 'Select' },
             { value: 'Gold', label: 'Gold' },
             { value: 'Silver', label: 'Silver' },
             { value: 'Platinum', label: 'Platinum' },
             { value: 'Palladium', label: 'Palladium' }
           ]
         },
-        { key: 'quantity', label: 'Quantity', type: 'number', required: true, width: 'w-24', placeholder: '10' },
+        { key: 'quantity', label: 'Qty', type: 'number', required: true, width: 'w-20', placeholder: '10' },
         { 
           key: 'unit', 
           label: 'Unit', 
           type: 'select', 
-          width: 'w-24',
+          width: 'w-16',
           options: [
             { value: 'oz', label: 'oz' },
             { value: 'g', label: 'g' },
             { value: 'kg', label: 'kg' }
           ]
         },
-        { key: 'purchase_price', label: 'Price/Unit', type: 'number', required: true, width: 'w-32', placeholder: '1800', prefix: '$' },
-        { key: 'current_price_per_unit', label: 'Current/Unit', type: 'number', width: 'w-32', placeholder: '1900', prefix: '$' },
-        { key: 'purchase_date', label: 'Purchase Date', type: 'date', width: 'w-36' },
-        { key: 'account_id', label: 'Account', type: 'select', required: true, width: 'w-52' }
+        { key: 'purchase_price', label: 'Price/Unit', type: 'number', required: true, width: 'w-24', placeholder: '1800', prefix: '$' },
+        { key: 'current_price_per_unit', label: 'Current', type: 'number', width: 'w-24', placeholder: '1900', prefix: '$' },
+        { key: 'purchase_date', label: 'Date', type: 'date', width: 'w-32' },
+        { key: 'account_id', label: 'Account', type: 'select', required: true, width: 'w-40' }
       ]
     },
     realestate: {
       name: 'Real Estate',
       icon: Home,
-      color: 'green',
-      gradient: 'from-green-500 to-emerald-600',
-      lightGradient: 'from-green-50 to-emerald-100',
-      description: 'Properties and REITs',
+      color: '#10B981',
+      bg: 'bg-green-500',
+      lightBg: 'bg-green-50',
+      border: 'border-green-200',
+      text: 'text-green-700',
       fields: [
-        { key: 'property_name', label: 'Property Name', type: 'text', required: true, width: 'w-52', placeholder: 'Main Residence' },
+        { key: 'property_name', label: 'Property', type: 'text', required: true, width: 'w-44', placeholder: 'Main Residence' },
         { 
           key: 'property_type', 
           label: 'Type', 
           type: 'select', 
-          width: 'w-36',
+          width: 'w-28',
           options: [
-            { value: '', label: 'Select...' },
+            { value: '', label: 'Select' },
             { value: 'Residential', label: 'Residential' },
             { value: 'Commercial', label: 'Commercial' },
             { value: 'Land', label: 'Land' },
             { value: 'Industrial', label: 'Industrial' }
           ]
         },
-        { key: 'address', label: 'Address', type: 'text', width: 'w-64', placeholder: '123 Main St, City, ST' },
-        { key: 'purchase_price', label: 'Purchase Price', type: 'number', required: true, width: 'w-36', placeholder: '500000', prefix: '$' },
-        { key: 'estimated_value', label: 'Est. Value', type: 'number', width: 'w-36', placeholder: '550000', prefix: '$' },
-        { key: 'purchase_date', label: 'Purchase Date', type: 'date', width: 'w-36' },
-        { key: 'account_id', label: 'Account', type: 'select', required: true, width: 'w-52' }
+        { key: 'address', label: 'Address', type: 'text', width: 'w-48', placeholder: '123 Main St' },
+        { key: 'purchase_price', label: 'Purchase', type: 'number', required: true, width: 'w-28', placeholder: '500000', prefix: '$' },
+        { key: 'estimated_value', label: 'Value', type: 'number', width: 'w-28', placeholder: '550000', prefix: '$' },
+        { key: 'purchase_date', label: 'Date', type: 'date', width: 'w-32' },
+        { key: 'account_id', label: 'Account', type: 'select', required: true, width: 'w-40' }
       ]
     },
     cash: {
-      name: 'Cash & Equivalents',
+      name: 'Cash',
       icon: DollarSign,
-      color: 'purple',
-      gradient: 'from-purple-500 to-purple-600',
-      lightGradient: 'from-purple-50 to-purple-100',
-      description: 'Savings, Money Market, CDs',
+      color: '#8B5CF6',
+      bg: 'bg-purple-500',
+      lightBg: 'bg-purple-50',
+      border: 'border-purple-200',
+      text: 'text-purple-700',
       fields: [
         { 
           key: 'currency', 
           label: 'Currency', 
           type: 'select', 
           required: true,
-          width: 'w-28',
+          width: 'w-20',
           options: [
             { value: 'USD', label: 'USD' },
             { value: 'EUR', label: 'EUR' },
@@ -187,31 +202,30 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved }) => {
             { value: 'CAD', label: 'CAD' }
           ]
         },
-        { key: 'amount', label: 'Amount', type: 'number', required: true, width: 'w-36', placeholder: '10000', prefix: '$' },
+        { key: 'amount', label: 'Amount', type: 'number', required: true, width: 'w-28', placeholder: '10000', prefix: '$' },
         { 
           key: 'account_type', 
           label: 'Type', 
           type: 'select', 
-          width: 'w-36',
+          width: 'w-28',
           options: [
-            { value: '', label: 'Select...' },
+            { value: '', label: 'Select' },
             { value: 'Savings', label: 'Savings' },
             { value: 'Checking', label: 'Checking' },
             { value: 'Money Market', label: 'Money Market' },
             { value: 'CD', label: 'CD' }
           ]
         },
-        { key: 'interest_rate', label: 'Interest Rate', type: 'number', width: 'w-28', placeholder: '2.5', suffix: '%', step: '0.01' },
-        { key: 'account_id', label: 'Account', type: 'select', required: true, width: 'w-52' }
+        { key: 'interest_rate', label: 'Rate %', type: 'number', width: 'w-20', placeholder: '2.5', suffix: '%', step: '0.01' },
+        { key: 'account_id', label: 'Account', type: 'select', required: true, width: 'w-40' }
       ]
     }
   };
 
-  // Initialize with empty rows for each type
+  // Initialize with empty rows
   useEffect(() => {
     if (isOpen) {
       loadAccounts();
-      // Initialize each asset type with one empty row
       const initialPositions = {};
       Object.keys(assetTypes).forEach(type => {
         initialPositions[type] = [{
@@ -237,21 +251,21 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved }) => {
     }
   };
 
-  // Add new row to specific asset type
+  // Add new row with smooth animation
   const addNewRow = (assetType) => {
     const newPosition = {
       id: Date.now() + Math.random(),
       type: assetType,
       data: {},
       errors: {},
-      isNew: true
+      isNew: true,
+      animateIn: true
     };
     setPositions(prev => ({
       ...prev,
       [assetType]: [...prev[assetType], newPosition]
     }));
     
-    // Focus first cell of new row after render
     setTimeout(() => {
       const firstFieldKey = assetTypes[assetType].fields[0].key;
       const cellKey = `${assetType}-${newPosition.id}-${firstFieldKey}`;
@@ -259,7 +273,7 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved }) => {
     }, 50);
   };
 
-  // Keyboard navigation
+  // Enhanced keyboard navigation
   const handleKeyDown = (e, assetType, positionId, fieldIndex) => {
     const typePositions = positions[assetType];
     const positionIndex = typePositions.findIndex(p => p.id === positionId);
@@ -275,17 +289,38 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved }) => {
         
       case 'Enter':
         e.preventDefault();
-        if (fieldIndex === fields.length - 1) {
+        if (e.ctrlKey || e.metaKey) {
+          // Ctrl/Cmd + Enter submits all
+          submitAll();
+        } else if (fieldIndex === fields.length - 1) {
           addNewRow(assetType);
         } else {
           const nextKey = `${assetType}-${positionId}-${fields[fieldIndex + 1].key}`;
           cellRefs.current[nextKey]?.focus();
         }
         break;
+        
+      case 'ArrowDown':
+        e.preventDefault();
+        if (positionIndex < typePositions.length - 1) {
+          const nextPositionId = typePositions[positionIndex + 1].id;
+          const nextKey = `${assetType}-${nextPositionId}-${fields[fieldIndex].key}`;
+          cellRefs.current[nextKey]?.focus();
+        }
+        break;
+        
+      case 'ArrowUp':
+        e.preventDefault();
+        if (positionIndex > 0) {
+          const prevPositionId = typePositions[positionIndex - 1].id;
+          const prevKey = `${assetType}-${prevPositionId}-${fields[fieldIndex].key}`;
+          cellRefs.current[prevKey]?.focus();
+        }
+        break;
     }
   };
 
-  // Update position data
+  // Update position with validation
   const updatePosition = (assetType, positionId, field, value) => {
     setPositions(prev => ({
       ...prev,
@@ -299,7 +334,8 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved }) => {
             ...pos,
             data: { ...pos.data, [field]: value },
             errors: { ...pos.errors, [field]: null },
-            isNew: false
+            isNew: false,
+            animateIn: false
           };
         }
         return pos;
@@ -307,21 +343,31 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved }) => {
     }));
   };
 
-  // Delete position
+  // Delete with animation
   const deletePosition = (assetType, positionId) => {
     setPositions(prev => ({
       ...prev,
-      [assetType]: prev[assetType].filter(pos => pos.id !== positionId)
+      [assetType]: prev[assetType].map(pos => 
+        pos.id === positionId ? { ...pos, animateOut: true } : pos
+      )
     }));
+    
+    setTimeout(() => {
+      setPositions(prev => ({
+        ...prev,
+        [assetType]: prev[assetType].filter(pos => pos.id !== positionId)
+      }));
+    }, 200);
   };
 
-  // Duplicate position
+  // Smart duplicate
   const duplicatePosition = (assetType, position) => {
     const newPosition = {
       ...position,
       id: Date.now() + Math.random(),
       data: { ...position.data },
-      isNew: true
+      isNew: true,
+      animateIn: true
     };
     const index = positions[assetType].findIndex(p => p.id === position.id);
     setPositions(prev => ({
@@ -334,7 +380,7 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved }) => {
     }));
   };
 
-  // Toggle section collapse
+  // Toggle section with animation
   const toggleSection = (assetType) => {
     setCollapsedSections(prev => ({
       ...prev,
@@ -342,12 +388,13 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved }) => {
     }));
   };
 
-  // Calculate statistics
+  // Calculate statistics with memoization
   const stats = useMemo(() => {
     let totalPositions = 0;
     let totalValue = 0;
     const byType = {};
     const byAccount = {};
+    const errors = [];
 
     Object.entries(positions).forEach(([type, typePositions]) => {
       byType[type] = 0;
@@ -381,13 +428,18 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved }) => {
           }
           totalValue += value;
         }
+        
+        // Track errors
+        if (pos.errors && Object.keys(pos.errors).length > 0) {
+          errors.push({ type, id: pos.id });
+        }
       });
     });
 
-    return { totalPositions, totalValue, byType, byAccount };
+    return { totalPositions, totalValue, byType, byAccount, errors };
   }, [positions]);
 
-  // Validate all positions
+  // Validate positions
   const validatePositions = () => {
     let isValid = true;
     const updatedPositions = { ...positions };
@@ -398,7 +450,7 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved }) => {
         const errors = {};
         typeConfig.fields.forEach(field => {
           if (field.required && !pos.data[field.key]) {
-            errors[field.key] = `${field.label} is required`;
+            errors[field.key] = `Required`;
             isValid = false;
           }
         });
@@ -410,7 +462,7 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved }) => {
     return isValid;
   };
 
-  // Submit all positions
+  // Submit with progress
   const submitAll = async () => {
     if (stats.totalPositions === 0) {
       setMessage({ type: 'error', text: 'No positions to submit' });
@@ -418,7 +470,7 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved }) => {
     }
 
     if (!validatePositions()) {
-      setMessage({ type: 'error', text: 'Please fix validation errors' });
+      setMessage({ type: 'error', text: `Fix ${stats.errors.length} validation errors` });
       return;
     }
 
@@ -458,17 +510,17 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved }) => {
       }
 
       if (errorCount === 0) {
-        setMessage({ type: 'success', text: `All ${successCount} positions added successfully!` });
+        setMessage({ type: 'success', text: `All ${successCount} positions added!` });
         if (onPositionsSaved) {
           onPositionsSaved(successCount);
         }
         setTimeout(() => {
           onClose();
-        }, 1500);
+        }, 1000);
       } else {
         setMessage({ 
           type: 'warning', 
-          text: `${successCount} positions added, ${errorCount} failed` 
+          text: `${successCount} added, ${errorCount} failed` 
         });
       }
     } catch (error) {
@@ -479,21 +531,25 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved }) => {
     }
   };
 
-  // Render cell input
+  // Render optimized cell input
   const renderCellInput = (assetType, position, field, cellKey) => {
     const value = position.data[field.key] || '';
     const hasError = position.errors?.[field.key];
     const fieldIndex = assetTypes[assetType].fields.findIndex(f => f.key === field.key);
     
-    const baseClass = `w-full px-3 py-2 bg-gray-50 border border-gray-300 rounded-md text-sm focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all placeholder-gray-400 ${
-      hasError ? 'border-red-300 bg-red-50' : ''
+    const baseClass = `w-full px-2 py-1.5 text-sm border rounded transition-all ${
+      hasError 
+        ? 'border-red-300 bg-red-50 focus:border-red-500 focus:ring-1 focus:ring-red-500/20' 
+        : 'border-gray-200 bg-white hover:border-gray-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20'
     }`;
 
     const commonProps = {
       ref: el => cellRefs.current[cellKey] = el,
       className: baseClass,
       onFocus: () => setFocusedCell(cellKey),
-      onKeyDown: (e) => handleKeyDown(e, assetType, position.id, fieldIndex)
+      onKeyDown: (e) => handleKeyDown(e, assetType, position.id, fieldIndex),
+      'data-position-id': position.id,
+      'data-field': field.key
     };
 
     switch (field.type) {
@@ -504,11 +560,12 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved }) => {
               {...commonProps}
               value={value}
               onChange={(e) => updatePosition(assetType, position.id, field.key, parseInt(e.target.value))}
+              className={`${baseClass} cursor-pointer`}
             >
-              <option value="">Select account...</option>
+              <option value="">Select...</option>
               {accounts.map(account => (
                 <option key={account.id} value={account.id}>
-                  {account.account_name} - {account.institution}
+                  {account.account_name}
                 </option>
               ))}
             </select>
@@ -519,6 +576,7 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved }) => {
               {...commonProps}
               value={value}
               onChange={(e) => updatePosition(assetType, position.id, field.key, e.target.value)}
+              className={`${baseClass} cursor-pointer`}
             >
               {field.options.map(option => (
                 <option key={option.value} value={option.value}>
@@ -531,9 +589,9 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved }) => {
         
       case 'number':
         return (
-          <div className="relative w-full">
+          <div className="relative w-full group">
             {field.prefix && (
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-500">
+              <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-gray-400 group-focus-within:text-blue-600 transition-colors">
                 {field.prefix}
               </span>
             )}
@@ -544,10 +602,10 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved }) => {
               onChange={(e) => updatePosition(assetType, position.id, field.key, parseFloat(e.target.value) || '')}
               placeholder={field.placeholder}
               step={field.step || 'any'}
-              className={`${baseClass} ${field.prefix ? 'pl-7' : ''} ${field.suffix ? 'pr-8' : ''}`}
+              className={`${baseClass} ${field.prefix ? 'pl-6' : ''} ${field.suffix ? 'pr-6' : ''}`}
             />
             {field.suffix && (
-              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-gray-500">
+              <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-gray-400 group-focus-within:text-blue-600 transition-colors">
                 {field.suffix}
               </span>
             )}
@@ -567,7 +625,7 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved }) => {
     }
   };
 
-  // Render asset type section
+  // Render optimized asset section
   const renderAssetSection = (assetType) => {
     const config = assetTypes[assetType];
     const typePositions = positions[assetType] || [];
@@ -576,69 +634,65 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved }) => {
     const Icon = config.icon;
 
     return (
-      <div key={assetType} className="bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden">
-        {/* Section Header */}
+      <div key={assetType} className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+        {/* Compact Section Header */}
         <div 
           onClick={() => toggleSection(assetType)}
-          className="px-6 py-4 bg-gradient-to-r from-gray-50 to-white hover:from-gray-100 hover:to-gray-50 cursor-pointer transition-all duration-200 border-b border-gray-100"
+          className={`px-3 py-2 ${config.lightBg} hover:brightness-105 cursor-pointer transition-all duration-200 border-b ${config.border}`}
         >
           <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-3">
-              <div className={`p-2 rounded-lg bg-gradient-to-r ${config.lightGradient}`}>
-                <Icon className={`w-5 h-5 text-${config.color}-600`} />
+            <div className="flex items-center space-x-2">
+              <div className={`p-1 rounded ${config.bg}`}>
+                <Icon className="w-3.5 h-3.5 text-white" />
               </div>
-              <div>
-                <h3 className="font-semibold text-gray-900 text-lg flex items-center">
-                  {config.name}
-                  {validPositions.length > 0 && (
-                    <span className="ml-3 px-2.5 py-0.5 text-xs bg-gray-100 text-gray-700 rounded-full font-medium">
-                      {validPositions.length}
-                    </span>
-                  )}
-                </h3>
-                <p className="text-xs text-gray-600">{config.description}</p>
-              </div>
+              <h3 className={`font-medium text-sm ${config.text} flex items-center`}>
+                {config.name}
+                {validPositions.length > 0 && (
+                  <span className={`ml-2 px-1.5 py-0.5 text-xs ${config.bg} text-white rounded-full`}>
+                    {validPositions.length}
+                  </span>
+                )}
+              </h3>
             </div>
-            <ChevronDown className={`w-5 h-5 text-gray-400 transition-transform duration-200 ${
+            <ChevronDown className={`w-4 h-4 ${config.text} transition-transform duration-200 ${
               isCollapsed ? '-rotate-90' : ''
             }`} />
           </div>
         </div>
 
-        {/* Section Content */}
+        {/* Compact Table Content */}
         {!isCollapsed && (
           <div className="bg-white">
-            <div className="overflow-x-auto">
-              <table className="w-full">
+            <div className="overflow-x-auto" ref={el => tableRefs.current[assetType] = el}>
+              <table className="w-full text-xs">
                 <thead>
                   <tr className="bg-gray-50 border-b border-gray-200">
-                    <th className="w-16 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      #
-                    </th>
+                    <th className="w-8 px-2 py-1.5 text-left text-gray-600 font-medium">#</th>
                     {config.fields.map(field => (
-                      <th key={field.key} className={`${field.width} px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider`}>
+                      <th key={field.key} className={`${field.width} px-2 py-1.5 text-left text-gray-600 font-medium`}>
                         {field.label}
-                        {field.required && <span className="text-red-500 ml-1">*</span>}
+                        {field.required && <span className="text-red-500 ml-0.5">*</span>}
                       </th>
                     ))}
-                    <th className="w-24 px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Actions
-                    </th>
+                    <th className="w-16 px-2 py-1.5 text-center text-gray-600 font-medium">Actions</th>
                   </tr>
                 </thead>
-                <tbody className="bg-white divide-y divide-gray-100">
+                <tbody>
                   {typePositions.map((position, index) => (
                     <tr 
                       key={position.id}
-                      className={`hover:bg-gray-50 transition-colors ${
-                        position.isNew ? 'bg-blue-50/30' : ''
-                      }`}
+                      className={`
+                        border-b border-gray-100 hover:bg-gray-50 transition-all duration-200
+                        ${position.isNew ? 'bg-blue-50/30' : ''}
+                        ${position.animateIn ? 'animate-slideIn' : ''}
+                        ${position.animateOut ? 'animate-slideOut' : ''}
+                      `}
                     >
-                      <td className="px-6 py-3 whitespace-nowrap">
-                        <span className="text-sm text-gray-500">{index + 1}</span>
+                      <td className="px-2 py-1">
+                        <span className="text-gray-400">{index + 1}</span>
                       </td>
                       {config.fields.map(field => (
-                        <td key={field.key} className={`${field.width} px-3 py-3`}>
+                        <td key={field.key} className={`${field.width} px-1 py-1`}>
                           {renderCellInput(
                             assetType, 
                             position, 
@@ -647,21 +701,21 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved }) => {
                           )}
                         </td>
                       ))}
-                      <td className="px-3 py-3">
-                        <div className="flex items-center justify-center space-x-1">
+                      <td className="px-1 py-1">
+                        <div className="flex items-center justify-center space-x-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
                           <button
                             onClick={() => duplicatePosition(assetType, position)}
-                            className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-all transform hover:scale-110"
+                            className="p-1 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-all"
                             title="Duplicate"
                           >
-                            <Copy className="w-4 h-4" />
+                            <Copy className="w-3 h-3" />
                           </button>
                           <button
                             onClick={() => deletePosition(assetType, position.id)}
-                            className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-md transition-all transform hover:scale-110"
+                            className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-all"
                             title="Delete"
                           >
-                            <Trash2 className="w-4 h-4" />
+                            <X className="w-3 h-3" />
                           </button>
                         </div>
                       </td>
@@ -671,14 +725,14 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved }) => {
               </table>
             </div>
             
-            {/* Add Row Button */}
-            <div className="p-4 bg-gray-50 border-t border-gray-100">
+            {/* Compact Add Row Button */}
+            <div className="p-2 bg-gray-50 border-t border-gray-100">
               <button
                 onClick={() => addNewRow(assetType)}
-                className="w-full py-2.5 px-4 bg-white border-2 border-dashed border-gray-300 rounded-lg hover:border-gray-400 hover:bg-gray-50 transition-all duration-200 flex items-center justify-center space-x-2 group"
+                className={`w-full py-1.5 px-3 bg-white border border-dashed ${config.border} rounded hover:${config.lightBg} transition-all duration-200 flex items-center justify-center space-x-1 group text-xs`}
               >
-                <Plus className="w-4 h-4 text-gray-400 group-hover:text-gray-600 transition-transform group-hover:scale-110" />
-                <span className="text-sm text-gray-600 font-medium">Add {config.name} Position</span>
+                <Plus className={`w-3 h-3 ${config.text} group-hover:scale-110 transition-transform`} />
+                <span className={`${config.text} font-medium`}>Add {config.name}</span>
               </button>
             </div>
           </div>
@@ -694,107 +748,121 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved }) => {
       title="Quick Position Entry"
       size="max-w-[1400px]"
     >
-      <div className="min-h-[600px] max-h-[calc(100vh-200px)] flex flex-col">
-        {/* Header Section */}
-        <div className="flex-shrink-0 space-y-6 mb-6">
-          {/* Title with icon */}
-          <div className="text-center">
-            <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full mb-4 shadow-lg shadow-blue-500/25">
-              <ListPlus className="w-8 h-8 text-white" />
-            </div>
-            <h3 className="text-2xl font-bold text-gray-900 mb-2">Quick Position Entry</h3>
-            <p className="text-gray-600 max-w-2xl mx-auto">
-              Add multiple positions across different asset classes. Build your complete portfolio in one place.
-            </p>
-          </div>
-
-          {/* Stats Dashboard - QuickStart style */}
-          <div className="relative bg-gradient-to-r from-indigo-50/50 via-purple-50/50 to-pink-50/50 rounded-xl p-4 shadow-sm border border-white/80 backdrop-blur-sm">
-            <div className="grid grid-cols-4 gap-4">
-              <div className="text-center">
-                <div className="inline-flex items-center justify-center w-12 h-12 bg-white rounded-lg shadow-sm mb-2">
-                  <p className="text-2xl font-black bg-gradient-to-r from-indigo-600 to-indigo-700 bg-clip-text text-transparent">
+      <div className="h-[85vh] flex flex-col">
+        {/* Ultra Compact Header */}
+        <div className="flex-shrink-0 pb-3">
+          {/* Inline Stats Bar */}
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center space-x-4">
+              <div className="flex items-center space-x-2">
+                <ListPlus className="w-5 h-5 text-blue-600" />
+                <span className="text-sm font-medium text-gray-700">Quick Entry</span>
+              </div>
+              <div className="h-4 w-px bg-gray-300"></div>
+              <div className="flex items-center space-x-3 text-sm">
+                <div className="flex items-center space-x-1">
+                  <Hash className="w-3.5 h-3.5 text-gray-400" />
+                  <span className="font-medium text-gray-900">
                     <AnimatedNumber value={stats.totalPositions} />
-                  </p>
+                  </span>
+                  <span className="text-gray-500">positions</span>
                 </div>
-                <p className="text-xs font-medium text-gray-600">Total Positions</p>
-              </div>
-              <div className="text-center">
-                <div className="inline-flex items-center justify-center w-12 h-12 bg-white rounded-lg shadow-sm mb-2">
-                  <p className="text-2xl font-black bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent">
-                    {showValues ? formatCurrency(stats.totalValue) : '••••'}
-                  </p>
+                <div className="flex items-center space-x-1">
+                  <DollarSign className="w-3.5 h-3.5 text-gray-400" />
+                  <span className="font-medium text-gray-900">
+                    {showValues ? <AnimatedNumber value={stats.totalValue} prefix="$" /> : '••••'}
+                  </span>
                 </div>
-                <p className="text-xs font-medium text-gray-600">Total Value</p>
-              </div>
-              <div className="text-center">
-                <div className="inline-flex items-center justify-center w-12 h-12 bg-white rounded-lg shadow-sm mb-2">
-                  <p className="text-2xl font-black bg-gradient-to-r from-purple-600 to-purple-700 bg-clip-text text-transparent">
-                    <AnimatedNumber value={Object.keys(stats.byAccount).length} />
-                  </p>
-                </div>
-                <p className="text-xs font-medium text-gray-600">Accounts Used</p>
-              </div>
-              <div className="text-center">
-                <div className="inline-flex items-center justify-center w-12 h-12 bg-white rounded-lg shadow-sm mb-2">
-                  <p className="text-2xl font-black bg-gradient-to-r from-amber-600 to-orange-600 bg-clip-text text-transparent">
-                    <AnimatedNumber value={Object.values(stats.byType).filter(v => v > 0).length} />
-                  </p>
-                </div>
-                <p className="text-xs font-medium text-gray-600">Asset Types</p>
+                {stats.errors.length > 0 && (
+                  <div className="flex items-center space-x-1 text-red-600">
+                    <AlertCircle className="w-3.5 h-3.5" />
+                    <span className="font-medium">{stats.errors.length} errors</span>
+                  </div>
+                )}
               </div>
             </div>
-          </div>
-
-          {/* Action buttons and instructions */}
-          <div className="flex items-center justify-between bg-gradient-to-r from-gray-50 to-white p-3 rounded-xl border border-gray-100">
-            <div className="flex items-center space-x-4 text-xs text-gray-600">
-              <div className="flex items-center space-x-1">
-                <Keyboard className="w-4 h-4 text-gray-400" />
-                <span>Tab/Enter to navigate</span>
-              </div>
-              <div className="flex items-center space-x-1">
-                <MousePointer className="w-4 h-4 text-gray-400" />
-                <span>Click any field to edit</span>
-              </div>
-            </div>
-            <div className="flex items-center space-x-3">
+            
+            <div className="flex items-center space-x-2">
               <button
                 onClick={() => setShowValues(!showValues)}
-                className="p-2 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+                className="p-1.5 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded transition-all"
                 title={showValues ? 'Hide values' : 'Show values'}
               >
-                {showValues ? <Eye className="w-4 h-4 text-gray-600" /> : <EyeOff className="w-4 h-4 text-gray-600" />}
+                {showValues ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
               </button>
-              <div className="flex items-center bg-amber-50 px-3 py-1.5 rounded-lg border border-amber-200">
-                <Zap className="w-4 h-4 text-amber-600 mr-1.5" />
-                <span className="text-xs font-medium text-amber-700">Quick Mode</span>
+              <div className="flex items-center px-2 py-1 bg-amber-50 rounded text-xs">
+                <Keyboard className="w-3 h-3 text-amber-600 mr-1" />
+                <span className="text-amber-700 font-medium">Tab/Enter</span>
+              </div>
+              <div className="flex items-center px-2 py-1 bg-blue-50 rounded text-xs">
+                <Zap className="w-3 h-3 text-blue-600 mr-1" />
+                <span className="text-blue-700 font-medium">Ctrl+Enter to save</span>
               </div>
             </div>
           </div>
+
+          {/* Quick Filter Tabs */}
+          <div className="flex items-center space-x-1 text-xs">
+            <button
+              onClick={() => setActiveFilter('all')}
+              className={`px-3 py-1 rounded transition-all ${
+                activeFilter === 'all' 
+                  ? 'bg-gray-900 text-white' 
+                  : 'text-gray-600 hover:bg-gray-100'
+              }`}
+            >
+              All Types
+            </button>
+            {Object.entries(assetTypes).map(([key, config]) => {
+              const Icon = config.icon;
+              return (
+                <button
+                  key={key}
+                  onClick={() => setActiveFilter(key)}
+                  className={`px-3 py-1 rounded transition-all flex items-center space-x-1 ${
+                    activeFilter === key 
+                      ? `${config.bg} text-white` 
+                      : 'text-gray-600 hover:bg-gray-100'
+                  }`}
+                >
+                  <Icon className="w-3 h-3" />
+                  <span>{config.name}</span>
+                  {stats.byType[key] > 0 && (
+                    <span className={`ml-1 px-1 rounded text-[10px] ${
+                      activeFilter === key ? 'bg-white/20' : 'bg-gray-200'
+                    }`}>
+                      {stats.byType[key]}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
         </div>
 
-        {/* Scrollable Content */}
-        <div className="flex-1 overflow-y-auto space-y-4 px-1">
-          {Object.keys(assetTypes).map(assetType => renderAssetSection(assetType))}
+        {/* Maximized Scrollable Content Area */}
+        <div className="flex-1 overflow-y-auto space-y-2 pr-1">
+          {Object.keys(assetTypes)
+            .filter(type => activeFilter === 'all' || activeFilter === type)
+            .map(assetType => renderAssetSection(assetType))}
         </div>
 
-        {/* Messages */}
+        {/* Compact Message */}
         {message.text && (
-          <div className={`mt-4 p-4 rounded-lg flex items-center space-x-2 ${
+          <div className={`mt-2 px-3 py-2 rounded-lg flex items-center space-x-2 text-sm animate-slideIn ${
             message.type === 'error' ? 'bg-red-50 text-red-700 border border-red-200' :
             message.type === 'warning' ? 'bg-amber-50 text-amber-700 border border-amber-200' :
             'bg-green-50 text-green-700 border border-green-200'
           }`}>
-            {message.type === 'error' ? <AlertCircle className="w-5 h-5 text-red-600" /> :
-             message.type === 'warning' ? <AlertCircle className="w-5 h-5 text-amber-600" /> :
-             <CheckCircle className="w-5 h-5 text-green-600" />}
-            <span className="text-sm font-medium">{message.text}</span>
+            {message.type === 'error' ? <AlertCircle className="w-4 h-4" /> :
+             message.type === 'warning' ? <AlertCircle className="w-4 h-4" /> :
+             <CheckCircle className="w-4 h-4" />}
+            <span className="font-medium">{message.text}</span>
           </div>
         )}
 
-        {/* Footer Actions */}
-        <div className="flex-shrink-0 flex justify-between items-center pt-6 mt-6 border-t border-gray-200">
+        {/* Ultra Compact Footer */}
+        <div className="flex-shrink-0 flex justify-between items-center pt-3 mt-3 border-t border-gray-200">
           <button
             onClick={() => {
               const initialPositions = {};
@@ -808,38 +876,38 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved }) => {
                 }];
               });
               setPositions(initialPositions);
-              setMessage({ type: 'success', text: 'All positions cleared' });
+              setMessage({ type: 'success', text: 'Cleared all positions' });
             }}
-            className="px-6 py-2.5 bg-white border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 transition-all duration-200 flex items-center space-x-2"
+            className="px-4 py-1.5 text-sm bg-white border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 transition-all flex items-center space-x-1"
           >
-            <Trash2 className="w-4 h-4" />
+            <Trash2 className="w-3.5 h-3.5" />
             <span>Clear All</span>
           </button>
           
-          <div className="flex items-center space-x-3">
+          <div className="flex items-center space-x-2">
             <button
               onClick={onClose}
-              className="px-6 py-2.5 bg-white border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 transition-all duration-200"
+              className="px-4 py-1.5 text-sm bg-white border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 transition-all"
             >
               Cancel
             </button>
             <button
               onClick={submitAll}
               disabled={stats.totalPositions === 0 || isSubmitting}
-              className={`px-6 py-2.5 font-medium rounded-lg transition-all duration-200 flex items-center space-x-2 ${
+              className={`px-6 py-1.5 text-sm font-medium rounded-lg transition-all flex items-center space-x-1.5 ${
                 stats.totalPositions === 0 || isSubmitting
                   ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                  : 'bg-gradient-to-r from-green-600 to-emerald-600 text-white hover:from-green-700 hover:to-emerald-700 transform hover:scale-[1.02] hover:shadow-lg'
+                  : 'bg-gradient-to-r from-green-600 to-emerald-600 text-white hover:from-green-700 hover:to-emerald-700 transform hover:scale-[1.02] shadow-sm'
               }`}
             >
               {isSubmitting ? (
                 <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  <span>Creating...</span>
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  <span>Saving...</span>
                 </>
               ) : (
                 <>
-                  <CheckCircle className="w-4 h-4" />
+                  <CheckCircle className="w-3.5 h-3.5" />
                   <span>Add {stats.totalPositions} Positions</span>
                 </>
               )}
@@ -847,6 +915,38 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved }) => {
           </div>
         </div>
       </div>
+
+      <style jsx>{`
+        @keyframes slideIn {
+          from {
+            opacity: 0;
+            transform: translateX(-10px);
+          }
+          to {
+            opacity: 1;
+            transform: translateX(0);
+          }
+        }
+        
+        @keyframes slideOut {
+          from {
+            opacity: 1;
+            transform: translateX(0);
+          }
+          to {
+            opacity: 0;
+            transform: translateX(10px);
+          }
+        }
+        
+        .animate-slideIn {
+          animation: slideIn 0.2s ease-out;
+        }
+        
+        .animate-slideOut {
+          animation: slideOut 0.2s ease-out;
+        }
+      `}</style>
     </FixedModal>
   );
 };
