@@ -41,7 +41,7 @@ const AnimatedNumber = ({ value, duration = 500 }) => {
   return <span>{displayValue}</span>;
 };
 
-export const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved }) => {
+const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved }) => {
   // Core state
   const [accounts, setAccounts] = useState([]);
   const [positions, setPositions] = useState({
@@ -858,7 +858,7 @@ export const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved }) => 
 };
 
 // Utility functions
-function debounce(func, wait) {
+const debounce = (func, wait) => {
   let timeout;
   return function executedFunction(...args) {
     const later = () => {
@@ -868,6 +868,6 @@ function debounce(func, wait) {
     clearTimeout(timeout);
     timeout = setTimeout(later, wait);
   };
-}
+};
 
 export default AddQuickPositionModal;
