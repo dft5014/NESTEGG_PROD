@@ -19,10 +19,29 @@ import {
   FileSpreadsheet, Table, Grid3x3, Filter, Download, Upload,
   Keyboard, MousePointer, MoreVertical, ChevronRight, Shield,
   PieChart, Target, Wallet, CreditCard, Gem, Building,
-  ChevronUp, Edit3, CheckSquare, Square, ListPlus
+  ChevronUp, Edit3, CheckSquare, Square, ListPlus, Loader2,
+  ArrowUpDown, Info
 } from 'lucide-react';
 
-export const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, theme = 'dark' }) => {
+// AnimatedNumber component from QuickStart
+const AnimatedNumber = ({ value, duration = 500 }) => {
+  const [displayValue, setDisplayValue] = useState(0);
+  
+  useEffect(() => {
+    let startTime;
+    const animate = (timestamp) => {
+      if (!startTime) startTime = timestamp;
+      const progress = Math.min((timestamp - startTime) / duration, 1);
+      setDisplayValue(Math.floor(progress * value));
+      if (progress < 1) requestAnimationFrame(animate);
+    };
+    requestAnimationFrame(animate);
+  }, [value, duration]);
+  
+  return <span>{displayValue}</span>;
+};
+
+export const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved }) => {
   // Core state
   const [accounts, setAccounts] = useState([]);
   const [positions, setPositions] = useState({
@@ -37,62 +56,52 @@ export const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, theme
   const [showValues, setShowValues] = useState(true);
   const [selectedPositions, setSelectedPositions] = useState(new Set());
   const [focusedCell, setFocusedCell] = useState(null);
-  const [searchResults, setSearchResults] = useState({});
-  const [isSearching, setIsSearching] = useState(false);
   const [message, setMessage] = useState({ type: '', text: '' });
   
   // Refs
   const cellRefs = useRef({});
-  
-  // Theme
-  const isDark = theme === 'dark';
+  const newRowRefs = useRef({});
 
-  // Asset type configuration
+  // Asset type configuration - matching QuickStart's style
   const assetTypes = {
     security: {
       name: 'Securities',
       icon: BarChart3,
-      color: '#3B82F6',
-      bgColor: 'bg-blue-500',
-      lightBg: 'bg-blue-50',
-      darkBg: 'bg-blue-950/20',
-      borderColor: 'border-blue-500',
+      color: 'blue',
+      gradient: 'from-blue-500 to-blue-600',
+      lightGradient: 'from-blue-50 to-blue-100',
       description: 'Stocks, ETFs, Mutual Funds',
       fields: [
-        { key: 'ticker', label: 'Ticker', type: 'text', required: true, width: 'w-28', placeholder: 'AAPL', transform: 'uppercase' },
-        { key: 'shares', label: 'Shares', type: 'number', required: true, width: 'w-24', placeholder: '100' },
-        { key: 'price', label: 'Price', type: 'number', required: true, width: 'w-24', placeholder: '150.00', prefix: '$' },
-        { key: 'cost_basis', label: 'Cost Basis', type: 'number', width: 'w-28', placeholder: '140.00', prefix: '$' },
-        { key: 'purchase_date', label: 'Purchase Date', type: 'date', width: 'w-32' },
-        { key: 'account_id', label: 'Account', type: 'select', required: true, width: 'w-48' }
+        { key: 'ticker', label: 'Ticker', type: 'text', required: true, width: 'w-32', placeholder: 'AAPL', transform: 'uppercase' },
+        { key: 'shares', label: 'Shares', type: 'number', required: true, width: 'w-28', placeholder: '100' },
+        { key: 'price', label: 'Price', type: 'number', required: true, width: 'w-28', placeholder: '150.00', prefix: '$' },
+        { key: 'cost_basis', label: 'Cost Basis', type: 'number', width: 'w-32', placeholder: '140.00', prefix: '$' },
+        { key: 'purchase_date', label: 'Purchase Date', type: 'date', width: 'w-36' },
+        { key: 'account_id', label: 'Account', type: 'select', required: true, width: 'w-52' }
       ]
     },
     crypto: {
       name: 'Cryptocurrency',
       icon: Coins,
-      color: '#F97316',
-      bgColor: 'bg-orange-500',
-      lightBg: 'bg-orange-50',
-      darkBg: 'bg-orange-950/20',
-      borderColor: 'border-orange-500',
+      color: 'orange',
+      gradient: 'from-orange-500 to-orange-600',
+      lightGradient: 'from-orange-50 to-orange-100',
       description: 'Bitcoin, Ethereum, and other digital assets',
       fields: [
-        { key: 'symbol', label: 'Symbol', type: 'text', required: true, width: 'w-24', placeholder: 'BTC', transform: 'uppercase' },
-        { key: 'quantity', label: 'Quantity', type: 'number', required: true, width: 'w-28', placeholder: '0.5', step: '0.00000001' },
-        { key: 'purchase_price', label: 'Purchase', type: 'number', required: true, width: 'w-28', placeholder: '45000', prefix: '$' },
-        { key: 'current_price', label: 'Current', type: 'number', required: true, width: 'w-28', placeholder: '50000', prefix: '$' },
-        { key: 'purchase_date', label: 'Date', type: 'date', width: 'w-32' },
-        { key: 'account_id', label: 'Account', type: 'select', required: true, width: 'w-48' }
+        { key: 'symbol', label: 'Symbol', type: 'text', required: true, width: 'w-28', placeholder: 'BTC', transform: 'uppercase' },
+        { key: 'quantity', label: 'Quantity', type: 'number', required: true, width: 'w-32', placeholder: '0.5', step: '0.00000001' },
+        { key: 'purchase_price', label: 'Purchase Price', type: 'number', required: true, width: 'w-32', placeholder: '45000', prefix: '$' },
+        { key: 'current_price', label: 'Current Price', type: 'number', required: true, width: 'w-32', placeholder: '50000', prefix: '$' },
+        { key: 'purchase_date', label: 'Purchase Date', type: 'date', width: 'w-36' },
+        { key: 'account_id', label: 'Account', type: 'select', required: true, width: 'w-52' }
       ]
     },
     metal: {
       name: 'Precious Metals',
       icon: Gem,
-      color: '#EAB308',
-      bgColor: 'bg-yellow-500',
-      lightBg: 'bg-yellow-50',
-      darkBg: 'bg-yellow-950/20',
-      borderColor: 'border-yellow-500',
+      color: 'yellow',
+      gradient: 'from-yellow-500 to-amber-600',
+      lightGradient: 'from-yellow-50 to-amber-100',
       description: 'Gold, Silver, Platinum, Palladium',
       fields: [
         { 
@@ -100,7 +109,7 @@ export const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, theme
           label: 'Metal', 
           type: 'select', 
           required: true, 
-          width: 'w-28',
+          width: 'w-32',
           options: [
             { value: '', label: 'Select...' },
             { value: 'Gold', label: 'Gold' },
@@ -109,40 +118,38 @@ export const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, theme
             { value: 'Palladium', label: 'Palladium' }
           ]
         },
-        { key: 'quantity', label: 'Qty', type: 'number', required: true, width: 'w-20', placeholder: '10' },
+        { key: 'quantity', label: 'Quantity', type: 'number', required: true, width: 'w-24', placeholder: '10' },
         { 
           key: 'unit', 
           label: 'Unit', 
           type: 'select', 
-          width: 'w-20',
+          width: 'w-24',
           options: [
             { value: 'oz', label: 'oz' },
             { value: 'g', label: 'g' },
             { value: 'kg', label: 'kg' }
           ]
         },
-        { key: 'purchase_price', label: 'Price/Unit', type: 'number', required: true, width: 'w-28', placeholder: '1800', prefix: '$' },
-        { key: 'current_price_per_unit', label: 'Current', type: 'number', width: 'w-28', placeholder: '1900', prefix: '$' },
-        { key: 'purchase_date', label: 'Date', type: 'date', width: 'w-32' },
-        { key: 'account_id', label: 'Account', type: 'select', required: true, width: 'w-48' }
+        { key: 'purchase_price', label: 'Price/Unit', type: 'number', required: true, width: 'w-32', placeholder: '1800', prefix: '$' },
+        { key: 'current_price_per_unit', label: 'Current/Unit', type: 'number', width: 'w-32', placeholder: '1900', prefix: '$' },
+        { key: 'purchase_date', label: 'Purchase Date', type: 'date', width: 'w-36' },
+        { key: 'account_id', label: 'Account', type: 'select', required: true, width: 'w-52' }
       ]
     },
     realestate: {
       name: 'Real Estate',
       icon: Home,
-      color: '#10B981',
-      bgColor: 'bg-green-500',
-      lightBg: 'bg-green-50',
-      darkBg: 'bg-green-950/20',
-      borderColor: 'border-green-500',
+      color: 'green',
+      gradient: 'from-green-500 to-emerald-600',
+      lightGradient: 'from-green-50 to-emerald-100',
       description: 'Properties and REITs',
       fields: [
-        { key: 'property_name', label: 'Property Name', type: 'text', required: true, width: 'w-48', placeholder: 'Main Residence' },
+        { key: 'property_name', label: 'Property Name', type: 'text', required: true, width: 'w-52', placeholder: 'Main Residence' },
         { 
           key: 'property_type', 
           label: 'Type', 
           type: 'select', 
-          width: 'w-32',
+          width: 'w-36',
           options: [
             { value: '', label: 'Select...' },
             { value: 'Residential', label: 'Residential' },
@@ -151,21 +158,19 @@ export const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, theme
             { value: 'Industrial', label: 'Industrial' }
           ]
         },
-        { key: 'address', label: 'Address', type: 'text', width: 'w-56', placeholder: '123 Main St' },
-        { key: 'purchase_price', label: 'Purchase', type: 'number', required: true, width: 'w-32', placeholder: '500000', prefix: '$' },
-        { key: 'estimated_value', label: 'Est. Value', type: 'number', width: 'w-32', placeholder: '550000', prefix: '$' },
-        { key: 'purchase_date', label: 'Date', type: 'date', width: 'w-32' },
-        { key: 'account_id', label: 'Account', type: 'select', required: true, width: 'w-48' }
+        { key: 'address', label: 'Address', type: 'text', width: 'w-64', placeholder: '123 Main St, City, ST' },
+        { key: 'purchase_price', label: 'Purchase Price', type: 'number', required: true, width: 'w-36', placeholder: '500000', prefix: '$' },
+        { key: 'estimated_value', label: 'Est. Value', type: 'number', width: 'w-36', placeholder: '550000', prefix: '$' },
+        { key: 'purchase_date', label: 'Purchase Date', type: 'date', width: 'w-36' },
+        { key: 'account_id', label: 'Account', type: 'select', required: true, width: 'w-52' }
       ]
     },
     cash: {
       name: 'Cash & Equivalents',
       icon: DollarSign,
-      color: '#8B5CF6',
-      bgColor: 'bg-purple-500',
-      lightBg: 'bg-purple-50',
-      darkBg: 'bg-purple-950/20',
-      borderColor: 'border-purple-500',
+      color: 'purple',
+      gradient: 'from-purple-500 to-purple-600',
+      lightGradient: 'from-purple-50 to-purple-100',
       description: 'Savings, Money Market, CDs',
       fields: [
         { 
@@ -173,7 +178,7 @@ export const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, theme
           label: 'Currency', 
           type: 'select', 
           required: true,
-          width: 'w-24',
+          width: 'w-28',
           options: [
             { value: 'USD', label: 'USD' },
             { value: 'EUR', label: 'EUR' },
@@ -182,12 +187,12 @@ export const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, theme
             { value: 'CAD', label: 'CAD' }
           ]
         },
-        { key: 'amount', label: 'Amount', type: 'number', required: true, width: 'w-32', placeholder: '10000', prefix: '$' },
+        { key: 'amount', label: 'Amount', type: 'number', required: true, width: 'w-36', placeholder: '10000', prefix: '$' },
         { 
           key: 'account_type', 
           label: 'Type', 
           type: 'select', 
-          width: 'w-32',
+          width: 'w-36',
           options: [
             { value: '', label: 'Select...' },
             { value: 'Savings', label: 'Savings' },
@@ -196,8 +201,8 @@ export const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, theme
             { value: 'CD', label: 'CD' }
           ]
         },
-        { key: 'interest_rate', label: 'Rate %', type: 'number', width: 'w-24', placeholder: '2.5', suffix: '%', step: '0.01' },
-        { key: 'account_id', label: 'Account', type: 'select', required: true, width: 'w-48' }
+        { key: 'interest_rate', label: 'Interest Rate', type: 'number', width: 'w-28', placeholder: '2.5', suffix: '%', step: '0.01' },
+        { key: 'account_id', label: 'Account', type: 'select', required: true, width: 'w-52' }
       ]
     }
   };
@@ -245,6 +250,39 @@ export const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, theme
       ...prev,
       [assetType]: [...prev[assetType], newPosition]
     }));
+    
+    // Focus first cell of new row after render
+    setTimeout(() => {
+      const firstFieldKey = assetTypes[assetType].fields[0].key;
+      const cellKey = `${assetType}-${newPosition.id}-${firstFieldKey}`;
+      cellRefs.current[cellKey]?.focus();
+    }, 50);
+  };
+
+  // Keyboard navigation
+  const handleKeyDown = (e, assetType, positionId, fieldIndex) => {
+    const typePositions = positions[assetType];
+    const positionIndex = typePositions.findIndex(p => p.id === positionId);
+    const fields = assetTypes[assetType].fields;
+    
+    switch (e.key) {
+      case 'Tab':
+        if (!e.shiftKey && fieldIndex === fields.length - 1 && positionIndex === typePositions.length - 1) {
+          e.preventDefault();
+          addNewRow(assetType);
+        }
+        break;
+        
+      case 'Enter':
+        e.preventDefault();
+        if (fieldIndex === fields.length - 1) {
+          addNewRow(assetType);
+        } else {
+          const nextKey = `${assetType}-${positionId}-${fields[fieldIndex + 1].key}`;
+          cellRefs.current[nextKey]?.focus();
+        }
+        break;
+    }
   };
 
   // Update position data
@@ -445,15 +483,17 @@ export const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, theme
   const renderCellInput = (assetType, position, field, cellKey) => {
     const value = position.data[field.key] || '';
     const hasError = position.errors?.[field.key];
+    const fieldIndex = assetTypes[assetType].fields.findIndex(f => f.key === field.key);
     
-    const baseClass = `w-full h-8 px-2 text-sm border-0 outline-none bg-transparent ${
-      isDark ? 'text-white placeholder-gray-500' : 'text-gray-900 placeholder-gray-400'
-    } ${hasError ? 'text-red-500' : ''} focus:ring-2 focus:ring-blue-500/30 rounded`;
+    const baseClass = `w-full px-3 py-2 bg-gray-50 border border-gray-300 rounded-md text-sm focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all placeholder-gray-400 ${
+      hasError ? 'border-red-300 bg-red-50' : ''
+    }`;
 
     const commonProps = {
       ref: el => cellRefs.current[cellKey] = el,
       className: baseClass,
-      onFocus: () => setFocusedCell(cellKey)
+      onFocus: () => setFocusedCell(cellKey),
+      onKeyDown: (e) => handleKeyDown(e, assetType, position.id, fieldIndex)
     };
 
     switch (field.type) {
@@ -465,10 +505,10 @@ export const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, theme
               value={value}
               onChange={(e) => updatePosition(assetType, position.id, field.key, parseInt(e.target.value))}
             >
-              <option value="">Select...</option>
+              <option value="">Select account...</option>
               {accounts.map(account => (
                 <option key={account.id} value={account.id}>
-                  {account.account_name}
+                  {account.account_name} - {account.institution}
                 </option>
               ))}
             </select>
@@ -493,7 +533,7 @@ export const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, theme
         return (
           <div className="relative w-full">
             {field.prefix && (
-              <span className={`absolute left-2 top-1/2 -translate-y-1/2 text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-500">
                 {field.prefix}
               </span>
             )}
@@ -504,10 +544,10 @@ export const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, theme
               onChange={(e) => updatePosition(assetType, position.id, field.key, parseFloat(e.target.value) || '')}
               placeholder={field.placeholder}
               step={field.step || 'any'}
-              className={`${baseClass} ${field.prefix ? 'pl-6' : ''} ${field.suffix ? 'pr-6' : ''}`}
+              className={`${baseClass} ${field.prefix ? 'pl-7' : ''} ${field.suffix ? 'pr-8' : ''}`}
             />
             {field.suffix && (
-              <span className={`absolute right-2 top-1/2 -translate-y-1/2 text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-gray-500">
                 {field.suffix}
               </span>
             )}
@@ -536,124 +576,109 @@ export const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, theme
     const Icon = config.icon;
 
     return (
-      <div key={assetType} className="relative">
+      <div key={assetType} className="bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden">
         {/* Section Header */}
         <div 
-          className={`sticky top-0 z-20 ${isDark ? 'bg-gray-900' : 'bg-white'} border-b ${isDark ? 'border-gray-700' : 'border-gray-200'}`}
+          onClick={() => toggleSection(assetType)}
+          className="px-6 py-4 bg-gradient-to-r from-gray-50 to-white hover:from-gray-100 hover:to-gray-50 cursor-pointer transition-all duration-200 border-b border-gray-100"
         >
-          <div 
-            onClick={() => toggleSection(assetType)}
-            className={`px-4 py-3 flex items-center justify-between cursor-pointer hover:bg-gray-50/5 transition-colors`}
-          >
+          <div className="flex items-center justify-between">
             <div className="flex items-center space-x-3">
-              <div 
-                className={`p-2 rounded-lg ${isDark ? config.darkBg : config.lightBg}`}
-                style={{ backgroundColor: `${config.color}20` }}
-              >
-                <Icon className="w-5 h-5" style={{ color: config.color }} />
+              <div className={`p-2 rounded-lg bg-gradient-to-r ${config.lightGradient}`}>
+                <Icon className={`w-5 h-5 text-${config.color}-600`} />
               </div>
               <div>
-                <h3 className="font-semibold text-lg flex items-center">
+                <h3 className="font-semibold text-gray-900 text-lg flex items-center">
                   {config.name}
                   {validPositions.length > 0 && (
-                    <span className={`ml-3 px-2.5 py-0.5 text-xs rounded-full font-medium ${
-                      isDark ? 'bg-gray-700' : 'bg-gray-200'
-                    }`}>
+                    <span className="ml-3 px-2.5 py-0.5 text-xs bg-gray-100 text-gray-700 rounded-full font-medium">
                       {validPositions.length}
                     </span>
                   )}
                 </h3>
-                <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-                  {config.description}
-                </p>
+                <p className="text-xs text-gray-600">{config.description}</p>
               </div>
             </div>
-            <ChevronDown className={`w-5 h-5 transition-transform ${isCollapsed ? '-rotate-90' : ''} ${
-              isDark ? 'text-gray-400' : 'text-gray-600'
+            <ChevronDown className={`w-5 h-5 text-gray-400 transition-transform duration-200 ${
+              isCollapsed ? '-rotate-90' : ''
             }`} />
           </div>
         </div>
 
         {/* Section Content */}
         {!isCollapsed && (
-          <div className={`${isDark ? 'bg-gray-800/30' : 'bg-gray-50/50'}`}>
+          <div className="bg-white">
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead>
-                  <tr className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-600'} uppercase tracking-wider`}>
-                    <th className="w-10 px-2 py-2">#</th>
+                  <tr className="bg-gray-50 border-b border-gray-200">
+                    <th className="w-16 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      #
+                    </th>
                     {config.fields.map(field => (
-                      <th key={field.key} className={`${field.width} px-2 py-2 text-left font-medium`}>
+                      <th key={field.key} className={`${field.width} px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider`}>
                         {field.label}
                         {field.required && <span className="text-red-500 ml-1">*</span>}
                       </th>
                     ))}
-                    <th className="w-20 px-2 py-2">Actions</th>
+                    <th className="w-24 px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Actions
+                    </th>
                   </tr>
                 </thead>
-                <tbody>
-                  {typePositions.map((position, index) => {
-                    const hasData = Object.values(position.data).some(v => v);
-                    
-                    return (
-                      <tr 
-                        key={position.id}
-                        className={`border-b ${isDark ? 'border-gray-700' : 'border-gray-200'} ${
-                          position.isNew ? 'bg-blue-500/5' : ''
-                        } hover:bg-gray-500/5 transition-colors`}
-                      >
-                        <td className="px-2 py-1">
-                          <span className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
-                            {index + 1}
-                          </span>
+                <tbody className="bg-white divide-y divide-gray-100">
+                  {typePositions.map((position, index) => (
+                    <tr 
+                      key={position.id}
+                      className={`hover:bg-gray-50 transition-colors ${
+                        position.isNew ? 'bg-blue-50/30' : ''
+                      }`}
+                    >
+                      <td className="px-6 py-3 whitespace-nowrap">
+                        <span className="text-sm text-gray-500">{index + 1}</span>
+                      </td>
+                      {config.fields.map(field => (
+                        <td key={field.key} className={`${field.width} px-3 py-3`}>
+                          {renderCellInput(
+                            assetType, 
+                            position, 
+                            field, 
+                            `${assetType}-${position.id}-${field.key}`
+                          )}
                         </td>
-                        {config.fields.map(field => (
-                          <td key={field.key} className={`${field.width} px-2 py-1`}>
-                            {renderCellInput(
-                              assetType, 
-                              position, 
-                              field, 
-                              `${assetType}-${position.id}-${field.key}`
-                            )}
-                          </td>
-                        ))}
-                        <td className="px-2 py-1">
-                          <div className="flex items-center space-x-1">
-                            <button
-                              onClick={() => duplicatePosition(assetType, position)}
-                              className={`p-1 rounded hover:bg-gray-500/10 transition-colors ${
-                                isDark ? 'text-gray-400 hover:text-white' : 'text-gray-600 hover:text-gray-900'
-                              }`}
-                              title="Duplicate"
-                            >
-                              <Copy className="w-3.5 h-3.5" />
-                            </button>
-                            <button
-                              onClick={() => deletePosition(assetType, position.id)}
-                              className="p-1 rounded hover:bg-red-500/10 text-red-500 transition-colors"
-                              title="Delete"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
+                      ))}
+                      <td className="px-3 py-3">
+                        <div className="flex items-center justify-center space-x-1">
+                          <button
+                            onClick={() => duplicatePosition(assetType, position)}
+                            className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-all transform hover:scale-110"
+                            title="Duplicate"
+                          >
+                            <Copy className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => deletePosition(assetType, position.id)}
+                            className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-md transition-all transform hover:scale-110"
+                            title="Delete"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
                 </tbody>
               </table>
             </div>
             
             {/* Add Row Button */}
-            <div className="p-3">
+            <div className="p-4 bg-gray-50 border-t border-gray-100">
               <button
                 onClick={() => addNewRow(assetType)}
-                className={`w-full py-2.5 rounded-lg border-2 border-dashed ${
-                  isDark ? 'border-gray-600 hover:border-gray-500' : 'border-gray-300 hover:border-gray-400'
-                } transition-colors flex items-center justify-center space-x-2 group`}
+                className="w-full py-2.5 px-4 bg-white border-2 border-dashed border-gray-300 rounded-lg hover:border-gray-400 hover:bg-gray-50 transition-all duration-200 flex items-center justify-center space-x-2 group"
               >
-                <Plus className="w-4 h-4 group-hover:scale-110 transition-transform" />
-                <span className="text-sm">Add {config.name} Position</span>
+                <Plus className="w-4 h-4 text-gray-400 group-hover:text-gray-600 transition-transform group-hover:scale-110" />
+                <span className="text-sm text-gray-600 font-medium">Add {config.name} Position</span>
               </button>
             </div>
           </div>
@@ -662,172 +687,188 @@ export const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, theme
     );
   };
 
+  // The main modal content
+  const modalContent = (
+    <div className="min-h-[600px] max-h-[calc(100vh-200px)] flex flex-col">
+      {/* Header Section */}
+      <div className="flex-shrink-0 space-y-6 mb-6">
+        {/* Title with icon */}
+        <div className="text-center">
+          <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full mb-4 shadow-lg shadow-blue-500/25">
+            <ListPlus className="w-8 h-8 text-white" />
+          </div>
+          <h3 className="text-2xl font-bold text-gray-900 mb-2">Quick Position Entry</h3>
+          <p className="text-gray-600 max-w-2xl mx-auto">
+            Add multiple positions across different asset classes. Build your complete portfolio in one place.
+          </p>
+        </div>
+
+        {/* Stats Dashboard - QuickStart style */}
+        <div className="relative bg-gradient-to-r from-indigo-50/50 via-purple-50/50 to-pink-50/50 rounded-xl p-4 shadow-sm border border-white/80 backdrop-blur-sm">
+          <div className="grid grid-cols-4 gap-4">
+            <div className="text-center">
+              <div className="inline-flex items-center justify-center w-12 h-12 bg-white rounded-lg shadow-sm mb-2">
+                <p className="text-2xl font-black bg-gradient-to-r from-indigo-600 to-indigo-700 bg-clip-text text-transparent">
+                  <AnimatedNumber value={stats.totalPositions} />
+                </p>
+              </div>
+              <p className="text-xs font-medium text-gray-600">Total Positions</p>
+            </div>
+            <div className="text-center">
+              <div className="inline-flex items-center justify-center w-12 h-12 bg-white rounded-lg shadow-sm mb-2">
+                <p className="text-2xl font-black bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent">
+                  {showValues ? formatCurrency(stats.totalValue) : '••••'}
+                </p>
+              </div>
+              <p className="text-xs font-medium text-gray-600">Total Value</p>
+            </div>
+            <div className="text-center">
+              <div className="inline-flex items-center justify-center w-12 h-12 bg-white rounded-lg shadow-sm mb-2">
+                <p className="text-2xl font-black bg-gradient-to-r from-purple-600 to-purple-700 bg-clip-text text-transparent">
+                  <AnimatedNumber value={Object.keys(stats.byAccount).length} />
+                </p>
+              </div>
+              <p className="text-xs font-medium text-gray-600">Accounts Used</p>
+            </div>
+            <div className="text-center">
+              <div className="inline-flex items-center justify-center w-12 h-12 bg-white rounded-lg shadow-sm mb-2">
+                <p className="text-2xl font-black bg-gradient-to-r from-amber-600 to-orange-600 bg-clip-text text-transparent">
+                  <AnimatedNumber value={Object.values(stats.byType).filter(v => v > 0).length} />
+                </p>
+              </div>
+              <p className="text-xs font-medium text-gray-600">Asset Types</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Action buttons and instructions */}
+        <div className="flex items-center justify-between bg-gradient-to-r from-gray-50 to-white p-3 rounded-xl border border-gray-100">
+          <div className="flex items-center space-x-4 text-xs text-gray-600">
+            <div className="flex items-center space-x-1">
+              <Keyboard className="w-4 h-4 text-gray-400" />
+              <span>Tab/Enter to navigate</span>
+            </div>
+            <div className="flex items-center space-x-1">
+              <MousePointer className="w-4 h-4 text-gray-400" />
+              <span>Click any field to edit</span>
+            </div>
+          </div>
+          <div className="flex items-center space-x-3">
+            <button
+              onClick={() => setShowValues(!showValues)}
+              className="p-2 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+              title={showValues ? 'Hide values' : 'Show values'}
+            >
+              {showValues ? <Eye className="w-4 h-4 text-gray-600" /> : <EyeOff className="w-4 h-4 text-gray-600" />}
+            </button>
+            <div className="flex items-center bg-amber-50 px-3 py-1.5 rounded-lg border border-amber-200">
+              <Zap className="w-4 h-4 text-amber-600 mr-1.5" />
+              <span className="text-xs font-medium text-amber-700">Quick Mode</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Scrollable Content */}
+      <div className="flex-1 overflow-y-auto space-y-4 px-1">
+        {Object.keys(assetTypes).map(assetType => renderAssetSection(assetType))}
+      </div>
+
+      {/* Messages */}
+      {message.text && (
+        <div className={`mt-4 p-4 rounded-lg flex items-center space-x-2 ${
+          message.type === 'error' ? 'bg-red-50 text-red-700 border border-red-200' :
+          message.type === 'warning' ? 'bg-amber-50 text-amber-700 border border-amber-200' :
+          'bg-green-50 text-green-700 border border-green-200'
+        }`}>
+          {message.type === 'error' ? <AlertCircle className="w-5 h-5 text-red-600" /> :
+           message.type === 'warning' ? <AlertCircle className="w-5 h-5 text-amber-600" /> :
+           <CheckCircle className="w-5 h-5 text-green-600" />}
+          <span className="text-sm font-medium">{message.text}</span>
+        </div>
+      )}
+
+      {/* Footer Actions */}
+      <div className="flex-shrink-0 flex justify-between items-center pt-6 mt-6 border-t border-gray-200">
+        <button
+          onClick={() => {
+            const initialPositions = {};
+            Object.keys(assetTypes).forEach(type => {
+              initialPositions[type] = [{
+                id: Date.now() + Math.random(),
+                type,
+                data: {},
+                errors: {},
+                isNew: true
+              }];
+            });
+            setPositions(initialPositions);
+            setMessage({ type: 'success', text: 'All positions cleared' });
+          }}
+          className="px-6 py-2.5 bg-white border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 transition-all duration-200 flex items-center space-x-2"
+        >
+          <Trash2 className="w-4 h-4" />
+          <span>Clear All</span>
+        </button>
+        
+        <div className="flex items-center space-x-3">
+          <button
+            onClick={onClose}
+            className="px-6 py-2.5 bg-white border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 transition-all duration-200"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={submitAll}
+            disabled={stats.totalPositions === 0 || isSubmitting}
+            className={`px-6 py-2.5 font-medium rounded-lg transition-all duration-200 flex items-center space-x-2 ${
+              stats.totalPositions === 0 || isSubmitting
+                ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                : 'bg-gradient-to-r from-green-600 to-emerald-600 text-white hover:from-green-700 hover:to-emerald-700 transform hover:scale-[1.02] hover:shadow-lg'
+            }`}
+          >
+            {isSubmitting ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                <span>Creating...</span>
+              </>
+            ) : (
+              <>
+                <CheckCircle className="w-4 h-4" />
+                <span>Add {stats.totalPositions} Positions</span>
+              </>
+            )}
+          </button>
+        </div>
+      </div>
+
+      {/* Add custom styles for better width */}
+      <style jsx>{`
+        .slide-in-animation {
+          animation: slideIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+        @keyframes slideIn {
+          from {
+            opacity: 0;
+            transform: translateY(-10px) scale(0.98);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0) scale(1);
+          }
+        }
+      `}</style>
+    </div>
+  );
+
   return (
     <FixedModal
       isOpen={isOpen}
       onClose={onClose}
       title="Quick Position Entry"
-      maxWidth="max-w-7xl"
+      maxWidth="max-w-[1400px]"
     >
-      <div className="flex flex-col h-[calc(100vh-200px)]">
-        {/* Header Section */}
-        <div className="flex-shrink-0 space-y-4 pb-4">
-          {/* Title with icon */}
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-3">
-              <div className={`p-2.5 rounded-xl ${isDark ? 'bg-gray-800' : 'bg-gray-100'}`}>
-                <ListPlus className="w-6 h-6 text-blue-500" />
-              </div>
-              <div>
-                <h2 className="text-xl font-bold">Add Multiple Positions</h2>
-                <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-                  Build your portfolio across different asset classes
-                </p>
-              </div>
-            </div>
-            
-            {/* Value Toggle */}
-            <button
-              onClick={() => setShowValues(!showValues)}
-              className={`p-2 ${isDark ? 'bg-gray-800 hover:bg-gray-700' : 'bg-gray-100 hover:bg-gray-200'} rounded-lg transition-colors`}
-              title={showValues ? 'Hide values' : 'Show values'}
-            >
-              {showValues ? <Eye className="w-5 h-5" /> : <EyeOff className="w-5 h-5" />}
-            </button>
-          </div>
-
-          {/* Stats Dashboard */}
-          <div className={`grid grid-cols-4 gap-3 p-4 rounded-xl ${isDark ? 'bg-gray-800/50' : 'bg-gray-50'}`}>
-            <div className="text-center">
-              <div className={`text-2xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                {stats.totalPositions}
-              </div>
-              <div className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-                Total Positions
-              </div>
-            </div>
-            <div className="text-center">
-              <div className={`text-2xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                {showValues ? formatCurrency(stats.totalValue) : '••••'}
-              </div>
-              <div className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-                Total Value
-              </div>
-            </div>
-            <div className="text-center">
-              <div className={`text-2xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                {Object.keys(stats.byAccount).length}
-              </div>
-              <div className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-                Accounts Used
-              </div>
-            </div>
-            <div className="text-center">
-              <div className={`text-2xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                {Object.values(stats.byType).filter(v => v > 0).length}
-              </div>
-              <div className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-                Asset Types
-              </div>
-            </div>
-          </div>
-
-          {/* Instructions */}
-          <div className={`flex items-center justify-between text-xs ${isDark ? 'text-gray-400' : 'text-gray-600'} px-1`}>
-            <div className="flex items-center space-x-4">
-              <div className="flex items-center space-x-1">
-                <Keyboard className="w-4 h-4" />
-                <span>Tab to navigate</span>
-              </div>
-              <div className="flex items-center space-x-1">
-                <MousePointer className="w-4 h-4" />
-                <span>Click any field to edit</span>
-              </div>
-            </div>
-            <div className="flex items-center space-x-2">
-              <Zap className="w-4 h-4 text-yellow-500" />
-              <span>Quick entry mode</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Scrollable Content */}
-        <div className="flex-1 overflow-y-auto space-y-0.5">
-          {Object.keys(assetTypes).map(assetType => renderAssetSection(assetType))}
-        </div>
-
-        {/* Messages */}
-        {message.text && (
-          <div className={`mt-4 p-4 rounded-lg flex items-center space-x-2 ${
-            message.type === 'error' ? 'bg-red-900/20 text-red-400 border border-red-800' :
-            message.type === 'warning' ? 'bg-yellow-900/20 text-yellow-400 border border-yellow-800' :
-            'bg-green-900/20 text-green-400 border border-green-800'
-          }`}>
-            {message.type === 'error' ? <AlertCircle className="w-5 h-5" /> :
-             message.type === 'warning' ? <AlertCircle className="w-5 h-5" /> :
-             <CheckCircle className="w-5 h-5" />}
-            <span>{message.text}</span>
-          </div>
-        )}
-
-        {/* Footer Actions */}
-        <div className={`flex-shrink-0 flex justify-between items-center pt-4 mt-4 border-t ${
-          isDark ? 'border-gray-700' : 'border-gray-200'
-        }`}>
-          <button
-            onClick={() => {
-              const initialPositions = {};
-              Object.keys(assetTypes).forEach(type => {
-                initialPositions[type] = [{
-                  id: Date.now() + Math.random(),
-                  type,
-                  data: {},
-                  errors: {},
-                  isNew: true
-                }];
-              });
-              setPositions(initialPositions);
-              setMessage({ type: 'success', text: 'All positions cleared' });
-            }}
-            className={`px-4 py-2 rounded-lg ${
-              isDark ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-200 hover:bg-gray-300'
-            } transition-colors flex items-center space-x-2`}
-          >
-            <Trash2 className="w-4 h-4" />
-            <span>Clear All</span>
-          </button>
-          
-          <div className="flex items-center space-x-3">
-            <button
-              onClick={onClose}
-              className={`px-6 py-2 ${isDark ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-200 hover:bg-gray-300'} rounded-lg transition-colors`}
-            >
-              Cancel
-            </button>
-            <button
-              onClick={submitAll}
-              disabled={stats.totalPositions === 0 || isSubmitting}
-              className={`px-6 py-2 rounded-lg transition-all flex items-center space-x-2 ${
-                stats.totalPositions === 0 || isSubmitting
-                  ? 'opacity-50 cursor-not-allowed bg-gray-600'
-                  : 'bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 shadow-lg transform hover:scale-[1.02]'
-              } text-white`}
-            >
-              {isSubmitting ? (
-                <>
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" />
-                  <span>Submitting...</span>
-                </>
-              ) : (
-                <>
-                  <Save className="w-4 h-4" />
-                  <span>Add {stats.totalPositions} Positions</span>
-                </>
-              )}
-            </button>
-          </div>
-        </div>
-      </div>
+      {modalContent}
     </FixedModal>
   );
 };

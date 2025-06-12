@@ -5785,6 +5785,8 @@ async def get_portfolio_snapshots(
         
         # Calculate date range based on timeframe
         end_date = datetime.now().date()
+        current_datetime = datetime.now()
+        
         if timeframe == "1d":
             start_date = end_date - timedelta(days=1)
         elif timeframe == "1w":
@@ -5814,13 +5816,15 @@ async def get_portfolio_snapshots(
         WHERE user_id = :user_id
         """
         latest_result = await database.fetch_one(latest_query, {"user_id": user_id})
-        latest_date = latest_result[0] if latest_result and latest_result[0] else end_date
+        latest_historical_date = latest_result[0] if latest_result and latest_result[0] else end_date
         
-        # Get daily snapshots data
+        # Modified query to union historical snapshots with current positions
         daily_snapshots_query = """
-        WITH grouped_snapshots AS (
+        WITH combined_data AS (
+            -- Historical snapshots
             SELECT 
                 snapshot_date,
+                snapshot_time,
                 SUM(current_value) as total_value,
                 SUM(total_cost_basis) as total_cost_basis,
                 SUM(current_value - total_cost_basis) as unrealized_gain,
@@ -5831,10 +5835,40 @@ async def get_portfolio_snapshots(
                 user_id = :user_id AND
                 snapshot_date BETWEEN :start_date AND :end_date AND
                 current_value IS NOT NULL
-            GROUP BY snapshot_date
-            ORDER BY snapshot_date ASC
+            GROUP BY snapshot_date, snapshot_time
+            
+            UNION ALL
+            
+            -- Current positions from all_positions_unified
+            SELECT 
+                :current_date::date as snapshot_date,
+                :current_time::time as snapshot_time,
+                SUM(current_value) as total_value,
+                SUM(cost_basis) as total_cost_basis,
+                SUM(current_value - cost_basis) as unrealized_gain,
+                SUM(annual_income) as position_income,
+                ARRAY_AGG(DISTINCT asset_type) as asset_types
+            FROM all_positions_unified
+            WHERE 
+                user_id = :user_id AND
+                current_value IS NOT NULL AND
+                -- Only include if we don't already have a snapshot for today
+                NOT EXISTS (
+                    SELECT 1 FROM portfolio_daily_snapshots
+                    WHERE user_id = :user_id AND snapshot_date = :current_date::date
+                )
+            GROUP BY snapshot_date, snapshot_time
         )
-        SELECT * FROM grouped_snapshots
+        SELECT 
+            snapshot_date,
+            MAX(total_value) as total_value,
+            MAX(total_cost_basis) as total_cost_basis,
+            MAX(unrealized_gain) as unrealized_gain,
+            MAX(position_income) as position_income,
+            MAX(asset_types) as asset_types
+        FROM combined_data
+        GROUP BY snapshot_date
+        ORDER BY snapshot_date ASC
         """
         
         daily_snapshots = await database.fetch_all(
@@ -5842,154 +5876,290 @@ async def get_portfolio_snapshots(
             {
                 "user_id": user_id,
                 "start_date": start_date,
-                "end_date": latest_date
+                "end_date": end_date,
+                "current_date": end_date,
+                "current_time": current_datetime.time()
             }
         )
         
-        # Get the latest snapshot for current values
+        # Get the latest values - preferring current positions over historical
         latest_snapshot_query = """
-        WITH latest_values AS (
+        WITH current_positions AS (
             SELECT 
-                MAX(snapshot_date) as max_date
-            FROM portfolio_daily_snapshots
-            WHERE user_id = :user_id
+                SUM(current_value) as total_value,
+                SUM(cost_basis) as total_cost_basis,
+                SUM(current_value - cost_basis) as unrealized_gain,
+                SUM(annual_income) as position_income
+            FROM all_positions_unified
+            WHERE 
+                user_id = :user_id AND
+                current_value IS NOT NULL
         ),
-        snapshot_totals AS (
+        latest_historical AS (
             SELECT 
                 SUM(current_value) as total_value,
                 SUM(total_cost_basis) as total_cost_basis,
                 SUM(current_value - total_cost_basis) as unrealized_gain,
                 SUM(position_income) as position_income
             FROM portfolio_daily_snapshots pds
-            JOIN latest_values lv ON pds.snapshot_date = lv.max_date
             WHERE 
                 user_id = :user_id AND
+                snapshot_date = (
+                    SELECT MAX(snapshot_date) 
+                    FROM portfolio_daily_snapshots 
+                    WHERE user_id = :user_id
+                ) AND
                 current_value IS NOT NULL
         )
-        SELECT * FROM snapshot_totals
+        SELECT 
+            COALESCE(cp.total_value, lh.total_value, 0) as total_value,
+            COALESCE(cp.total_cost_basis, lh.total_cost_basis, 0) as total_cost_basis,
+            COALESCE(cp.unrealized_gain, lh.unrealized_gain, 0) as unrealized_gain,
+            COALESCE(cp.position_income, lh.position_income, 0) as position_income
+        FROM current_positions cp
+        FULL OUTER JOIN latest_historical lh ON TRUE
         """
         
         current_values = await database.fetch_one(latest_snapshot_query, {"user_id": user_id})
         
-        # Get asset allocation breakdown from the latest snapshot
+        # Get asset allocation - prefer current positions
         asset_allocation_query = """
-        WITH latest_date AS (
-            SELECT MAX(snapshot_date) as max_date
+        WITH current_allocation AS (
+            SELECT 
+                asset_type,
+                SUM(current_value) as value,
+                SUM(current_value) / NULLIF((
+                    SELECT SUM(current_value) 
+                    FROM all_positions_unified
+                    WHERE user_id = :user_id AND current_value IS NOT NULL
+                ), 0) as percentage
+            FROM all_positions_unified
+            WHERE 
+                user_id = :user_id AND
+                current_value IS NOT NULL
+            GROUP BY asset_type
+        ),
+        historical_allocation AS (
+            SELECT 
+                asset_type,
+                SUM(current_value) as value,
+                SUM(current_value) / NULLIF((
+                    SELECT SUM(current_value) 
+                    FROM portfolio_daily_snapshots
+                    WHERE user_id = :user_id 
+                    AND snapshot_date = (
+                        SELECT MAX(snapshot_date) 
+                        FROM portfolio_daily_snapshots 
+                        WHERE user_id = :user_id
+                    )
+                    AND current_value IS NOT NULL
+                ), 0) as percentage
             FROM portfolio_daily_snapshots
-            WHERE user_id = :user_id
+            WHERE 
+                user_id = :user_id AND 
+                snapshot_date = (
+                    SELECT MAX(snapshot_date) 
+                    FROM portfolio_daily_snapshots 
+                    WHERE user_id = :user_id
+                ) AND
+                current_value IS NOT NULL
+            GROUP BY asset_type
         )
         SELECT 
-            asset_type,
-            SUM(current_value) as value,
-            SUM(current_value) / (
-                SELECT SUM(current_value) FROM portfolio_daily_snapshots
-                WHERE user_id = :user_id AND snapshot_date = (SELECT max_date FROM latest_date)
-                AND current_value IS NOT NULL
-            ) as percentage
-        FROM portfolio_daily_snapshots
-        WHERE 
-            user_id = :user_id AND 
-            snapshot_date = (SELECT max_date FROM latest_date) AND
-            current_value IS NOT NULL
-        GROUP BY asset_type
+            COALESCE(ca.asset_type, ha.asset_type) as asset_type,
+            COALESCE(ca.value, ha.value, 0) as value,
+            COALESCE(ca.percentage, ha.percentage, 0) as percentage
+        FROM current_allocation ca
+        FULL OUTER JOIN historical_allocation ha ON ca.asset_type = ha.asset_type
+        WHERE COALESCE(ca.value, ha.value, 0) > 0
         ORDER BY value DESC
         """
         
         asset_allocation = await database.fetch_all(asset_allocation_query, {"user_id": user_id})
         
-        # Get sector allocation for securities
+        # Get sector allocation - prefer current positions
         sector_allocation_query = """
-        WITH latest_date AS (
-            SELECT MAX(snapshot_date) as max_date
-            FROM portfolio_daily_snapshots
-            WHERE user_id = :user_id
+        WITH current_sectors AS (
+            SELECT 
+                COALESCE(s.sector, 'Unknown') as sector,
+                SUM(ap.current_value) as value,
+                SUM(ap.current_value) / NULLIF((
+                    SELECT SUM(current_value) 
+                    FROM all_positions_unified
+                    WHERE user_id = :user_id 
+                    AND asset_type = 'security' 
+                    AND current_value IS NOT NULL
+                ), 0) as percentage
+            FROM all_positions_unified ap
+            LEFT JOIN securities s ON ap.identifier = s.ticker
+            WHERE 
+                ap.user_id = :user_id AND 
+                ap.asset_type = 'security' AND
+                ap.current_value IS NOT NULL
+            GROUP BY s.sector
         ),
-        total_securities_value AS (
-            SELECT SUM(current_value) as total
+        historical_sectors AS (
+            SELECT 
+                COALESCE(sector, 'Unknown') as sector,
+                SUM(current_value) as value,
+                SUM(current_value) / NULLIF((
+                    SELECT SUM(current_value) 
+                    FROM portfolio_daily_snapshots
+                    WHERE user_id = :user_id 
+                    AND snapshot_date = (
+                        SELECT MAX(snapshot_date) 
+                        FROM portfolio_daily_snapshots 
+                        WHERE user_id = :user_id
+                    )
+                    AND asset_type = 'security' 
+                    AND current_value IS NOT NULL
+                ), 0) as percentage
             FROM portfolio_daily_snapshots
             WHERE 
                 user_id = :user_id AND 
-                snapshot_date = (SELECT max_date FROM latest_date) AND
+                snapshot_date = (
+                    SELECT MAX(snapshot_date) 
+                    FROM portfolio_daily_snapshots 
+                    WHERE user_id = :user_id
+                ) AND
                 asset_type = 'security' AND
                 current_value IS NOT NULL
+            GROUP BY sector
         )
         SELECT 
-            COALESCE(sector, 'Unknown') as sector,
-            SUM(current_value) as value,
-            SUM(current_value) / (SELECT total FROM total_securities_value) as percentage
-        FROM portfolio_daily_snapshots
-        WHERE 
-            user_id = :user_id AND 
-            snapshot_date = (SELECT max_date FROM latest_date) AND
-            asset_type = 'security' AND
-            current_value IS NOT NULL
-        GROUP BY sector
+            COALESCE(cs.sector, hs.sector) as sector,
+            COALESCE(cs.value, hs.value, 0) as value,
+            COALESCE(cs.percentage, hs.percentage, 0) as percentage
+        FROM current_sectors cs
+        FULL OUTER JOIN historical_sectors hs ON cs.sector = hs.sector
+        WHERE COALESCE(cs.value, hs.value, 0) > 0
         ORDER BY value DESC
         """
         
         sector_allocation = await database.fetch_all(sector_allocation_query, {"user_id": user_id})
         
-        # Get account allocation
+        # Get account allocation - prefer current positions
         account_allocation_query = """
-        WITH latest_date AS (
-            SELECT MAX(snapshot_date) as max_date
-            FROM portfolio_daily_snapshots
-            WHERE user_id = :user_id
+        WITH current_accounts AS (
+            SELECT 
+                a.account_name,
+                a.institution,
+                a.type as account_type,
+                SUM(ap.current_value) as value,
+                SUM(ap.current_value) / NULLIF((
+                    SELECT SUM(current_value) 
+                    FROM all_positions_unified
+                    WHERE user_id = :user_id AND current_value IS NOT NULL
+                ), 0) as percentage
+            FROM all_positions_unified ap
+            JOIN accounts a ON ap.account_id = a.id
+            WHERE 
+                ap.user_id = :user_id AND
+                ap.current_value IS NOT NULL
+            GROUP BY a.account_name, a.institution, a.type
         ),
-        total_value AS (
-            SELECT SUM(current_value) as total
+        historical_accounts AS (
+            SELECT 
+                account_name,
+                institution,
+                type as account_type,
+                SUM(current_value) as value,
+                SUM(current_value) / NULLIF((
+                    SELECT SUM(current_value) 
+                    FROM portfolio_daily_snapshots
+                    WHERE user_id = :user_id 
+                    AND snapshot_date = (
+                        SELECT MAX(snapshot_date) 
+                        FROM portfolio_daily_snapshots 
+                        WHERE user_id = :user_id
+                    )
+                    AND current_value IS NOT NULL
+                ), 0) as percentage
             FROM portfolio_daily_snapshots
             WHERE 
                 user_id = :user_id AND 
-                snapshot_date = (SELECT max_date FROM latest_date) AND
+                snapshot_date = (
+                    SELECT MAX(snapshot_date) 
+                    FROM portfolio_daily_snapshots 
+                    WHERE user_id = :user_id
+                ) AND
                 current_value IS NOT NULL
+            GROUP BY account_name, institution, type
         )
         SELECT 
-            account_name,
-            institution,
-            type as account_type,
-            SUM(current_value) as value,
-            SUM(current_value) / (SELECT total FROM total_value) as percentage
-        FROM portfolio_daily_snapshots
-        WHERE 
-            user_id = :user_id AND 
-            snapshot_date = (SELECT max_date FROM latest_date) AND
-            current_value IS NOT NULL
-        GROUP BY account_name, institution, type
+            COALESCE(ca.account_name, ha.account_name) as account_name,
+            COALESCE(ca.institution, ha.institution) as institution,
+            COALESCE(ca.account_type, ha.account_type) as account_type,
+            COALESCE(ca.value, ha.value, 0) as value,
+            COALESCE(ca.percentage, ha.percentage, 0) as percentage
+        FROM current_accounts ca
+        FULL OUTER JOIN historical_accounts ha 
+            ON ca.account_name = ha.account_name 
+            AND ca.institution = ha.institution
+        WHERE COALESCE(ca.value, ha.value, 0) > 0
         ORDER BY value DESC
         """
         
         account_allocation = await database.fetch_all(account_allocation_query, {"user_id": user_id})
         
-        # Get top positions by value
+        # Get top positions - prefer current positions
         top_positions_query = """
-        WITH latest_date AS (
-            SELECT MAX(snapshot_date) as max_date
+        WITH current_top AS (
+            SELECT 
+                ap.identifier as ticker,
+                COALESCE(s.name, ap.identifier) as name,
+                ap.asset_type,
+                a.account_name,
+                ap.current_value,
+                ap.price as price,
+                ap.quantity,
+                CASE 
+                    WHEN ap.cost_basis > 0 THEN ((ap.current_value - ap.cost_basis) / ap.cost_basis)
+                    ELSE 0
+                END as gain_loss_percent,
+                ap.cost_basis
+            FROM all_positions_unified ap
+            LEFT JOIN securities s ON ap.identifier = s.ticker AND ap.asset_type = 'security'
+            LEFT JOIN accounts a ON ap.account_id = a.id
+            WHERE 
+                ap.user_id = :user_id AND
+                ap.current_value IS NOT NULL
+            ORDER BY ap.current_value DESC
+            LIMIT 10
+        ),
+        historical_top AS (
+            SELECT 
+                identifier as ticker,
+                name,
+                asset_type,
+                account_name,
+                current_value,
+                current_price_per_unit as price,
+                quantity,
+                gain_loss_pct as gain_loss_percent,
+                total_cost_basis as cost_basis
             FROM portfolio_daily_snapshots
-            WHERE user_id = :user_id
+            WHERE 
+                user_id = :user_id AND 
+                snapshot_date = (
+                    SELECT MAX(snapshot_date) 
+                    FROM portfolio_daily_snapshots 
+                    WHERE user_id = :user_id
+                ) AND
+                current_value IS NOT NULL
+            ORDER BY current_value DESC
+            LIMIT 10
         )
-        SELECT 
-            identifier as ticker,
-            name,
-            asset_type,
-            account_name,
-            current_value,
-            current_price_per_unit as price,
-            quantity,
-            gain_loss_pct as gain_loss_percent,
-            total_cost_basis as cost_basis
-        FROM portfolio_daily_snapshots
-        WHERE 
-            user_id = :user_id AND 
-            snapshot_date = (SELECT max_date FROM latest_date) AND
-            current_value IS NOT NULL
-        ORDER BY current_value DESC
-        LIMIT 10
+        SELECT * FROM current_top
+        WHERE EXISTS (SELECT 1 FROM all_positions_unified WHERE user_id = :user_id)
+        UNION ALL
+        SELECT * FROM historical_top
+        WHERE NOT EXISTS (SELECT 1 FROM all_positions_unified WHERE user_id = :user_id)
         """
         
         top_positions = await database.fetch_all(top_positions_query, {"user_id": user_id})
         
-        # Calculate period changes
+        # Calculate period changes (same logic but uses combined snapshots)
         period_changes = {}
         if daily_snapshots:
             # Sort snapshots by date to ensure correct calculations
@@ -6044,26 +6214,56 @@ async def get_portfolio_snapshots(
                     "value_change": value_change_ytd,
                     "percent_change": percent_change_ytd
                 }
+            
+            # 1y change
+            year_ago_index = next((i for i, snap in enumerate(sorted_snapshots) 
+                                  if (sorted_snapshots[-1]['snapshot_date'] - snap['snapshot_date']).days >= 365), None)
+            if year_ago_index is not None:
+                year_ago_value = sorted_snapshots[year_ago_index]['total_value']
+                value_change_1y = latest_value - year_ago_value
+                percent_change_1y = (value_change_1y / year_ago_value) * 100 if year_ago_value else 0
+                period_changes["1y"] = {
+                    "value_change": value_change_1y,
+                    "percent_change": percent_change_1y
+                }
         
-        # Calculate total portfolio income
+        # Calculate total portfolio income - prefer current positions
         total_income_query = """
-        WITH latest_date AS (
-            SELECT MAX(snapshot_date) as max_date
+        WITH current_income AS (
+            SELECT 
+                SUM(annual_income) as annual_income,
+                SUM(annual_income) / NULLIF(SUM(current_value), 0) * 100 as yield_percentage
+            FROM all_positions_unified
+            WHERE 
+                user_id = :user_id AND
+                current_value IS NOT NULL
+        ),
+        historical_income AS (
+            SELECT 
+                SUM(position_income) as annual_income,
+                SUM(position_income) / NULLIF(SUM(current_value), 0) * 100 as yield_percentage
             FROM portfolio_daily_snapshots
-            WHERE user_id = :user_id
+            WHERE 
+                user_id = :user_id AND 
+                snapshot_date = (
+                    SELECT MAX(snapshot_date) 
+                    FROM portfolio_daily_snapshots 
+                    WHERE user_id = :user_id
+                ) AND
+                position_income IS NOT NULL AND 
+                current_value IS NOT NULL
         )
         SELECT 
-            SUM(position_income) as annual_income,
-            SUM(position_income) / NULLIF(SUM(current_value), 0) * 100 as yield_percentage
-        FROM portfolio_daily_snapshots
-        WHERE 
-            user_id = :user_id AND 
-            snapshot_date = (SELECT max_date FROM latest_date) AND
-            position_income IS NOT NULL AND 
-            current_value IS NOT NULL
+            COALESCE(ci.annual_income, hi.annual_income, 0) as annual_income,
+            COALESCE(ci.yield_percentage, hi.yield_percentage, 0) as yield_percentage
+        FROM current_income ci
+        FULL OUTER JOIN historical_income hi ON TRUE
         """
         
         income_data = await database.fetch_one(total_income_query, {"user_id": user_id})
+        
+        # Update last_updated to be today if we have current positions
+        last_updated = end_date if daily_snapshots and sorted_snapshots[-1]['snapshot_date'] == end_date else latest_historical_date
         
         # Format the results into a clean response structure
         result = {
@@ -6075,7 +6275,7 @@ async def get_portfolio_snapshots(
             "annual_income": income_data['annual_income'] if income_data else 0,
             "yield_percentage": income_data['yield_percentage'] if income_data else 0,
             "period_changes": period_changes,
-            "last_updated": latest_date,
+            "last_updated": last_updated,
             
             # Allocation breakdowns
             "asset_allocation": {item['asset_type']: {
