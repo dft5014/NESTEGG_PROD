@@ -842,23 +842,6 @@ export const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved }) => 
           </button>
         </div>
       </div>
-
-      {/* Add custom styles for better width */}
-      <style jsx>{`
-        .slide-in-animation {
-          animation: slideIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
-        }
-        @keyframes slideIn {
-          from {
-            opacity: 0;
-            transform: translateY(-10px) scale(0.98);
-          }
-          to {
-            opacity: 1;
-            transform: translateY(0) scale(1);
-          }
-        }
-      `}</style>
     </div>
   );
 
