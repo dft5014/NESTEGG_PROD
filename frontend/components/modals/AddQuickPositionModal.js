@@ -22,7 +22,7 @@ import {
   ChevronUp, Edit3, CheckSquare, Square, ListPlus, Loader2,
   ArrowUpDown, Info, MinusCircle, PlusCircle, BarChart2,
   RefreshCw, Database, TrendingDown, Percent, Calculator,
-  FileText, GitBranch, Shuffle, Import, Export, Maximize2
+  FileText, GitBranch, Shuffle, Import, Export, Maximize2, Calendar
 } from 'lucide-react';
 
 // Enhanced AnimatedNumber with smooth transitions
