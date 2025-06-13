@@ -43,26 +43,26 @@ import { fetchWithAuth } from '@/utils/api';
 import { popularBrokerages } from '@/utils/constants';
 import { AddQuickPositionModal } from '@/components/modals/AddQuickPositionModal';
 
-// Account categories matching AccountModal
+// Account categories matching AccountModal and database constraints
 const ACCOUNT_CATEGORIES = [
-    { id: "brokerage", name: "Brokerage", icon: Briefcase },
-    { id: "retirement", name: "Retirement", icon: Building },
-    { id: "cash", name: "Cash / Banking", icon: DollarSign },
-    { id: "crypto", name: "Cryptocurrency", icon: Hash },
-    { id: "metals", name: "Metals Storage", icon: Shield },
-    { id: "realestate", name: "Real Estate", icon: Building }
+    { id: "Brokerage", name: "Brokerage", icon: Briefcase },
+    { id: "Retirement", name: "Retirement", icon: Building },
+    { id: "Cash", name: "Cash / Banking", icon: DollarSign },
+    { id: "Cryptocurrency", name: "Cryptocurrency", icon: Hash },
+    { id: "Metals", name: "Metals Storage", icon: Shield },
+    { id: "Real Estate", name: "Real Estate", icon: Building }
 ];
 
-// Account types by category matching AccountModal
+// Account types by category matching AccountModal and database
 const ACCOUNT_TYPES_BY_CATEGORY = {
-    brokerage: [
+    Brokerage: [
         { value: "Individual", label: "Individual" },
         { value: "Joint", label: "Joint" },
         { value: "Custodial", label: "Custodial" },
         { value: "Trust", label: "Trust" },
         { value: "Other Brokerage", label: "Other Brokerage" }
     ],
-    retirement: [
+    Retirement: [
         { value: "Traditional IRA", label: "Traditional IRA" },
         { value: "Roth IRA", label: "Roth IRA" },
         { value: "401(k)", label: "401(k)" },
@@ -74,7 +74,7 @@ const ACCOUNT_TYPES_BY_CATEGORY = {
         { value: "HSA", label: "HSA (Health Savings Account)" },
         { value: "Other Retirement", label: "Other Retirement" }
     ],
-    cash: [
+    Cash: [
         { value: "Checking", label: "Checking" },
         { value: "Savings", label: "Savings" },
         { value: "High Yield Savings", label: "High Yield Savings" },
@@ -82,14 +82,14 @@ const ACCOUNT_TYPES_BY_CATEGORY = {
         { value: "Certificate of Deposit (CD)", label: "Certificate of Deposit (CD)" },
         { value: "Other Cash", label: "Other Cash" }
     ],
-    crypto: [
+    Cryptocurrency: [
         { value: "Exchange Account", label: "Exchange Account" },
         { value: "Hardware Wallet", label: "Hardware Wallet" },
         { value: "Software Wallet", label: "Software Wallet" },
         { value: "Cold Storage", label: "Cold Storage" },
         { value: "Other Crypto", label: "Other Crypto" }
     ],
-    metals: [
+    Metals: [
         { value: "Home Storage", label: "Home Storage" },
         { value: "Safe Deposit Box", label: "Safe Deposit Box" },
         { value: "Third-Party Vault", label: "Third-Party Vault" },
@@ -97,7 +97,7 @@ const ACCOUNT_TYPES_BY_CATEGORY = {
         { value: "Unallocated Storage", label: "Unallocated Storage" },
         { value: "Other Metals", label: "Other Metals" }
     ],
-    realestate: [
+    "Real Estate": [
         { value: "Primary Residence", label: "Primary Residence" },
         { value: "Vacation Home", label: "Vacation Home" },
         { value: "Rental Property", label: "Rental Property" },
@@ -127,7 +127,7 @@ const AnimatedNumber = ({ value, duration = 500 }) => {
 };
 
 // Custom dropdown with search - updated for better positioning and custom input
-const SearchableDropdown = ({ options, value, onChange, placeholder, showLogos = false, onOpenChange }) => {
+const SearchableDropdown = ({ options, value, onChange, placeholder, showLogos = false, onOpenChange, onEnterKey }) => {
     const [isOpen, setIsOpen] = useState(false);
     const [search, setSearch] = useState('');
     const [inputValue, setInputValue] = useState(value || '');
@@ -209,10 +209,14 @@ const SearchableDropdown = ({ options, value, onChange, placeholder, showLogos =
                 setIsOpen(false);
                 if (onOpenChange) onOpenChange(false);
             }
-            } else if (e.key === 'Escape') {
-                setIsOpen(false);
-                if (onOpenChange) onOpenChange(false);
+            // Call the parent's enter handler
+            if (onEnterKey) {
+                onEnterKey();
             }
+        } else if (e.key === 'Escape') {
+            setIsOpen(false);
+            if (onOpenChange) onOpenChange(false);
+        }
     };
     
     return (
@@ -1032,6 +1036,11 @@ const QuickStartModal = ({ isOpen, onClose }) => {
                                                 placeholder="Type to search..."
                                                 showLogos={true}
                                                 onOpenChange={(isOpen) => setOpenDropdownId(isOpen ? account.tempId : null)}
+                                                onEnterKey={() => {
+                                                    if (isValid) {
+                                                        addNewAccount();
+                                                    }
+                                                }}
                                             />
                                             {account.institution && !popularBrokerages.find(b => b.name === account.institution) && (
                                                 <div className="absolute -bottom-5 left-0 text-[10px] text-indigo-600 flex items-center bg-indigo-50 px-1.5 py-0.5 rounded-full">
@@ -1044,6 +1053,12 @@ const QuickStartModal = ({ isOpen, onClose }) => {
                                             <select
                                                 value={account.accountCategory}
                                                 onChange={(e) => updateAccount(account.tempId, 'accountCategory', e.target.value)}
+                                                onKeyDown={(e) => {
+                                                    if (e.key === 'Enter' && isValid) {
+                                                        e.preventDefault();
+                                                        addNewAccount();
+                                                    }
+                                                }}
                                                 className="w-full px-3 py-2 bg-gray-50 border border-gray-300 rounded-md text-sm focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-all cursor-pointer"
                                             >
                                                 <option value="">Select category...</option>
@@ -1058,6 +1073,12 @@ const QuickStartModal = ({ isOpen, onClose }) => {
                                             <select
                                                 value={account.accountType}
                                                 onChange={(e) => updateAccount(account.tempId, 'accountType', e.target.value)}
+                                                onKeyDown={(e) => {
+                                                    if (e.key === 'Enter' && isValid) {
+                                                        e.preventDefault();
+                                                        addNewAccount();
+                                                    }
+                                                }}
                                                 className="w-full px-3 py-2 bg-gray-50 border border-gray-300 rounded-md text-sm focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                                                 disabled={!account.accountCategory}
                                             >
@@ -1194,360 +1215,360 @@ const QuickStartModal = ({ isOpen, onClose }) => {
                                 </div>
                                 <div className="flex items-start">
                                     <div className="flex-shrink-0 w-6 h-6 bg-green-100 rounded-full flex items-center justify-center mr-3 mt-0.5">
-                                        <span className="text-xs font-semibold text-green-600">2</span>
-                                    </div>
-                                    <div>
-                                        <p className="font-medium text-gray-900">Track Performance</p>
-                                        <p className="text-sm text-gray-600">Monitor gains, losses, and trends</p>
-                                    </div>
-                                </div>
-                            </>
-                        ) : (
-                            <>
-                                <div className="flex items-start">
-                                    <div className="flex-shrink-0 w-6 h-6 bg-green-100 rounded-full flex items-center justify-center mr-3 mt-0.5">
-                                        <span className="text-xs font-semibold text-green-600">1</span>
-                                    </div>
-                                    <div>
-                                        <p className="font-medium text-gray-900">Add Positions</p>
-                                        <p className="text-sm text-gray-600">Import your investments to these accounts</p>
-                                    </div>
-                                </div>
-                                <div className="flex items-start">
-                                    <div className="flex-shrink-0 w-6 h-6 bg-green-100 rounded-full flex items-center justify-center mr-3 mt-0.5">
-                                        <span className="text-xs font-semibold text-green-600">2</span>
-                                    </div>
-                                    <div>
-                                        <p className="font-medium text-gray-900">View Dashboard</p>
-                                        <p className="text-sm text-gray-600">See your portfolio overview and analytics</p>
-                                    </div>
-                                </div>
-                            </>
-                        )}
-                    </div>
-                </div>
-                
-                <div className="flex justify-center space-x-4">
-                    {!isPositions && (
-                        <button
-                            onClick={() => {
-                                setActiveTab('positions');
-                                setImportMethod(null);
-                                setAccounts([]);
-                            }}
-                            className="px-6 py-2 bg-gradient-to-r from-purple-600 to-purple-700 text-white font-medium rounded-lg hover:from-purple-700 hover:to-purple-800 transition-all duration-200"
-                        >
-                            Import Positions
-                        </button>
-                    )}
-                    <button
-                        onClick={onClose}
-                        className="px-6 py-2 bg-white border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 transition-all duration-200"
-                    >
-                        Done
-                    </button>
-                </div>
-            </div>
-        );
-    };
-
-    const renderTemplateSection = (type) => {
-        const isAccounts = type === 'accounts';
-        const color = isAccounts ? 'blue' : 'purple';
-        const Icon = isAccounts ? Building : FileSpreadsheet;
-        
-        return (
-            <div className="space-y-6 animate-fadeIn">
-                <div className="text-center">
-                    <div className={`inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-${color}-500 to-${color}-600 rounded-full mb-4`}>
-                        <Icon className="w-8 h-8 text-white" />
-                    </div>
-                    <h3 className="text-2xl font-bold text-gray-900 mb-2">
-                        {isAccounts ? 'Import Accounts' : 'Import Positions'}
-                    </h3>
-                    <p className="text-gray-600 max-w-md mx-auto">
-                        {isAccounts 
-                            ? 'Download the template and fill in your account information'
-                            : 'Add your investment positions to your existing accounts'}
-                    </p>
-                </div>
-
-                {!isAccounts && (
-                    <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
-                        <div className="flex items-center">
-                            <AlertCircle className="w-5 h-5 text-purple-600 mr-3 flex-shrink-0" />
-                            <p className="text-sm text-purple-900">
-                                Make sure you've imported your accounts first. The positions template will include your account names.
-                            </p>
-                        </div>
-                    </div>
-                )}
-
-                <div className="bg-gray-50 rounded-xl p-6">
-                    <h4 className="font-semibold text-gray-900 mb-4">How it works:</h4>
-                    <div className="space-y-3">
-                        <div className="flex items-start">
-                            <div className={`flex-shrink-0 w-8 h-8 bg-${color}-100 rounded-full flex items-center justify-center mr-3`}>
-                                <span className={`text-sm font-semibold text-${color}-600`}>1</span>
-                            </div>
-                            <div>
-                                <p className="font-medium text-gray-900">Download the Excel template</p>
-                                <p className="text-sm text-gray-600 mt-1">
-                                    {isAccounts 
-                                        ? 'Pre-formatted with dropdowns for institutions and account types'
-                                        : 'Customized with your account names for easy selection'}
-                                </p>
-                            </div>
-                        </div>
-                        <div className="flex items-start">
-                            <div className={`flex-shrink-0 w-8 h-8 bg-${color}-100 rounded-full flex items-center justify-center mr-3`}>
-                                <span className={`text-sm font-semibold text-${color}-600`}>2</span>
-                            </div>
-                            <div>
-                                <p className="font-medium text-gray-900">Fill in your information</p>
-                                <p className="text-sm text-gray-600 mt-1">
-                                    {isAccounts 
-                                        ? 'Add your account names, institutions, and types'
-                                        : 'Enter your securities, quantities, and purchase details'}
-                                </p>
-                            </div>
-                        </div>
-                        <div className="flex items-start">
-                            <div className={`flex-shrink-0 w-8 h-8 bg-${color}-100 rounded-full flex items-center justify-center mr-3`}>
-                                <span className={`text-sm font-semibold text-${color}-600`}>3</span>
-                            </div>
-                            <div>
-                                <p className="font-medium text-gray-900">Upload the completed template</p>
-                                <p className="text-sm text-gray-600 mt-1">We'll validate your data and import everything automatically</p>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <div className="flex justify-center">
-                    <button
-                        onClick={() => downloadTemplate(type)}
-                        disabled={isDownloading}
-                        className={`inline-flex items-center px-6 py-3 bg-gradient-to-r from-${color}-600 to-${color}-700 text-white font-medium rounded-lg hover:from-${color}-700 hover:to-${color}-800 transition-all duration-200 transform hover:scale-105 hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none`}
-                    >
-                        {isDownloading ? (
-                            <>
-                                <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                                Downloading...
-                            </>
-                        ) : (
-                            <>
-                                <Download className="w-5 h-5 mr-2" />
-                                Download {isAccounts ? 'Accounts' : 'Positions'} Template
-                            </>
-                        )}
-                    </button>
-                </div>
-            </div>
-        );
-    };
-
-    const renderUploadSection = () => (
-        <div className="space-y-6 animate-fadeIn">
-            <div className="text-center">
-                <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-green-500 to-green-600 rounded-full mb-4">
-                    <Upload className="w-8 h-8 text-white" />
-                </div>
-                <h3 className="text-2xl font-bold text-gray-900 mb-2">Upload Completed Template</h3>
-                <p className="text-gray-600">
-                    Upload your filled {selectedTemplate} template for validation
-                </p>
-            </div>
-
-            <div
-                className={`relative border-2 border-dashed rounded-xl p-8 text-center transition-all duration-300 ${
-                    isDragging 
-                        ? 'border-blue-500 bg-blue-50' 
-                        : uploadedFile 
-                            ? 'border-green-500 bg-green-50' 
-                            : 'border-gray-300 hover:border-gray-400 bg-gray-50'
-                }`}
-                onDragEnter={handleDragEnter}
-                onDragOver={handleDragOver}
-                onDragLeave={handleDragLeave}
-                onDrop={handleDrop}
-            >
-                <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept=".xlsx,.xls"
-                    onChange={(e) => handleFileSelect(e.target.files[0])}
-                    className="hidden"
-                />
-
-                {!uploadedFile ? (
-                    <>
-                        <Upload className={`w-12 h-12 mx-auto mb-4 ${isDragging ? 'text-blue-600' : 'text-gray-400'}`} />
-                        <p className="text-lg font-medium text-gray-900 mb-2">
-                            {isDragging ? 'Drop your file here' : 'Drag and drop your Excel file'}
-                        </p>
-                        <p className="text-sm text-gray-600 mb-4">or</p>
-                        <button
-                            onClick={() => fileInputRef.current?.click()}
-                            className="inline-flex items-center px-4 py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
-                        >
-                            Browse Files
-                        </button>
-                        <p className="text-xs text-gray-500 mt-4">Supported formats: .xlsx, .xls</p>
-                    </>
-                ) : (
-                    <div className="space-y-4">
-                        <FileCheck className="w-12 h-12 mx-auto text-green-600" />
-                        <div>
-                            <p className="text-lg font-medium text-gray-900">{uploadedFile.name}</p>
-                            <p className="text-sm text-gray-600">{(uploadedFile.size / 1024).toFixed(2)} KB</p>
-                        </div>
-                        
-                        {validationStatus === 'validating' && (
-                            <div className="space-y-2">
-                                <div className="flex items-center justify-center text-blue-600">
-                                    <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                                    <span className="text-sm">Validating file...</span>
-                                </div>
-                                <div className="w-full bg-gray-200 rounded-full h-2">
-                                    <div 
-                                        className="bg-blue-600 h-2 rounded-full transition-all duration-300"
-                                        style={{ width: `${uploadProgress}%` }}
-                                    />
-                                </div>
-                            </div>
-                        )}
-                        {validationStatus === 'valid' && (
-                           <div className="space-y-3">
-                               <div className="flex items-center justify-center text-green-600">
-                                   <CheckCircle className="w-5 h-5 mr-2" />
-                                   <span className="font-medium">File validated successfully!</span>
+                                       <span className="text-xs font-semibold text-green-600">2</span>
+                                   </div>
+                                   <div>
+                                       <p className="font-medium text-gray-900">Track Performance</p>
+                                       <p className="text-sm text-gray-600">Monitor gains, losses, and trends</p>
+                                   </div>
                                </div>
-                               <button className="w-full px-4 py-2 bg-gradient-to-r from-green-600 to-green-700 text-white font-medium rounded-lg hover:from-green-700 hover:to-green-800 transition-all duration-200">
-                                   Import Data
-                               </button>
-                           </div>
+                           </>
+                       ) : (
+                           <>
+                               <div className="flex items-start">
+                                   <div className="flex-shrink-0 w-6 h-6 bg-green-100 rounded-full flex items-center justify-center mr-3 mt-0.5">
+                                       <span className="text-xs font-semibold text-green-600">1</span>
+                                   </div>
+                                   <div>
+                                       <p className="font-medium text-gray-900">Add Positions</p>
+                                       <p className="text-sm text-gray-600">Import your investments to these accounts</p>
+                                   </div>
+                               </div>
+                               <div className="flex items-start">
+                                   <div className="flex-shrink-0 w-6 h-6 bg-green-100 rounded-full flex items-center justify-center mr-3 mt-0.5">
+                                       <span className="text-xs font-semibold text-green-600">2</span>
+                                   </div>
+                                   <div>
+                                       <p className="font-medium text-gray-900">View Dashboard</p>
+                                       <p className="text-sm text-gray-600">See your portfolio overview and analytics</p>
+                                   </div>
+                               </div>
+                           </>
                        )}
-                       
+                   </div>
+               </div>
+               
+               <div className="flex justify-center space-x-4">
+                   {!isPositions && (
                        <button
                            onClick={() => {
-                               setUploadedFile(null);
-                               setValidationStatus(null);
-                               setUploadProgress(0);
+                               setActiveTab('positions');
+                               setImportMethod(null);
+                               setAccounts([]);
                            }}
-                           className="text-sm text-gray-600 hover:text-gray-900 transition-colors"
+                           className="px-6 py-2 bg-gradient-to-r from-purple-600 to-purple-700 text-white font-medium rounded-lg hover:from-purple-700 hover:to-purple-800 transition-all duration-200"
                        >
-                           Upload different file
+                           Import Positions
                        </button>
+                   )}
+                   <button
+                       onClick={onClose}
+                       className="px-6 py-2 bg-white border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 transition-all duration-200"
+                   >
+                       Done
+                   </button>
+               </div>
+           </div>
+       );
+   };
+
+   const renderTemplateSection = (type) => {
+       const isAccounts = type === 'accounts';
+       const color = isAccounts ? 'blue' : 'purple';
+       const Icon = isAccounts ? Building : FileSpreadsheet;
+       
+       return (
+           <div className="space-y-6 animate-fadeIn">
+               <div className="text-center">
+                   <div className={`inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-${color}-500 to-${color}-600 rounded-full mb-4`}>
+                       <Icon className="w-8 h-8 text-white" />
+                   </div>
+                   <h3 className="text-2xl font-bold text-gray-900 mb-2">
+                       {isAccounts ? 'Import Accounts' : 'Import Positions'}
+                   </h3>
+                   <p className="text-gray-600 max-w-md mx-auto">
+                       {isAccounts 
+                           ? 'Download the template and fill in your account information'
+                           : 'Add your investment positions to your existing accounts'}
+                   </p>
+               </div>
+
+               {!isAccounts && (
+                   <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
+                       <div className="flex items-center">
+                           <AlertCircle className="w-5 h-5 text-purple-600 mr-3 flex-shrink-0" />
+                           <p className="text-sm text-purple-900">
+                               Make sure you've imported your accounts first. The positions template will include your account names.
+                           </p>
+                       </div>
                    </div>
                )}
-           </div>
 
-           <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-               <div className="flex items-start">
-                   <Info className="w-5 h-5 text-blue-600 mt-0.5 mr-3 flex-shrink-0" />
-                   <div className="text-sm text-blue-900">
-                       <p className="font-medium mb-1">Tips for successful import:</p>
-                       <ul className="list-disc list-inside text-blue-700 space-y-1">
-                           <li>Don't modify the column headers</li>
-                           <li>Use the dropdown options where provided</li>
-                           <li>Leave cells empty rather than using "N/A"</li>
-                           <li>Save the file in Excel format (.xlsx)</li>
-                       </ul>
-                   </div>
-               </div>
-           </div>
-       </div>
-   );
-
-   if (!isOpen) return null;
-
-   return (
-       <div className="fixed inset-0 z-50 overflow-y-auto">
-           <div className="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center">
-               <div 
-                   className="fixed inset-0 transition-opacity duration-300 ease-out"
-                   onClick={onClose}
-               >
-                   <div className="absolute inset-0 bg-gray-900 opacity-75"></div>
-               </div>
-
-               <div className="relative inline-block w-full max-w-5xl bg-white rounded-2xl shadow-2xl transform transition-all duration-300 ease-out">
-                   <div className="absolute top-4 right-4 z-10">
-                       <button
-                           onClick={onClose}
-                           className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
-                       >
-                           <X className="w-5 h-5 text-gray-500" />
-                       </button>
-                   </div>
-
-                   <div className="p-8">
-                       {activeTab === 'overview' && renderOverview()}
-                       {activeTab === 'accounts' && !importMethod && renderAccountImportChoice()}
-                       {activeTab === 'accounts' && importMethod === 'ui' && renderUIAccountCreation()}
-                       {activeTab === 'accounts' && importMethod === 'excel' && renderTemplateSection('accounts')}
-                        {activeTab === 'positions' && !importMethod && renderPositionImportChoice()}
-                        {activeTab === 'positions' && importMethod === 'ui' && <QuickPositionWrapper />}
-                        {activeTab === 'positions' && importMethod === 'excel' && renderTemplateSection('positions')}
-                       {activeTab === 'upload' && renderUploadSection()}
-                       {activeTab === 'success' && renderSuccessScreen()}
-                   </div>
-
-                   {activeTab !== 'overview' && activeTab !== 'success' && (
-                       <div className="border-t border-gray-200 px-8 py-4">
-                           <button
-                            onClick={() => {
-                                if (activeTab === 'positions' && importMethod === 'ui') {
-                                    setImportMethod(null);
-                                } else if (activeTab === 'upload') {
-                                    setActiveTab(selectedTemplate === 'accounts' ? 'accounts' : 'positions');
-                                    setUploadedFile(null);
-                                    setValidationStatus(null);
-                                    setUploadProgress(0);
-                                } else if (importMethod) {
-                                    setImportMethod(null);
-                                    setAccounts([]);
-                                } else {
-                                    setActiveTab('overview');
-                                }
-                            }}
-                               className="text-sm text-gray-600 hover:text-gray-900 transition-colors inline-flex items-center"
-                           >
-                               <ArrowLeft className="w-4 h-4 mr-1" />
-                               Back
-                           </button>
+               <div className="bg-gray-50 rounded-xl p-6">
+                   <h4 className="font-semibold text-gray-900 mb-4">How it works:</h4>
+                   <div className="space-y-3">
+                       <div className="flex items-start">
+                           <div className={`flex-shrink-0 w-8 h-8 bg-${color}-100 rounded-full flex items-center justify-center mr-3`}>
+                               <span className={`text-sm font-semibold text-${color}-600`}>1</span>
+                           </div>
+                           <div>
+                               <p className="font-medium text-gray-900">Download the Excel template</p>
+                               <p className="text-sm text-gray-600 mt-1">
+                                   {isAccounts 
+                                       ? 'Pre-formatted with dropdowns for institutions and account types'
+                                       : 'Customized with your account names for easy selection'}
+                               </p>
+                           </div>
                        </div>
-                   )}
+                       <div className="flex items-start">
+                           <div className={`flex-shrink-0 w-8 h-8 bg-${color}-100 rounded-full flex items-center justify-center mr-3`}>
+                               <span className={`text-sm font-semibold text-${color}-600`}>2</span>
+                           </div>
+                           <div>
+                               <p className="font-medium text-gray-900">Fill in your information</p>
+                               <p className="text-sm text-gray-600 mt-1">
+                                   {isAccounts 
+                                       ? 'Add your account names, institutions, and types'
+                                       : 'Enter your securities, quantities, and purchase details'}
+                               </p>
+                           </div>
+                       </div>
+                       <div className="flex items-start">
+                           <div className={`flex-shrink-0 w-8 h-8 bg-${color}-100 rounded-full flex items-center justify-center mr-3`}>
+                               <span className={`text-sm font-semibold text-${color}-600`}>3</span>
+                           </div>
+                           <div>
+                               <p className="font-medium text-gray-900">Upload the completed template</p>
+                               <p className="text-sm text-gray-600 mt-1">We'll validate your data and import everything automatically</p>
+                           </div>
+                       </div>
+                   </div>
+               </div>
+
+               <div className="flex justify-center">
+                   <button
+                       onClick={() => downloadTemplate(type)}
+                       disabled={isDownloading}
+                       className={`inline-flex items-center px-6 py-3 bg-gradient-to-r from-${color}-600 to-${color}-700 text-white font-medium rounded-lg hover:from-${color}-700 hover:to-${color}-800 transition-all duration-200 transform hover:scale-105 hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none`}
+                   >
+                       {isDownloading ? (
+                           <>
+                               <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                               Downloading...
+                           </>
+                       ) : (
+                           <>
+                               <Download className="w-5 h-5 mr-2" />
+                               Download {isAccounts ? 'Accounts' : 'Positions'} Template
+                           </>
+                       )}
+                   </button>
                </div>
            </div>
-       </div>
-   );
+       );
+   };
+
+   const renderUploadSection = () => (
+       <div className="space-y-6 animate-fadeIn">
+           <div className="text-center">
+               <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-green-500 to-green-600 rounded-full mb-4">
+                   <Upload className="w-8 h-8 text-white" />
+               </div>
+               <h3 className="text-2xl font-bold text-gray-900 mb-2">Upload Completed Template</h3>
+               <p className="text-gray-600">
+                   Upload your filled {selectedTemplate} template for validation
+               </p>
+           </div>
+
+           <div
+               className={`relative border-2 border-dashed rounded-xl p-8 text-center transition-all duration-300 ${
+                   isDragging 
+                       ? 'border-blue-500 bg-blue-50' 
+                       : uploadedFile 
+                           ? 'border-green-500 bg-green-50' 
+                           : 'border-gray-300 hover:border-gray-400 bg-gray-50'
+               }`}
+               onDragEnter={handleDragEnter}
+               onDragOver={handleDragOver}
+               onDragLeave={handleDragLeave}
+               onDrop={handleDrop}
+           >
+               <input
+                   ref={fileInputRef}
+                   type="file"
+                   accept=".xlsx,.xls"
+                   onChange={(e) => handleFileSelect(e.target.files[0])}
+                   className="hidden"
+               />
+
+               {!uploadedFile ? (
+                   <>
+                       <Upload className={`w-12 h-12 mx-auto mb-4 ${isDragging ? 'text-blue-600' : 'text-gray-400'}`} />
+                       <p className="text-lg font-medium text-gray-900 mb-2">
+                           {isDragging ? 'Drop your file here' : 'Drag and drop your Excel file'}
+                       </p>
+                       <p className="text-sm text-gray-600 mb-4">or</p>
+                       <button
+                           onClick={() => fileInputRef.current?.click()}
+                           className="inline-flex items-center px-4 py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                       >
+                           Browse Files
+                       </button>
+                       <p className="text-xs text-gray-500 mt-4">Supported formats: .xlsx, .xls</p>
+                   </>
+               ) : (
+                   <div className="space-y-4">
+                       <FileCheck className="w-12 h-12 mx-auto text-green-600" />
+                       <div>
+                           <p className="text-lg font-medium text-gray-900">{uploadedFile.name}</p>
+                           <p className="text-sm text-gray-600">{(uploadedFile.size / 1024).toFixed(2)} KB</p>
+                       </div>
+                       
+                       {validationStatus === 'validating' && (
+                           <div className="space-y-2">
+                               <div className="flex items-center justify-center text-blue-600">
+                                   <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                                   <span className="text-sm">Validating file...</span>
+                               </div>
+                               <div className="w-full bg-gray-200 rounded-full h-2">
+                                   <div 
+                                       className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                                       style={{ width: `${uploadProgress}%` }}
+                                   />
+                               </div>
+                           </div>
+                       )}
+                       {validationStatus === 'valid' && (
+                          <div className="space-y-3">
+                              <div className="flex items-center justify-center text-green-600">
+                                  <CheckCircle className="w-5 h-5 mr-2" />
+                                  <span className="font-medium">File validated successfully!</span>
+                              </div>
+                              <button className="w-full px-4 py-2 bg-gradient-to-r from-green-600 to-green-700 text-white font-medium rounded-lg hover:from-green-700 hover:to-green-800 transition-all duration-200">
+                                  Import Data
+                              </button>
+                          </div>
+                      )}
+                      
+                      <button
+                          onClick={() => {
+                              setUploadedFile(null);
+                              setValidationStatus(null);
+                              setUploadProgress(0);
+                          }}
+                          className="text-sm text-gray-600 hover:text-gray-900 transition-colors"
+                      >
+                          Upload different file
+                      </button>
+                  </div>
+              )}
+          </div>
+
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+              <div className="flex items-start">
+                  <Info className="w-5 h-5 text-blue-600 mt-0.5 mr-3 flex-shrink-0" />
+                  <div className="text-sm text-blue-900">
+                      <p className="font-medium mb-1">Tips for successful import:</p>
+                      <ul className="list-disc list-inside text-blue-700 space-y-1">
+                          <li>Don't modify the column headers</li>
+                          <li>Use the dropdown options where provided</li>
+                          <li>Leave cells empty rather than using "N/A"</li>
+                          <li>Save the file in Excel format (.xlsx)</li>
+                      </ul>
+                  </div>
+              </div>
+          </div>
+      </div>
+  );
+
+  if (!isOpen) return null;
+
+  return (
+      <div className="fixed inset-0 z-50 overflow-y-auto">
+          <div className="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center">
+              <div 
+                  className="fixed inset-0 transition-opacity duration-300 ease-out"
+                  onClick={onClose}
+              >
+                  <div className="absolute inset-0 bg-gray-900 opacity-75"></div>
+              </div>
+
+              <div className="relative inline-block w-full max-w-5xl bg-white rounded-2xl shadow-2xl transform transition-all duration-300 ease-out">
+                  <div className="absolute top-4 right-4 z-10">
+                      <button
+                          onClick={onClose}
+                          className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
+                      >
+                          <X className="w-5 h-5 text-gray-500" />
+                      </button>
+                  </div>
+
+                  {activeTab !== 'overview' && activeTab !== 'success' && (
+                      <div className="absolute top-4 left-4 z-10">
+                          <button
+                           onClick={() => {
+                               if (activeTab === 'positions' && importMethod === 'ui') {
+                                   setImportMethod(null);
+                               } else if (activeTab === 'upload') {
+                                   setActiveTab(selectedTemplate === 'accounts' ? 'accounts' : 'positions');
+                                   setUploadedFile(null);
+                                   setValidationStatus(null);
+                                   setUploadProgress(0);
+                               } else if (importMethod) {
+                                   setImportMethod(null);
+                                   setAccounts([]);
+                               } else {
+                                   setActiveTab('overview');
+                               }
+                           }}
+                              className="text-sm text-gray-600 hover:text-gray-900 transition-colors inline-flex items-center p-2 rounded-lg hover:bg-gray-100"
+                          >
+                              <ArrowLeft className="w-4 h-4 mr-1" />
+                              Back
+                          </button>
+                      </div>
+                  )}
+
+                  <div className="p-8">
+                      {activeTab === 'overview' && renderOverview()}
+                      {activeTab === 'accounts' && !importMethod && renderAccountImportChoice()}
+                      {activeTab === 'accounts' && importMethod === 'ui' && renderUIAccountCreation()}
+                      {activeTab === 'accounts' && importMethod === 'excel' && renderTemplateSection('accounts')}
+                       {activeTab === 'positions' && !importMethod && renderPositionImportChoice()}
+                       {activeTab === 'positions' && importMethod === 'ui' && <QuickPositionWrapper />}
+                       {activeTab === 'positions' && importMethod === 'excel' && renderTemplateSection('positions')}
+                      {activeTab === 'upload' && renderUploadSection()}
+                      {activeTab === 'success' && renderSuccessScreen()}
+                  </div>
+              </div>
+          </div>
+      </div>
+  );
 };
 
 // Quick Start Button Component
 export const QuickStartButton = ({ className = '' }) => {
-   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isModalOpen, setIsModalOpen] = useState(false);
 
-   return (
-       <>
-           <button
-               onClick={() => setIsModalOpen(true)}
-               className={`group relative flex items-center text-white py-1 px-4 transition-all duration-300 ${className}`}
-           >
-               <div className="absolute inset-0 bg-gradient-to-r from-green-600 to-emerald-600 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
-               <div className="relative flex items-center">
-                   <Sparkles className="w-5 h-5 mr-2 text-green-400 group-hover:text-white transition-colors" />
-                   <span className="text-sm text-gray-200 group-hover:text-white font-medium">Quick Start</span>
-               </div>
-           </button>
-           
-           <QuickStartModal 
-               isOpen={isModalOpen} 
-               onClose={() => setIsModalOpen(false)} 
-           />
-       </>
-   );
+  return (
+      <>
+          <button
+              onClick={() => setIsModalOpen(true)}
+              className={`group relative flex items-center text-white py-1 px-4 transition-all duration-300 ${className}`}
+          >
+              <div className="absolute inset-0 bg-gradient-to-r from-green-600 to-emerald-600 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+              <div className="relative flex items-center">
+                  <Sparkles className="w-5 h-5 mr-2 text-green-400 group-hover:text-white transition-colors" />
+                  <span className="text-sm text-gray-200 group-hover:text-white font-medium">Quick Start</span>
+              </div>
+          </button>
+          
+          <QuickStartModal 
+              isOpen={isModalOpen} 
+              onClose={() => setIsModalOpen(false)} 
+          />
+      </>
+  );
 };
 
 export default QuickStartModal;
