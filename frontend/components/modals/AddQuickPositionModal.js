@@ -24,7 +24,8 @@ import {
   ArrowUpDown, Info, MinusCircle, PlusCircle, BarChart2,
   RefreshCw, Database, TrendingDown, Percent, Calculator,
   FileText, GitBranch, Shuffle, Import, Export, Maximize2,
-  Calendar, ToggleLeft, ToggleRight, Users, Repeat
+  Calendar, ToggleLeft, ToggleRight, Users, Repeat,
+  ClipboardList, CheckCheck, XCircle, AlertTriangle
 } from 'lucide-react';
 
 // Enhanced AnimatedNumber with smooth transitions
@@ -154,6 +155,201 @@ const ToggleSwitch = ({ value, onChange, leftLabel, rightLabel, leftIcon: LeftIc
   );
 };
 
+// Queue modal component
+const QueueModal = ({ isOpen, onClose, positions, assetTypes, accounts, onClearCompleted }) => {
+  const getStatusBadge = (status) => {
+    switch (status) {
+      case 'success':
+        return (
+          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+            <CheckCircle className="w-3 h-3 mr-1" />
+            Added
+          </span>
+        );
+      case 'error':
+        return (
+          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">
+            <XCircle className="w-3 h-3 mr-1" />
+            Error
+          </span>
+        );
+      case 'pending':
+      default:
+        return (
+          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+            <Clock className="w-3 h-3 mr-1" />
+            Not Submitted
+          </span>
+        );
+    }
+  };
+
+  const allPositions = useMemo(() => {
+    const result = [];
+    Object.entries(positions).forEach(([type, typePositions]) => {
+      typePositions.forEach(pos => {
+        if (pos.data.account_id) {
+          result.push({ ...pos, assetType: type });
+        }
+      });
+    });
+    return result;
+  }, [positions]);
+
+  const stats = useMemo(() => {
+    const counts = { total: 0, success: 0, error: 0, pending: 0 };
+    allPositions.forEach(pos => {
+      counts.total++;
+      counts[pos.status || 'pending']++;
+    });
+    return counts;
+  }, [allPositions]);
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+      <div className="bg-white rounded-xl shadow-xl max-w-4xl w-full max-h-[80vh] flex flex-col">
+        <div className="px-6 py-4 border-b border-gray-200">
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-semibold text-gray-900 flex items-center">
+              <ClipboardList className="w-5 h-5 mr-2" />
+              Position Queue
+            </h2>
+            <button
+              onClick={onClose}
+              className="p-1 hover:bg-gray-100 rounded-lg transition-colors"
+            >
+              <X className="w-5 h-5 text-gray-500" />
+            </button>
+          </div>
+          
+          <div className="mt-3 flex items-center space-x-6 text-sm">
+            <div className="flex items-center space-x-2">
+              <span className="text-gray-500">Total:</span>
+              <span className="font-semibold">{stats.total}</span>
+            </div>
+            <div className="flex items-center space-x-2">
+              <span className="text-gray-500">Added:</span>
+              <span className="font-semibold text-green-600">{stats.success}</span>
+            </div>
+            <div className="flex items-center space-x-2">
+              <span className="text-gray-500">Errors:</span>
+              <span className="font-semibold text-red-600">{stats.error}</span>
+            </div>
+            <div className="flex items-center space-x-2">
+              <span className="text-gray-500">Pending:</span>
+              <span className="font-semibold text-gray-600">{stats.pending}</span>
+            </div>
+          </div>
+        </div>
+        
+        <div className="flex-1 overflow-y-auto p-6">
+          {allPositions.length === 0 ? (
+            <div className="text-center py-12">
+              <ClipboardList className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+              <p className="text-gray-500">No positions in queue</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {allPositions.map((position, index) => {
+                const config = assetTypes[position.assetType];
+                const Icon = config.icon;
+                const account = accounts.find(a => a.id === position.data.account_id);
+                
+                return (
+                  <div 
+                    key={`${position.assetType}-${position.id}`}
+                    className={`
+                      p-4 rounded-lg border transition-all duration-200
+                      ${position.status === 'success' ? 'bg-green-50 border-green-200' :
+                        position.status === 'error' ? 'bg-red-50 border-red-200' :
+                        'bg-white border-gray-200'}
+                    `}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-3">
+                        <div className={`p-2 rounded-lg ${config.color.lightBg}`}>
+                          <Icon className={`w-5 h-5 ${config.color.text}`} />
+                        </div>
+                        <div>
+                          <div className="font-medium text-gray-900">
+                            {position.data.ticker || position.data.symbol || position.data.property_name || 
+                             position.data.metal_type || position.data.currency || 'Position'}
+                          </div>
+                          <div className="text-sm text-gray-500">
+                            {account?.account_name || 'Unknown Account'} • {config.name}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex items-center space-x-3">
+                        <div className="text-right">
+                          <div className="font-medium text-gray-900">
+                            {formatCurrency(calculatePositionValue(position.assetType, position))}
+                          </div>
+                          <div className="text-xs text-gray-500">
+                            {position.data.shares || position.data.quantity || position.data.amount || '-'} units
+                          </div>
+                        </div>
+                        {getStatusBadge(position.status)}
+                      </div>
+                    </div>
+                    {position.errorMessage && (
+                      <div className="mt-2 text-sm text-red-600 bg-red-100 rounded p-2">
+                        {position.errorMessage}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+        
+        <div className="px-6 py-4 border-t border-gray-200 flex justify-between">
+          <button
+            onClick={onClearCompleted}
+            disabled={stats.success === 0}
+            className={`
+              px-4 py-2 text-sm font-medium rounded-lg transition-all
+              ${stats.success === 0 
+                ? 'bg-gray-100 text-gray-400 cursor-not-allowed' 
+                : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50'
+              }
+            `}
+          >
+            <CheckCheck className="w-4 h-4 inline mr-2" />
+            Clear Added ({stats.success})
+          </button>
+          <button
+            onClick={onClose}
+            className="px-4 py-2 bg-gray-900 text-white text-sm font-medium rounded-lg hover:bg-gray-800 transition-colors"
+          >
+            Close
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+
+  function calculatePositionValue(type, position) {
+    switch (type) {
+      case 'security':
+        return (position.data.shares || 0) * (position.data.price || 0);
+      case 'crypto':
+        return (position.data.quantity || 0) * (position.data.current_price || 0);
+      case 'metal':
+        return (position.data.quantity || 0) * (position.data.current_price_per_unit || position.data.purchase_price || 0);
+      case 'realestate':
+        return position.data.estimated_value || position.data.purchase_price || 0;
+      case 'cash':
+        return position.data.amount || 0;
+      default:
+        return 0;
+    }
+  }
+};
+
 const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved }) => {
   // Core state
   const [accounts, setAccounts] = useState([]);
@@ -165,6 +361,7 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved }) => {
     realestate: []
   });
   const [expandedSections, setExpandedSections] = useState({});
+  const [accountExpandedSections, setAccountExpandedSections] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showValues, setShowValues] = useState(true);
   const [selectedPositions, setSelectedPositions] = useState(new Set());
@@ -176,6 +373,7 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved }) => {
   const [validationMode, setValidationMode] = useState('realtime');
   const [recentlyUsedAccounts, setRecentlyUsedAccounts] = useState([]);
   const [viewMode, setViewMode] = useState(false); // false = by asset type, true = by account
+  const [showQueue, setShowQueue] = useState(false);
   
   // Search state
   const [searchResults, setSearchResults] = useState({});
@@ -187,7 +385,7 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved }) => {
   const tableRefs = useRef({});
   const messageTimeoutRef = useRef(null);
 
-  // Enhanced asset type configuration with search support
+  // Enhanced asset type configuration with required fields
   const assetTypes = {
     security: {
       name: 'Securities',
@@ -209,8 +407,8 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved }) => {
         { key: 'ticker', label: 'Ticker', type: 'text', required: true, width: 'w-28', placeholder: 'AAPL', transform: 'uppercase', autocomplete: true, searchable: true },
         { key: 'shares', label: 'Shares', type: 'number', required: true, width: 'w-24', placeholder: '100', min: 0, step: 1 },
         { key: 'price', label: 'Current Price', type: 'number', required: true, width: 'w-28', placeholder: 'Auto', prefix: '$', min: 0, step: 0.01, readOnly: true, autoFill: true },
-        { key: 'cost_basis', label: 'Cost Basis', type: 'number', width: 'w-28', placeholder: '140.00', prefix: '$', min: 0, step: 0.01 },
-        { key: 'purchase_date', label: 'Purchase Date', type: 'date', width: 'w-36', max: new Date().toISOString().split('T')[0] },
+        { key: 'cost_basis', label: 'Cost Basis', type: 'number', required: true, width: 'w-28', placeholder: '140.00', prefix: '$', min: 0, step: 0.01 },
+        { key: 'purchase_date', label: 'Purchase Date', type: 'date', required: true, width: 'w-36', max: new Date().toISOString().split('T')[0] },
         { key: 'account_id', label: 'Account', type: 'select', required: true, width: 'w-44' }
       ]
     },
@@ -282,7 +480,7 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved }) => {
         { key: 'quantity', label: 'Quantity', type: 'number', required: true, width: 'w-28', placeholder: '0.5', step: '0.00000001', min: 0 },
         { key: 'purchase_price', label: 'Buy Price', type: 'number', required: true, width: 'w-32', placeholder: '45000', prefix: '$', min: 0 },
         { key: 'current_price', label: 'Current Price', type: 'number', required: true, width: 'w-32', placeholder: 'Auto', prefix: '$', min: 0, readOnly: true, autoFill: true },
-        { key: 'purchase_date', label: 'Purchase Date', type: 'date', width: 'w-36', max: new Date().toISOString().split('T')[0] },
+        { key: 'purchase_date', label: 'Purchase Date', type: 'date', required: true, width: 'w-36', max: new Date().toISOString().split('T')[0] },
         { key: 'account_id', label: 'Account', type: 'select', required: true, width: 'w-44' }
       ]
     },
@@ -332,7 +530,7 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved }) => {
         },
         { key: 'purchase_price', label: 'Price/Unit', type: 'number', required: true, width: 'w-28', placeholder: '1800', prefix: '$', min: 0 },
         { key: 'current_price_per_unit', label: 'Current/Unit', type: 'number', width: 'w-28', placeholder: 'Auto', prefix: '$', min: 0, readOnly: true, autoFill: true },
-        { key: 'purchase_date', label: 'Purchase Date', type: 'date', width: 'w-36', max: new Date().toISOString().split('T')[0] },
+        { key: 'purchase_date', label: 'Purchase Date', type: 'date', required: true, width: 'w-36', max: new Date().toISOString().split('T')[0] },
         { key: 'account_id', label: 'Account', type: 'select', required: true, width: 'w-44' }
       ]
     },
@@ -368,7 +566,7 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved }) => {
         { key: 'address', label: 'Address', type: 'text', width: 'w-52', placeholder: '123 Main St, City, State' },
         { key: 'purchase_price', label: 'Purchase Price', type: 'number', required: true, width: 'w-32', placeholder: '500000', prefix: '$', min: 0 },
         { key: 'estimated_value', label: 'Current Value', type: 'number', width: 'w-32', placeholder: '550000', prefix: '$', min: 0 },
-        { key: 'purchase_date', label: 'Purchase Date', type: 'date', width: 'w-36', max: new Date().toISOString().split('T')[0] },
+        { key: 'purchase_date', label: 'Purchase Date', type: 'date', required: true, width: 'w-36', max: new Date().toISOString().split('T')[0] },
         { key: 'account_id', label: 'Account', type: 'select', required: true, width: 'w-44' }
       ]
     }
@@ -423,6 +621,7 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved }) => {
         realestate: []
       });
       setExpandedSections({});
+      setAccountExpandedSections({});
       setMessage({ type: '', text: '', details: [] });
       setActiveFilter('all');
       setSearchResults({});
@@ -466,6 +665,35 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved }) => {
         setMessage({ type: '', text: '', details: [] });
       }, duration);
     }
+  };
+
+  // Add new row for account
+  const addNewRowForAccount = (accountId, assetType) => {
+    const newPosition = {
+      id: Date.now() + Math.random(),
+      type: assetType,
+      data: { account_id: accountId },
+      errors: {},
+      isNew: true,
+      animateIn: true
+    };
+    
+    setPositions(prev => ({
+      ...prev,
+      [assetType]: [...prev[assetType], newPosition]
+    }));
+    
+    // Expand the account section for this asset type
+    setAccountExpandedSections(prev => ({
+      ...prev,
+      [`${accountId}-${assetType}`]: true
+    }));
+    
+    setTimeout(() => {
+      const firstFieldKey = assetTypes[assetType].fields[0].key;
+      const cellKey = `${assetType}-${newPosition.id}-${firstFieldKey}`;
+      cellRefs.current[cellKey]?.focus();
+    }, 100);
   };
 
   // Add new row
@@ -931,6 +1159,7 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved }) => {
     let successCount = 0;
     let errorCount = 0;
     const errors = [];
+    const updatedPositions = { ...positions };
 
     try {
       const batches = [];
@@ -975,6 +1204,11 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved }) => {
           
           successCount++;
           
+          // Update position status
+          updatedPositions[type] = updatedPositions[type].map(pos => 
+            pos.id === position.id ? { ...pos, status: 'success' } : pos
+          );
+          
           const progress = Math.round(((i + 1) / batches.length) * 100);
           showMessage('info', `Submitting positions... ${progress}%`, [`${successCount} of ${batches.length} completed`], 0);
           
@@ -982,8 +1216,15 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved }) => {
           console.error(`Error adding ${type} position:`, error);
           errorCount++;
           errors.push(`${assetTypes[type].name}: ${error.message || 'Unknown error'}`);
+          
+          // Update position status with error
+          updatedPositions[type] = updatedPositions[type].map(pos => 
+            pos.id === position.id ? { ...pos, status: 'error', errorMessage: error.message } : pos
+          );
         }
       }
+
+      setPositions(updatedPositions);
 
       if (errorCount === 0) {
         showMessage('success', `All ${successCount} positions added successfully!`, [
@@ -1023,7 +1264,20 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved }) => {
       realestate: []
     });
     setExpandedSections({});
+    setAccountExpandedSections({});
     showMessage('success', 'All positions cleared', ['Ready for new entries']);
+  };
+
+  // Clear completed positions
+  const clearCompletedPositions = () => {
+    const updatedPositions = { ...positions };
+    
+    Object.keys(updatedPositions).forEach(type => {
+      updatedPositions[type] = updatedPositions[type].filter(pos => pos.status !== 'success');
+    });
+    
+    setPositions(updatedPositions);
+    showMessage('success', 'Cleared all successfully added positions');
   };
 
   // Render cell input with search dropdown
@@ -1079,7 +1333,7 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved }) => {
               <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-500"></div>
             </div>
           )}
-          <div className="absolute z-20 left-0 right-0 mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+          <div className="absolute z-50 left-0 right-0 mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-48 overflow-y-auto">
             {searchResultsForField.map((result) => (
               <button
                 key={result.ticker}
@@ -1220,228 +1474,229 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved }) => {
               type="text"
               value={value}
               onChange={(e) => updatePosition(assetType, position.id, field.key, e.target.value)}
-              placeholder={field.placeholder}
-              autoComplete={field.autocomplete ? 'on' : 'off'}
-              spellCheck="false"
-              className={baseClass}
-            />
-            {field.autocomplete && value.length > 0 && (
-              <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 animate-pulse" />
-            )}
-          </div>
-        );
-    }
-  };
+placeholder={field.placeholder}
+autoComplete={field.autocomplete ? 'on' : 'off'}
+spellCheck="false"
+className={baseClass}
+/>
+{field.autocomplete && value.length > 0 && (
+<Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 animate-pulse" />
+)}
+</div>
+);
+}
+};
+// Render asset section
+const renderAssetSection = (assetType) => {
+const config = assetTypes[assetType];
+const typePositions = positions[assetType] || [];
+const validPositions = typePositions.filter(p => p.data.account_id);
+const isExpanded = expandedSections[assetType];
+const Icon = config.icon;
+const typeStats = stats.byType[assetType];
+const performance = stats.performance[assetType];
 
-  // Render asset section
-  const renderAssetSection = (assetType) => {
-    const config = assetTypes[assetType];
-    const typePositions = positions[assetType] || [];
-    const validPositions = typePositions.filter(p => p.data.account_id);
-    const isExpanded = expandedSections[assetType];
-    const Icon = config.icon;
-    const typeStats = stats.byType[assetType];
-    const performance = stats.performance[assetType];
 
-    return (
-      <div 
-        key={assetType} 
-        className={`
-          bg-white rounded-xl shadow-sm border overflow-hidden transition-all duration-300
-          ${isExpanded ? 'border-gray-200 shadow-md' : 'border-gray-100'}
-          ${typePositions.length > 0 ? 'ring-1 ring-gray-100' : ''}
-        `}
-      >
-        {/* Section Header - Entire row is clickable */}
-        <div 
-          onClick={() => toggleSection(assetType)}
-          className={`
-            px-4 py-3 cursor-pointer transition-all duration-200
-            ${isExpanded 
-              ? `bg-gradient-to-r ${config.color.gradient} text-white shadow-sm` 
-              : 'bg-gray-50 hover:bg-gray-100'
-            }
-          `}
-        >
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-3 flex-1">
-              <div className={`
-                p-2 rounded-lg transition-all duration-200 
-                ${isExpanded ? 'bg-white/20' : `${config.color.lightBg}`}
-              `}>
-                <Icon className={`w-5 h-5 ${isExpanded ? 'text-white' : config.color.text}`} />
-              </div>
-              
-              <div className="flex-1">
-                <h3 className={`font-semibold text-base flex items-center ${
-                  isExpanded ? 'text-white' : 'text-gray-800'
-                }`}>
-                  {config.name}
-                  {validPositions.length > 0 && (
-                    <span className={`
-                      ml-2 px-2 py-0.5 text-xs font-bold rounded-full
-                      ${isExpanded ? 'bg-white/20 text-white' : `${config.color.bg} text-white`}
-                    `}>
-                      {validPositions.length}
-                    </span>
-                  )}
-                </h3>
-                <p className={`text-xs mt-0.5 ${isExpanded ? 'text-white/80' : 'text-gray-500'}`}>
-                  {config.description}
-                </p>
-              </div>
-              
-              {typeStats && typeStats.count > 0 && (
-                <div className={`flex items-center space-x-4 text-xs ${
-                  isExpanded ? 'text-white/90' : 'text-gray-600'
-                }`}>
-                  <div className="text-right">
-                    <div className="font-medium">
-                      {showValues ? formatCurrency(typeStats.value) : '••••'}
-                    </div>
-                    {performance !== undefined && (
-                      <div className={`flex items-center justify-end ${
-                        performance >= 0 ? 'text-green-400' : 'text-red-400'
-                      }`}>
-                        {performance >= 0 ? <TrendingUp className="w-3 h-3 mr-1" /> : <TrendingDown className="w-3 h-3 mr-1" />}
-                        {Math.abs(performance).toFixed(1)}%
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
-            </div>
-            
-            <div className="flex items-center space-x-2 ml-3">
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  addNewRow(assetType);
-                  if (!isExpanded) {
-                    setExpandedSections(prev => ({ ...prev, [assetType]: true }));
-                  }
-                }}
-                className={`
-                  p-1.5 rounded-lg transition-all duration-200 
-                  ${isExpanded 
-                    ? 'bg-white/20 hover:bg-white/30 text-white' 
-                    : `${config.color.lightBg} hover:${config.color.hover} ${config.color.text}`
-                  }
-                `}
-                title={`Add ${config.name}`}
-              >
-                <Plus className="w-4 h-4" />
-              </button>
-              
-              <ChevronDown className={`
-                w-5 h-5 transition-transform duration-300
-                ${isExpanded ? 'rotate-180 text-white' : 'text-gray-400'}
-              `} />
-            </div>
-          </div>
-        </div>
 
-        {/* Table Content */}
-        {isExpanded && (
-          <div className="bg-white animate-in slide-in-from-top-2 duration-300">
-            {typePositions.length === 0 ? (
-              <div className="p-8 text-center">
-                <div className={`inline-flex p-4 rounded-full ${config.color.lightBg} mb-4`}>
-                  <Icon className={`w-8 h-8 ${config.color.text}`} />
-                </div>
-                <p className="text-gray-600 mb-4">No {config.name.toLowerCase()} positions yet</p>
-                <button
-                  onClick={() => addNewRow(assetType)}
-                  className={`
-                    inline-flex items-center px-4 py-2 rounded-lg font-medium transition-all duration-200
-                    ${config.color.bg} text-white hover:shadow-md hover:scale-105
-                  `}
-                >
-                  <Plus className="w-4 h-4 mr-2" />
-                  Add First {config.name}
-                </button>
-              </div>
-            ) : (
-              <>
-                <div className="overflow-x-auto" ref={el => tableRefs.current[assetType] = el}>
-                  <table className="w-full">
-                    <thead>
-                      <tr className="bg-gray-50 border-b border-gray-200">
-                        <th className="w-12 px-3 py-3 text-left">
-                          <span className="text-xs font-semibold text-gray-600">#</span>
-                        </th>
-                        {config.fields.map(field => (
-                          <th key={field.key} className={`${field.width} px-2 py-3 text-left`}>
-                            <span className="text-xs font-semibold text-gray-600 flex items-center">
-                              {field.label}
-                              {field.required && <span className="text-red-500 ml-1">*</span>}
-                              {field.readOnly && (
-                                <Info className="w-3 h-3 ml-1 text-gray-400" title="Auto-filled from search" />
-                              )}
-                            </span>
-                          </th>
-                        ))}
-                        <th className="w-24 px-2 py-3 text-center">
-                          <span className="text-xs font-semibold text-gray-600">Actions</span>
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {typePositions.map((position, index) => {
-                        const hasErrors = Object.values(position.errors || {}).some(e => e);
-                        const value = calculatePositionValue(assetType, position);
-                        
-                        return (
-                          <tr 
-                            key={position.id}
-                            className={`
-                              border-b border-gray-100 transition-all duration-300 group
-                              ${position.isNew ? 'bg-blue-50/50' : 'hover:bg-gray-50/50'}
-                              ${position.animateIn ? 'animate-in slide-in-from-left duration-300' : ''}
-                              ${position.animateOut ? 'animate-out slide-out-to-right duration-300' : ''}
-                              ${hasErrors ? 'bg-red-50/30' : ''}
-                            `}
-                          >
-                            <td className="px-3 py-2">
-                              <div className="flex items-center space-x-2">
-                                <span className="text-sm font-medium text-gray-500">
-                                  {index + 1}
-                                </span>
-                                {position.isNew && (
-                                  <span className="w-2 h-2 bg-blue-500 rounded-full animate-pulse" />
-                                )}
-                              </div>
-                            </td>
-                            {config.fields.map(field => (
-                              <td key={field.key} className={`${field.width} px-1 py-2`}>
-                                {renderCellInput(
-                                  assetType, 
-                                  position, 
-                                  field, 
-                                  `${assetType}-${position.id}-${field.key}`
-                                )}
-                              </td>
-                            ))}
-                            <td className="px-2 py-2">
-                              <div className="flex items-center justify-center space-x-1">
-                                <button
-                                  onClick={() => duplicatePosition(assetType, position)}
-                                  className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all duration-200"
-                                  title="Duplicate (Ctrl+D)"
-                                >
-                                  <Copy className="w-4 h-4" />
-                                </button>
-                                <button
-                                  onClick={() => deletePosition(assetType, position.id)}
-                                  className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all duration-200"
-                                  title="Delete (Ctrl+Del)"
-                                >
-                                  <Trash2 className="w-4 h-4" />
-                                </button>
-                                {value > 0 && showValues && (
-                                  <div className="ml-2 px-2 py-1 bg-gray-100 rounded text-xs font-medium text-gray-600">
-                                    {formatCurrency(value)}
-                                    </div>
+return (
+  <div 
+    key={assetType} 
+    className={`
+      bg-white rounded-xl shadow-sm border overflow-hidden transition-all duration-300
+      ${isExpanded ? 'border-gray-200 shadow-md' : 'border-gray-100'}
+      ${typePositions.length > 0 ? 'ring-1 ring-gray-100' : ''}
+    `}
+  >
+    {/* Section Header - Entire row is clickable */}
+    <div 
+      onClick={() => toggleSection(assetType)}
+      className={`
+        px-4 py-3 cursor-pointer transition-all duration-200
+        ${isExpanded 
+          ? `bg-gradient-to-r ${config.color.gradient} text-white shadow-sm` 
+          : 'bg-gray-50 hover:bg-gray-100'
+           }
+         `}
+       >
+         <div className="flex items-center justify-between">
+           <div className="flex items-center space-x-3 flex-1">
+             <div className={`
+               p-2 rounded-lg transition-all duration-200 
+               ${isExpanded ? 'bg-white/20' : `${config.color.lightBg}`}
+             `}>
+               <Icon className={`w-5 h-5 ${isExpanded ? 'text-white' : config.color.text}`} />
+             </div>
+             
+             <div className="flex-1">
+               <h3 className={`font-semibold text-base flex items-center ${
+                 isExpanded ? 'text-white' : 'text-gray-800'
+               }`}>
+                 {config.name}
+                 {validPositions.length > 0 && (
+                   <span className={`
+                     ml-2 px-2 py-0.5 text-xs font-bold rounded-full
+                     ${isExpanded ? 'bg-white/20 text-white' : `${config.color.bg} text-white`}
+                   `}>
+                     {validPositions.length}
+                   </span>
+                 )}
+               </h3>
+               <p className={`text-xs mt-0.5 ${isExpanded ? 'text-white/80' : 'text-gray-500'}`}>
+                 {config.description}
+               </p>
+             </div>
+             
+             {typeStats && typeStats.count > 0 && (
+               <div className={`flex items-center space-x-4 text-xs ${
+                 isExpanded ? 'text-white/90' : 'text-gray-600'
+               }`}>
+                 <div className="text-right">
+                   <div className="font-medium">
+                     {showValues ? formatCurrency(typeStats.value) : '••••'}
+                   </div>
+                   {performance !== undefined && (
+                     <div className={`flex items-center justify-end ${
+                       performance >= 0 ? 'text-green-400' : 'text-red-400'
+                     }`}>
+                       {performance >= 0 ? <TrendingUp className="w-3 h-3 mr-1" /> : <TrendingDown className="w-3 h-3 mr-1" />}
+                       {Math.abs(performance).toFixed(1)}%
+                     </div>
+                   )}
+                 </div>
+               </div>
+             )}
+           </div>
+           
+           <div className="flex items-center space-x-2 ml-3">
+             <button
+               onClick={(e) => {
+                 e.stopPropagation();
+                 addNewRow(assetType);
+                 if (!isExpanded) {
+                   setExpandedSections(prev => ({ ...prev, [assetType]: true }));
+                 }
+               }}
+               className={`
+                 p-1.5 rounded-lg transition-all duration-200 
+                 ${isExpanded 
+                   ? 'bg-white/20 hover:bg-white/30 text-white' 
+                   : `${config.color.lightBg} hover:${config.color.hover} ${config.color.text}`
+                 }
+               `}
+               title={`Add ${config.name}`}
+             >
+               <Plus className="w-4 h-4" />
+             </button>
+             
+             <ChevronDown className={`
+               w-5 h-5 transition-transform duration-300
+               ${isExpanded ? 'rotate-180 text-white' : 'text-gray-400'}
+             `} />
+           </div>
+         </div>
+       </div>
+
+       {/* Table Content */}
+       {isExpanded && (
+         <div className="bg-white animate-in slide-in-from-top-2 duration-300">
+           {typePositions.length === 0 ? (
+             <div className="p-8 text-center">
+               <div className={`inline-flex p-4 rounded-full ${config.color.lightBg} mb-4`}>
+                 <Icon className={`w-8 h-8 ${config.color.text}`} />
+               </div>
+               <p className="text-gray-600 mb-4">No {config.name.toLowerCase()} positions yet</p>
+               <button
+                 onClick={() => addNewRow(assetType)}
+                 className={`
+                   inline-flex items-center px-4 py-2 rounded-lg font-medium transition-all duration-200
+                   ${config.color.bg} text-white hover:shadow-md hover:scale-105
+                 `}
+               >
+                 <Plus className="w-4 h-4 mr-2" />
+                 Add First {config.name}
+               </button>
+             </div>
+           ) : (
+             <>
+               <div className="overflow-x-auto" ref={el => tableRefs.current[assetType] = el}>
+                 <table className="w-full">
+                   <thead>
+                     <tr className="bg-gray-50 border-b border-gray-200">
+                       <th className="w-12 px-3 py-3 text-left">
+                         <span className="text-xs font-semibold text-gray-600">#</span>
+                       </th>
+                       {config.fields.map(field => (
+                         <th key={field.key} className={`${field.width} px-2 py-3 text-left`}>
+                           <span className="text-xs font-semibold text-gray-600 flex items-center">
+                             {field.label}
+                             {field.required && <span className="text-red-500 ml-1">*</span>}
+                             {field.readOnly && (
+                               <Info className="w-3 h-3 ml-1 text-gray-400" title="Auto-filled from search" />
+                             )}
+                           </span>
+                         </th>
+                       ))}
+                       <th className="w-24 px-2 py-3 text-center">
+                         <span className="text-xs font-semibold text-gray-600">Actions</span>
+                       </th>
+                     </tr>
+                   </thead>
+                   <tbody>
+                     {typePositions.map((position, index) => {
+                       const hasErrors = Object.values(position.errors || {}).some(e => e);
+                       const value = calculatePositionValue(assetType, position);
+                       
+                       return (
+                         <tr 
+                           key={position.id}
+                           className={`
+                             border-b border-gray-100 transition-all duration-300 group
+                             ${position.isNew ? 'bg-blue-50/50' : 'hover:bg-gray-50/50'}
+                             ${position.animateIn ? 'animate-in slide-in-from-left duration-300' : ''}
+                             ${position.animateOut ? 'animate-out slide-out-to-right duration-300' : ''}
+                             ${hasErrors ? 'bg-red-50/30' : ''}
+                           `}
+                         >
+                           <td className="px-3 py-2">
+                             <div className="flex items-center space-x-2">
+                               <span className="text-sm font-medium text-gray-500">
+                                 {index + 1}
+                               </span>
+                               {position.isNew && (
+                                 <span className="w-2 h-2 bg-blue-500 rounded-full animate-pulse" />
+                               )}
+                             </div>
+                           </td>
+                           {config.fields.map(field => (
+                             <td key={field.key} className={`${field.width} px-1 py-2`}>
+                               {renderCellInput(
+                                 assetType, 
+                                 position, 
+                                 field, 
+                                 `${assetType}-${position.id}-${field.key}`
+                               )}
+                             </td>
+                           ))}
+                           <td className="px-2 py-2">
+                             <div className="flex items-center justify-center space-x-1">
+                               <button
+                                 onClick={() => duplicatePosition(assetType, position)}
+                                 className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all duration-200"
+                                 title="Duplicate (Ctrl+D)"
+                               >
+                                 <Copy className="w-4 h-4" />
+                               </button>
+                               <button
+                                 onClick={() => deletePosition(assetType, position.id)}
+                                 className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all duration-200"
+                                 title="Delete (Ctrl+Del)"
+                               >
+                                 <Trash2 className="w-4 h-4" />
+                               </button>
+                               {value > 0 && showValues && (
+                                 <div className="ml-2 px-2 py-1 bg-gray-100 rounded text-xs font-medium text-gray-600">
+                                   {formatCurrency(value)}
+                                 </div>
                                )}
                              </div>
                            </td>
@@ -1483,171 +1738,164 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved }) => {
      <div className="space-y-4">
        {accounts.map(account => {
          const accountStats = stats.byAccount[account.id];
-         if (!accountStats || accountStats.count === 0) {
-           return (
-             <div key={account.id} className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-               <h3 className="font-semibold text-gray-800 mb-2">{account.account_name}</h3>
-               <p className="text-gray-500 text-sm mb-4">No positions in this account yet</p>
-               <div className="flex flex-wrap gap-2">
-                 {Object.entries(assetTypes).map(([type, config]) => {
-                   const Icon = config.icon;
-                   return (
-                     <button
-                       key={type}
-                       onClick={() => {
-                         const newPosition = {
-                           id: Date.now() + Math.random(),
-                           type,
-                           data: { account_id: account.id },
-                           errors: {},
-                           isNew: true,
-                           animateIn: true
-                         };
-                         setPositions(prev => ({
-                           ...prev,
-                           [type]: [...prev[type], newPosition]
-                         }));
-                       }}
-                       className={`
-                         inline-flex items-center px-3 py-1.5 rounded-lg text-sm font-medium
-                         transition-all duration-200 ${config.color.lightBg} ${config.color.text}
-                         hover:${config.color.bg} hover:text-white hover:shadow-md
-                       `}
-                     >
-                       <Icon className="w-4 h-4 mr-2" />
-                       Add {config.name}
-                     </button>
-                   );
-                 })}
-               </div>
-             </div>
-           );
-         }
-
+         const hasPositions = accountStats && accountStats.count > 0;
+         
          return (
            <div key={account.id} className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-             {/* Account Header */}
+             {/* Account Header with asset type buttons */}
              <div className="px-4 py-3 bg-gradient-to-r from-gray-50 to-gray-100 border-b border-gray-200">
                <div className="flex items-center justify-between">
-                 <div>
-                   <h3 className="font-semibold text-gray-800">{account.account_name}</h3>
-                   <p className="text-sm text-gray-600 mt-1">
-                     {accountStats.count} position{accountStats.count !== 1 ? 's' : ''} • 
-                     {showValues ? ` ${formatCurrency(accountStats.value)}` : ' ••••'}
-                   </p>
-                 </div>
-                 <div className="flex items-center space-x-2">
-                   {Object.entries(assetTypes).map(([type, config]) => {
-                     const Icon = config.icon;
-                     const typeCount = accountStats.positions.filter(p => p.assetType === type).length;
-                     return typeCount > 0 ? (
-                       <div key={type} className={`
-                         flex items-center space-x-1 px-2 py-1 rounded-lg text-xs
-                         ${config.color.lightBg} ${config.color.text}
-                       `}>
-                         <Icon className="w-3 h-3" />
-                         <span className="font-medium">{typeCount}</span>
-                       </div>
-                     ) : null;
-                   })}
+                 <div className="flex items-center space-x-4">
+                   <div>
+                     <h3 className="font-semibold text-gray-800">{account.account_name}</h3>
+                     <p className="text-sm text-gray-600 mt-1">
+                       {accountStats ? `${accountStats.count} position${accountStats.count !== 1 ? 's' : ''}` : 'No positions'} • 
+                       {showValues && accountStats ? ` ${formatCurrency(accountStats.value)}` : ' ••••'}
+                     </p>
+                   </div>
+                   
+                   {/* Asset type buttons always visible */}
+                   <div className="flex items-center space-x-2 ml-8">
+                     {Object.entries(assetTypes).map(([type, config]) => {
+                       const Icon = config.icon;
+                       const typeCount = accountStats?.positions.filter(p => p.assetType === type).length || 0;
+                       const hasTypePositions = typeCount > 0;
+                       
+                       return (
+                         <button
+                           key={type}
+                           onClick={() => addNewRowForAccount(account.id, type)}
+                           className={`
+                             inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-medium
+                             transition-all duration-200 group
+                             ${hasTypePositions 
+                               ? `${config.color.bg} text-white hover:shadow-md` 
+                               : `${config.color.lightBg} ${config.color.text} hover:${config.color.bg} hover:text-white`
+                             }
+                           `}
+                           title={`Add ${config.name}`}
+                         >
+                           <Icon className="w-3.5 h-3.5 mr-1.5" />
+                           <span>{config.name}</span>
+                           {typeCount > 0 && (
+                             <span className="ml-1.5 px-1.5 py-0.5 bg-white/20 rounded-full text-[10px] font-bold">
+                               {typeCount}
+                             </span>
+                           )}
+                           <Plus className="w-3 h-3 ml-1 opacity-0 group-hover:opacity-100 transition-opacity" />
+                         </button>
+                       );
+                     })}
+                   </div>
                  </div>
                </div>
              </div>
 
              {/* Positions by Type */}
              <div className="p-4 space-y-4">
-               {Object.entries(assetTypes).map(([type, config]) => {
-                 const typePositions = positions[type].filter(p => p.data.account_id === account.id);
-                 if (typePositions.length === 0) return null;
+               {hasPositions ? (
+                 Object.entries(assetTypes).map(([type, config]) => {
+                   const typePositions = positions[type].filter(p => p.data.account_id === account.id);
+                   if (typePositions.length === 0) return null;
 
-                 const Icon = config.icon;
-                 return (
-                   <div key={type} className="border border-gray-200 rounded-lg overflow-hidden">
-                     <div className={`px-3 py-2 ${config.color.lightBg} border-b ${config.color.border}`}>
-                       <h4 className={`font-medium text-sm ${config.color.text} flex items-center`}>
-                         <Icon className="w-4 h-4 mr-2" />
-                         {config.name}
-                       </h4>
-                     </div>
-                     <div className="overflow-x-auto">
-                       <table className="w-full text-sm">
-                         <thead>
-                           <tr className="bg-gray-50 border-b border-gray-200">
-                             {config.fields.filter(f => f.key !== 'account_id').map(field => (
-                               <th key={field.key} className="px-2 py-2 text-left text-xs font-medium text-gray-600">
-                                 {field.label}
-                                 {field.required && <span className="text-red-500 ml-0.5">*</span>}
-                               </th>
-                             ))}
-                             <th className="px-2 py-2 text-center text-xs font-medium text-gray-600">Actions</th>
-                           </tr>
-                         </thead>
-                         <tbody>
-                           {typePositions.map((position, index) => (
-                             <tr key={position.id} className="border-b border-gray-100 hover:bg-gray-50">
-                               {config.fields.filter(f => f.key !== 'account_id').map(field => (
-                                 <td key={field.key} className="px-1 py-1">
-                                   {renderCellInput(
-                                     type,
-                                     position,
-                                     field,
-                                     `${type}-${position.id}-${field.key}`
-                                   )}
-                                 </td>
-                               ))}
-                               <td className="px-1 py-1">
-                                 <div className="flex items-center justify-center space-x-1">
-                                   <button
-                                     onClick={() => duplicatePosition(type, position)}
-                                     className="p-1 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-all"
-                                     title="Duplicate"
-                                   >
-                                     <Copy className="w-3 h-3" />
-                                   </button>
-                                   <button
-                                     onClick={() => deletePosition(type, position.id)}
-                                     className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-all"
-                                     title="Delete"
-                                   >
-                                     <Trash2 className="w-3 h-3" />
-                                   </button>
-                                 </div>
-                               </td>
-                             </tr>
-                           ))}
-                         </tbody>
-                       </table>
-                     </div>
-                     <div className="p-2 bg-gray-50 border-t border-gray-100">
-                       <button
-                         onClick={() => {
-                           const newPosition = {
-                             id: Date.now() + Math.random(),
-                             type,
-                             data: { account_id: account.id },
-                             errors: {},
-                             isNew: true,
-                             animateIn: true
-                           };
-                           setPositions(prev => ({
-                             ...prev,
-                             [type]: [...prev[type], newPosition]
-                           }));
-                         }}
-                         className={`
-                           w-full py-1.5 px-3 text-xs font-medium rounded
-                           ${config.color.lightBg} ${config.color.text} 
-                           hover:${config.color.bg} hover:text-white transition-all
-                           flex items-center justify-center space-x-1
-                         `}
+                   const Icon = config.icon;
+                   const sectionKey = `${account.id}-${type}`;
+                   const isExpanded = accountExpandedSections[sectionKey] !== false; // Default expanded
+                   
+                   return (
+                     <div key={type} className="border border-gray-200 rounded-lg overflow-hidden">
+                       <div 
+                         onClick={() => setAccountExpandedSections(prev => ({
+                           ...prev,
+                           [sectionKey]: !isExpanded
+                         }))}
+                         className={`px-3 py-2 ${config.color.lightBg} border-b ${config.color.border} cursor-pointer hover:brightness-95 transition-all`}
                        >
-                         <Plus className="w-3 h-3" />
-                         <span>Add {config.name}</span>
-                       </button>
+                         <h4 className={`font-medium text-sm ${config.color.text} flex items-center justify-between`}>
+                           <div className="flex items-center">
+                             <Icon className="w-4 h-4 mr-2" />
+                             {config.name}
+                             <span className={`ml-2 px-1.5 py-0.5 text-xs ${config.color.bg} text-white rounded-full`}>
+                               {typePositions.length}
+                             </span>
+                           </div>
+                           <ChevronDown className={`w-4 h-4 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
+                         </h4>
+                       </div>
+                       
+                       {isExpanded && (
+                         <div className="overflow-x-auto">
+                           <table className="w-full text-sm">
+                             <thead>
+                               <tr className="bg-gray-50 border-b border-gray-200">
+                                 {config.fields.filter(f => f.key !== 'account_id').map(field => (
+                                   <th key={field.key} className="px-2 py-2 text-left text-xs font-medium text-gray-600">
+                                     {field.label}
+                                     {field.required && <span className="text-red-500 ml-0.5">*</span>}
+                                   </th>
+                                 ))}
+                                 <th className="px-2 py-2 text-center text-xs font-medium text-gray-600">Actions</th>
+                               </tr>
+                             </thead>
+                             <tbody>
+                               {typePositions.map((position, index) => (
+                                 <tr key={position.id} className="border-b border-gray-100 hover:bg-gray-50">
+                                   {config.fields.filter(f => f.key !== 'account_id').map(field => (
+                                     <td key={field.key} className="px-1 py-1">
+                                       {renderCellInput(
+                                         type,
+                                         position,
+                                         field,
+                                         `${type}-${position.id}-${field.key}`
+                                       )}
+                                     </td>
+                                   ))}
+                                   <td className="px-1 py-1">
+                                     <div className="flex items-center justify-center space-x-1">
+                                       <button
+                                         onClick={() => duplicatePosition(type, position)}
+                                         className="p-1 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-all"
+                                         title="Duplicate"
+                                       >
+                                         <Copy className="w-3 h-3" />
+                                       </button>
+                                       <button
+                                         onClick={() => deletePosition(type, position.id)}
+                                         className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-all"
+                                         title="Delete"
+                                       >
+                                         <Trash2 className="w-3 h-3" />
+                                       </button>
+                                     </div>
+                                   </td>
+                                 </tr>
+                               ))}
+                             </tbody>
+                           </table>
+                           <div className="p-2 bg-gray-50 border-t border-gray-100">
+                             <button
+                               onClick={() => addNewRowForAccount(account.id, type)}
+                               className={`
+                                 w-full py-1.5 px-3 text-xs font-medium rounded
+                                 ${config.color.lightBg} ${config.color.text} 
+                                 hover:${config.color.bg} hover:text-white transition-all
+                                 flex items-center justify-center space-x-1
+                               `}
+                             >
+                               <Plus className="w-3 h-3" />
+                               <span>Add {config.name}</span>
+                             </button>
+                           </div>
+                         </div>
+                       )}
                      </div>
-                   </div>
-                 );
-               })}
+                   );
+                 })
+               ) : (
+                 <p className="text-gray-500 text-sm text-center py-4">
+                   Click any asset type button above to start adding positions
+                 </p>
+               )}
              </div>
            </div>
          );
@@ -1712,8 +1960,9 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved }) => {
                Cancel
              </button>
 
-             {/* View mode toggle */}
-             <div className="ml-4">
+             {/* View mode toggle with label */}
+             <div className="ml-4 flex items-center space-x-3">
+               <span className="text-sm text-gray-600">Add positions by:</span>
                <ToggleSwitch
                  value={viewMode}
                  onChange={setViewMode}
@@ -1752,6 +2001,20 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved }) => {
              </button>
              
              <div className="h-6 w-px bg-gray-300"></div>
+             
+             {/* View Queue button */}
+             <button
+               onClick={() => setShowQueue(true)}
+               className="px-4 py-2 text-sm bg-white border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 hover:border-gray-400 transition-all flex items-center space-x-2"
+             >
+               <ClipboardList className="w-4 h-4" />
+               <span>View Queue</span>
+               {stats.totalPositions > 0 && (
+                 <span className="ml-1 px-2 py-0.5 bg-gray-900 text-white text-xs rounded-full font-bold">
+                   {stats.totalPositions}
+                 </span>
+               )}
+             </button>
              
              {/* Submit button */}
              <button
@@ -1984,7 +2247,7 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved }) => {
        {message.text && (
          <div className={`
            absolute bottom-6 left-6 right-6 p-4 rounded-lg shadow-lg border
-           animate-in slide-in-from-bottom duration-300 z-50
+           animate-in slide-in-from-bottom duration-300 z-40
            ${message.type === 'error' 
              ? 'bg-red-50 border-red-200' 
              : message.type === 'warning' 
@@ -2080,6 +2343,16 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved }) => {
            </div>
          </div>
        )}
+
+       {/* Queue Modal */}
+       <QueueModal
+         isOpen={showQueue}
+         onClose={() => setShowQueue(false)}
+         positions={positions}
+         assetTypes={assetTypes}
+         accounts={accounts}
+         onClearCompleted={clearCompletedPositions}
+       />
      </div>
 
      <style jsx>{`
