@@ -20,33 +20,103 @@ import {
   Keyboard, MousePointer, MoreVertical, ChevronRight, Shield,
   PieChart, Target, Wallet, CreditCard, Gem, Building,
   ChevronUp, Edit3, CheckSquare, Square, ListPlus, Loader2,
-  ArrowUpDown, Info, MinusCircle, PlusCircle, BarChart2
+  ArrowUpDown, Info, MinusCircle, PlusCircle, BarChart2,
+  RefreshCw, Database, TrendingDown, Percent, Calculator,
+  FileText, GitBranch, Shuffle, Import, Export, Maximize2
 } from 'lucide-react';
 
-// Compact AnimatedNumber
-const AnimatedNumber = ({ value, prefix = '', suffix = '' }) => {
+// Enhanced AnimatedNumber with smooth transitions
+const AnimatedNumber = ({ value, prefix = '', suffix = '', decimals = 0, duration = 600 }) => {
   const [displayValue, setDisplayValue] = useState(0);
+  const [isAnimating, setIsAnimating] = useState(false);
   
   useEffect(() => {
-    const duration = 300;
-    const steps = 20;
-    const increment = value / steps;
-    let current = 0;
+    setIsAnimating(true);
+    const startTime = Date.now();
+    const startValue = displayValue;
+    const endValue = value;
     
-    const timer = setInterval(() => {
-      current += increment;
-      if (current >= value) {
-        setDisplayValue(value);
-        clearInterval(timer);
+    const animate = () => {
+      const now = Date.now();
+      const progress = Math.min((now - startTime) / duration, 1);
+      
+      // Easing function for smooth animation
+      const easeOutQuart = 1 - Math.pow(1 - progress, 4);
+      const currentValue = startValue + (endValue - startValue) * easeOutQuart;
+      
+      setDisplayValue(currentValue);
+      
+      if (progress < 1) {
+        requestAnimationFrame(animate);
       } else {
-        setDisplayValue(Math.floor(current));
+        setIsAnimating(false);
       }
-    }, duration / steps);
+    };
     
-    return () => clearInterval(timer);
-  }, [value]);
+    requestAnimationFrame(animate);
+  }, [value, duration]);
   
-  return <span>{prefix}{displayValue.toLocaleString()}{suffix}</span>;
+  const formattedValue = decimals > 0 
+    ? displayValue.toFixed(decimals).toLocaleString()
+    : Math.floor(displayValue).toLocaleString();
+    
+  return (
+    <span className={`transition-all duration-300 ${isAnimating ? 'text-blue-600' : ''}`}>
+      {prefix}{formattedValue}{suffix}
+    </span>
+  );
+};
+
+// Progress indicator component
+const ProgressIndicator = ({ current, total, className = '' }) => {
+  const percentage = total > 0 ? (current / total) * 100 : 0;
+  
+  return (
+    <div className={`relative ${className}`}>
+      <div className="h-1.5 bg-gray-200 rounded-full overflow-hidden">
+        <div 
+          className="h-full bg-gradient-to-r from-blue-500 to-blue-600 transition-all duration-500 ease-out"
+          style={{ width: `${percentage}%` }}
+        />
+      </div>
+      <div className="absolute -top-1 transition-all duration-500 ease-out" 
+           style={{ left: `${percentage}%`, transform: 'translateX(-50%)' }}>
+        <div className="w-3 h-3 bg-blue-600 rounded-full ring-2 ring-white shadow-sm" />
+      </div>
+    </div>
+  );
+};
+
+// Asset type badge component
+const AssetTypeBadge = ({ type, count, icon: Icon, color, active = false, onClick }) => {
+  return (
+    <button
+      onClick={onClick}
+      className={`
+        relative px-3 py-1.5 rounded-lg transition-all duration-300 transform
+        ${active 
+          ? `${color.bg} text-white shadow-lg scale-105 ring-2 ring-${color.main}-400 ring-opacity-50` 
+          : 'bg-white text-gray-700 hover:shadow-md hover:scale-102 border border-gray-200'
+        }
+      `}
+    >
+      <div className="flex items-center space-x-2">
+        <Icon className={`w-4 h-4 ${active ? 'animate-pulse' : ''}`} />
+        <span className="font-medium text-sm">{type}</span>
+        {count > 0 && (
+          <span className={`
+            px-1.5 py-0.5 text-xs rounded-full font-bold
+            ${active ? 'bg-white/20 text-white' : `${color.lightBg} ${color.text}`}
+          `}>
+            {count}
+          </span>
+        )}
+      </div>
+      {count > 0 && !active && (
+        <div className={`absolute -top-1 -right-1 w-2 h-2 ${color.bg} rounded-full animate-ping`} />
+      )}
+    </button>
+  );
 };
 
 const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved }) => {
@@ -54,231 +124,336 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved }) => {
   const [accounts, setAccounts] = useState([]);
   const [positions, setPositions] = useState({
     security: [],
+    cash: [],
     crypto: [],
     metal: [],
-    realestate: [],
-    cash: []
+    realestate: []
   });
-  const [collapsedSections, setCollapsedSections] = useState({});
+  const [expandedSections, setExpandedSections] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showValues, setShowValues] = useState(true);
   const [selectedPositions, setSelectedPositions] = useState(new Set());
   const [focusedCell, setFocusedCell] = useState(null);
-  const [message, setMessage] = useState({ type: '', text: '' });
+  const [message, setMessage] = useState({ type: '', text: '', details: [] });
   const [activeFilter, setActiveFilter] = useState('all');
   const [searchTerm, setSearchTerm] = useState('');
+  const [showKeyboardShortcuts, setShowKeyboardShortcuts] = useState(false);
+  const [autoSaveEnabled, setAutoSaveEnabled] = useState(false);
+  const [validationMode, setValidationMode] = useState('realtime'); // 'realtime' or 'onsubmit'
+  const [bulkEditMode, setBulkEditMode] = useState(false);
+  const [recentlyUsedAccounts, setRecentlyUsedAccounts] = useState([]);
   
   // Refs
   const cellRefs = useRef({});
   const tableRefs = useRef({});
+  const messageTimeoutRef = useRef(null);
 
-  // Compact asset type configuration
+  // Enhanced asset type configuration with rich colors and animations
   const assetTypes = {
     security: {
       name: 'Securities',
       icon: BarChart3,
-      color: '#3B82F6',
-      bg: 'bg-blue-500',
-      lightBg: 'bg-blue-50',
-      border: 'border-blue-200',
-      text: 'text-blue-700',
+      color: {
+        main: 'blue',
+        bg: 'bg-blue-600',
+        lightBg: 'bg-blue-50',
+        border: 'border-blue-200',
+        text: 'text-blue-700',
+        hover: 'hover:bg-blue-100',
+        gradient: 'from-blue-500 to-blue-600'
+      },
+      description: 'Stocks, ETFs, Mutual Funds',
+      emoji: '📈',
       fields: [
-        { key: 'ticker', label: 'Ticker', type: 'text', required: true, width: 'w-24', placeholder: 'AAPL', transform: 'uppercase' },
-        { key: 'shares', label: 'Shares', type: 'number', required: true, width: 'w-20', placeholder: '100' },
-        { key: 'price', label: 'Price', type: 'number', required: true, width: 'w-24', placeholder: '150.00', prefix: '$' },
-        { key: 'cost_basis', label: 'Cost', type: 'number', width: 'w-24', placeholder: '140.00', prefix: '$' },
-        { key: 'purchase_date', label: 'Date', type: 'date', width: 'w-32' },
-        { key: 'account_id', label: 'Account', type: 'select', required: true, width: 'w-40' }
-      ]
-    },
-    crypto: {
-      name: 'Crypto',
-      icon: Coins,
-      color: '#F97316',
-      bg: 'bg-orange-500',
-      lightBg: 'bg-orange-50',
-      border: 'border-orange-200',
-      text: 'text-orange-700',
-      fields: [
-        { key: 'symbol', label: 'Symbol', type: 'text', required: true, width: 'w-20', placeholder: 'BTC', transform: 'uppercase' },
-        { key: 'quantity', label: 'Qty', type: 'number', required: true, width: 'w-24', placeholder: '0.5', step: '0.00000001' },
-        { key: 'purchase_price', label: 'Buy Price', type: 'number', required: true, width: 'w-28', placeholder: '45000', prefix: '$' },
-        { key: 'current_price', label: 'Current', type: 'number', required: true, width: 'w-28', placeholder: '50000', prefix: '$' },
-        { key: 'purchase_date', label: 'Date', type: 'date', width: 'w-32' },
-        { key: 'account_id', label: 'Account', type: 'select', required: true, width: 'w-40' }
-      ]
-    },
-    metal: {
-      name: 'Metals',
-      icon: Gem,
-      color: '#EAB308',
-      bg: 'bg-yellow-500',
-      lightBg: 'bg-yellow-50',
-      border: 'border-yellow-200',
-      text: 'text-yellow-700',
-      fields: [
-        { 
-          key: 'metal_type', 
-          label: 'Metal', 
-          type: 'select', 
-          required: true, 
-          width: 'w-24',
-          options: [
-            { value: '', label: 'Select' },
-            { value: 'Gold', label: 'Gold' },
-            { value: 'Silver', label: 'Silver' },
-            { value: 'Platinum', label: 'Platinum' },
-            { value: 'Palladium', label: 'Palladium' }
-          ]
-        },
-        { key: 'quantity', label: 'Qty', type: 'number', required: true, width: 'w-20', placeholder: '10' },
-        { 
-          key: 'unit', 
-          label: 'Unit', 
-          type: 'select', 
-          width: 'w-16',
-          options: [
-            { value: 'oz', label: 'oz' },
-            { value: 'g', label: 'g' },
-            { value: 'kg', label: 'kg' }
-          ]
-        },
-        { key: 'purchase_price', label: 'Price/Unit', type: 'number', required: true, width: 'w-24', placeholder: '1800', prefix: '$' },
-        { key: 'current_price_per_unit', label: 'Current', type: 'number', width: 'w-24', placeholder: '1900', prefix: '$' },
-        { key: 'purchase_date', label: 'Date', type: 'date', width: 'w-32' },
-        { key: 'account_id', label: 'Account', type: 'select', required: true, width: 'w-40' }
-      ]
-    },
-    realestate: {
-      name: 'Real Estate',
-      icon: Home,
-      color: '#10B981',
-      bg: 'bg-green-500',
-      lightBg: 'bg-green-50',
-      border: 'border-green-200',
-      text: 'text-green-700',
-      fields: [
-        { key: 'property_name', label: 'Property', type: 'text', required: true, width: 'w-44', placeholder: 'Main Residence' },
-        { 
-          key: 'property_type', 
-          label: 'Type', 
-          type: 'select', 
-          width: 'w-28',
-          options: [
-            { value: '', label: 'Select' },
-            { value: 'Residential', label: 'Residential' },
-            { value: 'Commercial', label: 'Commercial' },
-            { value: 'Land', label: 'Land' },
-            { value: 'Industrial', label: 'Industrial' }
-          ]
-        },
-        { key: 'address', label: 'Address', type: 'text', width: 'w-48', placeholder: '123 Main St' },
-        { key: 'purchase_price', label: 'Purchase', type: 'number', required: true, width: 'w-28', placeholder: '500000', prefix: '$' },
-        { key: 'estimated_value', label: 'Value', type: 'number', width: 'w-28', placeholder: '550000', prefix: '$' },
-        { key: 'purchase_date', label: 'Date', type: 'date', width: 'w-32' },
-        { key: 'account_id', label: 'Account', type: 'select', required: true, width: 'w-40' }
+        { key: 'ticker', label: 'Ticker', type: 'text', required: true, width: 'w-28', placeholder: 'AAPL', transform: 'uppercase', autocomplete: true },
+        { key: 'shares', label: 'Shares', type: 'number', required: true, width: 'w-24', placeholder: '100', min: 0, step: 1 },
+        { key: 'price', label: 'Price', type: 'number', required: true, width: 'w-28', placeholder: '150.00', prefix: '$', min: 0, step: 0.01 },
+        { key: 'cost_basis', label: 'Cost Basis', type: 'number', width: 'w-28', placeholder: '140.00', prefix: '$', min: 0, step: 0.01 },
+        { key: 'purchase_date', label: 'Purchase Date', type: 'date', width: 'w-36', max: new Date().toISOString().split('T')[0] },
+        { key: 'account_id', label: 'Account', type: 'select', required: true, width: 'w-44' }
       ]
     },
     cash: {
       name: 'Cash',
       icon: DollarSign,
-      color: '#8B5CF6',
-      bg: 'bg-purple-500',
-      lightBg: 'bg-purple-50',
-      border: 'border-purple-200',
-      text: 'text-purple-700',
+      color: {
+        main: 'purple',
+        bg: 'bg-purple-600',
+        lightBg: 'bg-purple-50',
+        border: 'border-purple-200',
+        text: 'text-purple-700',
+        hover: 'hover:bg-purple-100',
+        gradient: 'from-purple-500 to-purple-600'
+      },
+      description: 'Savings, Checking, Money Market',
+      emoji: '💵',
       fields: [
         { 
           key: 'currency', 
           label: 'Currency', 
           type: 'select', 
           required: true,
-          width: 'w-20',
+          width: 'w-24',
           options: [
-            { value: 'USD', label: 'USD' },
-            { value: 'EUR', label: 'EUR' },
-            { value: 'GBP', label: 'GBP' },
-            { value: 'JPY', label: 'JPY' },
-            { value: 'CAD', label: 'CAD' }
+            { value: 'USD', label: 'USD 🇺🇸', symbol: '$' },
+            { value: 'EUR', label: 'EUR 🇪🇺', symbol: '€' },
+            { value: 'GBP', label: 'GBP 🇬🇧', symbol: '£' },
+            { value: 'JPY', label: 'JPY 🇯🇵', symbol: '¥' },
+            { value: 'CAD', label: 'CAD 🇨🇦', symbol: 'C$' }
           ]
         },
-        { key: 'amount', label: 'Amount', type: 'number', required: true, width: 'w-28', placeholder: '10000', prefix: '$' },
+        { key: 'amount', label: 'Amount', type: 'number', required: true, width: 'w-32', placeholder: '10000', prefix: '$', min: 0 },
         { 
           key: 'account_type', 
           label: 'Type', 
           type: 'select', 
-          width: 'w-28',
+          width: 'w-32',
           options: [
-            { value: '', label: 'Select' },
-            { value: 'Savings', label: 'Savings' },
-            { value: 'Checking', label: 'Checking' },
-            { value: 'Money Market', label: 'Money Market' },
-            { value: 'CD', label: 'CD' }
+            { value: '', label: 'Select...' },
+            { value: 'Savings', label: '💰 Savings' },
+            { value: 'Checking', label: '💳 Checking' },
+            { value: 'Money Market', label: '📊 Money Market' },
+            { value: 'CD', label: '🔒 CD' }
           ]
         },
-        { key: 'interest_rate', label: 'Rate %', type: 'number', width: 'w-20', placeholder: '2.5', suffix: '%', step: '0.01' },
-        { key: 'account_id', label: 'Account', type: 'select', required: true, width: 'w-40' }
+        { key: 'interest_rate', label: 'APY %', type: 'number', width: 'w-24', placeholder: '2.5', suffix: '%', step: '0.01', min: 0, max: 100 },
+        { key: 'account_id', label: 'Account', type: 'select', required: true, width: 'w-44' }
+      ]
+    },
+    crypto: {
+      name: 'Crypto',
+      icon: Coins,
+      color: {
+        main: 'orange',
+        bg: 'bg-orange-600',
+        lightBg: 'bg-orange-50',
+        border: 'border-orange-200',
+        text: 'text-orange-700',
+        hover: 'hover:bg-orange-100',
+        gradient: 'from-orange-500 to-orange-600'
+      },
+      description: 'Bitcoin, Ethereum, Altcoins',
+      emoji: '🪙',
+      fields: [
+        { key: 'symbol', label: 'Symbol', type: 'text', required: true, width: 'w-24', placeholder: 'BTC', transform: 'uppercase', autocomplete: true },
+        { key: 'quantity', label: 'Quantity', type: 'number', required: true, width: 'w-28', placeholder: '0.5', step: '0.00000001', min: 0 },
+        { key: 'purchase_price', label: 'Buy Price', type: 'number', required: true, width: 'w-32', placeholder: '45000', prefix: '$', min: 0 },
+        { key: 'current_price', label: 'Current Price', type: 'number', required: true, width: 'w-32', placeholder: '50000', prefix: '$', min: 0 },
+        { key: 'purchase_date', label: 'Purchase Date', type: 'date', width: 'w-36', max: new Date().toISOString().split('T')[0] },
+        { key: 'account_id', label: 'Account', type: 'select', required: true, width: 'w-44' }
+      ]
+    },
+    metal: {
+      name: 'Metals',
+      icon: Gem,
+      color: {
+        main: 'yellow',
+        bg: 'bg-yellow-600',
+        lightBg: 'bg-yellow-50',
+        border: 'border-yellow-200',
+        text: 'text-yellow-700',
+        hover: 'hover:bg-yellow-100',
+        gradient: 'from-yellow-500 to-yellow-600'
+      },
+      description: 'Gold, Silver, Platinum',
+      emoji: '🥇',
+      fields: [
+        { 
+          key: 'metal_type', 
+          label: 'Metal', 
+          type: 'select', 
+          required: true, 
+          width: 'w-28',
+          options: [
+            { value: '', label: 'Select...' },
+            { value: 'Gold', label: '🥇 Gold' },
+            { value: 'Silver', label: '🥈 Silver' },
+            { value: 'Platinum', label: '💎 Platinum' },
+            { value: 'Palladium', label: '⚪ Palladium' }
+          ]
+        },
+        { key: 'quantity', label: 'Quantity', type: 'number', required: true, width: 'w-24', placeholder: '10', min: 0 },
+        { 
+          key: 'unit', 
+          label: 'Unit', 
+          type: 'select', 
+          width: 'w-20',
+          options: [
+            { value: 'oz', label: 'oz' },
+            { value: 'g', label: 'g' },
+            { value: 'kg', label: 'kg' }
+          ]
+        },
+        { key: 'purchase_price', label: 'Price/Unit', type: 'number', required: true, width: 'w-28', placeholder: '1800', prefix: '$', min: 0 },
+        { key: 'current_price_per_unit', label: 'Current/Unit', type: 'number', width: 'w-28', placeholder: '1900', prefix: '$', min: 0 },
+        { key: 'purchase_date', label: 'Purchase Date', type: 'date', width: 'w-36', max: new Date().toISOString().split('T')[0] },
+        { key: 'account_id', label: 'Account', type: 'select', required: true, width: 'w-44' }
+      ]
+    },
+    realestate: {
+      name: 'Real Estate',
+      icon: Home,
+      color: {
+        main: 'green',
+        bg: 'bg-green-600',
+        lightBg: 'bg-green-50',
+        border: 'border-green-200',
+        text: 'text-green-700',
+        hover: 'hover:bg-green-100',
+        gradient: 'from-green-500 to-green-600'
+      },
+      description: 'Properties, REITs, Land',
+      emoji: '🏠',
+      fields: [
+        { key: 'property_name', label: 'Property Name', type: 'text', required: true, width: 'w-48', placeholder: 'Main Residence' },
+        { 
+          key: 'property_type', 
+          label: 'Type', 
+          type: 'select', 
+          width: 'w-32',
+          options: [
+            { value: '', label: 'Select...' },
+            { value: 'Residential', label: '🏠 Residential' },
+            { value: 'Commercial', label: '🏢 Commercial' },
+            { value: 'Land', label: '🌳 Land' },
+            { value: 'Industrial', label: '🏭 Industrial' }
+          ]
+        },
+        { key: 'address', label: 'Address', type: 'text', width: 'w-52', placeholder: '123 Main St, City, State' },
+        { key: 'purchase_price', label: 'Purchase Price', type: 'number', required: true, width: 'w-32', placeholder: '500000', prefix: '$', min: 0 },
+        { key: 'estimated_value', label: 'Current Value', type: 'number', width: 'w-32', placeholder: '550000', prefix: '$', min: 0 },
+        { key: 'purchase_date', label: 'Purchase Date', type: 'date', width: 'w-36', max: new Date().toISOString().split('T')[0] },
+        { key: 'account_id', label: 'Account', type: 'select', required: true, width: 'w-44' }
       ]
     }
   };
 
-  // Initialize with empty rows
+  // Initialize and cleanup
   useEffect(() => {
     if (isOpen) {
       loadAccounts();
-      const initialPositions = {};
-      Object.keys(assetTypes).forEach(type => {
-        initialPositions[type] = [{
-          id: Date.now() + Math.random(),
-          type,
-          data: {},
-          errors: {},
-          isNew: true
-        }];
+      setPositions({
+        security: [],
+        cash: [],
+        crypto: [],
+        metal: [],
+        realestate: []
       });
-      setPositions(initialPositions);
+      setExpandedSections({});
+      setMessage({ type: '', text: '', details: [] });
+      setActiveFilter('all');
+      
+      // Show keyboard shortcuts hint initially
+      setShowKeyboardShortcuts(true);
+      setTimeout(() => setShowKeyboardShortcuts(false), 3000);
     }
+    
+    return () => {
+      if (messageTimeoutRef.current) {
+        clearTimeout(messageTimeoutRef.current);
+      }
+    };
   }, [isOpen]);
 
-  // Load accounts
+  // Load accounts with error handling
   const loadAccounts = async () => {
     try {
       const fetchedAccounts = await fetchAllAccounts();
       setAccounts(fetchedAccounts);
+      
+      // Track recently used accounts (mock implementation)
+      const recentIds = fetchedAccounts.slice(0, 3).map(a => a.id);
+      setRecentlyUsedAccounts(recentIds);
     } catch (error) {
       console.error('Error loading accounts:', error);
-      setMessage({ type: 'error', text: 'Failed to load accounts' });
+      showMessage('error', 'Failed to load accounts', [`Error: ${error.message}`]);
     }
   };
 
-  // Add new row with smooth animation
+  // Enhanced message display
+  const showMessage = (type, text, details = [], duration = 5000) => {
+    setMessage({ type, text, details });
+    
+    if (messageTimeoutRef.current) {
+      clearTimeout(messageTimeoutRef.current);
+    }
+    
+    if (duration > 0) {
+      messageTimeoutRef.current = setTimeout(() => {
+        setMessage({ type: '', text: '', details: [] });
+      }, duration);
+    }
+  };
+
+  // Add new row with animation and smart defaults
   const addNewRow = (assetType) => {
+    // Get the last position to copy some defaults
+    const lastPosition = positions[assetType][positions[assetType].length - 1];
+    const defaultData = {};
+    
+    // Smart defaults based on last entry
+    if (lastPosition && lastPosition.data.account_id) {
+      defaultData.account_id = lastPosition.data.account_id;
+    }
+    if (assetType === 'cash' && lastPosition?.data.currency) {
+      defaultData.currency = lastPosition.data.currency;
+    }
+    if (assetType === 'metal' && lastPosition?.data.unit) {
+      defaultData.unit = lastPosition.data.unit;
+    }
+    
     const newPosition = {
       id: Date.now() + Math.random(),
       type: assetType,
-      data: {},
+      data: defaultData,
       errors: {},
       isNew: true,
       animateIn: true
     };
+    
     setPositions(prev => ({
       ...prev,
       [assetType]: [...prev[assetType], newPosition]
     }));
     
+    // Auto-expand section if it's collapsed
+    if (!expandedSections[assetType]) {
+      setExpandedSections(prev => ({ ...prev, [assetType]: true }));
+    }
+    
+    // Focus on first field
     setTimeout(() => {
       const firstFieldKey = assetTypes[assetType].fields[0].key;
       const cellKey = `${assetType}-${newPosition.id}-${firstFieldKey}`;
       cellRefs.current[cellKey]?.focus();
-    }, 50);
+    }, 100);
   };
 
-  // Enhanced keyboard navigation
+  // Enhanced keyboard navigation with vim-like shortcuts
   const handleKeyDown = (e, assetType, positionId, fieldIndex) => {
     const typePositions = positions[assetType];
     const positionIndex = typePositions.findIndex(p => p.id === positionId);
     const fields = assetTypes[assetType].fields;
     
+    // Global shortcuts
+    if (e.ctrlKey || e.metaKey) {
+      switch (e.key) {
+        case 'Enter':
+          e.preventDefault();
+          submitAll();
+          return;
+        case 's':
+          e.preventDefault();
+          submitAll();
+          return;
+        case 'k':
+          e.preventDefault();
+          setShowKeyboardShortcuts(!showKeyboardShortcuts);
+          return;
+      }
+    }
+    
+    // Field navigation
     switch (e.key) {
       case 'Tab':
         if (!e.shiftKey && fieldIndex === fields.length - 1 && positionIndex === typePositions.length - 1) {
@@ -289,9 +464,24 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved }) => {
         
       case 'Enter':
         e.preventDefault();
-        if (e.ctrlKey || e.metaKey) {
-          // Ctrl/Cmd + Enter submits all
-          submitAll();
+        if (e.shiftKey) {
+          // Shift+Enter adds new row above
+          const newPosition = {
+            id: Date.now() + Math.random(),
+            type: assetType,
+            data: {},
+            errors: {},
+            isNew: true,
+            animateIn: true
+          };
+          setPositions(prev => ({
+            ...prev,
+            [assetType]: [
+              ...prev[assetType].slice(0, positionIndex),
+              newPosition,
+              ...prev[assetType].slice(positionIndex)
+            ]
+          }));
         } else if (fieldIndex === fields.length - 1) {
           addNewRow(assetType);
         } else {
@@ -302,7 +492,15 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved }) => {
         
       case 'ArrowDown':
         e.preventDefault();
-        if (positionIndex < typePositions.length - 1) {
+        if (e.altKey) {
+          // Alt+Down moves row down
+          if (positionIndex < typePositions.length - 1) {
+            const newPositions = [...typePositions];
+            [newPositions[positionIndex], newPositions[positionIndex + 1]] = 
+            [newPositions[positionIndex + 1], newPositions[positionIndex]];
+            setPositions(prev => ({ ...prev, [assetType]: newPositions }));
+          }
+        } else if (positionIndex < typePositions.length - 1) {
           const nextPositionId = typePositions[positionIndex + 1].id;
           const nextKey = `${assetType}-${nextPositionId}-${fields[fieldIndex].key}`;
           cellRefs.current[nextKey]?.focus();
@@ -311,29 +509,66 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved }) => {
         
       case 'ArrowUp':
         e.preventDefault();
-        if (positionIndex > 0) {
+        if (e.altKey) {
+          // Alt+Up moves row up
+          if (positionIndex > 0) {
+            const newPositions = [...typePositions];
+            [newPositions[positionIndex], newPositions[positionIndex - 1]] = 
+            [newPositions[positionIndex - 1], newPositions[positionIndex]];
+            setPositions(prev => ({ ...prev, [assetType]: newPositions }));
+          }
+        } else if (positionIndex > 0) {
           const prevPositionId = typePositions[positionIndex - 1].id;
           const prevKey = `${assetType}-${prevPositionId}-${fields[fieldIndex].key}`;
           cellRefs.current[prevKey]?.focus();
         }
         break;
+        
+      case 'Delete':
+        if (e.ctrlKey || e.metaKey) {
+          e.preventDefault();
+          deletePosition(assetType, positionId);
+        }
+        break;
+        
+      case 'd':
+        if (e.ctrlKey || e.metaKey) {
+          e.preventDefault();
+          duplicatePosition(assetType, positions[assetType].find(p => p.id === positionId));
+        }
+        break;
     }
   };
 
-  // Update position with validation
+  // Update position with real-time validation
   const updatePosition = (assetType, positionId, field, value) => {
     setPositions(prev => ({
       ...prev,
       [assetType]: prev[assetType].map(pos => {
         if (pos.id === positionId) {
           const fieldConfig = assetTypes[assetType].fields.find(f => f.key === field);
+          
+          // Apply transformations
           if (fieldConfig?.transform === 'uppercase') {
             value = value.toUpperCase();
           }
+          
+          // Real-time validation
+          let error = null;
+          if (validationMode === 'realtime') {
+            if (fieldConfig?.required && !value) {
+              error = 'Required';
+            } else if (fieldConfig?.min !== undefined && value < fieldConfig.min) {
+              error = `Min: ${fieldConfig.min}`;
+            } else if (fieldConfig?.max !== undefined && value > fieldConfig.max) {
+              error = `Max: ${fieldConfig.max}`;
+            }
+          }
+          
           return {
             ...pos,
             data: { ...pos.data, [field]: value },
-            errors: { ...pos.errors, [field]: null },
+            errors: { ...pos.errors, [field]: error },
             isNew: false,
             animateIn: false
           };
@@ -343,8 +578,14 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved }) => {
     }));
   };
 
-  // Delete with animation
+  // Delete with confirmation for multiple items
   const deletePosition = (assetType, positionId) => {
+    const positionCount = positions[assetType].filter(p => p.data.account_id).length;
+    
+    if (positionCount > 5 && !window.confirm('Delete this position?')) {
+      return;
+    }
+    
     setPositions(prev => ({
       ...prev,
       [assetType]: prev[assetType].map(pos => 
@@ -357,18 +598,30 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved }) => {
         ...prev,
         [assetType]: prev[assetType].filter(pos => pos.id !== positionId)
       }));
-    }, 200);
+    }, 300);
   };
 
-  // Smart duplicate
+  // Smart duplicate with incremented values
   const duplicatePosition = (assetType, position) => {
+    const newData = { ...position.data };
+    
+    // Smart increments for certain fields
+    if (assetType === 'security' && newData.shares) {
+      newData.shares = ''; // Clear shares for manual entry
+    }
+    if (assetType === 'realestate' && newData.property_name) {
+      newData.property_name = `${newData.property_name} (Copy)`;
+    }
+    
     const newPosition = {
-      ...position,
       id: Date.now() + Math.random(),
-      data: { ...position.data },
+      type: assetType,
+      data: newData,
+      errors: {},
       isNew: true,
       animateIn: true
     };
+    
     const index = positions[assetType].findIndex(p => p.id === position.id);
     setPositions(prev => ({
       ...prev,
@@ -378,212 +631,363 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved }) => {
         ...prev[assetType].slice(index + 1)
       ]
     }));
+    
+    // Focus on first editable field
+    setTimeout(() => {
+      const firstEditableField = assetType === 'security' ? 'shares' : assetTypes[assetType].fields[0].key;
+      const cellKey = `${assetType}-${newPosition.id}-${firstEditableField}`;
+      cellRefs.current[cellKey]?.focus();
+    }, 100);
   };
 
-  // Toggle section with animation
+  // Toggle section with state persistence
   const toggleSection = (assetType) => {
-    setCollapsedSections(prev => ({
+    setExpandedSections(prev => ({
       ...prev,
       [assetType]: !prev[assetType]
     }));
   };
 
-  // Calculate statistics with memoization
+  // Enhanced statistics with performance metrics
   const stats = useMemo(() => {
     let totalPositions = 0;
     let totalValue = 0;
+    let totalCost = 0;
     const byType = {};
     const byAccount = {};
     const errors = [];
+    const performance = {};
 
     Object.entries(positions).forEach(([type, typePositions]) => {
-      byType[type] = 0;
+      byType[type] = { count: 0, value: 0, cost: 0 };
+      
       typePositions.forEach(pos => {
         if (pos.data.account_id) {
           totalPositions++;
-          byType[type]++;
+          byType[type].count++;
           
           const accountId = pos.data.account_id;
-          if (!byAccount[accountId]) byAccount[accountId] = 0;
-          byAccount[accountId]++;
+          if (!byAccount[accountId]) {
+            byAccount[accountId] = { count: 0, value: 0 };
+          }
+          byAccount[accountId].count++;
           
-          // Calculate value
+          // Calculate values and performance
           let value = 0;
+          let cost = 0;
+          
           switch (type) {
             case 'security':
               value = (pos.data.shares || 0) * (pos.data.price || 0);
+              cost = (pos.data.shares || 0) * (pos.data.cost_basis || pos.data.price || 0);
               break;
             case 'crypto':
               value = (pos.data.quantity || 0) * (pos.data.current_price || 0);
+              cost = (pos.data.quantity || 0) * (pos.data.purchase_price || 0);
               break;
             case 'metal':
               value = (pos.data.quantity || 0) * (pos.data.current_price_per_unit || pos.data.purchase_price || 0);
+              cost = (pos.data.quantity || 0) * (pos.data.purchase_price || 0);
               break;
             case 'realestate':
               value = pos.data.estimated_value || pos.data.purchase_price || 0;
+              cost = pos.data.purchase_price || 0;
               break;
             case 'cash':
               value = pos.data.amount || 0;
+              cost = pos.data.amount || 0;
               break;
           }
+          
           totalValue += value;
+          totalCost += cost;
+          byType[type].value += value;
+          byType[type].cost += cost;
+          byAccount[accountId].value += value;
         }
         
-        // Track errors
-        if (pos.errors && Object.keys(pos.errors).length > 0) {
-          errors.push({ type, id: pos.id });
+        // Track validation errors
+        if (pos.errors && Object.values(pos.errors).some(e => e)) {
+          errors.push({ type, id: pos.id, errors: pos.errors });
         }
       });
+      
+      // Calculate performance by type
+      if (byType[type].cost > 0) {
+        performance[type] = ((byType[type].value - byType[type].cost) / byType[type].cost) * 100;
+      }
     });
 
-    return { totalPositions, totalValue, byType, byAccount, errors };
+    const totalPerformance = totalCost > 0 ? ((totalValue - totalCost) / totalCost) * 100 : 0;
+
+    return { 
+      totalPositions, 
+      totalValue, 
+      totalCost,
+      totalPerformance,
+      byType, 
+      byAccount, 
+      errors,
+      performance 
+    };
   }, [positions]);
 
-  // Validate positions
+  // Comprehensive validation
   const validatePositions = () => {
     let isValid = true;
     const updatedPositions = { ...positions };
+    const validationErrors = [];
 
     Object.entries(positions).forEach(([type, typePositions]) => {
       const typeConfig = assetTypes[type];
-      updatedPositions[type] = typePositions.map(pos => {
+      updatedPositions[type] = typePositions.map((pos, index) => {
         const errors = {};
+        let hasData = false;
+        
+        // Check if position has any data
         typeConfig.fields.forEach(field => {
-          if (field.required && !pos.data[field.key]) {
-            errors[field.key] = `Required`;
-            isValid = false;
+          if (pos.data[field.key]) {
+            hasData = true;
           }
         });
+        
+        // Only validate if position has data
+        if (hasData) {
+          typeConfig.fields.forEach(field => {
+            const value = pos.data[field.key];
+            
+            if (field.required && !value) {
+              errors[field.key] = 'Required';
+              isValid = false;
+              validationErrors.push(`${typeConfig.name} row ${index + 1}: ${field.label} is required`);
+            } else if (field.type === 'number' && value) {
+              if (field.min !== undefined && value < field.min) {
+                errors[field.key] = `Min: ${field.min}`;
+                isValid = false;
+                validationErrors.push(`${typeConfig.name} row ${index + 1}: ${field.label} must be at least ${field.min}`);
+              }
+              if (field.max !== undefined && value > field.max) {
+                errors[field.key] = `Max: ${field.max}`;
+                isValid = false;
+                validationErrors.push(`${typeConfig.name} row ${index + 1}: ${field.label} must be at most ${field.max}`);
+              }
+            }
+          });
+        }
+        
         return { ...pos, errors };
       });
     });
 
     setPositions(updatedPositions);
+    
+    if (!isValid) {
+      showMessage('error', `${validationErrors.length} validation errors found`, validationErrors.slice(0, 5));
+    }
+    
     return isValid;
   };
 
-  // Submit with progress
+  // Submit with detailed progress and error handling
   const submitAll = async () => {
     if (stats.totalPositions === 0) {
-      setMessage({ type: 'error', text: 'No positions to submit' });
+      showMessage('error', 'No positions to submit', ['Add at least one position before submitting']);
       return;
     }
 
     if (!validatePositions()) {
-      setMessage({ type: 'error', text: `Fix ${stats.errors.length} validation errors` });
       return;
     }
 
     setIsSubmitting(true);
     let successCount = 0;
     let errorCount = 0;
+    const errors = [];
 
     try {
-      for (const [type, typePositions] of Object.entries(positions)) {
-        for (const position of typePositions) {
-          if (position.data.account_id) {
-            try {
-              switch (type) {
-                case 'security':
-                  await addSecurityPosition(position.data.account_id, position.data);
-                  break;
-                case 'crypto':
-                  await addCryptoPosition(position.data.account_id, position.data);
-                  break;
-                case 'metal':
-                  await addMetalPosition(position.data.account_id, position.data);
-                  break;
-                case 'realestate':
-                  await addRealEstatePosition(position.data.account_id, position.data);
-                  break;
-                case 'cash':
-                  await addCashPosition(position.data.account_id, position.data);
-                  break;
-              }
-              successCount++;
-            } catch (error) {
-              console.error(`Error adding ${type} position:`, error);
-              errorCount++;
-            }
+      // Create submission batches by type
+      const batches = [];
+      Object.entries(positions).forEach(([type, typePositions]) => {
+        typePositions.forEach(pos => {
+          if (pos.data.account_id && Object.keys(pos.data).length > 1) {
+            batches.push({ type, position: pos });
           }
+        });
+      });
+
+      // Show progress
+      showMessage('info', `Submitting ${batches.length} positions...`, [], 0);
+
+      // Process batches
+      for (let i = 0; i < batches.length; i++) {
+        const { type, position } = batches[i];
+        
+        try {
+          // Prepare data (remove empty fields)
+          const cleanData = {};
+          Object.entries(position.data).forEach(([key, value]) => {
+            if (value !== '' && value !== null && value !== undefined) {
+              cleanData[key] = value;
+            }
+          });
+
+          switch (type) {
+            case 'security':
+              await addSecurityPosition(position.data.account_id, cleanData);
+              break;
+            case 'crypto':
+              await addCryptoPosition(position.data.account_id, cleanData);
+              break;
+            case 'metal':
+              await addMetalPosition(position.data.account_id, cleanData);
+              break;
+            case 'realestate':
+              await addRealEstatePosition(position.data.account_id, cleanData);
+              break;
+            case 'cash':
+              await addCashPosition(position.data.account_id, cleanData);
+              break;
+          }
+          
+          successCount++;
+          
+          // Update progress
+          const progress = Math.round(((i + 1) / batches.length) * 100);
+          showMessage('info', `Submitting positions... ${progress}%`, [`${successCount} of ${batches.length} completed`], 0);
+          
+        } catch (error) {
+          console.error(`Error adding ${type} position:`, error);
+          errorCount++;
+          errors.push(`${assetTypes[type].name}: ${error.message || 'Unknown error'}`);
         }
       }
 
+      // Final status
       if (errorCount === 0) {
-        setMessage({ type: 'success', text: `All ${successCount} positions added!` });
+        showMessage('success', `All ${successCount} positions added successfully!`, [
+          `Total value: ${formatCurrency(stats.totalValue)}`,
+          'Refreshing portfolio data...'
+        ]);
+        
         if (onPositionsSaved) {
           onPositionsSaved(successCount);
         }
+        
         setTimeout(() => {
           onClose();
-        }, 1000);
+        }, 1500);
       } else {
-        setMessage({ 
-          type: 'warning', 
-          text: `${successCount} added, ${errorCount} failed` 
-        });
+        showMessage('warning', `Partially successful: ${successCount} added, ${errorCount} failed`, errors);
       }
     } catch (error) {
       console.error('Error submitting positions:', error);
-      setMessage({ type: 'error', text: 'Error submitting positions' });
+      showMessage('error', 'Failed to submit positions', [error.message]);
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  // Render optimized cell input
+  // Clear all with confirmation
+  const clearAll = () => {
+    if (stats.totalPositions > 0 && !window.confirm('Clear all positions? This cannot be undone.')) {
+      return;
+    }
+    
+    setPositions({
+      security: [],
+      cash: [],
+      crypto: [],
+      metal: [],
+      realestate: []
+    });
+    setExpandedSections({});
+    showMessage('success', 'All positions cleared', ['Ready for new entries']);
+  };
+
+  // Render enhanced cell input with autocomplete and validation
   const renderCellInput = (assetType, position, field, cellKey) => {
     const value = position.data[field.key] || '';
     const hasError = position.errors?.[field.key];
     const fieldIndex = assetTypes[assetType].fields.findIndex(f => f.key === field.key);
+    const isRecent = recentlyUsedAccounts.includes(position.data.account_id);
     
-    const baseClass = `w-full px-2 py-1.5 text-sm border rounded transition-all ${
-      hasError 
-        ? 'border-red-300 bg-red-50 focus:border-red-500 focus:ring-1 focus:ring-red-500/20' 
-        : 'border-gray-200 bg-white hover:border-gray-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20'
-    }`;
+    const baseClass = `
+      w-full px-3 py-2 text-sm border rounded-lg transition-all duration-200
+      ${hasError 
+        ? 'border-red-400 bg-red-50 focus:border-red-500 focus:ring-2 focus:ring-red-200 text-red-900' 
+        : focusedCell === cellKey
+          ? 'border-blue-500 bg-blue-50 ring-2 ring-blue-200'
+          : 'border-gray-300 bg-white hover:border-gray-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-200'
+      }
+    `;
 
     const commonProps = {
       ref: el => cellRefs.current[cellKey] = el,
       className: baseClass,
       onFocus: () => setFocusedCell(cellKey),
+      onBlur: () => setFocusedCell(null),
       onKeyDown: (e) => handleKeyDown(e, assetType, position.id, fieldIndex),
       'data-position-id': position.id,
-      'data-field': field.key
+      'data-field': field.key,
+      'aria-label': field.label,
+      'aria-invalid': hasError ? 'true' : 'false',
+      'aria-describedby': hasError ? `${cellKey}-error` : undefined
     };
 
     switch (field.type) {
       case 'select':
         if (field.key === 'account_id') {
           return (
-            <select
-              {...commonProps}
-              value={value}
-              onChange={(e) => updatePosition(assetType, position.id, field.key, parseInt(e.target.value))}
-              className={`${baseClass} cursor-pointer`}
-            >
-              <option value="">Select...</option>
-              {accounts.map(account => (
-                <option key={account.id} value={account.id}>
-                  {account.account_name}
-                </option>
-              ))}
-            </select>
+            <div className="relative w-full">
+              <select
+                {...commonProps}
+                value={value}
+                onChange={(e) => updatePosition(assetType, position.id, field.key, parseInt(e.target.value))}
+                className={`${baseClass} pr-8 cursor-pointer appearance-none`}
+              >
+                <option value="">Select account...</option>
+                {recentlyUsedAccounts.length > 0 && (
+                  <optgroup label="Recent">
+                    {accounts
+                      .filter(a => recentlyUsedAccounts.includes(a.id))
+                      .map(account => (
+                        <option key={account.id} value={account.id}>
+                          ⭐ {account.account_name}
+                        </option>
+                      ))}
+                  </optgroup>
+                )}
+                <optgroup label="All Accounts">
+                  {accounts.map(account => (
+                    <option key={account.id} value={account.id}>
+                      {account.account_name}
+                    </option>
+                  ))}
+                </optgroup>
+              </select>
+              <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+              {isRecent && (
+                <div className="absolute -left-1 top-1/2 -translate-y-1/2 w-2 h-2 bg-yellow-400 rounded-full" />
+              )}
+            </div>
           );
         } else {
           return (
-            <select
-              {...commonProps}
-              value={value}
-              onChange={(e) => updatePosition(assetType, position.id, field.key, e.target.value)}
-              className={`${baseClass} cursor-pointer`}
-            >
-              {field.options.map(option => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
+            <div className="relative w-full">
+              <select
+                {...commonProps}
+                value={value}
+                onChange={(e) => updatePosition(assetType, position.id, field.key, e.target.value)}
+                className={`${baseClass} pr-8 cursor-pointer appearance-none`}
+              >
+                {field.options.map(option => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+            </div>
           );
         }
         
@@ -591,7 +995,10 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved }) => {
         return (
           <div className="relative w-full group">
             {field.prefix && (
-              <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-gray-400 group-focus-within:text-blue-600 transition-colors">
+              <span className={`
+                absolute left-3 top-1/2 -translate-y-1/2 text-sm font-medium transition-colors duration-200
+                ${focusedCell === cellKey ? 'text-blue-600' : 'text-gray-400'}
+              `}>
                 {field.prefix}
               </span>
             )}
@@ -602,143 +1009,329 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved }) => {
               onChange={(e) => updatePosition(assetType, position.id, field.key, parseFloat(e.target.value) || '')}
               placeholder={field.placeholder}
               step={field.step || 'any'}
-              className={`${baseClass} ${field.prefix ? 'pl-6' : ''} ${field.suffix ? 'pr-6' : ''}`}
+              min={field.min}
+              max={field.max}
+              className={`${baseClass} ${field.prefix ? 'pl-8' : ''} ${field.suffix ? 'pr-8' : ''}`}
             />
             {field.suffix && (
-              <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-gray-400 group-focus-within:text-blue-600 transition-colors">
+              <span className={`
+                absolute right-3 top-1/2 -translate-y-1/2 text-sm font-medium transition-colors duration-200
+                ${focusedCell === cellKey ? 'text-blue-600' : 'text-gray-400'}
+              `}>
                 {field.suffix}
               </span>
             )}
+            {hasError && (
+              <div id={`${cellKey}-error`} className="absolute left-0 -bottom-5 text-xs text-red-600 font-medium">
+                {position.errors[field.key]}
+              </div>
+            )}
+          </div>
+        );
+        
+      case 'date':
+        return (
+          <div className="relative w-full">
+            <input
+              {...commonProps}
+              type="date"
+              value={value}
+              onChange={(e) => updatePosition(assetType, position.id, field.key, e.target.value)}
+              max={field.max}
+              className={baseClass}
+            />
+            <Calendar className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
           </div>
         );
         
       default:
         return (
-          <input
-            {...commonProps}
-            type={field.type}
-            value={value}
-            onChange={(e) => updatePosition(assetType, position.id, field.key, e.target.value)}
-            placeholder={field.placeholder}
-          />
+          <div className="relative w-full">
+            <input
+              {...commonProps}
+              type="text"
+              value={value}
+              onChange={(e) => updatePosition(assetType, position.id, field.key, e.target.value)}
+              placeholder={field.placeholder}
+              autoComplete={field.autocomplete ? 'on' : 'off'}
+              spellCheck="false"
+              className={baseClass}
+            />
+            {field.autocomplete && value.length > 0 && (
+              <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 animate-pulse" />
+            )}
+          </div>
         );
     }
   };
 
-  // Render optimized asset section
+  // Render enhanced asset section with animations
   const renderAssetSection = (assetType) => {
     const config = assetTypes[assetType];
     const typePositions = positions[assetType] || [];
     const validPositions = typePositions.filter(p => p.data.account_id);
-    const isCollapsed = collapsedSections[assetType];
+    const isExpanded = expandedSections[assetType];
     const Icon = config.icon;
+    const typeStats = stats.byType[assetType];
+    const performance = stats.performance[assetType];
 
     return (
-      <div key={assetType} className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-        {/* Compact Section Header */}
+      <div 
+        key={assetType} 
+        className={`
+          bg-white rounded-xl shadow-sm border overflow-hidden transition-all duration-300
+          ${isExpanded ? 'border-gray-200 shadow-md' : 'border-gray-100'}
+          ${typePositions.length > 0 ? 'ring-1 ring-gray-100' : ''}
+        `}
+      >
+        {/* Enhanced Section Header */}
         <div 
-          onClick={() => toggleSection(assetType)}
-          className={`px-3 py-2 ${config.lightBg} hover:brightness-105 cursor-pointer transition-all duration-200 border-b ${config.border}`}
+          className={`
+            px-4 py-3 cursor-pointer transition-all duration-200
+            ${isExpanded 
+              ? `bg-gradient-to-r ${config.color.gradient} text-white shadow-sm` 
+              : 'bg-gray-50 hover:bg-gray-100'
+            }
+          `}
         >
           <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-2">
-              <div className={`p-1 rounded ${config.bg}`}>
-                <Icon className="w-3.5 h-3.5 text-white" />
+            <div className="flex items-center space-x-3">
+              <div 
+                onClick={() => toggleSection(assetType)}
+                className={`
+                  p-2 rounded-lg transition-all duration-200 
+                  ${isExpanded ? 'bg-white/20' : `${config.color.lightBg}`}
+                `}
+              >
+                <Icon className={`w-5 h-5 ${isExpanded ? 'text-white' : config.color.text}`} />
               </div>
-              <h3 className={`font-medium text-sm ${config.text} flex items-center`}>
-                {config.name}
-                {validPositions.length > 0 && (
-                  <span className={`ml-2 px-1.5 py-0.5 text-xs ${config.bg} text-white rounded-full`}>
-                    {validPositions.length}
-                  </span>
-                )}
-              </h3>
+              
+              <div onClick={() => toggleSection(assetType)} className="flex-1">
+                <h3 className={`font-semibold text-base flex items-center ${
+                  isExpanded ? 'text-white' : 'text-gray-800'
+                }`}>
+                  {config.name}
+                  {validPositions.length > 0 && (
+                    <span className={`
+                      ml-2 px-2 py-0.5 text-xs font-bold rounded-full
+                      ${isExpanded ? 'bg-white/20 text-white' : `${config.color.bg} text-white`}
+                    `}>
+                      {validPositions.length}
+                    </span>
+                  )}
+                </h3>
+                <p className={`text-xs mt-0.5 ${isExpanded ? 'text-white/80' : 'text-gray-500'}`}>
+                  {config.description}
+                </p>
+              </div>
+              
+              {/* Mini stats in header */}
+              {typeStats && typeStats.count > 0 && (
+                <div className={`flex items-center space-x-4 text-xs ${
+                  isExpanded ? 'text-white/90' : 'text-gray-600'
+                }`}>
+                  <div className="text-right">
+                    <div className="font-medium">
+                      {showValues ? formatCurrency(typeStats.value) : '••••'}
+                    </div>
+                    {performance !== undefined && (
+                      <div className={`flex items-center justify-end ${
+                        performance >= 0 ? 'text-green-400' : 'text-red-400'
+                      }`}>
+                        {performance >= 0 ? <TrendingUp className="w-3 h-3 mr-1" /> : <TrendingDown className="w-3 h-3 mr-1" />}
+                        {Math.abs(performance).toFixed(1)}%
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
-            <ChevronDown className={`w-4 h-4 ${config.text} transition-transform duration-200 ${
-              isCollapsed ? '-rotate-90' : ''
-            }`} />
+            
+            <div className="flex items-center space-x-2">
+              {/* Quick add button in header */}
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  addNewRow(assetType);
+                  if (!isExpanded) {
+                    setExpandedSections(prev => ({ ...prev, [assetType]: true }));
+                  }
+                }}
+                className={`
+                  p-1.5 rounded-lg transition-all duration-200 
+                  ${isExpanded 
+                    ? 'bg-white/20 hover:bg-white/30 text-white' 
+                    : `${config.color.lightBg} hover:${config.color.hover} ${config.color.text}`
+                  }
+                `}
+                title={`Add ${config.name}`}
+              >
+                <Plus className="w-4 h-4" />
+              </button>
+              
+              <ChevronDown 
+                onClick={() => toggleSection(assetType)}
+                className={`
+                  w-5 h-5 transition-transform duration-300
+                  ${isExpanded ? 'rotate-180 text-white' : 'text-gray-400'}
+                `} 
+              />
+            </div>
           </div>
         </div>
 
-        {/* Compact Table Content */}
-        {!isCollapsed && (
-          <div className="bg-white">
-            <div className="overflow-x-auto" ref={el => tableRefs.current[assetType] = el}>
-              <table className="w-full text-xs">
-                <thead>
-                  <tr className="bg-gray-50 border-b border-gray-200">
-                    <th className="w-8 px-2 py-1.5 text-left text-gray-600 font-medium">#</th>
-                    {config.fields.map(field => (
-                      <th key={field.key} className={`${field.width} px-2 py-1.5 text-left text-gray-600 font-medium`}>
-                        {field.label}
-                        {field.required && <span className="text-red-500 ml-0.5">*</span>}
-                      </th>
-                    ))}
-                    <th className="w-16 px-2 py-1.5 text-center text-gray-600 font-medium">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {typePositions.map((position, index) => (
-                    <tr 
-                      key={position.id}
-                      className={`
-                        border-b border-gray-100 hover:bg-gray-50 transition-all duration-200
-                        ${position.isNew ? 'bg-blue-50/30' : ''}
-                        ${position.animateIn ? 'animate-slideIn' : ''}
-                        ${position.animateOut ? 'animate-slideOut' : ''}
-                      `}
-                    >
-                      <td className="px-2 py-1">
-                        <span className="text-gray-400">{index + 1}</span>
-                      </td>
-                      {config.fields.map(field => (
-                        <td key={field.key} className={`${field.width} px-1 py-1`}>
-                          {renderCellInput(
-                            assetType, 
-                            position, 
-                            field, 
-                            `${assetType}-${position.id}-${field.key}`
-                          )}
-                        </td>
-                      ))}
-                      <td className="px-1 py-1">
-                        <div className="flex items-center justify-center space-x-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                          <button
-                            onClick={() => duplicatePosition(assetType, position)}
-                            className="p-1 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-all"
-                            title="Duplicate"
+        {/* Enhanced Table Content */}
+        {isExpanded && (
+          <div className="bg-white animate-in slide-in-from-top-2 duration-300">
+            {typePositions.length === 0 ? (
+              <div className="p-8 text-center">
+                <div className={`inline-flex p-4 rounded-full ${config.color.lightBg} mb-4`}>
+                  <Icon className={`w-8 h-8 ${config.color.text}`} />
+                </div>
+                <p className="text-gray-600 mb-4">No {config.name.toLowerCase()} positions yet</p>
+                <button
+                  onClick={() => addNewRow(assetType)}
+                  className={`
+                    inline-flex items-center px-4 py-2 rounded-lg font-medium transition-all duration-200
+                    ${config.color.bg} text-white hover:shadow-md hover:scale-105
+                  `}
+                >
+                  <Plus className="w-4 h-4 mr-2" />
+                  Add First {config.name}
+                </button>
+              </div>
+            ) : (
+              <>
+                <div className="overflow-x-auto" ref={el => tableRefs.current[assetType] = el}>
+                  <table className="w-full">
+                    <thead>
+                      <tr className="bg-gray-50 border-b border-gray-200">
+                        <th className="w-12 px-3 py-3 text-left">
+                          <span className="text-xs font-semibold text-gray-600">#</span>
+                        </th>
+                        {config.fields.map(field => (
+                          <th key={field.key} className={`${field.width} px-2 py-3 text-left`}>
+                            <span className="text-xs font-semibold text-gray-600 flex items-center">
+                              {field.label}
+                              {field.required && <span className="text-red-500 ml-1">*</span>}
+                              {field.type === 'number' && field.min !== undefined && (
+                                <Info className="w-3 h-3 ml-1 text-gray-400" title={`Min: ${field.min}`} />
+                              )}
+                            </span>
+                          </th>
+                        ))}
+                        <th className="w-24 px-2 py-3 text-center">
+                          <span className="text-xs font-semibold text-gray-600">Actions</span>
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {typePositions.map((position, index) => {
+                        const hasErrors = Object.values(position.errors || {}).some(e => e);
+                        const value = calculatePositionValue(assetType, position);
+                        
+                        return (
+                          <tr 
+                            key={position.id}
+                            className={`
+                              border-b border-gray-100 transition-all duration-300 group
+                              ${position.isNew ? 'bg-blue-50/50' : 'hover:bg-gray-50/50'}
+                              ${position.animateIn ? 'animate-in slide-in-from-left duration-300' : ''}
+                              ${position.animateOut ? 'animate-out slide-out-to-right duration-300' : ''}
+                              ${hasErrors ? 'bg-red-50/30' : ''}
+                            `}
                           >
-                            <Copy className="w-3 h-3" />
-                          </button>
-                          <button
-                            onClick={() => deletePosition(assetType, position.id)}
-                            className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-all"
-                            title="Delete"
-                          >
-                            <X className="w-3 h-3" />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            
-            {/* Compact Add Row Button */}
-            <div className="p-2 bg-gray-50 border-t border-gray-100">
-              <button
-                onClick={() => addNewRow(assetType)}
-                className={`w-full py-1.5 px-3 bg-white border border-dashed ${config.border} rounded hover:${config.lightBg} transition-all duration-200 flex items-center justify-center space-x-1 group text-xs`}
-              >
-                <Plus className={`w-3 h-3 ${config.text} group-hover:scale-110 transition-transform`} />
-                <span className={`${config.text} font-medium`}>Add {config.name}</span>
-              </button>
-            </div>
+                            <td className="px-3 py-2">
+                              <div className="flex items-center space-x-2">
+                                <span className="text-sm font-medium text-gray-500">
+                                  {index + 1}
+                                </span>
+                                {position.isNew && (
+                                  <span className="w-2 h-2 bg-blue-500 rounded-full animate-pulse" />
+                                )}
+                              </div>
+                            </td>
+                            {config.fields.map(field => (
+                              <td key={field.key} className={`${field.width} px-1 py-2`}>
+                                {renderCellInput(
+                                  assetType, 
+                                  position, 
+                                  field, 
+                                  `${assetType}-${position.id}-${field.key}`
+                                )}
+                              </td>
+                            ))}
+                            <td className="px-2 py-2">
+                              <div className="flex items-center justify-center space-x-1 opacity-0 group-hover:opacity-100 transition-all duration-200">
+                                <button
+                                  onClick={() => duplicatePosition(assetType, position)}
+                                  className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all duration-200"
+                                  title="Duplicate (Ctrl+D)"
+                                >
+                                  <Copy className="w-4 h-4" />
+                                </button>
+                                <button
+                                  onClick={() => deletePosition(assetType, position.id)}
+                                  className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all duration-200"
+                                  title="Delete (Ctrl+Del)"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                                {value > 0 && showValues && (
+                                  <div className="ml-2 px-2 py-1 bg-gray-100 rounded text-xs font-medium text-gray-600">
+                                    {formatCurrency(value, true)}
+                                  </div>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+                
+                {/* Add row footer */}
+                <div className="p-3 bg-gray-50 border-t border-gray-100">
+                  <button
+                    onClick={() => addNewRow(assetType)}
+                    className={`
+                      w-full py-2 px-4 border-2 border-dashed rounded-lg
+                      transition-all duration-200 flex items-center justify-center space-x-2
+                      ${config.color.border} ${config.color.hover} hover:border-solid
+                      group
+                    `}
+                  >
+                    <Plus className={`w-4 h-4 ${config.color.text} group-hover:scale-110 transition-transform`} />
+                    <span className={`text-sm font-medium ${config.color.text}`}>
+                      Add {config.name} (Enter)
+                    </span>
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         )}
       </div>
     );
+  };
+
+  // Calculate position value helper
+  const calculatePositionValue = (type, position) => {
+    switch (type) {
+      case 'security':
+        return (position.data.shares || 0) * (position.data.price || 0);
+      case 'crypto':
+        return (position.data.quantity || 0) * (position.data.current_price || 0);
+      case 'metal':
+        return (position.data.quantity || 0) * (position.data.current_price_per_unit || position.data.purchase_price || 0);
+      case 'realestate':
+        return position.data.estimated_value || position.data.purchase_price || 0;
+      case 'cash':
+        return position.data.amount || 0;
+      default:
+        return 0;
+    }
   };
 
   return (
@@ -746,223 +1339,498 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved }) => {
       isOpen={isOpen}
       onClose={onClose}
       title="Quick Position Entry"
-      size="max-w-[1400px]"
+      size="max-w-[1600px]"
     >
-      <div className="h-[85vh] flex flex-col">
-        {/* Ultra Compact Header */}
-        <div className="flex-shrink-0 pb-3">
-          {/* Inline Stats Bar */}
-          <div className="flex items-center justify-between mb-3">
+      <div className="h-[90vh] flex flex-col bg-gray-50">
+        {/* Enhanced Header with Action Bar */}
+        <div className="flex-shrink-0 bg-white border-b border-gray-200 px-6 py-4">
+          {/* Top Action Bar */}
+          <div className="flex items-center justify-between mb-4">
             <div className="flex items-center space-x-4">
-              <div className="flex items-center space-x-2">
-                <ListPlus className="w-5 h-5 text-blue-600" />
-                <span className="text-sm font-medium text-gray-700">Quick Entry</span>
-              </div>
-              <div className="h-4 w-px bg-gray-300"></div>
-              <div className="flex items-center space-x-3 text-sm">
-                <div className="flex items-center space-x-1">
-                  <Hash className="w-3.5 h-3.5 text-gray-400" />
-                  <span className="font-medium text-gray-900">
-                    <AnimatedNumber value={stats.totalPositions} />
-                  </span>
-                  <span className="text-gray-500">positions</span>
-                </div>
-                <div className="flex items-center space-x-1">
-                  <DollarSign className="w-3.5 h-3.5 text-gray-400" />
-                  <span className="font-medium text-gray-900">
-                    {showValues ? <AnimatedNumber value={stats.totalValue} prefix="$" /> : '••••'}
-                  </span>
-                </div>
-                {stats.errors.length > 0 && (
-                  <div className="flex items-center space-x-1 text-red-600">
-                    <AlertCircle className="w-3.5 h-3.5" />
-                    <span className="font-medium">{stats.errors.length} errors</span>
-                  </div>
-                )}
-              </div>
+              <button
+                onClick={clearAll}
+                className="px-4 py-2 text-sm bg-white border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 hover:border-gray-400 transition-all flex items-center space-x-2 group"
+              >
+                <Trash2 className="w-4 h-4 group-hover:text-red-600 transition-colors" />
+                <span>Clear All</span>
+              </button>
+              
+              <button
+                onClick={onClose}
+                className="px-4 py-2 text-sm bg-white border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 hover:border-gray-400 transition-all"
+              >
+                Cancel
+              </button>
             </div>
             
-            <div className="flex items-center space-x-2">
+            <div className="flex items-center space-x-3">
+              {/* Settings buttons */}
               <button
                 onClick={() => setShowValues(!showValues)}
-                className="p-1.5 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded transition-all"
+                className={`p-2 rounded-lg transition-all duration-200 ${
+                  showValues 
+                    ? 'bg-blue-100 text-blue-700 hover:bg-blue-200' 
+                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                }`}
                 title={showValues ? 'Hide values' : 'Show values'}
               >
                 {showValues ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
               </button>
-              <div className="flex items-center px-2 py-1 bg-amber-50 rounded text-xs">
-                <Keyboard className="w-3 h-3 text-amber-600 mr-1" />
-                <span className="text-amber-700 font-medium">Tab/Enter</span>
-              </div>
-              <div className="flex items-center px-2 py-1 bg-blue-50 rounded text-xs">
-                <Zap className="w-3 h-3 text-blue-600 mr-1" />
-                <span className="text-blue-700 font-medium">Ctrl+Enter to save</span>
-              </div>
+              
+              <button
+                onClick={() => setShowKeyboardShortcuts(!showKeyboardShortcuts)}
+                className={`p-2 rounded-lg transition-all duration-200 ${
+                  showKeyboardShortcuts 
+                    ? 'bg-purple-100 text-purple-700 hover:bg-purple-200' 
+                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                }`}
+                title="Keyboard shortcuts (Ctrl+K)"
+              >
+                <Keyboard className="w-4 h-4" />
+              </button>
+              
+              <div className="h-6 w-px bg-gray-300"></div>
+              
+              {/* Submit button */}
+              <button
+                onClick={submitAll}
+                disabled={stats.totalPositions === 0 || isSubmitting}
+                className={`
+                  px-6 py-2 text-sm font-semibold rounded-lg transition-all duration-200 
+                  flex items-center space-x-2 shadow-sm hover:shadow-md transform hover:scale-105
+                  ${stats.totalPositions === 0 || isSubmitting
+                    ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                    : 'bg-gradient-to-r from-green-600 to-emerald-600 text-white hover:from-green-700 hover:to-emerald-700'
+                  }
+                `}
+              >
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Saving...</span>
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle className="w-4 h-4" />
+                    <span>Add {stats.totalPositions} Position{stats.totalPositions !== 1 ? 's' : ''}</span>
+                  </>
+                )}
+              </button>
             </div>
           </div>
 
-          {/* Quick Filter Tabs */}
-          <div className="flex items-center space-x-1 text-xs">
-            <button
-              onClick={() => setActiveFilter('all')}
-              className={`px-3 py-1 rounded transition-all ${
-                activeFilter === 'all' 
-                  ? 'bg-gray-900 text-white' 
-                  : 'text-gray-600 hover:bg-gray-100'
-              }`}
-            >
-              All Types
-            </button>
-            {Object.entries(assetTypes).map(([key, config]) => {
-              const Icon = config.icon;
-              return (
-                <button
-                  key={key}
-                  onClick={() => setActiveFilter(key)}
-                  className={`px-3 py-1 rounded transition-all flex items-center space-x-1 ${
-                    activeFilter === key 
-                      ? `${config.bg} text-white` 
-                      : 'text-gray-600 hover:bg-gray-100'
-                  }`}
-                >
-                  <Icon className="w-3 h-3" />
-                  <span>{config.name}</span>
-                  {stats.byType[key] > 0 && (
-                    <span className={`ml-1 px-1 rounded text-[10px] ${
-                      activeFilter === key ? 'bg-white/20' : 'bg-gray-200'
-                    }`}>
-                      {stats.byType[key]}
-                    </span>
-                  )}
-                </button>
-              );
-            })}
-          </div>
-        </div>
+          {/* Stats Bar */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-6">
+              {/* Total stats */}
+              <div className="flex items-center space-x-4">
+                <div className="flex items-center space-x-2">
+                  <Hash className="w-4 h-4 text-gray-400" />
+                  <span className="text-sm text-gray-600">
+                    Total Positions:
+                 </span>
+                 <span className="text-lg font-bold text-gray-900">
+                   <AnimatedNumber value={stats.totalPositions} />
+                 </span>
+               </div>
+               
+               <div className="h-5 w-px bg-gray-300"></div>
+               
+               <div className="flex items-center space-x-2">
+                 <DollarSign className="w-4 h-4 text-gray-400" />
+                 <span className="text-sm text-gray-600">Total Value:</span>
+                 <span className="text-lg font-bold text-gray-900">
+                   {showValues ? (
+                     <AnimatedNumber value={stats.totalValue} prefix="$" decimals={0} />
+                   ) : (
+                     '••••••'
+                   )}
+                 </span>
+               </div>
+               
+               {stats.totalPerformance !== 0 && (
+                 <>
+                   <div className="h-5 w-px bg-gray-300"></div>
+                   <div className="flex items-center space-x-2">
+                     {stats.totalPerformance >= 0 ? (
+                       <TrendingUp className="w-4 h-4 text-green-600" />
+                     ) : (
+                       <TrendingDown className="w-4 h-4 text-red-600" />
+                     )}
+                     <span className="text-sm text-gray-600">Performance:</span>
+                     <span className={`text-lg font-bold ${
+                       stats.totalPerformance >= 0 ? 'text-green-600' : 'text-red-600'
+                     }`}>
+                       {showValues ? (
+                         <>
+                           {stats.totalPerformance >= 0 ? '+' : ''}
+                           <AnimatedNumber value={stats.totalPerformance} decimals={1} suffix="%" />
+                         </>
+                       ) : (
+                         '••••'
+                       )}
+                     </span>
+                   </div>
+                 </>
+               )}
+             </div>
 
-        {/* Maximized Scrollable Content Area */}
-        <div className="flex-1 overflow-y-auto space-y-2 pr-1">
-          {Object.keys(assetTypes)
-            .filter(type => activeFilter === 'all' || activeFilter === type)
-            .map(assetType => renderAssetSection(assetType))}
-        </div>
+             {/* Type breakdown */}
+             <div className="flex items-center space-x-2">
+               <div className="h-5 w-px bg-gray-300"></div>
+               {Object.entries(assetTypes).map(([key, config]) => {
+                 const typeStats = stats.byType[key];
+                 if (!typeStats || typeStats.count === 0) return null;
+                 
+                 const Icon = config.icon;
+                 return (
+                   <div 
+                     key={key}
+                     className={`
+                       flex items-center space-x-1 px-2 py-1 rounded-lg text-xs
+                       ${config.color.lightBg} ${config.color.text}
+                     `}
+                   >
+                     <Icon className="w-3 h-3" />
+                     <span className="font-medium">{typeStats.count}</span>
+                     {showValues && (
+                       <span className="text-[10px] opacity-75">
+                         ({formatCurrency(typeStats.value, true)})
+                       </span>
+                     )}
+                   </div>
+                 );
+               })}
+             </div>
+           </div>
 
-        {/* Compact Message */}
-        {message.text && (
-          <div className={`mt-2 px-3 py-2 rounded-lg flex items-center space-x-2 text-sm animate-slideIn ${
-            message.type === 'error' ? 'bg-red-50 text-red-700 border border-red-200' :
-            message.type === 'warning' ? 'bg-amber-50 text-amber-700 border border-amber-200' :
-            'bg-green-50 text-green-700 border border-green-200'
-          }`}>
-            {message.type === 'error' ? <AlertCircle className="w-4 h-4" /> :
-             message.type === 'warning' ? <AlertCircle className="w-4 h-4" /> :
-             <CheckCircle className="w-4 h-4" />}
-            <span className="font-medium">{message.text}</span>
-          </div>
-        )}
+           {/* Progress indicator */}
+           {stats.totalPositions > 0 && (
+             <div className="flex items-center space-x-3">
+               <span className="text-xs text-gray-500">Progress</span>
+               <ProgressIndicator 
+                 current={stats.totalPositions - stats.errors.length} 
+                 total={stats.totalPositions}
+                 className="w-24"
+               />
+               <span className="text-xs font-medium text-gray-700">
+                 {Math.round(((stats.totalPositions - stats.errors.length) / stats.totalPositions) * 100)}%
+               </span>
+             </div>
+           )}
+         </div>
 
-        {/* Ultra Compact Footer */}
-        <div className="flex-shrink-0 flex justify-between items-center pt-3 mt-3 border-t border-gray-200">
-          <button
-            onClick={() => {
-              const initialPositions = {};
-              Object.keys(assetTypes).forEach(type => {
-                initialPositions[type] = [{
-                  id: Date.now() + Math.random(),
-                  type,
-                  data: {},
-                  errors: {},
-                  isNew: true
-                }];
-              });
-              setPositions(initialPositions);
-              setMessage({ type: 'success', text: 'Cleared all positions' });
-            }}
-            className="px-4 py-1.5 text-sm bg-white border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 transition-all flex items-center space-x-1"
-          >
-            <Trash2 className="w-3.5 h-3.5" />
-            <span>Clear All</span>
-          </button>
-          
-          <div className="flex items-center space-x-2">
-            <button
-              onClick={onClose}
-              className="px-4 py-1.5 text-sm bg-white border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 transition-all"
-            >
-              Cancel
-            </button>
-            <button
-              onClick={submitAll}
-              disabled={stats.totalPositions === 0 || isSubmitting}
-              className={`px-6 py-1.5 text-sm font-medium rounded-lg transition-all flex items-center space-x-1.5 ${
-                stats.totalPositions === 0 || isSubmitting
-                  ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                  : 'bg-gradient-to-r from-green-600 to-emerald-600 text-white hover:from-green-700 hover:to-emerald-700 transform hover:scale-[1.02] shadow-sm'
-              }`}
-            >
-              {isSubmitting ? (
-                <>
-                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  <span>Saving...</span>
-                </>
-              ) : (
-                <>
-                  <CheckCircle className="w-3.5 h-3.5" />
-                  <span>Add {stats.totalPositions} Positions</span>
-                </>
-              )}
-            </button>
-          </div>
-        </div>
-      </div>
+         {/* Asset Type Filters */}
+         <div className="flex items-center space-x-2 mt-4">
+           <span className="text-xs text-gray-500 mr-2">Filter:</span>
+           <button
+             onClick={() => setActiveFilter('all')}
+             className={`
+               px-3 py-1.5 text-xs font-medium rounded-lg transition-all duration-200
+               ${activeFilter === 'all' 
+                 ? 'bg-gray-900 text-white shadow-sm' 
+                 : 'bg-white text-gray-600 hover:bg-gray-100 border border-gray-200'
+               }
+             `}
+           >
+             All Types
+           </button>
+           {Object.entries(assetTypes).map(([key, config]) => (
+             <AssetTypeBadge
+               key={key}
+               type={config.name}
+               count={stats.byType[key]?.count || 0}
+               icon={config.icon}
+               color={config.color}
+               active={activeFilter === key}
+               onClick={() => setActiveFilter(activeFilter === key ? 'all' : key)}
+             />
+           ))}
+         </div>
 
-      <style jsx>{`
-        @keyframes slideIn {
-          from {
-            opacity: 0;
-            transform: translateX(-10px);
-          }
-          to {
-            opacity: 1;
-            transform: translateX(0);
-          }
-        }
-        
-        @keyframes slideOut {
-          from {
-            opacity: 1;
-            transform: translateX(0);
-          }
-          to {
-            opacity: 0;
-            transform: translateX(10px);
-          }
-        }
-        
-        .animate-slideIn {
-          animation: slideIn 0.2s ease-out;
-        }
-        
-        .animate-slideOut {
-          animation: slideOut 0.2s ease-out;
-        }
-      `}</style>
-    </FixedModal>
-  );
+         {/* Keyboard shortcuts hint */}
+         {showKeyboardShortcuts && (
+           <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg animate-in slide-in-from-top duration-300">
+             <div className="flex items-start space-x-2">
+               <Keyboard className="w-4 h-4 text-blue-600 flex-shrink-0 mt-0.5" />
+               <div className="flex-1">
+                 <p className="text-xs font-medium text-blue-900 mb-1">Keyboard Shortcuts</p>
+                 <div className="grid grid-cols-3 gap-x-4 gap-y-1 text-[10px] text-blue-700">
+                   <div><kbd className="px-1 py-0.5 bg-white rounded text-blue-900 font-mono">Tab</kbd> Next field</div>
+                   <div><kbd className="px-1 py-0.5 bg-white rounded text-blue-900 font-mono">Enter</kbd> Next field / New row</div>
+                   <div><kbd className="px-1 py-0.5 bg-white rounded text-blue-900 font-mono">Ctrl+Enter</kbd> Submit all</div>
+                   <div><kbd className="px-1 py-0.5 bg-white rounded text-blue-900 font-mono">↑↓</kbd> Navigate rows</div>
+                   <div><kbd className="px-1 py-0.5 bg-white rounded text-blue-900 font-mono">Ctrl+D</kbd> Duplicate row</div>
+                   <div><kbd className="px-1 py-0.5 bg-white rounded text-blue-900 font-mono">Ctrl+Del</kbd> Delete row</div>
+                   <div><kbd className="px-1 py-0.5 bg-white rounded text-blue-900 font-mono">Alt+↑↓</kbd> Move row</div>
+                   <div><kbd className="px-1 py-0.5 bg-white rounded text-blue-900 font-mono">Shift+Enter</kbd> Insert above</div>
+                   <div><kbd className="px-1 py-0.5 bg-white rounded text-blue-900 font-mono">Ctrl+K</kbd> Toggle shortcuts</div>
+                 </div>
+               </div>
+               <button
+                 onClick={() => setShowKeyboardShortcuts(false)}
+                 className="p-1 hover:bg-blue-100 rounded transition-colors"
+               >
+                 <X className="w-3 h-3 text-blue-600" />
+               </button>
+             </div>
+           </div>
+         )}
+       </div>
+
+       {/* Scrollable Content Area */}
+       <div className="flex-1 overflow-y-auto p-6 space-y-4">
+         {Object.keys(assetTypes)
+           .filter(type => activeFilter === 'all' || activeFilter === type)
+           .map(assetType => renderAssetSection(assetType))}
+           
+         {/* Empty state when filtered */}
+         {activeFilter !== 'all' && !positions[activeFilter]?.length && (
+           <div className="text-center py-12">
+             <div className={`inline-flex p-4 rounded-full ${assetTypes[activeFilter].color.lightBg} mb-4`}>
+               {React.createElement(assetTypes[activeFilter].icon, {
+                 className: `w-8 h-8 ${assetTypes[activeFilter].color.text}`
+               })}
+             </div>
+             <p className="text-gray-600 mb-4">No {assetTypes[activeFilter].name.toLowerCase()} positions yet</p>
+             <button
+               onClick={() => {
+                 addNewRow(activeFilter);
+                 setExpandedSections(prev => ({ ...prev, [activeFilter]: true }));
+               }}
+               className={`
+                 inline-flex items-center px-4 py-2 rounded-lg font-medium transition-all duration-200
+                 ${assetTypes[activeFilter].color.bg} text-white hover:shadow-md hover:scale-105
+               `}
+             >
+               <Plus className="w-4 h-4 mr-2" />
+               Add {assetTypes[activeFilter].name}
+             </button>
+           </div>
+         )}
+       </div>
+
+       {/* Enhanced Message Display */}
+       {message.text && (
+         <div className={`
+           absolute bottom-6 left-6 right-6 p-4 rounded-lg shadow-lg border
+           animate-in slide-in-from-bottom duration-300 z-50
+           ${message.type === 'error' 
+             ? 'bg-red-50 border-red-200' 
+             : message.type === 'warning' 
+               ? 'bg-amber-50 border-amber-200' 
+               : message.type === 'info'
+                 ? 'bg-blue-50 border-blue-200'
+                 : 'bg-green-50 border-green-200'
+           }
+         `}>
+           <div className="flex items-start space-x-3">
+             <div className={`
+               flex-shrink-0 p-2 rounded-full
+               ${message.type === 'error' 
+                 ? 'bg-red-100' 
+                 : message.type === 'warning' 
+                   ? 'bg-amber-100' 
+                   : message.type === 'info'
+                     ? 'bg-blue-100'
+                     : 'bg-green-100'
+               }
+             `}>
+               {message.type === 'error' ? <AlertCircle className="w-5 h-5 text-red-600" /> :
+                message.type === 'warning' ? <AlertCircle className="w-5 h-5 text-amber-600" /> :
+                message.type === 'info' ? <Info className="w-5 h-5 text-blue-600" /> :
+                <CheckCircle className="w-5 h-5 text-green-600" />}
+             </div>
+             <div className="flex-1">
+               <p className={`
+                 font-medium text-sm
+                 ${message.type === 'error' 
+                   ? 'text-red-900' 
+                   : message.type === 'warning' 
+                     ? 'text-amber-900' 
+                     : message.type === 'info'
+                       ? 'text-blue-900'
+                       : 'text-green-900'
+                 }
+               `}>
+                 {message.text}
+               </p>
+               {message.details.length > 0 && (
+                 <ul className={`
+                   mt-2 space-y-1 text-xs
+                   ${message.type === 'error' 
+                     ? 'text-red-700' 
+                     : message.type === 'warning' 
+                       ? 'text-amber-700' 
+                       : message.type === 'info'
+                         ? 'text-blue-700'
+                         : 'text-green-700'
+                   }
+                 `}>
+                   {message.details.slice(0, 3).map((detail, index) => (
+                     <li key={index} className="flex items-start space-x-1">
+                       <span className="block w-1 h-1 rounded-full bg-current mt-1.5 flex-shrink-0"></span>
+                       <span>{detail}</span>
+                     </li>
+                   ))}
+                   {message.details.length > 3 && (
+                     <li className="font-medium">
+                       ... and {message.details.length - 3} more
+                     </li>
+                   )}
+                 </ul>
+               )}
+             </div>
+             <button
+               onClick={() => setMessage({ type: '', text: '', details: [] })}
+               className={`
+                 p-1 rounded transition-colors
+                 ${message.type === 'error' 
+                   ? 'hover:bg-red-100' 
+                   : message.type === 'warning' 
+                     ? 'hover:bg-amber-100' 
+                     : message.type === 'info'
+                       ? 'hover:bg-blue-100'
+                       : 'hover:bg-green-100'
+                 }
+               `}
+             >
+               <X className={`
+                 w-4 h-4
+                 ${message.type === 'error' 
+                   ? 'text-red-600' 
+                   : message.type === 'warning' 
+                     ? 'text-amber-600' 
+                     : message.type === 'info'
+                       ? 'text-blue-600'
+                       : 'text-green-600'
+                 }
+               `} />
+             </button>
+           </div>
+         </div>
+       )}
+     </div>
+
+     <style jsx>{`
+       @keyframes slide-in-from-top {
+         from {
+           opacity: 0;
+           transform: translateY(-10px);
+         }
+         to {
+           opacity: 1;
+           transform: translateY(0);
+         }
+       }
+       
+       @keyframes slide-in-from-bottom {
+         from {
+           opacity: 0;
+           transform: translateY(10px);
+         }
+         to {
+           opacity: 1;
+           transform: translateY(0);
+         }
+       }
+       
+       @keyframes slide-in-from-left {
+         from {
+           opacity: 0;
+           transform: translateX(-10px);
+         }
+         to {
+           opacity: 1;
+           transform: translateX(0);
+         }
+       }
+       
+       @keyframes slide-out-to-right {
+         from {
+           opacity: 1;
+           transform: translateX(0);
+         }
+         to {
+           opacity: 0;
+           transform: translateX(10px);
+         }
+       }
+       
+       .animate-in {
+         animation-fill-mode: both;
+       }
+       
+       .animate-out {
+         animation-fill-mode: both;
+       }
+       
+       /* Custom scrollbar */
+       .overflow-y-auto::-webkit-scrollbar {
+         width: 8px;
+       }
+       
+       .overflow-y-auto::-webkit-scrollbar-track {
+         background: #f3f4f6;
+         border-radius: 4px;
+       }
+       
+       .overflow-y-auto::-webkit-scrollbar-thumb {
+         background: #d1d5db;
+         border-radius: 4px;
+       }
+       
+       .overflow-y-auto::-webkit-scrollbar-thumb:hover {
+         background: #9ca3af;
+       }
+       
+       /* Focus styles */
+       input:focus, select:focus {
+         outline: none;
+       }
+       
+       /* Number input spinner removal */
+       input[type="number"]::-webkit-inner-spin-button,
+       input[type="number"]::-webkit-outer-spin-button {
+         -webkit-appearance: none;
+         margin: 0;
+       }
+       
+       input[type="number"] {
+         -moz-appearance: textfield;
+       }
+       
+       /* Smooth hover transitions */
+       button, input, select {
+         transition: all 0.2s ease;
+       }
+       
+       /* High contrast mode support */
+       @media (prefers-contrast: high) {
+         .border-gray-200 {
+           border-color: #374151;
+         }
+         
+         .text-gray-600 {
+           color: #1f2937;
+         }
+       }
+       
+       /* Reduced motion support */
+       @media (prefers-reduced-motion: reduce) {
+         * {
+           animation-duration: 0.01ms !important;
+           animation-iteration-count: 1 !important;
+           transition-duration: 0.01ms !important;
+         }
+       }
+     `}</style>
+   </FixedModal>
+ );
 };
 
-// Utility functions
-function debounce(func, wait) {
-  let timeout;
-  return function executedFunction(...args) {
-    const later = () => {
-      clearTimeout(timeout);
-      func(...args);
-    };
-    clearTimeout(timeout);
-    timeout = setTimeout(later, wait);
-  };
-}
+// Export with proper display name
+AddQuickPositionModal.displayName = 'AddQuickPositionModal';
 
 export { AddQuickPositionModal };
 export default AddQuickPositionModal;
