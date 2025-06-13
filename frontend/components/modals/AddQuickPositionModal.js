@@ -11,6 +11,7 @@ import {
   searchFXAssets 
 } from '@/utils/apimethods/positionMethods';
 import { formatCurrency, formatPercentage } from '@/utils/formatters';
+import debounce from 'lodash.debounce';
 import {
   Plus, X, Check, TrendingUp, Building2, Coins, DollarSign,
   Home, BarChart3, Briefcase, Eye, EyeOff, Save, Trash2,
@@ -22,7 +23,8 @@ import {
   ChevronUp, Edit3, CheckSquare, Square, ListPlus, Loader2,
   ArrowUpDown, Info, MinusCircle, PlusCircle, BarChart2,
   RefreshCw, Database, TrendingDown, Percent, Calculator,
-  FileText, GitBranch, Shuffle, Import, Export, Maximize2, Calendar
+  FileText, GitBranch, Shuffle, Import, Export, Maximize2,
+  Calendar, ToggleLeft, ToggleRight, Users, Repeat
 } from 'lucide-react';
 
 // Enhanced AnimatedNumber with smooth transitions
@@ -40,7 +42,6 @@ const AnimatedNumber = ({ value, prefix = '', suffix = '', decimals = 0, duratio
       const now = Date.now();
       const progress = Math.min((now - startTime) / duration, 1);
       
-      // Easing function for smooth animation
       const easeOutQuart = 1 - Math.pow(1 - progress, 4);
       const currentValue = startValue + (endValue - startValue) * easeOutQuart;
       
@@ -119,6 +120,40 @@ const AssetTypeBadge = ({ type, count, icon: Icon, color, active = false, onClic
   );
 };
 
+// Toggle switch component
+const ToggleSwitch = ({ value, onChange, leftLabel, rightLabel, leftIcon: LeftIcon, rightIcon: RightIcon }) => {
+  return (
+    <div className="flex items-center space-x-3 bg-gray-100 rounded-lg p-1">
+      <button
+        onClick={() => onChange(false)}
+        className={`
+          flex items-center space-x-2 px-3 py-1.5 rounded-md text-sm font-medium transition-all duration-200
+          ${!value 
+            ? 'bg-white text-gray-900 shadow-sm' 
+            : 'text-gray-600 hover:text-gray-900'
+          }
+        `}
+      >
+        {LeftIcon && <LeftIcon className="w-4 h-4" />}
+        <span>{leftLabel}</span>
+      </button>
+      <button
+        onClick={() => onChange(true)}
+        className={`
+          flex items-center space-x-2 px-3 py-1.5 rounded-md text-sm font-medium transition-all duration-200
+          ${value 
+            ? 'bg-white text-gray-900 shadow-sm' 
+            : 'text-gray-600 hover:text-gray-900'
+          }
+        `}
+      >
+        {RightIcon && <RightIcon className="w-4 h-4" />}
+        <span>{rightLabel}</span>
+      </button>
+    </div>
+  );
+};
+
 const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved }) => {
   // Core state
   const [accounts, setAccounts] = useState([]);
@@ -138,17 +173,21 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved }) => {
   const [activeFilter, setActiveFilter] = useState('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [showKeyboardShortcuts, setShowKeyboardShortcuts] = useState(false);
-  const [autoSaveEnabled, setAutoSaveEnabled] = useState(false);
-  const [validationMode, setValidationMode] = useState('realtime'); // 'realtime' or 'onsubmit'
-  const [bulkEditMode, setBulkEditMode] = useState(false);
+  const [validationMode, setValidationMode] = useState('realtime');
   const [recentlyUsedAccounts, setRecentlyUsedAccounts] = useState([]);
+  const [viewMode, setViewMode] = useState(false); // false = by asset type, true = by account
+  
+  // Search state
+  const [searchResults, setSearchResults] = useState({});
+  const [isSearching, setIsSearching] = useState({});
+  const [selectedSecurities, setSelectedSecurities] = useState({});
   
   // Refs
   const cellRefs = useRef({});
   const tableRefs = useRef({});
   const messageTimeoutRef = useRef(null);
 
-  // Enhanced asset type configuration with rich colors and animations
+  // Enhanced asset type configuration with search support
   const assetTypes = {
     security: {
       name: 'Securities',
@@ -164,10 +203,12 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved }) => {
       },
       description: 'Stocks, ETFs, Mutual Funds',
       emoji: '📈',
+      searchable: true,
+      searchField: 'ticker',
       fields: [
-        { key: 'ticker', label: 'Ticker', type: 'text', required: true, width: 'w-28', placeholder: 'AAPL', transform: 'uppercase', autocomplete: true },
+        { key: 'ticker', label: 'Ticker', type: 'text', required: true, width: 'w-28', placeholder: 'AAPL', transform: 'uppercase', autocomplete: true, searchable: true },
         { key: 'shares', label: 'Shares', type: 'number', required: true, width: 'w-24', placeholder: '100', min: 0, step: 1 },
-        { key: 'price', label: 'Price', type: 'number', required: true, width: 'w-28', placeholder: '150.00', prefix: '$', min: 0, step: 0.01 },
+        { key: 'price', label: 'Current Price', type: 'number', required: true, width: 'w-28', placeholder: 'Auto', prefix: '$', min: 0, step: 0.01, readOnly: true, autoFill: true },
         { key: 'cost_basis', label: 'Cost Basis', type: 'number', width: 'w-28', placeholder: '140.00', prefix: '$', min: 0, step: 0.01 },
         { key: 'purchase_date', label: 'Purchase Date', type: 'date', width: 'w-36', max: new Date().toISOString().split('T')[0] },
         { key: 'account_id', label: 'Account', type: 'select', required: true, width: 'w-44' }
@@ -234,11 +275,13 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved }) => {
       },
       description: 'Bitcoin, Ethereum, Altcoins',
       emoji: '🪙',
+      searchable: true,
+      searchField: 'symbol',
       fields: [
-        { key: 'symbol', label: 'Symbol', type: 'text', required: true, width: 'w-24', placeholder: 'BTC', transform: 'uppercase', autocomplete: true },
+        { key: 'symbol', label: 'Symbol', type: 'text', required: true, width: 'w-24', placeholder: 'BTC', transform: 'uppercase', autocomplete: true, searchable: true },
         { key: 'quantity', label: 'Quantity', type: 'number', required: true, width: 'w-28', placeholder: '0.5', step: '0.00000001', min: 0 },
         { key: 'purchase_price', label: 'Buy Price', type: 'number', required: true, width: 'w-32', placeholder: '45000', prefix: '$', min: 0 },
-        { key: 'current_price', label: 'Current Price', type: 'number', required: true, width: 'w-32', placeholder: '50000', prefix: '$', min: 0 },
+        { key: 'current_price', label: 'Current Price', type: 'number', required: true, width: 'w-32', placeholder: 'Auto', prefix: '$', min: 0, readOnly: true, autoFill: true },
         { key: 'purchase_date', label: 'Purchase Date', type: 'date', width: 'w-36', max: new Date().toISOString().split('T')[0] },
         { key: 'account_id', label: 'Account', type: 'select', required: true, width: 'w-44' }
       ]
@@ -257,6 +300,8 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved }) => {
       },
       description: 'Gold, Silver, Platinum',
       emoji: '🥇',
+      searchable: true,
+      searchField: 'metal_type',
       fields: [
         { 
           key: 'metal_type', 
@@ -264,12 +309,13 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved }) => {
           type: 'select', 
           required: true, 
           width: 'w-28',
+          searchable: true,
           options: [
             { value: '', label: 'Select...' },
-            { value: 'Gold', label: '🥇 Gold' },
-            { value: 'Silver', label: '🥈 Silver' },
-            { value: 'Platinum', label: '💎 Platinum' },
-            { value: 'Palladium', label: '⚪ Palladium' }
+            { value: 'Gold', label: '🥇 Gold', ticker: 'GLD' },
+            { value: 'Silver', label: '🥈 Silver', ticker: 'SLV' },
+            { value: 'Platinum', label: '💎 Platinum', ticker: 'PPLT' },
+            { value: 'Palladium', label: '⚪ Palladium', ticker: 'PALL' }
           ]
         },
         { key: 'quantity', label: 'Quantity', type: 'number', required: true, width: 'w-24', placeholder: '10', min: 0 },
@@ -285,7 +331,7 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved }) => {
           ]
         },
         { key: 'purchase_price', label: 'Price/Unit', type: 'number', required: true, width: 'w-28', placeholder: '1800', prefix: '$', min: 0 },
-        { key: 'current_price_per_unit', label: 'Current/Unit', type: 'number', width: 'w-28', placeholder: '1900', prefix: '$', min: 0 },
+        { key: 'current_price_per_unit', label: 'Current/Unit', type: 'number', width: 'w-28', placeholder: 'Auto', prefix: '$', min: 0, readOnly: true, autoFill: true },
         { key: 'purchase_date', label: 'Purchase Date', type: 'date', width: 'w-36', max: new Date().toISOString().split('T')[0] },
         { key: 'account_id', label: 'Account', type: 'select', required: true, width: 'w-44' }
       ]
@@ -328,6 +374,43 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved }) => {
     }
   };
 
+  // Debounced search function
+  const debouncedSearch = useCallback(
+    debounce(async (query, assetType, positionId) => {
+      if (!query || query.length < 2) {
+        setSearchResults(prev => ({
+          ...prev,
+          [`${assetType}-${positionId}`]: []
+        }));
+        setIsSearching(prev => ({
+          ...prev,
+          [`${assetType}-${positionId}`]: false
+        }));
+        return;
+      }
+      
+      const searchKey = `${assetType}-${positionId}`;
+      setIsSearching(prev => ({ ...prev, [searchKey]: true }));
+      
+      try {
+        const results = await searchSecurities(query);
+        setSearchResults(prev => ({
+          ...prev,
+          [searchKey]: results
+        }));
+      } catch (error) {
+        console.error('Error searching securities:', error);
+        setSearchResults(prev => ({
+          ...prev,
+          [searchKey]: []
+        }));
+      } finally {
+        setIsSearching(prev => ({ ...prev, [searchKey]: false }));
+      }
+    }, 300),
+    []
+  );
+
   // Initialize and cleanup
   useEffect(() => {
     if (isOpen) {
@@ -342,8 +425,9 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved }) => {
       setExpandedSections({});
       setMessage({ type: '', text: '', details: [] });
       setActiveFilter('all');
+      setSearchResults({});
+      setSelectedSecurities({});
       
-      // Show keyboard shortcuts hint initially
       setShowKeyboardShortcuts(true);
       setTimeout(() => setShowKeyboardShortcuts(false), 3000);
     }
@@ -355,13 +439,12 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved }) => {
     };
   }, [isOpen]);
 
-  // Load accounts with error handling
+  // Load accounts
   const loadAccounts = async () => {
     try {
       const fetchedAccounts = await fetchAllAccounts();
       setAccounts(fetchedAccounts);
       
-      // Track recently used accounts (mock implementation)
       const recentIds = fetchedAccounts.slice(0, 3).map(a => a.id);
       setRecentlyUsedAccounts(recentIds);
     } catch (error) {
@@ -385,13 +468,11 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved }) => {
     }
   };
 
-  // Add new row with animation and smart defaults
+  // Add new row
   const addNewRow = (assetType) => {
-    // Get the last position to copy some defaults
     const lastPosition = positions[assetType][positions[assetType].length - 1];
     const defaultData = {};
     
-    // Smart defaults based on last entry
     if (lastPosition && lastPosition.data.account_id) {
       defaultData.account_id = lastPosition.data.account_id;
     }
@@ -416,12 +497,10 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved }) => {
       [assetType]: [...prev[assetType], newPosition]
     }));
     
-    // Auto-expand section if it's collapsed
     if (!expandedSections[assetType]) {
       setExpandedSections(prev => ({ ...prev, [assetType]: true }));
     }
     
-    // Focus on first field
     setTimeout(() => {
       const firstFieldKey = assetTypes[assetType].fields[0].key;
       const cellKey = `${assetType}-${newPosition.id}-${firstFieldKey}`;
@@ -429,13 +508,12 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved }) => {
     }, 100);
   };
 
-  // Enhanced keyboard navigation with vim-like shortcuts
+  // Enhanced keyboard navigation
   const handleKeyDown = (e, assetType, positionId, fieldIndex) => {
     const typePositions = positions[assetType];
     const positionIndex = typePositions.findIndex(p => p.id === positionId);
     const fields = assetTypes[assetType].fields;
     
-    // Global shortcuts
     if (e.ctrlKey || e.metaKey) {
       switch (e.key) {
         case 'Enter':
@@ -453,7 +531,6 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved }) => {
       }
     }
     
-    // Field navigation
     switch (e.key) {
       case 'Tab':
         if (!e.shiftKey && fieldIndex === fields.length - 1 && positionIndex === typePositions.length - 1) {
@@ -465,7 +542,6 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved }) => {
       case 'Enter':
         e.preventDefault();
         if (e.shiftKey) {
-          // Shift+Enter adds new row above
           const newPosition = {
             id: Date.now() + Math.random(),
             type: assetType,
@@ -493,7 +569,6 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved }) => {
       case 'ArrowDown':
         e.preventDefault();
         if (e.altKey) {
-          // Alt+Down moves row down
           if (positionIndex < typePositions.length - 1) {
             const newPositions = [...typePositions];
             [newPositions[positionIndex], newPositions[positionIndex + 1]] = 
@@ -510,7 +585,6 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved }) => {
       case 'ArrowUp':
         e.preventDefault();
         if (e.altKey) {
-          // Alt+Up moves row up
           if (positionIndex > 0) {
             const newPositions = [...typePositions];
             [newPositions[positionIndex], newPositions[positionIndex - 1]] = 
@@ -540,7 +614,56 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved }) => {
     }
   };
 
-  // Update position with real-time validation
+  // Handle security selection from search
+  const handleSelectSecurity = (assetType, positionId, security) => {
+    const searchKey = `${assetType}-${positionId}`;
+    
+    setSelectedSecurities(prev => ({
+      ...prev,
+      [searchKey]: security
+    }));
+    
+    setPositions(prev => ({
+      ...prev,
+      [assetType]: prev[assetType].map(pos => {
+        if (pos.id === positionId) {
+          const newData = { ...pos.data };
+          
+          // Update fields based on asset type
+          if (assetType === 'security') {
+            newData.ticker = security.ticker;
+            newData.price = parseFloat(security.price || 0).toFixed(2);
+            newData.name = security.name;
+            if (!newData.cost_basis) {
+              newData.cost_basis = newData.price;
+            }
+          } else if (assetType === 'crypto') {
+            newData.symbol = security.ticker;
+            newData.current_price = parseFloat(security.price || 0).toFixed(2);
+            newData.name = security.name;
+          } else if (assetType === 'metal') {
+            // For metals, update the current price based on the ETF price
+            newData.current_price_per_unit = parseFloat(security.price || 0).toFixed(2);
+          }
+          
+          return {
+            ...pos,
+            data: newData,
+            errors: { ...pos.errors }
+          };
+        }
+        return pos;
+      })
+    }));
+    
+    // Clear search results
+    setSearchResults(prev => ({
+      ...prev,
+      [searchKey]: []
+    }));
+  };
+
+  // Update position with search trigger
   const updatePosition = (assetType, positionId, field, value) => {
     setPositions(prev => ({
       ...prev,
@@ -548,12 +671,23 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved }) => {
         if (pos.id === positionId) {
           const fieldConfig = assetTypes[assetType].fields.find(f => f.key === field);
           
-          // Apply transformations
           if (fieldConfig?.transform === 'uppercase') {
             value = value.toUpperCase();
           }
           
-          // Real-time validation
+          // Trigger search for searchable fields
+          if (fieldConfig?.searchable && assetTypes[assetType].searchable) {
+            if (assetType === 'metal' && field === 'metal_type' && value) {
+              // For metals, search using the ETF ticker
+              const option = fieldConfig.options.find(o => o.value === value);
+              if (option?.ticker) {
+                debouncedSearch(option.ticker, assetType, positionId);
+              }
+            } else {
+              debouncedSearch(value, assetType, positionId);
+            }
+          }
+          
           let error = null;
           if (validationMode === 'realtime') {
             if (fieldConfig?.required && !value) {
@@ -578,7 +712,7 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved }) => {
     }));
   };
 
-  // Delete with confirmation for multiple items
+  // Delete position
   const deletePosition = (assetType, positionId) => {
     const positionCount = positions[assetType].filter(p => p.data.account_id).length;
     
@@ -601,13 +735,12 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved }) => {
     }, 300);
   };
 
-  // Smart duplicate with incremented values
+  // Duplicate position
   const duplicatePosition = (assetType, position) => {
     const newData = { ...position.data };
     
-    // Smart increments for certain fields
     if (assetType === 'security' && newData.shares) {
-      newData.shares = ''; // Clear shares for manual entry
+      newData.shares = '';
     }
     if (assetType === 'realestate' && newData.property_name) {
       newData.property_name = `${newData.property_name} (Copy)`;
@@ -632,7 +765,6 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved }) => {
       ]
     }));
     
-    // Focus on first editable field
     setTimeout(() => {
       const firstEditableField = assetType === 'security' ? 'shares' : assetTypes[assetType].fields[0].key;
       const cellKey = `${assetType}-${newPosition.id}-${firstEditableField}`;
@@ -640,7 +772,7 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved }) => {
     }, 100);
   };
 
-  // Toggle section with state persistence
+  // Toggle section
   const toggleSection = (assetType) => {
     setExpandedSections(prev => ({
       ...prev,
@@ -648,7 +780,7 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved }) => {
     }));
   };
 
-  // Enhanced statistics with performance metrics
+  // Enhanced statistics
   const stats = useMemo(() => {
     let totalPositions = 0;
     let totalValue = 0;
@@ -668,11 +800,11 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved }) => {
           
           const accountId = pos.data.account_id;
           if (!byAccount[accountId]) {
-            byAccount[accountId] = { count: 0, value: 0 };
+            byAccount[accountId] = { count: 0, value: 0, positions: [] };
           }
           byAccount[accountId].count++;
+          byAccount[accountId].positions.push({ ...pos, assetType: type });
           
-          // Calculate values and performance
           let value = 0;
           let cost = 0;
           
@@ -706,13 +838,11 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved }) => {
           byAccount[accountId].value += value;
         }
         
-        // Track validation errors
         if (pos.errors && Object.values(pos.errors).some(e => e)) {
           errors.push({ type, id: pos.id, errors: pos.errors });
         }
       });
       
-      // Calculate performance by type
       if (byType[type].cost > 0) {
         performance[type] = ((byType[type].value - byType[type].cost) / byType[type].cost) * 100;
       }
@@ -732,7 +862,7 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved }) => {
     };
   }, [positions]);
 
-  // Comprehensive validation
+  // Validate positions
   const validatePositions = () => {
     let isValid = true;
     const updatedPositions = { ...positions };
@@ -744,14 +874,12 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved }) => {
         const errors = {};
         let hasData = false;
         
-        // Check if position has any data
         typeConfig.fields.forEach(field => {
           if (pos.data[field.key]) {
             hasData = true;
           }
         });
         
-        // Only validate if position has data
         if (hasData) {
           typeConfig.fields.forEach(field => {
             const value = pos.data[field.key];
@@ -788,7 +916,7 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved }) => {
     return isValid;
   };
 
-  // Submit with detailed progress and error handling
+  // Submit all
   const submitAll = async () => {
     if (stats.totalPositions === 0) {
       showMessage('error', 'No positions to submit', ['Add at least one position before submitting']);
@@ -805,7 +933,6 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved }) => {
     const errors = [];
 
     try {
-      // Create submission batches by type
       const batches = [];
       Object.entries(positions).forEach(([type, typePositions]) => {
         typePositions.forEach(pos => {
@@ -815,15 +942,12 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved }) => {
         });
       });
 
-      // Show progress
       showMessage('info', `Submitting ${batches.length} positions...`, [], 0);
 
-      // Process batches
       for (let i = 0; i < batches.length; i++) {
         const { type, position } = batches[i];
         
         try {
-          // Prepare data (remove empty fields)
           const cleanData = {};
           Object.entries(position.data).forEach(([key, value]) => {
             if (value !== '' && value !== null && value !== undefined) {
@@ -851,7 +975,6 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved }) => {
           
           successCount++;
           
-          // Update progress
           const progress = Math.round(((i + 1) / batches.length) * 100);
           showMessage('info', `Submitting positions... ${progress}%`, [`${successCount} of ${batches.length} completed`], 0);
           
@@ -862,7 +985,6 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved }) => {
         }
       }
 
-      // Final status
       if (errorCount === 0) {
         showMessage('success', `All ${successCount} positions added successfully!`, [
           `Total value: ${formatCurrency(stats.totalValue)}`,
@@ -887,7 +1009,7 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved }) => {
     }
   };
 
-  // Clear all with confirmation
+  // Clear all
   const clearAll = () => {
     if (stats.totalPositions > 0 && !window.confirm('Clear all positions? This cannot be undone.')) {
       return;
@@ -904,15 +1026,19 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved }) => {
     showMessage('success', 'All positions cleared', ['Ready for new entries']);
   };
 
-  // Render enhanced cell input with autocomplete and validation
+  // Render cell input with search dropdown
   const renderCellInput = (assetType, position, field, cellKey) => {
     const value = position.data[field.key] || '';
     const hasError = position.errors?.[field.key];
     const fieldIndex = assetTypes[assetType].fields.findIndex(f => f.key === field.key);
     const isRecent = recentlyUsedAccounts.includes(position.data.account_id);
+    const searchKey = `${assetType}-${position.id}`;
+    const searchResultsForField = searchResults[searchKey] || [];
+    const isSearchingField = isSearching[searchKey] || false;
     
     const baseClass = `
       w-full px-3 py-2 text-sm border rounded-lg transition-all duration-200
+      ${field.readOnly ? 'bg-gray-100 cursor-not-allowed' : ''}
       ${hasError 
         ? 'border-red-400 bg-red-50 focus:border-red-500 focus:ring-2 focus:ring-red-200 text-red-900' 
         : focusedCell === cellKey
@@ -931,8 +1057,49 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved }) => {
       'data-field': field.key,
       'aria-label': field.label,
       'aria-invalid': hasError ? 'true' : 'false',
-      'aria-describedby': hasError ? `${cellKey}-error` : undefined
+      'aria-describedby': hasError ? `${cellKey}-error` : undefined,
+      disabled: field.readOnly
     };
+
+    // Search results dropdown for searchable fields
+    if (field.searchable && searchResultsForField.length > 0) {
+      return (
+        <div className="relative w-full">
+          <input
+            {...commonProps}
+            type="text"
+            value={value}
+            onChange={(e) => updatePosition(assetType, position.id, field.key, e.target.value)}
+            placeholder={field.placeholder}
+            autoComplete="off"
+            spellCheck="false"
+          />
+          {isSearchingField && (
+            <div className="absolute right-2 top-1/2 -translate-y-1/2">
+              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-500"></div>
+            </div>
+          )}
+          <div className="absolute z-20 left-0 right-0 mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+            {searchResultsForField.map((result) => (
+              <button
+                key={result.ticker}
+                type="button"
+                className="w-full p-2 hover:bg-gray-100 text-left border-b border-gray-100 last:border-0"
+                onClick={() => handleSelectSecurity(assetType, position.id, result)}
+              >
+                <div className="flex justify-between items-center">
+                  <div>
+                    <span className="font-semibold text-blue-800">{result.ticker}</span>
+                    <span className="ml-2 text-sm text-gray-600">{result.name}</span>
+                  </div>
+                  <span className="text-sm font-medium">${parseFloat(result.price).toFixed(2)}</span>
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+      );
+    }
 
     switch (field.type) {
       case 'select':
@@ -1012,6 +1179,7 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved }) => {
               min={field.min}
               max={field.max}
               className={`${baseClass} ${field.prefix ? 'pl-8' : ''} ${field.suffix ? 'pr-8' : ''}`}
+              readOnly={field.readOnly}
             />
             {field.suffix && (
               <span className={`
@@ -1065,7 +1233,7 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved }) => {
     }
   };
 
-  // Render enhanced asset section with animations
+  // Render asset section
   const renderAssetSection = (assetType) => {
     const config = assetTypes[assetType];
     const typePositions = positions[assetType] || [];
@@ -1084,8 +1252,9 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved }) => {
           ${typePositions.length > 0 ? 'ring-1 ring-gray-100' : ''}
         `}
       >
-        {/* Enhanced Section Header */}
+        {/* Section Header - Entire row is clickable */}
         <div 
+          onClick={() => toggleSection(assetType)}
           className={`
             px-4 py-3 cursor-pointer transition-all duration-200
             ${isExpanded 
@@ -1095,18 +1264,15 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved }) => {
           `}
         >
           <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-3">
-              <div 
-                onClick={() => toggleSection(assetType)}
-                className={`
-                  p-2 rounded-lg transition-all duration-200 
-                  ${isExpanded ? 'bg-white/20' : `${config.color.lightBg}`}
-                `}
-              >
+            <div className="flex items-center space-x-3 flex-1">
+              <div className={`
+                p-2 rounded-lg transition-all duration-200 
+                ${isExpanded ? 'bg-white/20' : `${config.color.lightBg}`}
+              `}>
                 <Icon className={`w-5 h-5 ${isExpanded ? 'text-white' : config.color.text}`} />
               </div>
               
-              <div onClick={() => toggleSection(assetType)} className="flex-1">
+              <div className="flex-1">
                 <h3 className={`font-semibold text-base flex items-center ${
                   isExpanded ? 'text-white' : 'text-gray-800'
                 }`}>
@@ -1125,7 +1291,6 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved }) => {
                 </p>
               </div>
               
-              {/* Mini stats in header */}
               {typeStats && typeStats.count > 0 && (
                 <div className={`flex items-center space-x-4 text-xs ${
                   isExpanded ? 'text-white/90' : 'text-gray-600'
@@ -1147,8 +1312,7 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved }) => {
               )}
             </div>
             
-            <div className="flex items-center space-x-2">
-              {/* Quick add button in header */}
+            <div className="flex items-center space-x-2 ml-3">
               <button
                 onClick={(e) => {
                   e.stopPropagation();
@@ -1169,18 +1333,15 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved }) => {
                 <Plus className="w-4 h-4" />
               </button>
               
-              <ChevronDown 
-                onClick={() => toggleSection(assetType)}
-                className={`
-                  w-5 h-5 transition-transform duration-300
-                  ${isExpanded ? 'rotate-180 text-white' : 'text-gray-400'}
-                `} 
-              />
+              <ChevronDown className={`
+                w-5 h-5 transition-transform duration-300
+                ${isExpanded ? 'rotate-180 text-white' : 'text-gray-400'}
+              `} />
             </div>
           </div>
         </div>
 
-        {/* Enhanced Table Content */}
+        {/* Table Content */}
         {isExpanded && (
           <div className="bg-white animate-in slide-in-from-top-2 duration-300">
             {typePositions.length === 0 ? (
@@ -1214,8 +1375,8 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved }) => {
                             <span className="text-xs font-semibold text-gray-600 flex items-center">
                               {field.label}
                               {field.required && <span className="text-red-500 ml-1">*</span>}
-                              {field.type === 'number' && field.min !== undefined && (
-                                <Info className="w-3 h-3 ml-1 text-gray-400" title={`Min: ${field.min}`} />
+                              {field.readOnly && (
+                                <Info className="w-3 h-3 ml-1 text-gray-400" title="Auto-filled from search" />
                               )}
                             </span>
                           </th>
@@ -1262,7 +1423,7 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved }) => {
                               </td>
                             ))}
                             <td className="px-2 py-2">
-                              <div className="flex items-center justify-center space-x-1 opacity-0 group-hover:opacity-100 transition-all duration-200">
+                              <div className="flex items-center justify-center space-x-1">
                                 <button
                                   onClick={() => duplicatePosition(assetType, position)}
                                   className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all duration-200"
@@ -1279,156 +1440,355 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved }) => {
                                 </button>
                                 {value > 0 && showValues && (
                                   <div className="ml-2 px-2 py-1 bg-gray-100 rounded text-xs font-medium text-gray-600">
-                                    {formatCurrency(value, true)}
-                                  </div>
-                                )}
-                              </div>
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-                
-                {/* Add row footer */}
-                <div className="p-3 bg-gray-50 border-t border-gray-100">
-                  <button
-                    onClick={() => addNewRow(assetType)}
-                    className={`
-                      w-full py-2 px-4 border-2 border-dashed rounded-lg
-                      transition-all duration-200 flex items-center justify-center space-x-2
-                      ${config.color.border} ${config.color.hover} hover:border-solid
-                      group
-                    `}
-                  >
-                    <Plus className={`w-4 h-4 ${config.color.text} group-hover:scale-110 transition-transform`} />
-                    <span className={`text-sm font-medium ${config.color.text}`}>
-                      Add {config.name} (Enter)
-                    </span>
-                  </button>
-                </div>
-              </>
-            )}
-          </div>
-        )}
-      </div>
-    );
-  };
+                                    {formatCurrency(value)}
+                                    </div>
+                               )}
+                             </div>
+                           </td>
+                         </tr>
+                       );
+                     })}
+                   </tbody>
+                 </table>
+               </div>
+               
+               {/* Add row footer */}
+               <div className="p-3 bg-gray-50 border-t border-gray-100">
+                 <button
+                   onClick={() => addNewRow(assetType)}
+                   className={`
+                     w-full py-2 px-4 border-2 border-dashed rounded-lg
+                     transition-all duration-200 flex items-center justify-center space-x-2
+                     ${config.color.border} ${config.color.hover} hover:border-solid
+                     group
+                   `}
+                 >
+                   <Plus className={`w-4 h-4 ${config.color.text} group-hover:scale-110 transition-transform`} />
+                   <span className={`text-sm font-medium ${config.color.text}`}>
+                     Add {config.name} (Enter)
+                   </span>
+                 </button>
+               </div>
+             </>
+           )}
+         </div>
+       )}
+     </div>
+   );
+ };
 
-  // Calculate position value helper
-  const calculatePositionValue = (type, position) => {
-    switch (type) {
-      case 'security':
-        return (position.data.shares || 0) * (position.data.price || 0);
-      case 'crypto':
-        return (position.data.quantity || 0) * (position.data.current_price || 0);
-      case 'metal':
-        return (position.data.quantity || 0) * (position.data.current_price_per_unit || position.data.purchase_price || 0);
-      case 'realestate':
-        return position.data.estimated_value || position.data.purchase_price || 0;
-      case 'cash':
-        return position.data.amount || 0;
-      default:
-        return 0;
-    }
-  };
+ // Render positions by account
+ const renderByAccount = () => {
+   return (
+     <div className="space-y-4">
+       {accounts.map(account => {
+         const accountStats = stats.byAccount[account.id];
+         if (!accountStats || accountStats.count === 0) {
+           return (
+             <div key={account.id} className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+               <h3 className="font-semibold text-gray-800 mb-2">{account.account_name}</h3>
+               <p className="text-gray-500 text-sm mb-4">No positions in this account yet</p>
+               <div className="flex flex-wrap gap-2">
+                 {Object.entries(assetTypes).map(([type, config]) => {
+                   const Icon = config.icon;
+                   return (
+                     <button
+                       key={type}
+                       onClick={() => {
+                         const newPosition = {
+                           id: Date.now() + Math.random(),
+                           type,
+                           data: { account_id: account.id },
+                           errors: {},
+                           isNew: true,
+                           animateIn: true
+                         };
+                         setPositions(prev => ({
+                           ...prev,
+                           [type]: [...prev[type], newPosition]
+                         }));
+                       }}
+                       className={`
+                         inline-flex items-center px-3 py-1.5 rounded-lg text-sm font-medium
+                         transition-all duration-200 ${config.color.lightBg} ${config.color.text}
+                         hover:${config.color.bg} hover:text-white hover:shadow-md
+                       `}
+                     >
+                       <Icon className="w-4 h-4 mr-2" />
+                       Add {config.name}
+                     </button>
+                   );
+                 })}
+               </div>
+             </div>
+           );
+         }
 
-  return (
-    <FixedModal
-      isOpen={isOpen}
-      onClose={onClose}
-      title="Quick Position Entry"
-      size="max-w-[1600px]"
-    >
-      <div className="h-[90vh] flex flex-col bg-gray-50">
-        {/* Enhanced Header with Action Bar */}
-        <div className="flex-shrink-0 bg-white border-b border-gray-200 px-6 py-4">
-          {/* Top Action Bar */}
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center space-x-4">
-              <button
-                onClick={clearAll}
-                className="px-4 py-2 text-sm bg-white border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 hover:border-gray-400 transition-all flex items-center space-x-2 group"
-              >
-                <Trash2 className="w-4 h-4 group-hover:text-red-600 transition-colors" />
-                <span>Clear All</span>
-              </button>
-              
-              <button
-                onClick={onClose}
-                className="px-4 py-2 text-sm bg-white border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 hover:border-gray-400 transition-all"
-              >
-                Cancel
-              </button>
-            </div>
-            
-            <div className="flex items-center space-x-3">
-              {/* Settings buttons */}
-              <button
-                onClick={() => setShowValues(!showValues)}
-                className={`p-2 rounded-lg transition-all duration-200 ${
-                  showValues 
-                    ? 'bg-blue-100 text-blue-700 hover:bg-blue-200' 
-                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                }`}
-                title={showValues ? 'Hide values' : 'Show values'}
-              >
-                {showValues ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
-              </button>
-              
-              <button
-                onClick={() => setShowKeyboardShortcuts(!showKeyboardShortcuts)}
-                className={`p-2 rounded-lg transition-all duration-200 ${
-                  showKeyboardShortcuts 
-                    ? 'bg-purple-100 text-purple-700 hover:bg-purple-200' 
-                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                }`}
-                title="Keyboard shortcuts (Ctrl+K)"
-              >
-                <Keyboard className="w-4 h-4" />
-              </button>
-              
-              <div className="h-6 w-px bg-gray-300"></div>
-              
-              {/* Submit button */}
-              <button
-                onClick={submitAll}
-                disabled={stats.totalPositions === 0 || isSubmitting}
-                className={`
-                  px-6 py-2 text-sm font-semibold rounded-lg transition-all duration-200 
-                  flex items-center space-x-2 shadow-sm hover:shadow-md transform hover:scale-105
-                  ${stats.totalPositions === 0 || isSubmitting
-                    ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                    : 'bg-gradient-to-r from-green-600 to-emerald-600 text-white hover:from-green-700 hover:to-emerald-700'
-                  }
-                `}
-              >
-                {isSubmitting ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    <span>Saving...</span>
-                  </>
-                ) : (
-                  <>
-                    <CheckCircle className="w-4 h-4" />
-                    <span>Add {stats.totalPositions} Position{stats.totalPositions !== 1 ? 's' : ''}</span>
-                  </>
-                )}
-              </button>
-            </div>
-          </div>
+         return (
+           <div key={account.id} className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+             {/* Account Header */}
+             <div className="px-4 py-3 bg-gradient-to-r from-gray-50 to-gray-100 border-b border-gray-200">
+               <div className="flex items-center justify-between">
+                 <div>
+                   <h3 className="font-semibold text-gray-800">{account.account_name}</h3>
+                   <p className="text-sm text-gray-600 mt-1">
+                     {accountStats.count} position{accountStats.count !== 1 ? 's' : ''} • 
+                     {showValues ? ` ${formatCurrency(accountStats.value)}` : ' ••••'}
+                   </p>
+                 </div>
+                 <div className="flex items-center space-x-2">
+                   {Object.entries(assetTypes).map(([type, config]) => {
+                     const Icon = config.icon;
+                     const typeCount = accountStats.positions.filter(p => p.assetType === type).length;
+                     return typeCount > 0 ? (
+                       <div key={type} className={`
+                         flex items-center space-x-1 px-2 py-1 rounded-lg text-xs
+                         ${config.color.lightBg} ${config.color.text}
+                       `}>
+                         <Icon className="w-3 h-3" />
+                         <span className="font-medium">{typeCount}</span>
+                       </div>
+                     ) : null;
+                   })}
+                 </div>
+               </div>
+             </div>
 
-          {/* Stats Bar */}
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-6">
-              {/* Total stats */}
-              <div className="flex items-center space-x-4">
-                <div className="flex items-center space-x-2">
-                  <Hash className="w-4 h-4 text-gray-400" />
-                  <span className="text-sm text-gray-600">
-                    Total Positions:
-                 </span>
+             {/* Positions by Type */}
+             <div className="p-4 space-y-4">
+               {Object.entries(assetTypes).map(([type, config]) => {
+                 const typePositions = positions[type].filter(p => p.data.account_id === account.id);
+                 if (typePositions.length === 0) return null;
+
+                 const Icon = config.icon;
+                 return (
+                   <div key={type} className="border border-gray-200 rounded-lg overflow-hidden">
+                     <div className={`px-3 py-2 ${config.color.lightBg} border-b ${config.color.border}`}>
+                       <h4 className={`font-medium text-sm ${config.color.text} flex items-center`}>
+                         <Icon className="w-4 h-4 mr-2" />
+                         {config.name}
+                       </h4>
+                     </div>
+                     <div className="overflow-x-auto">
+                       <table className="w-full text-sm">
+                         <thead>
+                           <tr className="bg-gray-50 border-b border-gray-200">
+                             {config.fields.filter(f => f.key !== 'account_id').map(field => (
+                               <th key={field.key} className="px-2 py-2 text-left text-xs font-medium text-gray-600">
+                                 {field.label}
+                                 {field.required && <span className="text-red-500 ml-0.5">*</span>}
+                               </th>
+                             ))}
+                             <th className="px-2 py-2 text-center text-xs font-medium text-gray-600">Actions</th>
+                           </tr>
+                         </thead>
+                         <tbody>
+                           {typePositions.map((position, index) => (
+                             <tr key={position.id} className="border-b border-gray-100 hover:bg-gray-50">
+                               {config.fields.filter(f => f.key !== 'account_id').map(field => (
+                                 <td key={field.key} className="px-1 py-1">
+                                   {renderCellInput(
+                                     type,
+                                     position,
+                                     field,
+                                     `${type}-${position.id}-${field.key}`
+                                   )}
+                                 </td>
+                               ))}
+                               <td className="px-1 py-1">
+                                 <div className="flex items-center justify-center space-x-1">
+                                   <button
+                                     onClick={() => duplicatePosition(type, position)}
+                                     className="p-1 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-all"
+                                     title="Duplicate"
+                                   >
+                                     <Copy className="w-3 h-3" />
+                                   </button>
+                                   <button
+                                     onClick={() => deletePosition(type, position.id)}
+                                     className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-all"
+                                     title="Delete"
+                                   >
+                                     <Trash2 className="w-3 h-3" />
+                                   </button>
+                                 </div>
+                               </td>
+                             </tr>
+                           ))}
+                         </tbody>
+                       </table>
+                     </div>
+                     <div className="p-2 bg-gray-50 border-t border-gray-100">
+                       <button
+                         onClick={() => {
+                           const newPosition = {
+                             id: Date.now() + Math.random(),
+                             type,
+                             data: { account_id: account.id },
+                             errors: {},
+                             isNew: true,
+                             animateIn: true
+                           };
+                           setPositions(prev => ({
+                             ...prev,
+                             [type]: [...prev[type], newPosition]
+                           }));
+                         }}
+                         className={`
+                           w-full py-1.5 px-3 text-xs font-medium rounded
+                           ${config.color.lightBg} ${config.color.text} 
+                           hover:${config.color.bg} hover:text-white transition-all
+                           flex items-center justify-center space-x-1
+                         `}
+                       >
+                         <Plus className="w-3 h-3" />
+                         <span>Add {config.name}</span>
+                       </button>
+                     </div>
+                   </div>
+                 );
+               })}
+             </div>
+           </div>
+         );
+       })}
+     </div>
+   );
+ };
+
+ // Calculate position value helper
+ const calculatePositionValue = (type, position) => {
+   switch (type) {
+     case 'security':
+       return (position.data.shares || 0) * (position.data.price || 0);
+     case 'crypto':
+       return (position.data.quantity || 0) * (position.data.current_price || 0);
+     case 'metal':
+       return (position.data.quantity || 0) * (position.data.current_price_per_unit || position.data.purchase_price || 0);
+     case 'realestate':
+       return position.data.estimated_value || position.data.purchase_price || 0;
+     case 'cash':
+       return position.data.amount || 0;
+     default:
+       return 0;
+   }
+ };
+
+ // Format currency helper
+ const formatCurrency = (value) => {
+   if (value >= 1000000) {
+     return `$${(value / 1000000).toFixed(1)}M`;
+   } else if (value >= 1000) {
+     return `$${(value / 1000).toFixed(1)}K`;
+   }
+   return `$${value.toFixed(2)}`;
+ };
+
+ return (
+   <FixedModal
+     isOpen={isOpen}
+     onClose={onClose}
+     title="Quick Position Entry"
+     size="max-w-[1600px]"
+   >
+     <div className="h-[90vh] flex flex-col bg-gray-50">
+       {/* Enhanced Header with Action Bar */}
+       <div className="flex-shrink-0 bg-white border-b border-gray-200 px-6 py-4">
+         {/* Top Action Bar */}
+         <div className="flex items-center justify-between mb-4">
+           <div className="flex items-center space-x-4">
+             <button
+               onClick={clearAll}
+               className="px-4 py-2 text-sm bg-white border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 hover:border-gray-400 transition-all flex items-center space-x-2 group"
+             >
+               <Trash2 className="w-4 h-4 group-hover:text-red-600 transition-colors" />
+               <span>Clear All</span>
+             </button>
+             
+             <button
+               onClick={onClose}
+               className="px-4 py-2 text-sm bg-white border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 hover:border-gray-400 transition-all"
+             >
+               Cancel
+             </button>
+
+             {/* View mode toggle */}
+             <div className="ml-4">
+               <ToggleSwitch
+                 value={viewMode}
+                 onChange={setViewMode}
+                 leftLabel="Asset Type"
+                 rightLabel="Account"
+                 leftIcon={Layers}
+                 rightIcon={Wallet}
+               />
+             </div>
+           </div>
+           
+           <div className="flex items-center space-x-3">
+             {/* Settings buttons */}
+             <button
+               onClick={() => setShowValues(!showValues)}
+               className={`p-2 rounded-lg transition-all duration-200 ${
+                 showValues 
+                   ? 'bg-blue-100 text-blue-700 hover:bg-blue-200' 
+                   : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+               }`}
+               title={showValues ? 'Hide values' : 'Show values'}
+             >
+               {showValues ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
+             </button>
+             
+             <button
+               onClick={() => setShowKeyboardShortcuts(!showKeyboardShortcuts)}
+               className={`p-2 rounded-lg transition-all duration-200 ${
+                 showKeyboardShortcuts 
+                   ? 'bg-purple-100 text-purple-700 hover:bg-purple-200' 
+                   : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+               }`}
+               title="Keyboard shortcuts (Ctrl+K)"
+             >
+               <Keyboard className="w-4 h-4" />
+             </button>
+             
+             <div className="h-6 w-px bg-gray-300"></div>
+             
+             {/* Submit button */}
+             <button
+               onClick={submitAll}
+               disabled={stats.totalPositions === 0 || isSubmitting}
+               className={`
+                 px-6 py-2 text-sm font-semibold rounded-lg transition-all duration-200 
+                 flex items-center space-x-2 shadow-sm hover:shadow-md transform hover:scale-105
+                 ${stats.totalPositions === 0 || isSubmitting
+                   ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                   : 'bg-gradient-to-r from-green-600 to-emerald-600 text-white hover:from-green-700 hover:to-emerald-700'
+                 }
+               `}
+             >
+               {isSubmitting ? (
+                 <>
+                   <Loader2 className="w-4 h-4 animate-spin" />
+                   <span>Saving...</span>
+                 </>
+               ) : (
+                 <>
+                   <CheckCircle className="w-4 h-4" />
+                   <span>Add {stats.totalPositions} Position{stats.totalPositions !== 1 ? 's' : ''}</span>
+                 </>
+               )}
+             </button>
+           </div>
+         </div>
+
+         {/* Stats Bar */}
+         <div className="flex items-center justify-between">
+           <div className="flex items-center space-x-6">
+             {/* Total stats */}
+             <div className="flex items-center space-x-4">
+               <div className="flex items-center space-x-2">
+                 <Hash className="w-4 h-4 text-gray-400" />
+                 <span className="text-sm text-gray-600">Total Positions:</span>
                  <span className="text-lg font-bold text-gray-900">
                    <AnimatedNumber value={stats.totalPositions} />
                  </span>
@@ -1495,7 +1855,7 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved }) => {
                      <span className="font-medium">{typeStats.count}</span>
                      {showValues && (
                        <span className="text-[10px] opacity-75">
-                         ({formatCurrency(typeStats.value, true)})
+                         ({formatCurrency(typeStats.value)})
                        </span>
                      )}
                    </div>
@@ -1520,33 +1880,35 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved }) => {
            )}
          </div>
 
-         {/* Asset Type Filters */}
-         <div className="flex items-center space-x-2 mt-4">
-           <span className="text-xs text-gray-500 mr-2">Filter:</span>
-           <button
-             onClick={() => setActiveFilter('all')}
-             className={`
-               px-3 py-1.5 text-xs font-medium rounded-lg transition-all duration-200
-               ${activeFilter === 'all' 
-                 ? 'bg-gray-900 text-white shadow-sm' 
-                 : 'bg-white text-gray-600 hover:bg-gray-100 border border-gray-200'
-               }
-             `}
-           >
-             All Types
-           </button>
-           {Object.entries(assetTypes).map(([key, config]) => (
-             <AssetTypeBadge
-               key={key}
-               type={config.name}
-               count={stats.byType[key]?.count || 0}
-               icon={config.icon}
-               color={config.color}
-               active={activeFilter === key}
-               onClick={() => setActiveFilter(activeFilter === key ? 'all' : key)}
-             />
-           ))}
-         </div>
+         {/* Asset Type Filters (only show in asset type view) */}
+         {!viewMode && (
+           <div className="flex items-center space-x-2 mt-4">
+             <span className="text-xs text-gray-500 mr-2">Filter:</span>
+             <button
+               onClick={() => setActiveFilter('all')}
+               className={`
+                 px-3 py-1.5 text-xs font-medium rounded-lg transition-all duration-200
+                 ${activeFilter === 'all' 
+                   ? 'bg-gray-900 text-white shadow-sm' 
+                   : 'bg-white text-gray-600 hover:bg-gray-100 border border-gray-200'
+                 }
+               `}
+             >
+               All Types
+             </button>
+             {Object.entries(assetTypes).map(([key, config]) => (
+               <AssetTypeBadge
+                 key={key}
+                 type={config.name}
+                 count={stats.byType[key]?.count || 0}
+                 icon={config.icon}
+                 color={config.color}
+                 active={activeFilter === key}
+                 onClick={() => setActiveFilter(activeFilter === key ? 'all' : key)}
+               />
+             ))}
+           </div>
+         )}
 
          {/* Keyboard shortcuts hint */}
          {showKeyboardShortcuts && (
@@ -1580,33 +1942,41 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved }) => {
 
        {/* Scrollable Content Area */}
        <div className="flex-1 overflow-y-auto p-6 space-y-4">
-         {Object.keys(assetTypes)
-           .filter(type => activeFilter === 'all' || activeFilter === type)
-           .map(assetType => renderAssetSection(assetType))}
-           
-         {/* Empty state when filtered */}
-         {activeFilter !== 'all' && !positions[activeFilter]?.length && (
-           <div className="text-center py-12">
-             <div className={`inline-flex p-4 rounded-full ${assetTypes[activeFilter].color.lightBg} mb-4`}>
-               {React.createElement(assetTypes[activeFilter].icon, {
-                 className: `w-8 h-8 ${assetTypes[activeFilter].color.text}`
-               })}
-             </div>
-             <p className="text-gray-600 mb-4">No {assetTypes[activeFilter].name.toLowerCase()} positions yet</p>
-             <button
-               onClick={() => {
-                 addNewRow(activeFilter);
-                 setExpandedSections(prev => ({ ...prev, [activeFilter]: true }));
-               }}
-               className={`
-                 inline-flex items-center px-4 py-2 rounded-lg font-medium transition-all duration-200
-                 ${assetTypes[activeFilter].color.bg} text-white hover:shadow-md hover:scale-105
-               `}
-             >
-               <Plus className="w-4 h-4 mr-2" />
-               Add {assetTypes[activeFilter].name}
-             </button>
-           </div>
+         {viewMode ? (
+           // Account View
+           renderByAccount()
+         ) : (
+           // Asset Type View
+           <>
+             {Object.keys(assetTypes)
+               .filter(type => activeFilter === 'all' || activeFilter === type)
+               .map(assetType => renderAssetSection(assetType))}
+               
+             {/* Empty state when filtered */}
+             {activeFilter !== 'all' && !positions[activeFilter]?.length && (
+               <div className="text-center py-12">
+                 <div className={`inline-flex p-4 rounded-full ${assetTypes[activeFilter].color.lightBg} mb-4`}>
+                   {React.createElement(assetTypes[activeFilter].icon, {
+                     className: `w-8 h-8 ${assetTypes[activeFilter].color.text}`
+                   })}
+                 </div>
+                 <p className="text-gray-600 mb-4">No {assetTypes[activeFilter].name.toLowerCase()} positions yet</p>
+                 <button
+                   onClick={() => {
+                     addNewRow(activeFilter);
+                     setExpandedSections(prev => ({ ...prev, [activeFilter]: true }));
+                   }}
+                   className={`
+                     inline-flex items-center px-4 py-2 rounded-lg font-medium transition-all duration-200
+                     ${assetTypes[activeFilter].color.bg} text-white hover:shadow-md hover:scale-105
+                   `}
+                 >
+                   <Plus className="w-4 h-4 mr-2" />
+                   Add {assetTypes[activeFilter].name}
+                 </button>
+               </div>
+             )}
+           </>
          )}
        </div>
 
