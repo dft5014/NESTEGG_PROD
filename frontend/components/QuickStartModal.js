@@ -680,16 +680,7 @@ const QuickStartModal = ({ isOpen, onClose }) => {
         }, 200);
     };
 
-    // Group existing accounts by category
-    const accountsByCategory = useMemo(() => {
-        const grouped = {};
-        ACCOUNT_CATEGORIES.forEach(cat => {
-            grouped[cat.id] = existingAccounts.filter(acc => 
-                acc.account_category?.toLowerCase() === cat.id.toLowerCase()
-            );
-        });
-        return grouped;
-    }, [existingAccounts]);
+
 
     const renderOverview = () => (
         <div className="space-y-6 animate-fadeIn">
