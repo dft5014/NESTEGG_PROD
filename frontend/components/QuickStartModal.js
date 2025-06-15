@@ -53,6 +53,7 @@ import {
 } from 'lucide-react';
 import { fetchWithAuth } from '@/utils/api';
 import { popularBrokerages } from '@/utils/constants';
+import { fetchAllAccounts } from '@/utils/apimethods/accountMethods';
 import { AddQuickPositionModal } from '@/components/modals/AddQuickPositionModal';
 
 // Account categories matching AccountModal and database constraints
@@ -427,18 +428,12 @@ const QuickStartModal = ({ isOpen, onClose }) => {
         }
     }, [activeTab, isOpen]);
 
-    // Replace the fetchExistingAccounts function with this:
     const fetchExistingAccounts = async () => {
         setIsLoadingAccounts(true);
         try {
-            const response = await fetchWithAuth('/accounts');
-            if (response.ok) {
-                const data = await response.json();
-                // Ensure data is always an array
-                setExistingAccounts(Array.isArray(data) ? data : []);
-            } else {
-                setExistingAccounts([]);
-            }
+            const data = await fetchAllAccounts();
+            // Ensure data is always an array
+            setExistingAccounts(Array.isArray(data) ? data : []);
         } catch (error) {
             console.error('Error fetching accounts:', error);
             setExistingAccounts([]);
