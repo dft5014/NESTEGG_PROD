@@ -418,6 +418,8 @@ const QuickStartModal = ({ isOpen, onClose }) => {
     const [showAccountsDropdown, setShowAccountsDropdown] = useState(false);
     const [importedAccounts, setImportedAccounts] = useState([]);
     const [importedPositions, setImportedPositions] = useState(0);
+    const [existingAccounts, setExistingAccounts] = useState([]);
+
 
     // Fetch existing accounts
     useEffect(() => {
@@ -426,20 +428,39 @@ const QuickStartModal = ({ isOpen, onClose }) => {
         }
     }, [activeTab, isOpen]);
 
+    // Replace the fetchExistingAccounts function with this:
     const fetchExistingAccounts = async () => {
         setIsLoadingAccounts(true);
         try {
             const response = await fetchWithAuth('/accounts');
             if (response.ok) {
                 const data = await response.json();
-                setExistingAccounts(data);
+                // Ensure data is always an array
+                setExistingAccounts(Array.isArray(data) ? data : []);
+            } else {
+                setExistingAccounts([]);
             }
         } catch (error) {
             console.error('Error fetching accounts:', error);
+            setExistingAccounts([]);
         } finally {
             setIsLoadingAccounts(false);
         }
     };
+
+    // And update the accountsByCategory useMemo to be more defensive:
+    const accountsByCategory = useMemo(() => {
+        const grouped = {};
+        // Ensure existingAccounts is an array before processing
+        const accounts = Array.isArray(existingAccounts) ? existingAccounts : [];
+        
+        ACCOUNT_CATEGORIES.forEach(cat => {
+            grouped[cat.id] = accounts.filter(acc => 
+                acc?.account_category?.toLowerCase() === cat.id.toLowerCase()
+            );
+        });
+        return grouped;
+    }, [existingAccounts]);
 
     // Initialize with one empty account
     useEffect(() => {
