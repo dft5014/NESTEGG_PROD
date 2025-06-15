@@ -6683,12 +6683,15 @@ async def process_accounts_excel(file_content: bytes, user_id: int, db: Database
             
             # Validate required fields
             if not all([account_name, institution, category, account_type]):
-                errors.append(f"Row {row_num}: All fields are required. Missing: {', '.join([
-                    'Account Name' if not account_name else '',
-                    'Institution' if not institution else '',
-                    'Category' if not category else '',
-                    'Type' if not account_type else ''
-                ]).strip(', ')}")
+                errors.append(
+                    f"Row {row_num}: All fields are required. Missing: "
+                    f"{', '.join(filter(None, [
+                        'Account Name' if not account_name else '',
+                        'Institution' if not institution else '',
+                        'Category' if not category else '',
+                        'Type' if not account_type else ''
+                    ]))}"
+                )
                 row_num += 1
                 continue
             
