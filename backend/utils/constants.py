@@ -3,8 +3,7 @@
 Constants extracted from frontend constants.js
 """
 
-# backend/utils/constants.py
-
+# Institution list
 INSTITUTION_LIST = [
     # Traditional Brokerages & Investment Firms
     "Vanguard",
@@ -86,15 +85,7 @@ INSTITUTION_LIST = [
     "Self-Directed/Custom"
 ]
 
-# backend/utils/constants.py
-
-# Flatten all account types into a single list (for Excel validation)
-ACCOUNT_TYPES = []
-for types in ACCOUNT_TYPES_BY_CATEGORY.values():
-    ACCOUNT_TYPES.extend(types)
-# Remove duplicates while preserving order
-ACCOUNT_TYPES = list(dict.fromkeys(ACCOUNT_TYPES))
-
+# Account categories
 ACCOUNT_CATEGORIES = [
     "brokerage",
     "retirement", 
@@ -159,6 +150,15 @@ ACCOUNT_TYPES_BY_CATEGORY = {
     ]
 }
 
+# Flatten all account types into a single list (for Excel validation)
+# THIS MUST COME AFTER ACCOUNT_TYPES_BY_CATEGORY IS DEFINED
+ACCOUNT_TYPES = []
+for types in ACCOUNT_TYPES_BY_CATEGORY.values():
+    ACCOUNT_TYPES.extend(types)
+# Remove duplicates while preserving order
+ACCOUNT_TYPES = list(dict.fromkeys(ACCOUNT_TYPES))
+
+# Other constants
 METAL_UNITS = ['oz', 'g', 'kg', 'lb', 'item']
 
 CASH_TYPES = ['Savings', 'Checking', 'Money Market', 'CD', 'Treasury', 'Other']
@@ -168,4 +168,3 @@ INTEREST_PERIODS = ['daily', 'monthly', 'quarterly', 'annually', 'at_maturity', 
 CRYPTO_STORAGE_TYPES = ['Exchange', 'Hot Wallet', 'Cold Wallet', 'DeFi Protocol']
 
 PROPERTY_TYPES = ['Primary Home', 'Rental', 'Vacation Home', 'Commercial', 'Land', 'REIT (Physical)', 'Other']
-
