@@ -6529,16 +6529,10 @@ async def download_positions_template(current_user: dict = Depends(get_current_u
         )
 
 # Bulk Import Endpoints (placeholder for future implementation)
-import openpyxl
-import io
-from typing import List, Dict, Tuple
-from fastapi import HTTPException, status
-
 @app.post("/api/bulk-import/accounts")
 async def bulk_import_accounts(
     file: UploadFile = File(...),
-    current_user: dict = Depends(get_current_user),
-    db: Database = Depends(get_database)
+    current_user: dict = Depends(get_current_user)
 ):
     """
     Import multiple accounts from an Excel template.
@@ -6555,75 +6549,17 @@ async def bulk_import_accounts(
         # Read file content
         contents = await file.read()
         
-        # Process the Excel file
-        accounts_to_create, errors = await process_accounts_excel(contents, current_user['id'], db)
+        # TODO: Implement the actual import logic
+        # 1. Parse Excel file
+        # 2. Validate data
+        # 3. Check for duplicates
+        # 4. Create accounts in database
+        # 5. Return results
         
-        # If there are validation errors, return them
-        if errors:
-            return {
-                "success": False,
-                "message": "Validation errors found",
-                "errors": errors,
-                "accounts_created": 0
-            }
-        
-        # Create accounts
-        created_accounts = []
-        failed_accounts = []
-        
-        for account_data in accounts_to_create:
-            try:
-                # Check for duplicate account name
-                existing = await db.fetch_one(
-                    query="SELECT id FROM accounts WHERE user_id = :user_id AND account_name = :account_name",
-                    values={
-                        "user_id": current_user['id'],
-                        "account_name": account_data['account_name']
-                    }
-                )
-                
-                if existing:
-                    failed_accounts.append({
-                        "account_name": account_data['account_name'],
-                        "error": f"Account '{account_data['account_name']}' already exists"
-                    })
-                    continue
-                
-                # Insert account
-                query = """
-                INSERT INTO accounts (user_id, account_name, institution, type, account_category)
-                VALUES (:user_id, :account_name, :institution, :type, :account_category)
-                RETURNING id, account_name
-                """
-                
-                result = await db.fetch_one(
-                    query=query,
-                    values={
-                        "user_id": current_user['id'],
-                        **account_data
-                    }
-                )
-                
-                created_accounts.append({
-                    "id": result['id'],
-                    "account_name": result['account_name']
-                })
-                
-            except Exception as e:
-                logger.error(f"Error creating account {account_data['account_name']}: {str(e)}")
-                failed_accounts.append({
-                    "account_name": account_data['account_name'],
-                    "error": str(e)
-                })
-        
-        # Return results
         return {
-            "success": len(created_accounts) > 0,
-            "message": f"Created {len(created_accounts)} accounts successfully",
-            "accounts_created": len(created_accounts),
-            "created_accounts": created_accounts,
-            "failed_accounts": failed_accounts,
-            "total_processed": len(accounts_to_create)
+            "success": True,
+            "message": "Bulk import functionality coming soon",
+            "filename": file.filename
         }
         
     except HTTPException:
@@ -6633,177 +6569,6 @@ async def bulk_import_accounts(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to import accounts: {str(e)}"
-        )
-
-
-async def process_accounts_excel(file_content: bytes, user_id: int, db: Database) -> Tuple[List[Dict], List[str]]:
-    """
-    Process uploaded Excel file and extract account data.
-    Returns tuple of (accounts_to_create, errors)
-    """
-    accounts_to_create = []
-    errors = []
-    
-    try:
-        # Load workbook
-        wb = openpyxl.load_workbook(io.BytesIO(file_content), data_only=True)
-        
-        # Check if Accounts sheet exists
-        if "Accounts" not in wb.sheetnames:
-            errors.append("Excel file must contain an 'Accounts' sheet")
-            return [], errors
-        
-        accounts_ws = wb["Accounts"]
-        
-        # Process rows (skip header and sample rows if not modified)
-        row_num = 2  # Start after header
-        sample_account_names = ["My 401k", "Joint Brokerage", "Emergency Fund", "Bitcoin Wallet"]
-        
-        for row in accounts_ws.iter_rows(min_row=2, values_only=True):
-            # Extract values - matching our template column order
-            account_name = row[0] if row[0] else None
-            institution = row[1] if len(row) > 1 and row[1] else None
-            category = row[2] if len(row) > 2 and row[2] else None
-            account_type = row[3] if len(row) > 3 and row[3] else None
-            
-            # Skip empty rows
-            if not account_name:
-                continue
-                
-            # Skip sample data if unchanged
-            if account_name in sample_account_names and row_num <= 5:
-                row_num += 1
-                continue
-            
-            # Clean and validate data
-            account_name = str(account_name).strip()
-            institution = str(institution).strip() if institution else ""
-            category = str(category).strip().lower() if category else ""
-            account_type = str(account_type).strip() if account_type else ""
-            
-            # Validate required fields
-            if not all([account_name, institution, category, account_type]):
-                errors.append(
-                    f"Row {row_num}: All fields are required. Missing: "
-                    f"{', '.join(filter(None, [
-                        'Account Name' if not account_name else '',
-                        'Institution' if not institution else '',
-                        'Category' if not category else '',
-                        'Type' if not account_type else ''
-                    ]))}"
-                )
-                row_num += 1
-                continue
-            
-            # Validate category
-            valid_categories = ["brokerage", "retirement", "cash", "cryptocurrency", "metals", "real_estate"]
-            if category not in valid_categories:
-                # Try to match with proper casing
-                category_lower = category.lower().replace(' ', '_')
-                if category_lower in valid_categories:
-                    category = category_lower
-                else:
-                    errors.append(f"Row {row_num}: Invalid category '{category}'. Must be one of: {', '.join(valid_categories)}")
-                    row_num += 1
-                    continue
-            
-            # Validate account type for category
-            from backend.utils.constants import ACCOUNT_TYPES_BY_CATEGORY
-            valid_types = ACCOUNT_TYPES_BY_CATEGORY.get(category, [])
-            
-            if account_type not in valid_types:
-                errors.append(f"Row {row_num}: Invalid account type '{account_type}' for category '{category}'. Valid types: {', '.join(valid_types)}")
-                row_num += 1
-                continue
-            
-            # Check for duplicate within the file
-            if any(acc['account_name'] == account_name for acc in accounts_to_create):
-                errors.append(f"Row {row_num}: Duplicate account name '{account_name}' found in file")
-                row_num += 1
-                continue
-            
-            # Validate institution (just check it's not too long)
-            if len(institution) > 100:
-                errors.append(f"Row {row_num}: Institution name too long (max 100 characters)")
-                row_num += 1
-                continue
-            
-            # Add to creation list
-            accounts_to_create.append({
-                "account_name": account_name,
-                "institution": institution,
-                "account_category": category,
-                "type": account_type
-            })
-            
-            row_num += 1
-            
-            # Limit number of accounts per import
-            if len(accounts_to_create) >= 100:
-                errors.append("Maximum 100 accounts per import. Additional rows were skipped.")
-                break
-                
-    except Exception as e:
-        logger.error(f"Error parsing Excel file: {str(e)}")
-        errors.append(f"Error reading Excel file: {str(e)}")
-        
-    return accounts_to_create, errors
-
-
-# Also add a validation endpoint to preview what will be imported
-@app.post("/api/bulk-import/accounts/validate")
-async def validate_accounts_import(
-    file: UploadFile = File(...),
-    current_user: dict = Depends(get_current_user),
-    db: Database = Depends(get_database)
-):
-    """
-    Validate an accounts Excel file without actually importing.
-    Returns what would be imported and any errors.
-    """
-    try:
-        # Validate file type
-        if not file.filename.endswith(('.xlsx', '.xls')):
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="File must be an Excel file (.xlsx or .xls)"
-            )
-        
-        # Read file content
-        contents = await file.read()
-        
-        # Process the Excel file
-        accounts_to_create, errors = await process_accounts_excel(contents, current_user['id'], db)
-        
-        # Check for existing accounts
-        existing_accounts = []
-        for account in accounts_to_create:
-            existing = await db.fetch_one(
-                query="SELECT account_name FROM accounts WHERE user_id = :user_id AND account_name = :account_name",
-                values={
-                    "user_id": current_user['id'],
-                    "account_name": account['account_name']
-                }
-            )
-            if existing:
-                existing_accounts.append(account['account_name'])
-        
-        return {
-            "valid": len(errors) == 0 and len(existing_accounts) == 0,
-            "accounts_to_import": len(accounts_to_create),
-            "accounts": accounts_to_create,
-            "validation_errors": errors,
-            "existing_accounts": existing_accounts,
-            "message": "Ready to import" if len(errors) == 0 and len(existing_accounts) == 0 else "Please fix errors before importing"
-        }
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error validating account import: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to validate import: {str(e)}"
         )
 
 @app.post("/api/bulk-import/positions")
