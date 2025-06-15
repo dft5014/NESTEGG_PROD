@@ -686,7 +686,7 @@ const QuickStartModal = ({ isOpen, onClose }) => {
                         <Sparkles className="w-8 h-8 text-white animate-pulse" />
                     </div>
                 </div>
-                <h3 className="text-2xl font-bold text-gray-900 mb-2 mt-4">Quick Add</h3>
+                <h3 className="text-2xl font-bold text-gray-900 mb-2 mt-4">Quick Add to Your NestEgg Portfolio</h3>
                 <p className="text-gray-600 max-w-md mx-auto">
                     Build your portfolio in minutes with our streamlined process
                 </p>
@@ -768,7 +768,7 @@ const QuickStartModal = ({ isOpen, onClose }) => {
                     <div className="bg-gradient-to-br from-blue-50/50 to-purple-50/50 rounded-xl p-4 border border-gray-100">
                         <div className="flex items-center justify-between mb-4">
                             <h4 className="text-sm font-semibold text-gray-700 uppercase tracking-wider">
-                                Current Portfolio
+                                Current NestEgg Portfolio
                             </h4>
                             <button
                                 onClick={() => fetchExistingAccounts()}
@@ -889,19 +889,23 @@ const QuickStartModal = ({ isOpen, onClose }) => {
                 </div>
                 <h3 className="text-2xl font-bold text-gray-900 mb-2">Add Accounts</h3>
                 <p className="text-gray-600 max-w-md mx-auto">
-                    Choose how you'd like to add your accounts
+                    Choose how you'd like to add your accounts to your NestEgg portfolio
                 </p>
             </div>
 
-            <div className="grid md:grid-cols-2 gap-4">
+            <div className="grid md:grid-cols-12 gap-4">
                 <div 
-                    className="group relative bg-gradient-to-br from-indigo-50 to-indigo-100 p-6 rounded-xl cursor-pointer hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1"
+                    className="md:col-span-7 group relative bg-gradient-to-br from-indigo-50 to-indigo-100 p-6 rounded-xl cursor-pointer hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1"
                     onClick={() => setImportMethod('ui')}
                 >
                     <div className="absolute inset-0 bg-gradient-to-br from-indigo-600 to-indigo-700 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
                     <div className="relative z-10">
                         <div className="flex items-center justify-center w-12 h-12 bg-indigo-200 rounded-full mb-4 group-hover:bg-white/20 transition-colors">
                             <ListPlus className="w-6 h-6 text-indigo-700 group-hover:text-white" />
+                        </div>
+                        <div className="inline-flex items-center px-2 py-1 bg-green-100 text-green-700 text-xs font-semibold rounded-full mb-3 group-hover:bg-white/20 group-hover:text-white transition-colors">
+                            <Star className="w-3 h-3 mr-1" />
+                            Recommended
                         </div>
                         <h4 className="text-xl font-semibold text-gray-900 group-hover:text-white mb-2 transition-colors">
                             Quick Add UI
@@ -927,7 +931,7 @@ const QuickStartModal = ({ isOpen, onClose }) => {
                 </div>
 
                 <div 
-                    className="group relative bg-gradient-to-br from-green-50 to-green-100 p-6 rounded-xl cursor-pointer hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1"
+                    className="md:col-span-5 group relative bg-gradient-to-br from-green-50 to-green-100 p-6 rounded-xl cursor-pointer hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1"
                     onClick={() => setImportMethod('excel')}
                 >
                     <div className="absolute inset-0 bg-gradient-to-br from-green-600 to-green-700 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
@@ -982,7 +986,7 @@ const QuickStartModal = ({ isOpen, onClose }) => {
                 </p>
             </div>
 
-            <div className="grid md:grid-cols-2 gap-4">
+            <div className="grid md:grid-cols-12 gap-4">
                 <div 
                     className="group relative bg-gradient-to-br from-purple-50 to-purple-100 p-6 rounded-xl cursor-pointer hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1"
                     onClick={() => setImportMethod('ui')}
@@ -991,6 +995,10 @@ const QuickStartModal = ({ isOpen, onClose }) => {
                     <div className="relative z-10">
                         <div className="flex items-center justify-center w-12 h-12 bg-purple-200 rounded-full mb-4 group-hover:bg-white/20 transition-colors">
                             <ListPlus className="w-6 h-6 text-purple-700 group-hover:text-white" />
+                        </div>
+                        <div className="inline-flex items-center px-2 py-1 bg-green-100 text-green-700 text-xs font-semibold rounded-full mb-3 group-hover:bg-white/20 group-hover:text-white transition-colors">
+                            <Star className="w-3 h-3 mr-1" />
+                            Recommended
                         </div>
                         <h4 className="text-xl font-semibold text-gray-900 group-hover:text-white mb-2 transition-colors">
                             Quick Add Positions
