@@ -418,7 +418,6 @@ const QuickStartModal = ({ isOpen, onClose }) => {
     const [showAccountsDropdown, setShowAccountsDropdown] = useState(false);
     const [importedAccounts, setImportedAccounts] = useState([]);
     const [importedPositions, setImportedPositions] = useState(0);
-    const [existingAccounts, setExistingAccounts] = useState([]);
 
 
     // Fetch existing accounts
