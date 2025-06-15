@@ -927,3 +927,26 @@ body {
     background-size: 200% 100%;
     animation: shimmer 3s ease-in-out infinite;
 }
+
+/* Quick Start Modal - Ensure it appears above sidebar */
+.quickstart-modal-overlay {
+  z-index: 9999 !important;
+}
+
+.quickstart-modal-content {
+  z-index: 10000 !important;
+}
+
+/* Hide sidebar collapse button when any modal is open */
+body:has(.quickstart-modal-overlay) .sidebar-collapse-btn,
+body:has(.quickstart-modal-overlay) [class*="sidebar-toggle"],
+body:has(.quickstart-modal-overlay) [class*="sidebar-button"] {
+  z-index: 1 !important;
+}
+
+/* Alternative approach if :has() is not supported */
+.modal-open .sidebar-collapse-btn,
+.modal-open [class*="sidebar-toggle"],
+.modal-open [class*="sidebar-button"] {
+  z-index: 1 !important;
+}

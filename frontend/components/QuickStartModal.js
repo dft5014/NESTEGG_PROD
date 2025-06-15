@@ -1800,16 +1800,16 @@ const QuickStartModal = ({ isOpen, onClose }) => {
   if (!isOpen) return null;
 
   return (
-      <div className="fixed inset-0 z-[100000] overflow-y-auto">
+      <div className="fixed inset-0 z-[100000] overflow-y-auto quickstart-modal-overlay">
           <div className="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center">
               <div 
-                  className="fixed inset-0 transition-opacity duration-300 ease-out"
+                  className="fixed inset-0 transition-opacity duration-300 ease-out z-[99999]"
                   onClick={onClose}
               >
                   <div className="absolute inset-0 bg-gray-900 opacity-75"></div>
               </div>
 
-              <div className="relative inline-block w-full max-w-5xl bg-white rounded-2xl shadow-2xl transform transition-all duration-300 ease-out">
+              <div className="relative inline-block w-full max-w-5xl bg-white rounded-2xl shadow-2xl transform transition-all duration-300 ease-out z-[100001]">
                   <div className="absolute top-4 right-4 z-10">
                       <button
                           onClick={onClose}
