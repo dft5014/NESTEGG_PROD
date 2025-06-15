@@ -88,6 +88,13 @@ INSTITUTION_LIST = [
 
 # backend/utils/constants.py
 
+# Flatten all account types into a single list (for Excel validation)
+ACCOUNT_TYPES = []
+for types in ACCOUNT_TYPES_BY_CATEGORY.values():
+    ACCOUNT_TYPES.extend(types)
+# Remove duplicates while preserving order
+ACCOUNT_TYPES = list(dict.fromkeys(ACCOUNT_TYPES))
+
 ACCOUNT_CATEGORIES = [
     "brokerage",
     "retirement", 
