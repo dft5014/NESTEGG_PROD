@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import Head from 'next/head';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
-import { motion, AnimatePresence, useScroll, useTransform, useSpring, useMotionValue } from 'framer-motion';
+import { motion, AnimatePresence, useScroll, useTransform, useSpring } from 'framer-motion';
 import { 
   DollarSign, TrendingUp, TrendingDown, Percent, Layers, 
   ArrowUp, ArrowDown, BarChart4, LineChart, PieChart as PieChartIcon,
@@ -39,98 +39,80 @@ export default function PositionsPage() {
   const [selectedTimeframe, setSelectedTimeframe] = useState('1m');
   const [hoveredPosition, setHoveredPosition] = useState(null);
   const [selectedSector, setSelectedSector] = useState(null);
-  const [viewMode, setViewMode] = useState('grid'); // grid, list, cards
+  const [viewMode, setViewMode] = useState('table'); // table, grid, cards
   const containerRef = useRef(null);
   
   const router = useRouter();
-  const mouseX = useMotionValue(0);
-  const mouseY = useMotionValue(0);
   
-  const { scrollYProgress } = useScroll({
-    target: containerRef,
-    offset: ["start start", "end start"]
-  });
-
-  const headerY = useTransform(scrollYProgress, [0, 0.2], [0, -100]);
-  const headerOpacity = useTransform(scrollYProgress, [0, 0.2], [1, 0]);
-  
-  // Enhanced color schemes with gradients
+  // Simplified color schemes
   const assetTypeConfig = {
     'security': { 
-      icon: <LineChart className="w-5 h-5" />, 
-      gradient: 'from-blue-500 to-indigo-600',
-      color: '#4f46e5',
-      bgGradient: 'from-blue-500/20 to-indigo-600/20'
+      icon: <LineChart className="w-4 h-4" />, 
+      color: '#2563eb',
+      bgColor: 'bg-blue-500/10'
     },
     'cash': { 
-      icon: <Dollar className="w-5 h-5" />, 
-      gradient: 'from-emerald-500 to-green-600',
+      icon: <Dollar className="w-4 h-4" />, 
       color: '#10b981',
-      bgGradient: 'from-emerald-500/20 to-green-600/20'
+      bgColor: 'bg-emerald-500/10'
     },
     'crypto': { 
-      icon: <Bitcoin className="w-5 h-5" />, 
-      gradient: 'from-purple-500 to-pink-600',
+      icon: <Bitcoin className="w-4 h-4" />, 
       color: '#8b5cf6',
-      bgGradient: 'from-purple-500/20 to-pink-600/20'
+      bgColor: 'bg-purple-500/10'
     },
     'bond': { 
-      icon: <Shield className="w-5 h-5" />, 
-      gradient: 'from-pink-500 to-rose-600',
+      icon: <Shield className="w-4 h-4" />, 
       color: '#ec4899',
-      bgGradient: 'from-pink-500/20 to-rose-600/20'
+      bgColor: 'bg-pink-500/10'
     },
     'metal': { 
-      icon: <Gem className="w-5 h-5" />, 
-      gradient: 'from-orange-500 to-amber-600',
+      icon: <Gem className="w-4 h-4" />, 
       color: '#f97316',
-      bgGradient: 'from-orange-500/20 to-amber-600/20'
+      bgColor: 'bg-orange-500/10'
     },
     'currency': { 
-      icon: <Globe className="w-5 h-5" />, 
-      gradient: 'from-cyan-500 to-blue-600',
+      icon: <Globe className="w-4 h-4" />, 
       color: '#3b82f6',
-      bgGradient: 'from-cyan-500/20 to-blue-600/20'
+      bgColor: 'bg-blue-500/10'
     },
     'realestate': { 
-      icon: <Home className="w-5 h-5" />, 
-      gradient: 'from-red-500 to-pink-600',
+      icon: <Home className="w-4 h-4" />, 
       color: '#ef4444',
-      bgGradient: 'from-red-500/20 to-pink-600/20'
+      bgColor: 'bg-red-500/10'
     },
     'other': { 
-      icon: <Layers className="w-5 h-5" />, 
-      gradient: 'from-gray-500 to-gray-700',
+      icon: <Layers className="w-4 h-4" />, 
       color: '#6b7280',
-      bgGradient: 'from-gray-500/20 to-gray-700/20'
+      bgColor: 'bg-gray-500/10'
     }
   };
   
-  // Enhanced sector colors with gradients
-  const sectorGradients = {
-    'Technology': 'from-blue-500 to-indigo-600',
-    'Financial Services': 'from-green-500 to-emerald-600',
-    'Healthcare': 'from-red-500 to-pink-600',
-    'Consumer Cyclical': 'from-orange-500 to-amber-600',
-    'Communication Services': 'from-purple-500 to-pink-600',
-    'Industrials': 'from-gray-500 to-slate-600',
-    'Consumer Defensive': 'from-teal-500 to-cyan-600',
-    'Energy': 'from-yellow-500 to-orange-600',
-    'Basic Materials': 'from-rose-500 to-red-600',
-    'Real Estate': 'from-lime-500 to-green-600',
-    'Utilities': 'from-sky-500 to-blue-600',
-    'Unknown': 'from-gray-400 to-gray-600'
+  // Simplified sector colors
+  const sectorColors = {
+    'Technology': '#2563eb',
+    'Financial Services': '#10b981',
+    'Healthcare': '#ef4444',
+    'Consumer Cyclical': '#f97316',
+    'Communication Services': '#8b5cf6',
+    'Industrials': '#6b7280',
+    'Consumer Defensive': '#14b8a6',
+    'Energy': '#f59e0b',
+    'Basic Materials': '#f43f5e',
+    'Real Estate': '#84cc16',
+    'Utilities': '#0ea5e9',
+    'Unknown': '#9ca3af'
   };
   
-  // Enhanced filter options with icons
+  // Filter options with icons
   const filterOptions = [
-    { id: 'all', label: 'All Positions', icon: <Layers className="w-4 h-4" /> },
-    { id: 'security', label: 'Securities', icon: <LineChart className="w-4 h-4" /> },
-    { id: 'crypto', label: 'Crypto', icon: <Bitcoin className="w-4 h-4" /> },
-    { id: 'metal', label: 'Metals', icon: <Gem className="w-4 h-4" /> },
-    { id: 'realestate', label: 'Real Estate', icon: <Home className="w-4 h-4" /> },
-    { id: 'gainers', label: 'Gainers', icon: <TrendingUp className="w-4 h-4" /> },
-    { id: 'losers', label: 'Losers', icon: <TrendingDown className="w-4 h-4" /> }
+    { id: 'all', label: 'All', icon: <Layers className="w-3 h-3" /> },
+    { id: 'security', label: 'Securities', icon: <LineChart className="w-3 h-3" /> },
+    { id: 'crypto', label: 'Crypto', icon: <Bitcoin className="w-3 h-3" /> },
+    { id: 'metal', label: 'Metals', icon: <Gem className="w-3 h-3" /> },
+    { id: 'realestate', label: 'Real Estate', icon: <Home className="w-3 h-3" /> },
+    { id: 'gainers', label: 'Gainers', icon: <TrendingUp className="w-3 h-3" /> },
+    { id: 'losers', label: 'Losers', icon: <TrendingDown className="w-3 h-3" /> }
   ];
   
   useEffect(() => {
@@ -142,16 +124,6 @@ export default function PositionsPage() {
       loadPortfolioData();
     }
   }, [selectedTimeframe]);
-
-  // Mouse tracking for parallax effects
-  useEffect(() => {
-    const handleMouseMove = (e) => {
-      mouseX.set(e.clientX);
-      mouseY.set(e.clientY);
-    };
-    window.addEventListener('mousemove', handleMouseMove);
-    return () => window.removeEventListener('mousemove', handleMouseMove);
-  }, []);
   
   // Load all data
   const loadAllData = async () => {
@@ -196,7 +168,7 @@ export default function PositionsPage() {
     }
   };
   
-  // Enhanced metrics calculation
+  // Calculate metrics
   const calculatePositionMetrics = (positions, portfolio) => {
     if (!positions || positions.length === 0) {
       return {
@@ -357,7 +329,7 @@ export default function PositionsPage() {
         name: sector,
         value: data.value,
         percentage: data.percentage,
-        gradient: sectorGradients[sector] || sectorGradients.Unknown
+        color: sectorColors[sector] || sectorColors.Unknown
       }));
     }
     
@@ -439,26 +411,22 @@ export default function PositionsPage() {
     });
   }, [positions, searchTerm, filterView]);
   
-  // Enhanced tooltip
+  // Simplified tooltip
   const CustomTooltip = ({ active, payload, label }) => {
     if (active && payload && payload.length) {
       const data = payload[0].payload;
       return (
-        <motion.div
-          initial={{ opacity: 0, scale: 0.9 }}
-          animate={{ opacity: 1, scale: 1 }}
-          className="bg-gray-900/95 backdrop-blur-xl p-4 shadow-2xl rounded-xl border border-white/10"
-        >
-          <p className="font-semibold text-white mb-2">{data.name || label}</p>
+        <div className="bg-gray-900 p-3 shadow-lg rounded-lg border border-gray-700">
+          <p className="font-medium text-white text-sm mb-1">{data.name || label}</p>
           {payload.map((entry, index) => (
-            <div key={index} className="flex justify-between items-center space-x-4">
-              <span className="text-gray-400 text-sm">{entry.name}:</span>
-              <span className="text-white font-medium">
+            <div key={index} className="flex justify-between items-center space-x-3">
+              <span className="text-gray-400 text-xs">{entry.name}:</span>
+              <span className="text-white text-sm font-medium">
                 {entry.name.includes('%') ? formatPercentage(entry.value) : formatCurrency(entry.value)}
               </span>
             </div>
           ))}
-        </motion.div>
+        </div>
       );
     }
     return null;
@@ -501,241 +469,135 @@ export default function PositionsPage() {
   };
 
   const currentPeriodChange = getCurrentPeriodChange();
-
-  // Subtle Card Component - removed 3D effects
-  const Card = ({ children, className = "" }) => {
-    return (
-      <motion.div
-        className={`relative ${className}`}
-        whileHover={{ y: -2 }}
-        transition={{ type: "spring", stiffness: 400, damping: 25 }}
-      >
-        {children}
-      </motion.div>
-    );
-  };
-
-  // Animated number component
-  const AnimatedNumber = ({ value, format = (v) => v, delay = 0 }) => {
-    const springValue = useSpring(0, { damping: 30, stiffness: 100 });
-    
-    useEffect(() => {
-      springValue.set(value || 0);
-    }, [value, springValue]);
-    
-    return (
-      <motion.span
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay }}
-      >
-        <motion.span>{springValue.get()}</motion.span>
-      </motion.span>
-    );
-  };
   
   return (
-    <div ref={containerRef} className="min-h-screen bg-black text-white overflow-hidden">
+    <div ref={containerRef} className="min-h-screen bg-black text-white">
       <Head>
         <title>NestEgg | Positions</title>
-        <meta name="description" content="Advanced portfolio positions management" />
+        <meta name="description" content="Portfolio positions management" />
         <link rel="icon" href="/favicon.ico" />
       </Head>
       
-      {/* Animated Background */}
+      {/* Simplified Background */}
       <div className="fixed inset-0 z-0">
-        <div className="absolute inset-0 bg-gradient-to-br from-indigo-900/20 via-black to-purple-900/20" />
-        
-        {/* Subtle gradient orbs */}
-        <div className="absolute top-20 left-20 w-[600px] h-[600px] bg-blue-500/5 rounded-full blur-3xl" />
-        <div className="absolute bottom-20 right-20 w-[800px] h-[800px] bg-purple-500/5 rounded-full blur-3xl" />
-        
-        {/* Grid pattern overlay */}
-        <div className="absolute inset-0 bg-[url('/grid.svg')] opacity-5" />
+        <div className="absolute inset-0 bg-gradient-to-br from-gray-900 via-black to-gray-900" />
       </div>
       
-      <div className="relative z-10 container mx-auto p-4 md:p-8">
-        {/* Animated Header */}
-        <motion.header 
-          className="mb-12"
-          style={{ y: headerY, opacity: headerOpacity }}
-        >
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6 }}
-            className="flex flex-col md:flex-row justify-between items-start md:items-center"
-          >
+      <div className="relative z-10 container mx-auto p-4 md:p-6">
+        {/* Header */}
+        <header className="mb-6">
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-center">
             <div>
-              <motion.h1 
-                className="text-5xl md:text-7xl font-bold mb-4 bg-gradient-to-r from-white via-blue-200 to-purple-200 bg-clip-text text-transparent"
-                initial={{ opacity: 0, x: -50 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ duration: 0.8, type: "spring" }}
-              >
-                Positions
-              </motion.h1>
-              <motion.p 
-                className="text-gray-400 text-lg flex items-center"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ delay: 0.2 }}
-              >
-                <Activity className="w-4 h-4 mr-2 animate-pulse" />
-                Real-time portfolio analysis
-              </motion.p>
+              <h1 className="text-3xl md:text-4xl font-bold mb-2">Positions</h1>
+              <p className="text-gray-400 text-sm flex items-center">
+                <Activity className="w-3 h-3 mr-2" />
+                Real-time portfolio tracking
+              </p>
             </div>
             
-            <motion.div 
-              className="flex items-center space-x-4 mt-6 md:mt-0"
-              initial={{ opacity: 0, x: 50 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ duration: 0.8, type: "spring" }}
-            >
-              {/* View Mode Toggle */}
-              <div className="flex bg-white/10 backdrop-blur-sm rounded-xl p-1">
-                {['grid', 'list', 'cards'].map((mode) => (
-                  <motion.button
-                    key={mode}
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                    onClick={() => setViewMode(mode)}
-                    className={`px-4 py-2 rounded-lg capitalize transition-all ${
-                      viewMode === mode 
-                        ? 'bg-white/20 text-white' 
-                        : 'text-gray-400 hover:text-white'
-                    }`}
-                  >
-                    {mode}
-                  </motion.button>
-                ))}
-              </div>
-              
-              <motion.button
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
+            <div className="flex items-center space-x-3 mt-4 md:mt-0">
+              <button
                 onClick={() => setShowValues(!showValues)}
-                className="p-3 bg-white/10 backdrop-blur-sm rounded-xl border border-white/20 hover:bg-white/20 transition-all"
+                className="p-2 bg-gray-800 rounded-lg border border-gray-700 hover:bg-gray-700 transition-colors"
               >
-                {showValues ? <Eye className="w-5 h-5" /> : <EyeOff className="w-5 h-5" />}
-              </motion.button>
+                {showValues ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
+              </button>
               
-              <motion.button
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
+              <button
                 onClick={handleRefreshPositions}
-                className="flex items-center px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 rounded-xl font-medium shadow-lg shadow-purple-500/25 hover:shadow-purple-500/40 transition-all"
+                className="flex items-center px-4 py-2 bg-blue-600 rounded-lg font-medium hover:bg-blue-700 transition-colors"
                 disabled={isRefreshing}
               >
-                <RefreshCw className={`w-5 h-5 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
+                <RefreshCw className={`w-4 h-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
                 Refresh
-              </motion.button>
+              </button>
               
               <AddPositionButton 
                 onPositionAdded={handlePositionAdded}
-                className="bg-gradient-to-r from-green-600 to-emerald-600 rounded-xl shadow-lg shadow-green-500/25 hover:shadow-green-500/40"
+                className="bg-green-600 rounded-lg hover:bg-green-700"
               />
-            </motion.div>
-          </motion.div>
-        </motion.header>
+            </div>
+          </div>
+        </header>
 
-        {/* Portfolio Performance Hero */}
-        <motion.section
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3 }}
-          className="mb-12"
-        >
-          <Card className="bg-gradient-to-br from-indigo-900/50 to-purple-900/50 backdrop-blur-xl rounded-3xl p-8 border border-white/10 shadow-2xl">
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        {/* Summary Section */}
+        <section className="mb-8">
+          <div className="bg-gray-900 rounded-xl p-6 border border-gray-800">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               {/* Main metrics */}
               <div className="lg:col-span-2">
-                <div className="flex items-center justify-between mb-4">
-                  <p className="text-gray-400">Portfolio Performance</p>
+                <div className="flex items-center justify-between mb-3">
+                  <p className="text-gray-400 text-sm">Portfolio Value</p>
                   <div className="flex items-center space-x-2">
                     {['1d', '1w', '1m', 'ytd'].map((period) => (
-                      <motion.button
+                      <button
                         key={period}
-                        whileHover={{ scale: 1.05 }}
-                        whileTap={{ scale: 0.95 }}
                         onClick={() => setSelectedTimeframe(period)}
-                        className={`px-3 py-1 rounded-lg text-sm font-medium transition-all ${
+                        className={`px-2 py-1 rounded text-xs font-medium transition-colors ${
                           selectedTimeframe === period
-                            ? 'bg-white/20 text-white'
-                            : 'bg-white/5 text-gray-400 hover:bg-white/10'
+                            ? 'bg-blue-600 text-white'
+                            : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
                         }`}
                       >
                         {period.toUpperCase()}
-                      </motion.button>
+                      </button>
                     ))}
                   </div>
                 </div>
                 
-                <motion.h2 
-                  className="text-5xl md:text-6xl font-bold mb-4"
-                  initial={{ scale: 0.5, opacity: 0 }}
-                  animate={{ scale: 1, opacity: 1 }}
-                  transition={{ delay: 0.5, type: "spring", stiffness: 100 }}
-                >
+                <h2 className="text-3xl font-bold mb-2">
                   {showValues ? formatCurrency(positionMetrics.totalValue) : '••••••'}
-                </motion.h2>
+                </h2>
                 
-                <div className="flex items-center space-x-6 mb-6">
-                  <motion.div
-                    initial={{ opacity: 0, x: -20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: 0.7 }}
-                    className="flex items-center space-x-2"
-                  >
-                    <div className={`flex items-center ${currentPeriodChange?.percent_change > 0 ? 'text-green-400' : 'text-red-400'}`}>
-                      {currentPeriodChange?.percent_change > 0 ? <ArrowUpRight className="w-6 h-6" /> : <ArrowDownRight className="w-6 h-6" />}
-                      <span className="text-3xl font-semibold">
+                <div className="flex items-center space-x-4 mb-4">
+                  <div className="flex items-center space-x-2">
+                    <div className={`flex items-center ${currentPeriodChange?.percent_change >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                      {currentPeriodChange?.percent_change >= 0 ? 
+                        <ArrowUpRight className="w-4 h-4" /> : 
+                        <ArrowDownRight className="w-4 h-4" />
+                      }
+                      <span className="text-lg font-medium">
                         {currentPeriodChange ? formatPercentage(currentPeriodChange.percent_change) : '0.00%'}
                       </span>
                     </div>
-                    <span className="text-gray-400">({selectedTimeframe})</span>
-                  </motion.div>
+                    <span className="text-gray-400 text-sm">({selectedTimeframe})</span>
+                  </div>
                   
-                  <motion.div
-                    initial={{ opacity: 0, x: -20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: 0.8 }}
-                    className="flex items-center space-x-2"
-                  >
-                    <span className="text-gray-400">Change:</span>
-                    <span className={`text-2xl font-semibold ${currentPeriodChange?.value_change > 0 ? 'text-green-400' : 'text-red-400'}`}>
+                  <div className="flex items-center space-x-2">
+                    <span className="text-gray-400 text-sm">Change:</span>
+                    <span className={`text-lg font-medium ${currentPeriodChange?.value_change >= 0 ? 'text-green-400' : 'text-red-400'}`}>
                       {showValues && currentPeriodChange ? formatCurrency(currentPeriodChange.value_change) : '••••'}
                     </span>
-                  </motion.div>
+                  </div>
                 </div>
                 
                 {/* Performance chart */}
-                <div className="h-48">
+                <div className="h-32">
                   <ResponsiveContainer width="100%" height="100%">
                     <AreaChart data={positionMetrics.performanceData?.slice(-30) || []}>
                       <defs>
                         <linearGradient id="performanceGradient" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.8}/>
-                          <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0}/>
+                          <stop offset="5%" stopColor="#2563eb" stopOpacity={0.3}/>
+                          <stop offset="95%" stopColor="#2563eb" stopOpacity={0}/>
                         </linearGradient>
                       </defs>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#374151" opacity={0.3} />
+                      <CartesianGrid strokeDasharray="3 3" stroke="#374151" opacity={0.2} />
                       <XAxis 
                         dataKey="date" 
-                        stroke="#9ca3af"
-                        tick={{ fontSize: 12 }}
+                        stroke="#6b7280"
+                        tick={{ fontSize: 10 }}
                         tickFormatter={(date) => new Date(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                       />
                       <YAxis 
-                        stroke="#9ca3af"
-                        tick={{ fontSize: 12 }}
+                        stroke="#6b7280"
+                        tick={{ fontSize: 10 }}
                         tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`}
                       />
                       <Tooltip content={<CustomTooltip />} />
                       <Area
                         type="monotone"
                         dataKey="value"
-                        stroke="#8b5cf6"
+                        stroke="#2563eb"
                         fillOpacity={1}
                         fill="url(#performanceGradient)"
                         strokeWidth={2}
@@ -745,489 +607,111 @@ export default function PositionsPage() {
                 </div>
               </div>
               
-              {/* Risk metrics */}
-              <div className="space-y-6">
-                <motion.div
-                  initial={{ opacity: 0, scale: 0.9 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  transition={{ delay: 0.9 }}
-                  className="bg-white/5 backdrop-blur-sm rounded-2xl p-6 border border-white/10"
-                >
-                  <h3 className="text-lg font-semibold mb-4 flex items-center">
-                    <Shield className="w-5 h-5 mr-2 text-blue-400" />
-                    Risk Analysis
-                  </h3>
-                  
-                  <div className="space-y-4">
-                    <div>
-                      <div className="flex justify-between items-center mb-1">
-                        <span className="text-gray-400 text-sm">Diversification Score</span>
-                        <span className="text-lg font-semibold">{positionMetrics.diversificationScore?.toFixed(0) || 0}/100</span>
-                      </div>
-                      <div className="w-full bg-white/10 rounded-full h-2 overflow-hidden">
-                        <motion.div
-                          className="h-full bg-gradient-to-r from-blue-500 to-green-500"
-                          initial={{ width: 0 }}
-                          animate={{ width: `${positionMetrics.diversificationScore || 0}%` }}
-                          transition={{ delay: 1, duration: 0.8 }}
-                        />
-                      </div>
-                    </div>
-                    
-                    <div className="flex justify-between items-center">
-                      <span className="text-gray-400 text-sm">Volatility</span>
-                      <span className="text-lg font-semibold text-orange-400">
-                        {positionMetrics.riskMetrics?.volatility?.toFixed(1) || 0}%
-                      </span>
-                    </div>
-                    
-                    <div className="flex justify-between items-center">
-                      <span className="text-gray-400 text-sm">Sharpe Ratio</span>
-                      <span className="text-lg font-semibold text-purple-400">
-                        {positionMetrics.riskMetrics?.sharpeRatio?.toFixed(2) || 0}
-                      </span>
-                    </div>
+              {/* Key metrics sidebar */}
+              <div className="space-y-4">
+                <div className="bg-gray-800 rounded-lg p-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-gray-400 text-sm">Total Gain/Loss</span>
+                    {positionMetrics.totalGainLoss >= 0 ? 
+                      <TrendingUp className="w-4 h-4 text-green-400" /> : 
+                      <TrendingDown className="w-4 h-4 text-red-400" />
+                    }
                   </div>
-                </motion.div>
-                
-                <motion.div
-                  initial={{ opacity: 0, scale: 0.9 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  transition={{ delay: 1 }}
-                  className="bg-white/5 backdrop-blur-sm rounded-2xl p-6 border border-white/10"
-                >
-                  <h3 className="text-lg font-semibold mb-4 flex items-center">
-                    <Trophy className="w-5 h-5 mr-2 text-yellow-400" />
-                    Income & Yield
-                  </h3>
-                  
-                  <div className="space-y-3">
-                    <div className="flex justify-between items-center">
-                      <span className="text-gray-400 text-sm">Annual Income</span>
-                      <span className="text-lg font-semibold text-green-400">
-                        {showValues ? formatCurrency(positionMetrics.annualIncome) : '••••'}
-                      </span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-gray-400 text-sm">Portfolio Yield</span>
-                      <span className="text-lg font-semibold text-blue-400">
-                        {formatPercentage(positionMetrics.yieldPercentage)}
-                      </span>
-                    </div>
-                  </div>
-                </motion.div>
-              </div>
-            </div>
-          </Card>
-        </motion.section>
-
-        {/* Key Metrics Cards */}
-        <motion.section
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.5 }}
-          className="grid grid-cols-2 md:grid-cols-4 gap-6 mb-12"
-        >
-          {[
-            {
-              title: "Total Positions",
-              value: positionMetrics.totalPositions,
-              icon: <Layers className="w-6 h-6" />,
-              gradient: "from-blue-500 to-indigo-600",
-              format: (v) => v?.toLocaleString() ?? '0',
-              subtitle: `${filteredPositions.length} visible`
-            },
-            {
-              title: "Total Gain/Loss",
-              value: positionMetrics.totalGainLoss,
-              icon: positionMetrics.totalGainLoss >= 0 ? <TrendingUp className="w-6 h-6" /> : <TrendingDown className="w-6 h-6" />,
-              gradient: positionMetrics.totalGainLoss >= 0 ? "from-green-500 to-emerald-600" : "from-red-500 to-pink-600",
-              format: (v) => showValues ? formatCurrency(v) : '••••',
-              subtitle: `${formatPercentage(positionMetrics.totalGainLossPercent)} return`
-            },
-            {
-              title: "Largest Position",
-              value: positionMetrics.largestPosition?.value,
-              icon: <Target className="w-6 h-6" />,
-              gradient: "from-purple-500 to-pink-600",
-              format: (v) => showValues ? formatCurrency(v) : '••••',
-              subtitle: positionMetrics.largestPosition?.name
-            },
-            {
-              title: "Best Performer",
-              value: positionMetrics.mostProfitablePosition?.gainLossPercent,
-              icon: <Flame className="w-6 h-6" />,
-              gradient: "from-orange-500 to-red-600",
-              format: (v) => `+${formatPercentage(v)}`,
-              subtitle: positionMetrics.mostProfitablePosition?.name
-            }
-          ].map((metric, index) => (
-            <motion.div
-              key={metric.title}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.6 + index * 0.1 }}
-            >
-              <Card className="h-full">
-                <div className="bg-white/5 backdrop-blur-sm rounded-2xl p-6 border border-white/10 h-full hover:bg-white/10 transition-all group">
-                  <div className="flex items-start justify-between mb-4">
-                    <motion.div 
-                      className={`p-3 rounded-xl bg-gradient-to-r ${metric.gradient} shadow-lg`}
-                      whileHover={{ scale: 1.05 }}
-                      transition={{ type: "spring", stiffness: 400 }}
-                    >
-                      {metric.icon}
-                    </motion.div>
-                    <motion.div
-                      initial={{ scale: 0 }}
-                      animate={{ scale: 1 }}
-                      transition={{ delay: 0.8 + index * 0.1, type: "spring" }}
-                      className="text-xs text-gray-400 bg-white/10 px-2 py-1 rounded-full"
-                    >
-                      Live
-                    </motion.div>
-                  </div>
-                  <h3 className="text-gray-400 text-sm mb-1">{metric.title}</h3>
-                  <p className="text-3xl font-bold mb-1">{metric.format(metric.value)}</p>
-                  {metric.subtitle && (
-                    <p className="text-sm text-gray-500 truncate">{metric.subtitle}</p>
-                  )}
-                </div>
-              </Card>
-            </motion.div>
-          ))}
-        </motion.section>
-
-        {/* Asset Allocation & Performance */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-12">
-          {/* Asset Allocation */}
-          <motion.section
-            initial={{ opacity: 0, x: -20 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ delay: 0.7 }}
-          >
-            <h3 className="text-2xl font-bold mb-6 flex items-center">
-              <PieChartIcon className="w-6 h-6 mr-2 text-purple-400" />
-              Asset Allocation
-            </h3>
-            
-            <Card className="h-full">
-              <div className="bg-white/5 backdrop-blur-sm rounded-2xl p-6 border border-white/10 h-full">
-                <div className="grid grid-cols-2 gap-6">
-                  {/* Pie Chart */}
-                  <div className="relative">
-                    <ResponsiveContainer width="100%" height={250}>
-                      <PieChart>
-                        <Pie
-                          data={positionMetrics.assetAllocation}
-                          cx="50%"
-                          cy="50%"
-                          innerRadius={60}
-                          outerRadius={90}
-                          paddingAngle={2}
-                          dataKey="value"
-                        >
-                          {positionMetrics.assetAllocation?.map((entry, index) => (
-                            <Cell 
-                              key={`cell-${index}`} 
-                              fill={entry.config.color}
-                              stroke="none"
-                            />
-                          ))}
-                        </Pie>
-                        <Tooltip content={<CustomTooltip />} />
-                      </PieChart>
-                    </ResponsiveContainer>
-                    
-                    {/* Center label */}
-                    <div className="absolute inset-0 flex items-center justify-center">
-                      <div className="text-center">
-                        <p className="text-3xl font-bold">{positionMetrics.assetAllocation?.length || 0}</p>
-                        <p className="text-sm text-gray-400">Asset Types</p>
-                      </div>
-                    </div>
-                  </div>
-                  
-                  {/* Legend */}
-                  <div className="space-y-3">
-                    {positionMetrics.assetAllocation?.map((asset, index) => (
-                      <motion.div
-                        key={asset.name}
-                        initial={{ opacity: 0, x: 20 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        transition={{ delay: 0.8 + index * 0.1 }}
-                        className="flex items-center justify-between p-3 bg-white/5 rounded-xl hover:bg-white/10 transition-all cursor-pointer group"
-                        whileHover={{ x: 5 }}
-                      >
-                        <div className="flex items-center space-x-3">
-                          <div className={`p-2 rounded-lg bg-gradient-to-r ${asset.config.bgGradient}`}>
-                            {asset.config.icon}
-                          </div>
-                          <span className="font-medium">{asset.name}</span>
-                        </div>
-                        <div className="text-right">
-                          <p className="font-semibold">{formatPercentage(asset.percentage)}</p>
-                          <p className="text-xs text-gray-400">
-                            {showValues ? formatCurrency(asset.value) : '••••'}
-                          </p>
-                        </div>
-                      </motion.div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </Card>
-          </motion.section>
-
-          {/* Top Movers */}
-          <motion.section
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ delay: 0.8 }}
-          >
-            <h3 className="text-2xl font-bold mb-6 flex items-center">
-              <Activity className="w-6 h-6 mr-2 text-green-400" />
-              Top Movers
-            </h3>
-            
-            <div className="space-y-4">
-              {/* Gainers */}
-                                    <Card>
-                <div className="bg-white/5 backdrop-blur-sm rounded-2xl p-6 border border-white/10">
-                  <h4 className="text-lg font-semibold mb-4 flex items-center">
-                    <TrendingUp className="w-5 h-5 mr-2 text-green-400" />
-                    Top Gainers
-                  </h4>
-                  
-                  <div className="space-y-3">
-                    {positionMetrics.topGainers?.slice(0, 3).map((position, index) => (
-                      <motion.div
-                        key={`${position.identifier}-${index}`}
-                        initial={{ opacity: 0, x: -20 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        transition={{ delay: 0.9 + index * 0.1 }}
-                        className="flex items-center justify-between p-3 bg-green-500/10 rounded-xl border border-green-500/20"
-                        whileHover={{ scale: 1.02, x: 5 }}
-                      >
-                        <div className="flex items-center space-x-3">
-                          <div className={`p-2 rounded-lg bg-gradient-to-r ${assetTypeConfig[position.assetType]?.bgGradient || assetTypeConfig.other.bgGradient}`}>
-                            {assetTypeConfig[position.assetType]?.icon || assetTypeConfig.other.icon}
-                          </div>
-                          <div>
-                            <p className="font-medium">{position.identifier}</p>
-                            <p className="text-sm text-gray-400">{position.name}</p>
-                          </div>
-                        </div>
-                        <div className="text-right">
-                          <p className="font-semibold text-green-400">+{formatPercentage(position.gainLossPercent)}</p>
-                          <p className="text-sm text-gray-400">
-                            {showValues ? formatCurrency(position.value) : '••••'}
-                          </p>
-                        </div>
-                      </motion.div>
-                    ))}
-                  </div>
-                </div>
-                                    </Card>
-              
-              {/* Losers */}
-              <Card>
-                <div className="flex items-center justify-between p-3 bg-red-500/10 rounded-xl border border-red-500/20"
-                  whileHover={{ scale: 1.02 }}>
-                  <h4 className="text-lg font-semibold mb-4 flex items-center">
-                    <TrendingDown className="w-5 h-5 mr-2 text-red-400" />
-                    Top Losers
-                  </h4>
-                  
-                  <div className="space-y-3">
-                    {positionMetrics.topLosers?.slice(0, 3).map((position, index) => (
-                      <motion.div
-                        key={`${position.identifier}-${index}`}
-                        initial={{ opacity: 0, x: -20 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        transition={{ delay: 1 + index * 0.1 }}
-                        className="flex items-center justify-between p-3 bg-red-500/10 rounded-xl border border-red-500/20"
-                        whileHover={{ scale: 1.02, x: 5 }}
-                      >
-                        <div className="flex items-center space-x-3">
-                          <div className={`p-2 rounded-lg bg-gradient-to-r ${assetTypeConfig[position.assetType]?.bgGradient || assetTypeConfig.other.bgGradient}`}>
-                            {assetTypeConfig[position.assetType]?.icon || assetTypeConfig.other.icon}
-                          </div>
-                          <div>
-                            <p className="font-medium">{position.identifier}</p>
-                            <p className="text-sm text-gray-400">{position.name}</p>
-                          </div>
-                        </div>
-                        <div className="text-right">
-                          <p className="font-semibold text-red-400">{formatPercentage(position.gainLossPercent)}</p>
-                          <p className="text-sm text-gray-400">
-                            {showValues ? formatCurrency(position.value) : '••••'}
-                          </p>
-                        </div>
-                      </motion.div>
-                    ))}
-                  </div>
-                </div>
-              </Card>
-            </div>
-          </motion.section>
-        </div>
-
-        {/* Sector Breakdown */}
-        <motion.section
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.9 }}
-          className="mb-12"
-        >
-          <h3 className="text-2xl font-bold mb-6 flex items-center">
-            <ChartBar className="w-6 h-6 mr-2 text-indigo-400" />
-            Sector Analysis
-          </h3>
-          
-          <Card>
-            <div className="bg-white/5 backdrop-blur-sm rounded-2xl p-6 border border-white/10">
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                {/* Bar Chart */}
-                <div className="h-[300px]">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart
-                      data={positionMetrics.sectorAllocation}
-                      layout="horizontal"
-                      margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
-                    >
-                      <CartesianGrid strokeDasharray="3 3" stroke="#374151" opacity={0.3} />
-                      <XAxis 
-                        dataKey="name" 
-                        stroke="#9ca3af"
-                        tick={{ fontSize: 12 }}
-                        angle={-45}
-                        textAnchor="end"
-                        height={80}
-                      />
-                      <YAxis 
-                        stroke="#9ca3af"
-                        tick={{ fontSize: 12 }}
-                        tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`}
-                      />
-                      <Tooltip content={<CustomTooltip />} />
-                      <Bar dataKey="value" radius={[8, 8, 0, 0]}>
-                        {positionMetrics.sectorAllocation?.map((entry, index) => (
-                          <Cell 
-                            key={`cell-${index}`} 
-                            fill={`url(#sectorGradient-${index})`}
-                          />
-                        ))}
-                      </Bar>
-                      <defs>
-                        {positionMetrics.sectorAllocation?.map((entry, index) => (
-                          <linearGradient key={`gradient-${index}`} id={`sectorGradient-${index}`} x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="5%" stopColor={getGradientColors(entry.gradient)[0]} stopOpacity={0.8}/>
-                            <stop offset="95%" stopColor={getGradientColors(entry.gradient)[1]} stopOpacity={0.6}/>
-                          </linearGradient>
-                        ))}
-                      </defs>
-                    </BarChart>
-                  </ResponsiveContainer>
+                  <p className={`text-xl font-bold ${positionMetrics.totalGainLoss >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                    {showValues ? formatCurrency(positionMetrics.totalGainLoss) : '••••'}
+                  </p>
+                  <p className="text-sm text-gray-400">
+                    {formatPercentage(positionMetrics.totalGainLossPercent)} return
+                  </p>
                 </div>
                 
-                {/* Sector Details */}
-                <div className="space-y-3">
-                  {positionMetrics.sectorAllocation?.slice(0, 5).map((sector, index) => (
-                    <motion.div
-                      key={sector.name}
-                      initial={{ opacity: 0, x: 20 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      transition={{ delay: 1 + index * 0.1 }}
-                      className="relative overflow-hidden rounded-xl"
-                      whileHover={{ scale: 1.02 }}
-                      onClick={() => setSelectedSector(selectedSector === sector.name ? null : sector.name)}
-                    >
-                      <div className="relative z-10 p-4 bg-white/5 backdrop-blur-sm border border-white/10 cursor-pointer">
-                        <div className="flex justify-between items-center">
-                          <div>
-                            <h4 className="font-medium">{sector.name}</h4>
-                            <p className="text-sm text-gray-400">
-                              {formatPercentage(sector.percentage)} of portfolio
-                            </p>
-                          </div>
-                          <div className="text-right">
-                            <p className="font-semibold">
-                              {showValues ? formatCurrency(sector.value) : '••••'}
-                            </p>
-                            <p className="text-xs text-gray-400">
-                              {sector.count} positions
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-                      
-                      {/* Background gradient bar */}
-                      <motion.div
-                        className={`absolute inset-0 bg-gradient-to-r ${sector.gradient} opacity-20`}
-                        initial={{ x: '-100%' }}
-                        animate={{ x: selectedSector === sector.name ? '0%' : '-100%' }}
-                        transition={{ duration: 0.3 }}
-                      />
-                    </motion.div>
-                  ))}
+                <div className="bg-gray-800 rounded-lg p-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-gray-400 text-sm">Income & Yield</span>
+                    <Trophy className="w-4 h-4 text-yellow-400" />
+                  </div>
+                  <p className="text-xl font-bold text-green-400">
+                    {showValues ? formatCurrency(positionMetrics.annualIncome) : '••••'}
+                  </p>
+                  <p className="text-sm text-gray-400">
+                    {formatPercentage(positionMetrics.yieldPercentage)} yield
+                  </p>
+                </div>
+                
+                <div className="bg-gray-800 rounded-lg p-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-gray-400 text-sm">Positions</span>
+                    <Layers className="w-4 h-4 text-blue-400" />
+                  </div>
+                  <p className="text-xl font-bold">{positionMetrics.totalPositions}</p>
+                  <p className="text-sm text-gray-400">{filteredPositions.length} visible</p>
                 </div>
               </div>
             </div>
-          </Card>
-        </motion.section>
+          </div>
+        </section>
 
         {/* Positions Table Section */}
-        <motion.section
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 1 }}
-          className="mb-12"
-        >
-          <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6">
-            <h3 className="text-2xl font-bold flex items-center">
-              <Wallet className="w-6 h-6 mr-2 text-blue-400" />
-              All Positions
+        <section className="mb-8">
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-4">
+            <h3 className="text-xl font-bold flex items-center">
+              <Wallet className="w-5 h-5 mr-2 text-blue-400" />
+              Positions
             </h3>
             
             {/* Filter and Search */}
-            <div className="flex flex-col md:flex-row space-y-4 md:space-y-0 md:space-x-4 mt-4 md:mt-0">
+            <div className="flex flex-col md:flex-row space-y-3 md:space-y-0 md:space-x-3 mt-3 md:mt-0">
+              {/* View Mode Toggle */}
+              <div className="flex bg-gray-800 rounded-lg p-1">
+                {['table', 'grid', 'cards'].map((mode) => (
+                  <button
+                    key={mode}
+                    onClick={() => setViewMode(mode)}
+                    className={`px-3 py-1 rounded text-sm capitalize transition-colors ${
+                      viewMode === mode 
+                        ? 'bg-gray-700 text-white' 
+                        : 'text-gray-400 hover:text-white'
+                    }`}
+                  >
+                    {mode}
+                  </button>
+                ))}
+              </div>
+              
               {/* Filter Pills */}
               <div className="flex flex-wrap gap-2">
                 {filterOptions.map(option => (
-                  <motion.button
+                  <button
                     key={option.id}
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
                     onClick={() => setFilterView(option.id)}
-                    className={`flex items-center px-4 py-2 rounded-xl text-sm font-medium transition-all ${
+                    className={`flex items-center px-3 py-1 rounded-lg text-sm font-medium transition-colors ${
                       filterView === option.id 
-                        ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg' 
-                        : 'bg-white/10 text-gray-300 hover:bg-white/20'
+                        ? 'bg-blue-600 text-white' 
+                        : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
                     }`}
                   >
                     {option.icon}
-                    <span className="ml-2">{option.label}</span>
-                  </motion.button>
+                    <span className="ml-1">{option.label}</span>
+                  </button>
                 ))}
               </div>
               
               {/* Search */}
               <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
                 <input
                   type="text"
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  placeholder="Search positions..."
-                  className="pl-10 pr-4 py-2 bg-white/10 backdrop-blur-sm border border-white/20 rounded-xl focus:outline-none focus:border-white/40 transition-all"
+                  placeholder="Search..."
+                  className="pl-9 pr-3 py-1 bg-gray-800 border border-gray-700 rounded-lg text-sm focus:outline-none focus:border-blue-600 transition-colors"
                 />
                 {searchTerm && (
                   <button
                     onClick={() => setSearchTerm('')}
-                    className="absolute right-3 top-1/2 transform -translate-y-1/2"
+                    className="absolute right-2 top-1/2 transform -translate-y-1/2"
                   >
-                    <X className="w-5 h-5 text-gray-400 hover:text-white" />
+                    <X className="w-4 h-4 text-gray-400 hover:text-white" />
                   </button>
                 )}
               </div>
@@ -1236,287 +720,309 @@ export default function PositionsPage() {
           
           {/* Filtered count */}
           {(filterView !== 'all' || searchTerm) && (
-            <motion.div
-              initial={{ opacity: 0, y: -10 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="mb-4 flex items-center text-sm text-gray-400"
-            >
-              <Filter className="w-4 h-4 mr-2" />
+            <div className="mb-3 flex items-center text-sm text-gray-400">
+              <Filter className="w-3 h-3 mr-2" />
               Showing {filteredPositions.length} of {positions.length} positions
               <button
                 onClick={() => {
                   setFilterView('all');
                   setSearchTerm('');
                 }}
-                className="ml-4 text-blue-400 hover:text-blue-300"
+                className="ml-3 text-blue-400 hover:text-blue-300"
               >
                 Clear filters
               </button>
-            </motion.div>
+            </div>
           )}
           
-          <div className="bg-white/5 backdrop-blur-sm rounded-2xl border border-white/10 overflow-hidden">
+          <div className="bg-gray-900 rounded-xl border border-gray-800 overflow-hidden">
             <UnifiedGroupedPositionsTable 
               title="" 
               filteredPositions={filteredPositions} 
               onPositionAdded={handlePositionAdded}
+              viewMode={viewMode}
             />
           </div>
-        </motion.section>
+        </section>
 
-        {/* AI Insights Section */}
-        <motion.section
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 1.1 }}
-          className="mb-12"
-        >
-          <h3 className="text-2xl font-bold mb-6 flex items-center">
-            <Cpu className="w-6 h-6 mr-2 text-purple-400" />
-            AI-Powered Insights
-          </h3>
-          
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {[
-              {
-                title: "Portfolio Health",
-                icon: <Activity className="w-6 h-6" />,
-                score: positionMetrics.diversificationScore || 0,
-                status: positionMetrics.diversificationScore > 70 ? "Excellent" : positionMetrics.diversificationScore > 40 ? "Good" : "Needs Attention",
-                color: positionMetrics.diversificationScore > 70 ? "green" : positionMetrics.diversificationScore > 40 ? "yellow" : "red",
-                insights: [
-                  `${positionMetrics.totalPositions} total positions`,
-                  `${positionMetrics.assetAllocation?.length || 0} asset types`,
-                  `Concentration risk: ${positionMetrics.largestPosition?.percentage?.toFixed(1) || 0}%`
-                ]
-              },
-              {
-                title: "Performance Analysis",
-                icon: <TrendingUp className="w-6 h-6" />,
-                score: Math.min(100, Math.max(0, 50 + (positionMetrics.totalGainLossPercent || 0))),
-                status: positionMetrics.totalGainLossPercent > 10 ? "Outperforming" : positionMetrics.totalGainLossPercent > 0 ? "Positive" : "Underperforming",
-                color: positionMetrics.totalGainLossPercent > 10 ? "green" : positionMetrics.totalGainLossPercent > 0 ? "blue" : "red",
-                insights: [
-                  `${formatPercentage(positionMetrics.totalGainLossPercent)} total return`,
-                  `${positionMetrics.topGainers?.length || 0} winning positions`,
-                  `Best: ${formatPercentage(positionMetrics.mostProfitablePosition?.gainLossPercent || 0)}`
-                ]
-              },
-              {
-                title: "Risk Assessment",
-                icon: <Shield className="w-6 h-6" />,
-                score: Math.max(0, 100 - (positionMetrics.riskMetrics?.volatility || 0)),
-                status: positionMetrics.riskMetrics?.volatility < 15 ? "Low Risk" : positionMetrics.riskMetrics?.volatility < 25 ? "Moderate" : "High Risk",
-                color: positionMetrics.riskMetrics?.volatility < 15 ? "green" : positionMetrics.riskMetrics?.volatility < 25 ? "yellow" : "red",
-                insights: [
-                  `${positionMetrics.riskMetrics?.volatility?.toFixed(1) || 0}% volatility`,
-                  `Sharpe: ${positionMetrics.riskMetrics?.sharpeRatio?.toFixed(2) || 0}`,
-                  `Diversification: ${positionMetrics.diversificationScore?.toFixed(0) || 0}/100`
-                ]
-              }
-            ].map((insight, index) => (
-              <motion.div
-                key={insight.title}
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ delay: 1.2 + index * 0.1 }}
-              >
-                                  <Card>
-                  <div className="bg-white/5 backdrop-blur-sm rounded-2xl p-6 border border-white/10 h-full">
-                    <div className="flex items-center justify-between mb-4">
-                      <h4 className="text-lg font-semibold">{insight.title}</h4>
-                      <div className={`p-2 rounded-lg bg-${insight.color}-500/20`}>
-                        {insight.icon}
-                      </div>
-                    </div>
-                    
-                    {/* Score Circle */}
-                    <div className="relative w-32 h-32 mx-auto mb-4">
-                      <svg className="w-32 h-32 transform -rotate-90">
-                        <circle
-                          cx="64"
-                          cy="64"
-                          r="56"
-                          stroke="rgba(255,255,255,0.1)"
-                          strokeWidth="12"
-                          fill="none"
-                        />
-                        <motion.circle
-                          cx="64"
-                          cy="64"
-                          r="56"
-                          stroke={insight.color === 'green' ? '#10b981' : insight.color === 'yellow' ? '#f59e0b' : insight.color === 'blue' ? '#3b82f6' : '#ef4444'}
-                          strokeWidth="12"
-                          fill="none"
-                          strokeDasharray={`${2 * Math.PI * 56}`}
-                          initial={{ strokeDashoffset: 2 * Math.PI * 56 }}
-                          animate={{ strokeDashoffset: 2 * Math.PI * 56 * (1 - insight.score / 100) }}
-                          transition={{ duration: 1.5, ease: "easeOut" }}
-                          strokeLinecap="round"
-                        />
-                      </svg>
-                      <div className="absolute inset-0 flex flex-col items-center justify-center">
-                        <span className="text-3xl font-bold">{insight.score.toFixed(0)}</span>
-                        <span className="text-xs text-gray-400">{insight.status}</span>
-                      </div>
-                    </div>
-                    
-                    {/* Insights */}
-                    <div className="space-y-2">
-                      {insight.insights.map((item, i) => (
-                        <div key={i} className="flex items-center text-sm text-gray-400">
-                          <div className="w-1.5 h-1.5 bg-gray-400 rounded-full mr-2" />
-                          {item}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                                  </Card>
-              </motion.div>
-            ))}
-          </div>
-        </motion.section>
-
-        {/* Interactive Features Banner */}
-        <motion.section
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 1.3 }}
-          className="mb-12"
-        >
-          <Card>
-            <div className="bg-gradient-to-r from-indigo-900/30 to-purple-900/30 backdrop-blur-xl rounded-3xl p-8 border border-indigo-500/20">
-              <div className="flex items-center justify-between">
-                <div className="flex items-start space-x-6">
-                  <motion.div
-                    animate={{ 
-                      rotate: [0, 10, -10, 0],
-                      scale: [1, 1.1, 1]
-                    }}
-                    transition={{ duration: 4, repeat: Infinity }}
-                    className="bg-gradient-to-br from-indigo-500 to-purple-600 p-4 rounded-2xl shadow-lg shadow-indigo-500/30"
-                  >
-                    <Sparkles className="w-8 h-8 text-white" />
-                  </motion.div>
-                  <div>
-                    <h3 className="text-2xl font-bold mb-2">Advanced Analytics</h3>
-                    <p className="text-gray-300 mb-4 max-w-2xl">
-                      Experience next-generation portfolio analysis with real-time data, AI-powered insights, and beautiful visualizations designed to help you make smarter investment decisions.
-                    </p>
-                    <div className="flex flex-wrap gap-4">
-                      {['Real-time Updates', 'Risk Analysis', 'Performance Tracking', 'Smart Alerts'].map((feature, index) => (
-                        <motion.div
-                          key={feature}
-                          initial={{ opacity: 0, y: 10 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          transition={{ delay: 1.5 + index * 0.1 }}
-                          className="flex items-center space-x-2 bg-white/10 px-3 py-1.5 rounded-full"
-                        >
-                          <div className="w-2 h-2 bg-indigo-400 rounded-full animate-pulse" />
-                          <span className="text-sm">{feature}</span>
-                        </motion.div>
-                      ))}
+        {/* Analytics Section */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+          {/* Asset Allocation */}
+          <section>
+            <h3 className="text-lg font-bold mb-4 flex items-center">
+              <PieChartIcon className="w-5 h-5 mr-2 text-purple-400" />
+              Asset Allocation
+            </h3>
+            
+            <div className="bg-gray-900 rounded-xl p-4 border border-gray-800">
+              <div className="grid grid-cols-2 gap-4">
+                {/* Pie Chart */}
+                <div className="relative">
+                  <ResponsiveContainer width="100%" height={200}>
+                    <PieChart>
+                      <Pie
+                        data={positionMetrics.assetAllocation}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={50}
+                        outerRadius={80}
+                        paddingAngle={2}
+                        dataKey="value"
+                      >
+                        {positionMetrics.assetAllocation?.map((entry, index) => (
+                          <Cell 
+                            key={`cell-${index}`} 
+                            fill={entry.config.color}
+                            stroke="none"
+                          />
+                        ))}
+                      </Pie>
+                      <Tooltip content={<CustomTooltip />} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                  
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <div className="text-center">
+                      <p className="text-2xl font-bold">{positionMetrics.assetAllocation?.length || 0}</p>
+                      <p className="text-xs text-gray-400">Types</p>
                     </div>
                   </div>
                 </div>
-                <motion.div
-                  animate={{ 
-                    y: [0, -10, 0],
-                    rotate: [0, 5, -5, 0]
-                  }}
-                  transition={{ duration: 3, repeat: Infinity }}
-                  className="hidden lg:block"
-                >
-                  <div className="relative">
-                    <div className="absolute inset-0 bg-indigo-500/20 blur-3xl" />
-                    <Gauge className="w-24 h-24 text-indigo-400 relative" />
-                  </div>
-                </motion.div>
+                
+                {/* Legend */}
+                <div className="space-y-2">
+                  {positionMetrics.assetAllocation?.map((asset, index) => (
+                    <div
+                      key={asset.name}
+                      className="flex items-center justify-between p-2 bg-gray-800 rounded-lg hover:bg-gray-700 transition-colors"
+                    >
+                      <div className="flex items-center space-x-2">
+                        <div className={`p-1.5 rounded ${asset.config.bgColor}`}>
+                          {asset.config.icon}
+                        </div>
+                        <span className="text-sm">{asset.name}</span>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-sm font-medium">{formatPercentage(asset.percentage)}</p>
+                        <p className="text-xs text-gray-400">
+                          {showValues ? formatCurrency(asset.value) : '••••'}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
-          </Card>
-        </motion.section>
+          </section>
+
+          {/* Top Movers */}
+          <section>
+            <h3 className="text-lg font-bold mb-4 flex items-center">
+              <Activity className="w-5 h-5 mr-2 text-green-400" />
+              Top Movers
+            </h3>
+            
+            <div className="space-y-4">
+              {/* Gainers */}
+              <div className="bg-gray-900 rounded-xl p-4 border border-gray-800">
+                <h4 className="text-sm font-medium mb-3 flex items-center text-green-400">
+                  <TrendingUp className="w-4 h-4 mr-2" />
+                  Top Gainers
+                </h4>
+                
+                <div className="space-y-2">
+                  {positionMetrics.topGainers?.slice(0, 3).map((position, index) => (
+                    <div
+                      key={`${position.identifier}-${index}`}
+                      className="flex items-center justify-between p-2 bg-green-500/10 rounded-lg border border-green-500/20"
+                    >
+                      <div className="flex items-center space-x-2">
+                        <div className={`p-1 rounded ${assetTypeConfig[position.assetType]?.bgColor || assetTypeConfig.other.bgColor}`}>
+                          {assetTypeConfig[position.assetType]?.icon || assetTypeConfig.other.icon}
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium">{position.identifier}</p>
+                          <p className="text-xs text-gray-400">{position.name}</p>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-sm font-medium text-green-400">
+                          +{formatPercentage(position.gainLossPercent)}
+                        </p>
+                        <p className="text-xs text-gray-400">
+                          {showValues ? formatCurrency(position.value) : '••••'}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              
+              {/* Losers */}
+              <div className="bg-gray-900 rounded-xl p-4 border border-gray-800">
+                <h4 className="text-sm font-medium mb-3 flex items-center text-red-400">
+                  <TrendingDown className="w-4 h-4 mr-2" />
+                  Top Losers
+                </h4>
+                
+                <div className="space-y-2">
+                  {positionMetrics.topLosers?.slice(0, 3).map((position, index) => (
+                    <div
+                      key={`${position.identifier}-${index}`}
+                      className="flex items-center justify-between p-2 bg-red-500/10 rounded-lg border border-red-500/20"
+                    >
+                      <div className="flex items-center space-x-2">
+                        <div className={`p-1 rounded ${assetTypeConfig[position.assetType]?.bgColor || assetTypeConfig.other.bgColor}`}>
+                          {assetTypeConfig[position.assetType]?.icon || assetTypeConfig.other.icon}
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium">{position.identifier}</p>
+                          <p className="text-xs text-gray-400">{position.name}</p>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-sm font-medium text-red-400">
+                          {formatPercentage(position.gainLossPercent)}
+                        </p>
+                        <p className="text-xs text-gray-400">
+                          {showValues ? formatCurrency(position.value) : '••••'}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </section>
+        </div>
+
+        {/* Sector Analysis */}
+        <section className="mb-8">
+          <h3 className="text-lg font-bold mb-4 flex items-center">
+            <ChartBar className="w-5 h-5 mr-2 text-indigo-400" />
+            Sector Analysis
+          </h3>
+          
+          <div className="bg-gray-900 rounded-xl p-4 border border-gray-800">
+            <div className="h-64">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart
+                  data={positionMetrics.sectorAllocation}
+                  margin={{ top: 5, right: 5, left: 5, bottom: 60 }}
+                >
+                  <CartesianGrid strokeDasharray="3 3" stroke="#374151" opacity={0.2} />
+                  <XAxis 
+                    dataKey="name" 
+                    stroke="#6b7280"
+                    tick={{ fontSize: 10 }}
+                    angle={-45}
+                    textAnchor="end"
+                  />
+                  <YAxis 
+                    stroke="#6b7280"
+                    tick={{ fontSize: 10 }}
+                    tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`}
+                  />
+                  <Tooltip content={<CustomTooltip />} />
+                  <Bar dataKey="value" radius={[4, 4, 0, 0]}>
+                    {positionMetrics.sectorAllocation?.map((entry, index) => (
+                      <Cell 
+                        key={`cell-${index}`} 
+                        fill={entry.color}
+                      />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        </section>
+
+        {/* Risk Metrics */}
+        <section className="mb-8">
+          <h3 className="text-lg font-bold mb-4 flex items-center">
+            <Shield className="w-5 h-5 mr-2 text-blue-400" />
+            Risk Analysis
+          </h3>
+          
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="bg-gray-900 rounded-xl p-4 border border-gray-800">
+              <h4 className="text-sm text-gray-400 mb-2">Diversification Score</h4>
+              <div className="flex items-end justify-between">
+                <span className="text-2xl font-bold">{positionMetrics.diversificationScore?.toFixed(0) || 0}</span>
+                <span className="text-sm text-gray-400">/100</span>
+              </div>
+              <div className="w-full bg-gray-700 rounded-full h-2 mt-2 overflow-hidden">
+                <div
+                  className="h-full bg-blue-500 transition-all duration-500"
+                  style={{ width: `${positionMetrics.diversificationScore || 0}%` }}
+                />
+              </div>
+            </div>
+            
+            <div className="bg-gray-900 rounded-xl p-4 border border-gray-800">
+              <h4 className="text-sm text-gray-400 mb-2">Volatility</h4>
+              <span className="text-2xl font-bold text-orange-400">
+                {positionMetrics.riskMetrics?.volatility?.toFixed(1) || 0}%
+              </span>
+              <p className="text-xs text-gray-500 mt-1">Portfolio volatility</p>
+            </div>
+            
+            <div className="bg-gray-900 rounded-xl p-4 border border-gray-800">
+              <h4 className="text-sm text-gray-400 mb-2">Sharpe Ratio</h4>
+              <span className="text-2xl font-bold text-purple-400">
+                {positionMetrics.riskMetrics?.sharpeRatio?.toFixed(2) || 0}
+              </span>
+              <p className="text-xs text-gray-500 mt-1">Risk-adjusted return</p>
+            </div>
+          </div>
+        </section>
 
         {/* Quick Actions */}
-        <motion.section
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 1.4 }}
-          className="grid grid-cols-1 md:grid-cols-3 gap-6"
-        >
+        <section className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {[
             {
               href: "/portfolio",
               title: "Portfolio Overview",
-              description: "See your complete financial picture",
-              icon: <PieChartIcon className="w-6 h-6" />,
-              gradient: "from-blue-600 to-indigo-600",
-              stats: `${formatCurrency(positionMetrics.totalValue)} total`
+              description: "Complete financial picture",
+              icon: <PieChartIcon className="w-5 h-5" />,
+              color: 'text-blue-400',
+              bgColor: 'bg-blue-500/10',
+              stats: formatCurrency(positionMetrics.totalValue)
             },
             {
               href: "/accounts",
-              title: "Account Management",
-              description: "Manage all your investment accounts",
-              icon: <Briefcase className="w-6 h-6" />,
-              gradient: "from-purple-600 to-pink-600",
+              title: "Accounts",
+              description: "Manage investment accounts",
+              icon: <Briefcase className="w-5 h-5" />,
+              color: 'text-purple-400',
+              bgColor: 'bg-purple-500/10',
               stats: `${positionMetrics.accountAllocation?.length || 0} accounts`
             },
             {
               href: "/transactions",
-              title: "Transaction History",
-              description: "Track your trading activity",
-              icon: <DollarSign className="w-6 h-6" />,
-              gradient: "from-emerald-600 to-teal-600",
-              stats: "View all trades"
+              title: "Transactions",
+              description: "Trading activity",
+              icon: <DollarSign className="w-5 h-5" />,
+              color: 'text-green-400',
+              bgColor: 'bg-green-500/10',
+              stats: "View trades"
             }
           ].map((action, index) => (
-            <motion.div
-              key={action.href}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 1.5 + index * 0.1 }}
-              whileHover={{ y: -5 }}
-            >
-              <Link href={action.href}>
-                <div className={`relative bg-gradient-to-r ${action.gradient} rounded-2xl p-6 h-full group cursor-pointer overflow-hidden transition-all hover:shadow-xl`}>
-                  <div className="relative z-10">
-                    <div className="mb-4">{action.icon}</div>
-                    <h4 className="text-xl font-bold mb-2">{action.title}</h4>
-                    <p className="text-white/80 text-sm mb-3">{action.description}</p>
-                    <p className="text-white/60 text-xs">{action.stats}</p>
-                  </div>
-                  
-                  <motion.div
-                    className="absolute bottom-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity"
-                    whileHover={{ x: 5 }}
-                  >
-                    <ChevronRight className="w-6 h-6" />
-                  </motion.div>
+            <Link key={action.href} href={action.href}>
+              <div className={`${action.bgColor} border border-gray-800 rounded-xl p-4 hover:bg-gray-800 transition-colors cursor-pointer group`}>
+                <div className="flex items-start justify-between mb-3">
+                  <div className={action.color}>{action.icon}</div>
+                  <ChevronRight className="w-4 h-4 text-gray-600 group-hover:text-gray-400 transition-colors" />
                 </div>
-              </Link>
-            </motion.div>
+                <h4 className="font-medium mb-1">{action.title}</h4>
+                <p className="text-sm text-gray-400 mb-2">{action.description}</p>
+                <p className="text-xs text-gray-500">{action.stats}</p>
+              </div>
+            </Link>
           ))}
-        </motion.section>
+        </section>
       </div>
     </div>
   );
-}
-
-// Helper function for gradient colors
-function getGradientColors(gradientClass) {
-  const colorMap = {
-    'from-blue-500 to-indigo-600': ['#3b82f6', '#4f46e5'],
-    'from-green-500 to-emerald-600': ['#10b981', '#059669'],
-    'from-red-500 to-pink-600': ['#ef4444', '#db2777'],
-    'from-orange-500 to-amber-600': ['#f97316', '#d97706'],
-    'from-purple-500 to-pink-600': ['#8b5cf6', '#db2777'],
-    'from-gray-500 to-slate-600': ['#6b7280', '#475569'],
-    'from-teal-500 to-cyan-600': ['#14b8a6', '#0891b2'],
-    'from-yellow-500 to-orange-600': ['#eab308', '#ea580c'],
-    'from-rose-500 to-red-600': ['#f43f5e', '#dc2626'],
-    'from-lime-500 to-green-600': ['#84cc16', '#16a34a'],
-    'from-sky-500 to-blue-600': ['#0ea5e9', '#2563eb'],
-    'from-gray-400 to-gray-600': ['#9ca3af', '#4b5563'],
-  };
-  return colorMap[gradientClass] || ['#6b7280', '#374151'];
 }

@@ -988,7 +988,7 @@ const QuickStartModal = ({ isOpen, onClose }) => {
 
             <div className="grid md:grid-cols-12 gap-4">
                 <div 
-                    className="group relative bg-gradient-to-br from-purple-50 to-purple-100 p-6 rounded-xl cursor-pointer hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1"
+                    className="md:col-span-7 group relative bg-gradient-to-br from-purple-50 to-purple-100 p-6 rounded-xl cursor-pointer hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1"
                     onClick={() => setImportMethod('ui')}
                 >
                     <div className="absolute inset-0 bg-gradient-to-br from-purple-600 to-purple-700 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
@@ -1023,10 +1023,10 @@ const QuickStartModal = ({ isOpen, onClose }) => {
                     </div>
                 </div>
 
-                <div 
-                    className="group relative bg-gradient-to-br from-green-50 to-green-100 p-6 rounded-xl cursor-pointer hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1"
-                    onClick={() => setImportMethod('excel')}
-                >
+                    <div 
+                        className="md:col-span-5 group relative bg-gradient-to-br from-green-50 to-green-100 p-6 rounded-xl cursor-pointer hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1"
+                        onClick={() => setImportMethod('excel')}
+                    >
                     <div className="absolute inset-0 bg-gradient-to-br from-green-600 to-green-700 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
                     <div className="relative z-10">
                         <div className="flex items-center justify-center w-12 h-12 bg-green-200 rounded-full mb-4 group-hover:bg-white/20 transition-colors">
