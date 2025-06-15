@@ -37,19 +37,7 @@ import {
     ListPlus,
     Table,
     BarChart3,
-    Star,
-    ChevronRight,
-    Eye,
-    EyeOff,
-    RefreshCw,
-    Activity,
-    Layers,
-    Package,
-    FolderOpen,
-    PlusCircle,
-    Database,
-    TrendingDown,
-    Repeat
+    Star
 } from 'lucide-react';
 import { fetchWithAuth } from '@/utils/api';
 import { popularBrokerages } from '@/utils/constants';
@@ -57,24 +45,24 @@ import { AddQuickPositionModal } from '@/components/modals/AddQuickPositionModal
 
 // Account categories matching AccountModal and database constraints
 const ACCOUNT_CATEGORIES = [
-    { id: "brokerage", name: "Brokerage", icon: Briefcase },
-    { id: "retirement", name: "Retirement", icon: Building },
-    { id: "cash", name: "Cash / Banking", icon: DollarSign },
-    { id: "cryptocurrency", name: "Cryptocurrency", icon: Hash },
-    { id: "metals", name: "Metals Storage", icon: Shield },
-    { id: "real_estate", name: "Real Estate", icon: Building }
+    { id: "Brokerage", name: "Brokerage", icon: Briefcase },
+    { id: "Retirement", name: "Retirement", icon: Building },
+    { id: "Cash", name: "Cash / Banking", icon: DollarSign },
+    { id: "Cryptocurrency", name: "Cryptocurrency", icon: Hash },
+    { id: "Metals", name: "Metals Storage", icon: Shield },
+    { id: "Real Estate", name: "Real Estate", icon: Building }
 ];
 
 // Account types by category matching AccountModal and database
 const ACCOUNT_TYPES_BY_CATEGORY = {
-    brokerage: [
+    Brokerage: [
         { value: "Individual", label: "Individual" },
         { value: "Joint", label: "Joint" },
         { value: "Custodial", label: "Custodial" },
         { value: "Trust", label: "Trust" },
         { value: "Other Brokerage", label: "Other Brokerage" }
     ],
-    retirement: [
+    Retirement: [
         { value: "Traditional IRA", label: "Traditional IRA" },
         { value: "Roth IRA", label: "Roth IRA" },
         { value: "401(k)", label: "401(k)" },
@@ -86,7 +74,7 @@ const ACCOUNT_TYPES_BY_CATEGORY = {
         { value: "HSA", label: "HSA (Health Savings Account)" },
         { value: "Other Retirement", label: "Other Retirement" }
     ],
-    cash: [
+    Cash: [
         { value: "Checking", label: "Checking" },
         { value: "Savings", label: "Savings" },
         { value: "High Yield Savings", label: "High Yield Savings" },
@@ -94,14 +82,14 @@ const ACCOUNT_TYPES_BY_CATEGORY = {
         { value: "Certificate of Deposit (CD)", label: "Certificate of Deposit (CD)" },
         { value: "Other Cash", label: "Other Cash" }
     ],
-    cryptocurrency: [
+    Cryptocurrency: [
         { value: "Exchange Account", label: "Exchange Account" },
         { value: "Hardware Wallet", label: "Hardware Wallet" },
         { value: "Software Wallet", label: "Software Wallet" },
         { value: "Cold Storage", label: "Cold Storage" },
         { value: "Other Crypto", label: "Other Crypto" }
     ],
-    metals: [
+    Metals: [
         { value: "Home Storage", label: "Home Storage" },
         { value: "Safe Deposit Box", label: "Safe Deposit Box" },
         { value: "Third-Party Vault", label: "Third-Party Vault" },
@@ -109,7 +97,7 @@ const ACCOUNT_TYPES_BY_CATEGORY = {
         { value: "Unallocated Storage", label: "Unallocated Storage" },
         { value: "Other Metals", label: "Other Metals" }
     ],
-    real_estate: [
+    "Real Estate": [
         { value: "Primary Residence", label: "Primary Residence" },
         { value: "Vacation Home", label: "Vacation Home" },
         { value: "Rental Property", label: "Rental Property" },
@@ -120,55 +108,23 @@ const ACCOUNT_TYPES_BY_CATEGORY = {
     ]
 };
 
-// Component for animated numbers with spring physics
-const AnimatedNumber = ({ value, duration = 500, className = "" }) => {
+// Component for animated numbers
+const AnimatedNumber = ({ value, duration = 500 }) => {
     const [displayValue, setDisplayValue] = useState(0);
-    const [isAnimating, setIsAnimating] = useState(false);
     
     useEffect(() => {
-        setIsAnimating(true);
         let startTime;
-        let startValue = displayValue;
-        
         const animate = (timestamp) => {
             if (!startTime) startTime = timestamp;
             const progress = Math.min((timestamp - startTime) / duration, 1);
-            
-            // Easing function for smooth animation
-            const easeOutQuart = 1 - Math.pow(1 - progress, 4);
-            const currentValue = Math.floor(startValue + (value - startValue) * easeOutQuart);
-            
-            setDisplayValue(currentValue);
-            
-            if (progress < 1) {
-                requestAnimationFrame(animate);
-            } else {
-                setIsAnimating(false);
-            }
+            setDisplayValue(Math.floor(progress * value));
+            if (progress < 1) requestAnimationFrame(animate);
         };
-        
         requestAnimationFrame(animate);
     }, [value, duration]);
     
-    return (
-        <span className={`${className} ${isAnimating ? 'scale-110' : 'scale-100'} transition-transform duration-200`}>
-            {displayValue}
-        </span>
-    );
+    return <span>{displayValue}</span>;
 };
-
-// Enhanced loading dots animation
-const LoadingDots = () => (
-    <span className="inline-flex space-x-1">
-        {[0, 1, 2].map(i => (
-            <span
-                key={i}
-                className="w-1.5 h-1.5 bg-current rounded-full animate-bounce"
-                style={{ animationDelay: `${i * 150}ms` }}
-            />
-        ))}
-    </span>
-);
 
 // Custom dropdown with search - updated for better positioning and custom input
 const SearchableDropdown = ({ options, value, onChange, placeholder, showLogos = false, onOpenChange, onEnterKey }) => {
@@ -178,7 +134,6 @@ const SearchableDropdown = ({ options, value, onChange, placeholder, showLogos =
     const dropdownRef = useRef(null);
     const buttonRef = useRef(null);
     const [dropdownStyle, setDropdownStyle] = useState({});
-    const [highlightedIndex, setHighlightedIndex] = useState(0);
     
     
     useEffect(() => {
@@ -240,11 +195,10 @@ const SearchableDropdown = ({ options, value, onChange, placeholder, showLogos =
         const newValue = e.target.value;
         setInputValue(newValue);
         setSearch(newValue);
-        setHighlightedIndex(0);
         if (!isOpen) {
-            setIsOpen(true);
-            if (onOpenChange) onOpenChange(true);
-        }
+                    setIsOpen(true);
+                    if (onOpenChange) onOpenChange(true);
+                    }
     };
     
     const handleInputKeyDown = (e) => {
@@ -262,14 +216,6 @@ const SearchableDropdown = ({ options, value, onChange, placeholder, showLogos =
         } else if (e.key === 'Escape') {
             setIsOpen(false);
             if (onOpenChange) onOpenChange(false);
-        } else if (e.key === 'ArrowDown' && isOpen) {
-            e.preventDefault();
-            setHighlightedIndex(prev => 
-                prev < filteredOptions.length - 1 ? prev + 1 : prev
-            );
-        } else if (e.key === 'ArrowUp' && isOpen) {
-            e.preventDefault();
-            setHighlightedIndex(prev => prev > 0 ? prev - 1 : 0);
         }
     };
     
@@ -315,8 +261,7 @@ const SearchableDropdown = ({ options, value, onChange, placeholder, showLogos =
             
             {isOpen && (
                 <div 
-                    className="absolute z-[99999] w-full bg-white border border-gray-200 rounded-lg shadow-xl animate-fadeIn"
-                    style={dropdownStyle}
+                    className="absolute z-[99999] w-full bg-white border border-gray-200 rounded-lg shadow-xl animate-fadeIn top-full mt-1"
                 >
                     <div className="max-h-64 overflow-y-auto">
                         {filteredOptions.length === 0 ? (
@@ -341,11 +286,11 @@ const SearchableDropdown = ({ options, value, onChange, placeholder, showLogos =
                                 {inputValue && !options.find(opt => opt.name.toLowerCase() === inputValue.toLowerCase()) && (
                                     <button
                                         type="button"
-                                        onClick={() => {
-                                            onChange(inputValue);
-                                            setIsOpen(false);
-                                            if (onOpenChange) onOpenChange(false);
-                                        }}
+                                            onClick={() => {
+                                                onChange(inputValue);
+                                                setIsOpen(false);
+                                                if (onOpenChange) onOpenChange(false);
+                                            }}
                                         className="w-full px-3 py-2 flex items-center bg-blue-50 hover:bg-blue-100 transition-colors border-b border-gray-100"
                                     >
                                         <Plus className="w-4 h-4 mr-3 text-blue-600" />
@@ -356,17 +301,16 @@ const SearchableDropdown = ({ options, value, onChange, placeholder, showLogos =
                                     <button
                                         key={idx}
                                         type="button"
-                                        onClick={() => {
-                                            onChange(option.name);
-                                            setInputValue(option.name);
-                                            setIsOpen(false);
-                                            if (onOpenChange) onOpenChange(false);
-                                            setSearch('');
-                                        }}
-                                        onMouseEnter={() => setHighlightedIndex(idx)}
+                                            onClick={() => {
+                                                onChange(option.name);
+                                                setInputValue(option.name);
+                                                setIsOpen(false);
+                                                if (onOpenChange) onOpenChange(false);
+                                                setSearch('');
+                                            }}
                                         className={`w-full px-3 py-2 flex items-center hover:bg-gray-50 transition-colors ${
                                             value === option.name ? 'bg-blue-50' : ''
-                                        } ${highlightedIndex === idx ? 'bg-gray-100' : ''}`}
+                                        }`}
                                     >
                                         {showLogos && option.logo && (
                                             <img 
@@ -413,53 +357,8 @@ const QuickStartModal = ({ isOpen, onClose }) => {
     const fileInputRef = useRef(null);
     const newRowRef = useRef(null);
     const [openDropdownId, setOpenDropdownId] = useState(null);
-    const [existingAccounts, setExistingAccounts] = useState([]);
-    const [isLoadingAccounts, setIsLoadingAccounts] = useState(false);
-    const [showAccountsDropdown, setShowAccountsDropdown] = useState(false);
-    const [importedAccounts, setImportedAccounts] = useState([]);
-    const [importedPositions, setImportedPositions] = useState(0);
 
 
-    // Fetch existing accounts
-    useEffect(() => {
-        if (activeTab === 'overview' && isOpen) {
-            fetchExistingAccounts();
-        }
-    }, [activeTab, isOpen]);
-
-    // Replace the fetchExistingAccounts function with this:
-    const fetchExistingAccounts = async () => {
-        setIsLoadingAccounts(true);
-        try {
-            const response = await fetchWithAuth('/accounts');
-            if (response.ok) {
-                const data = await response.json();
-                // Ensure data is always an array
-                setExistingAccounts(Array.isArray(data) ? data : []);
-            } else {
-                setExistingAccounts([]);
-            }
-        } catch (error) {
-            console.error('Error fetching accounts:', error);
-            setExistingAccounts([]);
-        } finally {
-            setIsLoadingAccounts(false);
-        }
-    };
-
-    // And update the accountsByCategory useMemo to be more defensive:
-    const accountsByCategory = useMemo(() => {
-        const grouped = {};
-        // Ensure existingAccounts is an array before processing
-        const accounts = Array.isArray(existingAccounts) ? existingAccounts : [];
-        
-        ACCOUNT_CATEGORIES.forEach(cat => {
-            grouped[cat.id] = accounts.filter(acc => 
-                acc?.account_category?.toLowerCase() === cat.id.toLowerCase()
-            );
-        });
-        return grouped;
-    }, [existingAccounts]);
 
     // Initialize with one empty account
     useEffect(() => {
@@ -468,11 +367,10 @@ const QuickStartModal = ({ isOpen, onClose }) => {
         }
     }, [activeTab, importMethod]);
 
-    // Auto-focus new row with smooth scroll
+    // Auto-focus new row
     useEffect(() => {
         if (newRowRef.current) {
             newRowRef.current.focus();
-            newRowRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
         }
     }, [accounts.length]);
 
@@ -488,8 +386,6 @@ const QuickStartModal = ({ isOpen, onClose }) => {
                 setImportMethod(null);
                 setAccounts([]);
                 setSortConfig({ key: null, direction: 'asc' });
-                setImportedAccounts([]);
-                setImportedPositions(0);
             }, 300);
         }
     }, [isOpen]);
@@ -561,8 +457,6 @@ const QuickStartModal = ({ isOpen, onClose }) => {
         if (validAccounts.length === 0) return;
         
         setIsSubmitting(true);
-        const successfulAccounts = [];
-        
         try {
             const accountsToSubmit = validAccounts.map(acc => ({
                 account_name: acc.accountName,
@@ -581,12 +475,8 @@ const QuickStartModal = ({ isOpen, onClose }) => {
                     const errorText = await response.text();
                     throw new Error(`Failed to create account ${account.account_name}: ${errorText}`);
                 }
-                
-                successfulAccounts.push(account);
             }
             
-            setImportedAccounts(successfulAccounts);
-            await fetchExistingAccounts(); // Refresh the accounts list
             setActiveTab('success');
         } catch (error) {
             console.error('Error submitting accounts:', error);
@@ -680,207 +570,88 @@ const QuickStartModal = ({ isOpen, onClose }) => {
         }, 200);
     };
 
-
-
     const renderOverview = () => (
         <div className="space-y-6 animate-fadeIn">
             <div className="text-center">
-                <div className="relative inline-block">
-                    <div className="absolute inset-0 bg-gradient-to-r from-blue-600 to-purple-600 rounded-full blur-xl opacity-30 animate-pulse"></div>
-                    <div className="relative inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full shadow-lg shadow-blue-500/25">
-                        <Sparkles className="w-8 h-8 text-white animate-pulse" />
-                    </div>
+                <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full mb-4 shadow-lg shadow-blue-500/25">
+                    <Sparkles className="w-8 h-8 text-white animate-pulse" />
                 </div>
-                <h3 className="text-2xl font-bold text-gray-900 mb-2 mt-4">Quick Add</h3>
+                <h3 className="text-2xl font-bold text-gray-900 mb-2">Quick Start Import</h3>
                 <p className="text-gray-600 max-w-md mx-auto">
-                    Build your portfolio in minutes with our streamlined process
+                    Get your portfolio set up in minutes with our streamlined import process
                 </p>
             </div>
 
-            {/* Enhanced Account/Position Selection */}
-            <div className="bg-gradient-to-br from-gray-50 to-white rounded-2xl shadow-sm border border-gray-100 p-6">
-                <div className="grid md:grid-cols-2 gap-6">
-                    {/* Left side - Action buttons */}
-                    <div className="space-y-4">
-                        <h4 className="text-sm font-semibold text-gray-700 uppercase tracking-wider mb-4">
-                            What would you like to add?
+            <div className="grid md:grid-cols-2 gap-4">
+                <div 
+                    className="group relative bg-gradient-to-br from-blue-50 to-blue-100 p-6 rounded-xl cursor-pointer hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1"
+                    onClick={() => setActiveTab('accounts')}
+                >
+                    <div className="absolute inset-0 bg-gradient-to-br from-blue-600 to-blue-700 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                    <div className="relative z-10">
+                        <Building className="w-12 h-12 text-blue-600 group-hover:text-white mb-4 transition-colors" />
+                        <h4 className="text-xl font-semibold text-gray-900 group-hover:text-white mb-2 transition-colors">
+                            Import Accounts
                         </h4>
-                        
-                        <div 
-                            className="group relative bg-gradient-to-br from-blue-50 to-blue-100 p-4 rounded-xl cursor-pointer hover:shadow-lg transition-all duration-300 transform hover:-translate-y-0.5 border border-blue-100"
-                            onClick={() => setActiveTab('accounts')}
-                        >
-                            <div className="flex items-center justify-between">
-                                <div className="flex items-center">
-                                    <div className="relative">
-                                        <div className="absolute inset-0 bg-blue-600 rounded-lg opacity-0 group-hover:opacity-10 transition-opacity duration-300"></div>
-                                        <Building className="w-10 h-10 text-blue-600 relative z-10" />
-                                    </div>
-                                    <div className="ml-4">
-                                        <h5 className="font-semibold text-gray-900 group-hover:text-blue-700 transition-colors">
-                                            Add Accounts
-                                        </h5>
-                                        <p className="text-sm text-gray-600">Investment, retirement, cash accounts</p>
-                                    </div>
-                                </div>
-                                <ChevronRight className="w-5 h-5 text-blue-600 transform group-hover:translate-x-1 transition-transform" />
-                            </div>
-                        </div>
-
-                        <div 
-                            className={`group relative p-4 rounded-xl cursor-pointer transition-all duration-300 transform border ${
-                                existingAccounts.length === 0 
-                                    ? 'bg-gray-50 border-gray-200 opacity-60 cursor-not-allowed' 
-                                    : 'bg-gradient-to-br from-purple-50 to-purple-100 border-purple-100 hover:shadow-lg hover:-translate-y-0.5'
-                            }`}
-                            onClick={() => existingAccounts.length > 0 && setActiveTab('positions')}
-                        >
-                            <div className="flex items-center justify-between">
-                                <div className="flex items-center">
-                                    <div className="relative">
-                                        <div className={`absolute inset-0 rounded-lg transition-opacity duration-300 ${
-                                            existingAccounts.length > 0 ? 'bg-purple-600 opacity-0 group-hover:opacity-10' : ''
-                                        }`}></div>
-                                        <FileSpreadsheet className={`w-10 h-10 relative z-10 ${
-                                            existingAccounts.length === 0 ? 'text-gray-400' : 'text-purple-600'
-                                        }`} />
-                                    </div>
-                                    <div className="ml-4">
-                                        <h5 className={`font-semibold transition-colors ${
-                                            existingAccounts.length === 0 
-                                                ? 'text-gray-500' 
-                                                : 'text-gray-900 group-hover:text-purple-700'
-                                        }`}>
-                                            Add Positions
-                                        </h5>
-                                        <p className="text-sm text-gray-600">
-                                            {existingAccounts.length === 0 
-                                                ? 'Add accounts first to enable positions' 
-                                                : 'Stocks, bonds, crypto, and more'}
-                                        </p>
-                                    </div>
-                                </div>
-                                <ChevronRight className={`w-5 h-5 transform transition-transform ${
-                                    existingAccounts.length === 0 
-                                        ? 'text-gray-400' 
-                                        : 'text-purple-600 group-hover:translate-x-1'
-                                }`} />
-                            </div>
+                        <p className="text-gray-700 group-hover:text-blue-100 text-sm transition-colors">
+                            Start here to set up your investment accounts
+                        </p>
+                        <div className="mt-4 flex items-center text-blue-600 group-hover:text-white transition-colors">
+                            <span className="text-sm font-medium">Get Started</span>
+                            <ArrowRight className="w-4 h-4 ml-1 transform group-hover:translate-x-1 transition-transform" />
                         </div>
                     </div>
+                </div>
 
-                    {/* Right side - Account summary */}
-                    <div className="bg-gradient-to-br from-blue-50/50 to-purple-50/50 rounded-xl p-4 border border-gray-100">
-                        <div className="flex items-center justify-between mb-4">
-                            <h4 className="text-sm font-semibold text-gray-700 uppercase tracking-wider">
-                                Current Portfolio
-                            </h4>
-                            <button
-                                onClick={() => fetchExistingAccounts()}
-                                className="p-1.5 hover:bg-white rounded-lg transition-colors group"
-                                disabled={isLoadingAccounts}
-                            >
-                                <RefreshCw className={`w-4 h-4 text-gray-500 group-hover:text-gray-700 ${
-                                    isLoadingAccounts ? 'animate-spin' : ''
-                                }`} />
-                            </button>
+                <div 
+                    className="group relative bg-gradient-to-br from-purple-50 to-purple-100 p-6 rounded-xl cursor-pointer hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1"
+                    onClick={() => setActiveTab('positions')}
+                >
+                    <div className="absolute inset-0 bg-gradient-to-br from-purple-600 to-purple-700 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                    <div className="relative z-10">
+                        <FileSpreadsheet className="w-12 h-12 text-purple-600 group-hover:text-white mb-4 transition-colors" />
+                        <h4 className="text-xl font-semibold text-gray-900 group-hover:text-white mb-2 transition-colors">
+                            Import Positions
+                        </h4>
+                        <p className="text-gray-700 group-hover:text-purple-100 text-sm transition-colors">
+                            Add your investments after creating accounts
+                        </p>
+                        <div className="mt-4 flex items-center text-purple-600 group-hover:text-white transition-colors">
+                            <span className="text-sm font-medium">Add Positions</span>
+                            <ArrowRight className="w-4 h-4 ml-1 transform group-hover:translate-x-1 transition-transform" />
                         </div>
+                    </div>
+                </div>
+            </div>
 
-                        {isLoadingAccounts ? (
-                            <div className="flex items-center justify-center py-8">
-                                <Loader2 className="w-6 h-6 text-blue-600 animate-spin" />
-                            </div>
-                        ) : existingAccounts.length === 0 ? (
-                            <div className="text-center py-8">
-                                <div className="inline-flex items-center justify-center w-12 h-12 bg-gray-100 rounded-full mb-3">
-                                    <Building className="w-6 h-6 text-gray-400" />
-                                </div>
-                                <p className="text-gray-500 text-sm">No accounts yet</p>
-                                <p className="text-gray-400 text-xs mt-1">Start by adding your first account</p>
-                            </div>
-                        ) : (
-                            <div>
-                                <div className="flex items-center justify-between mb-4">
-                                    <div className="text-center">
-                                        <p className="text-3xl font-bold text-gray-900">
-                                            <AnimatedNumber value={existingAccounts.length} />
-                                        </p>
-                                        <p className="text-xs text-gray-600 font-medium">Total Accounts</p>
-                                    </div>
-                                    <button
-                                        onClick={() => setShowAccountsDropdown(!showAccountsDropdown)}
-                                        className="flex items-center px-3 py-1.5 bg-white rounded-lg hover:bg-gray-50 transition-colors text-sm text-gray-700 border border-gray-200"
-                                    >
-                                        <span>View Details</span>
-                                        <ChevronDown className={`w-4 h-4 ml-1.5 transition-transform ${
-                                            showAccountsDropdown ? 'rotate-180' : ''
-                                        }`} />
-                                    </button>
-                                </div>
-
-                                {showAccountsDropdown && (
-                                    <div className="space-y-2 mt-4 animate-fadeIn max-h-64 overflow-y-auto">
-                                        {ACCOUNT_CATEGORIES.map(category => {
-                                            const categoryAccounts = accountsByCategory[category.id];
-                                            if (categoryAccounts.length === 0) return null;
-                                            
-                                            return (
-                                                <div key={category.id} className="bg-white rounded-lg p-3 border border-gray-100">
-                                                    <div className="flex items-center mb-2">
-                                                        <category.icon className="w-4 h-4 text-gray-600 mr-2" />
-                                                        <span className="text-sm font-medium text-gray-700">
-                                                            {category.name}
-                                                        </span>
-                                                        <span className="ml-auto text-xs text-gray-500">
-                                                            {categoryAccounts.length}
-                                                        </span>
-                                                    </div>
-                                                    <div className="space-y-1">
-                                                        {categoryAccounts.map(account => (
-                                                            <div key={account.id} className="flex items-center justify-between text-xs text-gray-600 pl-6">
-                                                                <span className="truncate">{account.account_name}</span>
-                                                                <span className="text-gray-400">{account.institution}</span>
-                                                            </div>
-                                                        ))}
-                                                    </div>
-                                                </div>
-                                            );
-                                        })}
-                                    </div>
-                                )}
-                            </div>
-                        )}
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+                <div className="flex items-start">
+                    <Info className="w-5 h-5 text-amber-600 mt-0.5 mr-3 flex-shrink-0" />
+                    <div className="text-sm text-amber-900">
+                        <p className="font-medium mb-1">Important: Accounts must be created first</p>
+                        <p className="text-amber-700">You need to import your accounts before you can add positions. The positions template will include your account names for easy selection.</p>
                     </div>
                 </div>
             </div>
 
             <div className="grid grid-cols-3 gap-4 pt-4">
                 <div className="text-center group">
-                    <div className="relative inline-block">
-                        <div className="absolute inset-0 bg-green-500 rounded-full blur-lg opacity-0 group-hover:opacity-20 transition-opacity duration-300"></div>
-                        <div className="relative inline-flex items-center justify-center w-12 h-12 bg-green-100 rounded-full group-hover:scale-110 transition-transform">
-                            <Shield className="w-6 h-6 text-green-600" />
-                        </div>
+                    <div className="inline-flex items-center justify-center w-12 h-12 bg-green-100 rounded-full mb-2 group-hover:scale-110 transition-transform">
+                        <Shield className="w-6 h-6 text-green-600" />
                     </div>
-                    <p className="text-sm text-gray-600 mt-2">Secure & Private</p>
+                    <p className="text-sm text-gray-600">Secure & Private</p>
                 </div>
                 <div className="text-center group">
-                    <div className="relative inline-block">
-                        <div className="absolute inset-0 bg-blue-500 rounded-full blur-lg opacity-0 group-hover:opacity-20 transition-opacity duration-300"></div>
-                        <div className="relative inline-flex items-center justify-center w-12 h-12 bg-blue-100 rounded-full group-hover:scale-110 transition-transform">
-                            <Clock className="w-6 h-6 text-blue-600" />
-                        </div>
+                    <div className="inline-flex items-center justify-center w-12 h-12 bg-blue-100 rounded-full mb-2 group-hover:scale-110 transition-transform">
+                        <Clock className="w-6 h-6 text-blue-600" />
                     </div>
-                    <p className="text-sm text-gray-600 mt-2">Quick Setup</p>
+                    <p className="text-sm text-gray-600">Quick Setup</p>
                 </div>
                 <div className="text-center group">
-                    <div className="relative inline-block">
-                        <div className="absolute inset-0 bg-purple-500 rounded-full blur-lg opacity-0 group-hover:opacity-20 transition-opacity duration-300"></div>
-                        <div className="relative inline-flex items-center justify-center w-12 h-12 bg-purple-100 rounded-full group-hover:scale-110 transition-transform">
-                            <Users className="w-6 h-6 text-purple-600" />
-                        </div>
+                    <div className="inline-flex items-center justify-center w-12 h-12 bg-purple-100 rounded-full mb-2 group-hover:scale-110 transition-transform">
+                        <Users className="w-6 h-6 text-purple-600" />
                     </div>
-                    <p className="text-sm text-gray-600 mt-2">Your Data Only</p>
+                    <p className="text-sm text-gray-600">Your Data Only</p>
                 </div>
             </div>
         </div>
@@ -892,7 +663,7 @@ const QuickStartModal = ({ isOpen, onClose }) => {
                 <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full mb-4">
                     <Building className="w-8 h-8 text-white" />
                 </div>
-                <h3 className="text-2xl font-bold text-gray-900 mb-2">Add Accounts</h3>
+                <h3 className="text-2xl font-bold text-gray-900 mb-2">Import Accounts</h3>
                 <p className="text-gray-600 max-w-md mx-auto">
                     Choose how you'd like to add your accounts
                 </p>
@@ -981,7 +752,7 @@ const QuickStartModal = ({ isOpen, onClose }) => {
                 <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-purple-500 to-purple-600 rounded-full mb-4">
                     <FileSpreadsheet className="w-8 h-8 text-white" />
                 </div>
-                <h3 className="text-2xl font-bold text-gray-900 mb-2">Add Positions</h3>
+                <h3 className="text-2xl font-bold text-gray-900 mb-2">Import Positions</h3>
                 <p className="text-gray-600 max-w-md mx-auto">
                     Choose how you'd like to add your positions
                 </p>
@@ -1073,8 +844,7 @@ const QuickStartModal = ({ isOpen, onClose }) => {
                         setImportMethod(null);
                         // Optionally refresh data or show success
                     }}
-                    onPositionsSaved={(count) => {
-                        setImportedPositions(count);
+                    onPositionsSaved={() => {
                         setActiveTab('success');
                         setImportMethod(null);
                     }}
@@ -1084,6 +854,7 @@ const QuickStartModal = ({ isOpen, onClose }) => {
     };
 
     const renderUIAccountCreation = () => {
+
         return (
         <div className="space-y-4 animate-fadeIn">
             {/* Compact Header */}
@@ -1139,7 +910,7 @@ const QuickStartModal = ({ isOpen, onClose }) => {
                     onClick={addNewAccount}
                     className="group relative flex-1 flex items-center justify-center px-4 py-2.5 bg-gradient-to-r from-indigo-500 to-purple-600 text-white rounded-lg hover:from-indigo-600 hover:to-purple-700 transition-all duration-300 transform hover:scale-[1.02] hover:shadow-lg"
                 >
-                    <div className="absolute inset-0 bg-gradient-to-r from-white/0 to-white/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300 rounded-lg" />
+                    <div className="absolute inset-0 bg-gradient-to-r from-white/0 to-white/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
                     <div className="relative flex items-center">
                         <Plus className="w-5 h-5 mr-2 group-hover:rotate-90 transition-transform duration-300" />
                         <span className="font-medium">Add Another Account</span>
@@ -1155,7 +926,7 @@ const QuickStartModal = ({ isOpen, onClose }) => {
                         {isSubmitting ? (
                             <>
                                 <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                                Creating<LoadingDots />
+                                Creating...
                             </>
                         ) : (
                             <>
@@ -1225,6 +996,8 @@ const QuickStartModal = ({ isOpen, onClose }) => {
                             const selectedCategory = ACCOUNT_CATEGORIES.find(c => c.id === account.accountCategory);
                             const accountTypes = ACCOUNT_TYPES_BY_CATEGORY[account.accountCategory] || [];
                             
+
+                            
                             return (
                                 <div 
                                     key={account.tempId}
@@ -1264,244 +1037,184 @@ const QuickStartModal = ({ isOpen, onClose }) => {
                                                 showLogos={true}
                                                 onOpenChange={(isOpen) => setOpenDropdownId(isOpen ? account.tempId : null)}
                                                 onEnterKey={() => {
-                                                    if (isValid) {addNewAccount();
-                                                   }
-                                               }}
-                                           />
-                                           {account.institution && !popularBrokerages.find(b => b.name === account.institution) && (
-                                               <div className="absolute -bottom-5 left-0 text-[10px] text-indigo-600 flex items-center bg-indigo-50 px-1.5 py-0.5 rounded-full">
-                                                   <Sparkles className="w-2.5 h-2.5 mr-0.5" />
-                                                   Custom
-                                               </div>
-                                           )}
-                                       </div>
-                                       <div className="col-span-3">
-                                           <select
-                                               value={account.accountCategory}
-                                               onChange={(e) => updateAccount(account.tempId, 'accountCategory', e.target.value)}
-                                               onKeyDown={(e) => {
-                                                   if (e.key === 'Enter' && isValid) {
-                                                       e.preventDefault();
-                                                       addNewAccount();
-                                                   }
-                                               }}
-                                               className="w-full px-3 py-2 bg-gray-50 border border-gray-300 rounded-md text-sm focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-all cursor-pointer"
-                                           >
-                                               <option value="">Select category...</option>
-                                               {ACCOUNT_CATEGORIES.map(cat => (
-                                                   <option key={cat.id} value={cat.id}>
-                                                       {cat.name}
-                                                   </option>
-                                               ))}
-                                           </select>
-                                       </div>
-                                       <div className="col-span-2">
-                                           <select
-                                               value={account.accountType}
-                                               onChange={(e) => updateAccount(account.tempId, 'accountType', e.target.value)}
-                                               onKeyDown={(e) => {
-                                                   if (e.key === 'Enter' && isValid) {
-                                                       e.preventDefault();
-                                                       addNewAccount();
-                                                   }
-                                               }}
-                                               className="w-full px-3 py-2 bg-gray-50 border border-gray-300 rounded-md text-sm focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                                               disabled={!account.accountCategory}
-                                           >
-                                               <option value="">
-                                                   {account.accountCategory ? 'Type...' : 'Category first'}
-                                               </option>
-                                               {accountTypes.map(type => (
-                                                   <option key={type.value} value={type.value}>
-                                                       {type.label}
-                                                   </option>
-                                               ))}
-                                           </select>
-                                       </div>
-                                       <div className="col-span-1 flex items-center justify-center space-x-1">
-                                           <button
-                                               onClick={() => duplicateAccount(account)}
-                                               className="p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-md transition-all transform hover:scale-110"
-                                               title="Duplicate"
-                                           >
-                                               <Copy className="w-4 h-4" />
-                                           </button>
-                                           <button
-                                               onClick={() => deleteAccount(account.tempId)}
-                                               className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-md transition-all transform hover:scale-110"
-                                               title="Delete"
-                                           >
-                                               <Trash2 className="w-4 h-4" />
-                                           </button>
-                                       </div>
-                                   </div>
-                                   
-                                   {/* Compact Visual status indicator */}
-                                   <div className={`absolute left-0 top-0 bottom-0 w-1 rounded-l-lg transition-all duration-500 ${
-                                       account.isNew ? 'bg-gradient-to-b from-indigo-400 via-purple-400 to-pink-400 animate-pulse' :
-                                       isValid ? 'bg-gradient-to-b from-green-400 to-emerald-500' : 'bg-gradient-to-b from-gray-300 to-gray-400'
-                                   }`} />
-                                   
-                                   {/* Category icon - smaller */}
-                                   {selectedCategory && (
-                                       <div className="absolute -right-2 -top-2 opacity-0 group-hover:opacity-100 transition-all duration-300 transform group-hover:scale-110">
-                                           <div className="w-8 h-8 rounded-lg border border-white shadow-lg bg-gradient-to-br from-white to-gray-50 flex items-center justify-center">
-                                               <selectedCategory.icon className="w-4 h-4 text-gray-700" />
-                                           </div>
-                                       </div>
-                                   )}
-                                   
-                                   {/* Success checkmark - smaller */}
-                                   {isValid && !account.isNew && (
-                                       <div className="absolute right-2 top-2 opacity-0 group-hover:opacity-100 transition-all duration-300">
-                                           <div className="w-5 h-5 rounded-full bg-gradient-to-r from-green-500 to-emerald-500 flex items-center justify-center transform scale-0 group-hover:scale-100 transition-transform duration-300 shadow">
-                                               <Check className="w-3 h-3 text-white" />
-                                           </div>
-                                       </div>
-                                   )}
-                               </div>
-                           );
-                       })
-                   )}
-               </div>
-           </div>
+                                                    if (isValid) {
+                                                        addNewAccount();
+                                                    }
+                                                }}
+                                            />
+                                            {account.institution && !popularBrokerages.find(b => b.name === account.institution) && (
+                                                <div className="absolute -bottom-5 left-0 text-[10px] text-indigo-600 flex items-center bg-indigo-50 px-1.5 py-0.5 rounded-full">
+                                                    <Sparkles className="w-2.5 h-2.5 mr-0.5" />
+                                                    Custom
+                                                </div>
+                                            )}
+                                        </div>
+                                        <div className="col-span-3">
+                                            <select
+                                                value={account.accountCategory}
+                                                onChange={(e) => updateAccount(account.tempId, 'accountCategory', e.target.value)}
+                                                onKeyDown={(e) => {
+                                                    if (e.key === 'Enter' && isValid) {
+                                                        e.preventDefault();
+                                                        addNewAccount();
+                                                    }
+                                                }}
+                                                className="w-full px-3 py-2 bg-gray-50 border border-gray-300 rounded-md text-sm focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-all cursor-pointer"
+                                            >
+                                                <option value="">Select category...</option>
+                                                {ACCOUNT_CATEGORIES.map(cat => (
+                                                    <option key={cat.id} value={cat.id}>
+                                                        {cat.name}
+                                                    </option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                        <div className="col-span-2">
+                                            <select
+                                                value={account.accountType}
+                                                onChange={(e) => updateAccount(account.tempId, 'accountType', e.target.value)}
+                                                onKeyDown={(e) => {
+                                                    if (e.key === 'Enter' && isValid) {
+                                                        e.preventDefault();
+                                                        addNewAccount();
+                                                    }
+                                                }}
+                                                className="w-full px-3 py-2 bg-gray-50 border border-gray-300 rounded-md text-sm focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                                                disabled={!account.accountCategory}
+                                            >
+                                                <option value="">
+                                                    {account.accountCategory ? 'Type...' : 'Category first'}
+                                                </option>
+                                                {accountTypes.map(type => (
+                                                    <option key={type.value} value={type.value}>
+                                                        {type.label}
+                                                    </option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                        <div className="col-span-1 flex items-center justify-center space-x-1">
+                                            <button
+                                                onClick={() => duplicateAccount(account)}
+                                                className="p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-md transition-all transform hover:scale-110"
+                                                title="Duplicate"
+                                            >
+                                                <Copy className="w-4 h-4" />
+                                            </button>
+                                            <button
+                                                onClick={() => deleteAccount(account.tempId)}
+                                                className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-md transition-all transform hover:scale-110"
+                                                title="Delete"
+                                            >
+                                                <Trash2 className="w-4 h-4" />
+                                            </button>
+                                        </div>
+                                    </div>
+                                    
+                                    {/* Compact Visual status indicator */}
+                                    <div className={`absolute left-0 top-0 bottom-0 w-1 rounded-l-lg transition-all duration-500 ${
+                                        account.isNew ? 'bg-gradient-to-b from-indigo-400 via-purple-400 to-pink-400 animate-pulse' :
+                                        isValid ? 'bg-gradient-to-b from-green-400 to-emerald-500' : 'bg-gradient-to-b from-gray-300 to-gray-400'
+                                    }`} />
+                                    
+                                    {/* Category icon - smaller */}
+                                    {selectedCategory && (
+                                        <div className="absolute -right-2 -top-2 opacity-0 group-hover:opacity-100 transition-all duration-300 transform group-hover:scale-110">
+                                            <div className="w-8 h-8 rounded-lg border border-white shadow-lg bg-gradient-to-br from-white to-gray-50 flex items-center justify-center">
+                                                <selectedCategory.icon className="w-4 h-4 text-gray-700" />
+                                            </div>
+                                        </div>
+                                    )}
+                                    
+                                    {/* Success checkmark - smaller */}
+                                    {isValid && !account.isNew && (
+                                        <div className="absolute right-2 top-2 opacity-0 group-hover:opacity-100 transition-all duration-300">
+                                            <div className="w-5 h-5 rounded-full bg-gradient-to-r from-green-500 to-emerald-500 flex items-center justify-center transform scale-0 group-hover:scale-100 transition-transform duration-300 shadow">
+                                                <Check className="w-3 h-3 text-white" />
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            );
+                        })
+                    )}
+                </div>
+            </div>
 
-           {/* Compact Keyboard shortcuts */}
-           <div className="bg-gradient-to-r from-indigo-50/50 to-purple-50/50 rounded-lg p-3 border border-indigo-100/50 flex items-center justify-between">
-               <div className="flex items-center">
-                   <Keyboard className="w-4 h-4 text-indigo-600 mr-2" />
-                   <p className="text-xs text-gray-700">
-                       Press <kbd className="px-2 py-0.5 bg-white border border-gray-300 rounded text-xs mx-1 shadow-sm font-mono">Enter</kbd> to add another • 
-                       <kbd className="px-2 py-0.5 bg-white border border-gray-300 rounded text-xs mx-1 shadow-sm font-mono">Tab</kbd> to navigate
-                   </p>
-               </div>
-           </div>
+            {/* Compact Keyboard shortcuts */}
+            <div className="bg-gradient-to-r from-indigo-50/50 to-purple-50/50 rounded-lg p-3 border border-indigo-100/50 flex items-center justify-between">
+                <div className="flex items-center">
+                    <Keyboard className="w-4 h-4 text-indigo-600 mr-2" />
+                    <p className="text-xs text-gray-700">
+                        Press <kbd className="px-2 py-0.5 bg-white border border-gray-300 rounded text-xs mx-1 shadow-sm font-mono">Enter</kbd> to add another • 
+                        <kbd className="px-2 py-0.5 bg-white border border-gray-300 rounded text-xs mx-1 shadow-sm font-mono">Tab</kbd> to navigate
+                    </p>
+                </div>
+            </div>
 
-           <style jsx>{`
-               .slide-in-animation {
-                   animation: slideIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
-               }
-               @keyframes slideIn {
-                   from {
-                       opacity: 0;
-                       transform: translateY(-10px) scale(0.98);
-                   }
-                   to {
-                       opacity: 1;
-                       transform: translateY(0) scale(1);
-                   }
-               }
-               @keyframes fadeIn {
-                   from { opacity: 0; transform: translateY(10px); }
-                   to { opacity: 1; transform: translateY(0); }
-               }
-               .animate-fadeIn {
-                   animation: fadeIn 0.3s ease-out;
-               }
-           `}</style>
-       </div>
-   );
-   }       
+            <style jsx>{`
+                .slide-in-animation {
+                    animation: slideIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+                }
+                @keyframes slideIn {
+                    from {
+                        opacity: 0;
+                        transform: translateY(-10px) scale(0.98);
+                    }
+                    to {
+                        opacity: 1;
+                        transform: translateY(0) scale(1);
+                    }
+                }
+            `}</style>
+        </div>
+    );
+    }       
 
-   const renderSuccessScreen = () => {
-       const isPositions = activeTab === 'positions' || importedPositions > 0;
-       
-       return (
-           <div className="space-y-6 animate-fadeIn text-center">
-               <div className="relative">
-                   <div className="inline-flex items-center justify-center w-20 h-20 bg-gradient-to-br from-green-500 to-green-600 rounded-full mb-4 animate-bounce">
-                       <CheckCircle className="w-10 h-10 text-white" />
-                   </div>
-                   <div className="absolute inset-0 flex items-center justify-center">
-                       <div className="w-32 h-32 bg-green-500 rounded-full animate-ping opacity-20" />
-                   </div>
-               </div>
-               
-               <div>
-                   <h3 className="text-2xl font-bold text-gray-900 mb-2">Success!</h3>
-                   <p className="text-gray-600">
-                       {isPositions ? 
-                           `Successfully imported ${importedPositions} position${importedPositions !== 1 ? 's' : ''}!` :
-                           `Successfully created ${importedAccounts.length} account${importedAccounts.length !== 1 ? 's' : ''}!`
-                       }
-                   </p>
-               </div>
-
-               {/* Success Summary Dashboard */}
-               {!isPositions && importedAccounts.length > 0 && (
-                   <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-xl p-6 max-w-2xl mx-auto border border-green-200">
-                       <h4 className="font-semibold text-gray-900 mb-4 flex items-center justify-center">
-                           <Activity className="w-5 h-5 mr-2 text-green-600" />
-                           Import Summary
-                       </h4>
-                       
-                       {/* Stats Grid */}
-                       <div className="grid grid-cols-3 gap-4 mb-6">
-                           <div className="bg-white rounded-lg p-3 text-center">
-                               <p className="text-2xl font-bold text-green-600">
-                                   <AnimatedNumber value={importedAccounts.length} />
-                               </p>
-                               <p className="text-xs text-gray-600">Accounts Added</p>
-                           </div>
-                           <div className="bg-white rounded-lg p-3 text-center">
-                               <p className="text-2xl font-bold text-blue-600">
-                                   <AnimatedNumber value={new Set(importedAccounts.map(a => a.institution)).size} />
-                               </p>
-                               <p className="text-xs text-gray-600">Institutions</p>
-                           </div>
-                           <div className="bg-white rounded-lg p-3 text-center">
-                               <p className="text-2xl font-bold text-purple-600">
-                                   <AnimatedNumber value={new Set(importedAccounts.map(a => a.account_category)).size} />
-                               </p>
-                               <p className="text-xs text-gray-600">Categories</p>
-                           </div>
-                       </div>
-
-                       {/* Account List */}
-                       <div className="space-y-2 max-h-48 overflow-y-auto">
-                           {importedAccounts.map((account, index) => {
-                               const category = ACCOUNT_CATEGORIES.find(c => 
-                                   c.id.toLowerCase() === account.account_category?.toLowerCase()
-                               );
-                               const CategoryIcon = category?.icon || Building;
-                               
-                               return (
-                                   <div 
-                                       key={index} 
-                                       className="flex items-center justify-between bg-white rounded-lg p-3 border border-gray-100 hover:shadow-sm transition-shadow"
-                                       style={{ animationDelay: `${index * 50}ms` }}
-                                   >
-                                       <div className="flex items-center">
-                                           <CategoryIcon className="w-4 h-4 text-gray-600 mr-3" />
-                                           <div>
-                                               <p className="font-medium text-gray-900 text-sm">{account.account_name}</p>
-                                               <p className="text-xs text-gray-500">{account.institution} • {account.type}</p>
-                                           </div>
-                                       </div>
-                                       <CheckCircle className="w-4 h-4 text-green-500" />
-                                   </div>
-                               );
-                           })}
-                       </div>
-                   </div>
-               )}
-               
-               <div className="bg-green-50 rounded-xl p-6 max-w-md mx-auto">
-                   <h4 className="font-semibold text-gray-900 mb-3">What's Next?</h4>
-                   <div className="space-y-3 text-left">
-                       {isPositions ? (
-                           <>
-                               <div className="flex items-start">
-                                   <div className="flex-shrink-0 w-6 h-6 bg-green-100 rounded-full flex items-center justify-center mr-3 mt-0.5">
-                                       <span className="text-xs font-semibold text-green-600">1</span>
-                                   </div>
-                                   <div>
-                                       <p className="font-medium text-gray-900">View Portfolio</p>
-                                       <p className="text-sm text-gray-600">See your complete portfolio overview</p>
-                                   </div>
-                               </div>
-                               <div className="flex items-start">
-                                   <div className="flex-shrink-0 w-6 h-6 bg-green-100 rounded-full flex items-center justify-center mr-3 mt-0.5">
+    const renderSuccessScreen = () => {
+        const isPositions = activeTab === 'positions';
+        const itemType = isPositions ? 'position' : 'account';
+        const itemCount = isPositions ? 
+            // Get the count from AddQuickPositionModal's queue if it was used
+            (importMethod === 'ui' ? 0 : 0) : // You'll need to pass this from QuickPositionWrapper
+            validAccounts.length;
+        
+        return (
+            <div className="space-y-6 animate-fadeIn text-center">
+                <div className="relative">
+                    <div className="inline-flex items-center justify-center w-20 h-20 bg-gradient-to-br from-green-500 to-green-600 rounded-full mb-4 animate-bounce">
+                        <CheckCircle className="w-10 h-10 text-white" />
+                    </div>
+                    <div className="absolute inset-0 flex items-center justify-center">
+                        <div className="w-32 h-32 bg-green-500 rounded-full animate-ping opacity-20" />
+                    </div>
+                </div>
+                
+                <div>
+                    <h3 className="text-2xl font-bold text-gray-900 mb-2">Success!</h3>
+                    <p className="text-gray-600">
+                        {isPositions ? 
+                            'Successfully imported your positions!' :
+                            <>Successfully created <span className="font-semibold text-green-600">{validAccounts.length}</span> account{validAccounts.length !== 1 ? 's' : ''}</>
+                        }
+                    </p>
+                </div>
+                
+                <div className="bg-green-50 rounded-xl p-6 max-w-md mx-auto">
+                    <h4 className="font-semibold text-gray-900 mb-3">What's Next?</h4>
+                    <div className="space-y-3 text-left">
+                        {isPositions ? (
+                            <>
+                                <div className="flex items-start">
+                                    <div className="flex-shrink-0 w-6 h-6 bg-green-100 rounded-full flex items-center justify-center mr-3 mt-0.5">
+                                        <span className="text-xs font-semibold text-green-600">1</span>
+                                    </div>
+                                    <div>
+                                        <p className="font-medium text-gray-900">View Portfolio</p>
+                                        <p className="text-sm text-gray-600">See your complete portfolio overview</p>
+                                    </div>
+                                </div>
+                                <div className="flex items-start">
+                                    <div className="flex-shrink-0 w-6 h-6 bg-green-100 rounded-full flex items-center justify-center mr-3 mt-0.5">
                                        <span className="text-xs font-semibold text-green-600">2</span>
                                    </div>
                                    <div>
@@ -1532,47 +1245,25 @@ const QuickStartModal = ({ isOpen, onClose }) => {
                                </div>
                            </>
                        )}
-                       <div className="pt-2 border-t border-green-200 mt-3">
-                           <p className="text-xs text-gray-600 flex items-center">
-                               <Info className="w-3 h-3 mr-1.5" />
-                               You can continue adding accounts and positions anytime
-                           </p>
-                       </div>
                    </div>
                </div>
                
-               <div className="flex justify-center space-x-3">
+               <div className="flex justify-center space-x-4">
                    {!isPositions && (
-                       <>
-                           <button
-                               onClick={() => {
-                                   setActiveTab('accounts');
-                                   setImportMethod(null);
-                                   setAccounts([]);
-                                   setImportedAccounts([]);
-                               }}
-                               className="px-5 py-2 bg-white border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 transition-all duration-200 flex items-center"
-                           >
-                               <Plus className="w-4 h-4 mr-1.5" />
-                               Add More Accounts
-                           </button>
-                           <button
-                               onClick={() => {
-                                   setActiveTab('positions');
-                                   setImportMethod(null);
-                                   setAccounts([]);
-                                   setImportedAccounts([]);
-                               }}
-                               className="px-5 py-2 bg-gradient-to-r from-purple-600 to-purple-700 text-white font-medium rounded-lg hover:from-purple-700 hover:to-purple-800 transition-all duration-200 flex items-center"
-                           >
-                               <FileSpreadsheet className="w-4 h-4 mr-1.5" />
-                               Import Positions
-                           </button>
-                       </>
+                       <button
+                           onClick={() => {
+                               setActiveTab('positions');
+                               setImportMethod(null);
+                               setAccounts([]);
+                           }}
+                           className="px-6 py-2 bg-gradient-to-r from-purple-600 to-purple-700 text-white font-medium rounded-lg hover:from-purple-700 hover:to-purple-800 transition-all duration-200"
+                       >
+                           Import Positions
+                       </button>
                    )}
                    <button
                        onClick={onClose}
-                       className="px-6 py-2 bg-gray-900 text-white font-medium rounded-lg hover:bg-gray-800 transition-all duration-200"
+                       className="px-6 py-2 bg-white border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 transition-all duration-200"
                    >
                        Done
                    </button>
@@ -1593,7 +1284,7 @@ const QuickStartModal = ({ isOpen, onClose }) => {
                        <Icon className="w-8 h-8 text-white" />
                    </div>
                    <h3 className="text-2xl font-bold text-gray-900 mb-2">
-                       Excel Import - {isAccounts ? 'Accounts' : 'Positions'}
+                       {isAccounts ? 'Import Accounts' : 'Import Positions'}
                    </h3>
                    <p className="text-gray-600 max-w-md mx-auto">
                        {isAccounts 
@@ -1663,7 +1354,7 @@ const QuickStartModal = ({ isOpen, onClose }) => {
                        {isDownloading ? (
                            <>
                                <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                               Downloading<LoadingDots />
+                               Downloading...
                            </>
                        ) : (
                            <>
@@ -1692,7 +1383,7 @@ const QuickStartModal = ({ isOpen, onClose }) => {
            <div
                className={`relative border-2 border-dashed rounded-xl p-8 text-center transition-all duration-300 ${
                    isDragging 
-                       ? 'border-blue-500 bg-blue-50 scale-[1.02]' 
+                       ? 'border-blue-500 bg-blue-50' 
                        : uploadedFile 
                            ? 'border-green-500 bg-green-50' 
                            : 'border-gray-300 hover:border-gray-400 bg-gray-50'
@@ -1712,16 +1403,15 @@ const QuickStartModal = ({ isOpen, onClose }) => {
 
                {!uploadedFile ? (
                    <>
-                       <Upload className={`w-12 h-12 mx-auto mb-4 ${isDragging ? 'text-blue-600 animate-bounce' : 'text-gray-400'}`} />
+                       <Upload className={`w-12 h-12 mx-auto mb-4 ${isDragging ? 'text-blue-600' : 'text-gray-400'}`} />
                        <p className="text-lg font-medium text-gray-900 mb-2">
                            {isDragging ? 'Drop your file here' : 'Drag and drop your Excel file'}
                        </p>
                        <p className="text-sm text-gray-600 mb-4">or</p>
                        <button
                            onClick={() => fileInputRef.current?.click()}
-                           className="inline-flex items-center px-4 py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors group"
+                           className="inline-flex items-center px-4 py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
                        >
-                           <FolderOpen className="w-4 h-4 mr-2 text-gray-500 group-hover:text-gray-700" />
                            Browse Files
                        </button>
                        <p className="text-xs text-gray-500 mt-4">Supported formats: .xlsx, .xls</p>
@@ -1738,15 +1428,13 @@ const QuickStartModal = ({ isOpen, onClose }) => {
                            <div className="space-y-2">
                                <div className="flex items-center justify-center text-blue-600">
                                    <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                                   <span className="text-sm">Validating file<LoadingDots /></span>
+                                   <span className="text-sm">Validating file...</span>
                                </div>
-                               <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
+                               <div className="w-full bg-gray-200 rounded-full h-2">
                                    <div 
-                                       className="bg-gradient-to-r from-blue-500 to-blue-600 h-2 rounded-full transition-all duration-300 relative"
+                                       className="bg-blue-600 h-2 rounded-full transition-all duration-300"
                                        style={{ width: `${uploadProgress}%` }}
-                                   >
-                                       <div className="absolute inset-0 bg-white/20 animate-pulse"></div>
-                                   </div>
+                                   />
                                </div>
                            </div>
                        )}
@@ -1756,7 +1444,7 @@ const QuickStartModal = ({ isOpen, onClose }) => {
                                   <CheckCircle className="w-5 h-5 mr-2" />
                                   <span className="font-medium">File validated successfully!</span>
                               </div>
-                              <button className="w-full px-4 py-2 bg-gradient-to-r from-green-600 to-green-700 text-white font-medium rounded-lg hover:from-green-700 hover:to-green-800 transition-all duration-200 transform hover:scale-[1.02]">
+                              <button className="w-full px-4 py-2 bg-gradient-to-r from-green-600 to-green-700 text-white font-medium rounded-lg hover:from-green-700 hover:to-green-800 transition-all duration-200">
                                   Import Data
                               </button>
                           </div>
@@ -1768,9 +1456,8 @@ const QuickStartModal = ({ isOpen, onClose }) => {
                               setValidationStatus(null);
                               setUploadProgress(0);
                           }}
-                          className="text-sm text-gray-600 hover:text-gray-900 transition-colors inline-flex items-center"
+                          className="text-sm text-gray-600 hover:text-gray-900 transition-colors"
                       >
-                          <RefreshCw className="w-3 h-3 mr-1.5" />
                           Upload different file
                       </button>
                   </div>
@@ -1797,7 +1484,7 @@ const QuickStartModal = ({ isOpen, onClose }) => {
   if (!isOpen) return null;
 
   return (
-      <div className="fixed inset-0 z-[100000] overflow-y-auto">
+      <div className="fixed inset-0 z-50 overflow-y-auto">
           <div className="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center">
               <div 
                   className="fixed inset-0 transition-opacity duration-300 ease-out"
@@ -1810,9 +1497,9 @@ const QuickStartModal = ({ isOpen, onClose }) => {
                   <div className="absolute top-4 right-4 z-10">
                       <button
                           onClick={onClose}
-                          className="p-2 rounded-lg hover:bg-gray-100 transition-colors group"
+                          className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
                       >
-                          <X className="w-5 h-5 text-gray-500 group-hover:text-gray-700" />
+                          <X className="w-5 h-5 text-gray-500" />
                       </button>
                   </div>
 
@@ -1834,9 +1521,9 @@ const QuickStartModal = ({ isOpen, onClose }) => {
                                    setActiveTab('overview');
                                }
                            }}
-                              className="text-sm text-gray-600 hover:text-gray-900 transition-colors inline-flex items-center p-2 rounded-lg hover:bg-gray-100 group"
+                              className="text-sm text-gray-600 hover:text-gray-900 transition-colors inline-flex items-center p-2 rounded-lg hover:bg-gray-100"
                           >
-                              <ArrowLeft className="w-4 h-4 mr-1 group-hover:-translate-x-0.5 transition-transform" />
+                              <ArrowLeft className="w-4 h-4 mr-1" />
                               Back
                           </button>
                       </div>
