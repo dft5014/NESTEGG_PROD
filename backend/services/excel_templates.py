@@ -103,8 +103,8 @@ class ExcelTemplateService:
         accounts_ws = wb.create_sheet("Accounts", 1)
         accounts_ws.sheet_properties.tabColor = "4CAF50"
         
-        # Headers
-        headers = ["Account Name*", "Institution*", "Account Type*", "Account Category*", "Notes"]
+        # Headers - match Quick Add UI order (Category before Type)
+        headers = ["Account Name*", "Institution*", "Account Category*", "Account Type*"]
         for col, header in enumerate(headers, start=1):
             cell = accounts_ws.cell(row=1, column=col, value=header)
             cell.font = self.header_font
@@ -112,11 +112,12 @@ class ExcelTemplateService:
             cell.alignment = self.header_alignment
             cell.border = self.border
         
-        # Sample data
+        # Sample data - updated to match new column order and valid values
         sample_data = [
-            ["My 401k", "Fidelity", "401k", "retirement", "Primary retirement account"],
-            ["Joint Brokerage", "Vanguard", "Taxable", "brokerage", "Shared with spouse"],
-            ["Emergency Fund", "Ally Bank", "Savings", "cash", "6 months expenses"],
+            ["My 401k", "Fidelity", "retirement", "401(k)"],
+            ["Joint Brokerage", "Vanguard", "brokerage", "Joint"],
+            ["Emergency Fund", "Ally Invest", "cash", "High Yield Savings"],
+            ["Bitcoin Wallet", "Coinbase", "cryptocurrency", "Exchange Account"],
         ]
         
         for row_idx, row_data in enumerate(sample_data, start=2):
@@ -126,25 +127,27 @@ class ExcelTemplateService:
                 cell.fill = self.sample_fill
         
         # Empty rows for user input
-        for row_idx in range(5, 30):  # 25 empty rows
-            for col_idx in range(1, 6):
+        for row_idx in range(6, 50):  # More rows for larger imports
+            for col_idx in range(1, 5):  # 4 columns now
                 cell = accounts_ws.cell(row=row_idx, column=col_idx, value="")
                 cell.border = self.border
-                if col_idx <= 4:  # Required fields
+                if col_idx <= 4:  # All fields are required
                     cell.fill = self.required_fill
         
+        # Create validation lists sheet first
+        self._create_validation_lists_sheet(wb)
+        
         # Add data validations
-        self._add_institution_validation(accounts_ws)
-        self._add_account_type_validation(accounts_ws)
-        self._add_category_validation(accounts_ws)
+        self._add_institution_validation_named_range(accounts_ws)
+        self._add_category_validation_named_range(accounts_ws)
+        self._add_account_type_validation_with_message(accounts_ws)
         
         # Adjust column widths
         column_widths = {
-            'A': 25,  # Account Name
-            'B': 20,  # Institution
-            'C': 15,  # Account Type
-            'D': 18,  # Account Category
-            'E': 40   # Notes
+            'A': 30,  # Account Name
+            'B': 25,  # Institution
+            'C': 20,  # Account Category
+            'D': 25,  # Account Type
         }
         
         for col, width in column_widths.items():
@@ -153,12 +156,91 @@ class ExcelTemplateService:
         # Freeze header row
         accounts_ws.freeze_panes = 'A2'
         
-        # Add note at bottom
-        note_row = 32
-        accounts_ws.merge_cells(f'A{note_row}:E{note_row}')
-        accounts_ws[f'A{note_row}'] = "Note: Yellow cells are required. The first 3 rows show examples - you can delete or modify them."
+        # Add helpful notes at bottom
+        note_row = 52
+        accounts_ws.merge_cells(f'A{note_row}:D{note_row}')
+        accounts_ws[f'A{note_row}'] = "Note: Yellow cells are required. The first 4 rows show examples - you can delete or modify them."
         accounts_ws[f'A{note_row}'].font = Font(italic=True, size=10, color="666666")
         accounts_ws[f'A{note_row}'].alignment = Alignment(horizontal="center")
+        
+        # Add category-type relationship note
+        note_row2 = 54
+        accounts_ws.merge_cells(f'A{note_row2}:D{note_row2}')
+        accounts_ws[f'A{note_row2}'] = "Important: Account Type options depend on the Category selected. See 'Category-Type Reference' tab for valid combinations."
+        accounts_ws[f'A{note_row2}'].font = Font(italic=True, size=10, color="CC0000")
+        accounts_ws[f'A{note_row2}'].alignment = Alignment(horizontal="center")
+        
+        # Add custom institution note
+        note_row3 = 56
+        accounts_ws.merge_cells(f'A{note_row3}:D{note_row3}')
+        accounts_ws[f'A{note_row3}'] = "Tip: If your institution isn't listed, you can type a custom name in the Institution field."
+        accounts_ws[f'A{note_row3}'].font = Font(italic=True, size=10, color="0066CC")
+        accounts_ws[f'A{note_row3}'].alignment = Alignment(horizontal="center")
+
+    def _add_account_type_validation_with_message(self, ws):
+        """Add account type validation with helpful message"""
+        # Since Excel doesn't support dynamic dropdowns easily, we'll add all valid types
+        # and use a message to guide users
+        all_types = []
+        for types in ACCOUNT_TYPES_BY_CATEGORY.values():
+            all_types.extend(types)
+        # Remove duplicates while preserving order
+        all_types = list(dict.fromkeys(all_types))
+        
+        type_dv = DataValidation(
+            type="list",
+            formula1=f'"{",".join(all_types)}"',
+            allow_blank=False,
+            showDropDown=True,
+            showInputMessage=True,
+            inputTitle="Select Account Type",
+            inputMessage="Choose a type that matches your selected category. See 'Category-Type Reference' tab for valid combinations.",
+            errorTitle="Invalid Account Type",
+            error="Please select a valid account type for your chosen category."
+        )
+        type_dv.add('D2:D50')
+        ws.add_data_validation(type_dv)
+
+    def _create_category_type_reference(self, wb: Workbook):
+        """Create reference sheet showing valid type combinations"""
+        ref_ws = wb.create_sheet("Category-Type Reference", 3)
+        ref_ws.sheet_properties.tabColor = "FFC107"
+        
+        # Title
+        ref_ws.merge_cells('A1:C1')
+        ref_ws['A1'] = "Valid Account Types by Category"
+        ref_ws['A1'].font = Font(bold=True, size=14, color="2C3E50")
+        ref_ws['A1'].alignment = Alignment(horizontal="center")
+        
+        row = 3
+        for category, types in ACCOUNT_TYPES_BY_CATEGORY.items():
+            # Category header
+            ref_ws.cell(row=row, column=1, value=category.replace('_', ' ').title())
+            ref_ws.cell(row=row, column=1).font = Font(bold=True, size=12, color="FFFFFF")
+            ref_ws.cell(row=row, column=1).fill = PatternFill(start_color="34495E", end_color="34495E", fill_type="solid")
+            ref_ws.merge_cells(f'A{row}:C{row}')
+            
+            # Types for this category
+            for type_name in types:
+                row += 1
+                ref_ws.cell(row=row, column=2, value=type_name)
+                ref_ws.cell(row=row, column=2).border = self.border
+                
+                # Add a checkmark to show it's valid
+                ref_ws.cell(row=row, column=3, value="✓")
+                ref_ws.cell(row=row, column=3).font = Font(color="27AE60", bold=True)
+                ref_ws.cell(row=row, column=3).alignment = Alignment(horizontal="center")
+            
+            row += 2  # Space between categories
+        
+        # Adjust column widths
+        ref_ws.column_dimensions['A'].width = 25
+        ref_ws.column_dimensions['B'].width = 30
+        ref_ws.column_dimensions['C'].width = 10
+        
+        # Freeze the title row
+        ref_ws.freeze_panes = 'A2'
+
     
     def _add_institution_validation(self, ws):
         """Add institution dropdown validation"""

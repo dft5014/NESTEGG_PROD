@@ -3,44 +3,154 @@
 Constants extracted from frontend constants.js
 """
 
+# backend/utils/constants.py
+
 INSTITUTION_LIST = [
     # Traditional Brokerages & Investment Firms
-    "Vanguard", "Fidelity", "Charles Schwab", "TD Ameritrade", "E*TRADE",
-    "Robinhood", "Interactive Brokers", "Merrill Lynch", "T. Rowe Price",
+    "Vanguard",
+    "Fidelity",
+    "Charles Schwab",
+    "TD Ameritrade",
+    "E*TRADE",
+    "Robinhood",
+    "Interactive Brokers",
+    "Merrill Lynch",
+    "T. Rowe Price",
     "Ally Invest",
+    "Raymond James",
+    "Muriel Siebert",
     
     # Major Banks
-    "JPMorgan Chase", "Bank of America", "Wells Fargo", "Citibank",
-    "Goldman Sachs", "Morgan Stanley", "HSBC", "Capital One", "PNC Bank",
+    "JPMorgan Chase",
+    "Bank of America",
+    "Wells Fargo",
+    "Citibank",
+    "Goldman Sachs",
+    "Morgan Stanley",
+    "HSBC",
+    "Capital One",
+    "PNC Bank",
     "US Bank",
     
     # Crypto Exchanges
-    "Coinbase", "Binance", "Kraken", "Gemini", "Crypto.com", "Bitstamp",
+    "Coinbase",
+    "Binance",
+    "Kraken",
+    "Gemini",
+    "Crypto.com",
+    "Bitstamp",
+    "Uphold",
     
     # International & Other
-    "Barclays", "Deutsche Bank", "UBS", "Credit Suisse", "RBC", "TD Bank",
-    "Scotiabank", "ING", "BBVA", "Santander",
+    "Barclays",
+    "Deutsche Bank",
+    "UBS",
+    "Credit Suisse",
+    "RBC",
+    "TD Bank",
+    "Scotiabank",
+    "ING",
+    "BBVA",
+    "Santander",
     
     # Additional Financial Institutions
-    "American Express", "Discover", "M1 Finance", "Wealthsimple",
-    "State Street", "BNY Mellon", "BlackRock", "Northern Trust", "Truist",
+    "American Express",
+    "Discover",
+    "M1 Finance",
+    "Wealthsimple",
+    "State Street",
+    "BNY Mellon",
+    "BlackRock",
+    "Northern Trust",
+    "Truist",
     "Citizens Bank",
     
-    # New Additions
-    "River Financial", "Public.com", "SoFi", "PayPal", "Venmo",
+    # Newer Platforms
+    "River Financial",
+    "Public.com",
+    "SoFi",
+    "PayPal",
+    "Venmo",
     
-    # Generic Options
-    "Other", "None", "Self-Directed/Custom"
+    # Specialized Platforms
+    "iTrustCapital",
+    "Money Metals Exchange",
+    
+    # Credit Unions
+    "PSECU",
+    "PenFed Credit Union",
+    
+    # Custom Options
+    "Other",
+    "None",
+    "Self-Directed/Custom"
 ]
 
-ACCOUNT_TYPES = [
-    "401k", "Traditional IRA", "Roth IRA", "Taxable", "529", "HSA",
-    "Pension", "Savings", "Checking", "Money Market", "CD", "Other"
-]
+# backend/utils/constants.py
 
 ACCOUNT_CATEGORIES = [
-    'brokerage', 'retirement', 'cash', 'crypto', 'metals', 'realestate', 'other'
+    "brokerage",
+    "retirement", 
+    "cash",
+    "cryptocurrency",
+    "metals",
+    "real_estate"
 ]
+
+# Account types by category - must match QuickStartModal exactly
+ACCOUNT_TYPES_BY_CATEGORY = {
+    "brokerage": [
+        "Individual",
+        "Joint", 
+        "Custodial",
+        "Trust",
+        "Other Brokerage"
+    ],
+    "retirement": [
+        "Traditional IRA",
+        "Roth IRA",
+        "401(k)",
+        "Roth 401(k)",
+        "SEP IRA",
+        "SIMPLE IRA",
+        "403(b)",
+        "Pension",
+        "HSA",
+        "Other Retirement"
+    ],
+    "cash": [
+        "Checking",
+        "Savings",
+        "High Yield Savings",
+        "Money Market",
+        "Certificate of Deposit (CD)",
+        "Other Cash"
+    ],
+    "cryptocurrency": [
+        "Exchange Account",
+        "Hardware Wallet",
+        "Software Wallet",
+        "Cold Storage",
+        "Other Crypto"
+    ],
+    "metals": [
+        "Home Storage",
+        "Safe Deposit Box",
+        "Third-Party Vault",
+        "Allocated Storage",
+        "Unallocated Storage",
+        "Other Metals"
+    ],
+    "real_estate": [
+        "Primary Residence",
+        "Vacation Home",
+        "Rental Property",
+        "Commercial Property",
+        "Land",
+        "REIT",
+        "Other Real Estate"
+    ]
+}
 
 METAL_UNITS = ['oz', 'g', 'kg', 'lb', 'item']
 
