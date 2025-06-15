@@ -1318,7 +1318,15 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved }) => {
     // Search results dropdown for searchable fields
     if (field.searchable && searchResultsForField.length > 0) {
       return (
-        <div className="relative w-full">
+        <div 
+          className="absolute left-0 right-0 mt-1 bg-white border border-gray-300 rounded-lg shadow-xl max-h-48 overflow-y-auto"
+          style={{ 
+            zIndex: 99999,
+            position: 'absolute',
+            top: '100%',
+            minWidth: '300px'
+          }}
+        >
           <input
             {...commonProps}
             type="text"
@@ -1618,7 +1626,7 @@ return (
              </div>
            ) : (
              <>
-               <div className="overflow-x-auto" ref={el => tableRefs.current[assetType] = el}>
+              <div className="overflow-x-auto overflow-y-visible" ref={el => tableRefs.current[assetType] = el}>
                  <table className="w-full">
                    <thead>
                      <tr className="bg-gray-50 border-b border-gray-200">
@@ -1647,16 +1655,17 @@ return (
                        const value = calculatePositionValue(assetType, position);
                        
                        return (
-                         <tr 
-                           key={position.id}
-                           className={`
-                             border-b border-gray-100 transition-all duration-300 group
-                             ${position.isNew ? 'bg-blue-50/50' : 'hover:bg-gray-50/50'}
-                             ${position.animateIn ? 'animate-in slide-in-from-left duration-300' : ''}
-                             ${position.animateOut ? 'animate-out slide-out-to-right duration-300' : ''}
-                             ${hasErrors ? 'bg-red-50/30' : ''}
-                           `}
-                         >
+                        <tr 
+                          key={position.id}
+                          className={`
+                            border-b border-gray-100 transition-all duration-300 group relative
+                            ${position.isNew ? 'bg-blue-50/50' : 'hover:bg-gray-50/50'}
+                            ${position.animateIn ? 'animate-in slide-in-from-left duration-300' : ''}
+                            ${position.animateOut ? 'animate-out slide-out-to-right duration-300' : ''}
+                            ${hasErrors ? 'bg-red-50/30' : ''}
+                          `}
+                          style={{ zIndex: typePositions.length - index }}
+                        >
                            <td className="px-3 py-2">
                              <div className="flex items-center space-x-2">
                                <span className="text-sm font-medium text-gray-500">
@@ -2204,7 +2213,7 @@ return (
        </div>
 
        {/* Scrollable Content Area */}
-       <div className="flex-1 overflow-y-auto p-6 space-y-4">
+        <div className="flex-1 overflow-y-auto overflow-x-visible p-6 space-y-4 relative" style={{ zIndex: 1 }}>
          {viewMode ? (
            // Account View
            renderByAccount()

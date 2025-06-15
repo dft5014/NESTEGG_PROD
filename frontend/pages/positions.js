@@ -37,8 +37,6 @@ export default function PositionsPage() {
   const [error, setError] = useState(null);
   const [showValues, setShowValues] = useState(true);
   const [selectedTimeframe, setSelectedTimeframe] = useState('1m');
-  const [hoveredPosition, setHoveredPosition] = useState(null);
-  const [selectedSector, setSelectedSector] = useState(null);
   const [viewMode, setViewMode] = useState('table'); // table, grid, cards
   const containerRef = useRef(null);
   
@@ -469,6 +467,17 @@ export default function PositionsPage() {
   };
 
   const currentPeriodChange = getCurrentPeriodChange();
+
+  // Animated number component with spring animation
+  const AnimatedNumber = ({ value, format = (v) => v }) => {
+    const springValue = useSpring(0, { damping: 30, stiffness: 100 });
+    
+    useEffect(() => {
+      springValue.set(value || 0);
+    }, [value, springValue]);
+    
+    return <motion.span>{format(springValue.get())}</motion.span>;
+  };
   
   return (
     <div ref={containerRef} className="min-h-screen bg-black text-white">
@@ -546,7 +555,7 @@ export default function PositionsPage() {
                 </div>
                 
                 <h2 className="text-3xl font-bold mb-2">
-                  {showValues ? formatCurrency(positionMetrics.totalValue) : '••••••'}
+                  {showValues ? <AnimatedNumber value={positionMetrics.totalValue} format={formatCurrency} /> : '••••••'}
                 </h2>
                 
                 <div className="flex items-center space-x-4 mb-4">
@@ -649,6 +658,67 @@ export default function PositionsPage() {
               </div>
             </div>
           </div>
+        </section>
+
+        {/* Enhanced Metrics Cards */}
+        <section className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+          {[
+            {
+              title: "Total Positions",
+              value: positionMetrics.totalPositions,
+              icon: <Layers className="w-5 h-5" />,
+              color: "text-blue-400",
+              bgColor: "bg-blue-500/10",
+              format: (v) => v?.toLocaleString() ?? '0',
+              subtitle: `${filteredPositions.length} visible`
+            },
+            {
+              title: "Total Gain/Loss",
+              value: positionMetrics.totalGainLoss,
+              icon: positionMetrics.totalGainLoss >= 0 ? <TrendingUp className="w-5 h-5" /> : <TrendingDown className="w-5 h-5" />,
+              color: positionMetrics.totalGainLoss >= 0 ? "text-green-400" : "text-red-400",
+              bgColor: positionMetrics.totalGainLoss >= 0 ? "bg-green-500/10" : "bg-red-500/10",
+              format: (v) => showValues ? formatCurrency(v) : '••••',
+              subtitle: `${formatPercentage(positionMetrics.totalGainLossPercent)} return`
+            },
+            {
+              title: "Largest Position",
+              value: positionMetrics.largestPosition?.value,
+              icon: <Target className="w-5 h-5" />,
+              color: "text-purple-400",
+              bgColor: "bg-purple-500/10",
+              format: (v) => showValues ? formatCurrency(v) : '••••',
+              subtitle: positionMetrics.largestPosition?.name
+            },
+            {
+              title: "Best Performer",
+              value: positionMetrics.mostProfitablePosition?.gainLossPercent,
+              icon: <Flame className="w-5 h-5" />,
+              color: "text-orange-400",
+              bgColor: "bg-orange-500/10",
+              format: (v) => `+${formatPercentage(v)}`,
+              subtitle: positionMetrics.mostProfitablePosition?.name
+            }
+          ].map((metric, index) => (
+            <motion.div
+              key={metric.title}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.1 + index * 0.05 }}
+              className="bg-gray-900 rounded-lg p-4 border border-gray-800 hover:bg-gray-800 transition-colors"
+            >
+              <div className="flex items-start justify-between mb-2">
+                <div className={`p-2 rounded-lg ${metric.bgColor}`}>
+                  <div className={metric.color}>{metric.icon}</div>
+                </div>
+              </div>
+              <h3 className="text-gray-400 text-xs mb-1">{metric.title}</h3>
+              <p className="text-xl font-bold mb-1">{metric.format(metric.value)}</p>
+              {metric.subtitle && (
+                <p className="text-xs text-gray-500 truncate">{metric.subtitle}</p>
+              )}
+            </motion.div>
+          ))}
         </section>
 
         {/* Positions Table Section */}
@@ -938,45 +1008,203 @@ export default function PositionsPage() {
           </div>
         </section>
 
-        {/* Risk Metrics */}
+        {/* Performance Insights Section */}
         <section className="mb-8">
           <h3 className="text-lg font-bold mb-4 flex items-center">
-            <Shield className="w-5 h-5 mr-2 text-blue-400" />
-            Risk Analysis
+            <Cpu className="w-5 h-5 mr-2 text-purple-400" />
+            Performance Insights
           </h3>
           
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="bg-gray-900 rounded-xl p-4 border border-gray-800">
-              <h4 className="text-sm text-gray-400 mb-2">Diversification Score</h4>
-              <div className="flex items-end justify-between">
-                <span className="text-2xl font-bold">{positionMetrics.diversificationScore?.toFixed(0) || 0}</span>
-                <span className="text-sm text-gray-400">/100</span>
+            {[
+              {
+                title: "Portfolio Health",
+                icon: <Activity className="w-5 h-5" />,
+                score: positionMetrics.diversificationScore || 0,
+                status: positionMetrics.diversificationScore > 70 ? "Excellent" : positionMetrics.diversificationScore > 40 ? "Good" : "Needs Attention",
+                color: positionMetrics.diversificationScore > 70 ? "text-green-400" : positionMetrics.diversificationScore > 40 ? "text-yellow-400" : "text-red-400",
+                bgColor: positionMetrics.diversificationScore > 70 ? "bg-green-500/10" : positionMetrics.diversificationScore > 40 ? "bg-yellow-500/10" : "bg-red-500/10",
+                insights: [
+                  `${positionMetrics.totalPositions} total positions`,
+                  `${positionMetrics.assetAllocation?.length || 0} asset types`,
+                  `Concentration: ${positionMetrics.largestPosition?.percentage?.toFixed(1) || 0}%`
+                ]
+              },
+              {
+                title: "Performance Analysis",
+                icon: <TrendingUp className="w-5 h-5" />,
+                score: Math.min(100, Math.max(0, 50 + (positionMetrics.totalGainLossPercent || 0))),
+                status: positionMetrics.totalGainLossPercent > 10 ? "Outperforming" : positionMetrics.totalGainLossPercent > 0 ? "Positive" : "Underperforming",
+                color: positionMetrics.totalGainLossPercent > 10 ? "text-green-400" : positionMetrics.totalGainLossPercent > 0 ? "text-blue-400" : "text-red-400",
+                bgColor: positionMetrics.totalGainLossPercent > 10 ? "bg-green-500/10" : positionMetrics.totalGainLossPercent > 0 ? "bg-blue-500/10" : "bg-red-500/10",
+                insights: [
+                  `${formatPercentage(positionMetrics.totalGainLossPercent)} total return`,
+                  `${positionMetrics.topGainers?.length || 0} winning positions`,
+                  `Best: ${formatPercentage(positionMetrics.mostProfitablePosition?.gainLossPercent || 0)}`
+                ]
+              },
+              {
+                title: "Risk Assessment",
+                icon: <Shield className="w-5 h-5" />,
+                score: Math.max(0, 100 - (positionMetrics.riskMetrics?.volatility || 0)),
+                status: positionMetrics.riskMetrics?.volatility < 15 ? "Low Risk" : positionMetrics.riskMetrics?.volatility < 25 ? "Moderate" : "High Risk",
+                color: positionMetrics.riskMetrics?.volatility < 15 ? "text-green-400" : positionMetrics.riskMetrics?.volatility < 25 ? "text-yellow-400" : "text-red-400",
+                bgColor: positionMetrics.riskMetrics?.volatility < 15 ? "bg-green-500/10" : positionMetrics.riskMetrics?.volatility < 25 ? "bg-yellow-500/10" : "bg-red-500/10",
+                insights: [
+                  `${positionMetrics.riskMetrics?.volatility?.toFixed(1) || 0}% volatility`,
+                  `Sharpe: ${positionMetrics.riskMetrics?.sharpeRatio?.toFixed(2) || 0}`,
+                  `Diversification: ${positionMetrics.diversificationScore?.toFixed(0) || 0}/100`
+                ]
+              }
+            ].map((insight, index) => (
+              <div
+                key={insight.title}
+                className="bg-gray-900 rounded-xl p-4 border border-gray-800"
+              >
+                <div className="flex items-center justify-between mb-3">
+                  <h4 className="text-sm font-medium">{insight.title}</h4>
+                  <div className={`p-2 rounded-lg ${insight.bgColor}`}>
+                    <div className={insight.color}>{insight.icon}</div>
+                  </div>
+                </div>
+                
+                {/* Score Display */}
+                <div className="mb-3">
+                  <div className="flex items-end justify-between mb-1">
+                    <span className="text-2xl font-bold">{insight.score.toFixed(0)}</span>
+                    <span className={`text-xs ${insight.color}`}>{insight.status}</span>
+                  </div>
+                  <div className="w-full bg-gray-700 rounded-full h-2 overflow-hidden">
+                    <motion.div
+                      className={`h-full ${insight.color === 'text-green-400' ? 'bg-green-400' : insight.color === 'text-yellow-400' ? 'bg-yellow-400' : insight.color === 'text-blue-400' ? 'bg-blue-400' : 'bg-red-400'}`}
+                      initial={{ width: 0 }}
+                      animate={{ width: `${insight.score}%` }}
+                      transition={{ duration: 0.5, ease: "easeOut" }}
+                    />
+                  </div>
+                </div>
+                
+                {/* Insights */}
+                <div className="space-y-1">
+                  {insight.insights.map((item, i) => (
+                    <div key={i} className="flex items-center text-xs text-gray-400">
+                      <div className="w-1 h-1 bg-gray-400 rounded-full mr-2" />
+                      {item}
+                    </div>
+                  ))}
+                </div>
               </div>
-              <div className="w-full bg-gray-700 rounded-full h-2 mt-2 overflow-hidden">
-                <div
-                  className="h-full bg-blue-500 transition-all duration-500"
-                  style={{ width: `${positionMetrics.diversificationScore || 0}%` }}
-                />
+            ))}
+          </div>
+        </section>
+
+        {/* Interactive Features Banner */}
+        <section className="mb-8">
+          <div className="bg-gradient-to-r from-gray-800 to-gray-900 rounded-xl p-6 border border-gray-700">
+            <div className="flex items-center justify-between">
+              <div className="flex items-start space-x-4">
+                <div className="bg-blue-600 p-3 rounded-xl">
+                  <Sparkles className="w-6 h-6 text-white" />
+                </div>
+                <div>
+                  <h3 className="text-xl font-bold mb-2">Advanced Analytics</h3>
+                  <p className="text-gray-300 text-sm mb-3 max-w-2xl">
+                    Real-time portfolio analysis with comprehensive insights to help you make informed investment decisions.
+                  </p>
+                  <div className="flex flex-wrap gap-3">
+                    {['Real-time Updates', 'Risk Analysis', 'Performance Tracking', 'Smart Alerts'].map((feature, index) => (
+                      <div
+                        key={feature}
+                        className="flex items-center space-x-2 bg-gray-700 px-3 py-1 rounded-full"
+                      >
+                        <div className="w-1.5 h-1.5 bg-blue-400 rounded-full" />
+                        <span className="text-xs">{feature}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
               </div>
-            </div>
-            
-            <div className="bg-gray-900 rounded-xl p-4 border border-gray-800">
-              <h4 className="text-sm text-gray-400 mb-2">Volatility</h4>
-              <span className="text-2xl font-bold text-orange-400">
-                {positionMetrics.riskMetrics?.volatility?.toFixed(1) || 0}%
-              </span>
-              <p className="text-xs text-gray-500 mt-1">Portfolio volatility</p>
-            </div>
-            
-            <div className="bg-gray-900 rounded-xl p-4 border border-gray-800">
-              <h4 className="text-sm text-gray-400 mb-2">Sharpe Ratio</h4>
-              <span className="text-2xl font-bold text-purple-400">
-                {positionMetrics.riskMetrics?.sharpeRatio?.toFixed(2) || 0}
-              </span>
-              <p className="text-xs text-gray-500 mt-1">Risk-adjusted return</p>
+              <div className="hidden lg:block">
+                <Gauge className="w-16 h-16 text-gray-600" />
+              </div>
             </div>
           </div>
         </section>
+
+        {/* Risk Metrics and Account Allocation */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+          {/* Risk Metrics */}
+          <section>
+            <h3 className="text-lg font-bold mb-4 flex items-center">
+              <Shield className="w-5 h-5 mr-2 text-blue-400" />
+              Risk Analysis
+            </h3>
+            
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="bg-gray-900 rounded-xl p-4 border border-gray-800">
+                <h4 className="text-sm text-gray-400 mb-2">Diversification Score</h4>
+                <div className="flex items-end justify-between">
+                  <span className="text-2xl font-bold">{positionMetrics.diversificationScore?.toFixed(0) || 0}</span>
+                  <span className="text-sm text-gray-400">/100</span>
+                </div>
+                <div className="w-full bg-gray-700 rounded-full h-2 mt-2 overflow-hidden">
+                  <div
+                    className="h-full bg-blue-500 transition-all duration-500"
+                    style={{ width: `${positionMetrics.diversificationScore || 0}%` }}
+                  />
+                </div>
+              </div>
+              
+              <div className="bg-gray-900 rounded-xl p-4 border border-gray-800">
+                <h4 className="text-sm text-gray-400 mb-2">Volatility</h4>
+                <span className="text-2xl font-bold text-orange-400">
+                  {positionMetrics.riskMetrics?.volatility?.toFixed(1) || 0}%
+                </span>
+                <p className="text-xs text-gray-500 mt-1">Portfolio volatility</p>
+              </div>
+              
+              <div className="bg-gray-900 rounded-xl p-4 border border-gray-800">
+                <h4 className="text-sm text-gray-400 mb-2">Sharpe Ratio</h4>
+                <span className="text-2xl font-bold text-purple-400">
+                  {positionMetrics.riskMetrics?.sharpeRatio?.toFixed(2) || 0}
+                </span>
+                <p className="text-xs text-gray-500 mt-1">Risk-adjusted return</p>
+              </div>
+            </div>
+          </section>
+
+          {/* Account Allocation */}
+          <section>
+            <h3 className="text-lg font-bold mb-4 flex items-center">
+              <Briefcase className="w-5 h-5 mr-2 text-green-400" />
+              Account Distribution
+            </h3>
+            
+            <div className="bg-gray-900 rounded-xl p-4 border border-gray-800">
+              <div className="space-y-3">
+                {positionMetrics.accountAllocation?.slice(0, 5).map((account, index) => (
+                  <div key={account.name} className="flex items-center justify-between">
+                    <div className="flex items-center space-x-3">
+                      <div className="bg-green-500/10 p-2 rounded-lg">
+                        <Building2 className="w-4 h-4 text-green-400" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium">{account.name}</p>
+                        <p className="text-xs text-gray-400">{account.type}</p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-sm font-medium">{formatPercentage(account.percentage)}</p>
+                      <p className="text-xs text-gray-400">
+                        {showValues ? formatCurrency(account.value) : '••••'}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </section>
+        </div>
 
         {/* Quick Actions */}
         <section className="grid grid-cols-1 md:grid-cols-3 gap-4">
