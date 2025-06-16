@@ -1995,14 +1995,14 @@ return (
  const renderByAccount = () => {
    return (
      <div className="space-y-4">
-        {accounts.filter(account => {
-          // Apply account filter
-          const passesAccountFilter = selectedAccountFilter.size === 0 || selectedAccountFilter.has(account.id);
-          // Apply institution filter
-          const passesInstitutionFilter = selectedInstitutionFilter.size === 0 || selectedInstitutionFilter.has(account.institution);
-          // Both filters must pass
-          return passesAccountFilter && passesInstitutionFilter;
-        }).map(account => {
+      {accounts.filter(account => {
+        // Apply account filter
+        const passesAccountFilter = selectedAccountFilter.size === 0 || selectedAccountFilter.has(account.id);
+        // Apply institution filter
+        const passesInstitutionFilter = selectedInstitutionFilter.size === 0 || selectedInstitutionFilter.has(account.institution);
+        // Both filters must pass
+        return passesAccountFilter && passesInstitutionFilter;
+      }).map(account => {
          const accountStats = stats.byAccount[account.id];
          const hasPositions = accountStats && accountStats.count > 0;
          

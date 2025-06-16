@@ -47,6 +47,8 @@ export default function AccountsPage() {
     'E*TRADE': 'bg-purple-600',
     'Interactive Brokers': 'bg-orange-600',
     'Coinbase': 'bg-indigo-600',
+    'Merrill Lynch': 'bg-blue-800',
+    'Ally Invest': 'bg-purple-700',
     'Other': 'bg-gray-600'
   };
 
@@ -59,8 +61,14 @@ export default function AccountsPage() {
     'IRA': { icon: <Shield className="w-4 h-4" />, color: 'bg-purple-600' },
     'Roth IRA': { icon: <Award className="w-4 h-4" />, color: 'bg-pink-600' },
     '401k': { icon: <Target className="w-4 h-4" />, color: 'bg-cyan-600' },
+    '401(k)': { icon: <Target className="w-4 h-4" />, color: 'bg-cyan-600' },
     '529': { icon: <Briefcase className="w-4 h-4" />, color: 'bg-lime-600' },
     'HSA': { icon: <Activity className="w-4 h-4" />, color: 'bg-red-600' },
+    'Individual': { icon: <Wallet className="w-4 h-4" />, color: 'bg-blue-600' },
+    'Traditional IRA': { icon: <Shield className="w-4 h-4" />, color: 'bg-purple-600' },
+    'Pension': { icon: <Landmark className="w-4 h-4" />, color: 'bg-indigo-700' },
+    'Custodial': { icon: <Shield className="w-4 h-4" />, color: 'bg-teal-600' },
+    'Safe Deposit': { icon: <Shield className="w-4 h-4" />, color: 'bg-gray-700' },
     'Other': { icon: <Zap className="w-4 h-4" />, color: 'bg-gray-600' }
   };
 
@@ -244,7 +252,7 @@ export default function AccountsPage() {
   return (
     <div className="min-h-screen bg-gray-950 text-white">
       <Head>
-        <title>NestEgg | Accounts</title>
+        <title>Accounts Overview: NestEgg Portfolio</title>
         <meta name="description" content="Manage and view all your financial accounts" />
         <link rel="icon" href="/favicon.ico" />
       </Head>
@@ -264,7 +272,7 @@ export default function AccountsPage() {
         >
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
             <div>
-              <h1 className="text-3xl font-bold mb-1">Accounts</h1>
+              <h1 className="text-3xl font-bold mb-1">Accounts Overview: NestEgg Portfolio</h1>
               <p className="text-gray-400 text-sm flex items-center">
                 <Calendar className="w-3 h-3 mr-1" />
                 Last updated: {accountsMetrics.lastUpdated ? new Date(accountsMetrics.lastUpdated).toLocaleString() : 'Never'}
@@ -276,6 +284,7 @@ export default function AccountsPage() {
                 whileTap={{ scale: 0.98 }}
                 onClick={() => setShowValues(!showValues)}
                 className="p-2 bg-gray-800 rounded-lg border border-gray-700 hover:bg-gray-700 transition-colors"
+                title={showValues ? "Hide balances" : "Show balances"}
               >
                 {showValues ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
               </motion.button>
@@ -374,25 +383,25 @@ export default function AccountsPage() {
                 >
                   <div>
                     <p className="text-gray-500 text-xs">Cost Basis</p>
-                    <p className="text-sm font-semibold">
+                    <p className="text-base font-semibold">
                       {showValues ? formatCurrency(accountsMetrics.totalCostBasis) : '••••'}
                     </p>
                   </div>
                   <div>
                     <p className="text-gray-500 text-xs">Unrealized Gain</p>
-                    <p className={`text-sm font-semibold ${accountsMetrics.unrealizedGain > 0 ? 'text-green-500' : 'text-red-500'}`}>
+                    <p className={`text-base font-semibold ${accountsMetrics.unrealizedGain > 0 ? 'text-green-500' : 'text-red-500'}`}>
                       {showValues ? formatCurrency(accountsMetrics.unrealizedGain) : '••••'}
                     </p>
                   </div>
                   <div>
                     <p className="text-gray-500 text-xs">Annual Income</p>
-                    <p className="text-sm font-semibold text-blue-400">
+                    <p className="text-base font-semibold text-blue-400">
                       {showValues ? formatCurrency(accountsMetrics.annualIncome) : '••••'}
                     </p>
                   </div>
                   <div>
                     <p className="text-gray-500 text-xs">Yield</p>
-                    <p className="text-sm font-semibold text-purple-400">
+                    <p className="text-base font-semibold text-purple-400">
                       {formatPercentage(accountsMetrics.yieldPercentage)}
                     </p>
                   </div>
@@ -413,7 +422,7 @@ export default function AccountsPage() {
                   },
                   {
                     icon: <Building2 className="w-4 h-4 text-purple-400" />,
-                    label: "Institutions",
+                    label: "Institutions with Balances",
                     value: accountsMetrics.totalInstitutionsCount
                   },
                   {
@@ -696,7 +705,7 @@ export default function AccountsPage() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.6 }}
-          className="grid grid-cols-1 sm:grid-cols-3 gap-4"
+          className="grid grid-cols-1 sm:grid-cols-2 gap-4"
         >
           {[
             {
@@ -712,13 +721,6 @@ export default function AccountsPage() {
               description: "Individual investments",
               icon: <BarChart2 className="w-5 h-5" />,
               color: "bg-purple-600 hover:bg-purple-700"
-            },
-            {
-              href: "/transactions",
-              title: "View Transactions",
-              description: "Financial activity",
-              icon: <DollarSign className="w-5 h-5" />,
-              color: "bg-emerald-600 hover:bg-emerald-700"
             }
           ].map((action, index) => (
             <motion.div

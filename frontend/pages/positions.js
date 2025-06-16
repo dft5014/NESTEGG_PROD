@@ -11,7 +11,7 @@ import {
   Activity, Zap, Trophy, Target, AlertCircle, ChevronRight,
   Globe, Shield, Clock, Star, ArrowUpRight, ArrowDownRight,
   Wallet, CreditCard, Building2, ChartBar, Gauge, Flame,
-  Moon, Sun, Cpu, Gem, DollarSign as Dollar, Bitcoin
+  Moon, Sun, Cpu, Gem, DollarSign as Dollar, Bitcoin, Info
 } from 'lucide-react';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
@@ -37,7 +37,9 @@ export default function PositionsPage() {
   const [error, setError] = useState(null);
   const [showValues, setShowValues] = useState(true);
   const [selectedTimeframe, setSelectedTimeframe] = useState('1m');
-  const [viewMode, setViewMode] = useState('table'); // table, grid, cards
+  const [showHealthInfo, setShowHealthInfo] = useState(false);
+  const [showPerformanceInfo, setShowPerformanceInfo] = useState(false);
+  const [showRiskInfo, setShowRiskInfo] = useState(false);
   const containerRef = useRef(null);
   
   const router = useRouter();
@@ -136,6 +138,7 @@ export default function PositionsPage() {
       const portfolioJson = await portfolioResponse.json();
       
       console.log("Positions: Fetched unified positions:", fetchedPositions.length);
+      console.log("Portfolio data:", portfolioJson);
       setPositions(fetchedPositions);
       setPortfolioData(portfolioJson);
       
@@ -330,6 +333,16 @@ export default function PositionsPage() {
         color: sectorColors[sector] || sectorColors.Unknown
       }));
     }
+
+    // Process account allocation properly
+    if (portfolio?.account_allocation) {
+      metrics.accountAllocation = Object.entries(portfolio.account_allocation).map(([accountName, data]) => ({
+        name: accountName,
+        value: data.value,
+        percentage: data.percentage,
+        type: data.account_type || 'Investment'
+      }));
+    }
     
     // Process top positions
     const positionsWithGainLoss = positions
@@ -478,6 +491,29 @@ export default function PositionsPage() {
     
     return <motion.span>{format(springValue.get())}</motion.span>;
   };
+
+  // Info Tooltip Component
+  const InfoTooltip = ({ content, isOpen, onClose }) => {
+    if (!isOpen) return null;
+    
+    return (
+      <motion.div
+        initial={{ opacity: 0, scale: 0.9 }}
+        animate={{ opacity: 1, scale: 1 }}
+        exit={{ opacity: 0, scale: 0.9 }}
+        className="absolute z-50 bg-gray-800 p-3 rounded-lg shadow-xl border border-gray-700 w-64 text-sm"
+        style={{ top: '100%', right: 0, marginTop: '8px' }}
+      >
+        <button
+          onClick={onClose}
+          className="absolute top-2 right-2 text-gray-400 hover:text-white"
+        >
+          <X className="w-3 h-3" />
+        </button>
+        <p className="text-gray-300 pr-4">{content}</p>
+      </motion.div>
+    );
+  };
   
   return (
     <div ref={containerRef} className="min-h-screen bg-black text-white">
@@ -505,26 +541,39 @@ export default function PositionsPage() {
             </div>
             
             <div className="flex items-center space-x-3 mt-4 md:mt-0">
-              <button
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
                 onClick={() => setShowValues(!showValues)}
-                className="p-2 bg-gray-800 rounded-lg border border-gray-700 hover:bg-gray-700 transition-colors"
+                className="p-2 bg-gray-800 rounded-lg border border-gray-700 hover:bg-gray-700 transition-colors relative group"
+                title={showValues ? "Hide values" : "Show values"}
               >
                 {showValues ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
-              </button>
+                <span className="absolute -bottom-8 left-1/2 transform -translate-x-1/2 bg-gray-800 text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
+                  {showValues ? "Hide values" : "Show values"}
+                </span>
+              </motion.button>
               
-              <button
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
                 onClick={handleRefreshPositions}
                 className="flex items-center px-4 py-2 bg-blue-600 rounded-lg font-medium hover:bg-blue-700 transition-colors"
                 disabled={isRefreshing}
               >
                 <RefreshCw className={`w-4 h-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
                 Refresh
-              </button>
+              </motion.button>
               
-              <AddPositionButton 
-                onPositionAdded={handlePositionAdded}
-                className="bg-green-600 rounded-lg hover:bg-green-700"
-              />
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={() => router.push('/positions/add')}
+                className="flex items-center px-4 py-2 bg-green-600 rounded-lg font-medium hover:bg-green-700 transition-colors"
+              >
+                <Plus className="w-4 h-4 mr-2" />
+                Add Position
+              </motion.button>
             </div>
           </div>
         </header>
@@ -555,7 +604,7 @@ export default function PositionsPage() {
                 </div>
                 
                 <h2 className="text-3xl font-bold mb-2">
-                  {showValues ? <AnimatedNumber value={positionMetrics.totalValue} format={formatCurrency} /> : '••••••'}
+                  {showValues ? formatCurrency(positionMetrics.totalValue || 0) : '••••••'}
                 </h2>
                 
                 <div className="flex items-center space-x-4 mb-4">
@@ -731,23 +780,6 @@ export default function PositionsPage() {
             
             {/* Filter and Search */}
             <div className="flex flex-col md:flex-row space-y-3 md:space-y-0 md:space-x-3 mt-3 md:mt-0">
-              {/* View Mode Toggle */}
-              <div className="flex bg-gray-800 rounded-lg p-1">
-                {['table', 'grid', 'cards'].map((mode) => (
-                  <button
-                    key={mode}
-                    onClick={() => setViewMode(mode)}
-                    className={`px-3 py-1 rounded text-sm capitalize transition-colors ${
-                      viewMode === mode 
-                        ? 'bg-gray-700 text-white' 
-                        : 'text-gray-400 hover:text-white'
-                    }`}
-                  >
-                    {mode}
-                  </button>
-                ))}
-              </div>
-              
               {/* Filter Pills */}
               <div className="flex flex-wrap gap-2">
                 {filterOptions.map(option => (
@@ -810,7 +842,8 @@ export default function PositionsPage() {
               title="" 
               filteredPositions={filteredPositions} 
               onPositionAdded={handlePositionAdded}
-              viewMode={viewMode}
+              filterView={filterView}
+              searchTerm={searchTerm}
             />
           </div>
         </section>
@@ -862,8 +895,11 @@ export default function PositionsPage() {
                 {/* Legend */}
                 <div className="space-y-2">
                   {positionMetrics.assetAllocation?.map((asset, index) => (
-                    <div
+                    <motion.div
                       key={asset.name}
+                      initial={{ opacity: 0, x: 20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: 0.1 + index * 0.05 }}
                       className="flex items-center justify-between p-2 bg-gray-800 rounded-lg hover:bg-gray-700 transition-colors"
                     >
                       <div className="flex items-center space-x-2">
@@ -878,7 +914,7 @@ export default function PositionsPage() {
                           {showValues ? formatCurrency(asset.value) : '••••'}
                         </p>
                       </div>
-                    </div>
+                    </motion.div>
                   ))}
                 </div>
               </div>
@@ -902,8 +938,11 @@ export default function PositionsPage() {
                 
                 <div className="space-y-2">
                   {positionMetrics.topGainers?.slice(0, 3).map((position, index) => (
-                    <div
+                    <motion.div
                       key={`${position.identifier}-${index}`}
+                      initial={{ opacity: 0, x: -20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: 0.1 + index * 0.05 }}
                       className="flex items-center justify-between p-2 bg-green-500/10 rounded-lg border border-green-500/20"
                     >
                       <div className="flex items-center space-x-2">
@@ -923,7 +962,7 @@ export default function PositionsPage() {
                           {showValues ? formatCurrency(position.value) : '••••'}
                         </p>
                       </div>
-                    </div>
+                    </motion.div>
                   ))}
                 </div>
               </div>
@@ -937,8 +976,11 @@ export default function PositionsPage() {
                 
                 <div className="space-y-2">
                   {positionMetrics.topLosers?.slice(0, 3).map((position, index) => (
-                    <div
+                    <motion.div
                       key={`${position.identifier}-${index}`}
+                      initial={{ opacity: 0, x: -20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: 0.1 + index * 0.05 }}
                       className="flex items-center justify-between p-2 bg-red-500/10 rounded-lg border border-red-500/20"
                     >
                       <div className="flex items-center space-x-2">
@@ -958,7 +1000,7 @@ export default function PositionsPage() {
                           {showValues ? formatCurrency(position.value) : '••••'}
                         </p>
                       </div>
-                    </div>
+                    </motion.div>
                   ))}
                 </div>
               </div>
@@ -1027,8 +1069,11 @@ export default function PositionsPage() {
                 insights: [
                   `${positionMetrics.totalPositions} total positions`,
                   `${positionMetrics.assetAllocation?.length || 0} asset types`,
-                  `Concentration: ${positionMetrics.largestPosition?.percentage?.toFixed(1) || 0}%`
-                ]
+                  `Concentration: ${(positionMetrics.largestPosition?.percentage || 0).toFixed(1)}%`
+                ],
+                info: "Portfolio health is calculated based on diversification across positions, asset types, and concentration risk. A score above 70 indicates excellent diversification.",
+                showInfo: showHealthInfo,
+                setShowInfo: setShowHealthInfo
               },
               {
                 title: "Performance Analysis",
@@ -1041,7 +1086,10 @@ export default function PositionsPage() {
                   `${formatPercentage(positionMetrics.totalGainLossPercent)} total return`,
                   `${positionMetrics.topGainers?.length || 0} winning positions`,
                   `Best: ${formatPercentage(positionMetrics.mostProfitablePosition?.gainLossPercent || 0)}`
-                ]
+                ],
+                info: "Performance score reflects your portfolio's total return relative to a baseline. The score increases with positive returns and decreases with losses.",
+                showInfo: showPerformanceInfo,
+                setShowInfo: setShowPerformanceInfo
               },
               {
                 title: "Risk Assessment",
@@ -1051,22 +1099,41 @@ export default function PositionsPage() {
                 color: positionMetrics.riskMetrics?.volatility < 15 ? "text-green-400" : positionMetrics.riskMetrics?.volatility < 25 ? "text-yellow-400" : "text-red-400",
                 bgColor: positionMetrics.riskMetrics?.volatility < 15 ? "bg-green-500/10" : positionMetrics.riskMetrics?.volatility < 25 ? "bg-yellow-500/10" : "bg-red-500/10",
                 insights: [
-                  `${positionMetrics.riskMetrics?.volatility?.toFixed(1) || 0}% volatility`,
-                  `Sharpe: ${positionMetrics.riskMetrics?.sharpeRatio?.toFixed(2) || 0}`,
-                  `Diversification: ${positionMetrics.diversificationScore?.toFixed(0) || 0}/100`
-                ]
+                  `${(positionMetrics.riskMetrics?.volatility || 0).toFixed(1)}% volatility`,
+                  `Sharpe: ${(positionMetrics.riskMetrics?.sharpeRatio || 0).toFixed(2)}`,
+                  `Diversification: ${(positionMetrics.diversificationScore || 0).toFixed(0)}/100`
+                ],
+                info: "Risk assessment measures portfolio volatility and risk-adjusted returns. Lower volatility and higher Sharpe ratio indicate better risk management.",
+                showInfo: showRiskInfo,
+                setShowInfo: setShowRiskInfo
               }
             ].map((insight, index) => (
               <div
                 key={insight.title}
-                className="bg-gray-900 rounded-xl p-4 border border-gray-800"
+                className="bg-gray-900 rounded-xl p-4 border border-gray-800 relative"
               >
                 <div className="flex items-center justify-between mb-3">
                   <h4 className="text-sm font-medium">{insight.title}</h4>
-                  <div className={`p-2 rounded-lg ${insight.bgColor}`}>
-                    <div className={insight.color}>{insight.icon}</div>
+                  <div className="flex items-center space-x-2">
+                    <button
+                      onClick={() => insight.setShowInfo(!insight.showInfo)}
+                      className="text-gray-400 hover:text-white transition-colors"
+                    >
+                      <Info className="w-4 h-4" />
+                    </button>
+                    <div className={`p-2 rounded-lg ${insight.bgColor}`}>
+                      <div className={insight.color}>{insight.icon}</div>
+                    </div>
                   </div>
                 </div>
+                
+                <AnimatePresence>
+                  <InfoTooltip
+                    content={insight.info}
+                    isOpen={insight.showInfo}
+                    onClose={() => insight.setShowInfo(false)}
+                  />
+                </AnimatePresence>
                 
                 {/* Score Display */}
                 <div className="mb-3">
@@ -1098,39 +1165,6 @@ export default function PositionsPage() {
           </div>
         </section>
 
-        {/* Interactive Features Banner */}
-        <section className="mb-8">
-          <div className="bg-gradient-to-r from-gray-800 to-gray-900 rounded-xl p-6 border border-gray-700">
-            <div className="flex items-center justify-between">
-              <div className="flex items-start space-x-4">
-                <div className="bg-blue-600 p-3 rounded-xl">
-                  <Sparkles className="w-6 h-6 text-white" />
-                </div>
-                <div>
-                  <h3 className="text-xl font-bold mb-2">Advanced Analytics</h3>
-                  <p className="text-gray-300 text-sm mb-3 max-w-2xl">
-                    Real-time portfolio analysis with comprehensive insights to help you make informed investment decisions.
-                  </p>
-                  <div className="flex flex-wrap gap-3">
-                    {['Real-time Updates', 'Risk Analysis', 'Performance Tracking', 'Smart Alerts'].map((feature, index) => (
-                      <div
-                        key={feature}
-                        className="flex items-center space-x-2 bg-gray-700 px-3 py-1 rounded-full"
-                      >
-                        <div className="w-1.5 h-1.5 bg-blue-400 rounded-full" />
-                        <span className="text-xs">{feature}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-              <div className="hidden lg:block">
-                <Gauge className="w-16 h-16 text-gray-600" />
-              </div>
-            </div>
-          </div>
-        </section>
-
         {/* Risk Metrics and Account Allocation */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
           {/* Risk Metrics */}
@@ -1144,13 +1178,14 @@ export default function PositionsPage() {
               <div className="bg-gray-900 rounded-xl p-4 border border-gray-800">
                 <h4 className="text-sm text-gray-400 mb-2">Diversification Score</h4>
                 <div className="flex items-end justify-between">
-                  <span className="text-2xl font-bold">{positionMetrics.diversificationScore?.toFixed(0) || 0}</span>
+                  <span className="text-2xl font-bold">{(positionMetrics.diversificationScore || 0).toFixed(0)}</span>
                   <span className="text-sm text-gray-400">/100</span>
                 </div>
                 <div className="w-full bg-gray-700 rounded-full h-2 mt-2 overflow-hidden">
-                  <div
+                  <motion.div
                     className="h-full bg-blue-500 transition-all duration-500"
-                    style={{ width: `${positionMetrics.diversificationScore || 0}%` }}
+                    initial={{ width: 0 }}
+                    animate={{ width: `${positionMetrics.diversificationScore || 0}%` }}
                   />
                 </div>
               </div>
@@ -1158,7 +1193,7 @@ export default function PositionsPage() {
               <div className="bg-gray-900 rounded-xl p-4 border border-gray-800">
                 <h4 className="text-sm text-gray-400 mb-2">Volatility</h4>
                 <span className="text-2xl font-bold text-orange-400">
-                  {positionMetrics.riskMetrics?.volatility?.toFixed(1) || 0}%
+                  {(positionMetrics.riskMetrics?.volatility || 0).toFixed(1)}%
                 </span>
                 <p className="text-xs text-gray-500 mt-1">Portfolio volatility</p>
               </div>
@@ -1166,7 +1201,7 @@ export default function PositionsPage() {
               <div className="bg-gray-900 rounded-xl p-4 border border-gray-800">
                 <h4 className="text-sm text-gray-400 mb-2">Sharpe Ratio</h4>
                 <span className="text-2xl font-bold text-purple-400">
-                  {positionMetrics.riskMetrics?.sharpeRatio?.toFixed(2) || 0}
+                  {(positionMetrics.riskMetrics?.sharpeRatio || 0).toFixed(2)}
                 </span>
                 <p className="text-xs text-gray-500 mt-1">Risk-adjusted return</p>
               </div>
@@ -1182,32 +1217,42 @@ export default function PositionsPage() {
             
             <div className="bg-gray-900 rounded-xl p-4 border border-gray-800">
               <div className="space-y-3">
-                {positionMetrics.accountAllocation?.slice(0, 5).map((account, index) => (
-                  <div key={account.name} className="flex items-center justify-between">
-                    <div className="flex items-center space-x-3">
-                      <div className="bg-green-500/10 p-2 rounded-lg">
-                        <Building2 className="w-4 h-4 text-green-400" />
+                {positionMetrics.accountAllocation?.length > 0 ? (
+                  positionMetrics.accountAllocation.slice(0, 5).map((account, index) => (
+                    <motion.div 
+                      key={account.name}
+                      initial={{ opacity: 0, x: -20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: 0.1 + index * 0.05 }}
+                      className="flex items-center justify-between"
+                    >
+                      <div className="flex items-center space-x-3">
+                        <div className="bg-green-500/10 p-2 rounded-lg">
+                          <Building2 className="w-4 h-4 text-green-400" />
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium">{account.name}</p>
+                          <p className="text-xs text-gray-400">{account.type}</p>
+                        </div>
                       </div>
-                      <div>
-                        <p className="text-sm font-medium">{account.name}</p>
-                        <p className="text-xs text-gray-400">{account.type}</p>
+                      <div className="text-right">
+                        <p className="text-sm font-medium">{formatPercentage(account.percentage)}</p>
+                        <p className="text-xs text-gray-400">
+                          {showValues ? formatCurrency(account.value) : '••••'}
+                        </p>
                       </div>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-sm font-medium">{formatPercentage(account.percentage)}</p>
-                      <p className="text-xs text-gray-400">
-                        {showValues ? formatCurrency(account.value) : '••••'}
-                      </p>
-                    </div>
-                  </div>
-                ))}
+                    </motion.div>
+                  ))
+                ) : (
+                  <p className="text-gray-400 text-sm text-center py-4">No account data available</p>
+                )}
               </div>
             </div>
           </section>
         </div>
 
         {/* Quick Actions */}
-        <section className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <section className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {[
             {
               href: "/portfolio",
@@ -1216,7 +1261,7 @@ export default function PositionsPage() {
               icon: <PieChartIcon className="w-5 h-5" />,
               color: 'text-blue-400',
               bgColor: 'bg-blue-500/10',
-              stats: formatCurrency(positionMetrics.totalValue)
+              stats: showValues ? formatCurrency(positionMetrics.totalValue || 0) : '••••'
             },
             {
               href: "/accounts",
@@ -1226,31 +1271,26 @@ export default function PositionsPage() {
               color: 'text-purple-400',
               bgColor: 'bg-purple-500/10',
               stats: `${positionMetrics.accountAllocation?.length || 0} accounts`
-            },
-            {
-              href: "/transactions",
-              title: "Transactions",
-              description: "Trading activity",
-              icon: <DollarSign className="w-5 h-5" />,
-              color: 'text-green-400',
-              bgColor: 'bg-green-500/10',
-              stats: "View trades"
             }
           ].map((action, index) => (
             <Link key={action.href} href={action.href}>
-              <div className={`${action.bgColor} border border-gray-800 rounded-xl p-4 hover:bg-gray-800 transition-colors cursor-pointer group`}>
+              <motion.div 
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                className={`${action.bgColor} border border-gray-800 rounded-xl p-4 hover:bg-gray-800 transition-colors cursor-pointer group`}
+              >
                 <div className="flex items-start justify-between mb-3">
                   <div className={action.color}>{action.icon}</div>
                   <ChevronRight className="w-4 h-4 text-gray-600 group-hover:text-gray-400 transition-colors" />
-                </div>
-                <h4 className="font-medium mb-1">{action.title}</h4>
-                <p className="text-sm text-gray-400 mb-2">{action.description}</p>
-                <p className="text-xs text-gray-500">{action.stats}</p>
-              </div>
+            </div>
+            <h4 className="font-medium mb-1">{action.title}</h4>
+            <p className="text-sm text-gray-400 mb-2">{action.description}</p>
+            <p className="text-xs text-gray-500">{action.stats}</p>
+            </motion.div>
             </Link>
-          ))}
-        </section>
-      </div>
-    </div>
-  );
-}
+            ))}
+            </section>
+          </div>
+        </div>
+        );
+        }
