@@ -272,7 +272,7 @@ const Overview = () => {
      <section id="balance-sheet" className="animate-on-scroll px-6 py-16 lg:px-8 bg-white">
        <div className="mx-auto max-w-4xl">
          <div className="text-center mb-12">
-           <h2 className="text-3xl font-bold text-gray-900 mb-4">Balance Sheet > Budget Sheet</h2>
+            <h2 className="text-3xl font-bold text-gray-900 mb-4">Balance Sheet &gt; Budget Sheet</h2>
            <p className="text-xl text-gray-600">Focus on what truly matters for wealth building</p>
          </div>
          
