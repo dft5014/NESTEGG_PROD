@@ -28,6 +28,17 @@ import {
   ClipboardList, CheckCheck, XCircle, AlertTriangle
 } from 'lucide-react';
 
+// Account categories definition
+const ACCOUNT_CATEGORIES = [
+  { id: "brokerage", name: "Brokerage", icon: Briefcase },
+  { id: "retirement", name: "Retirement", icon: Building },
+  { id: "cash", name: "Cash / Banking", icon: DollarSign },
+  { id: "cryptocurrency", name: "Cryptocurrency", icon: Hash },
+  { id: "metals", name: "Metals Storage", icon: Shield },
+  { id: "real_estate", name: "Real Estate", icon: Home }
+];
+
+
 // Enhanced AnimatedNumber with smooth transitions
 const AnimatedNumber = ({ value, prefix = '', suffix = '', decimals = 0, duration = 600 }) => {
   const [displayValue, setDisplayValue] = useState(0);
@@ -2127,7 +2138,7 @@ return (
               )}
             </div>
            </div>
-           
+
            <div className="flex items-center space-x-3">
              {/* Settings buttons */}
              <button
