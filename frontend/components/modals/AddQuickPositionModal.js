@@ -155,6 +155,138 @@ const ToggleSwitch = ({ value, onChange, leftLabel, rightLabel, leftIcon: LeftIc
   );
 };
 
+// Account filter component
+const AccountFilter = ({ accounts, selectedAccounts, onChange }) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const dropdownRef = useRef(null);
+  
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+  
+  const accountsByCategory = useMemo(() => {
+    const grouped = {};
+    ACCOUNT_CATEGORIES.forEach(cat => {
+      grouped[cat.id] = accounts.filter(acc => 
+        acc?.account_category?.toLowerCase() === cat.id.toLowerCase()
+      );
+    });
+    return grouped;
+  }, [accounts]);
+  
+  const selectedCount = selectedAccounts.size;
+  const isAllSelected = selectedAccounts.size === 0 || selectedAccounts.size === accounts.length;
+  
+  return (
+    <div className="relative" ref={dropdownRef}>
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        className={`
+          flex items-center px-3 py-1.5 bg-white rounded-lg hover:bg-gray-50 
+          transition-colors text-sm border
+          ${selectedCount > 0 && !isAllSelected ? 'border-blue-300 text-blue-700' : 'border-gray-200 text-gray-700'}
+        `}
+      >
+        <Filter className="w-4 h-4 mr-2" />
+        <span>
+          {isAllSelected ? 'All Accounts' : `${selectedCount} Account${selectedCount !== 1 ? 's' : ''}`}
+        </span>
+        <ChevronDown className={`w-4 h-4 ml-2 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+      </button>
+      
+      {isOpen && (
+        <div className="absolute z-50 right-0 mt-2 w-80 bg-white border border-gray-200 rounded-lg shadow-xl">
+          <div className="p-3 border-b border-gray-100">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-sm font-medium text-gray-700">Filter Accounts</span>
+              <button
+                onClick={() => onChange(new Set())}
+                className="text-xs text-blue-600 hover:text-blue-700 font-medium"
+              >
+                Select All
+              </button>
+            </div>
+            <div className="text-xs text-gray-500">
+              {isAllSelected ? 'Showing all accounts' : `${selectedCount} of ${accounts.length} selected`}
+            </div>
+          </div>
+          
+          <div className="max-h-96 overflow-y-auto p-2">
+            {Object.entries(accountsByCategory).map(([categoryId, categoryAccounts]) => {
+              if (categoryAccounts.length === 0) return null;
+              const category = ACCOUNT_CATEGORIES.find(c => c.id === categoryId);
+              const Icon = category?.icon || Building;
+              
+              return (
+                <div key={categoryId} className="mb-3">
+                  <div className="flex items-center px-2 py-1 text-xs font-medium text-gray-600">
+                    <Icon className="w-3 h-3 mr-1.5" />
+                    {category?.name}
+                  </div>
+                  {categoryAccounts.map(account => {
+                    const isSelected = selectedAccounts.size === 0 || selectedAccounts.has(account.id);
+                    return (
+                      <button
+                        key={account.id}
+                        onClick={() => {
+                          const newSelection = new Set(selectedAccounts);
+                          if (selectedAccounts.size === 0) {
+                            // If all were selected, create new set with all except this one
+                            accounts.forEach(acc => newSelection.add(acc.id));
+                            newSelection.delete(account.id);
+                          } else {
+                            // Toggle individual selection
+                            if (isSelected) {
+                              newSelection.delete(account.id);
+                            } else {
+                              newSelection.add(account.id);
+                            }
+                          }
+                          onChange(newSelection);
+                        }}
+                        className={`
+                          w-full px-3 py-2 flex items-center justify-between rounded text-left
+                          transition-colors text-sm
+                          ${isSelected 
+                            ? 'bg-blue-50 hover:bg-blue-100' 
+                            : 'hover:bg-gray-50'
+                          }
+                        `}
+                      >
+                        <div className="flex items-center flex-1 mr-2">
+                          <div className={`
+                            w-4 h-4 rounded border mr-2 flex items-center justify-center
+                            ${isSelected 
+                              ? 'bg-blue-600 border-blue-600' 
+                              : 'border-gray-300'
+                            }
+                          `}>
+                            {isSelected && <Check className="w-3 h-3 text-white" />}
+                          </div>
+                          <div className="flex-1">
+                            <div className="font-medium text-gray-900">{account.account_name}</div>
+                            <div className="text-xs text-gray-500">{account.institution}</div>
+                          </div>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
 // Queue modal component
 const QueueModal = ({ isOpen, onClose, positions, assetTypes, accounts, onClearCompleted }) => {
   const getStatusBadge = (status) => {
@@ -374,6 +506,8 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved }) => {
   const [recentlyUsedAccounts, setRecentlyUsedAccounts] = useState([]);
   const [viewMode, setViewMode] = useState(false); // false = by asset type, true = by account
   const [showQueue, setShowQueue] = useState(false);
+  const [selectedAccountFilter, setSelectedAccountFilter] = useState(new Set());
+
   
   // Search state
   const [searchResults, setSearchResults] = useState({});
@@ -1318,15 +1452,7 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved }) => {
     // Search results dropdown for searchable fields
     if (field.searchable && searchResultsForField.length > 0) {
       return (
-        <div 
-          className="absolute left-0 right-0 mt-1 bg-white border border-gray-300 rounded-lg shadow-xl max-h-48 overflow-y-auto"
-          style={{ 
-            zIndex: 99999,
-            position: 'absolute',
-            top: '100%',
-            minWidth: '300px'
-          }}
-        >
+        <div className="relative w-full">
           <input
             {...commonProps}
             type="text"
@@ -1341,21 +1467,31 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved }) => {
               <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-500"></div>
             </div>
           )}
-          <div className="absolute z-50 left-0 right-0 mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-48 overflow-y-auto">
-            {searchResultsForField.map((result) => (
+          <div 
+            className="absolute z-[99999] w-full bg-white border border-gray-200 rounded-lg shadow-lg mt-1"
+            style={{ 
+              top: '100%',
+              left: 0,
+              right: 0,
+              maxHeight: '240px',
+              overflowY: 'auto'
+            }}
+          >
+            {searchResultsForField.map((result, idx) => (
               <button
                 key={result.ticker}
                 type="button"
-                className="w-full p-2 hover:bg-gray-100 text-left border-b border-gray-100 last:border-0"
+                className={`
+                  w-full px-3 py-2 flex items-center justify-between hover:bg-gray-50 transition-colors text-left
+                  ${idx !== searchResultsForField.length - 1 ? 'border-b border-gray-100' : ''}
+                `}
                 onClick={() => handleSelectSecurity(assetType, position.id, result)}
               >
-                <div className="flex justify-between items-center">
-                  <div>
-                    <span className="font-semibold text-blue-800">{result.ticker}</span>
-                    <span className="ml-2 text-sm text-gray-600">{result.name}</span>
-                  </div>
-                  <span className="text-sm font-medium">${parseFloat(result.price).toFixed(2)}</span>
+                <div className="flex items-center space-x-3">
+                  <span className="font-medium text-gray-900">{result.ticker}</span>
+                  <span className="text-sm text-gray-500 truncate">{result.name}</span>
                 </div>
+                <span className="text-sm font-medium text-gray-900">${parseFloat(result.price).toFixed(2)}</span>
               </button>
             ))}
           </div>
@@ -1745,7 +1881,9 @@ return (
  const renderByAccount = () => {
    return (
      <div className="space-y-4">
-       {accounts.map(account => {
+        {accounts.filter(account => 
+          selectedAccountFilter.size === 0 || selectedAccountFilter.has(account.id)
+        ).map(account => {
          const accountStats = stats.byAccount[account.id];
          const hasPositions = accountStats && accountStats.count > 0;
          
@@ -1969,19 +2107,25 @@ return (
                Cancel
              </button>
 
-             {/* View mode toggle with label */}
-             <div className="ml-4 flex items-center space-x-3">
-               <span className="text-sm text-gray-600">Add positions by:</span>
-               <ToggleSwitch
-                 value={viewMode}
-                 onChange={setViewMode}
-                 leftLabel="Asset Type"
-                 rightLabel="Account"
-                 leftIcon={Layers}
-                 rightIcon={Wallet}
-               />
-             </div>
-           </div>
+            {/* View mode toggle with label */}
+            <div className="ml-4 flex items-center space-x-3">
+              <span className="text-sm text-gray-600">Add positions by:</span>
+              <ToggleSwitch
+                value={viewMode}
+                onChange={setViewMode}
+                leftLabel="Asset Type"
+                rightLabel="Account"
+                leftIcon={Layers}
+                rightIcon={Wallet}
+              />
+              {viewMode && accounts.length > 0 && (
+                <AccountFilter
+                  accounts={accounts}
+                  selectedAccounts={selectedAccountFilter}
+                  onChange={setSelectedAccountFilter}
+                />
+              )}
+            </div>
            
            <div className="flex items-center space-x-3">
              {/* Settings buttons */}
