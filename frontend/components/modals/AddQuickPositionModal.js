@@ -166,8 +166,8 @@ const ToggleSwitch = ({ value, onChange, leftLabel, rightLabel, leftIcon: LeftIc
   );
 };
 
-// Account filter component
-const AccountFilter = ({ accounts, selectedAccounts, onChange }) => {
+// Enhanced Account filter component with institution support
+const AccountFilter = ({ accounts, selectedAccounts, onChange, filterType = 'accounts' }) => {
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef(null);
   
@@ -181,6 +181,12 @@ const AccountFilter = ({ accounts, selectedAccounts, onChange }) => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
   
+  // Get unique institutions
+  const uniqueInstitutions = useMemo(() => {
+    const institutions = [...new Set(accounts.map(acc => acc.institution).filter(Boolean))];
+    return institutions.sort();
+  }, [accounts]);
+  
   const accountsByCategory = useMemo(() => {
     const grouped = {};
     ACCOUNT_CATEGORIES.forEach(cat => {
@@ -192,105 +198,200 @@ const AccountFilter = ({ accounts, selectedAccounts, onChange }) => {
   }, [accounts]);
   
   const selectedCount = selectedAccounts.size;
-  const isAllSelected = selectedAccounts.size === 0 || selectedAccounts.size === accounts.length;
+  const isAllSelected = selectedAccounts.size === 0 || 
+    (filterType === 'accounts' ? selectedAccounts.size === accounts.length : selectedAccounts.size === uniqueInstitutions.length);
+  
+  const getFilterLabel = () => {
+    if (filterType === 'institutions') {
+      if (isAllSelected) return 'All Institutions';
+      return `${selectedCount} Institution${selectedCount !== 1 ? 's' : ''}`;
+    }
+    if (isAllSelected) return 'All Accounts';
+    return `${selectedCount} Account${selectedCount !== 1 ? 's' : ''}`;
+  };
+  
+  const getFilterIcon = () => {
+    return filterType === 'institutions' ? Building2 : Filter;
+  };
+  
+  const FilterIcon = getFilterIcon();
   
   return (
     <div className="relative" ref={dropdownRef}>
       <button
         onClick={() => setIsOpen(!isOpen)}
         className={`
-          flex items-center px-3 py-1.5 bg-white rounded-lg hover:bg-gray-50 
-          transition-colors text-sm border
-          ${selectedCount > 0 && !isAllSelected ? 'border-blue-300 text-blue-700' : 'border-gray-200 text-gray-700'}
+          flex items-center px-4 py-2 bg-white rounded-lg shadow-sm
+          transition-all duration-200 text-sm border
+          ${isOpen ? 'ring-2 ring-blue-500 border-blue-300' : ''}
+          ${selectedCount > 0 && !isAllSelected 
+            ? 'border-blue-300 text-blue-700 bg-blue-50 hover:bg-blue-100' 
+            : 'border-gray-200 text-gray-700 hover:bg-gray-50 hover:border-gray-300'
+          }
+          transform hover:scale-[1.02] active:scale-[0.98]
         `}
       >
-        <Filter className="w-4 h-4 mr-2" />
-        <span>
-          {isAllSelected ? 'All Accounts' : `${selectedCount} Account${selectedCount !== 1 ? 's' : ''}`}
-        </span>
-        <ChevronDown className={`w-4 h-4 ml-2 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+        <FilterIcon className={`w-4 h-4 mr-2 transition-transform duration-200 ${isOpen ? 'rotate-12' : ''}`} />
+        <span className="font-medium">{getFilterLabel()}</span>
+        <ChevronDown className={`w-4 h-4 ml-3 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
+        {selectedCount > 0 && !isAllSelected && (
+          <span className="absolute -top-1 -right-1 w-2 h-2 bg-blue-500 rounded-full animate-pulse" />
+        )}
       </button>
       
       {isOpen && (
-        <div className="absolute z-50 right-0 mt-2 w-80 bg-white border border-gray-200 rounded-lg shadow-xl">
-          <div className="p-3 border-b border-gray-100">
+        <div className="absolute z-50 right-0 mt-2 w-96 bg-white border border-gray-200 rounded-xl shadow-2xl animate-in slide-in-from-top-2 duration-200">
+          <div className="p-4 border-b border-gray-100 bg-gradient-to-r from-gray-50 to-white">
             <div className="flex items-center justify-between mb-2">
-              <span className="text-sm font-medium text-gray-700">Filter Accounts</span>
+              <div className="flex items-center space-x-2">
+                <FilterIcon className="w-5 h-5 text-gray-700" />
+                <span className="text-sm font-semibold text-gray-800">
+                  Filter by {filterType === 'institutions' ? 'Institution' : 'Account'}
+                </span>
+              </div>
               <button
                 onClick={() => onChange(new Set())}
-                className="text-xs text-blue-600 hover:text-blue-700 font-medium"
+                className="text-xs text-blue-600 hover:text-blue-700 font-medium px-2 py-1 hover:bg-blue-50 rounded transition-all duration-200"
               >
-                Select All
+                Clear All
               </button>
             </div>
-            <div className="text-xs text-gray-500">
-              {isAllSelected ? 'Showing all accounts' : `${selectedCount} of ${accounts.length} selected`}
+            <div className="text-xs text-gray-500 flex items-center">
+              <Activity className="w-3 h-3 mr-1" />
+              {isAllSelected 
+                ? `Showing all ${filterType === 'institutions' ? uniqueInstitutions.length : accounts.length} ${filterType}` 
+                : `${selectedCount} of ${filterType === 'institutions' ? uniqueInstitutions.length : accounts.length} selected`
+              }
             </div>
           </div>
           
           <div className="max-h-96 overflow-y-auto p-2">
-            {Object.entries(accountsByCategory).map(([categoryId, categoryAccounts]) => {
-              if (categoryAccounts.length === 0) return null;
-              const category = ACCOUNT_CATEGORIES.find(c => c.id === categoryId);
-              const Icon = category?.icon || Building;
-              
-              return (
-                <div key={categoryId} className="mb-3">
-                  <div className="flex items-center px-2 py-1 text-xs font-medium text-gray-600">
-                    <Icon className="w-3 h-3 mr-1.5" />
-                    {category?.name}
-                  </div>
-                  {categoryAccounts.map(account => {
-                    const isSelected = selectedAccounts.size === 0 || selectedAccounts.has(account.id);
-                    return (
-                      <button
-                        key={account.id}
-                        onClick={() => {
-                          const newSelection = new Set(selectedAccounts);
-                          if (selectedAccounts.size === 0) {
-                            // If all were selected, create new set with all except this one
-                            accounts.forEach(acc => newSelection.add(acc.id));
-                            newSelection.delete(account.id);
+            {filterType === 'institutions' ? (
+              // Institution filter view
+              <div className="space-y-1">
+                {uniqueInstitutions.map(institution => {
+                  const isSelected = selectedAccounts.size === 0 || selectedAccounts.has(institution);
+                  const accountCount = accounts.filter(acc => acc.institution === institution).length;
+                  
+                  return (
+                    <button
+                      key={institution}
+                      onClick={() => {
+                        const newSelection = new Set(selectedAccounts);
+                        if (selectedAccounts.size === 0) {
+                          uniqueInstitutions.forEach(inst => newSelection.add(inst));
+                          newSelection.delete(institution);
+                        } else {
+                          if (isSelected) {
+                            newSelection.delete(institution);
                           } else {
-                            // Toggle individual selection
-                            if (isSelected) {
-                              newSelection.delete(account.id);
-                            } else {
-                              newSelection.add(account.id);
-                            }
+                            newSelection.add(institution);
                           }
-                          onChange(newSelection);
-                        }}
-                        className={`
-                          w-full px-3 py-2 flex items-center justify-between rounded text-left
-                          transition-colors text-sm
+                        }
+                        onChange(newSelection);
+                      }}
+                      className={`
+                        w-full px-3 py-2.5 flex items-center justify-between rounded-lg
+                        transition-all duration-200 text-sm group
+                        ${isSelected 
+                          ? 'bg-gradient-to-r from-blue-50 to-blue-100 hover:from-blue-100 hover:to-blue-200' 
+                          : 'hover:bg-gray-50'
+                        }
+                      `}
+                    >
+                      <div className="flex items-center flex-1 mr-2">
+                        <div className={`
+                          w-5 h-5 rounded-md border-2 mr-3 flex items-center justify-center
+                          transition-all duration-200 group-hover:scale-110
                           ${isSelected 
-                            ? 'bg-blue-50 hover:bg-blue-100' 
-                            : 'hover:bg-gray-50'
+                            ? 'bg-blue-600 border-blue-600 shadow-sm' 
+                            : 'border-gray-300 group-hover:border-gray-400'
                           }
-                        `}
-                      >
-                        <div className="flex items-center flex-1 mr-2">
-                          <div className={`
-                            w-4 h-4 rounded border mr-2 flex items-center justify-center
-                            ${isSelected 
-                              ? 'bg-blue-600 border-blue-600' 
-                              : 'border-gray-300'
-                            }
-                          `}>
-                            {isSelected && <Check className="w-3 h-3 text-white" />}
+                        `}>
+                          {isSelected && <Check className="w-3 h-3 text-white" />}
+                        </div>
+                        <div className="flex-1 text-left">
+                          <div className="font-medium text-gray-900 group-hover:text-gray-800">
+                            {institution}
                           </div>
-                          <div className="flex-1">
-                            <div className="font-medium text-gray-900">{account.account_name}</div>
-                            <div className="text-xs text-gray-500">{account.institution}</div>
+                          <div className="text-xs text-gray-500">
+                            {accountCount} account{accountCount !== 1 ? 's' : ''}
                           </div>
                         </div>
-                      </button>
-                    );
-                  })}
-                </div>
-              );
-            })}
+                      </div>
+                      <Building2 className={`w-4 h-4 transition-colors ${isSelected ? 'text-blue-600' : 'text-gray-400'}`} />
+                    </button>
+                  );
+                })}
+              </div>
+            ) : (
+              // Account filter view (existing)
+              Object.entries(accountsByCategory).map(([categoryId, categoryAccounts]) => {
+                if (categoryAccounts.length === 0) return null;
+                const category = ACCOUNT_CATEGORIES.find(c => c.id === categoryId);
+                const Icon = category?.icon || Building;
+                
+                return (
+                  <div key={categoryId} className="mb-4">
+                    <div className="flex items-center px-3 py-2 text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                      <Icon className="w-3.5 h-3.5 mr-2" />
+                      {category?.name}
+                    </div>
+                    <div className="space-y-1">
+                      {categoryAccounts.map(account => {
+                        const isSelected = selectedAccounts.size === 0 || selectedAccounts.has(account.id);
+                        return (
+                          <button
+                            key={account.id}
+                            onClick={() => {
+                              const newSelection = new Set(selectedAccounts);
+                              if (selectedAccounts.size === 0) {
+                                accounts.forEach(acc => newSelection.add(acc.id));
+                                newSelection.delete(account.id);
+                              } else {
+                                if (isSelected) {
+                                  newSelection.delete(account.id);
+                                } else {
+                                  newSelection.add(account.id);
+                                }
+                              }
+                              onChange(newSelection);
+                            }}
+                            className={`
+                              w-full px-3 py-2.5 flex items-center justify-between rounded-lg
+                              transition-all duration-200 text-sm group
+                              ${isSelected 
+                                ? 'bg-gradient-to-r from-blue-50 to-blue-100 hover:from-blue-100 hover:to-blue-200' 
+                                : 'hover:bg-gray-50'
+                              }
+                            `}
+                          >
+                            <div className="flex items-center flex-1 mr-2">
+                              <div className={`
+                                w-5 h-5 rounded-md border-2 mr-3 flex items-center justify-center
+                                transition-all duration-200 group-hover:scale-110
+                                ${isSelected 
+                                  ? 'bg-blue-600 border-blue-600 shadow-sm' 
+                                  : 'border-gray-300 group-hover:border-gray-400'
+                                }
+                              `}>
+                                {isSelected && <Check className="w-3 h-3 text-white" />}
+                              </div>
+                              <div className="flex-1 text-left">
+                                <div className="font-medium text-gray-900 group-hover:text-gray-800">
+                                  {account.account_name}
+                                </div>
+                                <div className="text-xs text-gray-500">{account.institution}</div>
+                              </div>
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })
+            )}
           </div>
         </div>
       )}
@@ -518,6 +619,8 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved }) => {
   const [viewMode, setViewMode] = useState(false); // false = by asset type, true = by account
   const [showQueue, setShowQueue] = useState(false);
   const [selectedAccountFilter, setSelectedAccountFilter] = useState(new Set());
+  const [selectedInstitutionFilter, setSelectedInstitutionFilter] = useState(new Set());
+
 
   
   // Search state
@@ -1892,9 +1995,14 @@ return (
  const renderByAccount = () => {
    return (
      <div className="space-y-4">
-        {accounts.filter(account => 
-          selectedAccountFilter.size === 0 || selectedAccountFilter.has(account.id)
-        ).map(account => {
+        {accounts.filter(account => {
+          // Apply account filter
+          const passesAccountFilter = selectedAccountFilter.size === 0 || selectedAccountFilter.has(account.id);
+          // Apply institution filter
+          const passesInstitutionFilter = selectedInstitutionFilter.size === 0 || selectedInstitutionFilter.has(account.institution);
+          // Both filters must pass
+          return passesAccountFilter && passesInstitutionFilter;
+        }).map(account => {
          const accountStats = stats.byAccount[account.id];
          const hasPositions = accountStats && accountStats.count > 0;
          
@@ -2129,15 +2237,31 @@ return (
                 leftIcon={Layers}
                 rightIcon={Wallet}
               />
-              {viewMode && accounts.length > 0 && (
+            </div>
+            </div>
+
+            {/* Filter Row - Only show in account view */}
+            {viewMode && accounts.length > 0 && (
+              <div className="flex items-center space-x-3 mt-3 pt-3 border-t border-gray-100">
+                <span className="text-xs text-gray-500 font-medium">Filters:</span>
                 <AccountFilter
                   accounts={accounts}
                   selectedAccounts={selectedAccountFilter}
                   onChange={setSelectedAccountFilter}
+                  filterType="accounts"
                 />
-              )}
-            </div>
-           </div>
+                <AccountFilter
+                  accounts={accounts}
+                  selectedAccounts={selectedInstitutionFilter}
+                  onChange={setSelectedInstitutionFilter}
+                  filterType="institutions"
+                />
+                <div className="ml-auto flex items-center space-x-2 text-xs text-gray-500">
+                  <Info className="w-3 h-3" />
+                  <span>Filters apply together</span>
+                </div>
+              </div>
+            )}
 
            <div className="flex items-center space-x-3">
              {/* Settings buttons */}
