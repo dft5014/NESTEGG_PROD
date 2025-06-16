@@ -1249,20 +1249,47 @@ export default function Dashboard() {
               <div>
                 <h1 className="text-2xl font-bold mb-2">Welcome to Your NestEgg Dashboard</h1>
                 <p className="text-indigo-100 mb-4">Track your portfolio's performance and make informed investment decisions.</p>
-                <div className="flex flex-wrap gap-3">
+              <div className="flex flex-wrap gap-3">
+                {/* Primary Actions Group */}
+                <div className="flex gap-2 p-1 bg-gray-100 rounded-xl">
                   <button 
-                    className="px-4 py-2 bg-white text-indigo-700 rounded-lg hover:bg-indigo-100 transition-colors font-medium"
+                    className="px-6 py-2.5 bg-white text-gray-900 rounded-lg hover:bg-gray-50 transition-all duration-200 font-medium shadow-sm"
                     onClick={() => router.push('/accounts')}
                   >
-                    View Your Accounts
+                    Accounts
                   </button>
                   <button 
-                    className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-medium border border-white/20"
+                    className="px-6 py-2.5 text-gray-600 hover:text-gray-900 hover:bg-white rounded-lg transition-all duration-200 font-medium"
                     onClick={() => router.push('/positions')}
                   >
-                    View Your Positions
+                    Positions
                   </button>
                 </div>
+
+                {/* Analytics Group */}
+                <div className="flex gap-2 p-1 bg-indigo-50 rounded-xl">
+                  <button 
+                    className="px-6 py-2.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-all duration-200 font-medium"
+                    onClick={() => router.push('/reports')}
+                  >
+                    Reports
+                  </button>
+                  <button 
+                    className="px-6 py-2.5 text-indigo-600 hover:bg-white rounded-lg transition-all duration-200 font-medium"
+                    onClick={() => router.push('/analytics')}
+                  >
+                    Analytics
+                  </button>
+                </div>
+
+                {/* Info Button */}
+                <button 
+                  className="px-6 py-2.5 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-all duration-200 font-medium"
+                  onClick={() => router.push('/overview')}
+                >
+                  Overview
+                </button>
+              </div>
               </div>
               <button 
                 onClick={() => setShowWelcomeBanner(false)}
