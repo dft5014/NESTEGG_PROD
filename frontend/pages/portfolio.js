@@ -13,7 +13,7 @@ import {
   Briefcase, X, AlertCircle, ChevronRight, CreditCard, Droplet, 
   Diamond, Cpu, Landmark, Layers, Shield, Database, Percent, 
   Eye, Gift, Clock, ArrowUp, ArrowDown, Calculator,
-  Banknote, Coins, Package, Home, Building2, BarChart3
+  Banknote, Coins, Package, Home, Building2, BarChart3, Sparkles
 } from 'lucide-react';
 
 import { fetchWithAuth } from '@/utils/api';
