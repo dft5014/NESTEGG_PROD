@@ -127,17 +127,17 @@ const Navbar = () => {
         }
     ];
 
-    const displayName = user ?
-        (user.first_name && user.last_name ? `${user.first_name} ${user.last_name}` : user.email) :
-        '';
+    const displayName = user.first_name && user.last_name 
+        ? `${user.first_name} ${user.last_name}` 
+        : user.email;
 
     const getInitials = useCallback(() => {
-        if (user?.first_name && user?.last_name) {
+        if (user.first_name && user.last_name) {
             return `${user.first_name[0]}${user.last_name[0]}`.toUpperCase();
-        } else if (user?.email) {
+        } else if (user.email) {
             return user.email[0].toUpperCase();
         }
-        return '';
+        return ''; // This should never happen if user is properly loaded
     }, [user]);
 
     // Placeholder functions
@@ -244,7 +244,7 @@ const Navbar = () => {
                                     aria-haspopup="true"
                                 >
                                     <div className="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center text-white">
-                                        {getInitials() || <User className="w-5 h-5" />}
+                                        {getInitials()}
                                     </div>
                                     <span className="text-sm font-medium">{displayName}</span>
                                     {isLoadingAccounts && <Loader2 className="w-5 h-5 text-blue-300 animate-spin ml-2" />}

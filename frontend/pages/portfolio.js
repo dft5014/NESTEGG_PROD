@@ -1240,58 +1240,89 @@ export default function Dashboard() {
       <AnimatePresence>
         {showWelcomeBanner && (
           <motion.div 
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, height: 0 }}
-            className="bg-gradient-to-r from-blue-600 to-indigo-600 rounded-xl p-6 mb-8 text-white"
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.95 }}
+            className="relative bg-gradient-to-r from-indigo-500 to-blue-600 rounded-2xl p-1 mb-8 shadow-2xl"
           >
-            <div className="flex justify-between items-start">
-              <div className="flex-1">
-                <div className="flex items-center justify-between mb-4">
-                  <div>
-                    <h1 className="text-xl font-semibold mb-1">Welcome to Your NestEgg Dashboard</h1>
-                    <p className="text-blue-100 text-sm">Track your portfolio's performance and make informed investment decisions.</p>
+            <div className="bg-gray-900 rounded-2xl p-6 md:p-8">
+              <div className="flex justify-between items-start">
+                <div className="flex-1">
+                  <div className="flex items-center space-x-3 mb-4">
+                    <div className="p-2 bg-gradient-to-br from-blue-400 to-indigo-600 rounded-xl">
+                      <Sparkles className="w-6 h-6 text-white" />
+                    </div>
+                    <div>
+                      <h1 className="text-2xl md:text-3xl font-bold text-white">
+                        Ready to grow your wealth? 🚀
+                      </h1>
+                      <p className="text-gray-400 mt-1">
+                        Your investment journey starts here. Track, analyze, and optimize your portfolio.
+                      </p>
+                    </div>
                   </div>
-                  <button 
-                    onClick={() => setShowWelcomeBanner(false)}
-                    className="text-white/60 hover:text-white transition-colors p-1"
-                    aria-label="Close welcome banner"
-                  >
-                    <X size={18} />
-                  </button>
-                </div>
-                
-                <div className="flex flex-wrap gap-3">
-                  <button 
-                    className="px-4 py-2 bg-white/20 backdrop-blur-sm text-white rounded-lg hover:bg-white/30 transition-all duration-200 text-sm font-medium"
-                    onClick={() => router.push('/accounts')}
-                  >
-                    Accounts
-                  </button>
-                  <button 
-                    className="px-4 py-2 bg-white/20 backdrop-blur-sm text-white rounded-lg hover:bg-white/30 transition-all duration-200 text-sm font-medium"
-                    onClick={() => router.push('/positions')}
-                  >
-                    Positions
-                  </button>
-                  <button 
-                    className="px-4 py-2 bg-white/20 backdrop-blur-sm text-white rounded-lg hover:bg-white/30 transition-all duration-200 text-sm font-medium"
-                    onClick={() => router.push('/reports')}
-                  >
-                    Reports
-                  </button>
-                  <button 
-                    className="px-4 py-2 bg-white/20 backdrop-blur-sm text-white rounded-lg hover:bg-white/30 transition-all duration-200 text-sm font-medium"
-                    onClick={() => router.push('/analytics')}
-                  >
-                    Analytics
-                  </button>
-                  <button 
-                    className="px-4 py-2 bg-white/20 backdrop-blur-sm text-white rounded-lg hover:bg-white/30 transition-all duration-200 text-sm font-medium"
-                    onClick={() => router.push('/overview')}
-                  >
-                    Overview
-                  </button>
+                  
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+                    <motion.button 
+                      whileHover={{ y: -2 }}
+                      className="group relative bg-gray-800 hover:bg-gray-700 rounded-xl p-4 transition-all duration-200 border border-gray-700 hover:border-blue-500"
+                      onClick={() => router.push('/positions')}
+                    >
+                      <TrendingUp className="w-5 h-5 text-blue-400 mb-2" />
+                      <div className="text-white font-medium">Positions</div>
+                      <div className="text-gray-400 text-xs">View holdings</div>
+                    </motion.button>
+                    
+                    <motion.button 
+                      whileHover={{ y: -2 }}
+                      className="group relative bg-gray-800 hover:bg-gray-700 rounded-xl p-4 transition-all duration-200 border border-gray-700 hover:border-green-500"
+                      onClick={() => router.push('/accounts')}
+                    >
+                      <Wallet className="w-5 h-5 text-green-400 mb-2" />
+                      <div className="text-white font-medium">Accounts</div>
+                      <div className="text-gray-400 text-xs">Manage funds</div>
+                    </motion.button>
+                    
+                    <motion.button 
+                      whileHover={{ y: -2 }}
+                      className="group relative bg-gray-800 hover:bg-gray-700 rounded-xl p-4 transition-all duration-200 border border-gray-700 hover:border-purple-500"
+                      onClick={() => router.push('/portfolio-command-center')}
+                    >
+                      <BarChart3 className="w-5 h-5 text-purple-400 mb-2" />
+                      <div className="text-white font-medium">Analytics</div>
+                      <div className="text-gray-400 text-xs">Deep insights</div>
+                    </motion.button>
+                    
+                    <motion.button 
+                      whileHover={{ y: -2 }}
+                      className="group relative bg-gray-800 hover:bg-gray-700 rounded-xl p-4 transition-all duration-200 border border-gray-700 hover:border-orange-500"
+                      onClick={() => router.push('/reports')}
+                    >
+                      <FileText className="w-5 h-5 text-orange-400 mb-2" />
+                      <div className="text-white font-medium">Reports</div>
+                      <div className="text-gray-400 text-xs">Performance</div>
+                    </motion.button>
+                  </div>
+                  
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-4 text-sm">
+                      <div className="flex items-center space-x-1">
+                        <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse" />
+                        <span className="text-gray-400">Markets open</span>
+                      </div>
+                      <div className="text-gray-500">•</div>
+                      <div className="text-gray-400">
+                        S&P 500 <span className="text-green-400">+0.82%</span>
+                      </div>
+                    </div>
+                    
+                    <button 
+                      onClick={() => setShowWelcomeBanner(false)}
+                      className="text-gray-500 hover:text-gray-300 transition-colors"
+                    >
+                      <X size={18} />
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
