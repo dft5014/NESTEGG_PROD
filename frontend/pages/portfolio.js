@@ -1243,61 +1243,57 @@ export default function Dashboard() {
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, height: 0 }}
-            className="bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 rounded-2xl p-6 mb-8 text-white shadow-xl"
+            className="bg-gradient-to-r from-blue-600 to-indigo-600 rounded-xl p-6 mb-8 text-white"
           >
             <div className="flex justify-between items-start">
-              <div>
-                <h1 className="text-2xl font-bold mb-2">Welcome to Your NestEgg Dashboard</h1>
-                <p className="text-indigo-100 mb-4">Track your portfolio's performance and make informed investment decisions.</p>
-              <div className="flex flex-wrap gap-3">
-                {/* Primary Actions Group */}
-                <div className="flex gap-2 p-1 bg-gray-100 rounded-xl">
+              <div className="flex-1">
+                <div className="flex items-center justify-between mb-4">
+                  <div>
+                    <h1 className="text-xl font-semibold mb-1">Welcome to Your NestEgg Dashboard</h1>
+                    <p className="text-blue-100 text-sm">Track your portfolio's performance and make informed investment decisions.</p>
+                  </div>
                   <button 
-                    className="px-6 py-2.5 bg-white text-gray-900 rounded-lg hover:bg-gray-50 transition-all duration-200 font-medium shadow-sm"
+                    onClick={() => setShowWelcomeBanner(false)}
+                    className="text-white/60 hover:text-white transition-colors p-1"
+                    aria-label="Close welcome banner"
+                  >
+                    <X size={18} />
+                  </button>
+                </div>
+                
+                <div className="flex flex-wrap gap-3">
+                  <button 
+                    className="px-4 py-2 bg-white/20 backdrop-blur-sm text-white rounded-lg hover:bg-white/30 transition-all duration-200 text-sm font-medium"
                     onClick={() => router.push('/accounts')}
                   >
                     Accounts
                   </button>
                   <button 
-                    className="px-6 py-2.5 text-gray-600 hover:text-gray-900 hover:bg-white rounded-lg transition-all duration-200 font-medium"
+                    className="px-4 py-2 bg-white/20 backdrop-blur-sm text-white rounded-lg hover:bg-white/30 transition-all duration-200 text-sm font-medium"
                     onClick={() => router.push('/positions')}
                   >
                     Positions
                   </button>
-                </div>
-
-                {/* Analytics Group */}
-                <div className="flex gap-2 p-1 bg-indigo-50 rounded-xl">
                   <button 
-                    className="px-6 py-2.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-all duration-200 font-medium"
+                    className="px-4 py-2 bg-white/20 backdrop-blur-sm text-white rounded-lg hover:bg-white/30 transition-all duration-200 text-sm font-medium"
                     onClick={() => router.push('/reports')}
                   >
                     Reports
                   </button>
                   <button 
-                    className="px-6 py-2.5 text-indigo-600 hover:bg-white rounded-lg transition-all duration-200 font-medium"
+                    className="px-4 py-2 bg-white/20 backdrop-blur-sm text-white rounded-lg hover:bg-white/30 transition-all duration-200 text-sm font-medium"
                     onClick={() => router.push('/analytics')}
                   >
                     Analytics
                   </button>
+                  <button 
+                    className="px-4 py-2 bg-white/20 backdrop-blur-sm text-white rounded-lg hover:bg-white/30 transition-all duration-200 text-sm font-medium"
+                    onClick={() => router.push('/overview')}
+                  >
+                    Overview
+                  </button>
                 </div>
-
-                {/* Info Button */}
-                <button 
-                  className="px-6 py-2.5 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-all duration-200 font-medium"
-                  onClick={() => router.push('/overview')}
-                >
-                  Overview
-                </button>
               </div>
-              </div>
-              <button 
-                onClick={() => setShowWelcomeBanner(false)}
-                className="text-white/80 hover:text-white"
-                aria-label="Close welcome banner"
-              >
-                <X size={20} />
-              </button>
             </div>
           </motion.div>
         )}
