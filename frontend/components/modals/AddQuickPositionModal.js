@@ -27,6 +27,7 @@ import {
   Calendar, ToggleLeft, ToggleRight, Users, Repeat,
   ClipboardList, CheckCheck, XCircle, AlertTriangle
 } from 'lucide-react';
+import ReactDOM from 'react-dom';
 
 // Account categories definition
 const ACCOUNT_CATEGORIES = [
@@ -1565,51 +1566,71 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved }) => {
 
     // Search results dropdown for searchable fields
     if (field.searchable && searchResultsForField.length > 0) {
+      const inputElement = cellRefs.current[cellKey];
+      const inputRect = inputElement?.getBoundingClientRect();
+
       return (
-        <div className="relative w-full">
-          <input
-            {...commonProps}
-            type="text"
-            value={value}
-            onChange={(e) => updatePosition(assetType, position.id, field.key, e.target.value)}
-            placeholder={field.placeholder}
-            autoComplete="off"
-            spellCheck="false"
-          />
-          {isSearchingField && (
-            <div className="absolute right-2 top-1/2 -translate-y-1/2">
-              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-500"></div>
-            </div>
-          )}
-          <div 
-            className="absolute z-[99999] w-full bg-white border border-gray-200 rounded-lg shadow-lg mt-1"
-            style={{ 
-              top: '100%',
-              left: 0,
-              right: 0,
-              maxHeight: '240px',
-              overflowY: 'auto'
-            }}
-          >
-            {searchResultsForField.map((result, idx) => (
-              <button
-                key={result.ticker}
-                type="button"
-                className={`
-                  w-full px-3 py-2 flex items-center justify-between hover:bg-gray-50 transition-colors text-left
-                  ${idx !== searchResultsForField.length - 1 ? 'border-b border-gray-100' : ''}
-                `}
-                onClick={() => handleSelectSecurity(assetType, position.id, result)}
-              >
-                <div className="flex items-center space-x-3">
-                  <span className="font-medium text-gray-900">{result.ticker}</span>
-                  <span className="text-sm text-gray-500 truncate">{result.name}</span>
-                </div>
-                <span className="text-sm font-medium text-gray-900">${parseFloat(result.price).toFixed(2)}</span>
-              </button>
-            ))}
+        <>
+          <div className="relative w-full">
+            <input
+              {...commonProps}
+              type="text"
+              value={value}
+              onChange={(e) => updatePosition(assetType, position.id, field.key, e.target.value)}
+              placeholder={field.placeholder}
+              autoComplete="off"
+              spellCheck="false"
+            />
+            {isSearchingField && (
+              <div className="absolute right-2 top-1/2 -translate-y-1/2">
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-500"></div>
+              </div>
+            )}
           </div>
-        </div>
+          {inputRect && ReactDOM.createPortal(
+            <div 
+              style={{
+                position: 'fixed',
+                top: `${inputRect.bottom + 2}px`,
+                left: `${inputRect.left}px`,
+                width: `${inputRect.width}px`,
+                zIndex: 9999999
+              }}
+              className="bg-white border border-gray-300 rounded-lg shadow-xl"
+            >
+              <div className="max-h-48 overflow-y-auto">
+                {searchResultsForField.map((result, idx) => (
+                  <button
+                    key={result.ticker}
+                    type="button"
+                    className={`
+                      w-full px-3 py-2 text-sm text-left hover:bg-gray-50 transition-colors
+                      flex items-center justify-between
+                      ${idx !== searchResultsForField.length - 1 ? 'border-b border-gray-100' : ''}
+                    `}
+                    onClick={() => {
+                      handleSelectSecurity(assetType, position.id, result);
+                      setSearchResults(prev => ({
+                        ...prev,
+                        [searchKey]: []
+                      }));
+                    }}
+                    onMouseDown={(e) => e.preventDefault()}
+                  >
+                    <div className="flex items-center space-x-2 flex-1 min-w-0">
+                      <span className="font-semibold text-gray-900">{result.ticker}</span>
+                      <span className="text-gray-500 text-xs truncate">{result.name}</span>
+                    </div>
+                    <span className="font-medium text-gray-700 ml-2 text-sm">
+                      ${parseFloat(result.price).toFixed(2)}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>,
+            document.body
+          )}
+        </>
       );
     }
 

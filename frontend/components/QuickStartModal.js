@@ -1875,7 +1875,7 @@ export const QuickStartButton = ({ className = '' }) => {
               <div className="absolute inset-0 bg-gradient-to-r from-green-600 to-emerald-600 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
               <div className="relative flex items-center">
                   <Sparkles className="w-5 h-5 mr-2 text-green-400 group-hover:text-white transition-colors" />
-                  <span className="text-sm text-gray-200 group-hover:text-white font-medium">Quick Start</span>
+                  <span className="text-sm text-gray-200 group-hover:text-white font-medium">Quick Add</span>
               </div>
           </button>
           

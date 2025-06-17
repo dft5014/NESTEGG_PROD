@@ -100,31 +100,12 @@ const Sidebar = () => {
       ]
     },
     { 
-      href: "/tasks", 
-      label: "Task Tracker", 
-      icon: <CheckSquare className="w-5 h-5" />,
-      count: 7,
-      description: "Pending tasks"
-    },
-    { 
       label: "Feature Testing",
       icon: <Zap className="w-5 h-5" />,
       badge: "Beta",
       badgeColor: "bg-gradient-to-r from-yellow-500 to-orange-500",
       items: [
-        { 
-          href: "/income", 
-          label: "Report V1", 
-          icon: <BarChart2 className="w-5 h-5" />,
-          badge: "New",
-          badgeColor: "bg-green-500"
-        },
-        { 
-          href: "/test", 
-          label: "Report V2", 
-          icon: <LineChart className="w-5 h-5" />,
-          progress: 75
-        },
+
       ]
     }
   ];
