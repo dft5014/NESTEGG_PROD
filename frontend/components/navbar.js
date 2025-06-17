@@ -5,14 +5,14 @@ import { useRouter } from 'next/router';
 import { QuickStartButton } from '@/components/QuickStartModal';
 import { AuthContext } from '@/context/AuthContext';
 import {
-    User, Settings, LogOut, HelpCircle, Bell, ChartLine,
+    User, Settings, LogOut, HelpCircle, ChartLine,
     PlusCircle, Shield, Clock, Menu, X, LineChart, BarChart4,
-    ChevronLeft, ChevronRight, Upload, Loader2, AlertCircle // Added Loader2, AlertCircle for status
+    ChevronLeft, ChevronRight, ChevronDown, Loader2, AlertCircle,
+    Edit3, Trash2
 } from 'lucide-react';
 import UpdateStatusIndicator from '@/components/UpdateStatusIndicator';
 import AddPositionButton from '@/components/AddPositionButton';
 import AddAccountButton from '@/components/AddAccountButton';
-import BulkPositionButton from '@/components/BulkPositionButton';
 import { fetchAccounts } from '@/utils/apimethods/accountMethods';
 
 // Memoized EggLogo component (no changes)
@@ -50,8 +50,7 @@ const Navbar = () => {
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
     const [isQuickActionsOpen, setIsQuickActionsOpen] = useState(true);
     const [scrolledDown, setScrolledDown] = useState(false);
-    const [showNotifications, setShowNotifications] = useState(false);
-    const [unreadNotifications, setUnreadNotifications] = useState(3); // Mock data
+    const [isManualAddOpen, setIsManualAddOpen] = useState(false);
 
     const { user, logout } = useContext(AuthContext);
     const router = useRouter();
@@ -62,34 +61,23 @@ const Navbar = () => {
     const [accountError, setAccountError] = useState(null);
 
     const loadAccounts = useCallback(async () => {
-        if (!user) {
-            setAccounts([]);
-            setIsLoadingAccounts(false);
-            setAccountError(null);
-            return;
-        }
         setIsLoadingAccounts(true);
         setAccountError(null);
         try {
-            // console.log("Navbar: Fetching accounts...");
             const accountsData = await fetchAccounts();
             setAccounts(accountsData || []);
-            // console.log("Navbar: Accounts fetched:", accountsData ? accountsData.length : 0);
         } catch (error) {
             console.error("Navbar: Error fetching accounts:", error);
-            setAccountError("Failed to load accounts."); // Set error message
+            setAccountError("Failed to load accounts.");
             setAccounts([]);
         } finally {
             setIsLoadingAccounts(false);
         }
-    }, [user]); // Dependency on user context
+    }, []);
 
     useEffect(() => {
         loadAccounts();
-    }, [loadAccounts]); // Dependency on the useCallback memoized function
-
-    // --- End Account Fetching Logic ---
-
+    }, [loadAccounts]);
 
     // Handle scroll events for navbar appearance
     useEffect(() => {
@@ -106,26 +94,24 @@ const Navbar = () => {
             // Close User Dropdown
             const userDropdown = event.target.closest('.user-dropdown');
             if (isDropdownOpen && !userDropdown) {
-                // Check if the click was on the button that opens the dropdown
-                 const userDropdownButton = event.target.closest('.user-dropdown-button');
-                 if (!userDropdownButton) {
-                     setIsDropdownOpen(false);
-                 }
+                const userDropdownButton = event.target.closest('.user-dropdown-button');
+                if (!userDropdownButton) {
+                    setIsDropdownOpen(false);
+                }
             }
-             // Close Notifications Dropdown
-             const notificationDropdown = event.target.closest('.notification-dropdown');
-             if (showNotifications && !notificationDropdown) {
-                 // Check if the click was on the button that opens the dropdown
-                 const notificationButton = event.target.closest('.notification-button');
-                 if (!notificationButton) {
-                     setShowNotifications(false);
-                 }
-             }
+            
+            // Close Manual Add Dropdown
+            const manualAddDropdown = event.target.closest('.manual-add-dropdown');
+            if (isManualAddOpen && !manualAddDropdown) {
+                const manualAddButton = event.target.closest('.manual-add-button');
+                if (!manualAddButton) {
+                    setIsManualAddOpen(false);
+                }
+            }
         };
         document.addEventListener('mousedown', handleClickOutside);
         return () => document.removeEventListener('mousedown', handleClickOutside);
-    }, [isDropdownOpen, showNotifications]);
-
+    }, [isDropdownOpen, isManualAddOpen]);
 
     const dropdownItems = [
         { icon: <User className="w-5 h-5 mr-2" />, label: "Profile", href: "/profile" },
@@ -156,36 +142,19 @@ const Navbar = () => {
         return 'U';
     }, [user]);
 
-    // Notifications mock data
-    const notifications = [
-        { id: 1, title: "Account Updated", message: "Your retirement account has been synced", time: "2 minutes ago", isNew: true },
-        { id: 2, title: "Market Alert", message: "AAPL is up 3.5% today", time: "1 hour ago", isNew: true },
-        { id: 3, title: "Balance Change", message: "Your portfolio increased by 1.2%", time: "3 hours ago", isNew: true },
-        { id: 4, title: "New Feature", message: "Crypto tracking now available", time: "Yesterday", isNew: false },
-    ];
-
-    // Placeholder functions for BulkPositionButton
+    // Placeholder functions
     const placeholderFetchPositions = () => {
         console.warn('Navbar: fetchPositions function is not implemented or passed down.');
-        // TODO: Implement actual refresh logic, likely via context or state management
-    };
-    const placeholderFetchPortfolioSummary = () => {
-        console.warn('Navbar: fetchPortfolioSummary function is not implemented or passed down.');
-         // TODO: Implement actual refresh logic, likely via context or state management
     };
 
-    // Determine if bulk actions should be disabled
-    const bulkDisabled = isLoadingAccounts || accountError || !accounts || accounts.length === 0;
-    const bulkTitle = isLoadingAccounts ? "Loading accounts..."
-                    : accountError ? accountError
-                    : (!accounts || accounts.length === 0) ? "Add an account first"
-                    : "Bulk upload positions";
-
+    // Quick Edit/Delete button handler (placeholder)
+    const handleQuickEdit = () => {
+        // TODO: Implement quick edit/delete functionality
+        console.log('Quick Edit/Delete clicked');
+        router.push('/edit'); // or open a modal
+    };
 
     return (
-        // Use pb-[height_of_mobile_bar] on the main layout container in _app.js or layout file
-        // if the fixed mobile bar overlaps content at the bottom of the page.
-        // The height here is py-3 * 2 + h-6 icon + mb-1 = roughly 55-60px? Measure button height. Let's estimate pb-16 needed on main content.
         <div className="sticky top-0 z-40">
             {/* Main Navbar */}
             <nav className={`${scrolledDown ? 'bg-gray-900/95 shadow-lg' : 'bg-gradient-to-r from-gray-900 to-blue-900'} transition-all duration-300`}>
@@ -205,192 +174,124 @@ const Navbar = () => {
                         </div>
 
                         {/* Center: Quick Actions and Toggle */}
-                    {/* Center: Quick Actions and Toggle */}
-                    <div className="hidden md:flex items-center space-x-4">
-                        <div className="flex items-center">
-                            {isQuickActionsOpen && (
-                                <div className="flex space-x-4 items-center">
-                                    {/* Quick Start Button - NEW */}
-                                    <QuickStartButton className="mr-2" />
-                                    
-                                    {/* Existing buttons */}
-                                    <AddAccountButton
-                                        onAccountAdded={loadAccounts}
-                                        className="flex items-center text-white py-1 px-4 transition-colors group"
-                                    />
-                                    <AddPositionButton
-                                        onPositionAdded={placeholderFetchPositions}
-                                        className="flex items-center text-white py-1 px-4 transition-colors group"
-                                    />
-                                    <BulkPositionButton
-                                        accounts={accounts}
-                                        fetchAccounts={loadAccounts}
-                                        fetchPositions={placeholderFetchPositions}
-                                        fetchPortfolioSummary={placeholderFetchPortfolioSummary}
-                                        className="flex items-center text-white py-1 px-4 transition-colors group"
-                                        buttonIcon={
-                                            isLoadingAccounts ? <Loader2 className="w-6 h-6 mr-2 text-white animate-spin" />
-                                            : accountError ? <AlertCircle className="w-6 h-6 mr-2 text-red-400" />
-                                            : <Upload className="w-6 h-6 mr-2 text-white group-hover:text-blue-300" />
-                                        }
-                                        buttonText={
-                                        <span className={`text-sm ${accountError ? 'text-red-300' : 'text-gray-200 group-hover:text-white'}`}>Bulk Upload</span>
-                                        }
-                                        disabled={bulkDisabled}
-                                        title={bulkTitle}
-                                    />
-                                </div>
-                            )}
-                            <button
-                                onClick={() => setIsQuickActionsOpen(!isQuickActionsOpen)}
-                                className="text-white p-2 hover:bg-blue-800/30 rounded-lg transition-colors ml-2"
-                            >
-                                {isQuickActionsOpen ? <ChevronLeft className="w-5 h-5" /> : <ChevronRight className="w-5 h-5" />}
-                            </button>
+                        <div className="hidden md:flex items-center space-x-4">
+                            <div className="flex items-center">
+                                {isQuickActionsOpen && (
+                                    <div className="flex space-x-4 items-center">
+                                        {/* Quick Start Button */}
+                                        <QuickStartButton className="mr-2" />
+                                        
+                                        {/* Quick Edit/Delete Button */}
+                                        <button
+                                            onClick={handleQuickEdit}
+                                            className="flex items-center text-white py-1 px-4 hover:bg-blue-800/30 rounded-lg transition-colors group"
+                                        >
+                                            <Edit3 className="w-5 h-5 mr-2 text-white group-hover:text-blue-300" />
+                                            <span className="text-sm text-gray-200 group-hover:text-white">Quick Edit / Delete</span>
+                                        </button>
+                                        
+                                        {/* Manual Add Dropdown */}
+                                        <div className="relative manual-add-dropdown">
+                                            <button
+                                                onClick={() => setIsManualAddOpen(!isManualAddOpen)}
+                                                className="flex items-center text-white py-1 px-4 hover:bg-blue-800/30 rounded-lg transition-colors group manual-add-button"
+                                            >
+                                                <PlusCircle className="w-5 h-5 mr-2 text-white group-hover:text-blue-300" />
+                                                <span className="text-sm text-gray-200 group-hover:text-white">Manual Add</span>
+                                                <ChevronDown className="w-4 h-4 ml-1 text-gray-400" />
+                                            </button>
+                                            
+                                            {isManualAddOpen && (
+                                                <div className="absolute top-full mt-2 w-48 bg-white rounded-lg shadow-xl z-20 overflow-hidden">
+                                                    <div className="py-1">
+                                                        <AddAccountButton
+                                                            onAccountAdded={loadAccounts}
+                                                            className="flex items-center w-full px-4 py-3 hover:bg-gray-100 transition-colors text-gray-800"
+                                                            onClick={() => setIsManualAddOpen(false)}
+                                                        />
+                                                        <AddPositionButton
+                                                            onPositionAdded={placeholderFetchPositions}
+                                                            className="flex items-center w-full px-4 py-3 hover:bg-gray-100 transition-colors text-gray-800"
+                                                            onClick={() => setIsManualAddOpen(false)}
+                                                        />
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                )}
+                                <button
+                                    onClick={() => setIsQuickActionsOpen(!isQuickActionsOpen)}
+                                    className="text-white p-2 hover:bg-blue-800/30 rounded-lg transition-colors ml-2"
+                                >
+                                    {isQuickActionsOpen ? <ChevronLeft className="w-5 h-5" /> : <ChevronRight className="w-5 h-5" />}
+                                </button>
+                            </div>
                         </div>
-                    </div>
 
-                        {/* Right: Market Update Status, Notifications, and Profile */}
+                        {/* Right: Market Update Status and Profile */}
                         <div className="hidden md:flex items-center space-x-4">
                             {/* Market Update Status */}
                             <div className="bg-green-800/80 px-4 py-1.5 rounded-full flex items-center text-green-100">
-                                <UpdateStatusIndicator /> {/* Assumes this component shows actual status */}
-                                <span className="ml-2 text-sm">Prices up to date</span> {/* TODO: Make dynamic */}
+                                <UpdateStatusIndicator />
+                                <span className="ml-2 text-sm">Prices up to date</span>
                             </div>
 
-                            {/* Notifications */}
-                            <div className="relative notification-dropdown">
-                                 {/* Added class for click outside detection */}
+                            {/* User Dropdown */}
+                            <div className="relative user-dropdown">
                                 <button
-                                    className="text-gray-300 hover:text-white relative p-1 rounded-full hover:bg-gray-800/50 transition-colors notification-button"
-                                    onClick={() => setShowNotifications(!showNotifications)}
+                                    onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+                                    className="flex items-center space-x-2 hover:bg-blue-800/30 p-2 rounded-lg transition-colors text-white user-dropdown-button"
+                                    aria-expanded={isDropdownOpen}
                                     aria-haspopup="true"
-                                    aria-expanded={showNotifications}
                                 >
-                                    <Bell className="w-6 h-6" />
-                                    {unreadNotifications > 0 && (
-                                        <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
-                                            {unreadNotifications} {/* TODO: Make dynamic */}
-                                        </span>
-                                    )}
+                                    <div className="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center text-white">
+                                        {getInitials()}
+                                    </div>
+                                    <span className="text-sm font-medium">{displayName}</span>
+                                    {isLoadingAccounts && <Loader2 className="w-5 h-5 text-blue-300 animate-spin ml-2" />}
+                                    {accountError && <AlertCircle className="w-5 h-5 text-red-400 ml-2" title={accountError} />}
                                 </button>
-                                {showNotifications && (
-                                     // Dropdown Content (no changes from previous)
-                                    <div className="absolute right-0 mt-2 w-80 bg-white rounded-lg shadow-xl overflow-hidden z-20">
-                                         {/* ... header ... */}
-                                         {/* ... list ... */}
-                                         {/* ... footer link ... */}
-                                         <div className="bg-gradient-to-r from-blue-700 to-blue-600 p-3 text-white border-b border-blue-500">
-                                            <div className="flex justify-between items-center">
-                                                <h3 className="font-medium">Notifications</h3>
-                                                {/* TODO: Implement mark as read */}
-                                                <button className="text-blue-200 hover:text-white text-xs">Mark all as read</button>
-                                            </div>
+                                {isDropdownOpen && (
+                                    <div className="absolute right-0 mt-2 w-60 bg-white rounded-lg shadow-xl z-20 overflow-hidden">
+                                        <div className="bg-gradient-to-r from-blue-600 to-blue-700 p-4">
+                                            <p className="font-medium text-lg text-white">{displayName}</p>
+                                            <p className="text-sm text-blue-100 truncate">{user.email}</p>
                                         </div>
-                                        <div className="max-h-96 overflow-y-auto">
-                                            {/* TODO: Replace with real notification data */}
-                                            {notifications.map(notification => (
-                                                <div
-                                                    key={notification.id}
-                                                    className={`p-3 border-b border-gray-100 hover:bg-gray-50 transition-colors cursor-pointer ${notification.isNew ? 'bg-blue-50' : ''}`}
-                                                    // TODO: Add onClick to navigate or mark as read
-                                                >
-                                                    <div className="flex justify-between">
-                                                        <h4 className="font-medium text-gray-900">{notification.title}</h4>
-                                                        <span className="text-xs text-gray-500">{notification.time}</span>
-                                                    </div>
-                                                    <p className="text-sm text-gray-600 mt-1">{notification.message}</p>
-                                                </div>
+                                        <div className="py-1">
+                                            {dropdownItems.map((item, index) => (
+                                                item.action ? (
+                                                    <button
+                                                        key={index}
+                                                        onClick={() => { item.action(); setIsDropdownOpen(false); }}
+                                                        className={`flex w-full items-center px-4 py-3 hover:bg-gray-100 transition-colors text-left text-gray-800 ${item.className || ''}`}
+                                                    >
+                                                        {item.icon}
+                                                        {item.label}
+                                                    </button>
+                                                ) : (
+                                                    <Link
+                                                        key={index}
+                                                        href={item.href}
+                                                        onClick={() => setIsDropdownOpen(false)}
+                                                        className={`flex items-center px-4 py-3 hover:bg-gray-100 transition-colors text-gray-800 ${item.className || ''}`}
+                                                    >
+                                                        {item.icon}
+                                                        {item.label}
+                                                    </Link>
+                                                )
                                             ))}
-                                             {notifications.length === 0 && (
-                                                <p className="p-4 text-sm text-gray-500 text-center">No new notifications</p>
-                                            )}
-                                        </div>
-                                        <div className="p-2 text-center bg-gray-50 border-t border-gray-100">
-                                            <Link
-                                                 href="/notifications"
-                                                 onClick={() => setShowNotifications(false)}
-                                                 className="text-sm text-blue-600 hover:text-blue-800"
-                                             >
-                                                View all notifications
-                                            </Link>
                                         </div>
                                     </div>
                                 )}
                             </div>
-
-                            {/* User Dropdown */}
-                            {user ? (
-                                <div className="relative user-dropdown">
-                                    {/* Added class for click outside detection */}
-                                    <button
-                                        onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-                                        className="flex items-center space-x-2 hover:bg-blue-800/30 p-2 rounded-lg transition-colors text-white user-dropdown-button"
-                                        aria-expanded={isDropdownOpen}
-                                        aria-haspopup="true"
-                                    >
-                                        <div className="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center text-white">
-                                            {getInitials()}
-                                        </div>
-                                        <span className="text-sm font-medium">{displayName}</span>
-                                         {/* Add loading/error indicator near profile */}
-                                         {isLoadingAccounts && <Loader2 className="w-5 h-5 text-blue-300 animate-spin ml-2" />}
-                                         {accountError && <AlertCircle className="w-5 h-5 text-red-400 ml-2" title={accountError} />}
-                                    </button>
-                                    {isDropdownOpen && (
-                                        // Dropdown Content (added onClick handlers to close)
-                                        <div className="absolute right-0 mt-2 w-60 bg-white rounded-lg shadow-xl z-20 overflow-hidden">
-                                             <div className="bg-gradient-to-r from-blue-600 to-blue-700 p-4">
-                                                 <p className="font-medium text-lg text-white">{displayName}</p>
-                                                 <p className="text-sm text-blue-100 truncate">{user.email}</p>
-                                             </div>
-                                             <div className="py-1">
-                                                {dropdownItems.map((item, index) => (
-                                                    item.action ? (
-                                                        <button
-                                                            key={index}
-                                                            onClick={() => { item.action(); setIsDropdownOpen(false); }} // Close dropdown
-                                                            className={`flex w-full items-center px-4 py-3 hover:bg-gray-100 transition-colors text-left text-gray-800 ${item.className || ''}`}
-                                                        >
-                                                            {item.icon}
-                                                            {item.label}
-                                                        </button>
-                                                    ) : (
-                                                        <Link
-                                                            key={index}
-                                                            href={item.href}
-                                                            onClick={() => setIsDropdownOpen(false)} // Close dropdown
-                                                            className={`flex items-center px-4 py-3 hover:bg-gray-100 transition-colors text-gray-800 ${item.className || ''}`}
-                                                        >
-                                                            {item.icon}
-                                                            {item.label}
-                                                        </Link>
-                                                    )
-                                                ))}
-                                            </div>
-                                        </div>
-                                    )}
-                                </div>
-                            ) : (
-                                <div className="flex items-center space-x-4">
-                                    <Link href="/login" className="text-gray-300 hover:text-white transition-colors">
-                                        Login
-                                    </Link>
-                                    <Link
-                                        href="/signup"
-                                        className="bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white px-4 py-2 rounded-lg transition-colors shadow-md hover:shadow-lg"
-                                    >
-                                        Sign up
-                                    </Link>
-                                </div>
-                            )}
                         </div>
 
                         {/* Mobile Menu Button */}
                         <button
                             className="md:hidden text-white focus:outline-none"
                             onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-                            aria-label="Toggle menu" // Added aria-label
+                            aria-label="Toggle menu"
                         >
                             {isMobileMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
                         </button>
@@ -400,114 +301,80 @@ const Navbar = () => {
 
             {/* Mobile Menu */}
             {isMobileMenuOpen && (
-                 <div className="md:hidden bg-gray-900 text-white">
-                    {/* ... (Mobile menu content - no changes from previous) ... */}
-                     <div className="p-4 space-y-3">
-                         {/* ... header ... */}
-                         {/* ... list ... */}
-                         {user ? (
-                            <>
-                                <div className="flex items-center justify-between border-b border-gray-800 pb-3">
-                                    <div className="flex items-center">
-                                        <div className="w-12 h-12 rounded-full bg-blue-600 flex items-center justify-center text-white mr-3">
-                                            {getInitials()}
-                                        </div>
-                                        <div>
-                                            <div className="font-medium">{displayName}</div>
-                                            <div className="text-xs text-gray-400">{user.email}</div>
-                                        </div>
-                                    </div>
-                                     {/* Optional: Add loading/error indicator in mobile menu header */}
-                                     {isLoadingAccounts && <Loader2 className="w-5 h-5 text-blue-300 animate-spin" />}
-                                     {accountError && <AlertCircle className="w-5 h-5 text-red-400" title={accountError} />}
+                <div className="md:hidden bg-gray-900 text-white">
+                    <div className="p-4 space-y-3">
+                        <div className="flex items-center justify-between border-b border-gray-800 pb-3">
+                            <div className="flex items-center">
+                                <div className="w-12 h-12 rounded-full bg-blue-600 flex items-center justify-center text-white mr-3">
+                                    {getInitials()}
                                 </div>
-                                <div className="space-y-2 py-2">
-                                    {dropdownItems.map((item, index) => (
-                                        item.action ? (
-                                            <button
-                                                key={index}
-                                                onClick={() => {
-                                                    setIsMobileMenuOpen(false);
-                                                    item.action();
-                                                }}
-                                                className={`flex w-full items-center p-3 hover:bg-gray-800 rounded-lg transition-colors ${item.className || ''}`}
-                                            >
-                                                {item.icon}
-                                                {item.label}
-                                            </button>
-                                        ) : (
-                                            <Link
-                                                key={index}
-                                                href={item.href}
-                                                className={`flex items-center p-3 hover:bg-gray-800 rounded-lg transition-colors ${item.className || ''}`}
-                                                onClick={() => setIsMobileMenuOpen(false)}
-                                            >
-                                                {item.icon}
-                                                {item.label}
-                                            </Link>
-                                        )
-                                    ))}
+                                <div>
+                                    <div className="font-medium">{displayName}</div>
+                                    <div className="text-xs text-gray-400">{user.email}</div>
                                 </div>
-                            </>
-                         ) : (
-                            <div className="space-y-2">
-                                <Link 
-                                    href="/login" 
-                                    className="block w-full text-center p-3 text-gray-300 hover:text-white hover:bg-gray-800 rounded-lg transition-colors"
-                                    onClick={() => setIsMobileMenuOpen(false)}
-                                >
-                                    Login
-                                </Link>
-                                <Link
-                                    href="/signup"
-                                    className="block w-full text-center p-3 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white rounded-lg transition-colors shadow-md hover:shadow-lg"
-                                    onClick={() => setIsMobileMenuOpen(false)}
-                                >
-                                    Sign up
-                                </Link>
                             </div>
-                         )}
-                     </div>
-                 </div>
-            )}
-
-            {/* Mobile Quick Actions Bar (Fixed) - Only show when user is authenticated */}
-            {user && (
-                <div className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-blue-900 border-t border-blue-800 shadow-lg">
-                    <div className="grid grid-cols-3 text-center">
-                        {/* Pass className for consistent mobile styling */}
-                        <AddAccountButton
-                            className="flex flex-col items-center justify-center py-3 text-white group w-full hover:bg-blue-800 transition-colors"
-                            onAccountAdded={loadAccounts}
-                            // Assuming internal icon/text rendering suitable for mobile
-                        />
-                        <AddPositionButton
-                            className="flex flex-col items-center justify-center py-3 text-white group w-full hover:bg-blue-800 transition-colors"
-                            onPositionAdded={placeholderFetchPositions}
-                            // Assuming internal icon/text rendering suitable for mobile
-                         />
-                        {/* Updated Bulk Button call for mobile */}
-                        <BulkPositionButton
-                            accounts={accounts}
-                            fetchAccounts={loadAccounts}
-                            fetchPositions={placeholderFetchPositions}
-                            fetchPortfolioSummary={placeholderFetchPortfolioSummary}
-                            className="flex flex-col items-center justify-center py-3 text-white group w-full hover:bg-blue-800 transition-colors"
-                             // Pass simplified/different props if needed for mobile rendering, or assume internal rendering handles it
-                             buttonIcon={ // Example: Assuming BulkPositionButton uses these props
-                                 isLoadingAccounts ? <Loader2 className="h-6 w-6 mb-1 text-white animate-spin" />
-                                 : accountError ? <AlertCircle className="h-6 w-6 mb-1 text-red-400" />
-                                 : <Upload className="h-6 w-6 mb-1 text-white group-hover:text-blue-300" />
-                             }
-                             buttonText={ // Example: Assuming BulkPositionButton uses these props
-                                 <span className={`text-xs ${accountError ? 'text-red-300' : 'text-gray-200 group-hover:text-white'}`}>Bulk Upload</span>
-                             }
-                             disabled={bulkDisabled}
-                             title={bulkTitle} // Title helps accessibility on mobile too
-                        />
+                            {isLoadingAccounts && <Loader2 className="w-5 h-5 text-blue-300 animate-spin" />}
+                            {accountError && <AlertCircle className="w-5 h-5 text-red-400" title={accountError} />}
+                        </div>
+                        <div className="space-y-2 py-2">
+                            {dropdownItems.map((item, index) => (
+                                item.action ? (
+                                    <button
+                                        key={index}
+                                        onClick={() => {
+                                            setIsMobileMenuOpen(false);
+                                            item.action();
+                                        }}
+                                        className={`flex w-full items-center p-3 hover:bg-gray-800 rounded-lg transition-colors ${item.className || ''}`}
+                                    >
+                                        {item.icon}
+                                        {item.label}
+                                    </button>
+                                ) : (
+                                    <Link
+                                        key={index}
+                                        href={item.href}
+                                        className={`flex items-center p-3 hover:bg-gray-800 rounded-lg transition-colors ${item.className || ''}`}
+                                        onClick={() => setIsMobileMenuOpen(false)}
+                                    >
+                                        {item.icon}
+                                        {item.label}
+                                    </Link>
+                                )
+                            ))}
+                        </div>
                     </div>
                 </div>
             )}
+
+            {/* Mobile Quick Actions Bar (Fixed) */}
+            <div className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-blue-900 border-t border-blue-800 shadow-lg">
+                <div className="grid grid-cols-3 text-center">
+                    {/* Quick Start */}
+                    <QuickStartButton 
+                        className="flex flex-col items-center justify-center py-3 text-white group w-full hover:bg-blue-800 transition-colors"
+                        mobileView={true}
+                    />
+                    
+                    {/* Quick Edit/Delete */}
+                    <button
+                        onClick={handleQuickEdit}
+                        className="flex flex-col items-center justify-center py-3 text-white group w-full hover:bg-blue-800 transition-colors"
+                    >
+                        <Edit3 className="h-6 w-6 mb-1 text-white group-hover:text-blue-300" />
+                        <span className="text-xs text-gray-200 group-hover:text-white">Edit/Delete</span>
+                    </button>
+                    
+                    {/* Manual Add */}
+                    <button
+                        onClick={() => setIsManualAddOpen(!isManualAddOpen)}
+                        className="flex flex-col items-center justify-center py-3 text-white group w-full hover:bg-blue-800 transition-colors"
+                    >
+                        <PlusCircle className="h-6 w-6 mb-1 text-white group-hover:text-blue-300" />
+                        <span className="text-xs text-gray-200 group-hover:text-white">Add</span>
+                    </button>
+                </div>
+            </div>
         </div>
     );
 };
