@@ -132,14 +132,12 @@ const Navbar = () => {
         '';
 
     const getInitials = useCallback(() => {
-        if (user) {
-            if (user.first_name && user.last_name) {
-                return `${user.first_name[0]}${user.last_name[0]}`.toUpperCase();
-            } else if (user.email) {
-                return user.email[0].toUpperCase();
-            }
+        if (user?.first_name && user?.last_name) {
+            return `${user.first_name[0]}${user.last_name[0]}`.toUpperCase();
+        } else if (user?.email) {
+            return user.email[0].toUpperCase();
         }
-        return 'U';
+        return '';
     }, [user]);
 
     // Placeholder functions
@@ -202,16 +200,16 @@ const Navbar = () => {
                                             </button>
                                             
                                             {isManualAddOpen && (
-                                                <div className="absolute top-full mt-2 w-48 bg-white rounded-lg shadow-xl z-20 overflow-hidden">
+                                                <div className="absolute top-full mt-2 w-48 bg-gray-900 border border-gray-700 rounded-lg shadow-xl z-20 overflow-hidden">
                                                     <div className="py-1">
                                                         <AddAccountButton
                                                             onAccountAdded={loadAccounts}
-                                                            className="flex items-center w-full px-4 py-3 hover:bg-gray-100 transition-colors text-gray-800"
+                                                            className="flex items-center w-full px-4 py-3 hover:bg-blue-800/30 transition-colors text-white hover:text-blue-300"
                                                             onClick={() => setIsManualAddOpen(false)}
                                                         />
                                                         <AddPositionButton
                                                             onPositionAdded={placeholderFetchPositions}
-                                                            className="flex items-center w-full px-4 py-3 hover:bg-gray-100 transition-colors text-gray-800"
+                                                            className="flex items-center w-full px-4 py-3 hover:bg-blue-800/30 transition-colors text-white hover:text-blue-300"
                                                             onClick={() => setIsManualAddOpen(false)}
                                                         />
                                                     </div>
@@ -246,7 +244,7 @@ const Navbar = () => {
                                     aria-haspopup="true"
                                 >
                                     <div className="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center text-white">
-                                        {getInitials()}
+                                        {getInitials() || <User className="w-5 h-5" />}
                                     </div>
                                     <span className="text-sm font-medium">{displayName}</span>
                                     {isLoadingAccounts && <Loader2 className="w-5 h-5 text-blue-300 animate-spin ml-2" />}
@@ -306,7 +304,7 @@ const Navbar = () => {
                         <div className="flex items-center justify-between border-b border-gray-800 pb-3">
                             <div className="flex items-center">
                                 <div className="w-12 h-12 rounded-full bg-blue-600 flex items-center justify-center text-white mr-3">
-                                    {getInitials()}
+                                    {getInitials() || <User className="w-6 h-6" />}
                                 </div>
                                 <div>
                                     <div className="font-medium">{displayName}</div>
