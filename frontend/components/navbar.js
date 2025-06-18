@@ -14,6 +14,7 @@ import UpdateStatusIndicator from '@/components/UpdateStatusIndicator';
 import AddPositionButton from '@/components/AddPositionButton';
 import AddAccountButton from '@/components/AddAccountButton';
 import { fetchAccounts } from '@/utils/apimethods/accountMethods';
+import { QuickReconciliationButton } from '@/components/modals/QuickReconciliationModal';
 import { QuickEditDeleteButton } from '@/components/modals/QuickEditDeleteModal';
 
 
@@ -187,15 +188,9 @@ const Navbar = () => {
                                         <QuickStartButton className="mr-2" />
                                         
                                         <QuickEditDeleteButton className="mr-2" />
-                                        
-                                        {/* Reconciliation Button */}
-                                        <button
-                                            onClick={handleReconciliation}
-                                            className="flex items-center text-white py-1 px-4 hover:bg-blue-800/30 rounded-lg transition-colors group"
-                                        >
-                                            <CheckSquare className="w-5 h-5 mr-2 text-white group-hover:text-blue-300" />
-                                            <span className="text-sm text-gray-200 group-hover:text-white">Reconciliation</span>
-                                        </button>
+
+                                        <QuickReconciliationButton className="mr-2" />                                        
+
                                         
                                         {/* Manual Add Dropdown */}
                                         <div className="relative manual-add-dropdown">
@@ -362,25 +357,10 @@ const Navbar = () => {
                         className="flex flex-col items-center justify-center py-3 text-white group w-full hover:bg-blue-800 transition-colors"
                         mobileView={true}
                     />
-                    
-                    {/* Quick Edit/Delete */}
-                    <button
-                        onClick={handleQuickEdit}
-                        className="flex flex-col items-center justify-center py-3 text-white group w-full hover:bg-blue-800 transition-colors"
-                    >
-                        <Edit3 className="h-6 w-6 mb-1 text-white group-hover:text-blue-300" />
-                        <span className="text-xs text-gray-200 group-hover:text-white">Edit</span>
-                    </button>
-                    
-                    {/* Reconciliation */}
-                    <button
-                        onClick={handleReconciliation}
-                        className="flex flex-col items-center justify-center py-3 text-white group w-full hover:bg-blue-800 transition-colors"
-                    >
-                        <CheckSquare className="h-6 w-6 mb-1 text-white group-hover:text-blue-300" />
-                        <span className="text-xs text-gray-200 group-hover:text-white">Reconcile</span>
-                    </button>
-                    
+                    <QuickEditDeleteButton className="mr-2" />
+
+                    <QuickReconciliationButton className="mr-2" />                                        
+
                     {/* Manual Add - opens modal */}
                     <button
                         onClick={() => setIsMobileAddModalOpen(true)}
