@@ -14,6 +14,8 @@ import UpdateStatusIndicator from '@/components/UpdateStatusIndicator';
 import AddPositionButton from '@/components/AddPositionButton';
 import AddAccountButton from '@/components/AddAccountButton';
 import { fetchAccounts } from '@/utils/apimethods/accountMethods';
+import { QuickEditDeleteButton } from '@/components/modals/QuickEditDeleteModal';
+
 
 // Memoized EggLogo component
 const EggLogo = memo(() => (
@@ -184,14 +186,7 @@ const Navbar = () => {
                                         {/* Quick Start Button */}
                                         <QuickStartButton className="mr-2" />
                                         
-                                        {/* Quick Edit/Delete Button */}
-                                        <button
-                                            onClick={handleQuickEdit}
-                                            className="flex items-center text-white py-1 px-4 hover:bg-blue-800/30 rounded-lg transition-colors group"
-                                        >
-                                            <Edit3 className="w-5 h-5 mr-2 text-white group-hover:text-blue-300" />
-                                            <span className="text-sm text-gray-200 group-hover:text-white">Quick Edit / Delete</span>
-                                        </button>
+                                        <QuickEditDeleteButton className="mr-2" />
                                         
                                         {/* Reconciliation Button */}
                                         <button
