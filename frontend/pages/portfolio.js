@@ -13,7 +13,7 @@ import {
   Briefcase, X, AlertCircle, ChevronRight, CreditCard, Droplet, 
   Diamond, Cpu, Landmark, Layers, Shield, Database, Percent, 
   Eye, Gift, Clock, ArrowUp, ArrowDown, Calculator,
-  Banknote, Coins, Package, Home, Building2, BarChart3, Sparkles, Wallet, FileText
+  Banknote, Coins, Package, Home, Building2, BarChart3, Sparkles, Wallet, FileText, MessageCircleQuestionMark 
 } from 'lucide-react';
 
 import { fetchWithAuth } from '@/utils/api';
@@ -1254,7 +1254,7 @@ export default function Dashboard() {
                     </div>
                     <div>
                       <h1 className="text-2xl md:text-3xl font-bold text-white">
-                        Ready to grow your wealth? 🚀
+                        Welcome to NestEgg - Ready to grow your wealth? 🚀
                       </h1>
                       <p className="text-gray-400 mt-1">
                         Your investment journey starts here. Track, analyze, and optimize your portfolio.
@@ -1302,19 +1302,21 @@ export default function Dashboard() {
                       <div className="text-white font-medium">Reports</div>
                       <div className="text-gray-400 text-xs">Performance</div>
                     </motion.button>
+
+                    <motion.button 
+                      whileHover={{ y: -2 }}
+                      className="group relative bg-gray-800 hover:bg-gray-700 rounded-xl p-4 transition-all duration-200 border border-gray-700 hover:border-orange-500"
+                      onClick={() => router.push('/overview')}
+                    >
+                      <MessageCircleQuestionMark className="w-5 h-5 text-orange-400 mb-2" />
+                      <div className="text-white font-medium">Overview</div>
+                      <div className="text-gray-400 text-xs">How does NestEgg work?</div>
+                    </motion.button>
+
                   </div>
                   
                   <div className="flex items-center justify-between">
-                    <div className="flex items-center space-x-4 text-sm">
-                      <div className="flex items-center space-x-1">
-                        <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse" />
-                        <span className="text-gray-400">Markets open</span>
-                      </div>
-                      <div className="text-gray-500">•</div>
-                      <div className="text-gray-400">
-                        S&P 500 <span className="text-green-400">+0.82%</span>
-                      </div>
-                    </div>
+
                     
                     <button 
                       onClick={() => setShowWelcomeBanner(false)}

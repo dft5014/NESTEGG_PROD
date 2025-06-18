@@ -1,4 +1,20 @@
-// components/Navbar.js
+{/* Manual Add - opens modal or navigates to add page */}
+                    <button
+                        onClick={() => setIsMobileAddModalOpen(true)}
+                        className="flex flex-col items-center justify-center py-3 text-white group w-full hover:bg-blue-800 transition-colors"
+                    >
+                        <PlusCircle className="h-6 w-6 mb-1 text-white group-hover:text-blue-300" />
+                        <span className="text-xs text-gray-200 group-hover:text-white">Add</span>
+                    </button>
+                </div>
+            </div>
+
+            {/* Mobile Add Modal */}
+            {isMobileAddModalOpen && (
+                <div className="md:hidden fixed inset-0 z-50 bg-black bg-opacity-50 flex items-end">
+                    <div className="bg-gray-900 w-full rounded-t-2xl p-6 pb-8">
+                        <div className="flex justify-between items-center mb-4">
+                            <h3// components/Navbar.js
 import { useState, useContext, useEffect, useCallback, memo } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
@@ -8,7 +24,7 @@ import {
     User, Settings, LogOut, HelpCircle, ChartLine,
     PlusCircle, Shield, Clock, Menu, X, LineChart, BarChart4,
     ChevronLeft, ChevronRight, ChevronDown, Loader2, AlertCircle,
-    Edit3, Trash2
+    Edit3, Trash2, CheckSquare
 } from 'lucide-react';
 import UpdateStatusIndicator from '@/components/UpdateStatusIndicator';
 import AddPositionButton from '@/components/AddPositionButton';
@@ -51,6 +67,7 @@ const Navbar = () => {
     const [isQuickActionsOpen, setIsQuickActionsOpen] = useState(true);
     const [scrolledDown, setScrolledDown] = useState(false);
     const [isManualAddOpen, setIsManualAddOpen] = useState(false);
+    const [isMobileAddModalOpen, setIsMobileAddModalOpen] = useState(false);
 
     const { user, logout } = useContext(AuthContext);
     const router = useRouter();
@@ -131,7 +148,6 @@ const Navbar = () => {
         ? `${user.first_name} ${user.last_name}` 
         : user?.email || '';
 
-
     const getInitials = useCallback(() => {
         if (user?.first_name && user?.last_name) {
             return `${user.first_name[0]}${user.last_name[0]}`.toUpperCase();
@@ -151,6 +167,11 @@ const Navbar = () => {
         // TODO: Implement quick edit/delete functionality
         console.log('Quick Edit/Delete clicked');
         router.push('/edit'); // or open a modal
+    };
+
+    // Reconciliation button handler
+    const handleReconciliation = () => {
+        router.push('/AccountReconciliation');
     };
 
     return (
@@ -187,6 +208,15 @@ const Navbar = () => {
                                         >
                                             <Edit3 className="w-5 h-5 mr-2 text-white group-hover:text-blue-300" />
                                             <span className="text-sm text-gray-200 group-hover:text-white">Quick Edit / Delete</span>
+                                        </button>
+                                        
+                                        {/* Reconciliation Button */}
+                                        <button
+                                            onClick={handleReconciliation}
+                                            className="flex items-center text-white py-1 px-4 hover:bg-blue-800/30 rounded-lg transition-colors group"
+                                        >
+                                            <CheckSquare className="w-5 h-5 mr-2 text-white group-hover:text-blue-300" />
+                                            <span className="text-sm text-gray-200 group-hover:text-white">Reconciliation</span>
                                         </button>
                                         
                                         {/* Manual Add Dropdown */}
@@ -255,7 +285,7 @@ const Navbar = () => {
                                     <div className="absolute right-0 mt-2 w-60 bg-white rounded-lg shadow-xl z-20 overflow-hidden">
                                         <div className="bg-gradient-to-r from-blue-600 to-blue-700 p-4">
                                             <p className="font-medium text-lg text-white">{displayName}</p>
-                                            <p className="text-sm text-blue-100 truncate">{user.email}</p>
+                                            <p className="text-sm text-blue-100 truncate">{user?.email || ''}</p>
                                         </div>
                                         <div className="py-1">
                                             {dropdownItems.map((item, index) => (
@@ -305,11 +335,11 @@ const Navbar = () => {
                         <div className="flex items-center justify-between border-b border-gray-800 pb-3">
                             <div className="flex items-center">
                                 <div className="w-12 h-12 rounded-full bg-blue-600 flex items-center justify-center text-white mr-3">
-                                    {getInitials() || <User className="w-6 h-6" />}
+                                    {getInitials()}
                                 </div>
                                 <div>
                                     <div className="font-medium">{displayName}</div>
-                                    <div className="text-xs text-gray-400">{user.email}</div>
+                                                                                <div className="text-xs text-gray-400">{user?.email || ''}</div>
                                 </div>
                             </div>
                             {isLoadingAccounts && <Loader2 className="w-5 h-5 text-blue-300 animate-spin" />}
@@ -348,7 +378,7 @@ const Navbar = () => {
 
             {/* Mobile Quick Actions Bar (Fixed) */}
             <div className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-blue-900 border-t border-blue-800 shadow-lg">
-                <div className="grid grid-cols-3 text-center">
+                <div className="grid grid-cols-4 text-center">
                     {/* Quick Start */}
                     <QuickStartButton 
                         className="flex flex-col items-center justify-center py-3 text-white group w-full hover:bg-blue-800 transition-colors"
@@ -361,12 +391,21 @@ const Navbar = () => {
                         className="flex flex-col items-center justify-center py-3 text-white group w-full hover:bg-blue-800 transition-colors"
                     >
                         <Edit3 className="h-6 w-6 mb-1 text-white group-hover:text-blue-300" />
-                        <span className="text-xs text-gray-200 group-hover:text-white">Edit/Delete</span>
+                        <span className="text-xs text-gray-200 group-hover:text-white">Edit</span>
                     </button>
                     
-                    {/* Manual Add */}
+                    {/* Reconciliation */}
                     <button
-                        onClick={() => setIsManualAddOpen(!isManualAddOpen)}
+                        onClick={handleReconciliation}
+                        className="flex flex-col items-center justify-center py-3 text-white group w-full hover:bg-blue-800 transition-colors"
+                    >
+                        <CheckSquare className="h-6 w-6 mb-1 text-white group-hover:text-blue-300" />
+                        <span className="text-xs text-gray-200 group-hover:text-white">Reconcile</span>
+                    </button>
+                    
+                    {/* Manual Add - opens modal */}
+                    <button
+                        onClick={() => setIsMobileAddModalOpen(true)}
                         className="flex flex-col items-center justify-center py-3 text-white group w-full hover:bg-blue-800 transition-colors"
                     >
                         <PlusCircle className="h-6 w-6 mb-1 text-white group-hover:text-blue-300" />
@@ -374,6 +413,39 @@ const Navbar = () => {
                     </button>
                 </div>
             </div>
+
+            {/* Mobile Add Modal */}
+            {isMobileAddModalOpen && (
+                <div className="md:hidden fixed inset-0 z-50 bg-black bg-opacity-50 flex items-end">
+                    <div className="bg-gray-900 w-full rounded-t-2xl p-6 pb-8">
+                        <div className="flex justify-between items-center mb-4">
+                            <h3 className="text-lg font-semibold text-white">Add New</h3>
+                            <button
+                                onClick={() => setIsMobileAddModalOpen(false)}
+                                className="text-gray-400 hover:text-white"
+                            >
+                                <X className="h-6 w-6" />
+                            </button>
+                        </div>
+                        <div className="space-y-3">
+                            <AddAccountButton
+                                onAccountAdded={() => {
+                                    loadAccounts();
+                                    setIsMobileAddModalOpen(false);
+                                }}
+                                className="flex items-center w-full px-4 py-3 bg-blue-800/30 hover:bg-blue-800/50 rounded-lg transition-colors text-white"
+                            />
+                            <AddPositionButton
+                                onPositionAdded={() => {
+                                    placeholderFetchPositions();
+                                    setIsMobileAddModalOpen(false);
+                                }}
+                                className="flex items-center w-full px-4 py-3 bg-blue-800/30 hover:bg-blue-800/50 rounded-lg transition-colors text-white"
+                            />
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
