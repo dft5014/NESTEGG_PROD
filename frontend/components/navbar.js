@@ -1,20 +1,4 @@
-{/* Manual Add - opens modal or navigates to add page */}
-                    <button
-                        onClick={() => setIsMobileAddModalOpen(true)}
-                        className="flex flex-col items-center justify-center py-3 text-white group w-full hover:bg-blue-800 transition-colors"
-                    >
-                        <PlusCircle className="h-6 w-6 mb-1 text-white group-hover:text-blue-300" />
-                        <span className="text-xs text-gray-200 group-hover:text-white">Add</span>
-                    </button>
-                </div>
-            </div>
-
-            {/* Mobile Add Modal */}
-            {isMobileAddModalOpen && (
-                <div className="md:hidden fixed inset-0 z-50 bg-black bg-opacity-50 flex items-end">
-                    <div className="bg-gray-900 w-full rounded-t-2xl p-6 pb-8">
-                        <div className="flex justify-between items-center mb-4">
-                            <h3// components/Navbar.js
+// components/Navbar.js
 import { useState, useContext, useEffect, useCallback, memo } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
@@ -31,7 +15,7 @@ import AddPositionButton from '@/components/AddPositionButton';
 import AddAccountButton from '@/components/AddAccountButton';
 import { fetchAccounts } from '@/utils/apimethods/accountMethods';
 
-// Memoized EggLogo component (no changes)
+// Memoized EggLogo component
 const EggLogo = memo(() => (
     <div className="relative">
         <svg
@@ -72,7 +56,7 @@ const Navbar = () => {
     const { user, logout } = useContext(AuthContext);
     const router = useRouter();
 
-    // --- Account Fetching State & Logic ---
+    // Account Fetching State & Logic
     const [accounts, setAccounts] = useState([]);
     const [isLoadingAccounts, setIsLoadingAccounts] = useState(false);
     const [accountError, setAccountError] = useState(null);
@@ -162,11 +146,10 @@ const Navbar = () => {
         console.warn('Navbar: fetchPositions function is not implemented or passed down.');
     };
 
-    // Quick Edit/Delete button handler (placeholder)
+    // Quick Edit/Delete button handler
     const handleQuickEdit = () => {
-        // TODO: Implement quick edit/delete functionality
         console.log('Quick Edit/Delete clicked');
-        router.push('/edit'); // or open a modal
+        router.push('/edit');
     };
 
     // Reconciliation button handler
@@ -339,7 +322,7 @@ const Navbar = () => {
                                 </div>
                                 <div>
                                     <div className="font-medium">{displayName}</div>
-                                                                                <div className="text-xs text-gray-400">{user?.email || ''}</div>
+                                    <div className="text-xs text-gray-400">{user?.email || ''}</div>
                                 </div>
                             </div>
                             {isLoadingAccounts && <Loader2 className="w-5 h-5 text-blue-300 animate-spin" />}

@@ -13,7 +13,7 @@ import {
   Briefcase, X, AlertCircle, ChevronRight, CreditCard, Droplet, 
   Diamond, Cpu, Landmark, Layers, Shield, Database, Percent, 
   Eye, Gift, Clock, ArrowUp, ArrowDown, Calculator,
-  Banknote, Coins, Package, Home, Building2, BarChart3, Sparkles, Wallet, FileText, MessageCircleQuestionMark 
+  Banknote, Coins, Package, Home, Building2, BarChart3, Sparkles, Wallet, FileText, MessageCircle 
 } from 'lucide-react';
 
 import { fetchWithAuth } from '@/utils/api';
@@ -1308,7 +1308,7 @@ export default function Dashboard() {
                       className="group relative bg-gray-800 hover:bg-gray-700 rounded-xl p-4 transition-all duration-200 border border-gray-700 hover:border-orange-500"
                       onClick={() => router.push('/overview')}
                     >
-                      <MessageCircleQuestionMark className="w-5 h-5 text-orange-400 mb-2" />
+                      <MessageCircle className="w-5 h-5 text-orange-400 mb-2" />
                       <div className="text-white font-medium">Overview</div>
                       <div className="text-gray-400 text-xs">How does NestEgg work?</div>
                     </motion.button>
