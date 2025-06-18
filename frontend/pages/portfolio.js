@@ -1262,10 +1262,10 @@ export default function Dashboard() {
                     </div>
                   </div>
                   
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+                  <div className="grid grid-cols-5 gap-2 mb-6">
                     <motion.button 
                       whileHover={{ y: -2 }}
-                      className="group relative bg-gray-800 hover:bg-gray-700 rounded-xl p-4 transition-all duration-200 border border-gray-700 hover:border-blue-500"
+                      className="group relative bg-gray-800 hover:bg-gray-700 rounded-xl p-3 transition-all duration-200 border border-gray-700 hover:border-blue-500"
                       onClick={() => router.push('/positions')}
                     >
                       <TrendingUp className="w-5 h-5 text-blue-400 mb-2" />
