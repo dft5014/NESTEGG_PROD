@@ -101,7 +101,7 @@ const EggMascot = ({
     }
   };
 
-  const currentTraits = stageTraits[evolutionStage];
+  const currentTraits = stageTraits[evolutionStage] || stageTraits.baby;
 
   // Realistic blinking
   useEffect(() => {
@@ -223,6 +223,12 @@ const EggMascot = ({
         return null;
     }
   };
+
+  // Safe values for animations to prevent undefined errors
+  const safeLeftEyeX = 40;
+  const safeLeftEyeY = 50;
+  const safeRightEyeX = 80;
+  const safeRightEyeY = 50;
 
   return (
     <motion.div 
@@ -381,30 +387,30 @@ const EggMascot = ({
                 ) : (
                   <g>
                     <circle
-                      cx="40"
-                      cy="50"
+                      cx={safeLeftEyeX}
+                      cy={safeLeftEyeY}
                       r={mood === 'curious' ? currentTraits.eyeSize * 1.2 : currentTraits.eyeSize}
                       fill="white"
                       stroke="#1A202C"
                       strokeWidth="2"
                     />
                     <motion.circle
-                      cx="40"
-                      cy="50"
+                      cx={safeLeftEyeX}
+                      cy={safeLeftEyeY}
                       r={currentTraits.pupilSize}
                       fill="#1A202C"
                       animate={{
-                        cx: mood === 'curious' ? [40, 42, 40] : 40,
-                        cy: mood === 'curious' ? [50, 48, 50] : 50
+                        cx: mood === 'curious' ? [safeLeftEyeX, safeLeftEyeX + 2, safeLeftEyeX] : safeLeftEyeX,
+                        cy: mood === 'curious' ? [safeLeftEyeY, safeLeftEyeY - 2, safeLeftEyeY] : safeLeftEyeY
                       }}
                       transition={{ duration: 2, repeat: Infinity }}
                     />
-                    {/* Eye sparkles */}
-                    {[...Array(currentTraits.eyeSparkles)].map((_, i) => (
+                    {/* Eye sparkles - with safe rendering */}
+                    {currentTraits.eyeSparkles > 0 && [...Array(currentTraits.eyeSparkles)].map((_, i) => (
                       <circle
-                        key={i}
-                        cx={42 + i * 2}
-                        cy={48 - i}
+                        key={`left-sparkle-${i}`}
+                        cx={safeLeftEyeX + 2 + i * 2}
+                        cy={safeLeftEyeY - 2 - i}
                         r="2"
                         fill="white"
                         opacity="0.8"
@@ -419,30 +425,30 @@ const EggMascot = ({
                 ) : (
                   <g>
                     <circle
-                      cx="80"
-                      cy="50"
+                      cx={safeRightEyeX}
+                      cy={safeRightEyeY}
                       r={mood === 'curious' ? currentTraits.eyeSize * 1.2 : currentTraits.eyeSize}
                       fill="white"
                       stroke="#1A202C"
                       strokeWidth="2"
                     />
                     <motion.circle
-                      cx="80"
-                      cy="50"
+                      cx={safeRightEyeX}
+                      cy={safeRightEyeY}
                       r={currentTraits.pupilSize}
                       fill="#1A202C"
                       animate={{
-                        cx: mood === 'curious' ? [80, 78, 80] : 80,
-                        cy: mood === 'curious' ? [50, 48, 50] : 50
+                        cx: mood === 'curious' ? [safeRightEyeX, safeRightEyeX - 2, safeRightEyeX] : safeRightEyeX,
+                        cy: mood === 'curious' ? [safeRightEyeY, safeRightEyeY - 2, safeRightEyeY] : safeRightEyeY
                       }}
                       transition={{ duration: 2, repeat: Infinity }}
                     />
-                    {/* Eye sparkles */}
-                    {[...Array(currentTraits.eyeSparkles)].map((_, i) => (
+                    {/* Eye sparkles - with safe rendering */}
+                    {currentTraits.eyeSparkles > 0 && [...Array(currentTraits.eyeSparkles)].map((_, i) => (
                       <circle
-                        key={i}
-                        cx={82 + i * 2}
-                        cy={48 - i}
+                        key={`right-sparkle-${i}`}
+                        cx={safeRightEyeX + 2 + i * 2}
+                        cy={safeRightEyeY - 2 - i}
                         r="2"
                         fill="white"
                         opacity="0.8"
