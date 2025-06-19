@@ -1240,90 +1240,127 @@ export default function Dashboard() {
       <AnimatePresence>
         {showWelcomeBanner && (
           <motion.div 
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.95 }}
-            className="relative bg-gradient-to-r from-indigo-500 to-blue-600 rounded-2xl p-1 mb-8 shadow-2xl"
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            className="relative bg-gradient-to-r from-indigo-500 to-blue-600 rounded-2xl p-0.5 mb-6 shadow-2xl"
           >
-            <div className="bg-gray-900 rounded-2xl p-6 md:p-8">
-              <div className="flex justify-between items-start">
-                <div className="flex-1">
-                  <div className="flex items-center space-x-3 mb-4">
-                    <div className="p-2 bg-gradient-to-br from-blue-400 to-indigo-600 rounded-xl">
-                      <Sparkles className="w-6 h-6 text-white" />
-                    </div>
-                    <div>
-                      <h1 className="text-2xl md:text-3xl font-bold text-white">
-                        Welcome to NestEgg - Ready to grow your wealth? 🚀
-                      </h1>
-                      <p className="text-gray-400 mt-1">
-                        Your investment journey starts here. Track, analyze, and optimize your portfolio.
-                      </p>
-                    </div>
+            <div className="bg-gray-900 rounded-2xl p-4 md:p-5 relative overflow-hidden">
+              {/* Animated background pattern */}
+              <div className="absolute inset-0 opacity-10">
+                <div className="absolute inset-0 bg-gradient-to-r from-blue-500/20 via-purple-500/20 to-blue-500/20"></div>
+              </div>
+              
+              {/* Close button in top right */}
+              <button 
+                onClick={() => setShowWelcomeBanner(false)}
+                className="absolute top-3 right-3 z-10 p-1.5 bg-gray-800/80 rounded-lg text-gray-400 hover:text-white hover:bg-gray-700/80 transition-all duration-200"
+              >
+                <X size={16} />
+              </button>
+              
+              <div className="relative z-10">
+                <div className="flex items-center space-x-3 mb-3">
+                  <motion.div
+                    animate={{ rotate: [0, 10, -10, 0] }}
+                    transition={{ duration: 4, repeat: Infinity }}
+                    className="p-2 bg-gradient-to-br from-blue-400 to-indigo-600 rounded-xl shadow-lg"
+                  >
+                    <Sparkles className="w-5 h-5 text-white" />
+                  </motion.div>
+                  <div className="pr-8">
+                    <h1 className="text-lg md:text-xl font-bold text-white">
+                      Welcome to NestEgg - Ready to grow your wealth? 🚀
+                    </h1>
+                    <p className="text-gray-400 text-sm mt-0.5">
+                      Your investment journey starts here. Track, analyze, and optimize.
+                    </p>
                   </div>
-                  
-                  <div className="grid grid-cols-5 gap-2 mb-6">
-                    <motion.button 
-                      whileHover={{ y: -2 }}
-                      className="group relative bg-gray-800 hover:bg-gray-700 rounded-xl p-3 transition-all duration-200 border border-gray-700 hover:border-blue-500"
-                      onClick={() => router.push('/positions')}
-                    >
-                      <TrendingUp className="w-5 h-5 text-blue-400 mb-2" />
-                      <div className="text-white font-medium">Positions</div>
+                </div>
+                
+                <div className="grid grid-cols-5 gap-2">
+                  <motion.button 
+                    whileHover={{ y: -2, scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    className="group relative bg-gray-800/50 hover:bg-gray-700/70 rounded-xl p-3 transition-all duration-200 border border-gray-700 hover:border-blue-500 overflow-hidden"
+                    onClick={() => router.push('/positions')}
+                  >
+                    <div className="absolute inset-0 bg-gradient-to-br from-blue-500/0 to-blue-500/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                    <div className="relative z-10">
+                      <TrendingUp className="w-4 h-4 text-blue-400 mb-1.5 mx-auto" />
+                      <div className="text-white font-medium text-sm">Positions</div>
                       <div className="text-gray-400 text-xs">View holdings</div>
-                    </motion.button>
-                    
-                    <motion.button 
-                      whileHover={{ y: -2 }}
-                      className="group relative bg-gray-800 hover:bg-gray-700 rounded-xl p-4 transition-all duration-200 border border-gray-700 hover:border-green-500"
-                      onClick={() => router.push('/accounts')}
-                    >
-                      <Wallet className="w-5 h-5 text-green-400 mb-2" />
-                      <div className="text-white font-medium">Accounts</div>
-                      <div className="text-gray-400 text-xs">Manage funds</div>
-                    </motion.button>
-                    
-                    <motion.button 
-                      whileHover={{ y: -2 }}
-                      className="group relative bg-gray-800 hover:bg-gray-700 rounded-xl p-4 transition-all duration-200 border border-gray-700 hover:border-purple-500"
-                      onClick={() => router.push('/portfolio-command-center')}
-                    >
-                      <BarChart3 className="w-5 h-5 text-purple-400 mb-2" />
-                      <div className="text-white font-medium">Analytics</div>
-                      <div className="text-gray-400 text-xs">Deep insights</div>
-                    </motion.button>
-                    
-                    <motion.button 
-                      whileHover={{ y: -2 }}
-                      className="group relative bg-gray-800 hover:bg-gray-700 rounded-xl p-4 transition-all duration-200 border border-gray-700 hover:border-orange-500"
-                      onClick={() => router.push('/reports')}
-                    >
-                      <FileText className="w-5 h-5 text-orange-400 mb-2" />
-                      <div className="text-white font-medium">Reports</div>
-                      <div className="text-gray-400 text-xs">Performance</div>
-                    </motion.button>
-
-                    <motion.button 
-                      whileHover={{ y: -2 }}
-                      className="group relative bg-gray-800 hover:bg-gray-700 rounded-xl p-4 transition-all duration-200 border border-gray-700 hover:border-orange-500"
-                      onClick={() => router.push('/overview')}
-                    >
-                      <MessageCircle className="w-5 h-5 text-orange-400 mb-2" />
-                      <div className="text-white font-medium">Overview</div>
-                      <div className="text-gray-400 text-xs">How does NestEgg work?</div>
-                    </motion.button>
-
-                  </div>
+                    </div>
+                  </motion.button>
                   
-                  <div className="flex items-center justify-between">
+                  <motion.button 
+                    whileHover={{ y: -2, scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    className="group relative bg-gray-800/50 hover:bg-gray-700/70 rounded-xl p-3 transition-all duration-200 border border-gray-700 hover:border-green-500 overflow-hidden"
+                    onClick={() => router.push('/accounts')}
+                  >
+                    <div className="absolute inset-0 bg-gradient-to-br from-green-500/0 to-green-500/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                    <div className="relative z-10">
+                      <Wallet className="w-4 h-4 text-green-400 mb-1.5 mx-auto" />
+                      <div className="text-white font-medium text-sm">Accounts</div>
+                      <div className="text-gray-400 text-xs">Manage funds</div>
+                    </div>
+                  </motion.button>
+                  
+                  <motion.button 
+                    whileHover={{ y: -2, scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    className="group relative bg-gray-800/50 hover:bg-gray-700/70 rounded-xl p-3 transition-all duration-200 border border-gray-700 hover:border-purple-500 overflow-hidden"
+                    onClick={() => router.push('/portfolio-command-center')}
+                  >
+                    <div className="absolute inset-0 bg-gradient-to-br from-purple-500/0 to-purple-500/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                    <div className="relative z-10">
+                      <BarChart3 className="w-4 h-4 text-purple-400 mb-1.5 mx-auto" />
+                      <div className="text-white font-medium text-sm">Analytics</div>
+                      <div className="text-gray-400 text-xs">Deep insights</div>
+                    </div>
+                  </motion.button>
+                  
+                  <motion.button 
+                    whileHover={{ y: -2, scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    className="group relative bg-gray-800/50 hover:bg-gray-700/70 rounded-xl p-3 transition-all duration-200 border border-gray-700 hover:border-orange-500 overflow-hidden"
+                    onClick={() => router.push('/reports')}
+                  >
+                    <div className="absolute inset-0 bg-gradient-to-br from-orange-500/0 to-orange-500/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                    <div className="relative z-10">
+                      <FileText className="w-4 h-4 text-orange-400 mb-1.5 mx-auto" />
+                      <div className="text-white font-medium text-sm">Reports</div>
+                      <div className="text-gray-400 text-xs">Performance</div>
+                    </div>
+                  </motion.button>
 
-                    
-                    <button 
-                      onClick={() => setShowWelcomeBanner(false)}
-                      className="text-gray-500 hover:text-gray-300 transition-colors"
-                    >
-                      <X size={18} />
-                    </button>
+                  <motion.button 
+                    whileHover={{ y: -2, scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    className="group relative bg-gray-800/50 hover:bg-gray-700/70 rounded-xl p-3 transition-all duration-200 border border-gray-700 hover:border-pink-500 overflow-hidden"
+                    onClick={() => router.push('/overview')}
+                  >
+                    <div className="absolute inset-0 bg-gradient-to-br from-pink-500/0 to-pink-500/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                    <div className="relative z-10">
+                      <MessageCircle className="w-4 h-4 text-pink-400 mb-1.5 mx-auto" />
+                      <div className="text-white font-medium text-sm">Overview</div>
+                      <div className="text-gray-400 text-xs">How it works</div>
+                    </div>
+                  </motion.button>
+                </div>
+                
+                {/* Animated dots indicator */}
+                <div className="mt-3 flex justify-center">
+                  <div className="flex space-x-1">
+                    {[0, 1, 2, 3, 4].map((i) => (
+                      <motion.div
+                        key={i}
+                        animate={{ opacity: [0.3, 1, 0.3] }}
+                        transition={{ duration: 2, delay: i * 0.2, repeat: Infinity }}
+                        className="w-1 h-1 bg-gray-600 rounded-full"
+                      />
+                    ))}
                   </div>
                 </div>
               </div>

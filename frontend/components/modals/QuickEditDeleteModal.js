@@ -852,6 +852,24 @@ const QuickEditDeleteModal = ({ isOpen, onClose }) => {
     }
   };
 
+  // Calculate account totals from positions
+    const accountsWithTotals = useMemo(() => {
+    if (accounts.length === 0) return accounts;
+    
+    // Sum up position values by account
+    const accountTotals = {};
+    positions.forEach(position => {
+        const accountId = position.account_id;
+        accountTotals[accountId] = (accountTotals[accountId] || 0) + parseFloat(position.current_value || 0);
+    });
+    
+    // Add totals to accounts
+    return accounts.map(account => ({
+        ...account,
+        total_value: accountTotals[account.id] || 0
+    }));
+    }, [accounts, positions]);
+
   // Message display
   const showMessage = (type, text, duration = 5000) => {
     setMessage({ type, text });
@@ -929,7 +947,7 @@ const QuickEditDeleteModal = ({ isOpen, onClose }) => {
 
   // Filter accounts
   useEffect(() => {
-    let filtered = [...accounts];
+      let filtered = [...accountsWithTotals];
 
     // Search filter
     if (searchQuery) {
@@ -982,7 +1000,7 @@ const QuickEditDeleteModal = ({ isOpen, onClose }) => {
     }
 
     setFilteredAccounts(filtered);
-  }, [accounts, searchQuery, selectedCategories, selectedInstitutionFilter, selectedAccountTypes, sortConfig]);
+  }, [accountsWithTotals, searchQuery, selectedCategories, selectedInstitutionFilter, selectedAccountTypes, sortConfig]);
 
   // Filter positions
   useEffect(() => {
@@ -993,8 +1011,11 @@ const QuickEditDeleteModal = ({ isOpen, onClose }) => {
       const query = searchQuery.toLowerCase();
       filtered = filtered.filter(pos => {
         const searchableFields = [
-          pos.ticker, pos.symbol, pos.name, pos.property_name,
-          pos.metal_type, pos.currency, pos.account_name
+            pos.identifier,
+            pos.name,
+            pos.account_name,
+            pos.sector,
+            pos.industry
         ];
         return searchableFields.some(field => 
           field && field.toLowerCase().includes(query)
@@ -1196,36 +1217,31 @@ const QuickEditDeleteModal = ({ isOpen, onClose }) => {
   };
 
   // Calculate stats
-  const stats = useMemo(() => {
+    const stats = useMemo(() => {
     if (currentView === 'accounts') {
-      const selected = filteredAccounts.filter(acc => accountSelection.isSelected(acc.id));
-      const totalValue = selected.reduce((sum, acc) => sum + (parseFloat(acc.total_value || acc.balance || 0)), 0);
-      
-      return {
+        const selected = filteredAccounts.filter(acc => accountSelection.isSelected(acc.id));
+        const totalValue = selected.reduce((sum, acc) => sum + (parseFloat(acc.total_value || acc.balance || 0)), 0);
+        
+        return {
         selected: selected.length,
         total: filteredAccounts.length,
         totalValue
-      };
+        };
     } else {
-      const selected = filteredPositions.filter(pos => positionSelection.isSelected(pos.id));
-      const totalValue = selected.reduce((sum, pos) => sum + (pos.value || pos.total_value || pos.current_value || 0), 0);
-      const totalCost = selected.reduce((sum, pos) => {
-        if (pos.cost_basis) {
-          return sum + ((pos.shares || pos.quantity || 1) * pos.cost_basis);
-        }
-        return sum + (pos.purchase_price || 0);
-      }, 0);
-      
-      return {
+        const selected = filteredPositions.filter(pos => positionSelection.isSelected(pos.id));
+        const totalValue = selected.reduce((sum, pos) => sum + (pos.current_value || 0), 0);
+        const totalCost = selected.reduce((sum, pos) => sum + (pos.total_cost_basis || 0), 0);
+        
+        return {
         selected: selected.length,
         total: filteredPositions.length,
         totalValue,
         totalCost,
         gainLoss: totalValue - totalCost,
         gainLossPercent: totalCost > 0 ? ((totalValue - totalCost) / totalCost) * 100 : 0
-      };
+        };
     }
-  }, [currentView, filteredAccounts, filteredPositions, accountSelection, positionSelection]);
+    }, [currentView, filteredAccounts, filteredPositions, accountSelection, positionSelection]);
 
   // Render selection screen
   const renderSelectionScreen = () => (
@@ -1369,106 +1385,103 @@ const QuickEditDeleteModal = ({ isOpen, onClose }) => {
   };
 
   // Render position row
-  const renderPositionRow = (position, index) => {
-    const config = ASSET_TYPES[position.asset_type];
-    if (!config) return null;
+const renderPositionRow = (position, index) => {
+  const config = ASSET_TYPES[position.asset_type];
+  if (!config) return null;
 
-    const Icon = config.icon;
-    const value = position.value || position.total_value || position.current_value || 0;
-    const cost = position.cost_basis 
-      ? (position.shares || position.quantity || 1) * position.cost_basis
-      : position.purchase_price || 0;
-    const gainLoss = value - cost;
-    const gainLossPercent = cost > 0 ? (gainLoss / cost) * 100 : 0;
+  const Icon = config.icon;
+  const value = position.current_value || 0;
+  const cost = position.total_cost_basis || 0;
+  const gainLoss = position.gain_loss_amt || (value - cost);
+  const gainLossPercent = position.gain_loss_pct || (cost > 0 ? ((value - cost) / cost) * 100 : 0);
 
-    return (
-      <tr 
-        key={position.id}
-        className={`
-          border-b border-gray-100 transition-all duration-200
-          ${positionSelection.isSelected(position.id) 
-            ? 'bg-blue-50 hover:bg-blue-100' 
-            : 'hover:bg-gray-50'
-          }
-        `}
-      >
-        <td className="w-12 px-4 py-3">
-          <input
-            type="checkbox"
-            checked={positionSelection.isSelected(position.id)}
-            onChange={(e) => positionSelection.toggleSelection(
-              position.id, 
-              index, 
-              e.shiftKey, 
-              filteredPositions
-            )}
-            className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-          />
-        </td>
-        
-        <td className="px-4 py-3">
-          <div className="flex items-center space-x-3">
-            <div className={`p-2 rounded-lg ${config.color.lightBg}`}>
-              <Icon className={`w-4 h-4 ${config.color.text}`} />
+  return (
+    <tr 
+      key={position.id}
+      className={`
+        border-b border-gray-100 transition-all duration-200
+        ${positionSelection.isSelected(position.id) 
+          ? 'bg-blue-50 hover:bg-blue-100' 
+          : 'hover:bg-gray-50'
+        }
+      `}
+    >
+      <td className="w-12 px-4 py-3">
+        <input
+          type="checkbox"
+          checked={positionSelection.isSelected(position.id)}
+          onChange={(e) => positionSelection.toggleSelection(
+            position.id, 
+            index, 
+            e.shiftKey, 
+            filteredPositions
+          )}
+          className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+        />
+      </td>
+      
+      <td className="px-4 py-3">
+        <div className="flex items-center space-x-3">
+          <div className={`p-2 rounded-lg ${config.color.lightBg}`}>
+            <Icon className={`w-4 h-4 ${config.color.text}`} />
+          </div>
+          <div>
+            <div className="font-medium text-gray-900">
+              {position.identifier || position.name || 'Unknown'}
             </div>
-            <div>
-              <div className="font-medium text-gray-900">
-                {position.ticker || position.symbol || position.property_name || 
-                 position.metal_type || position.currency || 'Unknown'}
-              </div>
-              <div className="text-sm text-gray-500">{position.name || config.name}</div>
-            </div>
+            <div className="text-sm text-gray-500">{position.name || config.name}</div>
           </div>
-        </td>
-        
-        <td className="px-4 py-3 text-sm text-gray-900">
-          {position.account_name}
-        </td>
-        
-        <td className="px-4 py-3 text-sm text-gray-900 text-right">
-          {position.shares || position.quantity || position.amount || '-'}
-        </td>
-        
-        <td className="px-4 py-3 text-sm text-gray-900 text-right">
-          {showValues ? formatCurrency(value) : '••••'}
-        </td>
-        
-        <td className="px-4 py-3 text-sm text-right">
-          <div className={`
-            flex items-center justify-end space-x-1
-            ${gainLoss >= 0 ? 'text-green-600' : 'text-red-600'}
-          `}>
-            {gainLoss >= 0 ? <TrendingUp className="w-4 h-4" /> : <TrendingDown className="w-4 h-4" />}
-            <span>{showValues ? formatCurrency(Math.abs(gainLoss)) : '••••'}</span>
-            <span className="text-xs">({gainLossPercent.toFixed(1)}%)</span>
-          </div>
-        </td>
-        
-        <td className="px-4 py-3">
-          <div className="flex items-center justify-end space-x-2">
-            <button
-              onClick={() => handleEditPosition(position)}
-              className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all"
-              title="Edit"
-            >
-              <Edit3 className="w-4 h-4" />
-            </button>
-            <button
-              onClick={() => {
-                positionSelection.clearSelection();
-                positionSelection.toggleSelection(position.id);
-                handleDeleteSelected();
-              }}
-              className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
-              title="Delete"
-            >
-              <Trash2 className="w-4 h-4" />
-            </button>
-          </div>
-        </td>
-      </tr>
-    );
-  };
+        </div>
+      </td>
+      
+      <td className="px-4 py-3 text-sm text-gray-900">
+        {position.account_name}
+      </td>
+      
+      <td className="px-4 py-3 text-sm text-gray-900 text-right">
+        {position.quantity || '-'}
+      </td>
+      
+      <td className="px-4 py-3 text-sm text-gray-900 text-right">
+        {showValues ? formatCurrency(value) : '••••'}
+      </td>
+      
+      <td className="px-4 py-3 text-sm text-right">
+        <div className={`
+          flex items-center justify-end space-x-1
+          ${gainLoss >= 0 ? 'text-green-600' : 'text-red-600'}
+        `}>
+          {gainLoss >= 0 ? <TrendingUp className="w-4 h-4" /> : <TrendingDown className="w-4 h-4" />}
+          <span>{showValues ? formatCurrency(Math.abs(gainLoss)) : '••••'}</span>
+          <span className="text-xs">({gainLossPercent.toFixed(1)}%)</span>
+        </div>
+      </td>
+      
+      <td className="px-4 py-3">
+        <div className="flex items-center justify-end space-x-2">
+          <button
+            onClick={() => handleEditPosition(position)}
+            className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all"
+            title="Edit"
+          >
+            <Edit3 className="w-4 h-4" />
+          </button>
+          <button
+            onClick={() => {
+              positionSelection.clearSelection();
+              positionSelection.toggleSelection(position.id);
+              handleDeleteSelected();
+            }}
+            className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
+            title="Delete"
+          >
+            <Trash2 className="w-4 h-4" />
+          </button>
+        </div>
+      </td>
+    </tr>
+  );
+};
 
   // Get color config for categories
   const categoryColorConfig = ACCOUNT_CATEGORIES.reduce((acc, cat) => {
@@ -1573,10 +1586,10 @@ const QuickEditDeleteModal = ({ isOpen, onClose }) => {
                </div>
              </div>
 
-             {/* Filters */}
-             {currentView === 'accounts' ? (
-               <div className="flex items-center space-x-3">
-                 <span className="text-sm text-gray-500 font-medium">Filters:</span>
+                {/* Filters */}
+                {currentView === 'accounts' ? (
+                <div className="flex items-center justify-center space-x-3 w-full">
+                    <span className="text-sm text-gray-500 font-medium">Filters:</span>
                  
                  <FilterDropdown
                    title="Categories"
