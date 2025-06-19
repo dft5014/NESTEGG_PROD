@@ -26,7 +26,9 @@ import {
   XCircle, CheckCircle, PlusCircle, MinusCircle,
   MoreVertical, Maximize2, Minimize2, Grid3x3,
   Table, List, BarChart2, PieChart, Target, Briefcase,
-  ArrowLeft, FileSpreadsheet, Sparkles, Package
+  ArrowLeft, FileSpreadsheet, Sparkles, Package,
+  Building2, Award, Banknote, CreditCard, Landmark,
+  FilterX, SlidersHorizontal, ToggleLeft, ToggleRight
 } from 'lucide-react';
 
 // Asset type configuration
@@ -103,14 +105,14 @@ const ASSET_TYPES = {
   }
 };
 
-// Account categories
+// Account categories with enhanced styling
 const ACCOUNT_CATEGORIES = [
-  { id: "brokerage", name: "Brokerage", icon: Briefcase },
-  { id: "retirement", name: "Retirement", icon: Building },
-  { id: "cash", name: "Cash / Banking", icon: DollarSign },
-  { id: "cryptocurrency", name: "Cryptocurrency", icon: Hash },
-  { id: "metals", name: "Metals Storage", icon: Shield },
-  { id: "real_estate", name: "Real Estate", icon: Home }
+  { id: "brokerage", name: "Brokerage", icon: Briefcase, color: 'blue' },
+  { id: "retirement", name: "Retirement", icon: Building, color: 'indigo' },
+  { id: "cash", name: "Cash / Banking", icon: DollarSign, color: 'green' },
+  { id: "cryptocurrency", name: "Cryptocurrency", icon: Hash, color: 'orange' },
+  { id: "metals", name: "Metals Storage", icon: Shield, color: 'yellow' },
+  { id: "real_estate", name: "Real Estate", icon: Home, color: 'emerald' }
 ];
 
 // Account types by category
@@ -162,6 +164,174 @@ const ACCOUNT_TYPES_BY_CATEGORY = {
     { value: "REIT", label: "REIT" },
     { value: "Other Real Estate", label: "Other Real Estate" }
   ]
+};
+
+// Enhanced filter dropdown component
+const FilterDropdown = ({ 
+  title, 
+  icon: Icon, 
+  options, 
+  selected, 
+  onChange, 
+  type = 'checkbox',
+  showCounts = true,
+  colorConfig = null 
+}) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const dropdownRef = useRef(null);
+  
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const selectedCount = selected.size;
+  const isAllSelected = selectedCount === 0 || selectedCount === options.length;
+  
+  const handleSelectAll = () => {
+    onChange(new Set());
+  };
+  
+  const handleSelectNone = () => {
+    onChange(new Set(options.map(opt => opt.value)));
+  };
+  
+  const handleToggleOption = (value) => {
+    const newSet = new Set(selected);
+    if (selectedCount === 0) {
+      // If nothing selected (meaning all are shown), select all except this one
+      options.forEach(opt => newSet.add(opt.value));
+      newSet.delete(value);
+    } else {
+      if (newSet.has(value)) {
+        newSet.delete(value);
+      } else {
+        newSet.add(value);
+      }
+    }
+    onChange(newSet);
+  };
+
+  return (
+    <div className="relative" ref={dropdownRef}>
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        className={`
+          flex items-center px-4 py-2 bg-white rounded-lg shadow-sm
+          transition-all duration-200 text-sm border
+          ${isOpen ? 'ring-2 ring-blue-500 border-blue-300 shadow-md' : ''}
+          ${selectedCount > 0 && !isAllSelected 
+            ? 'border-blue-300 text-blue-700 bg-blue-50 hover:bg-blue-100' 
+            : 'border-gray-200 text-gray-700 hover:bg-gray-50 hover:border-gray-300'
+          }
+          transform hover:scale-[1.02] active:scale-[0.98]
+        `}
+      >
+        <Icon className={`w-4 h-4 mr-2 transition-transform duration-200 ${isOpen ? 'rotate-12' : ''}`} />
+        <span className="font-medium">{title}</span>
+        {selectedCount > 0 && !isAllSelected && (
+          <span className="ml-2 px-2 py-0.5 bg-blue-600 text-white text-xs rounded-full font-bold animate-pulse">
+            {selectedCount}
+          </span>
+        )}
+        <ChevronDown className={`w-4 h-4 ml-3 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
+      </button>
+      
+      {isOpen && (
+        <div className="absolute z-50 right-0 mt-2 w-80 bg-white border border-gray-200 rounded-xl shadow-2xl animate-in slide-in-from-top-2 duration-200 overflow-hidden">
+          <div className="p-4 border-b border-gray-100 bg-gradient-to-r from-gray-50 to-white">
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center space-x-2">
+                <Icon className="w-5 h-5 text-gray-700" />
+                <span className="text-sm font-semibold text-gray-800">{title}</span>
+              </div>
+              <div className="flex items-center space-x-2">
+                <button
+                  onClick={handleSelectAll}
+                  className="text-xs text-blue-600 hover:text-blue-700 font-medium px-2 py-1 hover:bg-blue-50 rounded transition-all duration-200"
+                >
+                  All
+                </button>
+                <button
+                  onClick={handleSelectNone}
+                  className="text-xs text-gray-600 hover:text-gray-700 font-medium px-2 py-1 hover:bg-gray-100 rounded transition-all duration-200"
+                >
+                  None
+                </button>
+              </div>
+            </div>
+            <div className="text-xs text-gray-500 flex items-center">
+              <Activity className="w-3 h-3 mr-1" />
+              {isAllSelected 
+                ? `Showing all ${options.length} ${title.toLowerCase()}` 
+                : `${options.length - selectedCount} of ${options.length} selected`
+              }
+            </div>
+          </div>
+          
+          <div className="max-h-64 overflow-y-auto p-2">
+            {options.map(option => {
+              const isSelected = selectedCount === 0 || !selected.has(option.value);
+              const OptionIcon = option.icon;
+              const color = colorConfig?.[option.value] || 'gray';
+              
+              return (
+                <button
+                  key={option.value}
+                  onClick={() => handleToggleOption(option.value)}
+                  className={`
+                    w-full px-3 py-2.5 flex items-center justify-between rounded-lg
+                    transition-all duration-200 text-sm group
+                    ${isSelected 
+                      ? `bg-${color}-50 hover:bg-${color}-100 border border-${color}-200` 
+                      : 'hover:bg-gray-50 border border-transparent'
+                    }
+                  `}
+                >
+                  <div className="flex items-center flex-1 mr-2">
+                    <div className={`
+                      w-5 h-5 rounded-md border-2 mr-3 flex items-center justify-center
+                      transition-all duration-200 group-hover:scale-110
+                      ${isSelected 
+                        ? `bg-${color}-600 border-${color}-600 shadow-sm` 
+                        : 'border-gray-300 group-hover:border-gray-400'
+                      }
+                    `}>
+                      {isSelected && <Check className="w-3 h-3 text-white" />}
+                    </div>
+                    <div className="flex items-center flex-1">
+                      {OptionIcon && (
+                        <OptionIcon className={`w-4 h-4 mr-2 ${isSelected ? `text-${color}-600` : 'text-gray-400'}`} />
+                      )}
+                      <span className={`font-medium ${isSelected ? 'text-gray-900' : 'text-gray-600'}`}>
+                        {option.label}
+                      </span>
+                    </div>
+                  </div>
+                  {showCounts && option.count !== undefined && (
+                    <span className={`
+                      px-2 py-1 rounded-full text-xs font-bold
+                      ${isSelected 
+                        ? `bg-${color}-200 text-${color}-800` 
+                        : 'bg-gray-100 text-gray-600'
+                      }
+                    `}>
+                      {option.count}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
 };
 
 // Animated counter component
@@ -263,7 +433,7 @@ const EditAccountForm = ({ account, onSave, onCancel }) => {
     institution: account.institution || '',
     type: account.type || '',
     account_category: account.account_category || '',
-    balance: account.balance || 0
+    balance: account.total_value || account.balance || 0 // Fix: use total_value first
   });
   const [errors, setErrors] = useState({});
   const [isSaving, setIsSaving] = useState(false);
@@ -305,8 +475,8 @@ const EditAccountForm = ({ account, onSave, onCancel }) => {
     <div className="space-y-4 p-6 bg-white rounded-xl border border-gray-200">
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center space-x-3">
-          <div className={`p-3 rounded-xl ${category ? `bg-${category.id === 'brokerage' ? 'blue' : category.id === 'retirement' ? 'indigo' : category.id === 'cash' ? 'green' : category.id === 'cryptocurrency' ? 'orange' : category.id === 'metals' ? 'yellow' : 'emerald'}-100` : 'bg-gray-100'}`}>
-            <Icon className={`w-6 h-6 ${category ? `text-${category.id === 'brokerage' ? 'blue' : category.id === 'retirement' ? 'indigo' : category.id === 'cash' ? 'green' : category.id === 'cryptocurrency' ? 'orange' : category.id === 'metals' ? 'yellow' : 'emerald'}-600` : 'text-gray-600'}`} />
+          <div className={`p-3 rounded-xl bg-${category?.color || 'gray'}-100`}>
+            <Icon className={`w-6 h-6 text-${category?.color || 'gray'}-600`} />
           </div>
           <div>
             <h3 className="text-lg font-semibold text-gray-900">Edit Account</h3>
@@ -599,7 +769,10 @@ const QuickEditDeleteModal = ({ isOpen, onClose }) => {
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedAssetTypes, setSelectedAssetTypes] = useState(new Set());
-  const [selectedAccounts, setSelectedAccounts] = useState(new Set());
+  const [selectedAccountFilter, setSelectedAccountFilter] = useState(new Set());
+  const [selectedInstitutionFilter, setSelectedInstitutionFilter] = useState(new Set());
+  const [selectedCategories, setSelectedCategories] = useState(new Set());
+  const [selectedAccountTypes, setSelectedAccountTypes] = useState(new Set());
   const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' });
   const [showValues, setShowValues] = useState(true);
   const [editingItem, setEditingItem] = useState(null);
@@ -620,6 +793,9 @@ const QuickEditDeleteModal = ({ isOpen, onClose }) => {
       loadAccounts();
     } else if (isOpen && currentView === 'positions') {
       loadPositions();
+      if (accounts.length === 0) {
+        loadAccounts(); // Load accounts for filter options
+      }
     }
     
     return () => {
@@ -639,6 +815,11 @@ const QuickEditDeleteModal = ({ isOpen, onClose }) => {
         setSearchQuery('');
         accountSelection.clearSelection();
         positionSelection.clearSelection();
+        setSelectedAssetTypes(new Set());
+        setSelectedAccountFilter(new Set());
+        setSelectedInstitutionFilter(new Set());
+        setSelectedCategories(new Set());
+        setSelectedAccountTypes(new Set());
       }, 300);
     }
   }, [isOpen]);
@@ -686,6 +867,66 @@ const QuickEditDeleteModal = ({ isOpen, onClose }) => {
     }
   };
 
+  // Get unique values for filters
+  const uniqueInstitutions = useMemo(() => {
+    const institutions = [...new Set(accounts.map(acc => acc.institution).filter(Boolean))];
+    return institutions.sort();
+  }, [accounts]);
+
+  const uniqueAccountTypes = useMemo(() => {
+    const types = [...new Set(accounts.map(acc => acc.type).filter(Boolean))];
+    return types.sort();
+  }, [accounts]);
+
+  // Calculate filter options with counts
+  const categoryFilterOptions = useMemo(() => {
+    return ACCOUNT_CATEGORIES.map(cat => ({
+      value: cat.id,
+      label: cat.name,
+      icon: cat.icon,
+      count: accounts.filter(acc => acc.account_category === cat.id).length
+    }));
+  }, [accounts]);
+
+  const institutionFilterOptions = useMemo(() => {
+    return uniqueInstitutions.map(inst => ({
+      value: inst,
+      label: inst,
+      icon: Building2,
+      count: accounts.filter(acc => acc.institution === inst).length
+    }));
+  }, [uniqueInstitutions, accounts]);
+
+  const accountTypeFilterOptions = useMemo(() => {
+    return uniqueAccountTypes.map(type => ({
+      value: type,
+      label: type,
+      icon: CreditCard,
+      count: accounts.filter(acc => acc.type === type).length
+    }));
+  }, [uniqueAccountTypes, accounts]);
+
+  const accountFilterOptions = useMemo(() => {
+    return accounts.map(acc => ({
+      value: acc.id,
+      label: acc.account_name,
+      icon: Wallet,
+      count: positions.filter(pos => pos.account_id === acc.id).length
+    }));
+  }, [accounts, positions]);
+
+  const institutionFilterOptionsForPositions = useMemo(() => {
+    return uniqueInstitutions.map(inst => ({
+      value: inst,
+      label: inst,
+      icon: Building2,
+      count: positions.filter(pos => {
+        const account = accounts.find(acc => acc.id === pos.account_id);
+        return account?.institution === inst;
+      }).length
+    }));
+  }, [uniqueInstitutions, positions, accounts]);
+
   // Filter accounts
   useEffect(() => {
     let filtered = [...accounts];
@@ -700,11 +941,32 @@ const QuickEditDeleteModal = ({ isOpen, onClose }) => {
       );
     }
 
+    // Category filter
+    if (selectedCategories.size > 0) {
+      filtered = filtered.filter(acc => !selectedCategories.has(acc.account_category));
+    }
+
+    // Institution filter
+    if (selectedInstitutionFilter.size > 0) {
+      filtered = filtered.filter(acc => !selectedInstitutionFilter.has(acc.institution));
+    }
+
+    // Account type filter
+    if (selectedAccountTypes.size > 0) {
+      filtered = filtered.filter(acc => !selectedAccountTypes.has(acc.type));
+    }
+
     // Sorting
     if (sortConfig.key) {
       filtered.sort((a, b) => {
         let aVal = a[sortConfig.key];
         let bVal = b[sortConfig.key];
+        
+        // Special handling for balance - use total_value
+        if (sortConfig.key === 'balance') {
+          aVal = a.total_value || a.balance || 0;
+          bVal = b.total_value || b.balance || 0;
+        }
         
         if (typeof aVal === 'number' && typeof bVal === 'number') {
           return sortConfig.direction === 'asc' ? aVal - bVal : bVal - aVal;
@@ -720,7 +982,7 @@ const QuickEditDeleteModal = ({ isOpen, onClose }) => {
     }
 
     setFilteredAccounts(filtered);
-  }, [accounts, searchQuery, sortConfig]);
+  }, [accounts, searchQuery, selectedCategories, selectedInstitutionFilter, selectedAccountTypes, sortConfig]);
 
   // Filter positions
   useEffect(() => {
@@ -748,10 +1010,16 @@ const QuickEditDeleteModal = ({ isOpen, onClose }) => {
     }
 
     // Account filter
-    if (selectedAccounts.size > 0) {
-      filtered = filtered.filter(pos => 
-        selectedAccounts.has(pos.account_id)
-      );
+    if (selectedAccountFilter.size > 0) {
+      filtered = filtered.filter(pos => !selectedAccountFilter.has(pos.account_id));
+    }
+
+    // Institution filter for positions
+    if (selectedInstitutionFilter.size > 0) {
+      filtered = filtered.filter(pos => {
+        const account = accounts.find(acc => acc.id === pos.account_id);
+        return account && !selectedInstitutionFilter.has(account.institution);
+      });
     }
 
     // Sorting
@@ -774,7 +1042,7 @@ const QuickEditDeleteModal = ({ isOpen, onClose }) => {
     }
 
     setFilteredPositions(filtered);
-  }, [positions, searchQuery, selectedAssetTypes, selectedAccounts, sortConfig]);
+  }, [positions, searchQuery, selectedAssetTypes, selectedAccountFilter, selectedInstitutionFilter, accounts, sortConfig]);
 
   // Handle account editing
   const handleEditAccount = (account) => {
@@ -931,7 +1199,7 @@ const QuickEditDeleteModal = ({ isOpen, onClose }) => {
   const stats = useMemo(() => {
     if (currentView === 'accounts') {
       const selected = filteredAccounts.filter(acc => accountSelection.isSelected(acc.id));
-      const totalValue = selected.reduce((sum, acc) => sum + (parseFloat(acc.balance) || 0), 0);
+      const totalValue = selected.reduce((sum, acc) => sum + (parseFloat(acc.total_value || acc.balance || 0)), 0);
       
       return {
         selected: selected.length,
@@ -940,7 +1208,7 @@ const QuickEditDeleteModal = ({ isOpen, onClose }) => {
       };
     } else {
       const selected = filteredPositions.filter(pos => positionSelection.isSelected(pos.id));
-      const totalValue = selected.reduce((sum, pos) => sum + (pos.value || pos.total_value || 0), 0);
+      const totalValue = selected.reduce((sum, pos) => sum + (pos.value || pos.total_value || pos.current_value || 0), 0);
       const totalCost = selected.reduce((sum, pos) => {
         if (pos.cost_basis) {
           return sum + ((pos.shares || pos.quantity || 1) * pos.cost_basis);
@@ -963,7 +1231,7 @@ const QuickEditDeleteModal = ({ isOpen, onClose }) => {
   const renderSelectionScreen = () => (
     <div className="p-8">
       <div className="text-center mb-8">
-        <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-purple-500 to-pink-600 rounded-2xl mb-4">
+        <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-purple-500 to-pink-600 rounded-2xl mb-4 animate-pulse">
           <Edit3 className="w-8 h-8 text-white" />
         </div>
         <h2 className="text-2xl font-bold text-gray-900 mb-2">Edit & Delete Manager</h2>
@@ -1023,6 +1291,7 @@ const QuickEditDeleteModal = ({ isOpen, onClose }) => {
   const renderAccountRow = (account, index) => {
     const category = ACCOUNT_CATEGORIES.find(c => c.id === account.account_category);
     const Icon = category?.icon || Building;
+    const balance = account.total_value || account.balance || 0; // Fix: use total_value first
     
     return (
       <tr 
@@ -1051,8 +1320,8 @@ const QuickEditDeleteModal = ({ isOpen, onClose }) => {
         
         <td className="px-4 py-3">
           <div className="flex items-center space-x-3">
-            <div className={`p-2 rounded-lg bg-gray-100`}>
-              <Icon className="w-4 h-4 text-gray-600" />
+            <div className={`p-2 rounded-lg bg-${category?.color || 'gray'}-100`}>
+              <Icon className={`w-4 h-4 text-${category?.color || 'gray'}-600`} />
             </div>
             <div>
               <div className="font-medium text-gray-900">{account.account_name}</div>
@@ -1070,7 +1339,7 @@ const QuickEditDeleteModal = ({ isOpen, onClose }) => {
         </td>
         
         <td className="px-4 py-3 text-sm text-gray-900 text-right">
-          {showValues ? formatCurrency(account.balance || 0) : '••••'}
+          {showValues ? formatCurrency(balance) : '••••'}
         </td>
         
         <td className="px-4 py-3">
@@ -1105,7 +1374,7 @@ const QuickEditDeleteModal = ({ isOpen, onClose }) => {
     if (!config) return null;
 
     const Icon = config.icon;
-    const value = position.value || position.total_value || 0;
+    const value = position.value || position.total_value || position.current_value || 0;
     const cost = position.cost_basis 
       ? (position.shares || position.quantity || 1) * position.cost_basis
       : position.purchase_price || 0;
@@ -1201,6 +1470,12 @@ const QuickEditDeleteModal = ({ isOpen, onClose }) => {
     );
   };
 
+  // Get color config for categories
+  const categoryColorConfig = ACCOUNT_CATEGORIES.reduce((acc, cat) => {
+    acc[cat.id] = cat.color;
+    return acc;
+  }, {});
+
   return (
     <FixedModal
       isOpen={isOpen}
@@ -1233,272 +1508,345 @@ const QuickEditDeleteModal = ({ isOpen, onClose }) => {
                   <div className="relative">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                     <input
-                      type="text"
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      placeholder={`Search ${currentView}...`}
-                      className="pl-10 pr-4 py-2 w-64 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder={`Search ${currentView}...`}
+                    className="pl-10 pr-4 py-2 w-64 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                     />
-                    {searchQuery && (
-                      <button
-                        onClick={() => setSearchQuery('')}
-                        className="absolute right-2 top-1/2 -translate-y-1/2 p-1 hover:bg-gray-100 rounded"
-                      >
-                        <X className="w-3 h-3 text-gray-400" />
-                      </button>
-                    )}
-                  </div>
+                   {searchQuery && (
+                     <button
+                       onClick={() => setSearchQuery('')}
+                       className="absolute right-2 top-1/2 -translate-y-1/2 p-1 hover:bg-gray-100 rounded"
+                     >
+                       <X className="w-3 h-3 text-gray-400" />
+                     </button>
+                   )}
+                 </div>
 
-                  {/* Show/hide values */}
-                  <button
-                    onClick={() => setShowValues(!showValues)}
-                    className={`
-                      p-2 rounded-lg transition-all
-                      ${showValues 
-                        ? 'bg-blue-100 text-blue-700' 
-                        : 'bg-gray-100 text-gray-600'
-                      }
-                    `}
-                    title={showValues ? 'Hide values' : 'Show values'}
-                  >
-                    {showValues ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
-                  </button>
-                </div>
+                 {/* Show/hide values */}
+                 <button
+                   onClick={() => setShowValues(!showValues)}
+                   className={`
+                     p-2 rounded-lg transition-all
+                     ${showValues 
+                       ? 'bg-blue-100 text-blue-700' 
+                       : 'bg-gray-100 text-gray-600'
+                     }
+                   `}
+                   title={showValues ? 'Hide values' : 'Show values'}
+                 >
+                   {showValues ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
+                 </button>
+               </div>
 
-                {/* Right side actions */}
-                <div className="flex items-center space-x-3">
-                  {stats.selected > 0 && (
-                    <div className="flex items-center space-x-3 px-4 py-2 bg-blue-50 rounded-lg">
-                      <span className="text-sm font-medium text-blue-700">
-                        {stats.selected} selected
-                      </span>
-                      <button
-                        onClick={handleExport}
-                        className="text-sm text-blue-600 hover:text-blue-700 font-medium"
-                      >
-                        Export
-                      </button>
-                      <button
-                        onClick={handleDeleteSelected}
-                        disabled={isSubmitting}
-                        className="text-sm text-red-600 hover:text-red-700 font-medium"
-                      >
-                        Delete
-                      </button>
-                    </div>
-                  )}
+               {/* Right side actions */}
+               <div className="flex items-center space-x-3">
+                 {stats.selected > 0 && (
+                   <div className="flex items-center space-x-3 px-4 py-2 bg-blue-50 rounded-lg">
+                     <span className="text-sm font-medium text-blue-700">
+                       {stats.selected} selected
+                     </span>
+                     <button
+                       onClick={handleExport}
+                       className="text-sm text-blue-600 hover:text-blue-700 font-medium"
+                     >
+                       Export
+                     </button>
+                     <button
+                       onClick={handleDeleteSelected}
+                       disabled={isSubmitting}
+                       className="text-sm text-red-600 hover:text-red-700 font-medium"
+                     >
+                       Delete
+                     </button>
+                   </div>
+                 )}
 
-                  <button
-                    onClick={currentView === 'accounts' ? loadAccounts : loadPositions}
-                    className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
-                    title="Refresh"
-                  >
-                    <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-                  </button>
-                </div>
-              </div>
+                 <button
+                   onClick={currentView === 'accounts' ? loadAccounts : loadPositions}
+                   className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+                   title="Refresh"
+                 >
+                   <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+                 </button>
+               </div>
+             </div>
 
-              {/* Filters for positions */}
-              {currentView === 'positions' && (
-                <div className="flex items-center space-x-4">
-                  <span className="text-sm text-gray-500">Filter by:</span>
-                  
-                  {/* Asset type filters */}
-                  <div className="flex items-center space-x-2">
-                    {Object.entries(ASSET_TYPES).map(([key, config]) => {
-                      const count = positions.filter(p => p.asset_type === key).length;
-                      const isSelected = selectedAssetTypes.has(key);
-                      
-                      return (
-                        <button
-                          key={key}
-                          onClick={() => {
-                            const newSet = new Set(selectedAssetTypes);
-                            if (isSelected) {
-                              newSet.delete(key);
-                            } else {
-                              newSet.add(key);
-                            }
-                            setSelectedAssetTypes(newSet);
-                          }}
-                          className={`
-                            inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-medium
-                            transition-all duration-200
-                            ${isSelected 
-                              ? `${config.color.bg} text-white shadow-sm` 
-                              : `${config.color.lightBg} ${config.color.text} hover:${config.color.hover}`
-                            }
-                          `}
-                        >
-                          <config.icon className="w-3.5 h-3.5 mr-1.5" />
-                          {config.name}
-                          {count > 0 && (
-                            <span className={`
-                              ml-1.5 px-1.5 py-0.5 rounded-full text-[10px] font-bold
-                              ${isSelected ? 'bg-white/20' : 'bg-gray-500/10'}
-                            `}>
-                              {count}
-                            </span>
-                          )}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-            </div>
+             {/* Filters */}
+             {currentView === 'accounts' ? (
+               <div className="flex items-center space-x-3">
+                 <span className="text-sm text-gray-500 font-medium">Filters:</span>
+                 
+                 <FilterDropdown
+                   title="Categories"
+                   icon={Layers}
+                   options={categoryFilterOptions}
+                   selected={selectedCategories}
+                   onChange={setSelectedCategories}
+                   colorConfig={categoryColorConfig}
+                 />
+                 
+                 <FilterDropdown
+                   title="Institutions"
+                   icon={Building2}
+                   options={institutionFilterOptions}
+                   selected={selectedInstitutionFilter}
+                   onChange={setSelectedInstitutionFilter}
+                 />
+                 
+                 <FilterDropdown
+                   title="Account Types"
+                   icon={CreditCard}
+                   options={accountTypeFilterOptions}
+                   selected={selectedAccountTypes}
+                   onChange={setSelectedAccountTypes}
+                 />
 
-            {/* Main content area */}
-            <div className="flex-1 overflow-y-auto">
-              {loading ? (
-                <div className="flex items-center justify-center h-64">
-                  <Loader2 className="w-8 h-8 text-gray-400 animate-spin" />
-                </div>
-              ) : editingItem ? (
-                <div className="p-6">
-                  {editingType === 'account' ? (
-                    <EditAccountForm
-                      account={editingItem}
-                      onSave={handleSaveAccount}
-                      onCancel={() => {
-                        setEditingItem(null);
-                        setEditingType(null);
-                      }}
-                    />
-                  ) : (
-                    <EditPositionForm
-                      position={editingItem}
-                      assetType={editingItem.asset_type}
-                      onSave={handleSavePosition}
-                      onCancel={() => {
-                        setEditingItem(null);
-                        setEditingType(null);
-                      }}
-                      accounts={accounts}
-                    />
-                  )}
-                </div>
-              ) : (
-                <table className="w-full">
-                  <thead className="bg-gray-50 border-b border-gray-200 sticky top-0">
-                    <tr>
-                      <th className="w-12 px-4 py-3">
-                        <input
-                          type="checkbox"
-                          checked={
-                            currentView === 'accounts' 
-                              ? accountSelection.selectedItems.size === filteredAccounts.length && filteredAccounts.length > 0
-                              : positionSelection.selectedItems.size === filteredPositions.length && filteredPositions.length > 0
-                          }
-                          onChange={(e) => {
-                            if (currentView === 'accounts') {
-                              if (e.target.checked) {
-                                accountSelection.selectAll(filteredAccounts);
-                              } else {
-                                accountSelection.clearSelection();
-                              }
-                            } else {
-                              if (e.target.checked) {
-                                positionSelection.selectAll(filteredPositions);
-                              } else {
-                                positionSelection.clearSelection();
-                              }
-                            }
-                          }}
-                          className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                        />
-                      </th>
-                      
-                      {currentView === 'accounts' ? (
-                        <>
-                          <th className="px-4 py-3 text-left">
-                            <button
-                              onClick={() => setSortConfig({
-                                key: 'account_name',
-                                direction: sortConfig.key === 'account_name' && sortConfig.direction === 'asc' ? 'desc' : 'asc'
-                              })}
-                              className="flex items-center text-xs font-semibold text-gray-600 uppercase tracking-wider hover:text-gray-900"
-                            >
-                              Account
-                              <ArrowUpDown className="w-3 h-3 ml-1" />
-                            </button>
-                          </th>
-                          <th className="px-4 py-3 text-left">
-                            <button
-                              onClick={() => setSortConfig({
-                                key: 'institution',
-                                direction: sortConfig.key === 'institution' && sortConfig.direction === 'asc' ? 'desc' : 'asc'
-                              })}
-                              className="flex items-center text-xs font-semibold text-gray-600 uppercase tracking-wider hover:text-gray-900"
-                            >
-                              Institution
-                              <ArrowUpDown className="w-3 h-3 ml-1" />
-                            </button>
-                          </th>
-                          <th className="px-4 py-3 text-left">
-                            <span className="text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                              Type
-                            </span>
-                          </th>
-                          <th className="px-4 py-3 text-right">
-                            <button
-                              onClick={() => setSortConfig({
-                                key: 'balance',
-                                direction: sortConfig.key === 'balance' && sortConfig.direction === 'asc' ? 'desc' : 'asc'
-                              })}
-                              className="flex items-center justify-end text-xs font-semibold text-gray-600 uppercase tracking-wider hover:text-gray-900"
-                            >
-                              Balance
-                              <ArrowUpDown className="w-3 h-3 ml-1" />
-                            </button>
-                          </th>
-                        </>
-                      ) : (
-                        <>
-                          <th className="px-4 py-3 text-left">
-                            <button
-                              onClick={() => setSortConfig({
-                                key: 'ticker',
-                                direction: sortConfig.key === 'ticker' && sortConfig.direction === 'asc' ? 'desc' : 'asc'
-                              })}
-                              className="flex items-center text-xs font-semibold text-gray-600 uppercase tracking-wider hover:text-gray-900"
-                            >
-                              Asset
-                              <ArrowUpDown className="w-3 h-3 ml-1" />
-                            </button>
-                          </th>
-                          <th className="px-4 py-3 text-left">
-                            <button
-                              onClick={() => setSortConfig({
-                                key: 'account_name',
-                                direction: sortConfig.key === 'account_name' && sortConfig.direction === 'asc' ? 'desc' : 'asc'
-                              })}
-                              className="flex items-center text-xs font-semibold text-gray-600 uppercase tracking-wider hover:text-gray-900"
-                            >
-                              Account
-                              <ArrowUpDown className="w-3 h-3 ml-1" />
-                            </button>
-                          </th>
-                          <th className="px-4 py-3 text-right">
-                            <span className="text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                              Quantity
-                            </span>
-                          </th>
-                          <th className="px-4 py-3 text-right">
-                            <button
-                              onClick={() => setSortConfig({
-                                key: 'value',
-                                direction: sortConfig.key === 'value' && sortConfig.direction === 'asc' ? 'desc' : 'asc'
-                              })}
-                              className="flex items-center justify-end text-xs font-semibold text-gray-600 uppercase tracking-wider hover:text-gray-900"
-                            >
-                              Value
-                              <ArrowUpDown className="w-3 h-3 ml-1" />
-                            </button>
-                          </th>
+                 {(selectedCategories.size > 0 || selectedInstitutionFilter.size > 0 || selectedAccountTypes.size > 0) && (
+                   <button
+                     onClick={() => {
+                       setSelectedCategories(new Set());
+                       setSelectedInstitutionFilter(new Set());
+                       setSelectedAccountTypes(new Set());
+                     }}
+                     className="inline-flex items-center px-3 py-1.5 text-xs font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+                   >
+                     <FilterX className="w-3 h-3 mr-1" />
+                     Clear Filters
+                   </button>
+                 )}
+               </div>
+             ) : (
+               <div className="flex items-center space-x-3">
+                 <span className="text-sm text-gray-500 font-medium">Filters:</span>
+                 
+                 {/* Asset type filters */}
+                 <div className="flex items-center space-x-2">
+                   {Object.entries(ASSET_TYPES).map(([key, config]) => {
+                     const count = positions.filter(p => p.asset_type === key).length;
+                     const isSelected = selectedAssetTypes.has(key);
+                     
+                     return (
+                       <button
+                         key={key}
+                         onClick={() => {
+                           const newSet = new Set(selectedAssetTypes);
+                           if (isSelected) {
+                             newSet.delete(key);
+                           } else {
+                             newSet.add(key);
+                           }
+                           setSelectedAssetTypes(newSet);
+                         }}
+                         className={`
+                           inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-medium
+                           transition-all duration-200 transform hover:scale-105
+                           ${isSelected 
+                             ? `${config.color.bg} text-white shadow-sm` 
+                             : `${config.color.lightBg} ${config.color.text} hover:${config.color.hover}`
+                           }
+                         `}
+                       >
+                         <config.icon className="w-3.5 h-3.5 mr-1.5" />
+                         {config.name}
+                         {count > 0 && (
+                           <span className={`
+                             ml-1.5 px-1.5 py-0.5 rounded-full text-[10px] font-bold
+                             ${isSelected ? 'bg-white/20' : 'bg-gray-500/10'}
+                           `}>
+                             {count}
+                           </span>
+                         )}
+                       </button>
+                     );
+                   })}
+                 </div>
+                 
+                 <div className="w-px h-6 bg-gray-300" />
+                 
+                 <FilterDropdown
+                   title="Accounts"
+                   icon={Wallet}
+                   options={accountFilterOptions}
+                   selected={selectedAccountFilter}
+                   onChange={setSelectedAccountFilter}
+                 />
+                 
+                 <FilterDropdown
+                   title="Institutions"
+                   icon={Building2}
+                   options={institutionFilterOptionsForPositions}
+                   selected={selectedInstitutionFilter}
+                   onChange={setSelectedInstitutionFilter}
+                 />
 
+                 {(selectedAssetTypes.size > 0 || selectedAccountFilter.size > 0 || selectedInstitutionFilter.size > 0) && (
+                   <button
+                     onClick={() => {
+                       setSelectedAssetTypes(new Set());
+                       setSelectedAccountFilter(new Set());
+                       setSelectedInstitutionFilter(new Set());
+                     }}
+                     className="inline-flex items-center px-3 py-1.5 text-xs font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+                   >
+                     <FilterX className="w-3 h-3 mr-1" />
+                     Clear Filters
+                   </button>
+                 )}
+               </div>
+             )}
+           </div>
 
-                        <th className="px-4 py-3 text-right">
+           {/* Main content area */}
+           <div className="flex-1 overflow-y-auto">
+             {loading ? (
+               <div className="flex items-center justify-center h-64">
+                 <Loader2 className="w-8 h-8 text-gray-400 animate-spin" />
+               </div>
+             ) : editingItem ? (
+               <div className="p-6">
+                 {editingType === 'account' ? (
+                   <EditAccountForm
+                     account={editingItem}
+                     onSave={handleSaveAccount}
+                     onCancel={() => {
+                       setEditingItem(null);
+                       setEditingType(null);
+                     }}
+                   />
+                 ) : (
+                   <EditPositionForm
+                     position={editingItem}
+                     assetType={editingItem.asset_type}
+                     onSave={handleSavePosition}
+                     onCancel={() => {
+                       setEditingItem(null);
+                       setEditingType(null);
+                     }}
+                     accounts={accounts}
+                   />
+                 )}
+               </div>
+             ) : (
+               <table className="w-full">
+                 <thead className="bg-gray-50 border-b border-gray-200 sticky top-0">
+                   <tr>
+                     <th className="w-12 px-4 py-3">
+                       <input
+                         type="checkbox"
+                         checked={
+                           currentView === 'accounts' 
+                             ? accountSelection.selectedItems.size === filteredAccounts.length && filteredAccounts.length > 0
+                             : positionSelection.selectedItems.size === filteredPositions.length && filteredPositions.length > 0
+                         }
+                         onChange={(e) => {
+                           if (currentView === 'accounts') {
+                             if (e.target.checked) {
+                               accountSelection.selectAll(filteredAccounts);
+                             } else {
+                               accountSelection.clearSelection();
+                             }
+                           } else {
+                             if (e.target.checked) {
+                               positionSelection.selectAll(filteredPositions);
+                             } else {
+                               positionSelection.clearSelection();
+                             }
+                           }
+                         }}
+                         className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                       />
+                     </th>
+                     
+                     {currentView === 'accounts' ? (
+                       <>
+                         <th className="px-4 py-3 text-left">
+                           <button
+                             onClick={() => setSortConfig({
+                               key: 'account_name',
+                               direction: sortConfig.key === 'account_name' && sortConfig.direction === 'asc' ? 'desc' : 'asc'
+                             })}
+                             className="flex items-center text-xs font-semibold text-gray-600 uppercase tracking-wider hover:text-gray-900"
+                           >
+                             Account
+                             <ArrowUpDown className="w-3 h-3 ml-1" />
+                           </button>
+                         </th>
+                         <th className="px-4 py-3 text-left">
+                           <button
+                             onClick={() => setSortConfig({
+                               key: 'institution',
+                               direction: sortConfig.key === 'institution' && sortConfig.direction === 'asc' ? 'desc' : 'asc'
+                             })}
+                             className="flex items-center text-xs font-semibold text-gray-600 uppercase tracking-wider hover:text-gray-900"
+                           >
+                             Institution
+                             <ArrowUpDown className="w-3 h-3 ml-1" />
+                           </button>
+                         </th>
+                         <th className="px-4 py-3 text-left">
+                           <span className="text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                             Type
+                           </span>
+                         </th>
+                         <th className="px-4 py-3 text-right">
+                           <button
+                             onClick={() => setSortConfig({
+                               key: 'balance',
+                               direction: sortConfig.key === 'balance' && sortConfig.direction === 'asc' ? 'desc' : 'asc'
+                             })}
+                             className="flex items-center justify-end text-xs font-semibold text-gray-600 uppercase tracking-wider hover:text-gray-900"
+                           >
+                             Balance
+                             <ArrowUpDown className="w-3 h-3 ml-1" />
+                           </button>
+                         </th>
+                       </>
+                     ) : (
+                       <>
+                         <th className="px-4 py-3 text-left">
+                           <button
+                             onClick={() => setSortConfig({
+                               key: 'ticker',
+                               direction: sortConfig.key === 'ticker' && sortConfig.direction === 'asc' ? 'desc' : 'asc'
+                             })}
+                             className="flex items-center text-xs font-semibold text-gray-600 uppercase tracking-wider hover:text-gray-900"
+                           >
+                             Asset
+                             <ArrowUpDown className="w-3 h-3 ml-1" />
+                           </button>
+                         </th>
+                         <th className="px-4 py-3 text-left">
+                           <button
+                             onClick={() => setSortConfig({
+                               key: 'account_name',
+                               direction: sortConfig.key === 'account_name' && sortConfig.direction === 'asc' ? 'desc' : 'asc'
+                             })}
+                             className="flex items-center text-xs font-semibold text-gray-600 uppercase tracking-wider hover:text-gray-900"
+                           >
+                             Account
+                             <ArrowUpDown className="w-3 h-3 ml-1" />
+                           </button>
+                         </th>
+                         <th className="px-4 py-3 text-right">
+                           <span className="text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                             Quantity
+                           </span>
+                         </th>
+                         <th className="px-4 py-3 text-right">
+                           <button
+                             onClick={() => setSortConfig({
+                               key: 'value',
+                               direction: sortConfig.key === 'value' && sortConfig.direction === 'asc' ? 'desc' : 'asc'
+                             })}
+                             className="flex items-center justify-end text-xs font-semibold text-gray-600 uppercase tracking-wider hover:text-gray-900"
+                           >
+                             Value
+                             <ArrowUpDown className="w-3 h-3 ml-1" />
+                           </button>
+                         </th>
+                         <th className="px-4 py-3 text-right">
                            <span className="text-xs font-semibold text-gray-600 uppercase tracking-wider">
                              Gain/Loss
                            </span>
@@ -1531,7 +1879,9 @@ const QuickEditDeleteModal = ({ isOpen, onClose }) => {
                      <Building className="w-12 h-12 text-gray-300 mb-4" />
                      <p className="text-gray-500 text-lg font-medium">No accounts found</p>
                      <p className="text-gray-400 text-sm mt-1">
-                       {searchQuery ? 'Try adjusting your search' : 'Add accounts to get started'}
+                       {searchQuery || selectedCategories.size > 0 || selectedInstitutionFilter.size > 0 || selectedAccountTypes.size > 0 
+                         ? 'Try adjusting your filters' 
+                         : 'Add accounts to get started'}
                      </p>
                    </div>
                  )}
@@ -1541,7 +1891,9 @@ const QuickEditDeleteModal = ({ isOpen, onClose }) => {
                      <Database className="w-12 h-12 text-gray-300 mb-4" />
                      <p className="text-gray-500 text-lg font-medium">No positions found</p>
                      <p className="text-gray-400 text-sm mt-1">
-                       {searchQuery || selectedAssetTypes.size > 0 ? 'Try adjusting your filters' : 'Add positions to get started'}
+                       {searchQuery || selectedAssetTypes.size > 0 || selectedAccountFilter.size > 0 || selectedInstitutionFilter.size > 0
+                         ? 'Try adjusting your filters' 
+                         : 'Add positions to get started'}
                      </p>
                    </div>
                  )}
@@ -1551,27 +1903,33 @@ const QuickEditDeleteModal = ({ isOpen, onClose }) => {
 
            {/* Stats bar */}
            {stats.selected > 0 && !editingItem && (
-             <div className="flex-shrink-0 px-6 py-3 bg-blue-50 border-t border-blue-200">
+             <div className="flex-shrink-0 px-6 py-3 bg-gradient-to-r from-blue-50 to-indigo-50 border-t border-blue-200">
                <div className="flex items-center justify-between">
                  <div className="flex items-center space-x-6 text-sm">
                    <span className="font-medium text-blue-900">
-                     {stats.selected} selected
+                     <AnimatedCounter value={stats.selected} /> selected
                    </span>
                    <div className="flex items-center space-x-4 text-blue-700">
                      <span>
-                       Total Value: {showValues ? formatCurrency(stats.totalValue) : '••••'}
+                       Total Value: {showValues ? (
+                         <AnimatedCounter value={stats.totalValue} prefix="$" />
+                       ) : '••••'}
                      </span>
                      {currentView === 'positions' && stats.totalCost !== undefined && (
                        <>
-                         <span>•</span>
+                         <span className="text-blue-400">•</span>
                          <span>
-                           Cost: {showValues ? formatCurrency(stats.totalCost) : '••••'}
+                           Cost: {showValues ? (
+                             <AnimatedCounter value={stats.totalCost} prefix="$" />
+                           ) : '••••'}
                          </span>
-                         <span>•</span>
-                         <span className={stats.gainLoss >= 0 ? 'text-green-700' : 'text-red-700'}>
+                         <span className="text-blue-400">•</span>
+                         <span className={`font-medium ${stats.gainLoss >= 0 ? 'text-green-700' : 'text-red-700'}`}>
                            {stats.gainLoss >= 0 ? '+' : '-'}
-                           {showValues ? formatCurrency(Math.abs(stats.gainLoss)) : '••••'}
-                           ({stats.gainLossPercent.toFixed(1)}%)
+                           {showValues ? (
+                             <AnimatedCounter value={Math.abs(stats.gainLoss)} prefix="$" />
+                           ) : '••••'}
+                           <span className="text-xs ml-1">({stats.gainLossPercent.toFixed(1)}%)</span>
                          </span>
                        </>
                      )}
