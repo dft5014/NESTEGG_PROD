@@ -813,6 +813,13 @@ class PortfolioSummaryAllResponse(BaseModel):
     total_accounts: int
     breakdown: List[PortfolioAssetSummary] # Non-optional now
 
+class PositionUpdate(BaseModel):
+    ticker: Optional[str] = None
+    shares: Optional[float] = None
+    price: Optional[float] = None
+    cost_basis: Optional[float] = None
+    purchase_date: Optional[str] = None
+
 # Cash Models
 class CashPositionCreate(BaseModel):
     cash_type: str  # "Savings", "CD", "Money Market", etc.
@@ -4497,6 +4504,52 @@ async def add_position(
         }
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Server error: {str(e)}")
+
+@app.put("/positions/{position_id}")
+async def update_security_position(position_id: int, position: PositionUpdate, current_user: dict = Depends(get_current_user)):
+    """Update an existing security position"""
+    try:
+        # Get position and check if it belongs to the user
+        check_query = """
+        SELECT p.*, a.user_id, a.id as account_id
+        FROM positions p
+        JOIN accounts a ON p.account_id = a.id
+        WHERE p.id = :position_id
+        """
+        position_data = await database.fetch_one(query=check_query, values={"position_id": position_id})
+        
+        if not position_data or position_data["user_id"] != current_user["id"]:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Position not found or access denied")
+        
+        # Build update dictionary with only provided fields
+        update_values = {}
+        for key, value in position.dict(exclude_unset=True).items():
+            if key == 'purchase_date' and value is not None:
+                update_values[key] = datetime.strptime(value, "%Y-%m-%d").date()
+            else:
+                update_values[key] = value
+        
+        # Only update if there are values to update
+        if update_values:
+            # Construct dynamic query with only the fields that need updating
+            set_clause = ", ".join([f"{key} = :{key}" for key in update_values.keys()])
+            query = f"""
+            UPDATE positions 
+            SET {set_clause}, date = :updated_at
+            WHERE id = :position_id
+            RETURNING id
+            """
+            
+            # Add position_id and timestamp to values
+            update_values["position_id"] = position_id
+            update_values["updated_at"] = datetime.utcnow()
+            
+            await database.execute(query=query, values=update_values)
+        
+        return {"message": "Security position updated successfully"}
+    except Exception as e:
+        logger.error(f"Error updating security position: {str(e)}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Failed to update security position: {str(e)}")
 
 @app.put("/cash/{position_id}")
 async def update_cash_position(position_id: int, position: CashPositionUpdate, current_user: dict = Depends(get_current_user)):
