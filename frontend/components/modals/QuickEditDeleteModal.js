@@ -25,10 +25,11 @@ import {
   Activity, Database, GitBranch, Users, Settings,
   XCircle, CheckCircle, PlusCircle, MinusCircle,
   MoreVertical, Maximize2, Minimize2, Grid3x3,
-  Table, List, BarChart2, PieChart, Target, Briefcase
+  Table, List, BarChart2, PieChart, Target, Briefcase,
+  ArrowLeft, FileSpreadsheet, Sparkles, Package
 } from 'lucide-react';
 
-// Asset type configuration (shared with AddQuickPositionModal)
+// Asset type configuration
 const ASSET_TYPES = {
   security: {
     name: 'Securities',
@@ -111,6 +112,57 @@ const ACCOUNT_CATEGORIES = [
   { id: "metals", name: "Metals Storage", icon: Shield },
   { id: "real_estate", name: "Real Estate", icon: Home }
 ];
+
+// Account types by category
+const ACCOUNT_TYPES_BY_CATEGORY = {
+  brokerage: [
+    { value: "Individual", label: "Individual" },
+    { value: "Joint", label: "Joint" },
+    { value: "Custodial", label: "Custodial" },
+    { value: "Trust", label: "Trust" },
+    { value: "Other Brokerage", label: "Other Brokerage" }
+  ],
+  retirement: [
+    { value: "Traditional IRA", label: "Traditional IRA" },
+    { value: "Roth IRA", label: "Roth IRA" },
+    { value: "401(k)", label: "401(k)" },
+    { value: "Roth 401(k)", label: "Roth 401(k)" },
+    { value: "SEP IRA", label: "SEP IRA" },
+    { value: "SIMPLE IRA", label: "SIMPLE IRA" },
+    { value: "403(b)", label: "403(b)" },
+    { value: "Pension", label: "Pension" },
+    { value: "HSA", label: "HSA" },
+    { value: "Other Retirement", label: "Other Retirement" }
+  ],
+  cash: [
+    { value: "Checking", label: "Checking" },
+    { value: "Savings", label: "Savings" },
+    { value: "Money Market", label: "Money Market" },
+    { value: "CD", label: "Certificate of Deposit" },
+    { value: "Other Cash", label: "Other Cash" }
+  ],
+  cryptocurrency: [
+    { value: "Exchange Account", label: "Exchange Account" },
+    { value: "Hardware Wallet", label: "Hardware Wallet" },
+    { value: "Software Wallet", label: "Software Wallet" },
+    { value: "Other Crypto", label: "Other Crypto" }
+  ],
+  metals: [
+    { value: "Home Storage", label: "Home Storage" },
+    { value: "Safe Deposit Box", label: "Safe Deposit Box" },
+    { value: "Third-Party Vault", label: "Third-Party Vault" },
+    { value: "Other Metals", label: "Other Metals" }
+  ],
+  real_estate: [
+    { value: "Primary Residence", label: "Primary Residence" },
+    { value: "Vacation Home", label: "Vacation Home" },
+    { value: "Rental Property", label: "Rental Property" },
+    { value: "Commercial Property", label: "Commercial Property" },
+    { value: "Land", label: "Land" },
+    { value: "REIT", label: "REIT" },
+    { value: "Other Real Estate", label: "Other Real Estate" }
+  ]
+};
 
 // Animated counter component
 const AnimatedCounter = ({ value, duration = 500, prefix = '', suffix = '' }) => {
@@ -204,7 +256,232 @@ const useSelectionState = () => {
   };
 };
 
-// Edit form component
+// Edit Account Form Component
+const EditAccountForm = ({ account, onSave, onCancel }) => {
+  const [formData, setFormData] = useState({
+    account_name: account.account_name || '',
+    institution: account.institution || '',
+    type: account.type || '',
+    account_category: account.account_category || '',
+    balance: account.balance || 0
+  });
+  const [errors, setErrors] = useState({});
+  const [isSaving, setIsSaving] = useState(false);
+
+  const handleFieldChange = (field, value) => {
+    setFormData(prev => ({ ...prev, [field]: value }));
+    if (errors[field]) {
+      setErrors(prev => ({ ...prev, [field]: null }));
+    }
+  };
+
+  const validate = () => {
+    const newErrors = {};
+    if (!formData.account_name) newErrors.account_name = 'Account name required';
+    if (!formData.institution) newErrors.institution = 'Institution required';
+    if (!formData.type) newErrors.type = 'Account type required';
+    if (!formData.account_category) newErrors.account_category = 'Category required';
+    
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  const handleSubmit = async () => {
+    if (!validate()) return;
+    
+    setIsSaving(true);
+    try {
+      await onSave({ ...account, ...formData });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const category = ACCOUNT_CATEGORIES.find(c => c.id === formData.account_category);
+  const Icon = category?.icon || Building;
+  const accountTypes = ACCOUNT_TYPES_BY_CATEGORY[formData.account_category] || [];
+
+  return (
+    <div className="space-y-4 p-6 bg-white rounded-xl border border-gray-200">
+      <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center space-x-3">
+          <div className={`p-3 rounded-xl ${category ? `bg-${category.id === 'brokerage' ? 'blue' : category.id === 'retirement' ? 'indigo' : category.id === 'cash' ? 'green' : category.id === 'cryptocurrency' ? 'orange' : category.id === 'metals' ? 'yellow' : 'emerald'}-100` : 'bg-gray-100'}`}>
+            <Icon className={`w-6 h-6 ${category ? `text-${category.id === 'brokerage' ? 'blue' : category.id === 'retirement' ? 'indigo' : category.id === 'cash' ? 'green' : category.id === 'cryptocurrency' ? 'orange' : category.id === 'metals' ? 'yellow' : 'emerald'}-600` : 'text-gray-600'}`} />
+          </div>
+          <div>
+            <h3 className="text-lg font-semibold text-gray-900">Edit Account</h3>
+            <p className="text-sm text-gray-500">Update account information</p>
+          </div>
+        </div>
+        <button
+          onClick={onCancel}
+          className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+        >
+          <X className="w-5 h-5 text-gray-500" />
+        </button>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Account Name
+          </label>
+          <input
+            type="text"
+            value={formData.account_name}
+            onChange={(e) => handleFieldChange('account_name', e.target.value)}
+            className={`
+              w-full px-3 py-2 border rounded-lg text-sm
+              ${errors.account_name 
+                ? 'border-red-300 focus:ring-red-500 focus:border-red-500' 
+                : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'
+              }
+              transition-colors
+            `}
+            placeholder="My Investment Account"
+          />
+          {errors.account_name && (
+            <p className="mt-1 text-xs text-red-600">{errors.account_name}</p>
+          )}
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Institution
+          </label>
+          <input
+            type="text"
+            value={formData.institution}
+            onChange={(e) => handleFieldChange('institution', e.target.value)}
+            className={`
+              w-full px-3 py-2 border rounded-lg text-sm
+              ${errors.institution 
+                ? 'border-red-300 focus:ring-red-500 focus:border-red-500' 
+                : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'
+              }
+              transition-colors
+            `}
+            placeholder="Fidelity, Vanguard, etc."
+          />
+          {errors.institution && (
+            <p className="mt-1 text-xs text-red-600">{errors.institution}</p>
+          )}
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Category
+          </label>
+          <select
+            value={formData.account_category}
+            onChange={(e) => {
+              handleFieldChange('account_category', e.target.value);
+              handleFieldChange('type', ''); // Reset type when category changes
+            }}
+            className={`
+              w-full px-3 py-2 border rounded-lg text-sm
+              ${errors.account_category 
+                ? 'border-red-300 focus:ring-red-500 focus:border-red-500' 
+                : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'
+              }
+              transition-colors
+            `}
+          >
+            <option value="">Select category...</option>
+            {ACCOUNT_CATEGORIES.map(cat => (
+              <option key={cat.id} value={cat.id}>
+                {cat.name}
+              </option>
+            ))}
+          </select>
+          {errors.account_category && (
+            <p className="mt-1 text-xs text-red-600">{errors.account_category}</p>
+          )}
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Account Type
+          </label>
+          <select
+            value={formData.type}
+            onChange={(e) => handleFieldChange('type', e.target.value)}
+            disabled={!formData.account_category}
+            className={`
+              w-full px-3 py-2 border rounded-lg text-sm
+              ${errors.type 
+                ? 'border-red-300 focus:ring-red-500 focus:border-red-500' 
+                : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'
+              }
+              transition-colors
+              ${!formData.account_category ? 'bg-gray-100 cursor-not-allowed' : ''}
+            `}
+          >
+            <option value="">
+              {formData.account_category ? 'Select type...' : 'Select category first'}
+            </option>
+            {accountTypes.map(type => (
+              <option key={type.value} value={type.value}>
+                {type.label}
+              </option>
+            ))}
+          </select>
+          {errors.type && (
+            <p className="mt-1 text-xs text-red-600">{errors.type}</p>
+          )}
+        </div>
+
+        <div className="md:col-span-2">
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Balance
+          </label>
+          <div className="relative">
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm">$</span>
+            <input
+              type="number"
+              value={formData.balance}
+              onChange={(e) => handleFieldChange('balance', parseFloat(e.target.value) || 0)}
+              className="w-full pl-8 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-blue-500 focus:border-blue-500"
+              placeholder="0.00"
+              step="0.01"
+            />
+          </div>
+        </div>
+      </div>
+
+      <div className="flex justify-end space-x-3 pt-4 border-t">
+        <button
+          onClick={onCancel}
+          className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+        >
+          Cancel
+        </button>
+        <button
+          onClick={handleSubmit}
+          disabled={isSaving}
+          className={`
+            px-4 py-2 text-sm font-medium text-white rounded-lg transition-all
+            ${isSaving 
+              ? 'bg-gray-400 cursor-not-allowed' 
+              : 'bg-blue-600 hover:bg-blue-700'
+            }
+          `}
+        >
+          {isSaving ? (
+            <>
+              <Loader2 className="w-4 h-4 inline mr-2 animate-spin" />
+              Saving...
+            </>
+          ) : (
+            'Save Changes'
+          )}
+        </button>
+      </div>
+    </div>
+  );
+};
+
+// Edit position form component
 const EditPositionForm = ({ position, assetType, onSave, onCancel, accounts }) => {
   const [formData, setFormData] = useState(position);
   const [errors, setErrors] = useState({});
@@ -243,23 +520,28 @@ const EditPositionForm = ({ position, assetType, onSave, onCancel, accounts }) =
   };
 
   return (
-    <div className="space-y-4 p-4 bg-white rounded-lg border border-gray-200">
-      <div className="flex items-center justify-between mb-4">
-        <h3 className="text-lg font-semibold text-gray-900 flex items-center">
-          <config.icon className={`w-5 h-5 mr-2 ${config.color.text}`} />
-          Edit {config.name} Position
-        </h3>
+    <div className="space-y-4 p-6 bg-white rounded-xl border border-gray-200">
+      <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center space-x-3">
+          <div className={`p-3 rounded-xl ${config.color.lightBg}`}>
+            <config.icon className={`w-6 h-6 ${config.color.text}`} />
+          </div>
+          <div>
+            <h3 className="text-lg font-semibold text-gray-900">Edit {config.name} Position</h3>
+            <p className="text-sm text-gray-500">Update position details</p>
+          </div>
+        </div>
         <button
           onClick={onCancel}
-          className="p-1 hover:bg-gray-100 rounded-lg transition-colors"
+          className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
         >
-          <X className="w-4 h-4 text-gray-500" />
+          <X className="w-5 h-5 text-gray-500" />
         </button>
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {config.fields.map(field => (
-          <div key={field} className={field === 'address' ? 'col-span-2' : ''}>
+          <div key={field} className={field === 'address' ? 'md:col-span-2' : ''}>
             <label className="block text-sm font-medium text-gray-700 mb-1">
               {field.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')}
             </label>
@@ -276,6 +558,7 @@ const EditPositionForm = ({ position, assetType, onSave, onCancel, accounts }) =
                 }
                 transition-colors
               `}
+              step={field.includes('price') || field.includes('value') ? '0.01' : '1'}
             />
             {errors[field] && (
               <p className="mt-1 text-xs text-red-600">{errors[field]}</p>
@@ -305,93 +588,38 @@ const EditPositionForm = ({ position, assetType, onSave, onCancel, accounts }) =
   );
 };
 
-// Batch actions component
-const BatchActions = ({ 
-  selectedCount, 
-  onDelete, 
-  onExport, 
-  onDuplicate,
-  isDeleting 
-}) => {
-  if (selectedCount === 0) return null;
-
-  return (
-    <div className="flex items-center space-x-3 px-4 py-3 bg-gradient-to-r from-gray-50 to-white border-y border-gray-200">
-      <span className="text-sm font-medium text-gray-700">
-        {selectedCount} item{selectedCount !== 1 ? 's' : ''} selected
-      </span>
-      
-      <div className="flex items-center space-x-2 ml-4">
-        <button
-          onClick={onDuplicate}
-          className="px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-all flex items-center"
-        >
-          <Copy className="w-4 h-4 mr-1.5" />
-          Duplicate
-        </button>
-        
-        <button
-          onClick={onExport}
-          className="px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-all flex items-center"
-        >
-          <Download className="w-4 h-4 mr-1.5" />
-          Export
-        </button>
-        
-        <button
-          onClick={onDelete}
-          disabled={isDeleting}
-          className="px-3 py-1.5 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 transition-all flex items-center disabled:opacity-50"
-        >
-          {isDeleting ? (
-            <>
-              <Loader2 className="w-4 h-4 mr-1.5 animate-spin" />
-              Deleting...
-            </>
-          ) : (
-            <>
-              <Trash2 className="w-4 h-4 mr-1.5" />
-              Delete
-            </>
-          )}
-        </button>
-      </div>
-    </div>
-  );
-};
-
 // Main QuickEditDeleteModal component
 const QuickEditDeleteModal = ({ isOpen, onClose }) => {
   // State management
-  const [activeTab, setActiveTab] = useState('positions');
+  const [currentView, setCurrentView] = useState('selection'); // 'selection', 'accounts', 'positions'
   const [accounts, setAccounts] = useState([]);
   const [positions, setPositions] = useState([]);
+  const [filteredAccounts, setFilteredAccounts] = useState([]);
   const [filteredPositions, setFilteredPositions] = useState([]);
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedAssetTypes, setSelectedAssetTypes] = useState(new Set());
   const [selectedAccounts, setSelectedAccounts] = useState(new Set());
   const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' });
-  const [viewMode, setViewMode] = useState('table'); // 'table' or 'grid'
   const [showValues, setShowValues] = useState(true);
-  const [editingPosition, setEditingPosition] = useState(null);
-  const [editingAccount, setEditingAccount] = useState(null);
-  const [pendingChanges, setPendingChanges] = useState([]);
+  const [editingItem, setEditingItem] = useState(null);
+  const [editingType, setEditingType] = useState(null); // 'account' or 'position'
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [message, setMessage] = useState({ type: '', text: '' });
   
   // Selection hooks
-  const positionSelection = useSelectionState();
   const accountSelection = useSelectionState();
+  const positionSelection = useSelectionState();
 
   // Refs
-  const searchInputRef = useRef(null);
   const messageTimeoutRef = useRef(null);
 
-  // Load data on mount
+  // Load data on mount or view change
   useEffect(() => {
-    if (isOpen) {
-      loadData();
+    if (isOpen && currentView === 'accounts') {
+      loadAccounts();
+    } else if (isOpen && currentView === 'positions') {
+      loadPositions();
     }
     
     return () => {
@@ -399,22 +627,45 @@ const QuickEditDeleteModal = ({ isOpen, onClose }) => {
         clearTimeout(messageTimeoutRef.current);
       }
     };
+  }, [isOpen, currentView]);
+
+  // Reset state when modal closes
+  useEffect(() => {
+    if (!isOpen) {
+      setTimeout(() => {
+        setCurrentView('selection');
+        setEditingItem(null);
+        setEditingType(null);
+        setSearchQuery('');
+        accountSelection.clearSelection();
+        positionSelection.clearSelection();
+      }, 300);
+    }
   }, [isOpen]);
 
-  const loadData = async () => {
+  const loadAccounts = async () => {
     setLoading(true);
     try {
-      const [accountsData, positionsData] = await Promise.all([
-        fetchAllAccounts(),
-        fetchUnifiedPositions()
-      ]);
-      
-      setAccounts(accountsData);
-      setPositions(positionsData);
-      setFilteredPositions(positionsData);
+      const data = await fetchAllAccounts();
+      setAccounts(data);
+      setFilteredAccounts(data);
     } catch (error) {
-      console.error('Error loading data:', error);
-      showMessage('error', 'Failed to load data');
+      console.error('Error loading accounts:', error);
+      showMessage('error', 'Failed to load accounts');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadPositions = async () => {
+    setLoading(true);
+    try {
+      const data = await fetchUnifiedPositions();
+      setPositions(data);
+      setFilteredPositions(data);
+    } catch (error) {
+      console.error('Error loading positions:', error);
+      showMessage('error', 'Failed to load positions');
     } finally {
       setLoading(false);
     }
@@ -435,7 +686,43 @@ const QuickEditDeleteModal = ({ isOpen, onClose }) => {
     }
   };
 
-  // Filter and search logic
+  // Filter accounts
+  useEffect(() => {
+    let filtered = [...accounts];
+
+    // Search filter
+    if (searchQuery) {
+      const query = searchQuery.toLowerCase();
+      filtered = filtered.filter(account => 
+        account.account_name?.toLowerCase().includes(query) ||
+        account.institution?.toLowerCase().includes(query) ||
+        account.type?.toLowerCase().includes(query)
+      );
+    }
+
+    // Sorting
+    if (sortConfig.key) {
+      filtered.sort((a, b) => {
+        let aVal = a[sortConfig.key];
+        let bVal = b[sortConfig.key];
+        
+        if (typeof aVal === 'number' && typeof bVal === 'number') {
+          return sortConfig.direction === 'asc' ? aVal - bVal : bVal - aVal;
+        }
+        
+        aVal = String(aVal || '').toLowerCase();
+        bVal = String(bVal || '').toLowerCase();
+        
+        if (aVal < bVal) return sortConfig.direction === 'asc' ? -1 : 1;
+        if (aVal > bVal) return sortConfig.direction === 'asc' ? 1 : -1;
+        return 0;
+      });
+    }
+
+    setFilteredAccounts(filtered);
+  }, [accounts, searchQuery, sortConfig]);
+
+  // Filter positions
   useEffect(() => {
     let filtered = [...positions];
 
@@ -473,12 +760,10 @@ const QuickEditDeleteModal = ({ isOpen, onClose }) => {
         let aVal = a[sortConfig.key];
         let bVal = b[sortConfig.key];
         
-        // Handle numeric sorting
         if (typeof aVal === 'number' && typeof bVal === 'number') {
           return sortConfig.direction === 'asc' ? aVal - bVal : bVal - aVal;
         }
         
-        // String sorting
         aVal = String(aVal || '').toLowerCase();
         bVal = String(bVal || '').toLowerCase();
         
@@ -491,136 +776,113 @@ const QuickEditDeleteModal = ({ isOpen, onClose }) => {
     setFilteredPositions(filtered);
   }, [positions, searchQuery, selectedAssetTypes, selectedAccounts, sortConfig]);
 
-  // Calculate stats
-  const stats = useMemo(() => {
-    const selected = activeTab === 'positions' 
-      ? filteredPositions.filter(pos => positionSelection.isSelected(pos.id))
-      : accounts.filter(acc => accountSelection.isSelected(acc.id));
+  // Handle account editing
+  const handleEditAccount = (account) => {
+    setEditingItem(account);
+    setEditingType('account');
+  };
 
-    const totalValue = selected.reduce((sum, item) => {
-      if (activeTab === 'positions') {
-        return sum + (item.value || item.total_value || 0);
-      }
-      return sum + (item.balance || 0);
-    }, 0);
-
-    const totalCost = selected.reduce((sum, item) => {
-      if (activeTab === 'positions') {
-        const cost = item.cost_basis 
-          ? (item.shares || item.quantity || 1) * item.cost_basis
-          : item.purchase_price || 0;
-        return sum + cost;
-      }
-      return sum;
-    }, 0);
-
-    const gainLoss = totalValue - totalCost;
-    const gainLossPercent = totalCost > 0 ? (gainLoss / totalCost) * 100 : 0;
-
-    return {
-      selected: selected.length,
-      totalValue,
-      totalCost,
-      gainLoss,
-      gainLossPercent
-    };
-  }, [filteredPositions, accounts, positionSelection, accountSelection, activeTab]);
+  const handleSaveAccount = async (updatedAccount) => {
+    try {
+      setIsSubmitting(true);
+      await updateAccount(updatedAccount.id, updatedAccount);
+      
+      // Update local state
+      setAccounts(prev => prev.map(acc => 
+        acc.id === updatedAccount.id ? updatedAccount : acc
+      ));
+      
+      setEditingItem(null);
+      setEditingType(null);
+      showMessage('success', 'Account updated successfully');
+    } catch (error) {
+      console.error('Error updating account:', error);
+      showMessage('error', 'Failed to update account');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   // Handle position editing
   const handleEditPosition = (position) => {
-    setEditingPosition(position);
+    setEditingItem(position);
+    setEditingType('position');
   };
 
   const handleSavePosition = async (updatedPosition) => {
-    setPendingChanges(prev => [
-      ...prev.filter(change => change.id !== updatedPosition.id),
-      { type: 'update', entity: 'position', data: updatedPosition }
-    ]);
-    setEditingPosition(null);
-    showMessage('info', 'Changes saved locally. Click "Apply Changes" to save.');
+    try {
+      setIsSubmitting(true);
+      await updatePosition(updatedPosition.id, updatedPosition, updatedPosition.asset_type);
+      
+      // Update local state
+      setPositions(prev => prev.map(pos => 
+        pos.id === updatedPosition.id ? updatedPosition : pos
+      ));
+      
+      setEditingItem(null);
+      setEditingType(null);
+      showMessage('success', 'Position updated successfully');
+    } catch (error) {
+      console.error('Error updating position:', error);
+      showMessage('error', 'Failed to update position');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   // Handle deletion
   const handleDeleteSelected = async () => {
-    const selectedIds = activeTab === 'positions' 
-      ? Array.from(positionSelection.selectedItems)
-      : Array.from(accountSelection.selectedItems);
+    const isAccounts = currentView === 'accounts';
+    const selectedIds = isAccounts 
+      ? Array.from(accountSelection.selectedItems)
+      : Array.from(positionSelection.selectedItems);
 
     if (selectedIds.length === 0) return;
 
-    const confirmed = await new Promise(resolve => {
-      const message = `Delete ${selectedIds.length} ${activeTab}? This action cannot be undone.`;
-      if (window.confirm(message)) {
-        resolve(true);
-      } else {
-        resolve(false);
-      }
-    });
+    const itemType = isAccounts ? 'account' : 'position';
+    const confirmed = window.confirm(
+      `Delete ${selectedIds.length} ${itemType}${selectedIds.length !== 1 ? 's' : ''}? This action cannot be undone.`
+    );
 
     if (!confirmed) return;
-
-    selectedIds.forEach(id => {
-      setPendingChanges(prev => [
-        ...prev.filter(change => change.data.id !== id),
-        { type: 'delete', entity: activeTab.slice(0, -1), id }
-      ]);
-    });
-
-    // Update UI immediately
-    if (activeTab === 'positions') {
-      setPositions(prev => prev.filter(pos => !selectedIds.includes(pos.id)));
-      positionSelection.clearSelection();
-    } else {
-      setAccounts(prev => prev.filter(acc => !selectedIds.includes(acc.id)));
-      accountSelection.clearSelection();
-    }
-
-    showMessage('info', `${selectedIds.length} items marked for deletion. Click "Apply Changes" to confirm.`);
-  };
-
-  // Apply all pending changes
-  const applyChanges = async () => {
-    if (pendingChanges.length === 0) return;
 
     setIsSubmitting(true);
     let successCount = 0;
     let errorCount = 0;
-    const errors = [];
 
     try {
-      for (const change of pendingChanges) {
+      for (const id of selectedIds) {
         try {
-          if (change.type === 'update') {
-            if (change.entity === 'position') {
-              await updatePosition(change.data.id, change.data, change.data.asset_type);
-            } else {
-              await updateAccount(change.data.id, change.data);
-            }
-          } else if (change.type === 'delete') {
-            if (change.entity === 'position') {
-              const position = positions.find(p => p.id === change.id);
-              await deletePosition(change.id, position?.asset_type);
-            } else {
-              await deleteAccount(change.id);
-            }
+          if (isAccounts) {
+            await deleteAccount(id);
+          } else {
+            const position = positions.find(p => p.id === id);
+            await deletePosition(id, position?.asset_type);
           }
           successCount++;
         } catch (error) {
           errorCount++;
-          errors.push(error.message);
+          console.error(`Error deleting ${itemType}:`, error);
         }
       }
 
-      if (errorCount === 0) {
-        showMessage('success', `All ${successCount} changes applied successfully!`);
-        setPendingChanges([]);
-        await loadData(); // Reload fresh data
+      // Update local state
+      if (isAccounts) {
+        setAccounts(prev => prev.filter(acc => !selectedIds.includes(acc.id)));
+        accountSelection.clearSelection();
       } else {
-        showMessage('warning', `${successCount} succeeded, ${errorCount} failed`);
+        setPositions(prev => prev.filter(pos => !selectedIds.includes(pos.id)));
+        positionSelection.clearSelection();
+      }
+
+      if (errorCount === 0) {
+        showMessage('success', `Successfully deleted ${successCount} ${itemType}${successCount !== 1 ? 's' : ''}`);
+      } else {
+        showMessage('warning', `Deleted ${successCount} ${itemType}${successCount !== 1 ? 's' : ''}, ${errorCount} failed`);
       }
     } catch (error) {
-      console.error('Error applying changes:', error);
-      showMessage('error', 'Failed to apply changes');
+      console.error('Error during deletion:', error);
+      showMessage('error', 'Failed to delete items');
     } finally {
       setIsSubmitting(false);
     }
@@ -628,9 +890,10 @@ const QuickEditDeleteModal = ({ isOpen, onClose }) => {
 
   // Export selected items
   const handleExport = () => {
-    const selected = activeTab === 'positions'
-      ? filteredPositions.filter(pos => positionSelection.isSelected(pos.id))
-      : accounts.filter(acc => accountSelection.isSelected(acc.id));
+    const isAccounts = currentView === 'accounts';
+    const selected = isAccounts
+      ? filteredAccounts.filter(acc => accountSelection.isSelected(acc.id))
+      : filteredPositions.filter(pos => positionSelection.isSelected(pos.id));
 
     if (selected.length === 0) return;
 
@@ -639,11 +902,11 @@ const QuickEditDeleteModal = ({ isOpen, onClose }) => {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `${activeTab}_export_${new Date().toISOString().split('T')[0]}.csv`;
+    a.download = `${isAccounts ? 'accounts' : 'positions'}_export_${new Date().toISOString().split('T')[0]}.csv`;
     a.click();
     URL.revokeObjectURL(url);
     
-    showMessage('success', `Exported ${selected.length} items`);
+    showMessage('success', `Exported ${selected.length} ${isAccounts ? 'account' : 'position'}${selected.length !== 1 ? 's' : ''}`);
   };
 
   const convertToCSV = (data) => {
@@ -655,7 +918,6 @@ const QuickEditDeleteModal = ({ isOpen, onClose }) => {
       ...data.map(row => 
         headers.map(header => {
           const value = row[header];
-          // Escape commas and quotes in values
           const escaped = String(value || '').replace(/"/g, '""');
           return escaped.includes(',') ? `"${escaped}"` : escaped;
         }).join(',')
@@ -663,6 +925,178 @@ const QuickEditDeleteModal = ({ isOpen, onClose }) => {
     ].join('\n');
     
     return csv;
+  };
+
+  // Calculate stats
+  const stats = useMemo(() => {
+    if (currentView === 'accounts') {
+      const selected = filteredAccounts.filter(acc => accountSelection.isSelected(acc.id));
+      const totalValue = selected.reduce((sum, acc) => sum + (parseFloat(acc.balance) || 0), 0);
+      
+      return {
+        selected: selected.length,
+        total: filteredAccounts.length,
+        totalValue
+      };
+    } else {
+      const selected = filteredPositions.filter(pos => positionSelection.isSelected(pos.id));
+      const totalValue = selected.reduce((sum, pos) => sum + (pos.value || pos.total_value || 0), 0);
+      const totalCost = selected.reduce((sum, pos) => {
+        if (pos.cost_basis) {
+          return sum + ((pos.shares || pos.quantity || 1) * pos.cost_basis);
+        }
+        return sum + (pos.purchase_price || 0);
+      }, 0);
+      
+      return {
+        selected: selected.length,
+        total: filteredPositions.length,
+        totalValue,
+        totalCost,
+        gainLoss: totalValue - totalCost,
+        gainLossPercent: totalCost > 0 ? ((totalValue - totalCost) / totalCost) * 100 : 0
+      };
+    }
+  }, [currentView, filteredAccounts, filteredPositions, accountSelection, positionSelection]);
+
+  // Render selection screen
+  const renderSelectionScreen = () => (
+    <div className="p-8">
+      <div className="text-center mb-8">
+        <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-purple-500 to-pink-600 rounded-2xl mb-4">
+          <Edit3 className="w-8 h-8 text-white" />
+        </div>
+        <h2 className="text-2xl font-bold text-gray-900 mb-2">Edit & Delete Manager</h2>
+        <p className="text-gray-600">Choose what you'd like to manage</p>
+      </div>
+
+      <div className="grid md:grid-cols-2 gap-6 max-w-3xl mx-auto">
+        {/* Accounts Card */}
+        <div 
+          onClick={() => setCurrentView('accounts')}
+          className="group cursor-pointer bg-gradient-to-br from-blue-50 to-indigo-100 rounded-2xl p-8 border-2 border-transparent hover:border-blue-300 hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1"
+        >
+          <div className="flex flex-col items-center text-center">
+            <div className="p-4 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl text-white mb-4 group-hover:scale-110 transition-transform">
+              <Wallet className="w-10 h-10" />
+            </div>
+            <h3 className="text-xl font-bold text-gray-900 mb-2">Manage Accounts</h3>
+            <p className="text-gray-600 mb-4">Edit account details or delete accounts</p>
+            <div className="flex items-center text-sm text-blue-600 group-hover:text-blue-700">
+              <span>Manage Accounts</span>
+              <ChevronRight className="w-4 h-4 ml-1 group-hover:translate-x-1 transition-transform" />
+            </div>
+          </div>
+        </div>
+
+        {/* Positions Card */}
+        <div 
+          onClick={() => setCurrentView('positions')}
+          className="group cursor-pointer bg-gradient-to-br from-purple-50 to-pink-100 rounded-2xl p-8 border-2 border-transparent hover:border-purple-300 hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1"
+        >
+          <div className="flex flex-col items-center text-center">
+            <div className="p-4 bg-gradient-to-br from-purple-500 to-pink-600 rounded-2xl text-white mb-4 group-hover:scale-110 transition-transform">
+              <Layers className="w-10 h-10" />
+            </div>
+            <h3 className="text-xl font-bold text-gray-900 mb-2">Manage Positions</h3>
+            <p className="text-gray-600 mb-4">Edit position details or delete positions</p>
+            <div className="flex items-center text-sm text-purple-600 group-hover:text-purple-700">
+              <span>Manage Positions</span>
+              <ChevronRight className="w-4 h-4 ml-1 group-hover:translate-x-1 transition-transform" />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-8 text-center">
+        <div className="inline-flex items-center px-4 py-2 bg-blue-50 rounded-lg">
+          <Info className="w-4 h-4 text-blue-600 mr-2" />
+          <span className="text-sm text-blue-700">
+            You can delete multiple items at once, but edit one at a time
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+
+  // Render account row
+  const renderAccountRow = (account, index) => {
+    const category = ACCOUNT_CATEGORIES.find(c => c.id === account.account_category);
+    const Icon = category?.icon || Building;
+    
+    return (
+      <tr 
+        key={account.id}
+        className={`
+          border-b border-gray-100 transition-all duration-200
+          ${accountSelection.isSelected(account.id) 
+            ? 'bg-blue-50 hover:bg-blue-100' 
+            : 'hover:bg-gray-50'
+          }
+        `}
+      >
+        <td className="w-12 px-4 py-3">
+          <input
+            type="checkbox"
+            checked={accountSelection.isSelected(account.id)}
+            onChange={(e) => accountSelection.toggleSelection(
+              account.id, 
+              index, 
+              e.shiftKey, 
+              filteredAccounts
+            )}
+            className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+          />
+        </td>
+        
+        <td className="px-4 py-3">
+          <div className="flex items-center space-x-3">
+            <div className={`p-2 rounded-lg bg-gray-100`}>
+              <Icon className="w-4 h-4 text-gray-600" />
+            </div>
+            <div>
+              <div className="font-medium text-gray-900">{account.account_name}</div>
+              <div className="text-sm text-gray-500">{category?.name}</div>
+            </div>
+          </div>
+        </td>
+        
+        <td className="px-4 py-3 text-sm text-gray-900">
+          {account.institution}
+        </td>
+        
+        <td className="px-4 py-3 text-sm text-gray-900">
+          {account.type}
+        </td>
+        
+        <td className="px-4 py-3 text-sm text-gray-900 text-right">
+          {showValues ? formatCurrency(account.balance || 0) : '••••'}
+        </td>
+        
+        <td className="px-4 py-3">
+          <div className="flex items-center justify-end space-x-2">
+            <button
+              onClick={() => handleEditAccount(account)}
+              className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all"
+              title="Edit"
+            >
+              <Edit3 className="w-4 h-4" />
+            </button>
+            <button
+              onClick={() => {
+                accountSelection.clearSelection();
+                accountSelection.toggleSelection(account.id);
+                handleDeleteSelected();
+              }}
+              className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
+              title="Delete"
+            >
+              <Trash2 className="w-4 h-4" />
+            </button>
+          </div>
+        </td>
+      </tr>
+    );
   };
 
   // Render position row
@@ -752,6 +1186,7 @@ const QuickEditDeleteModal = ({ isOpen, onClose }) => {
             </button>
             <button
               onClick={() => {
+                positionSelection.clearSelection();
                 positionSelection.toggleSelection(position.id);
                 handleDeleteSelected();
               }}
@@ -766,433 +1201,503 @@ const QuickEditDeleteModal = ({ isOpen, onClose }) => {
     );
   };
 
-  // Render the modal content
   return (
     <FixedModal
       isOpen={isOpen}
       onClose={onClose}
-      title="Edit & Delete Manager"
+      title={currentView === 'selection' ? '' : currentView === 'accounts' ? 'Manage Accounts' : 'Manage Positions'}
       size="max-w-7xl"
     >
       <div className="h-[85vh] flex flex-col bg-gray-50">
-        {/* Header */}
-        <div className="flex-shrink-0 bg-white border-b border-gray-200 px-6 py-4">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center space-x-6">
-              {/* Tab switcher */}
-              <div className="flex items-center bg-gray-100 rounded-lg p-1">
-                <button
-                  onClick={() => setActiveTab('positions')}
-                  className={`
-                    px-4 py-2 text-sm font-medium rounded-md transition-all
-                    ${activeTab === 'positions' 
-                      ? 'bg-white text-gray-900 shadow-sm' 
-                      : 'text-gray-600 hover:text-gray-900'
-                    }
-                  `}
-                >
-                  <Layers className="w-4 h-4 inline mr-2" />
-                  Positions
-                </button>
-                <button
-                  onClick={() => setActiveTab('accounts')}
-                  className={`
-                    px-4 py-2 text-sm font-medium rounded-md transition-all
-                    ${activeTab === 'accounts' 
-                      ? 'bg-white text-gray-900 shadow-sm' 
-                      : 'text-gray-600 hover:text-gray-900'
-                    }
-                  `}
-                >
-                  <Wallet className="w-4 h-4 inline mr-2" />
-                  Accounts
-                </button>
+        {currentView === 'selection' ? (
+          renderSelectionScreen()
+        ) : (
+          <>
+            {/* Header */}
+            <div className="flex-shrink-0 bg-white border-b border-gray-200 px-6 py-4">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center space-x-6">
+                  {/* Back button */}
+                  <button
+                    onClick={() => {
+                      setCurrentView('selection');
+                      setEditingItem(null);
+                      setEditingType(null);
+                    }}
+                    className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                  >
+                    <ArrowLeft className="w-5 h-5 text-gray-600" />
+                  </button>
+
+                  {/* Search */}
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                    <input
+                      type="text"
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      placeholder={`Search ${currentView}...`}
+                      className="pl-10 pr-4 py-2 w-64 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    />
+                    {searchQuery && (
+                      <button
+                        onClick={() => setSearchQuery('')}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 p-1 hover:bg-gray-100 rounded"
+                      >
+                        <X className="w-3 h-3 text-gray-400" />
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Show/hide values */}
+                  <button
+                    onClick={() => setShowValues(!showValues)}
+                    className={`
+                      p-2 rounded-lg transition-all
+                      ${showValues 
+                        ? 'bg-blue-100 text-blue-700' 
+                        : 'bg-gray-100 text-gray-600'
+                      }
+                    `}
+                    title={showValues ? 'Hide values' : 'Show values'}
+                  >
+                    {showValues ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
+                  </button>
+                </div>
+
+                {/* Right side actions */}
+                <div className="flex items-center space-x-3">
+                  {stats.selected > 0 && (
+                    <div className="flex items-center space-x-3 px-4 py-2 bg-blue-50 rounded-lg">
+                      <span className="text-sm font-medium text-blue-700">
+                        {stats.selected} selected
+                      </span>
+                      <button
+                        onClick={handleExport}
+                        className="text-sm text-blue-600 hover:text-blue-700 font-medium"
+                      >
+                        Export
+                      </button>
+                      <button
+                        onClick={handleDeleteSelected}
+                        disabled={isSubmitting}
+                        className="text-sm text-red-600 hover:text-red-700 font-medium"
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  )}
+
+                  <button
+                    onClick={currentView === 'accounts' ? loadAccounts : loadPositions}
+                    className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+                    title="Refresh"
+                  >
+                    <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+                  </button>
+                </div>
               </div>
 
-              {/* Search */}
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                <input
-                  ref={searchInputRef}
-                  type="text"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder={`Search ${activeTab}...`}
-                  className="pl-10 pr-4 py-2 w-64 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                />
-                {searchQuery && (
-                  <button
-                    onClick={() => setSearchQuery('')}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 p-1 hover:bg-gray-100 rounded"
-                  >
-                    <X className="w-3 h-3 text-gray-400" />
-                  </button>
-                )}
-              </div>
-
-              {/* View mode toggle */}
-              <div className="flex items-center space-x-2 border-l pl-4">
-                <button
-                  onClick={() => setViewMode('table')}
-                  className={`
-                    p-2 rounded-lg transition-all
-                    ${viewMode === 'table' 
-                      ? 'bg-gray-900 text-white' 
-                      : 'text-gray-600 hover:bg-gray-100'
-                    }
-                  `}
-                  title="Table view"
-                >
-                  <Table className="w-4 h-4" />
-                </button>
-                <button
-                  onClick={() => setViewMode('grid')}
-                  className={`
-                    p-2 rounded-lg transition-all
-                    ${viewMode === 'grid' 
-                      ? 'bg-gray-900 text-white' 
-                      : 'text-gray-600 hover:bg-gray-100'
-                    }
-                  `}
-                  title="Grid view"
-                >
-                  <Grid3x3 className="w-4 h-4" />
-                </button>
-              </div>
-
-              {/* Show/hide values */}
-              <button
-                onClick={() => setShowValues(!showValues)}
-                className={`
-                  p-2 rounded-lg transition-all
-                  ${showValues 
-                    ? 'bg-blue-100 text-blue-700' 
-                    : 'bg-gray-100 text-gray-600'
-                  }
-                `}
-                title={showValues ? 'Hide values' : 'Show values'}
-              >
-                {showValues ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
-              </button>
-            </div>
-
-            {/* Right side actions */}
-            <div className="flex items-center space-x-3">
-              {pendingChanges.length > 0 && (
-                <div className="flex items-center space-x-3 px-4 py-2 bg-amber-50 rounded-lg border border-amber-200">
-                  <AlertCircle className="w-4 h-4 text-amber-600" />
-                  <span className="text-sm font-medium text-amber-700">
-                    {pendingChanges.length} pending change{pendingChanges.length !== 1 ? 's' : ''}
-                  </span>
-                  <button
-                    onClick={() => setPendingChanges([])}
-                    className="text-sm text-amber-600 hover:text-amber-700 font-medium"
-                  >
-                    Discard
-                  </button>
-                  <button
-                    onClick={applyChanges}
-                    disabled={isSubmitting}
-                    className="px-3 py-1 bg-amber-600 text-white text-sm font-medium rounded-lg hover:bg-amber-700 transition-all disabled:opacity-50"
-                  >
-                    {isSubmitting ? 'Applying...' : 'Apply Changes'}
-                  </button>
+              {/* Filters for positions */}
+              {currentView === 'positions' && (
+                <div className="flex items-center space-x-4">
+                  <span className="text-sm text-gray-500">Filter by:</span>
+                  
+                  {/* Asset type filters */}
+                  <div className="flex items-center space-x-2">
+                    {Object.entries(ASSET_TYPES).map(([key, config]) => {
+                      const count = positions.filter(p => p.asset_type === key).length;
+                      const isSelected = selectedAssetTypes.has(key);
+                      
+                      return (
+                        <button
+                          key={key}
+                          onClick={() => {
+                            const newSet = new Set(selectedAssetTypes);
+                            if (isSelected) {
+                              newSet.delete(key);
+                            } else {
+                              newSet.add(key);
+                            }
+                            setSelectedAssetTypes(newSet);
+                          }}
+                          className={`
+                            inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-medium
+                            transition-all duration-200
+                            ${isSelected 
+                              ? `${config.color.bg} text-white shadow-sm` 
+                              : `${config.color.lightBg} ${config.color.text} hover:${config.color.hover}`
+                            }
+                          `}
+                        >
+                          <config.icon className="w-3.5 h-3.5 mr-1.5" />
+                          {config.name}
+                          {count > 0 && (
+                            <span className={`
+                              ml-1.5 px-1.5 py-0.5 rounded-full text-[10px] font-bold
+                              ${isSelected ? 'bg-white/20' : 'bg-gray-500/10'}
+                            `}>
+                              {count}
+                            </span>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
               )}
-
-              <button
-                onClick={loadData}
-                className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
-                title="Refresh"
-              >
-                <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-              </button>
             </div>
-          </div>
 
-          {/* Filters */}
-          {activeTab === 'positions' && (
-            <div className="flex items-center space-x-4">
-              <span className="text-sm text-gray-500">Filter by:</span>
-              
-              {/* Asset type filters */}
-              <div className="flex items-center space-x-2">
-                {Object.entries(ASSET_TYPES).map(([key, config]) => {
-                  const count = positions.filter(p => p.asset_type === key).length;
-                  const isSelected = selectedAssetTypes.has(key);
-                  
-                  return (
-                    <button
-                      key={key}
-                      onClick={() => {
-                        const newSet = new Set(selectedAssetTypes);
-                        if (isSelected) {
-                          newSet.delete(key);
-                        } else {
-                          newSet.add(key);
-                        }
-                        setSelectedAssetTypes(newSet);
+            {/* Main content area */}
+            <div className="flex-1 overflow-y-auto">
+              {loading ? (
+                <div className="flex items-center justify-center h-64">
+                  <Loader2 className="w-8 h-8 text-gray-400 animate-spin" />
+                </div>
+              ) : editingItem ? (
+                <div className="p-6">
+                  {editingType === 'account' ? (
+                    <EditAccountForm
+                      account={editingItem}
+                      onSave={handleSaveAccount}
+                      onCancel={() => {
+                        setEditingItem(null);
+                        setEditingType(null);
                       }}
-                      className={`
-                        inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-medium
-                        transition-all duration-200
-                        ${isSelected 
-                          ? `${config.color.bg} text-white shadow-sm` 
-                          : `${config.color.lightBg} ${config.color.text} hover:${config.color.hover}`
-                        }
-                      `}
-                    >
-                      <config.icon className="w-3.5 h-3.5 mr-1.5" />
-                      {config.name}
-                      {count > 0 && (
-                        <span className={`
-                          ml-1.5 px-1.5 py-0.5 rounded-full text-[10px] font-bold
-                          ${isSelected ? 'bg-white/20' : 'bg-gray-500/10'}
-                        `}>
-                          {count}
-                        </span>
-                      )}
-                    </button>
-                  );
-                })}
-              </div>
-
-              {/* Account filter dropdown */}
-              <div className="relative">
-                <button
-                  className="inline-flex items-center px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
-                >
-                  <Building className="w-4 h-4 mr-2" />
-                  {selectedAccounts.size === 0 
-                    ? 'All Accounts' 
-                    : `${selectedAccounts.size} Account${selectedAccounts.size !== 1 ? 's' : ''}`
-                  }
-                  <ChevronDown className="w-4 h-4 ml-2" />
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Stats bar */}
-        {stats.selected > 0 && (
-          <div className="flex-shrink-0 px-6 py-3 bg-blue-50 border-b border-blue-200">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-6 text-sm">
-                <span className="font-medium text-blue-900">
-                  {stats.selected} selected
-                </span>
-                <div className="flex items-center space-x-4 text-blue-700">
-                  <span>
-                    Total Value: {showValues ? formatCurrency(stats.totalValue) : '••••'}
-                  </span>
-                  {activeTab === 'positions' && (
-                    <>
-                      <span>•</span>
-                      <span>
-                        Cost: {showValues ? formatCurrency(stats.totalCost) : '••••'}
-                      </span>
-                      <span>•</span>
-                      <span className={stats.gainLoss >= 0 ? 'text-green-700' : 'text-red-700'}>
-                        {stats.gainLoss >= 0 ? '+' : '-'}
-                        {showValues ? formatCurrency(Math.abs(stats.gainLoss)) : '••••'}
-                        ({stats.gainLossPercent.toFixed(1)}%)
-                      </span>
-                    </>
+                    />
+                  ) : (
+                    <EditPositionForm
+                      position={editingItem}
+                      assetType={editingItem.asset_type}
+                      onSave={handleSavePosition}
+                      onCancel={() => {
+                        setEditingItem(null);
+                        setEditingType(null);
+                      }}
+                      accounts={accounts}
+                    />
                   )}
                 </div>
-              </div>
-              
-              <button
-                onClick={() => {
-                  if (activeTab === 'positions') {
-                    positionSelection.clearSelection();
-                  } else {
-                    accountSelection.clearSelection();
-                  }
-                }}
-                className="text-sm text-blue-600 hover:text-blue-700 font-medium"
-              >
-                Clear Selection
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* Batch actions */}
-        <BatchActions
-          selectedCount={activeTab === 'positions' ? positionSelection.selectedItems.size : accountSelection.selectedItems.size}
-          onDelete={handleDeleteSelected}
-          onExport={handleExport}
-          onDuplicate={() => showMessage('info', 'Duplicate feature coming soon')}
-          isDeleting={isSubmitting}
-        />
-
-        {/* Main content area */}
-        <div className="flex-1 overflow-y-auto">
-          {loading ? (
-            <div className="flex items-center justify-center h-64">
-              <Loader2 className="w-8 h-8 text-gray-400 animate-spin" />
-            </div>
-          ) : editingPosition ? (
-            <div className="p-6">
-              <EditPositionForm
-                position={editingPosition}
-                assetType={editingPosition.asset_type}
-                onSave={handleSavePosition}
-                onCancel={() => setEditingPosition(null)}
-                accounts={accounts}
-              />
-            </div>
-          ) : (
-            <>
-              {activeTab === 'positions' && viewMode === 'table' && (
+              ) : (
                 <table className="w-full">
                   <thead className="bg-gray-50 border-b border-gray-200 sticky top-0">
                     <tr>
                       <th className="w-12 px-4 py-3">
                         <input
                           type="checkbox"
-                          checked={positionSelection.selectedItems.size === filteredPositions.length && filteredPositions.length > 0}
+                          checked={
+                            currentView === 'accounts' 
+                              ? accountSelection.selectedItems.size === filteredAccounts.length && filteredAccounts.length > 0
+                              : positionSelection.selectedItems.size === filteredPositions.length && filteredPositions.length > 0
+                          }
                           onChange={(e) => {
-                            if (e.target.checked) {
-                              positionSelection.selectAll(filteredPositions);
+                            if (currentView === 'accounts') {
+                              if (e.target.checked) {
+                                accountSelection.selectAll(filteredAccounts);
+                              } else {
+                                accountSelection.clearSelection();
+                              }
                             } else {
-                              positionSelection.clearSelection();
+                              if (e.target.checked) {
+                                positionSelection.selectAll(filteredPositions);
+                              } else {
+                                positionSelection.clearSelection();
+                              }
                             }
                           }}
                           className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
                         />
                       </th>
-                      <th className="px-4 py-3 text-left">
-                        <button
-                          onClick={() => setSortConfig({
-                            key: 'ticker',
-                            direction: sortConfig.key === 'ticker' && sortConfig.direction === 'asc' ? 'desc' : 'asc'
-                          })}
-                          className="flex items-center text-xs font-semibold text-gray-600 uppercase tracking-wider hover:text-gray-900"
-                        >
-                          Asset
-                          <ArrowUpDown className="w-3 h-3 ml-1" />
-                        </button>
-                      </th>
-                      <th className="px-4 py-3 text-left">
-                        <button
-                          onClick={() => setSortConfig({
-                            key: 'account_name',
-                            direction: sortConfig.key === 'account_name' && sortConfig.direction === 'asc' ? 'desc' : 'asc'
-                          })}
-                          className="flex items-center text-xs font-semibold text-gray-600 uppercase tracking-wider hover:text-gray-900"
-                        >
-                          Account
-                          <ArrowUpDown className="w-3 h-3 ml-1" />
-                        </button>
-                      </th>
-                      <th className="px-4 py-3 text-right">
-                        <span className="text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                          Quantity
-                        </span>
-                      </th>
-                      <th className="px-4 py-3 text-right">
-                        <button
-                          onClick={() => setSortConfig({
-                            key: 'value',
-                            direction: sortConfig.key === 'value' && sortConfig.direction === 'asc' ? 'desc' : 'asc'
-                          })}
-                          className="flex items-center justify-end text-xs font-semibold text-gray-600 uppercase tracking-wider hover:text-gray-900"
-                        >
-                          Value
-                          <ArrowUpDown className="w-3 h-3 ml-1" />
-                        </button>
-                      </th>
-                      <th className="px-4 py-3 text-right">
-                        <span className="text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                          Gain/Loss
-                        </span>
-                      </th>
-                      <th className="px-4 py-3 text-right">
-                        <span className="text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                          Actions
-                        </span>
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
-                    {filteredPositions.map((position, index) => 
-                      renderPositionRow(position, index)
-                    )}
-                  </tbody>
-                </table>
-              )}
+                      
+                      {currentView === 'accounts' ? (
+                        <>
+                          <th className="px-4 py-3 text-left">
+                            <button
+                              onClick={() => setSortConfig({
+                                key: 'account_name',
+                                direction: sortConfig.key === 'account_name' && sortConfig.direction === 'asc' ? 'desc' : 'asc'
+                              })}
+                              className="flex items-center text-xs font-semibold text-gray-600 uppercase tracking-wider hover:text-gray-900"
+                            >
+                              Account
+                              <ArrowUpDown className="w-3 h-3 ml-1" />
+                            </button>
+                          </th>
+                          <th className="px-4 py-3 text-left">
+                            <button
+                              onClick={() => setSortConfig({
+                                key: 'institution',
+                                direction: sortConfig.key === 'institution' && sortConfig.direction === 'asc' ? 'desc' : 'asc'
+                              })}
+                              className="flex items-center text-xs font-semibold text-gray-600 uppercase tracking-wider hover:text-gray-900"
+                            >
+                              Institution
+                              <ArrowUpDown className="w-3 h-3 ml-1" />
+                            </button>
+                          </th>
+                          <th className="px-4 py-3 text-left">
+                            <span className="text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                              Type
+                            </span>
+                          </th>
+                          <th className="px-4 py-3 text-right">
+                            <button
+                              onClick={() => setSortConfig({
+                                key: 'balance',
+                                direction: sortConfig.key === 'balance' && sortConfig.direction === 'asc' ? 'desc' : 'asc'
+                              })}
+                              className="flex items-center justify-end text-xs font-semibold text-gray-600 uppercase tracking-wider hover:text-gray-900"
+                            >
+                              Balance
+                              <ArrowUpDown className="w-3 h-3 ml-1" />
+                            </button>
+                          </th>
+                        </>
+                      ) : (
+                        <>
+                          <th className="px-4 py-3 text-left">
+                            <button
+                              onClick={() => setSortConfig({
+                                key: 'ticker',
+                                direction: sortConfig.key === 'ticker' && sortConfig.direction === 'asc' ? 'desc' : 'asc'
+                              })}
+                              className="flex items-center text-xs font-semibold text-gray-600 uppercase tracking-wider hover:text-gray-900"
+                            >
+                              Asset
+                              <ArrowUpDown className="w-3 h-3 ml-1" />
+                            </button>
+                          </th>
+                          <th className="px-4 py-3 text-left">
+                            <button
+                              onClick={() => setSortConfig({
+                                key: 'account_name',
+                                direction: sortConfig.key === 'account_name' && sortConfig.direction === 'asc' ? 'desc' : 'asc'
+                              })}
+                              className="flex items-center text-xs font-semibold text-gray-600 uppercase tracking-wider hover:text-gray-900"
+                            >
+                              Account
+                              <ArrowUpDown className="w-3 h-3 ml-1" />
+                            </button>
+                          </th>
+                          <th className="px-4 py-3 text-right">
+                            <span className="text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                              Quantity
+                            </span>
+                          </th>
+                          <th className="px-4 py-3 text-right">
+                            <button
+                              onClick={() => setSortConfig({
+                                key: 'value',
+                                direction: sortConfig.key === 'value' && sortConfig.direction === 'asc' ? 'desc' : 'asc'
+                              })}
+                              className="flex items-center justify-end text-xs font-semibold text-gray-600 uppercase tracking-wider hover:text-gray-900"
+                            >
+                              Value
+                              <ArrowUpDown className="w-3 h-3 ml-1" />
+                            </button>
+                          </th>
 
-              {filteredPositions.length === 0 && (
-                <div className="flex flex-col items-center justify-center h-64">
-                  <Database className="w-12 h-12 text-gray-300 mb-4" />
-                  <p className="text-gray-500 text-lg font-medium">No positions found</p>
-                  <p className="text-gray-400 text-sm mt-1">
-                    {searchQuery ? 'Try adjusting your search' : 'Start by adding some positions'}
-                  </p>
-                </div>
-              )}
-            </>
-          )}
-        </div>
 
-        {/* Message display */}
-        {message.text && (
-          <div className={`
-            absolute bottom-6 left-1/2 -translate-x-1/2 px-6 py-3 rounded-lg shadow-lg
-            flex items-center space-x-3 animate-in slide-in-from-bottom duration-300
-            ${message.type === 'error' 
-              ? 'bg-red-600 text-white' 
-              : message.type === 'warning'
-                ? 'bg-amber-500 text-white'
-                : message.type === 'success'
-                  ? 'bg-green-600 text-white'
-                  : 'bg-blue-600 text-white'
-            }
-          `}>
-            {message.type === 'error' ? <XCircle className="w-5 h-5" /> :
-             message.type === 'warning' ? <AlertTriangle className="w-5 h-5" /> :
-             message.type === 'success' ? <CheckCircle className="w-5 h-5" /> :
-             <Info className="w-5 h-5" />}
-            <span className="font-medium">{message.text}</span>
-            <button
-              onClick={() => setMessage({ type: '', text: '' })}
-              className="ml-4 p-1 hover:bg-white/20 rounded transition-colors"
-            >
-              <X className="w-4 h-4" />
-            </button>
-          </div>
-        )}
-      </div>
-    </FixedModal>
-  );
+                        <th className="px-4 py-3 text-right">
+                           <span className="text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                             Gain/Loss
+                           </span>
+                         </th>
+                       </>
+                     )}
+                     
+                     <th className="px-4 py-3 text-right">
+                       <span className="text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                         Actions
+                       </span>
+                     </th>
+                   </tr>
+                 </thead>
+                 <tbody className="bg-white divide-y divide-gray-200">
+                   {currentView === 'accounts' ? (
+                     filteredAccounts.map((account, index) => renderAccountRow(account, index))
+                   ) : (
+                     filteredPositions.map((position, index) => renderPositionRow(position, index))
+                   )}
+                 </tbody>
+               </table>
+             )}
+
+             {/* Empty states */}
+             {!loading && !editingItem && (
+               <>
+                 {currentView === 'accounts' && filteredAccounts.length === 0 && (
+                   <div className="flex flex-col items-center justify-center h-64">
+                     <Building className="w-12 h-12 text-gray-300 mb-4" />
+                     <p className="text-gray-500 text-lg font-medium">No accounts found</p>
+                     <p className="text-gray-400 text-sm mt-1">
+                       {searchQuery ? 'Try adjusting your search' : 'Add accounts to get started'}
+                     </p>
+                   </div>
+                 )}
+
+                 {currentView === 'positions' && filteredPositions.length === 0 && (
+                   <div className="flex flex-col items-center justify-center h-64">
+                     <Database className="w-12 h-12 text-gray-300 mb-4" />
+                     <p className="text-gray-500 text-lg font-medium">No positions found</p>
+                     <p className="text-gray-400 text-sm mt-1">
+                       {searchQuery || selectedAssetTypes.size > 0 ? 'Try adjusting your filters' : 'Add positions to get started'}
+                     </p>
+                   </div>
+                 )}
+               </>
+             )}
+           </div>
+
+           {/* Stats bar */}
+           {stats.selected > 0 && !editingItem && (
+             <div className="flex-shrink-0 px-6 py-3 bg-blue-50 border-t border-blue-200">
+               <div className="flex items-center justify-between">
+                 <div className="flex items-center space-x-6 text-sm">
+                   <span className="font-medium text-blue-900">
+                     {stats.selected} selected
+                   </span>
+                   <div className="flex items-center space-x-4 text-blue-700">
+                     <span>
+                       Total Value: {showValues ? formatCurrency(stats.totalValue) : '••••'}
+                     </span>
+                     {currentView === 'positions' && stats.totalCost !== undefined && (
+                       <>
+                         <span>•</span>
+                         <span>
+                           Cost: {showValues ? formatCurrency(stats.totalCost) : '••••'}
+                         </span>
+                         <span>•</span>
+                         <span className={stats.gainLoss >= 0 ? 'text-green-700' : 'text-red-700'}>
+                           {stats.gainLoss >= 0 ? '+' : '-'}
+                           {showValues ? formatCurrency(Math.abs(stats.gainLoss)) : '••••'}
+                           ({stats.gainLossPercent.toFixed(1)}%)
+                         </span>
+                       </>
+                     )}
+                   </div>
+                 </div>
+                 
+                 <div className="flex items-center space-x-3">
+                   <button
+                     onClick={handleExport}
+                     className="px-3 py-1.5 text-sm font-medium text-blue-700 bg-white border border-blue-300 rounded-lg hover:bg-blue-50 transition-colors"
+                   >
+                     <Download className="w-4 h-4 inline mr-1.5" />
+                     Export
+                   </button>
+                   
+                   <button
+                     onClick={handleDeleteSelected}
+                     disabled={isSubmitting}
+                     className="px-3 py-1.5 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                   >
+                     {isSubmitting ? (
+                       <>
+                         <Loader2 className="w-4 h-4 inline mr-1.5 animate-spin" />
+                         Deleting...
+                       </>
+                     ) : (
+                       <>
+                         <Trash2 className="w-4 h-4 inline mr-1.5" />
+                         Delete Selected
+                       </>
+                     )}
+                   </button>
+                   
+                   <button
+                     onClick={() => {
+                       if (currentView === 'accounts') {
+                         accountSelection.clearSelection();
+                       } else {
+                         positionSelection.clearSelection();
+                       }
+                     }}
+                     className="text-sm text-blue-600 hover:text-blue-700 font-medium"
+                   >
+                     Clear Selection
+                   </button>
+                 </div>
+               </div>
+             </div>
+           )}
+         </>
+       )}
+
+       {/* Message display */}
+       {message.text && (
+         <div className={`
+           absolute bottom-6 left-1/2 -translate-x-1/2 px-6 py-3 rounded-lg shadow-lg
+           flex items-center space-x-3 animate-in slide-in-from-bottom duration-300 z-40
+           ${message.type === 'error' 
+             ? 'bg-red-600 text-white' 
+             : message.type === 'warning'
+               ? 'bg-amber-500 text-white'
+               : message.type === 'success'
+                 ? 'bg-green-600 text-white'
+                 : 'bg-blue-600 text-white'
+           }
+         `}>
+           {message.type === 'error' ? <XCircle className="w-5 h-5" /> :
+            message.type === 'warning' ? <AlertTriangle className="w-5 h-5" /> :
+            message.type === 'success' ? <CheckCircle className="w-5 h-5" /> :
+            <Info className="w-5 h-5" />}
+           <span className="font-medium">{message.text}</span>
+           <button
+             onClick={() => setMessage({ type: '', text: '' })}
+             className="ml-4 p-1 hover:bg-white/20 rounded transition-colors"
+           >
+             <X className="w-4 h-4" />
+           </button>
+         </div>
+       )}
+     </div>
+   </FixedModal>
+ );
 };
 
 // Export button component to use in your app
-export const QuickEditDeleteButton = ({ className = '' }) => {
-  const [isModalOpen, setIsModalOpen] = useState(false);
+export const QuickEditDeleteButton = ({ className = '', mobileView = false }) => {
+ const [isModalOpen, setIsModalOpen] = useState(false);
 
-  return (
-    <>
-      <button
-        onClick={() => setIsModalOpen(true)}
-        className={`group relative flex items-center text-white py-1 px-4 transition-all duration-300 ${className}`}
-      >
-        <div className="absolute inset-0 bg-gradient-to-r from-purple-600 to-pink-600 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
-        <div className="relative flex items-center">
-          <Edit3 className="w-5 h-5 mr-2 text-purple-400 group-hover:text-white transition-colors" />
-          <span className="text-sm text-gray-200 group-hover:text-white font-medium">Edit & Delete</span>
-        </div>
-      </button>
-      
-      <QuickEditDeleteModal 
-        isOpen={isModalOpen} 
-        onClose={() => setIsModalOpen(false)} 
-      />
-    </>
-  );
+ if (mobileView) {
+   return (
+     <>
+       <button
+         onClick={() => setIsModalOpen(true)}
+         className={className}
+       >
+         <Edit3 className="h-6 w-6 mb-1 text-white group-hover:text-blue-300" />
+         <span className="text-xs text-gray-200 group-hover:text-white">Edit</span>
+       </button>
+       
+       <QuickEditDeleteModal 
+         isOpen={isModalOpen} 
+         onClose={() => setIsModalOpen(false)} 
+       />
+     </>
+   );
+ }
+
+ return (
+   <>
+     <button
+       onClick={() => setIsModalOpen(true)}
+       className={`group relative flex items-center text-white py-1 px-4 transition-all duration-300 ${className}`}
+     >
+       <div className="absolute inset-0 bg-gradient-to-r from-purple-600 to-pink-600 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+       <div className="relative flex items-center">
+         <Edit3 className="w-5 h-5 mr-2 text-purple-400 group-hover:text-white transition-colors" />
+         <span className="text-sm text-gray-200 group-hover:text-white font-medium">Edit & Delete</span>
+       </div>
+     </button>
+     
+     <QuickEditDeleteModal 
+       isOpen={isModalOpen} 
+       onClose={() => setIsModalOpen(false)} 
+     />
+   </>
+ );
 };
 
 export default QuickEditDeleteModal;
