@@ -652,12 +652,93 @@ const EditAccountForm = ({ account, onSave, onCancel }) => {
 };
 
 // Edit position form component
+// Edit position form component
 const EditPositionForm = ({ position, assetType, onSave, onCancel, accounts }) => {
-  const [formData, setFormData] = useState(position);
+  // Map the unified view fields to the form fields for each asset type
+  const mapPositionData = (pos) => {
+    const baseData = {
+      ...pos,
+      purchase_date: pos.purchase_date ? pos.purchase_date.split('T')[0] : ''
+    };
+
+    switch (assetType) {
+      case 'security':
+        return {
+          ...baseData,
+          ticker: pos.identifier || '',
+          name: pos.name || '',
+          shares: pos.quantity || '',
+          price: pos.current_price_per_unit || '',
+          cost_basis: pos.cost_per_unit || ''
+        };
+      
+      case 'crypto':
+        return {
+          ...baseData,
+          symbol: pos.identifier || '',
+          quantity: pos.quantity || '',
+          purchase_price: pos.cost_per_unit || '',
+          current_price: pos.current_price_per_unit || ''
+        };
+      
+      case 'metal':
+        return {
+          ...baseData,
+          metal_type: pos.identifier || pos.name || '',
+          quantity: pos.quantity || '',
+          unit: pos.unit || 'oz',
+          purchase_price: pos.cost_per_unit || '',
+          current_price_per_unit: pos.current_price_per_unit || ''
+        };
+      
+      case 'realestate':
+        return {
+          ...baseData,
+          property_name: pos.identifier || pos.name || '',
+          property_type: pos.property_type || '',
+          address: pos.address || '',
+          purchase_price: pos.total_cost_basis || '',
+          estimated_value: pos.current_value || ''
+        };
+      
+      case 'cash':
+        return {
+          ...baseData,
+          currency: pos.identifier || 'USD',
+          amount: pos.quantity || pos.current_value || '',
+          account_type: pos.account_type || '',
+          interest_rate: pos.interest_rate || 0
+        };
+      
+      default:
+        return baseData;
+    }
+  };
+
+  const [formData, setFormData] = useState(mapPositionData(position));
+  const [originalData] = useState(mapPositionData(position));
   const [errors, setErrors] = useState({});
-  const [isSearching, setIsSearching] = useState(false);
-  const [searchResults, setSearchResults] = useState([]);
   const config = ASSET_TYPES[assetType];
+
+  // Define which fields are editable per asset type
+  const getEditableFields = (type) => {
+    switch (type) {
+      case 'security':
+        return ['shares', 'cost_basis', 'purchase_date'];
+      case 'crypto':
+        return ['quantity', 'purchase_price', 'purchase_date'];
+      case 'metal':
+        return ['quantity', 'purchase_price', 'purchase_date'];
+      case 'realestate':
+        return ['purchase_price', 'estimated_value', 'purchase_date'];
+      case 'cash':
+        return ['amount', 'interest_rate'];
+      default:
+        return [];
+    }
+  };
+
+  const editableFields = getEditableFields(assetType);
 
   const handleFieldChange = (field, value) => {
     setFormData(prev => ({ ...prev, [field]: value }));
@@ -668,15 +749,28 @@ const EditPositionForm = ({ position, assetType, onSave, onCancel, accounts }) =
     }
   };
 
+  // Check if a field has been modified
+  const isFieldModified = (field) => {
+    return formData[field] !== originalData[field];
+  };
+
   const validate = () => {
     const newErrors = {};
     
-    // Basic validation
-    if (assetType === 'security' && !formData.shares) {
-      newErrors.shares = 'Shares required';
-    }
-    if (assetType === 'crypto' && !formData.quantity) {
-      newErrors.quantity = 'Quantity required';
+    // Validation based on asset type
+    switch (assetType) {
+      case 'security':
+        if (!formData.shares) newErrors.shares = 'Shares required';
+        break;
+      case 'crypto':
+        if (!formData.quantity) newErrors.quantity = 'Quantity required';
+        break;
+      case 'metal':
+        if (!formData.quantity) newErrors.quantity = 'Quantity required';
+        break;
+      case 'cash':
+        if (!formData.amount) newErrors.amount = 'Amount required';
+        break;
     }
     
     setErrors(newErrors);
@@ -685,7 +779,44 @@ const EditPositionForm = ({ position, assetType, onSave, onCancel, accounts }) =
 
   const handleSubmit = () => {
     if (validate()) {
-      onSave(formData);
+      let updatedData = { ...position };
+
+      switch (assetType) {
+        case 'security':
+          updatedData.quantity = parseFloat(formData.shares) || 0;
+          updatedData.cost_per_unit = parseFloat(formData.cost_basis) || 0;
+          updatedData.total_cost_basis = updatedData.quantity * updatedData.cost_per_unit;
+          updatedData.purchase_date = formData.purchase_date;
+          break;
+        
+        case 'crypto':
+          updatedData.quantity = parseFloat(formData.quantity) || 0;
+          updatedData.cost_per_unit = parseFloat(formData.purchase_price) || 0;
+          updatedData.total_cost_basis = updatedData.quantity * updatedData.cost_per_unit;
+          updatedData.purchase_date = formData.purchase_date;
+          break;
+        
+        case 'metal':
+          updatedData.quantity = parseFloat(formData.quantity) || 0;
+          updatedData.cost_per_unit = parseFloat(formData.purchase_price) || 0;
+          updatedData.total_cost_basis = updatedData.quantity * updatedData.cost_per_unit;
+          updatedData.purchase_date = formData.purchase_date;
+          break;
+        
+        case 'realestate':
+          updatedData.total_cost_basis = parseFloat(formData.purchase_price) || 0;
+          updatedData.current_value = parseFloat(formData.estimated_value) || 0;
+          updatedData.purchase_date = formData.purchase_date;
+          break;
+        
+        case 'cash':
+          updatedData.quantity = parseFloat(formData.amount) || 0;
+          updatedData.current_value = parseFloat(formData.amount) || 0;
+          updatedData.interest_rate = parseFloat(formData.interest_rate) || 0;
+          break;
+      }
+
+      onSave(updatedData);
     }
   };
 
@@ -710,31 +841,44 @@ const EditPositionForm = ({ position, assetType, onSave, onCancel, accounts }) =
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {config.fields.map(field => (
-          <div key={field} className={field === 'address' ? 'md:col-span-2' : ''}>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              {field.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')}
-            </label>
-            <input
-              type={field.includes('price') || field.includes('value') || field === 'shares' || field === 'quantity' ? 'number' : 
-                   field.includes('date') ? 'date' : 'text'}
-              value={formData[field] || ''}
-              onChange={(e) => handleFieldChange(field, e.target.value)}
-              className={`
-                w-full px-3 py-2 border rounded-lg text-sm
-                ${errors[field] 
-                  ? 'border-red-300 focus:ring-red-500 focus:border-red-500' 
-                  : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'
-                }
-                transition-colors
-              `}
-              step={field.includes('price') || field.includes('value') ? '0.01' : '1'}
-            />
-            {errors[field] && (
-              <p className="mt-1 text-xs text-red-600">{errors[field]}</p>
-            )}
-          </div>
-        ))}
+        {config.fields.map(field => {
+          const isEditable = editableFields.includes(field);
+          const isModified = isFieldModified(field);
+          
+          return (
+            <div key={field} className={field === 'address' ? 'md:col-span-2' : ''}>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                {field.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')}
+                {!isEditable && <span className="text-xs text-gray-500 ml-2">(Read-only)</span>}
+              </label>
+              <input
+                type={field.includes('price') || field.includes('value') || field === 'shares' || field === 'quantity' ? 'number' : 
+                     field.includes('date') ? 'date' : 'text'}
+                value={formData[field] || ''}
+                onChange={(e) => handleFieldChange(field, e.target.value)}
+                disabled={!isEditable}
+                className={`
+                  w-full px-3 py-2 border rounded-lg text-sm transition-all
+                  ${!isEditable 
+                    ? 'bg-gray-50 text-gray-500 cursor-not-allowed border-gray-200' 
+                    : errors[field]
+                      ? 'border-red-300 focus:ring-red-500 focus:border-red-500'
+                      : isModified
+                        ? 'border-blue-400 bg-blue-50 focus:ring-blue-500 focus:border-blue-500'
+                        : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'
+                  }
+                `}
+                step={field.includes('price') || field.includes('value') ? '0.01' : '1'}
+              />
+              {errors[field] && (
+                <p className="mt-1 text-xs text-red-600">{errors[field]}</p>
+              )}
+              {isModified && !errors[field] && (
+                <p className="mt-1 text-xs text-blue-600">Modified</p>
+              )}
+            </div>
+          );
+        })}
       </div>
 
       <div className="flex justify-end space-x-3 pt-4 border-t">
