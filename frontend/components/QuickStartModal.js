@@ -53,6 +53,7 @@ import {
 } from 'lucide-react';
 import { fetchWithAuth } from '@/utils/api';
 import { popularBrokerages } from '@/utils/constants';
+import ReactDOM from 'react-dom';
 import { fetchAllAccounts } from '@/utils/apimethods/accountMethods';
 import { AddQuickPositionModal } from '@/components/modals/AddQuickPositionModal';
 
@@ -178,7 +179,6 @@ const SearchableDropdown = ({ options, value, onChange, placeholder, showLogos =
     const [inputValue, setInputValue] = useState(value || '');
     const dropdownRef = useRef(null);
     const buttonRef = useRef(null);
-    const [dropdownStyle, setDropdownStyle] = useState({});
     const [highlightedIndex, setHighlightedIndex] = useState(0);
     
     
@@ -200,32 +200,6 @@ const SearchableDropdown = ({ options, value, onChange, placeholder, showLogos =
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, [inputValue, value, onChange, onOpenChange]);
 
-    // Calculate dropdown position to ensure it's visible
-    useEffect(() => {
-        if (isOpen && buttonRef.current) {
-            const buttonRect = buttonRef.current.getBoundingClientRect();
-            const viewportHeight = window.innerHeight;
-            const spaceBelow = viewportHeight - buttonRect.bottom;
-            const spaceAbove = buttonRect.top;
-            const dropdownHeight = 320;
-            
-            if (spaceBelow < dropdownHeight && spaceAbove > dropdownHeight) {
-                setDropdownStyle({
-                    bottom: '100%',
-                    top: 'auto',
-                    marginBottom: '0.25rem',
-                    marginTop: 0
-                });
-            } else {
-                setDropdownStyle({
-                    top: '100%',
-                    bottom: 'auto',
-                    marginTop: '0.25rem',
-                    marginBottom: 0
-                });
-            }
-        }
-    }, [isOpen]);
     
     const filteredOptions = useMemo(() => {
         const searchTerm = search || inputValue || '';
@@ -275,7 +249,7 @@ const SearchableDropdown = ({ options, value, onChange, placeholder, showLogos =
     };
     
     return (
-        <div ref={dropdownRef} className={`relative ${isOpen ? 'z-[999999]' : ''}`}>
+        <div ref={dropdownRef} className="relative">
             <div className="relative">
                 <input
                     ref={buttonRef}
@@ -314,87 +288,103 @@ const SearchableDropdown = ({ options, value, onChange, placeholder, showLogos =
                 </button>
             </div>
             
-            {isOpen && (
-                <div 
-                    className="absolute z-[999999] w-full bg-white border border-gray-200 rounded-lg shadow-xl animate-fadeIn"
-                    style={dropdownStyle}
-                >
-                    <div className="max-h-64 overflow-y-auto">
-                        {filteredOptions.length === 0 ? (
-                            <div className="p-4 text-center">
-                                <p className="text-sm text-gray-500 mb-2">No matching institutions found</p>
-                                {inputValue && (
-                                    <button
-                                        type="button"
-                                        onClick={() => {
-                                            onChange(inputValue);
-                                            setIsOpen(false);
-                                            if (onOpenChange) onOpenChange(false);
-                                        }}
-                                        className="text-sm text-blue-600 hover:text-blue-700 font-medium"
-                                    >
-                                        Use "{inputValue}" as custom institution
-                                    </button>
-                                )}
-                            </div>
-                        ) : (
-                            <>
-                                {inputValue && !options.find(opt => opt.name.toLowerCase() === inputValue.toLowerCase()) && (
-                                    <button
-                                        type="button"
-                                        onClick={() => {
-                                            onChange(inputValue);
-                                            setIsOpen(false);
-                                            if (onOpenChange) onOpenChange(false);
-                                        }}
-                                        className="w-full px-3 py-2 flex items-center bg-blue-50 hover:bg-blue-100 transition-colors border-b border-gray-100"
-                                    >
-                                        <Plus className="w-4 h-4 mr-3 text-blue-600" />
-                                        <span className="text-sm text-blue-700 font-medium">Use "{inputValue}" (custom)</span>
-                                    </button>
-                                )}
-                                {filteredOptions.map((option, idx) => (
-                                    <button
-                                        key={idx}
-                                        type="button"
-                                        onClick={() => {
-                                            onChange(option.name);
-                                            setInputValue(option.name);
-                                            setIsOpen(false);
-                                            if (onOpenChange) onOpenChange(false);
-                                            setSearch('');
-                                        }}
-                                        onMouseEnter={() => setHighlightedIndex(idx)}
-                                        className={`w-full px-3 py-2 flex items-center hover:bg-gray-50 transition-colors ${
-                                            value === option.name ? 'bg-blue-50' : ''
-                                        } ${highlightedIndex === idx ? 'bg-gray-100' : ''}`}
-                                    >
-                                        {showLogos && option.logo && (
-                                            <img 
-                                                src={option.logo} 
-                                                alt={option.name}
-                                                className="w-5 h-5 mr-3 rounded"
-                                                onError={(e) => {
-                                                    e.target.style.display = 'none';
-                                                }}
-                                            />
-                                        )}
-                                        <span className="text-sm text-gray-900">{option.name}</span>
-                                        {value === option.name && (
-                                            <Check className="w-4 h-4 text-blue-600 ml-auto" />
-                                        )}
-                                    </button>
-                                ))}
-                            </>
-                        )}
-                    </div>
-                    <div className="p-2 border-t border-gray-100 bg-gray-50">
-                        <p className="text-xs text-gray-500 text-center">
-                            Type any custom institution name or select from the list
-                        </p>
-                    </div>
+        {isOpen && buttonRef.current && (() => {
+        const rect = buttonRef.current.getBoundingClientRect();
+        const viewportHeight = window.innerHeight;
+        const spaceBelow = viewportHeight - rect.bottom;
+        const dropdownHeight = 320;
+        const shouldShowAbove = spaceBelow < dropdownHeight && rect.top > dropdownHeight;
+        
+        return ReactDOM.createPortal(
+            <div 
+            style={{
+                position: 'fixed',
+                top: shouldShowAbove ? 'auto' : `${rect.bottom + 4}px`,
+                bottom: shouldShowAbove ? `${viewportHeight - rect.top + 4}px` : 'auto',
+                left: `${rect.left}px`,
+                width: `${rect.width}px`,
+                zIndex: 9999999
+            }}
+            className="bg-white border border-gray-200 rounded-lg shadow-xl animate-fadeIn"
+            >
+            <div className="max-h-64 overflow-y-auto">
+                {filteredOptions.length === 0 ? (
+                <div className="p-4 text-center">
+                    <p className="text-sm text-gray-500 mb-2">No matching institutions found</p>
+                    {inputValue && (
+                    <button
+                        type="button"
+                        onClick={() => {
+                        onChange(inputValue);
+                        setIsOpen(false);
+                        if (onOpenChange) onOpenChange(false);
+                        }}
+                        className="text-sm text-blue-600 hover:text-blue-700 font-medium"
+                    >
+                        Use "{inputValue}" as custom institution
+                    </button>
+                    )}
                 </div>
-            )}
+                ) : (
+                <>
+                    {inputValue && !options.find(opt => opt.name.toLowerCase() === inputValue.toLowerCase()) && (
+                    <button
+                        type="button"
+                        onClick={() => {
+                        onChange(inputValue);
+                        setIsOpen(false);
+                        if (onOpenChange) onOpenChange(false);
+                        }}
+                        className="w-full px-3 py-2 flex items-center bg-blue-50 hover:bg-blue-100 transition-colors border-b border-gray-100"
+                    >
+                        <Plus className="w-4 h-4 mr-3 text-blue-600" />
+                        <span className="text-sm text-blue-700 font-medium">Use "{inputValue}" (custom)</span>
+                    </button>
+                    )}
+                    {filteredOptions.map((option, idx) => (
+                    <button
+                        key={idx}
+                        type="button"
+                        onClick={() => {
+                        onChange(option.name);
+                        setInputValue(option.name);
+                        setIsOpen(false);
+                        if (onOpenChange) onOpenChange(false);
+                        setSearch('');
+                        }}
+                        onMouseEnter={() => setHighlightedIndex(idx)}
+                        className={`w-full px-3 py-2 flex items-center hover:bg-gray-50 transition-colors ${
+                        value === option.name ? 'bg-blue-50' : ''
+                        } ${highlightedIndex === idx ? 'bg-gray-100' : ''}`}
+                    >
+                        {showLogos && option.logo && (
+                        <img 
+                            src={option.logo} 
+                            alt={option.name}
+                            className="w-5 h-5 mr-3 rounded"
+                            onError={(e) => {
+                            e.target.style.display = 'none';
+                            }}
+                        />
+                        )}
+                        <span className="text-sm text-gray-900">{option.name}</span>
+                        {value === option.name && (
+                        <Check className="w-4 h-4 text-blue-600 ml-auto" />
+                        )}
+                    </button>
+                    ))}
+                </>
+                )}
+            </div>
+            <div className="p-2 border-t border-gray-100 bg-gray-50">
+                <p className="text-xs text-gray-500 text-center">
+                Type any custom institution name or select from the list
+                </p>
+            </div>
+            </div>,
+            document.body
+        );
+        })()}
         </div>
     );
 };
@@ -1258,7 +1248,7 @@ const QuickStartModal = ({ isOpen, onClose }) => {
                                                 className="w-full px-3 py-2 bg-gray-50 border border-gray-300 rounded-md text-sm focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-all placeholder-gray-400"
                                             />
                                         </div>
-                                            <div className="col-span-3 relative" style={{ zIndex: openDropdownId === account.tempId ? 999998 : 1000 }}>
+                                            <div className="col-span-3 relative">
                                             <SearchableDropdown
                                                 options={popularBrokerages}
                                                 value={account.institution}
