@@ -1505,6 +1505,9 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved }) => {
             }
           });
         });
+            // DEBUG: Log what we're sending
+        console.log('Sending position data:', positionData);
+        console.log('Success count:', successCount);
         
         // Now passing both count and position data
         onPositionsSaved(successCount, positionData);
