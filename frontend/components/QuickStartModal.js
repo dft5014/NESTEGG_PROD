@@ -1413,11 +1413,6 @@ const QuickStartModal = ({ isOpen, onClose }) => {
     const renderSuccessScreen = () => {
         const isPositions = activeTab === 'positions' || importedPositions > 0;
         
-        // DEBUG: Log the state
-        console.log('Success screen - isPositions:', isPositions);
-        console.log('Success screen - importedPositions:', importedPositions);
-        console.log('Success screen - importedPositionsData:', importedPositionsData);
-
         return (
             <div className="space-y-6 animate-fadeIn text-center">
                 {/* Keep the existing animated checkmark and success message */}
@@ -1440,8 +1435,8 @@ const QuickStartModal = ({ isOpen, onClose }) => {
                     </p>
                 </div>
 
-                {/* Success Summary Dashboard - Modified for positions */}
-                {isPositions && importedPositionsData.length > 0 ? (
+                {/* Success Summary Dashboard - Fixed conditional */}
+                {isPositions && importedPositionsData && importedPositionsData.length > 0 ? (
                     <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-xl p-6 max-w-2xl mx-auto border border-purple-200">
                         <h4 className="font-semibold text-gray-900 mb-4 flex items-center justify-center">
                             <Activity className="w-5 h-5 mr-2 text-purple-600" />
@@ -1525,16 +1520,120 @@ const QuickStartModal = ({ isOpen, onClose }) => {
                             )}
                         </div>
                     </div>
-                ) : !isPositions && importedAccounts.length > 0 && (
-                    // Keep existing account success summary
-                    <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-xl p-6 max-w-2xl mx-auto border border-green-200">
-                        {/* Existing account summary code stays the same */}
-                    </div>
-                )}
+                ) : null}
                 
-                {/* Keep existing "What's Next" section */}
+                {!isPositions && importedAccounts.length > 0 ? (
+                    <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-xl p-6 max-w-2xl mx-auto border border-green-200">
+                        <h4 className="font-semibold text-gray-900 mb-4 flex items-center justify-center">
+                            <Activity className="w-5 h-5 mr-2 text-green-600" />
+                            Import Summary
+                        </h4>
+                        
+                        {/* Stats Grid */}
+                        <div className="grid grid-cols-3 gap-4 mb-6">
+                            <div className="bg-white rounded-lg p-3 text-center">
+                                <p className="text-2xl font-bold text-green-600">
+                                    <AnimatedNumber value={importedAccounts.length} />
+                                </p>
+                                <p className="text-xs text-gray-600">Accounts Added</p>
+                            </div>
+                            <div className="bg-white rounded-lg p-3 text-center">
+                                <p className="text-2xl font-bold text-blue-600">
+                                    <AnimatedNumber value={new Set(importedAccounts.map(a => a.institution)).size} />
+                                </p>
+                                <p className="text-xs text-gray-600">Institutions</p>
+                            </div>
+                            <div className="bg-white rounded-lg p-3 text-center">
+                                <p className="text-2xl font-bold text-purple-600">
+                                    <AnimatedNumber value={new Set(importedAccounts.map(a => a.account_category)).size} />
+                                </p>
+                                <p className="text-xs text-gray-600">Categories</p>
+                            </div>
+                        </div>
+
+                        {/* Account List */}
+                        <div className="space-y-2 max-h-48 overflow-y-auto">
+                            {importedAccounts.map((account, index) => {
+                                const category = ACCOUNT_CATEGORIES.find(c => 
+                                    c.id.toLowerCase() === account.account_category?.toLowerCase()
+                                );
+                                const CategoryIcon = category?.icon || Building;
+                                
+                                return (
+                                    <div 
+                                        key={index} 
+                                        className="flex items-center justify-between bg-white rounded-lg p-3 border border-gray-100 hover:shadow-sm transition-shadow"
+                                        style={{ animationDelay: `${index * 50}ms` }}
+                                    >
+                                        <div className="flex items-center">
+                                            <CategoryIcon className="w-4 h-4 text-gray-600 mr-3" />
+                                            <div>
+                                                <p className="font-medium text-gray-900 text-sm">{account.account_name}</p>
+                                                <p className="text-xs text-gray-500">{account.institution} • {account.type}</p>
+                                            </div>
+                                        </div>
+                                        <CheckCircle className="w-4 h-4 text-green-500" />
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+                ) : null}
+                
+                {/* What's Next section - Always show */}
                 <div className="bg-green-50 rounded-xl p-6 max-w-md mx-auto">
-                    {/* Existing what's next content */}
+                    <h4 className="font-semibold text-gray-900 mb-3">What's Next?</h4>
+                    <div className="space-y-3 text-left">
+                        {isPositions ? (
+                            <>
+                                <div className="flex items-start">
+                                    <div className="flex-shrink-0 w-6 h-6 bg-green-100 rounded-full flex items-center justify-center mr-3 mt-0.5">
+                                        <span className="text-xs font-semibold text-green-600">1</span>
+                                    </div>
+                                    <div>
+                                        <p className="font-medium text-gray-900">View Portfolio</p>
+                                        <p className="text-sm text-gray-600">See your complete portfolio overview</p>
+                                    </div>
+                                </div>
+                                <div className="flex items-start">
+                                    <div className="flex-shrink-0 w-6 h-6 bg-green-100 rounded-full flex items-center justify-center mr-3 mt-0.5">
+                                        <span className="text-xs font-semibold text-green-600">2</span>
+                                    </div>
+                                    <div>
+                                        <p className="font-medium text-gray-900">Track Performance</p>
+                                        <p className="text-sm text-gray-600">Monitor gains, losses, and trends</p>
+                                    </div>
+                                </div>
+                            </>
+                        ) : (
+                            <>
+                                <div className="flex items-start">
+                                    <div className="flex-shrink-0 w-6 h-6 bg-green-100 rounded-full flex items-center justify-center mr-3 mt-0.5">
+                                        <span className="text-xs font-semibold text-green-600">1</span>
+                                    </div>
+                                    <div>
+                                        <p className="font-medium text-gray-900">Add Positions</p>
+                                        <p className="text-sm text-gray-600">Import your investments to these accounts</p>
+                                    </div>
+                                </div>
+                                <div className="flex items-start">
+                                    <div className="flex-shrink-0 w-6 h-6 bg-green-100 rounded-full flex items-center justify-center mr-3 mt-0.5">
+                                        <span className="text-xs font-semibold text-green-600">2</span>
+                                    </div>
+                                    <div>
+                                        <p className="font-medium text-gray-900">View Dashboard</p>
+                                        <p className="text-sm text-gray-600">See your portfolio overview and analytics</p>
+                                    </div>
+                                </div>
+                            </>
+                        )}
+                        <div className="pt-2 border-t border-green-200 mt-3">
+                            <p className="text-xs text-gray-600 flex items-center">
+                                <Info className="w-3 h-3 mr-1.5" />
+                                You can continue adding accounts and positions anytime
+                            </p>
+                        </div>
+                    </div>
                 </div>
                 
                 {/* Updated button section */}
@@ -1561,7 +1660,6 @@ const QuickStartModal = ({ isOpen, onClose }) => {
                             </button>
                         </>
                     ) : (
-                        // Keep existing account buttons
                         <>
                             <button
                                 onClick={() => {
@@ -1599,7 +1697,7 @@ const QuickStartModal = ({ isOpen, onClose }) => {
             </div>
         );
     };
-
+    
    const renderTemplateSection = (type) => {
        const isAccounts = type === 'accounts';
        const color = isAccounts ? 'blue' : 'purple';
