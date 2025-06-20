@@ -188,7 +188,10 @@ const SearchableDropdown = ({ options, value, onChange, placeholder, showLogos =
     
     useEffect(() => {
         const handleClickOutside = (e) => {
-            if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
+            // Check if the click is on a dropdown item by looking for the portal container
+            const isDropdownClick = e.target.closest('[data-dropdown-portal="true"]');
+            
+            if (dropdownRef.current && !dropdownRef.current.contains(e.target) && !isDropdownClick) {
                 setIsOpen(false);
                 if (onOpenChange) onOpenChange(false);
                 if (inputValue && inputValue !== value) {
@@ -297,17 +300,18 @@ const SearchableDropdown = ({ options, value, onChange, placeholder, showLogos =
         
         return ReactDOM.createPortal(
             <div 
-            style={{
-                position: 'fixed',
-                top: shouldShowAbove ? 'auto' : `${rect.bottom + 4}px`,
-                bottom: shouldShowAbove ? `${viewportHeight - rect.top + 4}px` : 'auto',
-                left: `${rect.left}px`,
-                width: `${rect.width}px`,
-                zIndex: 9999999,
-                pointerEvents: 'auto'
-            }}
-            className="bg-white border border-gray-200 rounded-lg shadow-xl animate-fadeIn"
-            onClick={(e) => e.stopPropagation()}
+                data-dropdown-portal="true" 
+                style={{
+                    position: 'fixed',
+                    top: shouldShowAbove ? 'auto' : `${rect.bottom + 4}px`,
+                    bottom: shouldShowAbove ? `${viewportHeight - rect.top + 4}px` : 'auto',
+                    left: `${rect.left}px`,
+                    width: `${rect.width}px`,
+                    zIndex: 9999999,
+                    pointerEvents: 'auto'
+                }}
+                className="bg-white border border-gray-200 rounded-lg shadow-xl animate-fadeIn"
+                onClick={(e) => e.stopPropagation()}
             >
             <div className="max-h-64 overflow-y-auto">
                 {filteredOptions.length === 0 ? (
