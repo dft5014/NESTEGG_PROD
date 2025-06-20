@@ -275,7 +275,7 @@ const SearchableDropdown = ({ options, value, onChange, placeholder, showLogos =
     };
     
     return (
-        <div ref={dropdownRef} className={`relative ${isOpen ? 'z-[99999]' : ''}`}>
+        <div ref={dropdownRef} className={`relative ${isOpen ? 'z-[999999]' : ''}`}>
             <div className="relative">
                 <input
                     ref={buttonRef}
@@ -316,7 +316,7 @@ const SearchableDropdown = ({ options, value, onChange, placeholder, showLogos =
             
             {isOpen && (
                 <div 
-                    className="absolute z-[99999] w-full bg-white border border-gray-200 rounded-lg shadow-xl animate-fadeIn"
+                    className="absolute z-[999999] w-full bg-white border border-gray-200 rounded-lg shadow-xl animate-fadeIn"
                     style={dropdownStyle}
                 >
                     <div className="max-h-64 overflow-y-auto">
@@ -1258,7 +1258,7 @@ const QuickStartModal = ({ isOpen, onClose }) => {
                                                 className="w-full px-3 py-2 bg-gray-50 border border-gray-300 rounded-md text-sm focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-all placeholder-gray-400"
                                             />
                                         </div>
-                                            <div className="col-span-3 relative" style={{ zIndex: openDropdownId === account.tempId ? 99999 : 1000 }}>
+                                            <div className="col-span-3 relative" style={{ zIndex: openDropdownId === account.tempId ? 999998 : 1000 }}>
                                             <SearchableDropdown
                                                 options={popularBrokerages}
                                                 value={account.institution}
