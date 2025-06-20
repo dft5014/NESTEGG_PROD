@@ -839,3 +839,238 @@ export const searchFXAssets = async (query, assetType = 'crypto') => {
     throw error;
   }
 };
+
+/**
+ * Fetch all other assets for the user
+ * @returns {Promise<Object>} - Promise resolving to object with assets array, total value, and summary
+ */
+export const fetchOtherAssets = async () => {
+  try {
+    const response = await fetchWithAuth('/other-assets');
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(errorText || 'Failed to fetch other assets');
+    }
+    
+    const data = await response.json();
+    return {
+      assets: data.other_assets || [],
+      totalValue: data.total_value || 0,
+      summaryByType: data.summary_by_type || {}
+    };
+  } catch (error) {
+    console.error('Error fetching other assets:', error);
+    throw error;
+  }
+};
+
+/**
+ * Fetch a specific other asset
+ * @param {string} assetId - ID of the asset to fetch
+ * @returns {Promise<Object>} - Promise resolving to the asset object
+ */
+export const fetchOtherAsset = async (assetId) => {
+  try {
+    const response = await fetchWithAuth(`/other-assets/${assetId}`);
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(errorText || 'Failed to fetch other asset');
+    }
+    
+    return await response.json();
+  } catch (error) {
+    console.error(`Error fetching other asset ${assetId}:`, error);
+    throw error;
+  }
+};
+
+/**
+ * Add a new other asset
+ * @param {Object} assetData - Asset data (asset_name, asset_type, cost, purchase_date, current_value, notes)
+ * @returns {Promise<Object>} - Promise resolving to the created asset object
+ */
+export const addOtherAsset = async (assetData) => {
+  try {
+    const response = await fetchWithAuth('/other-assets', {
+      method: 'POST',
+      body: JSON.stringify(assetData)
+    });
+    
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.detail || 'Failed to add other asset');
+    }
+    
+    return await response.json();
+  } catch (error) {
+    console.error('Error adding other asset:', error);
+    throw error;
+  }
+};
+
+/**
+ * Update an existing other asset
+ * @param {string} assetId - ID of the asset to update
+ * @param {Object} assetData - Updated asset data (any fields can be updated)
+ * @returns {Promise<Object>} - Promise resolving to the update result
+ */
+export const updateOtherAsset = async (assetId, assetData) => {
+  try {
+    const response = await fetchWithAuth(`/other-assets/${assetId}`, {
+      method: 'PUT',
+      body: JSON.stringify(assetData)
+    });
+    
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.detail || 'Failed to update other asset');
+    }
+    
+    return await response.json();
+  } catch (error) {
+    console.error(`Error updating other asset ${assetId}:`, error);
+    throw error;
+  }
+};
+
+/**
+ * Update just the value of an other asset (simplified workflow)
+ * @param {string} assetId - ID of the asset to update
+ * @param {number} newValue - New current value
+ * @returns {Promise<Object>} - Promise resolving to the update result with change info
+ */
+export const updateOtherAssetValue = async (assetId, newValue) => {
+  try {
+    const response = await fetchWithAuth(`/other-assets/${assetId}/value`, {
+      method: 'PUT',
+      body: JSON.stringify({ current_value: newValue })
+    });
+    
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.detail || 'Failed to update asset value');
+    }
+    
+    return await response.json();
+  } catch (error) {
+    console.error(`Error updating asset value for ${assetId}:`, error);
+    throw error;
+  }
+};
+
+/**
+ * Delete an other asset (soft delete)
+ * @param {string} assetId - ID of the asset to delete
+ * @returns {Promise<Object>} - Promise resolving to deletion result
+ */
+export const deleteOtherAsset = async (assetId) => {
+  try {
+    const response = await fetchWithAuth(`/other-assets/${assetId}`, {
+      method: 'DELETE'
+    });
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(errorText || 'Failed to delete other asset');
+    }
+    
+    return await response.json();
+  } catch (error) {
+    console.error(`Error deleting other asset ${assetId}:`, error);
+    throw error;
+  }
+};
+
+/**
+ * Get valid asset types for other assets
+ * @returns {Array<Object>} - Array of asset type objects with value and label
+ */
+export const getOtherAssetTypes = () => {
+  return [
+    { value: 'real_estate', label: 'Real Estate' },
+    { value: 'vehicle', label: 'Vehicle' },
+    { value: 'collectible', label: 'Collectible' },
+    { value: 'jewelry', label: 'Jewelry' },
+    { value: 'art', label: 'Art' },
+    { value: 'equipment', label: 'Equipment' },
+    { value: 'other', label: 'Other' }
+  ];
+};
+
+/**
+ * Get asset name suggestions based on asset type
+ * @param {string} assetType - The asset type
+ * @returns {Array<string>} - Array of suggested names
+ */
+export const getAssetNameSuggestions = (assetType) => {
+  const suggestions = {
+    real_estate: [
+      'Primary Residence',
+      'Vacation Home - Lake Tahoe',
+      'Rental Property - Main St',
+      'Investment Property',
+      'Commercial Building'
+    ],
+    vehicle: [
+      '2019 Tesla Model 3',
+      '2018 Honda CRV',
+      '1967 Mustang Classic',
+      'Motorcycle - Harley Davidson',
+      'RV - Winnebago'
+    ],
+    collectible: [
+      'Baseball Card Collection',
+      'Vintage Watch Collection',
+      'Comic Book Collection',
+      'Coin Collection',
+      'Stamp Collection'
+    ],
+    jewelry: [
+      'Wedding Ring Set',
+      'Rolex Submariner',
+      'Diamond Necklace',
+      'Antique Jewelry Collection',
+      'Gold Bracelet'
+    ],
+    art: [
+      'Monet Print Collection',
+      'Local Artist Paintings',
+      'Sculpture Collection',
+      'Photography Collection',
+      'Digital Art NFTs'
+    ],
+    equipment: [
+      'Home Gym Equipment',
+      'Photography Gear',
+      'Workshop Tools',
+      'Musical Instruments',
+      'Computer Equipment'
+    ],
+    other: [
+      'Wine Collection',
+      'Designer Handbags',
+      'Musical Instruments',
+      'Antique Furniture',
+      'Sports Memorabilia'
+    ]
+  };
+  
+  return suggestions[assetType] || [];
+};
+
+/**
+ * Format currency value for display
+ * @param {number} value - The value to format
+ * @returns {string} - Formatted currency string
+ */
+export const formatAssetValue = (value) => {
+  if (value === null || value === undefined) return '$0';
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0
+  }).format(value);
+};

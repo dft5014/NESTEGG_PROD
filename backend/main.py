@@ -5377,7 +5377,358 @@ async def delete_real_estate_position(position_id: int, current_user: dict = Dep
         logger.error(f"Error deleting real estate position: {str(e)}")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Failed to delete real estate position: {str(e)}")
 
+# --- Other Assets
+# Pydantic models for Other Assets
+class OtherAssetCreate(BaseModel):
+    asset_name: str
+    asset_type: str
+    cost: Optional[float] = None
+    purchase_date: Optional[str] = None  # YYYY-MM-DD format
+    current_value: float
+    notes: Optional[str] = None
 
+class OtherAssetUpdate(BaseModel):
+    asset_name: Optional[str] = None
+    asset_type: Optional[str] = None
+    cost: Optional[float] = None
+    purchase_date: Optional[str] = None  # YYYY-MM-DD format
+    current_value: Optional[float] = None
+    notes: Optional[str] = None
+
+# Get all other assets for a user
+@app.get("/other-assets")
+async def get_other_assets(current_user: dict = Depends(get_current_user)):
+    try:
+        # Get other assets for the user
+        query = other_assets.select().where(
+            (other_assets.c.user_id == current_user["id"]) & 
+            (other_assets.c.is_active == True)
+        )
+        result = await database.fetch_all(query)
+        
+        assets_list = []
+        total_value = 0
+        
+        for row in result:
+            asset_data = {
+                "id": row["id"],
+                "asset_name": row["asset_name"],
+                "asset_type": row["asset_type"],
+                "cost": row["cost"],
+                "purchase_date": row["purchase_date"].isoformat() if row["purchase_date"] else None,
+                "current_value": row["current_value"],
+                "notes": row["notes"],
+                "current_value_last_updated": row["current_value_last_updated"].isoformat(),
+                "created_at": row["created_at"].isoformat()
+            }
+            assets_list.append(asset_data)
+            total_value += row["current_value"]
+        
+        # Group by asset type for summary
+        summary_by_type = {}
+        for asset in assets_list:
+            asset_type = asset["asset_type"]
+            if asset_type not in summary_by_type:
+                summary_by_type[asset_type] = {
+                    "count": 0,
+                    "total_value": 0
+                }
+            summary_by_type[asset_type]["count"] += 1
+            summary_by_type[asset_type]["total_value"] += asset["current_value"]
+        
+        return {
+            "other_assets": assets_list,
+            "total_value": total_value,
+            "summary_by_type": summary_by_type
+        }
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
+            detail=f"Failed to fetch other assets: {str(e)}"
+        )
+
+# Get a specific other asset
+@app.get("/other-assets/{asset_id}")
+async def get_other_asset(asset_id: str, current_user: dict = Depends(get_current_user)):
+    try:
+        query = other_assets.select().where(
+            (other_assets.c.id == asset_id) & 
+            (other_assets.c.user_id == current_user["id"])
+        )
+        asset = await database.fetch_one(query)
+        
+        if not asset:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, 
+                detail="Asset not found or access denied"
+            )
+        
+        return {
+            "id": asset["id"],
+            "asset_name": asset["asset_name"],
+            "asset_type": asset["asset_type"],
+            "cost": asset["cost"],
+            "purchase_date": asset["purchase_date"].isoformat() if asset["purchase_date"] else None,
+            "current_value": asset["current_value"],
+            "notes": asset["notes"],
+            "is_active": asset["is_active"],
+            "current_value_last_updated": asset["current_value_last_updated"].isoformat(),
+            "created_at": asset["created_at"].isoformat(),
+            "updated_at": asset["updated_at"].isoformat()
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
+            detail=f"Failed to fetch asset: {str(e)}"
+        )
+
+# Add a new other asset
+@app.post("/other-assets", status_code=status.HTTP_201_CREATED)
+async def add_other_asset(
+    asset: OtherAssetCreate, 
+    current_user: dict = Depends(get_current_user)
+):
+    try:
+        # Validate asset type
+        valid_types = ['real_estate', 'vehicle', 'collectible', 'jewelry', 'art', 'equipment', 'other']
+        if asset.asset_type not in valid_types:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST, 
+                detail=f"Invalid asset type. Must be one of: {', '.join(valid_types)}"
+            )
+        
+        # Prepare values for insertion
+        values = {
+            "user_id": current_user["id"],
+            "asset_name": asset.asset_name,
+            "asset_type": asset.asset_type,
+            "cost": asset.cost,
+            "current_value": asset.current_value,
+            "notes": asset.notes,
+            "purchase_date": None
+        }
+        
+        # Parse purchase date if provided
+        if asset.purchase_date:
+            values["purchase_date"] = datetime.strptime(asset.purchase_date, "%Y-%m-%d").date()
+        
+        # Insert asset
+        query = other_assets.insert().values(**values)
+        asset_id = await database.execute(query)
+        
+        # No history tracking needed - handled by nightly job
+        
+        return {
+            "message": "Other asset added successfully",
+            "asset_id": str(asset_id),
+            "current_value": asset.current_value
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
+            detail=f"Server error: {str(e)}"
+        )
+
+# Update an other asset
+@app.put("/other-assets/{asset_id}")
+async def update_other_asset(
+    asset_id: str, 
+    asset: OtherAssetUpdate, 
+    current_user: dict = Depends(get_current_user)
+):
+    try:
+        # Check if asset belongs to user
+        check_query = other_assets.select().where(
+            (other_assets.c.id == asset_id) & 
+            (other_assets.c.user_id == current_user["id"])
+        )
+        asset_data = await database.fetch_one(check_query)
+        
+        if not asset_data:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, 
+                detail="Asset not found or access denied"
+            )
+        
+        # Build update dictionary with only provided fields
+        update_values = {}
+        value_changed = False
+        old_value = asset_data["current_value"]
+        
+        for key, value in asset.dict(exclude_unset=True).items():
+            if key == 'purchase_date' and value is not None:
+                update_values[key] = datetime.strptime(value, "%Y-%m-%d").date()
+            elif key == 'asset_type' and value is not None:
+                # Validate asset type
+                valid_types = ['real_estate', 'vehicle', 'collectible', 'jewelry', 'art', 'equipment', 'other']
+                if value not in valid_types:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST, 
+                        detail=f"Invalid asset type. Must be one of: {', '.join(valid_types)}"
+                    )
+                update_values[key] = value
+            else:
+                update_values[key] = value
+                if key == 'current_value':
+                    value_changed = True
+        
+        # Only update if there are values to update
+        if update_values:
+            # Update timestamps
+            update_values["updated_at"] = datetime.utcnow()
+            if value_changed:
+                update_values["current_value_last_updated"] = datetime.utcnow()
+            
+            # Construct dynamic query
+            set_clause = ", ".join([f"{key} = :{key}" for key in update_values.keys()])
+            query = f"""
+            UPDATE other_assets 
+            SET {set_clause}
+            WHERE id = :asset_id
+            RETURNING id
+            """
+            
+            update_values["asset_id"] = asset_id
+            await database.execute(query=query, values=update_values)
+            
+            # No history tracking needed - handled by nightly job
+        
+        return {
+            "message": "Other asset updated successfully",
+            "value_changed": value_changed,
+            "old_value": old_value if value_changed else None,
+            "new_value": asset.current_value if value_changed else None
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error updating other asset: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
+            detail=f"Failed to update other asset: {str(e)}"
+        )
+
+# Update just the value of an other asset (simplified workflow)
+@app.put("/other-assets/{asset_id}/value")
+async def update_other_asset_value(
+    asset_id: str,
+    value_update: dict,  # {"current_value": 750000}
+    current_user: dict = Depends(get_current_user)
+):
+    try:
+        # Validate input
+        if "current_value" not in value_update:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="current_value is required"
+            )
+        
+        new_value = value_update["current_value"]
+        
+        # Check if asset belongs to user
+        check_query = other_assets.select().where(
+            (other_assets.c.id == asset_id) & 
+            (other_assets.c.user_id == current_user["id"])
+        )
+        asset_data = await database.fetch_one(check_query)
+        
+        if not asset_data:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, 
+                detail="Asset not found or access denied"
+            )
+        
+        old_value = asset_data["current_value"]
+        
+        # Update value and timestamps
+        update_query = """
+        UPDATE other_assets 
+        SET current_value = :new_value, 
+            current_value_last_updated = :updated_at,
+            updated_at = :updated_at
+        WHERE id = :asset_id
+        """
+        
+        timestamp = datetime.utcnow()
+        await database.execute(
+            query=update_query, 
+            values={
+                "asset_id": asset_id,
+                "new_value": new_value,
+                "updated_at": timestamp
+            }
+        )
+        
+        # No history tracking needed - handled by nightly job
+        
+        return {
+            "message": "Asset value updated successfully",
+            "asset_name": asset_data["asset_name"],
+            "old_value": old_value,
+            "new_value": new_value,
+            "change": new_value - old_value,
+            "change_percent": ((new_value - old_value) / old_value * 100) if old_value > 0 else 0
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error updating asset value: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
+            detail=f"Failed to update asset value: {str(e)}"
+        )
+
+# Delete an other asset (soft delete)
+@app.delete("/other-assets/{asset_id}")
+async def delete_other_asset(
+    asset_id: str, 
+    current_user: dict = Depends(get_current_user)
+):
+    try:
+        # Check if asset belongs to user
+        check_query = other_assets.select().where(
+            (other_assets.c.id == asset_id) & 
+            (other_assets.c.user_id == current_user["id"])
+        )
+        asset_data = await database.fetch_one(check_query)
+        
+        if not asset_data:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, 
+                detail="Asset not found or access denied"
+            )
+        
+        # Soft delete by setting is_active to False
+        update_query = """
+        UPDATE other_assets 
+        SET is_active = FALSE, updated_at = :updated_at
+        WHERE id = :asset_id
+        """
+        
+        await database.execute(
+            query=update_query, 
+            values={
+                "asset_id": asset_id,
+                "updated_at": datetime.utcnow()
+            }
+        )
+        
+        return {
+            "message": "Other asset deleted successfully",
+            "asset_name": asset_data["asset_name"],
+            "removed_value": asset_data["current_value"]
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
+            detail=f"Server error: {str(e)}"
+        )
 
 #----RECONCILIATION WORKFLOW FOR ACCOUNTS
 @app.post("/api/reconciliation/position", status_code=status.HTTP_201_CREATED)
