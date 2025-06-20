@@ -1079,7 +1079,7 @@ const QuickStartModal = ({ isOpen, onClose }) => {
                                   // DEBUG: Log what we're receiving
                         console.log('Received count:', count);
                         console.log('Received positions:', positions);
-                        
+
                         setImportedPositions(count);
                         setImportedPositionsData(positions);
                         setActiveTab('success');
@@ -1413,6 +1413,11 @@ const QuickStartModal = ({ isOpen, onClose }) => {
     const renderSuccessScreen = () => {
         const isPositions = activeTab === 'positions' || importedPositions > 0;
         
+        // DEBUG: Log the state
+        console.log('Success screen - isPositions:', isPositions);
+        console.log('Success screen - importedPositions:', importedPositions);
+        console.log('Success screen - importedPositionsData:', importedPositionsData);
+
         return (
             <div className="space-y-6 animate-fadeIn text-center">
                 {/* Keep the existing animated checkmark and success message */}
