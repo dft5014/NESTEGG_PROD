@@ -1482,9 +1482,33 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved }) => {
           'Refreshing portfolio data...'
         ]);
         
-        if (onPositionsSaved) {
-          onPositionsSaved(successCount);
-        }
+      if (onPositionsSaved) {
+        // Create a simplified array of position data
+        const positionData = [];
+        Object.entries(positions).forEach(([type, typePositions]) => {
+          typePositions.forEach(pos => {
+            if (pos.data.account_id && pos.status === 'success') {
+              const account = accounts.find(a => a.id === pos.data.account_id);
+              positionData.push({
+                type,
+                ticker: pos.data.ticker,
+                symbol: pos.data.symbol,
+                property_name: pos.data.property_name,
+                metal_type: pos.data.metal_type,
+                currency: pos.data.currency,
+                shares: pos.data.shares,
+                quantity: pos.data.quantity,
+                amount: pos.data.amount,
+                account_name: account?.account_name || 'Unknown Account',
+                account_id: pos.data.account_id
+              });
+            }
+          });
+        });
+        
+        // Now passing both count and position data
+        onPositionsSaved(successCount, positionData);
+      }
         
         setTimeout(() => {
           onClose();
