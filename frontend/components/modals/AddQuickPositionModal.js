@@ -1410,6 +1410,7 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved }) => {
     let errorCount = 0;
     const errors = [];
     const updatedPositions = { ...positions };
+    const successfulPositionData = []; // Track successful positions here
 
     try {
       const batches = [];
@@ -1454,6 +1455,22 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved }) => {
           
           successCount++;
           
+          // Collect successful position data HERE, right after successful submission
+          const account = accounts.find(a => a.id === position.data.account_id);
+          successfulPositionData.push({
+            type,
+            ticker: position.data.ticker,
+            symbol: position.data.symbol,
+            property_name: position.data.property_name,
+            metal_type: position.data.metal_type,
+            currency: position.data.currency,
+            shares: position.data.shares,
+            quantity: position.data.quantity,
+            amount: position.data.amount,
+            account_name: account?.account_name || 'Unknown Account',
+            account_id: position.data.account_id
+          });
+          
           // Update position status
           updatedPositions[type] = updatedPositions[type].map(pos => 
             pos.id === position.id ? { ...pos, status: 'success' } : pos
@@ -1482,36 +1499,14 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved }) => {
           'Refreshing portfolio data...'
         ]);
         
-      if (onPositionsSaved) {
-        // Create a simplified array of position data
-        const positionData = [];
-        Object.entries(positions).forEach(([type, typePositions]) => {
-          typePositions.forEach(pos => {
-            if (pos.data.account_id && pos.status === 'success') {
-              const account = accounts.find(a => a.id === pos.data.account_id);
-              positionData.push({
-                type,
-                ticker: pos.data.ticker,
-                symbol: pos.data.symbol,
-                property_name: pos.data.property_name,
-                metal_type: pos.data.metal_type,
-                currency: pos.data.currency,
-                shares: pos.data.shares,
-                quantity: pos.data.quantity,
-                amount: pos.data.amount,
-                account_name: account?.account_name || 'Unknown Account',
-                account_id: pos.data.account_id
-              });
-            }
-          });
-        });
-            // DEBUG: Log what we're sending
-        console.log('Sending position data:', positionData);
-        console.log('Success count:', successCount);
-        
-        // Now passing both count and position data
-        onPositionsSaved(successCount, positionData);
-      }
+        if (onPositionsSaved) {
+          // DEBUG: Log what we're sending
+          console.log('Sending position data:', successfulPositionData);
+          console.log('Success count:', successCount);
+          
+          // Now passing both count and position data
+          onPositionsSaved(successCount, successfulPositionData);
+        }
         
         setTimeout(() => {
           onClose();
