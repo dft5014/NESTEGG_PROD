@@ -303,9 +303,11 @@ const SearchableDropdown = ({ options, value, onChange, placeholder, showLogos =
                 bottom: shouldShowAbove ? `${viewportHeight - rect.top + 4}px` : 'auto',
                 left: `${rect.left}px`,
                 width: `${rect.width}px`,
-                zIndex: 9999999
+                zIndex: 9999999,
+                pointerEvents: 'auto'
             }}
             className="bg-white border border-gray-200 rounded-lg shadow-xl animate-fadeIn"
+            onClick={(e) => e.stopPropagation()}
             >
             <div className="max-h-64 overflow-y-auto">
                 {filteredOptions.length === 0 ? (
