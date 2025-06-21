@@ -168,6 +168,7 @@ const ToggleSwitch = ({ value, onChange, leftLabel, rightLabel, leftIcon: LeftIc
 };
 
 // Enhanced Account filter component with institution support
+// Enhanced Account filter component with institution support
 const AccountFilter = ({ accounts, selectedAccounts, onChange, filterType = 'accounts' }) => {
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef(null);
@@ -217,6 +218,22 @@ const AccountFilter = ({ accounts, selectedAccounts, onChange, filterType = 'acc
   
   const FilterIcon = getFilterIcon();
   
+  // New handler for Select All
+  const handleSelectAll = () => {
+    if (filterType === 'institutions') {
+      const allInstitutions = new Set(uniqueInstitutions);
+      onChange(allInstitutions);
+    } else {
+      const allAccountIds = new Set(accounts.map(acc => acc.id));
+      onChange(allAccountIds);
+    }
+  };
+  
+  // New handler for Select None
+  const handleSelectNone = () => {
+    onChange(new Set());
+  };
+  
   return (
     <div className="relative" ref={dropdownRef}>
       <button
@@ -250,18 +267,30 @@ const AccountFilter = ({ accounts, selectedAccounts, onChange, filterType = 'acc
                   Filter by {filterType === 'institutions' ? 'Institution' : 'Account'}
                 </span>
               </div>
-              <button
-                onClick={() => onChange(new Set())}
-                className="text-xs text-blue-600 hover:text-blue-700 font-medium px-2 py-1 hover:bg-blue-50 rounded transition-all duration-200"
-              >
-                Clear All
-              </button>
+              {/* New Select All/None buttons */}
+              <div className="flex items-center space-x-2">
+                <button
+                  onClick={handleSelectAll}
+                  className="text-xs text-blue-600 hover:text-blue-700 font-medium px-2 py-1 hover:bg-blue-50 rounded transition-all duration-200"
+                >
+                  Select All
+                </button>
+                <span className="text-gray-300">|</span>
+                <button
+                  onClick={handleSelectNone}
+                  className="text-xs text-blue-600 hover:text-blue-700 font-medium px-2 py-1 hover:bg-blue-50 rounded transition-all duration-200"
+                >
+                  Select None
+                </button>
+              </div>
             </div>
             <div className="text-xs text-gray-500 flex items-center">
               <Activity className="w-3 h-3 mr-1" />
-              {isAllSelected 
-                ? `Showing all ${filterType === 'institutions' ? uniqueInstitutions.length : accounts.length} ${filterType}` 
-                : `${selectedCount} of ${filterType === 'institutions' ? uniqueInstitutions.length : accounts.length} selected`
+              {selectedCount === 0 
+                ? `No ${filterType} selected (showing all)` 
+                : isAllSelected
+                  ? `All ${filterType === 'institutions' ? uniqueInstitutions.length : accounts.length} ${filterType} selected`
+                  : `${selectedCount} of ${filterType === 'institutions' ? uniqueInstitutions.length : accounts.length} selected`
               }
             </div>
           </div>
@@ -271,7 +300,7 @@ const AccountFilter = ({ accounts, selectedAccounts, onChange, filterType = 'acc
               // Institution filter view
               <div className="space-y-1">
                 {uniqueInstitutions.map(institution => {
-                  const isSelected = selectedAccounts.size === 0 || selectedAccounts.has(institution);
+                  const isSelected = selectedAccounts.has(institution);
                   const accountCount = accounts.filter(acc => acc.institution === institution).length;
                   
                   return (
@@ -279,15 +308,10 @@ const AccountFilter = ({ accounts, selectedAccounts, onChange, filterType = 'acc
                       key={institution}
                       onClick={() => {
                         const newSelection = new Set(selectedAccounts);
-                        if (selectedAccounts.size === 0) {
-                          uniqueInstitutions.forEach(inst => newSelection.add(inst));
+                        if (isSelected) {
                           newSelection.delete(institution);
                         } else {
-                          if (isSelected) {
-                            newSelection.delete(institution);
-                          } else {
-                            newSelection.add(institution);
-                          }
+                          newSelection.add(institution);
                         }
                         onChange(newSelection);
                       }}
@@ -340,21 +364,16 @@ const AccountFilter = ({ accounts, selectedAccounts, onChange, filterType = 'acc
                     </div>
                     <div className="space-y-1">
                       {categoryAccounts.map(account => {
-                        const isSelected = selectedAccounts.size === 0 || selectedAccounts.has(account.id);
+                        const isSelected = selectedAccounts.has(account.id);
                         return (
                           <button
                             key={account.id}
                             onClick={() => {
                               const newSelection = new Set(selectedAccounts);
-                              if (selectedAccounts.size === 0) {
-                                accounts.forEach(acc => newSelection.add(acc.id));
+                              if (isSelected) {
                                 newSelection.delete(account.id);
                               } else {
-                                if (isSelected) {
-                                  newSelection.delete(account.id);
-                                } else {
-                                  newSelection.add(account.id);
-                                }
+                                newSelection.add(account.id);
                               }
                               onChange(newSelection);
                             }}
