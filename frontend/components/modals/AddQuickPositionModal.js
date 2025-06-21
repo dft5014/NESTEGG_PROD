@@ -1199,9 +1199,11 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved }) => {
 
   // Delete position
   const deletePosition = (assetType, positionId) => {
-    const positionCount = positions[assetType].filter(p => p.data.account_id).length;
+    const validPositions = assetType === 'otherAssets'
+      ? positions[assetType].filter(p => p.data.asset_name && p.data.current_value)
+      : positions[assetType].filter(p => p.data.account_id);
     
-    if (positionCount > 5 && !window.confirm('Delete this position?')) {
+    if (validPositions.length > 5 && !window.confirm('Delete this position?')) {
       return;
     }
     
@@ -2229,6 +2231,95 @@ return (
            </div>
          );
        })}
+
+        {/* Add Other Assets section at the end if there are any */}
+        {otherAssetsPositions.length > 0 && (
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden mt-4">
+            <div className="px-4 py-3 bg-gradient-to-r from-gray-50 to-gray-100 border-b border-gray-200">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="font-semibold text-gray-800">Other Assets (Not in Accounts)</h3>
+                  <p className="text-sm text-gray-600 mt-1">
+                    {otherAssetsPositions.length} asset{otherAssetsPositions.length !== 1 ? 's' : ''} • 
+                    {showValues ? ` ${formatCurrency(stats.byType.otherAssets?.value || 0)}` : ' ••••'}
+                  </p>
+                </div>
+                
+                <button
+                  onClick={() => {
+                    addNewRow('otherAssets');
+                    if (!expandedSections.otherAssets) {
+                      setExpandedSections(prev => ({ ...prev, otherAssets: true }));
+                    }
+                  }}
+                  className={`
+                    inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-medium
+                    transition-all duration-200 group
+                    ${assetTypes.otherAssets.color.lightBg} ${assetTypes.otherAssets.color.text} 
+                    hover:${assetTypes.otherAssets.color.bg} hover:text-white
+                  `}
+                >
+                  <Home className="w-3.5 h-3.5 mr-1.5" />
+                  <span>Add Other Asset</span>
+                  <Plus className="w-3 h-3 ml-1 opacity-0 group-hover:opacity-100 transition-opacity" />
+                </button>
+              </div>
+            </div>
+
+            <div className="p-4">
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="bg-gray-50 border-b border-gray-200">
+                      {assetTypes.otherAssets.fields.map(field => (
+                        <th key={field.key} className="px-2 py-2 text-left text-xs font-medium text-gray-600">
+                          {field.label}
+                          {field.required && <span className="text-red-500 ml-0.5">*</span>}
+                        </th>
+                      ))}
+                      <th className="px-2 py-2 text-center text-xs font-medium text-gray-600">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {otherAssetsPositions.map((position, index) => (
+                      <tr key={position.id} className="border-b border-gray-100 hover:bg-gray-50">
+                        {assetTypes.otherAssets.fields.map(field => (
+                          <td key={field.key} className="px-1 py-1">
+                            {renderCellInput(
+                              'otherAssets',
+                              position,
+                              field,
+                              `otherAssets-${position.id}-${field.key}`
+                            )}
+                          </td>
+                        ))}
+                        <td className="px-1 py-1">
+                          <div className="flex items-center justify-center space-x-1">
+                            <button
+                              onClick={() => duplicatePosition('otherAssets', position)}
+                              className="p-1 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-all"
+                              title="Duplicate"
+                            >
+                              <Copy className="w-3 h-3" />
+                            </button>
+                            <button
+                              onClick={() => deletePosition('otherAssets', position.id)}
+                              className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-all"
+                              title="Delete"
+                            >
+                              <Trash2 className="w-3 h-3" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
+
      </div>
    );
  };
