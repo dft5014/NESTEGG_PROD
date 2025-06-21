@@ -922,6 +922,10 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved }) => {
       
       const recentIds = fetchedAccounts.slice(0, 3).map(a => a.id);
       setRecentlyUsedAccounts(recentIds);
+      
+      // NEW: Select all by default
+      setSelectedAccountFilter(new Set(fetchedAccounts.map(acc => acc.id)));
+      setSelectedInstitutionFilter(new Set(fetchedAccounts.map(acc => acc.institution).filter(Boolean)));
     } catch (error) {
       console.error('Error loading accounts:', error);
       showMessage('error', 'Failed to load accounts', [`Error: ${error.message}`]);
@@ -2081,9 +2085,9 @@ return (
      <div className="space-y-4">
       {accounts.filter(account => {
         // Apply account filter
-        const passesAccountFilter = selectedAccountFilter.size === 0 || selectedAccountFilter.has(account.id);
+        const passesAccountFilter = selectedAccountFilter.has(account.id);
         // Apply institution filter
-        const passesInstitutionFilter = selectedInstitutionFilter.size === 0 || selectedInstitutionFilter.has(account.institution);
+        const passesInstitutionFilter = selectedInstitutionFilter.has(account.institution);
         // Both filters must pass
         return passesAccountFilter && passesInstitutionFilter;
       }).map(account => {
