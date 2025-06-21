@@ -393,6 +393,23 @@ class Category(BaseModel):
     color: str = "#6B7280"
     is_system: bool = False
 
+# Pydantic models for Other Assets
+class OtherAssetCreate(BaseModel):
+    asset_name: str
+    asset_type: str
+    cost: Optional[float] = None
+    purchase_date: Optional[str] = None  # YYYY-MM-DD format
+    current_value: float
+    notes: Optional[str] = None
+
+class OtherAssetUpdate(BaseModel):
+    asset_name: Optional[str] = None
+    asset_type: Optional[str] = None
+    cost: Optional[float] = None
+    purchase_date: Optional[str] = None  # YYYY-MM-DD format
+    current_value: Optional[float] = None
+    notes: Optional[str] = None
+
 class TaskCreate(BaseModel):
     title: str = Field(..., max_length=255)
     description: Optional[str] = None
@@ -5378,22 +5395,7 @@ async def delete_real_estate_position(position_id: int, current_user: dict = Dep
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Failed to delete real estate position: {str(e)}")
 
 # --- Other Assets
-# Pydantic models for Other Assets
-class OtherAssetCreate(BaseModel):
-    asset_name: str
-    asset_type: str
-    cost: Optional[float] = None
-    purchase_date: Optional[str] = None  # YYYY-MM-DD format
-    current_value: float
-    notes: Optional[str] = None
 
-class OtherAssetUpdate(BaseModel):
-    asset_name: Optional[str] = None
-    asset_type: Optional[str] = None
-    cost: Optional[float] = None
-    purchase_date: Optional[str] = None  # YYYY-MM-DD format
-    current_value: Optional[float] = None
-    notes: Optional[str] = None
 
 # Get all other assets for a user
 @app.get("/other-assets")
