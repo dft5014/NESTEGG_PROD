@@ -192,7 +192,7 @@ other_assets = Table(
     Column("current_value_last_updated", DateTime, server_default=func.now()),
     Column("created_at", DateTime, server_default=func.now()),
     Column("updated_at", DateTime, server_default=func.now(), onupdate=func.now())
-
+)
 account_reconciliations = Table(
     "account_reconciliations",
     metadata,
