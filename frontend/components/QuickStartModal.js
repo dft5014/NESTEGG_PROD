@@ -63,8 +63,7 @@ const ACCOUNT_CATEGORIES = [
     { id: "retirement", name: "Retirement", icon: Building },
     { id: "cash", name: "Cash / Banking", icon: DollarSign },
     { id: "cryptocurrency", name: "Cryptocurrency", icon: Hash },
-    { id: "metals", name: "Metals Storage", icon: Shield },
-    { id: "real_estate", name: "Real Estate", icon: Building }
+    { id: "metals", name: "Metals Storage", icon: Shield }
 ];
 
 // Account types by category matching AccountModal and database
@@ -110,15 +109,6 @@ const ACCOUNT_TYPES_BY_CATEGORY = {
         { value: "Allocated Storage", label: "Allocated Storage" },
         { value: "Unallocated Storage", label: "Unallocated Storage" },
         { value: "Other Metals", label: "Other Metals" }
-    ],
-    real_estate: [
-        { value: "Primary Residence", label: "Primary Residence" },
-        { value: "Vacation Home", label: "Vacation Home" },
-        { value: "Rental Property", label: "Rental Property" },
-        { value: "Commercial Property", label: "Commercial Property" },
-        { value: "Land", label: "Land" },
-        { value: "REIT", label: "REIT" },
-        { value: "Other Real Estate", label: "Other Real Estate" }
     ]
 };
 
@@ -1467,7 +1457,7 @@ const QuickStartModal = ({ isOpen, onClose }) => {
                                 <p className="text-2xl font-bold text-green-600">
                                     <AnimatedNumber value={
                                         importedPositionsData.filter(p => 
-                                            ['cash', 'metal', 'realestate'].includes(p.type)
+                                            ['cash', 'metal', 'otherAssets'].includes(p.type)
                                         ).length
                                     } />
                                 </p>
@@ -1485,7 +1475,7 @@ const QuickStartModal = ({ isOpen, onClose }) => {
                                         case 'crypto': return Hash;
                                         case 'cash': return DollarSign;
                                         case 'metal': return Shield;
-                                        case 'realestate': return Building;
+                                        case 'otherAssets': return Building;
                                         default: return FileSpreadsheet;
                                     }
                                 };
@@ -1697,7 +1687,7 @@ const QuickStartModal = ({ isOpen, onClose }) => {
             </div>
         );
     };
-    
+
    const renderTemplateSection = (type) => {
        const isAccounts = type === 'accounts';
        const color = isAccounts ? 'blue' : 'purple';
