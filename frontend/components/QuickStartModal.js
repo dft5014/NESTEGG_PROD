@@ -1491,7 +1491,7 @@ const QuickStartModal = ({ isOpen, onClose }) => {
                                             <PositionIcon className="w-4 h-4 text-gray-600 mr-3" />
                                             <div>
                                                 <p className="font-medium text-gray-900 text-sm">
-                                                    {position.ticker || position.symbol || position.property_name || 
+                                                    {position.ticker || position.symbol || position.asset_name || 
                                                     position.metal_type || position.currency || 'Position'}
                                                 </p>
                                                 <p className="text-xs text-gray-500">

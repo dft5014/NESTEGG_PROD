@@ -1549,6 +1549,22 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved }) => {
       }
 
       // Rest of the function remains the same...
+
+      setPositions(updatedPositions);
+
+      if (successCount > 0) {
+        showMessage('success', `Successfully added ${successCount} positions!`, 
+          errorCount > 0 ? [`${errorCount} positions failed`] : []
+        );
+        
+        // Call the callback with successful positions
+        if (onPositionsSaved) {
+          onPositionsSaved(successCount, successfulPositionData);
+        }
+      } else {
+        showMessage('error', 'Failed to add any positions', errors.slice(0, 5));
+      }
+
     } catch (error) {
       console.error('Error submitting positions:', error);
       showMessage('error', 'Failed to submit positions', [error.message]);
