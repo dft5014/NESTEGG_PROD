@@ -737,7 +737,7 @@ const QuickStartModal = ({ isOpen, onClose }) => {
                                                 ? 'text-gray-500' 
                                                 : 'text-gray-900 group-hover:text-purple-700'
                                         }`}>
-                                            Add Positions
+                                            Add Asset Positions
                                         </h5>
                                         <p className="text-sm text-gray-600">
                                             {existingAccounts.length === 0 
