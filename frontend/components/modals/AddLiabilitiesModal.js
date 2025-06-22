@@ -1,4 +1,5 @@
 import React, { useState, useCallback, useRef, useEffect, useMemo } from 'react';
+import ReactDOM from 'react-dom';
 import { 
     X, 
     CreditCard, 
