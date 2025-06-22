@@ -181,7 +181,7 @@ other_assets = Table(
     "other_assets",
     metadata,
     Column("id", String, primary_key=True, server_default=text("gen_random_uuid()")),
-    Column("user_id", Integer, ForeignKey("users.id"), nullable=False),
+    Column("user_id", String, ForeignKey("users.id"), nullable=False),
     Column("asset_name", String, nullable=False),
     Column("asset_type", String, nullable=False),
     Column("cost", Float),
