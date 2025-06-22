@@ -49,7 +49,7 @@ import {
     PlusCircle,
     Database,
     TrendingDown,
-    Home, Car, GraduationCap, FileText, Info,
+    Home, Car, GraduationCap, FileText,
     Repeat
 } from 'lucide-react';
 import { fetchWithAuth } from '@/utils/api';
