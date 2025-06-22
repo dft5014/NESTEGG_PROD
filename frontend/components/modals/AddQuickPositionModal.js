@@ -543,12 +543,15 @@ const QueueModal = ({ isOpen, onClose, positions, assetTypes, accounts, onClearC
                         </div>
                         <div>
                           <div className="font-medium text-gray-900">
-                            {position.data.ticker || position.data.symbol || position.data.property_name || 
-                             position.data.metal_type || position.data.currency || 'Position'}
+                            {position.data.ticker || position.data.symbol || position.data.asset_name || 
+                            position.data.metal_type || position.data.currency || 'Position'}
                           </div>
-                          <div className="text-sm text-gray-500">
-                            {account?.account_name || 'Unknown Account'} • {config.name}
-                          </div>
+                            <div className="text-sm text-gray-500">
+                              {position.assetType === 'otherAssets' 
+                                ? 'Other Assets (No Account)' 
+                                : (account?.account_name || 'Unknown Account')
+                              } • {config.name}
+                            </div>
                         </div>
                       </div>
                       <div className="flex items-center space-x-3">
