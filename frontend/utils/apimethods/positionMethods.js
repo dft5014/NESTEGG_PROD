@@ -1074,3 +1074,176 @@ export const formatAssetValue = (value) => {
     maximumFractionDigits: 0
   }).format(value);
 };
+
+/**
+ * Fetch all liabilities for the user
+ * @returns {Promise<Object>} - Promise resolving to object with liabilities array, total balance, and summary
+ */
+export const fetchLiabilities = async () => {
+  try {
+    const response = await fetchWithAuth('/liabilities');
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(errorText || 'Failed to fetch liabilities');
+    }
+    
+    const data = await response.json();
+    return {
+      liabilities: data.liabilities || [],
+      totalBalance: data.total_balance || 0,
+      summaryByType: data.summary_by_type || {}
+    };
+  } catch (error) {
+    console.error('Error fetching liabilities:', error);
+    throw error;
+  }
+};
+
+/**
+ * Fetch a specific liability
+ * @param {string} liabilityId - ID of the liability to fetch
+ * @returns {Promise<Object>} - Promise resolving to the liability object
+ */
+export const fetchLiability = async (liabilityId) => {
+  try {
+    const response = await fetchWithAuth(`/liabilities/${liabilityId}`);
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(errorText || 'Failed to fetch liability');
+    }
+    
+    return await response.json();
+  } catch (error) {
+    console.error(`Error fetching liability ${liabilityId}:`, error);
+    throw error;
+  }
+};
+
+/**
+ * Add a new liability
+ * @param {Object} liabilityData - Liability data (name, liability_type, current_balance, etc.)
+ * @returns {Promise<Object>} - Promise resolving to the created liability object
+ */
+export const addLiability = async (liabilityData) => {
+  try {
+    const response = await fetchWithAuth('/liabilities', {
+      method: 'POST',
+      body: JSON.stringify(liabilityData)
+    });
+    
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.detail || 'Failed to add liability');
+    }
+    
+    return await response.json();
+  } catch (error) {
+    console.error('Error adding liability:', error);
+    throw error;
+  }
+};
+
+/**
+ * Update an existing liability
+ * @param {string} liabilityId - ID of the liability to update
+ * @param {Object} liabilityData - Updated liability data (any fields can be updated)
+ * @returns {Promise<Object>} - Promise resolving to the update result
+ */
+export const updateLiability = async (liabilityId, liabilityData) => {
+  try {
+    const response = await fetchWithAuth(`/liabilities/${liabilityId}`, {
+      method: 'PUT',
+      body: JSON.stringify(liabilityData)
+    });
+    
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.detail || 'Failed to update liability');
+    }
+    
+    return await response.json();
+  } catch (error) {
+    console.error(`Error updating liability ${liabilityId}:`, error);
+    throw error;
+  }
+};
+
+/**
+ * Update just the balance of a liability (simplified workflow)
+ * @param {string} liabilityId - ID of the liability to update
+ * @param {number} newBalance - New current balance
+ * @returns {Promise<Object>} - Promise resolving to the update result with change info
+ */
+export const updateLiabilityBalance = async (liabilityId, newBalance) => {
+  try {
+    const response = await fetchWithAuth(`/liabilities/${liabilityId}/balance`, {
+      method: 'PUT',
+      body: JSON.stringify({ current_balance: newBalance })
+    });
+    
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.detail || 'Failed to update liability balance');
+    }
+    
+    return await response.json();
+  } catch (error) {
+    console.error(`Error updating liability balance for ${liabilityId}:`, error);
+    throw error;
+  }
+};
+
+/**
+ * Delete a liability (soft delete)
+ * @param {string} liabilityId - ID of the liability to delete
+ * @returns {Promise<Object>} - Promise resolving to deletion result
+ */
+export const deleteLiability = async (liabilityId) => {
+  try {
+    const response = await fetchWithAuth(`/liabilities/${liabilityId}`, {
+      method: 'DELETE'
+    });
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(errorText || 'Failed to delete liability');
+    }
+    
+    return await response.json();
+  } catch (error) {
+    console.error(`Error deleting liability ${liabilityId}:`, error);
+    throw error;
+  }
+};
+
+/**
+ * Get valid liability types
+ * @returns {Array<Object>} - Array of liability type objects with value and label
+ */
+export const getLiabilityTypes = () => {
+  return [
+    { value: 'credit_card', label: 'Credit Card' },
+    { value: 'mortgage', label: 'Mortgage' },
+    { value: 'auto_loan', label: 'Auto Loan' },
+    { value: 'personal_loan', label: 'Personal Loan' },
+    { value: 'student_loan', label: 'Student Loan' },
+    { value: 'home_equity', label: 'Home Equity' },
+    { value: 'other', label: 'Other' }
+  ];
+};
+
+/**
+ * Format liability balance for display with appropriate negative sign
+ * @param {number} balance - The balance to format
+ * @returns {string} - Formatted balance string
+ */
+export const formatLiabilityBalance = (balance) => {
+  if (balance === null || balance === undefined) return '-$0';
+  // Liabilities are negative values for net worth, so show with negative sign
+  return `-$${Math.abs(balance).toLocaleString('en-US', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  })}`;
+};

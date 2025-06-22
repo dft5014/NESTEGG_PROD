@@ -27,6 +27,7 @@ import {
 } from 'lucide-react';
 import { fetchWithAuth } from '@/utils/api';
 import { popularBrokerages } from '@/utils/constants';
+import { addLiability } from '@/utils/apimethods/positionMethods';
 
 // Add this SearchableDropdown component (same as in QuickStartModal)
 const SearchableDropdown = ({ options, value, onChange, placeholder, showLogos = false, onOpenChange, onEnterKey }) => {
@@ -358,16 +359,8 @@ export const AddLiabilitiesModal = ({ isOpen, onClose, onLiabilitiesSaved }) => 
                     payload.interest_rate = parseFloat(liability.interest_rate);
                 }
                 
-                const response = await fetchWithAuth('/liabilities', {
-                    method: 'POST',
-                    body: JSON.stringify(payload)
-                });
-                
-                if (!response.ok) {
-                    throw new Error(`Failed to create liability: ${liability.name}`);
-                }
-                
-                const savedLiability = await response.json();
+                // Use the addLiability method instead of fetchWithAuth
+                const savedLiability = await addLiability(payload);
                 savedLiabilities.push(savedLiability);
             }
             

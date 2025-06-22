@@ -195,6 +195,25 @@ other_assets = sqlalchemy.Table(
     sqlalchemy.Column("updated_at", sqlalchemy.DateTime, default=func.now())
 )
 
+# Define Liabilities Table
+liabilities = sqlalchemy.Table(
+    "liabilities",
+    metadata,
+    sqlalchemy.Column("id", sqlalchemy.Integer, primary_key=True, autoincrement=True),
+    sqlalchemy.Column("user_id", sqlalchemy.String, sqlalchemy.ForeignKey("users.id"), nullable=False),
+    sqlalchemy.Column("name", sqlalchemy.String, nullable=False),
+    sqlalchemy.Column("liability_type", sqlalchemy.String, nullable=False),
+    sqlalchemy.Column("current_balance", sqlalchemy.Float, nullable=False),
+    sqlalchemy.Column("original_amount", sqlalchemy.Float, nullable=True),
+    sqlalchemy.Column("credit_limit", sqlalchemy.Float, nullable=True),
+    sqlalchemy.Column("interest_rate", sqlalchemy.Float, nullable=True),
+    sqlalchemy.Column("institution_name", sqlalchemy.String, nullable=True),
+    sqlalchemy.Column("is_active", sqlalchemy.Boolean, default=True),
+    sqlalchemy.Column("last_balance_update", sqlalchemy.DateTime, default=func.now()),
+    sqlalchemy.Column("created_at", sqlalchemy.DateTime, default=func.now()),
+    sqlalchemy.Column("updated_at", sqlalchemy.DateTime, default=func.now())
+)
+
 account_reconciliations = Table(
     "account_reconciliations",
     metadata,
@@ -597,6 +616,25 @@ class CryptoPositionCreate(BaseModel):
     notes: Optional[str] = None
     tags: Optional[List[str]] = None
     is_favorite: bool = False
+
+# Pydantic models for Liabilities
+class LiabilityCreate(BaseModel):
+    name: str
+    liability_type: str
+    current_balance: float
+    original_amount: Optional[float] = None
+    credit_limit: Optional[float] = None
+    interest_rate: Optional[float] = None
+    institution_name: Optional[str] = None
+
+class LiabilityUpdate(BaseModel):
+    name: Optional[str] = None
+    liability_type: Optional[str] = None
+    current_balance: Optional[float] = None
+    original_amount: Optional[float] = None
+    credit_limit: Optional[float] = None
+    interest_rate: Optional[float] = None
+    institution_name: Optional[str] = None
 
 class CryptoPositionUpdate(BaseModel):
     coin_type: Optional[str] = None
@@ -5741,6 +5779,327 @@ async def delete_other_asset(
             "message": "Other asset deleted successfully",
             "asset_name": asset_data["asset_name"],
             "removed_value": asset_data["current_value"]
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
+            detail=f"Server error: {str(e)}"
+        )
+
+# Get all liabilities for a user
+@app.get("/liabilities")
+async def get_liabilities(current_user: dict = Depends(get_current_user)):
+    try:
+        # Get liabilities for the user
+        query = liabilities.select().where(
+            (liabilities.c.user_id == current_user["id"]) & 
+            (liabilities.c.is_active == True)
+        )
+        result = await database.fetch_all(query)
+        
+        liabilities_list = []
+        total_balance = 0
+        
+        for row in result:
+            liability_data = {
+                "id": row["id"],
+                "name": row["name"],
+                "liability_type": row["liability_type"],
+                "current_balance": row["current_balance"],
+                "original_amount": row["original_amount"],
+                "credit_limit": row["credit_limit"],
+                "interest_rate": row["interest_rate"],
+                "institution_name": row["institution_name"],
+                "last_balance_update": row["last_balance_update"].isoformat(),
+                "created_at": row["created_at"].isoformat()
+            }
+            liabilities_list.append(liability_data)
+            total_balance += row["current_balance"]
+        
+        # Group by liability type for summary
+        summary_by_type = {}
+        for liability in liabilities_list:
+            liability_type = liability["liability_type"]
+            if liability_type not in summary_by_type:
+                summary_by_type[liability_type] = {
+                    "count": 0,
+                    "total_balance": 0
+                }
+            summary_by_type[liability_type]["count"] += 1
+            summary_by_type[liability_type]["total_balance"] += liability["current_balance"]
+        
+        return {
+            "liabilities": liabilities_list,
+            "total_balance": total_balance,
+            "summary_by_type": summary_by_type
+        }
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
+            detail=f"Failed to fetch liabilities: {str(e)}"
+        )
+
+# Get a specific liability
+@app.get("/liabilities/{liability_id}")
+async def get_liability(liability_id: str, current_user: dict = Depends(get_current_user)):
+    try:
+        query = liabilities.select().where(
+            (liabilities.c.id == liability_id) & 
+            (liabilities.c.user_id == current_user["id"])
+        )
+        liability = await database.fetch_one(query)
+        
+        if not liability:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, 
+                detail="Liability not found or access denied"
+            )
+        
+        return {
+            "id": liability["id"],
+            "name": liability["name"],
+            "liability_type": liability["liability_type"],
+            "current_balance": liability["current_balance"],
+            "original_amount": liability["original_amount"],
+            "credit_limit": liability["credit_limit"],
+            "interest_rate": liability["interest_rate"],
+            "institution_name": liability["institution_name"],
+            "is_active": liability["is_active"],
+            "last_balance_update": liability["last_balance_update"].isoformat(),
+            "created_at": liability["created_at"].isoformat(),
+            "updated_at": liability["updated_at"].isoformat()
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
+            detail=f"Failed to fetch liability: {str(e)}"
+        )
+
+# Add a new liability
+@app.post("/liabilities", status_code=status.HTTP_201_CREATED)
+async def add_liability(
+    liability: LiabilityCreate, 
+    current_user: dict = Depends(get_current_user)
+):
+    try:
+        # Validate liability type
+        valid_types = ['credit_card', 'mortgage', 'auto_loan', 'personal_loan', 'student_loan', 'home_equity', 'other']
+        if liability.liability_type not in valid_types:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST, 
+                detail=f"Invalid liability type. Must be one of: {', '.join(valid_types)}"
+            )
+        
+        # Insert liability
+        query = liabilities.insert().values(
+            user_id=current_user["id"],
+            name=liability.name,
+            liability_type=liability.liability_type,
+            current_balance=liability.current_balance,
+            original_amount=liability.original_amount,
+            credit_limit=liability.credit_limit,
+            interest_rate=liability.interest_rate,
+            institution_name=liability.institution_name
+        )
+        liability_id = await database.execute(query)
+        
+        return {
+            "message": "Liability added successfully",
+            "liability_id": str(liability_id),
+            "current_balance": liability.current_balance
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
+            detail=f"Server error: {str(e)}"
+        )
+
+# Update a liability
+@app.put("/liabilities/{liability_id}")
+async def update_liability(
+    liability_id: str, 
+    liability: LiabilityUpdate, 
+    current_user: dict = Depends(get_current_user)
+):
+    try:
+        # Check if liability belongs to user
+        check_query = liabilities.select().where(
+            (liabilities.c.id == liability_id) & 
+            (liabilities.c.user_id == current_user["id"])
+        )
+        liability_data = await database.fetch_one(check_query)
+        
+        if not liability_data:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, 
+                detail="Liability not found or access denied"
+            )
+        
+        # Build update dictionary with only provided fields
+        update_values = {}
+        balance_changed = False
+        old_balance = liability_data["current_balance"]
+        
+        for key, value in liability.dict(exclude_unset=True).items():
+            if key == 'liability_type' and value is not None:
+                # Validate liability type
+                valid_types = ['credit_card', 'mortgage', 'auto_loan', 'personal_loan', 'student_loan', 'home_equity', 'other']
+                if value not in valid_types:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST, 
+                        detail=f"Invalid liability type. Must be one of: {', '.join(valid_types)}"
+                    )
+            update_values[key] = value
+            if key == 'current_balance':
+                balance_changed = True
+        
+        # Only update if there are values to update
+        if update_values:
+            # Update timestamps
+            update_values["updated_at"] = datetime.utcnow()
+            if balance_changed:
+                update_values["last_balance_update"] = datetime.utcnow()
+            
+            # Construct dynamic query
+            set_clause = ", ".join([f"{key} = :{key}" for key in update_values.keys()])
+            query = f"""
+            UPDATE liabilities 
+            SET {set_clause}
+            WHERE id = :liability_id
+            RETURNING id
+            """
+            
+            update_values["liability_id"] = liability_id
+            await database.execute(query=query, values=update_values)
+        
+        return {
+            "message": "Liability updated successfully",
+            "balance_changed": balance_changed,
+            "old_balance": old_balance if balance_changed else None,
+            "new_balance": liability.current_balance if balance_changed else None
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error updating liability: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
+            detail=f"Failed to update liability: {str(e)}"
+        )
+
+# Update just the balance of a liability (simplified workflow)
+@app.put("/liabilities/{liability_id}/balance")
+async def update_liability_balance(
+    liability_id: str,
+    balance_update: dict,  # {"current_balance": 5000}
+    current_user: dict = Depends(get_current_user)
+):
+    try:
+        # Validate input
+        if "current_balance" not in balance_update:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="current_balance is required"
+            )
+        
+        new_balance = balance_update["current_balance"]
+        
+        # Check if liability belongs to user
+        check_query = liabilities.select().where(
+            (liabilities.c.id == liability_id) & 
+            (liabilities.c.user_id == current_user["id"])
+        )
+        liability_data = await database.fetch_one(check_query)
+        
+        if not liability_data:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, 
+                detail="Liability not found or access denied"
+            )
+        
+        old_balance = liability_data["current_balance"]
+        
+        # Update balance and timestamps
+        update_query = """
+        UPDATE liabilities 
+        SET current_balance = :new_balance, 
+            last_balance_update = :updated_at,
+            updated_at = :updated_at
+        WHERE id = :liability_id
+        """
+        
+        timestamp = datetime.utcnow()
+        await database.execute(
+            query=update_query, 
+            values={
+                "liability_id": liability_id,
+                "new_balance": new_balance,
+                "updated_at": timestamp
+            }
+        )
+        
+        return {
+            "message": "Liability balance updated successfully",
+            "name": liability_data["name"],
+            "old_balance": old_balance,
+            "new_balance": new_balance,
+            "change": old_balance - new_balance,  # Positive means paid down
+            "change_percent": ((old_balance - new_balance) / old_balance * 100) if old_balance > 0 else 0
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error updating liability balance: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
+            detail=f"Failed to update liability balance: {str(e)}"
+        )
+
+# Delete a liability (soft delete)
+@app.delete("/liabilities/{liability_id}")
+async def delete_liability(
+    liability_id: str, 
+    current_user: dict = Depends(get_current_user)
+):
+    try:
+        # Check if liability belongs to user
+        check_query = liabilities.select().where(
+            (liabilities.c.id == liability_id) & 
+            (liabilities.c.user_id == current_user["id"])
+        )
+        liability_data = await database.fetch_one(check_query)
+        
+        if not liability_data:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, 
+                detail="Liability not found or access denied"
+            )
+        
+        # Soft delete by setting is_active to False
+        update_query = """
+        UPDATE liabilities 
+        SET is_active = FALSE, updated_at = :updated_at
+        WHERE id = :liability_id
+        """
+        
+        await database.execute(
+            query=update_query, 
+            values={
+                "liability_id": liability_id,
+                "updated_at": datetime.utcnow()
+            }
+        )
+        
+        return {
+            "message": "Liability deleted successfully",
+            "name": liability_data["name"],
+            "removed_balance": liability_data["current_balance"]
         }
     except HTTPException:
         raise
