@@ -612,7 +612,7 @@ const QueueModal = ({ isOpen, onClose, positions, assetTypes, accounts, onClearC
         return (position.data.quantity || 0) * (position.data.current_price || 0);
       case 'metal':
         return (position.data.quantity || 0) * (position.data.current_price_per_unit || position.data.purchase_price || 0);
-      case 'otherAsset':
+      case 'otherAssets':
         return position.data.current_value || 0;
       case 'cash':
         return position.data.amount || 0;
@@ -686,6 +686,7 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved }) => {
         { key: 'price', label: 'Current Price', type: 'number', required: true, width: 'w-28', placeholder: 'Auto', prefix: '$', min: 0, step: 0.01, readOnly: true, autoFill: true },
         { key: 'cost_basis', label: 'Cost Basis', type: 'number', required: true, width: 'w-28', placeholder: '140.00', prefix: '$', min: 0, step: 0.01 },
         { key: 'purchase_date', label: 'Purchase Date', type: 'date', required: true, width: 'w-36', max: new Date().toISOString().split('T')[0] },
+        { key: 'account_id', label: 'Account', type: 'select', required: true, width: 'w-44' }
        ]
     },
     cash: {
