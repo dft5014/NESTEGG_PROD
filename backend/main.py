@@ -31,7 +31,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.sql import select
 from sqlalchemy import func, case, literal_column
 from sqlalchemy.sql import select, join, text # Ensure text is imported
-from sqlalchemy import Table, Column, Integer, String, Float, Boolean, DateTime, ForeignKey, MetaData, select, Date
+from sqlalchemy import Table, Column, Integer, String, Float, Boolean, DateTime, ForeignKey, MetaData, select, Date, Text, and_, or_, desc, asc, update, delete
 
 # excel
 from backend.services.excel_templates import ExcelTemplateService
