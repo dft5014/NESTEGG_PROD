@@ -27,6 +27,225 @@ import {
 import { fetchWithAuth } from '@/utils/api';
 import { popularBrokerages } from '@/utils/constants';
 
+// Add this SearchableDropdown component (same as in QuickStartModal)
+const SearchableDropdown = ({ options, value, onChange, placeholder, showLogos = false, onOpenChange, onEnterKey }) => {
+    const [isOpen, setIsOpen] = useState(false);
+    const [search, setSearch] = useState('');
+    const [inputValue, setInputValue] = useState(value || '');
+    const dropdownRef = useRef(null);
+    const buttonRef = useRef(null);
+    const [highlightedIndex, setHighlightedIndex] = useState(0);
+    
+    useEffect(() => {
+        setInputValue(value || '');
+    }, [value]);
+    
+    useEffect(() => {
+        const handleClickOutside = (e) => {
+            const isDropdownClick = e.target.closest('[data-dropdown-portal="true"]');
+            
+            if (dropdownRef.current && !dropdownRef.current.contains(e.target) && !isDropdownClick) {
+                setIsOpen(false);
+                if (onOpenChange) onOpenChange(false);
+                if (inputValue && inputValue !== value) {
+                    onChange(inputValue);
+                }
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, [inputValue, value, onChange, onOpenChange]);
+    
+    const filteredOptions = React.useMemo(() => {
+        const searchTerm = search || inputValue || '';
+        if (!searchTerm) return options;
+        return options.filter(opt => 
+            opt.name.toLowerCase().includes(searchTerm.toLowerCase())
+        );
+    }, [options, search, inputValue]);
+    
+    const selectedOption = options.find(opt => opt.name === value);
+    
+    const handleInputChange = (e) => {
+        const newValue = e.target.value;
+        setInputValue(newValue);
+        setSearch(newValue);
+        setHighlightedIndex(0);
+        if (!isOpen) {
+            setIsOpen(true);
+            if (onOpenChange) onOpenChange(true);
+        }
+    };
+    
+    const handleInputKeyDown = (e) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            if (inputValue) {
+                onChange(inputValue);
+                setIsOpen(false);
+                if (onOpenChange) onOpenChange(false);
+            }
+            if (onEnterKey) {
+                onEnterKey();
+            }
+        } else if (e.key === 'Escape') {
+            setIsOpen(false);
+            if (onOpenChange) onOpenChange(false);
+        } else if (e.key === 'ArrowDown' && isOpen) {
+            e.preventDefault();
+            setHighlightedIndex(prev => 
+                prev < filteredOptions.length - 1 ? prev + 1 : prev
+            );
+        } else if (e.key === 'ArrowUp' && isOpen) {
+            e.preventDefault();
+            setHighlightedIndex(prev => prev > 0 ? prev - 1 : 0);
+        }
+    };
+    
+    return (
+        <div ref={dropdownRef} className="relative">
+            <div className="relative">
+                <input
+                    ref={buttonRef}
+                    type="text"
+                    value={inputValue}
+                    onChange={handleInputChange}
+                    onKeyDown={handleInputKeyDown}
+                    onFocus={() => {
+                        setIsOpen(true);
+                        if (onOpenChange) onOpenChange(true);
+                    }}
+                    placeholder={placeholder}
+                    className="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg hover:border-gray-400 focus:border-red-500 focus:ring-2 focus:ring-red-500/20 transition-all duration-200 pr-10"
+                    style={{ paddingLeft: selectedOption?.logo ? '2.5rem' : undefined }}
+                />
+                {selectedOption?.logo && (
+                    <img 
+                        src={selectedOption.logo} 
+                        alt={selectedOption.name}
+                        className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 rounded pointer-events-none"
+                        onError={(e) => {
+                            e.target.style.display = 'none';
+                        }}
+                    />
+                )}
+                <button
+                    type="button"
+                    onClick={() => {
+                        const newState = !isOpen;
+                        setIsOpen(newState);
+                        if (onOpenChange) onOpenChange(newState);
+                    }}
+                    className="absolute right-0 top-0 bottom-0 px-3 flex items-center justify-center hover:bg-gray-50 rounded-r-lg transition-colors"
+                >
+                    <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
+                </button>
+            </div>
+            
+            {isOpen && buttonRef.current && (() => {
+                const rect = buttonRef.current.getBoundingClientRect();
+                const viewportHeight = window.innerHeight;
+                const spaceBelow = viewportHeight - rect.bottom;
+                const dropdownHeight = 320;
+                const shouldShowAbove = spaceBelow < dropdownHeight && rect.top > dropdownHeight;
+                
+                return ReactDOM.createPortal(
+                    <div 
+                        data-dropdown-portal="true" 
+                        style={{
+                            position: 'fixed',
+                            top: shouldShowAbove ? 'auto' : `${rect.bottom + 4}px`,
+                            bottom: shouldShowAbove ? `${viewportHeight - rect.top + 4}px` : 'auto',
+                            left: `${rect.left}px`,
+                            width: `${rect.width}px`,
+                            zIndex: 9999999,
+                            pointerEvents: 'auto'
+                        }}
+                        className="bg-white border border-gray-200 rounded-lg shadow-xl animate-fadeIn"
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <div className="max-h-64 overflow-y-auto">
+                            {filteredOptions.length === 0 ? (
+                                <div className="p-4 text-center">
+                                    <p className="text-sm text-gray-500 mb-2">No matching institutions found</p>
+                                    {inputValue && (
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                onChange(inputValue);
+                                                setIsOpen(false);
+                                                if (onOpenChange) onOpenChange(false);
+                                            }}
+                                            className="text-sm text-red-600 hover:text-red-700 font-medium"
+                                        >
+                                            Use "{inputValue}" as custom institution
+                                        </button>
+                                    )}
+                                </div>
+                            ) : (
+                                <>
+                                    {inputValue && !options.find(opt => opt.name.toLowerCase() === inputValue.toLowerCase()) && (
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                onChange(inputValue);
+                                                setIsOpen(false);
+                                                if (onOpenChange) onOpenChange(false);
+                                            }}
+                                            className="w-full px-3 py-2 flex items-center bg-red-50 hover:bg-red-100 transition-colors border-b border-gray-100"
+                                        >
+                                            <Plus className="w-4 h-4 mr-3 text-red-600" />
+                                            <span className="text-sm text-red-700 font-medium">Use "{inputValue}" (custom)</span>
+                                        </button>
+                                    )}
+                                    {filteredOptions.map((option, idx) => (
+                                        <button
+                                            key={idx}
+                                            type="button"
+                                            onClick={() => {
+                                                onChange(option.name);
+                                                setInputValue(option.name);
+                                                setIsOpen(false);
+                                                if (onOpenChange) onOpenChange(false);
+                                                setSearch('');
+                                            }}
+                                            onMouseEnter={() => setHighlightedIndex(idx)}
+                                            className={`w-full px-3 py-2 flex items-center hover:bg-gray-50 transition-colors ${
+                                                value === option.name ? 'bg-red-50' : ''
+                                            } ${highlightedIndex === idx ? 'bg-gray-100' : ''}`}
+                                        >
+                                            {showLogos && option.logo && (
+                                                <img 
+                                                    src={option.logo} 
+                                                    alt={option.name}
+                                                    className="w-5 h-5 mr-3 rounded"
+                                                    onError={(e) => {
+                                                        e.target.style.display = 'none';
+                                                    }}
+                                                />
+                                            )}
+                                            <span className="text-sm text-gray-900">{option.name}</span>
+                                            {value === option.name && (
+                                                <Check className="w-4 h-4 text-red-600 ml-auto" />
+                                            )}
+                                        </button>
+                                    ))}
+                                </>
+                            )}
+                        </div>
+                        <div className="p-2 border-t border-gray-100 bg-gray-50">
+                            <p className="text-xs text-gray-500 text-center">
+                                Type any custom institution name or select from the list
+                            </p>
+                        </div>
+                    </div>,
+                    document.body
+                );
+            })()}
+        </div>
+    );
+};
+
 // Liability types matching database
 const LIABILITY_TYPES = [
     { value: 'credit_card', label: 'Credit Card', icon: CreditCard, color: 'blue' },
@@ -38,26 +257,11 @@ const LIABILITY_TYPES = [
     { value: 'other', label: 'Other', icon: FileText, color: 'gray' }
 ];
 
-// Common credit card issuers
-const CREDIT_CARD_ISSUERS = [
-    'American Express', 'Bank of America', 'Capital One', 'Chase', 
-    'Citi', 'Discover', 'Wells Fargo', 'US Bank', 'Barclays', 
-    'Synchrony', 'Navy Federal', 'PNC', 'TD Bank', 'USAA'
-];
-
-// Common lenders
-const COMMON_LENDERS = [
-    'Bank of America', 'Wells Fargo', 'Chase', 'Citi', 'US Bank',
-    'PNC', 'TD Bank', 'Capital One', 'Ally Bank', 'SoFi', 
-    'Rocket Mortgage', 'Quicken Loans', 'LendingClub', 'Prosper',
-    'Navient', 'Sallie Mae', 'Great Lakes', 'FedLoan', 'Nelnet'
-];
-
 export const AddLiabilitiesModal = ({ isOpen, onClose, onLiabilitiesSaved }) => {
     const [liabilities, setLiabilities] = useState([]);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [showSuccessAnimation, setShowSuccessAnimation] = useState(false);
-    const [institutionSearch, setInstitutionSearch] = useState({});
+    const [openDropdownId, setOpenDropdownId] = useState(null);
     const newRowRef = useRef(null);
 
     // Initialize with one empty liability
@@ -177,11 +381,6 @@ export const AddLiabilitiesModal = ({ isOpen, onClose, onLiabilitiesSaved }) => 
         } finally {
             setIsSubmitting(false);
         }
-    };
-
-    const getInstitutionSuggestions = (type) => {
-        if (type === 'credit_card') return CREDIT_CARD_ISSUERS;
-        return COMMON_LENDERS;
     };
 
     const formatCurrency = (value) => {
@@ -306,6 +505,13 @@ export const AddLiabilitiesModal = ({ isOpen, onClose, onLiabilitiesSaved }) => 
                                                 type="text"
                                                 value={liability.name}
                                                 onChange={(e) => updateLiability(liability.tempId, 'name', e.target.value)}
+                                                onKeyDown={(e) => {
+                                                    if (e.key === 'Enter' && isValid) {
+                                                        e.preventDefault();
+                                                        setOpenDropdownId(null);
+                                                        addNewLiability();
+                                                    }
+                                                }}
                                                 placeholder="Visa Card, Home Mortgage..."
                                                 className="w-full px-3 py-2 bg-gray-50 border border-gray-300 rounded-md text-sm focus:bg-white focus:border-red-500 focus:ring-2 focus:ring-red-500/20"
                                             />
@@ -355,21 +561,27 @@ export const AddLiabilitiesModal = ({ isOpen, onClose, onLiabilitiesSaved }) => 
                                             </div>
                                         </div>
 
-                                        {/* Institution */}
-                                        <div className="col-span-3">
-                                            <input
-                                                type="text"
+                                        {/* Institution - Updated to use SearchableDropdown */}
+                                        <div className="col-span-3 relative">
+                                            <SearchableDropdown
+                                                options={popularBrokerages}
                                                 value={liability.institution_name}
-                                                onChange={(e) => updateLiability(liability.tempId, 'institution_name', e.target.value)}
-                                                placeholder={liability.liability_type === 'credit_card' ? 'Chase, Amex...' : 'Bank, Lender...'}
-                                                className="w-full px-3 py-2 bg-gray-50 border border-gray-300 rounded-md text-sm focus:bg-white focus:border-red-500 focus:ring-2 focus:ring-red-500/20"
-                                                list={`institutions-${liability.tempId}`}
+                                                onChange={(value) => updateLiability(liability.tempId, 'institution_name', value)}
+                                                placeholder="Type to search..."
+                                                showLogos={true}
+                                                onOpenChange={(isOpen) => setOpenDropdownId(isOpen ? liability.tempId : null)}
+                                                onEnterKey={() => {
+                                                    if (isValid) {
+                                                        addNewLiability();
+                                                    }
+                                                }}
                                             />
-                                            <datalist id={`institutions-${liability.tempId}`}>
-                                                {getInstitutionSuggestions(liability.liability_type).map(inst => (
-                                                    <option key={inst} value={inst} />
-                                                ))}
-                                            </datalist>
+                                            {liability.institution_name && !popularBrokerages.find(b => b.name === liability.institution_name) && (
+                                                <div className="absolute -bottom-5 left-0 text-[10px] text-red-600 flex items-center bg-red-50 px-1.5 py-0.5 rounded-full">
+                                                    <Sparkles className="w-2.5 h-2.5 mr-0.5" />
+                                                    Custom
+                                                </div>
+                                            )}
                                         </div>
 
                                         {/* Actions */}
@@ -447,6 +659,12 @@ export const AddLiabilitiesModal = ({ isOpen, onClose, onLiabilitiesSaved }) => 
                                             </div>
                                         </div>
                                     )}
+
+                                    {/* Status indicator */}
+                                    <div className={`absolute left-0 top-0 bottom-0 w-1 rounded-l-lg transition-all duration-500 ${
+                                        liability.isNew ? 'bg-gradient-to-b from-red-400 via-orange-400 to-yellow-400 animate-pulse' :
+                                        isValid ? 'bg-gradient-to-b from-green-400 to-emerald-500' : 'bg-gradient-to-b from-gray-300 to-gray-400'
+                                    }`} />
 
                                     {/* Type icon */}
                                     {type && (
