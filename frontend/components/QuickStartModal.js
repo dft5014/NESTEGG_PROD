@@ -679,11 +679,11 @@ const QuickStartModal = ({ isOpen, onClose }) => {
                 </div>
                 <h3 className="text-2xl font-bold text-gray-900 mb-2 mt-4">Quick Add to Your NestEgg Portfolio</h3>
                 <p className="text-gray-600 max-w-md mx-auto">
-                    Build your portfolio in minutes with our streamlined process
+                    Build your complete financial picture in minutes
                 </p>
             </div>
 
-            {/* Enhanced Account/Position Selection */}
+            {/* Enhanced Account/Position/Liability Selection */}
             <div className="bg-gradient-to-br from-gray-50 to-white rounded-2xl shadow-sm border border-gray-100 p-6">
                 <div className="grid md:grid-cols-2 gap-6">
                     {/* Left side - Action buttons */}
@@ -753,7 +753,6 @@ const QuickStartModal = ({ isOpen, onClose }) => {
                                 }`} />
                             </div>
                         </div>
-                    </div>
 
                     {/* New Liabilities Option */}
                     <div 
