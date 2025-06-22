@@ -177,6 +177,22 @@ real_estate_positions = sqlalchemy.Table(
     # --- End columns ---
 )
 
+other_assets = Table(
+    "other_assets",
+    metadata,
+    Column("id", String, primary_key=True, server_default=text("gen_random_uuid()")),
+    Column("user_id", Integer, ForeignKey("users.id"), nullable=False),
+    Column("asset_name", String, nullable=False),
+    Column("asset_type", String, nullable=False),
+    Column("cost", Float),
+    Column("purchase_date", Date),
+    Column("current_value", Float, nullable=False),
+    Column("notes", Text),
+    Column("is_active", Boolean, server_default=text("true")),
+    Column("current_value_last_updated", DateTime, server_default=func.now()),
+    Column("created_at", DateTime, server_default=func.now()),
+    Column("updated_at", DateTime, server_default=func.now(), onupdate=func.now())
+
 account_reconciliations = Table(
     "account_reconciliations",
     metadata,
