@@ -181,7 +181,7 @@ real_estate_positions = sqlalchemy.Table(
 other_assets = sqlalchemy.Table(
     "other_assets",
     metadata,
-    sqlalchemy.Column("id", sqlalchemy.String, primary_key=True, default=lambda: str(uuid.uuid4())),
+    sqlalchemy.Column("id", sqlalchemy.Integer, primary_key=True, autoincrement=True),
     sqlalchemy.Column("user_id", sqlalchemy.String, sqlalchemy.ForeignKey("users.id"), nullable=False),
     sqlalchemy.Column("asset_name", sqlalchemy.String, nullable=False),
     sqlalchemy.Column("asset_type", sqlalchemy.String, nullable=False),
@@ -192,7 +192,7 @@ other_assets = sqlalchemy.Table(
     sqlalchemy.Column("is_active", sqlalchemy.Boolean, default=True),
     sqlalchemy.Column("current_value_last_updated", sqlalchemy.DateTime, default=func.now()),
     sqlalchemy.Column("created_at", sqlalchemy.DateTime, default=func.now()),
-    sqlalchemy.Column("updated_at", sqlalchemy.DateTime, default=func.now(), onupdate=func.now())
+    sqlalchemy.Column("updated_at", sqlalchemy.DateTime, default=func.now())
 )
 
 account_reconciliations = Table(
