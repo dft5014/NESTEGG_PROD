@@ -56,6 +56,7 @@ import { popularBrokerages } from '@/utils/constants';
 import ReactDOM from 'react-dom';
 import { fetchAllAccounts } from '@/utils/apimethods/accountMethods';
 import { AddQuickPositionModal } from '@/components/modals/AddQuickPositionModal';
+import { AddLiabilitiesModal } from '@/components/modals/AddLiabilitiesModal';
 
 // Account categories matching AccountModal and database constraints
 const ACCOUNT_CATEGORIES = [
@@ -406,6 +407,8 @@ const QuickStartModal = ({ isOpen, onClose }) => {
     const [importedAccounts, setImportedAccounts] = useState([]);
     const [importedPositions, setImportedPositions] = useState(0);
     const [importedPositionsData, setImportedPositionsData] = useState([]);
+    const [importedLiabilities, setImportedLiabilities] = useState(0);
+    const [importedLiabilitiesData, setImportedLiabilitiesData] = useState([]);
 
 
 
@@ -752,6 +755,30 @@ const QuickStartModal = ({ isOpen, onClose }) => {
                         </div>
                     </div>
 
+                    {/* New Liabilities Option */}
+                    <div 
+                        className="group relative bg-gradient-to-br from-red-50 to-red-100 p-4 rounded-xl cursor-pointer hover:shadow-lg transition-all duration-300 transform hover:-translate-y-0.5 border border-red-100"
+                        onClick={() => setActiveTab('liabilities')}
+                    >
+                        <div className="flex items-center justify-between">
+                            <div className="flex items-center">
+                                <div className="relative">
+                                    <div className="absolute inset-0 bg-red-600 rounded-lg opacity-0 group-hover:opacity-10 transition-opacity duration-300"></div>
+                                    <CreditCard className="w-10 h-10 text-red-600 relative z-10" />
+                                </div>
+                                <div className="ml-4">
+                                    <h5 className="font-semibold text-gray-900 group-hover:text-red-700 transition-colors">
+                                        Add Liabilities
+                                    </h5>
+                                    <p className="text-sm text-gray-600">Mortgages, loans, credit cards</p>
+                                    <p className="text-xs text-gray-500 mt-0.5">No accounts required</p>
+                                </div>
+                            </div>
+                            <ChevronRight className="w-5 h-5 text-red-600 transform group-hover:translate-x-1 transition-transform" />
+                        </div>
+                    </div>
+                </div>
+
                     {/* Right side - Account summary */}
                     <div className="bg-gradient-to-br from-blue-50/50 to-purple-50/50 rounded-xl p-4 border border-gray-100">
                         <div className="flex items-center justify-between mb-4">
@@ -1074,6 +1101,24 @@ const QuickStartModal = ({ isOpen, onClose }) => {
                         setImportedPositionsData(positions);
                         setActiveTab('success');
                         setImportMethod(null);
+                    }}
+                />
+            </div>
+        );
+    };
+
+    const QuickLiabilityWrapper = () => {
+        return (
+            <div className="relative">
+                <AddLiabilitiesModal
+                    isOpen={true}
+                    onClose={() => {
+                        setActiveTab('overview');
+                    }}
+                    onLiabilitiesSaved={(count, liabilities) => {
+                        setImportedLiabilities(count);
+                        setImportedLiabilitiesData(liabilities);
+                        setActiveTab('success');
                     }}
                 />
             </div>
@@ -1957,6 +2002,7 @@ const QuickStartModal = ({ isOpen, onClose }) => {
                        {activeTab === 'positions' && !importMethod && renderPositionImportChoice()}
                        {activeTab === 'positions' && importMethod === 'ui' && <QuickPositionWrapper />}
                        {activeTab === 'positions' && importMethod === 'excel' && renderTemplateSection('positions')}
+                       {activeTab === 'liabilities' && <QuickLiabilityWrapper />}
                       {activeTab === 'upload' && renderUploadSection()}
                       {activeTab === 'success' && renderSuccessScreen()}
                   </div>
