@@ -610,7 +610,6 @@ class CryptoPositionCreate(BaseModel):
     coin_symbol: str
     quantity: float
     purchase_price: float
-    current_price: float
     purchase_date: str  # Format: YYYY-MM-DD
     storage_type: str = "Exchange"  # Default to Exchange
     notes: Optional[str] = None
@@ -4956,12 +4955,12 @@ async def add_crypto_position(account_id: int, position: CryptoPositionCreate, c
         result = await database.fetch_one(query=query, values=values)
         position_id = result["id"]
         
-        position_value = position.quantity * position.current_price
+        position_cost = position.quantity * position.purchase_price
         
         return {
             "message": "Crypto position added successfully",
             "position_id": position_id,
-            "position_value": position_value
+            "position_cost_basis": position_cost
         }
     except Exception as e:
         logger.error(f"Error adding crypto position: {str(e)}")

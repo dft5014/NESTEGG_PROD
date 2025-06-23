@@ -776,10 +776,26 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved }) => {
       description: 'Gold, Silver, Platinum',
       emoji: '🥇',
       searchable: true,
-      searchField: 'symbol',
+      searchField: 'metal_type',
       fields: [
-        { key: 'symbol', label: 'Symbol', type: 'text', required: true, width: 'w-24', placeholder: 'GLD', transform: 'uppercase', autocomplete: true, searchable: true },
-        { key: 'name', label: 'Metal Type', type: 'text', width: 'w-48', readOnly: true, placeholder: 'Auto-filled' },
+        { 
+          key: 'metal_type', 
+          label: 'Metal', 
+          type: 'select', 
+          required: true, 
+          width: 'w-32',
+          searchable: true,
+          options: [
+            { value: '', label: 'Select...' },
+            { value: 'Gold', label: '🥇 Gold', symbol: 'GC=F' },
+            { value: 'Silver', label: '🥈 Silver', symbol: 'SI=F' },
+            { value: 'Platinum', label: '💎 Platinum', symbol: 'PL=F' },
+            { value: 'Copper', label: '🟫 Copper', symbol: 'HG=F' },
+            { value: 'Palladium', label: '⚪ Palladium', symbol: 'PA=F' }
+          ]
+        },
+        { key: 'symbol', label: 'Symbol', type: 'text', width: 'w-24', readOnly: true, placeholder: 'Auto-filled' },
+        { key: 'name', label: 'Market Name', type: 'text', width: 'w-48', readOnly: true, placeholder: 'Auto-filled' },
         { key: 'quantity', label: 'Quantity', type: 'number', required: true, width: 'w-24', placeholder: '10', min: 0 },
         { 
           key: 'unit', 
@@ -1182,8 +1198,18 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved }) => {
             value = value.toUpperCase();
           }
           
-          // Trigger search for searchable fields
-          if (fieldConfig?.searchable && assetTypes[assetType].searchable) {
+          // Special handling for metal type selection
+          if (assetType === 'metal' && field === 'metal_type' && value) {
+            const selectedOption = fieldConfig.options.find(o => o.value === value);
+            if (selectedOption?.symbol) {
+              // Update the symbol field when metal type is selected
+              pos.data.symbol = selectedOption.symbol;
+              // Trigger search using the symbol
+              debouncedSearch(selectedOption.symbol, assetType, positionId);
+            }
+          }
+          // Regular search for other searchable fields
+          else if (fieldConfig?.searchable && assetTypes[assetType].searchable) {
             debouncedSearch(value, assetType, positionId);
           }
           
@@ -1492,22 +1518,29 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved }) => {
                 quantity: cleanData.quantity,
                 purchase_price: cleanData.purchase_price,
                 purchase_date: cleanData.purchase_date,
-                account_id: cleanData.account_id
+                account_id: cleanData.account_id,
+                storage_type: cleanData.storage_type || 'Exchange',  // Default to 'Exchange'
+                notes: cleanData.notes || null,
+                tags: cleanData.tags || [],
+                is_favorite: cleanData.is_favorite || false
             };
-
+              console.log('Sending crypto data:', cryptoData);
               await addCryptoPosition(position.data.account_id, cryptoData);
               break;
             case 'metal':
               const metalData = {
-                metal_type: cleanData.name || cleanData.symbol,  
+                metal_type: cleanData.metal_type,  // Now this comes from dropdown (Gold, Silver, etc.)
                 quantity: cleanData.quantity,
-                unit: cleanData.unit,
+                unit: cleanData.unit || 'oz',
                 purchase_price: cleanData.purchase_price,
+                cost_basis: (cleanData.quantity || 0) * (cleanData.purchase_price || 0),
                 purchase_date: cleanData.purchase_date,
                 storage_location: cleanData.storage_location,
-                description: cleanData.description
+                description: `${cleanData.symbol} - ${cleanData.name}`  // Include symbol and market name
               };
-                await addMetalPosition(position.data.account_id, metalData);
+              
+              console.log('Sending metal data:', metalData);
+              await addMetalPosition(position.data.account_id, metalData);
               break;
             case 'otherAssets':
               await addOtherAsset(cleanData);
