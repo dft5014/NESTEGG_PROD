@@ -705,34 +705,33 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved }) => {
       emoji: '💵',
       fields: [
         { 
-          key: 'currency', 
-          label: 'Currency', 
-          type: 'select', 
-          required: true,
-          width: 'w-24',
-          options: [
-            { value: 'USD', label: 'USD 🇺🇸', symbol: '$' },
-            { value: 'EUR', label: 'EUR 🇪🇺', symbol: '€' },
-            { value: 'GBP', label: 'GBP 🇬🇧', symbol: '£' },
-            { value: 'JPY', label: 'JPY 🇯🇵', symbol: '¥' },
-            { value: 'CAD', label: 'CAD 🇨🇦', symbol: 'C$' }
-          ]
-        },
-        { key: 'amount', label: 'Amount', type: 'number', required: true, width: 'w-32', placeholder: '10000', prefix: '$', min: 0 },
-        { 
-          key: 'account_type', 
+          key: 'cash_type', 
           label: 'Type', 
-          type: 'select', 
+          type: 'select',
+          required: true,
           width: 'w-32',
           options: [
-            { value: '', label: 'Select...' },
             { value: 'Savings', label: '💰 Savings' },
             { value: 'Checking', label: '💳 Checking' },
             { value: 'Money Market', label: '📊 Money Market' },
             { value: 'CD', label: '🔒 CD' }
           ]
         },
-        { key: 'interest_rate', label: 'APY %', type: 'number', width: 'w-24', placeholder: '2.5', suffix: '%', step: '0.01', min: 0, max: 100 },
+        { key: 'name', label: 'Account Name', type: 'text', required: true, width: 'w-40', placeholder: 'Chase Savings' },
+        { key: 'amount', label: 'Amount', type: 'number', required: true, width: 'w-32', placeholder: '10000', prefix: '$', min: 0 },
+        { key: 'interest_rate', label: 'APY', type: 'number', width: 'w-24', placeholder: '2.5', suffix: '%', step: '0.01', min: 0, max: 100 },
+        { 
+          key: 'interest_period', 
+          label: 'Period', 
+          type: 'select', 
+          width: 'w-28',
+          options: [
+            { value: 'annual', label: 'Annual' },
+            { value: 'monthly', label: 'Monthly' },
+            { value: 'quarterly', label: 'Quarterly' }
+          ]
+        },
+        { key: 'maturity_date', label: 'Maturity', type: 'date', width: 'w-36' },
         { key: 'account_id', label: 'Account', type: 'select', required: true, width: 'w-44' }
       ]
     },
@@ -754,9 +753,10 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved }) => {
       searchField: 'symbol',
       fields: [
         { key: 'symbol', label: 'Symbol', type: 'text', required: true, width: 'w-24', placeholder: 'BTC', transform: 'uppercase', autocomplete: true, searchable: true },
+        { key: 'name', label: 'Name', type: 'text', width: 'w-48', readOnly: true, placeholder: 'Auto-filled' },
         { key: 'quantity', label: 'Quantity', type: 'number', required: true, width: 'w-28', placeholder: '0.5', step: '0.00000001', min: 0 },
         { key: 'purchase_price', label: 'Buy Price', type: 'number', required: true, width: 'w-32', placeholder: '45000', prefix: '$', min: 0 },
-        { key: 'current_price', label: 'Current Price', type: 'number', required: true, width: 'w-32', placeholder: 'Auto', prefix: '$', min: 0, readOnly: true, autoFill: true },
+        { key: 'current_price', label: 'Current Price', type: 'number', width: 'w-32', placeholder: 'Auto', prefix: '$', min: 0, readOnly: true, autoFill: true },
         { key: 'purchase_date', label: 'Purchase Date', type: 'date', required: true, width: 'w-36', max: new Date().toISOString().split('T')[0] },
         { key: 'account_id', label: 'Account', type: 'select', required: true, width: 'w-44' }
       ]
@@ -1153,6 +1153,9 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved }) => {
             newData.symbol = security.ticker;
             newData.current_price = parseFloat(security.price || 0).toFixed(2);
             newData.name = security.name;
+            if (!newData.purchase_price) {
+               newData.purchase_price = newData.current_price;
+            }
           } else if (assetType === 'metal') {
             // For metals, update the current price based on the ETF price
             newData.current_price_per_unit = parseFloat(security.price || 0).toFixed(2);
@@ -1498,10 +1501,22 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved }) => {
               await addSecurityPosition(position.data.account_id, cleanData);
               break;
             case 'crypto':
-              await addCryptoPosition(position.data.account_id, cleanData);
+
+              const cryptoData = {
+                coin_symbol: cleanData.symbol,
+                coin_type: cleanData.name || cleanData.symbol, 
+                quantity: cleanData.quantity,
+                purchase_price: cleanData.purchase_price,
+                purchase_date: cleanData.purchase_date,
+                account_id: cleanData.account_id
+            };
+
+              await addCryptoPosition(position.data.account_id, cryptoData);
               break;
             case 'metal':
-              await addMetalPosition(position.data.account_id, cleanData);
+                const metalData = { ...cleanData };
+                delete metalData.current_price_per_unit;
+                await addMetalPosition(position.data.account_id, metalData);
               break;
             case 'otherAssets':
               await addOtherAsset(cleanData);
