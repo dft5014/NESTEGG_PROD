@@ -776,23 +776,10 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved }) => {
       description: 'Gold, Silver, Platinum',
       emoji: '🥇',
       searchable: true,
-      searchField: 'metal_type',
+      searchField: 'symbol',
       fields: [
-        { 
-          key: 'metal_type', 
-          label: 'Metal', 
-          type: 'select', 
-          required: true, 
-          width: 'w-28',
-          searchable: true,
-          options: [
-            { value: '', label: 'Select...' },
-            { value: 'Gold', label: '🥇 Gold', ticker: 'GLD' },
-            { value: 'Silver', label: '🥈 Silver', ticker: 'SLV' },
-            { value: 'Platinum', label: '💎 Platinum', ticker: 'PPLT' },
-            { value: 'Palladium', label: '⚪ Palladium', ticker: 'PALL' }
-          ]
-        },
+        { key: 'symbol', label: 'Symbol', type: 'text', required: true, width: 'w-24', placeholder: 'GLD', transform: 'uppercase', autocomplete: true, searchable: true },
+        { key: 'name', label: 'Metal Type', type: 'text', width: 'w-48', readOnly: true, placeholder: 'Auto-filled' },
         { key: 'quantity', label: 'Quantity', type: 'number', required: true, width: 'w-24', placeholder: '10', min: 0 },
         { 
           key: 'unit', 
@@ -1157,8 +1144,13 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved }) => {
                newData.purchase_price = newData.current_price;
             }
           } else if (assetType === 'metal') {
-            // For metals, update the current price based on the ETF price
+            newData.symbol = security.ticker;
             newData.current_price_per_unit = parseFloat(security.price || 0).toFixed(2);
+            newData.name = security.name;
+            // Default purchase price to current if not set
+            if (!newData.purchase_price) {
+              newData.purchase_price = newData.current_price_per_unit;
+            }
           }
           
           return {
@@ -1192,15 +1184,7 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved }) => {
           
           // Trigger search for searchable fields
           if (fieldConfig?.searchable && assetTypes[assetType].searchable) {
-            if (assetType === 'metal' && field === 'metal_type' && value) {
-              // For metals, search using the ETF ticker
-              const option = fieldConfig.options.find(o => o.value === value);
-              if (option?.ticker) {
-                debouncedSearch(option.ticker, assetType, positionId);
-              }
-            } else {
-              debouncedSearch(value, assetType, positionId);
-            }
+            debouncedSearch(value, assetType, positionId);
           }
           
           let error = null;
@@ -1514,8 +1498,15 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved }) => {
               await addCryptoPosition(position.data.account_id, cryptoData);
               break;
             case 'metal':
-                const metalData = { ...cleanData };
-                delete metalData.current_price_per_unit;
+              const metalData = {
+                metal_type: cleanData.name || cleanData.symbol,  
+                quantity: cleanData.quantity,
+                unit: cleanData.unit,
+                purchase_price: cleanData.purchase_price,
+                purchase_date: cleanData.purchase_date,
+                storage_location: cleanData.storage_location,
+                description: cleanData.description
+              };
                 await addMetalPosition(position.data.account_id, metalData);
               break;
             case 'otherAssets':
