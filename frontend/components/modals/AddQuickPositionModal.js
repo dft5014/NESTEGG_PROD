@@ -1530,6 +1530,7 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved }) => {
             case 'metal':
               const metalData = {
                 metal_type: cleanData.metal_type,  // Now this comes from dropdown (Gold, Silver, etc.)
+                coin_symbol: cleanData.symbol,
                 quantity: cleanData.quantity,
                 unit: cleanData.unit || 'oz',
                 purchase_price: cleanData.purchase_price,

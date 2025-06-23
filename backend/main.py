@@ -650,6 +650,7 @@ class CryptoPositionUpdate(BaseModel):
 # Metals Models
 class MetalPositionCreate(BaseModel):
     metal_type: str
+    coin_symbol: Optional[str] = None
     quantity: float
     unit: str = "oz"  # Default to troy ounces
     purity: Optional[str] = "999"  # Default to 999 (24K)
