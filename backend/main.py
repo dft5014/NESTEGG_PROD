@@ -5118,16 +5118,17 @@ async def add_metal_position(account_id: int, position: MetalPositionCreate, cur
         # Add metal position
         query = """
         INSERT INTO metal_positions (
-            account_id, metal_type, quantity, unit, purity, purchase_price, 
+            account_id, metal_type, coin_symbol, quantity, unit, purity, purchase_price, 
             cost_basis, purchase_date, storage_location, description
         ) VALUES (
-            :account_id, :metal_type, :quantity, :unit, :purity, :purchase_price,
+            :account_id, :metal_type, :coin_symbol, :quantity, :unit, :purity, :purchase_price,
             :cost_basis, :purchase_date, :storage_location, :description
         ) RETURNING id
         """
         values = {
             "account_id": account_id,
             "metal_type": position.metal_type,
+            "coin_symbol": position.coin_symbol,
             "quantity": position.quantity,
             "unit": position.unit,
             "purity": position.purity,

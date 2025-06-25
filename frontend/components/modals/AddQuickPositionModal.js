@@ -875,10 +875,22 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved }) => {
       
       try {
         const results = await searchSecurities(query);
-        setSearchResults(prev => ({
-          ...prev,
-          [searchKey]: results
-        }));
+        
+        // For metals, automatically select the first result
+        if (assetType === 'metal' && results.length > 0) {
+          handleSelectSecurity(assetType, positionId, results[0]);
+          // Clear search results since we auto-selected
+          setSearchResults(prev => ({
+            ...prev,
+            [searchKey]: []
+          }));
+        } else {
+          // For other types, show the dropdown
+          setSearchResults(prev => ({
+            ...prev,
+            [searchKey]: results
+          }));
+        }
       } catch (error) {
         console.error('Error searching securities:', error);
         setSearchResults(prev => ({
@@ -1202,10 +1214,24 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved }) => {
           if (assetType === 'metal' && field === 'metal_type' && value) {
             const selectedOption = fieldConfig.options.find(o => o.value === value);
             if (selectedOption?.symbol) {
-              // Update the symbol field when metal type is selected
-              pos.data.symbol = selectedOption.symbol;
-              // Trigger search using the symbol
+              // Update multiple fields at once when metal type is selected
+              const updatedData = {
+                ...pos.data,
+                metal_type: value,
+                symbol: selectedOption.symbol,
+                name: `${value} Futures` // Or whatever naming convention you prefer
+              };
+              
+              // Still trigger search to get current price
               debouncedSearch(selectedOption.symbol, assetType, positionId);
+              
+              return {
+                ...pos,
+                data: updatedData,
+                errors: { ...pos.errors, [field]: error },
+                isNew: false,
+                animateIn: false
+              };
             }
           }
           // Regular search for other searchable fields
