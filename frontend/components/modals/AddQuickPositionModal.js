@@ -711,12 +711,14 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved }) => {
           required: true,
           width: 'w-32',
           options: [
+            { value: '', label: 'Select...' },
             { value: 'Savings', label: '💰 Savings' },
             { value: 'Checking', label: '💳 Checking' },
             { value: 'Money Market', label: '📊 Money Market' },
             { value: 'CD', label: '🔒 CD' }
           ]
         },
+        { key: 'account_id', label: 'Account', type: 'select', required: true, width: 'w-44' },
         { key: 'name', label: 'Account Name', type: 'text', required: true, width: 'w-40', placeholder: 'Chase Savings' },
         { key: 'amount', label: 'Amount', type: 'number', required: true, width: 'w-32', placeholder: '10000', prefix: '$', min: 0 },
         { key: 'interest_rate', label: 'APY', type: 'number', width: 'w-24', placeholder: '2.5', suffix: '%', step: '0.01', min: 0, max: 100 },
@@ -732,7 +734,6 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved }) => {
           ]
         },
         { key: 'maturity_date', label: 'Maturity', type: 'date', width: 'w-36' },
-        { key: 'account_id', label: 'Account', type: 'select', required: true, width: 'w-44' }
       ]
     },
     crypto: {
@@ -876,9 +877,16 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved }) => {
       try {
         const results = await searchSecurities(query);
         
+        // Filter results based on asset type
+        const filteredResults = assetType === 'security' 
+          ? results.filter(item => item.asset_type === 'security' || item.asset_type === 'index')
+          : assetType === 'crypto'
+          ? results.filter(item => item.asset_type === 'crypto')
+          : results; // For other types, don't filter
+        
         // For metals, automatically select the first result
-        if (assetType === 'metal' && results.length > 0) {
-          handleSelectSecurity(assetType, positionId, results[0]);
+        if (assetType === 'metal' && filteredResults.length > 0) {
+          handleSelectSecurity(assetType, positionId, filteredResults[0]);
           // Clear search results since we auto-selected
           setSearchResults(prev => ({
             ...prev,
@@ -888,7 +896,7 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved }) => {
           // For other types, show the dropdown
           setSearchResults(prev => ({
             ...prev,
-            [searchKey]: results
+            [searchKey]: filteredResults
           }));
         }
       } catch (error) {
@@ -1573,7 +1581,11 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved }) => {
               await addOtherAsset(cleanData);
               break;
             case 'cash':
-              await addCashPosition(position.data.account_id, cleanData);
+                const cashData = {
+                ...cleanData,
+                name: cleanData.cash_type
+              };
+              await addCashPosition(position.data.account_id, cashData);
               break;
           }
           
