@@ -1228,7 +1228,7 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved }) => {
               return {
                 ...pos,
                 data: updatedData,
-                errors: { ...pos.errors, [field]: error },
+                errors: { ...pos.errors },
                 isNew: false,
                 animateIn: false
               };
