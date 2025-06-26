@@ -9,6 +9,11 @@ import {
   fetchUnifiedPositions,
   updatePosition,
   deletePosition,
+  updateOtherAsset,
+  deleteOtherAsset,
+  fetchLiabilities,
+  updateLiability,
+  deleteLiability,
   searchSecurities,
   searchFXAssets
 } from '@/utils/apimethods/positionMethods';
@@ -31,7 +36,7 @@ import {
   FilterX, SlidersHorizontal, ToggleLeft, ToggleRight
 } from 'lucide-react';
 
-// Asset type configuration
+// Asset type configuration - Updated to include otherAssets
 const ASSET_TYPES = {
   security: {
     name: 'Securities',
@@ -73,10 +78,10 @@ const ASSET_TYPES = {
       hover: 'hover:bg-yellow-100',
       gradient: 'from-yellow-500 to-yellow-600'
     },
-    fields: ['metal_type', 'quantity', 'unit', 'purchase_price', 'current_price_per_unit', 'purchase_date']
+    fields: ['metal_type', 'quantity', 'purchase_price', 'current_price_per_unit', 'purchase_date']
   },
-  realestate: {
-    name: 'Real Estate',
+  otherAssets: {
+    name: 'Other Assets',
     icon: Home,
     color: {
       main: 'green',
@@ -87,7 +92,7 @@ const ASSET_TYPES = {
       hover: 'hover:bg-green-100',
       gradient: 'from-green-500 to-green-600'
     },
-    fields: ['property_name', 'property_type', 'address', 'purchase_price', 'estimated_value', 'purchase_date']
+    fields: ['asset_name', 'asset_type', 'cost', 'current_value', 'purchase_date', 'notes']
   },
   cash: {
     name: 'Cash',
@@ -105,7 +110,18 @@ const ASSET_TYPES = {
   }
 };
 
-// Account categories with enhanced styling
+// Liability type configuration
+const LIABILITY_TYPES = {
+  credit_card: { label: 'Credit Card', icon: CreditCard },
+  mortgage: { label: 'Mortgage', icon: Home },
+  auto_loan: { label: 'Auto Loan', icon: Package },
+  personal_loan: { label: 'Personal Loan', icon: Wallet },
+  student_loan: { label: 'Student Loan', icon: FileText },
+  home_equity: { label: 'Home Equity', icon: Building },
+  other: { label: 'Other', icon: Banknote }
+};
+
+// Account categories
 const ACCOUNT_CATEGORIES = [
   { id: "brokerage", name: "Brokerage", icon: Briefcase, color: 'blue' },
   { id: "retirement", name: "Retirement", icon: Building, color: 'indigo' },
@@ -114,57 +130,6 @@ const ACCOUNT_CATEGORIES = [
   { id: "metals", name: "Metals Storage", icon: Shield, color: 'yellow' },
   { id: "real_estate", name: "Real Estate", icon: Home, color: 'emerald' }
 ];
-
-// Account types by category
-const ACCOUNT_TYPES_BY_CATEGORY = {
-  brokerage: [
-    { value: "Individual", label: "Individual" },
-    { value: "Joint", label: "Joint" },
-    { value: "Custodial", label: "Custodial" },
-    { value: "Trust", label: "Trust" },
-    { value: "Other Brokerage", label: "Other Brokerage" }
-  ],
-  retirement: [
-    { value: "Traditional IRA", label: "Traditional IRA" },
-    { value: "Roth IRA", label: "Roth IRA" },
-    { value: "401(k)", label: "401(k)" },
-    { value: "Roth 401(k)", label: "Roth 401(k)" },
-    { value: "SEP IRA", label: "SEP IRA" },
-    { value: "SIMPLE IRA", label: "SIMPLE IRA" },
-    { value: "403(b)", label: "403(b)" },
-    { value: "Pension", label: "Pension" },
-    { value: "HSA", label: "HSA" },
-    { value: "Other Retirement", label: "Other Retirement" }
-  ],
-  cash: [
-    { value: "Checking", label: "Checking" },
-    { value: "Savings", label: "Savings" },
-    { value: "Money Market", label: "Money Market" },
-    { value: "CD", label: "Certificate of Deposit" },
-    { value: "Other Cash", label: "Other Cash" }
-  ],
-  cryptocurrency: [
-    { value: "Exchange Account", label: "Exchange Account" },
-    { value: "Hardware Wallet", label: "Hardware Wallet" },
-    { value: "Software Wallet", label: "Software Wallet" },
-    { value: "Other Crypto", label: "Other Crypto" }
-  ],
-  metals: [
-    { value: "Home Storage", label: "Home Storage" },
-    { value: "Safe Deposit Box", label: "Safe Deposit Box" },
-    { value: "Third-Party Vault", label: "Third-Party Vault" },
-    { value: "Other Metals", label: "Other Metals" }
-  ],
-  real_estate: [
-    { value: "Primary Residence", label: "Primary Residence" },
-    { value: "Vacation Home", label: "Vacation Home" },
-    { value: "Rental Property", label: "Rental Property" },
-    { value: "Commercial Property", label: "Commercial Property" },
-    { value: "Land", label: "Land" },
-    { value: "REIT", label: "REIT" },
-    { value: "Other Real Estate", label: "Other Real Estate" }
-  ]
-};
 
 // Enhanced filter dropdown component
 const FilterDropdown = ({ 
@@ -204,7 +169,6 @@ const FilterDropdown = ({
   const handleToggleOption = (value) => {
     const newSet = new Set(selected);
     if (selectedCount === 0) {
-      // If nothing selected (meaning all are shown), select all except this one
       options.forEach(opt => newSet.add(opt.value));
       newSet.delete(value);
     } else {
@@ -382,7 +346,6 @@ const useSelectionState = () => {
       const newSet = new Set(prev);
       
       if (withShift && lastSelectedIndex !== null && index !== undefined) {
-        // Range selection
         const start = Math.min(lastSelectedIndex, index);
         const end = Math.max(lastSelectedIndex, index);
         
@@ -392,7 +355,6 @@ const useSelectionState = () => {
           }
         }
       } else {
-        // Single selection
         if (newSet.has(id)) {
           newSet.delete(id);
         } else {
@@ -426,14 +388,14 @@ const useSelectionState = () => {
   };
 };
 
-// Edit Account Form Component
+// Edit Account Form Component (unchanged)
 const EditAccountForm = ({ account, onSave, onCancel }) => {
   const [formData, setFormData] = useState({
     account_name: account.account_name || '',
     institution: account.institution || '',
     type: account.type || '',
     account_category: account.account_category || '',
-    balance: account.total_value || account.balance || 0 // Fix: use total_value first
+    balance: account.total_value || account.balance || 0
   });
   const [errors, setErrors] = useState({});
   const [isSaving, setIsSaving] = useState(false);
@@ -469,7 +431,6 @@ const EditAccountForm = ({ account, onSave, onCancel }) => {
 
   const category = ACCOUNT_CATEGORIES.find(c => c.id === formData.account_category);
   const Icon = category?.icon || Building;
-  const accountTypes = ACCOUNT_TYPES_BY_CATEGORY[formData.account_category] || [];
 
   return (
     <div className="space-y-4 p-6 bg-white rounded-xl border border-gray-200">
@@ -537,86 +498,6 @@ const EditAccountForm = ({ account, onSave, onCancel }) => {
             <p className="mt-1 text-xs text-red-600">{errors.institution}</p>
           )}
         </div>
-
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Category
-          </label>
-          <select
-            value={formData.account_category}
-            onChange={(e) => {
-              handleFieldChange('account_category', e.target.value);
-              handleFieldChange('type', ''); // Reset type when category changes
-            }}
-            className={`
-              w-full px-3 py-2 border rounded-lg text-sm
-              ${errors.account_category 
-                ? 'border-red-300 focus:ring-red-500 focus:border-red-500' 
-                : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'
-              }
-              transition-colors
-            `}
-          >
-            <option value="">Select category...</option>
-            {ACCOUNT_CATEGORIES.map(cat => (
-              <option key={cat.id} value={cat.id}>
-                {cat.name}
-              </option>
-            ))}
-          </select>
-          {errors.account_category && (
-            <p className="mt-1 text-xs text-red-600">{errors.account_category}</p>
-          )}
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Account Type
-          </label>
-          <select
-            value={formData.type}
-            onChange={(e) => handleFieldChange('type', e.target.value)}
-            disabled={!formData.account_category}
-            className={`
-              w-full px-3 py-2 border rounded-lg text-sm
-              ${errors.type 
-                ? 'border-red-300 focus:ring-red-500 focus:border-red-500' 
-                : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'
-              }
-              transition-colors
-              ${!formData.account_category ? 'bg-gray-100 cursor-not-allowed' : ''}
-            `}
-          >
-            <option value="">
-              {formData.account_category ? 'Select type...' : 'Select category first'}
-            </option>
-            {accountTypes.map(type => (
-              <option key={type.value} value={type.value}>
-                {type.label}
-              </option>
-            ))}
-          </select>
-          {errors.type && (
-            <p className="mt-1 text-xs text-red-600">{errors.type}</p>
-          )}
-        </div>
-
-        <div className="md:col-span-2">
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Balance
-          </label>
-          <div className="relative">
-            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm">$</span>
-            <input
-              type="number"
-              value={formData.balance}
-              onChange={(e) => handleFieldChange('balance', parseFloat(e.target.value) || 0)}
-              className="w-full pl-8 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-blue-500 focus:border-blue-500"
-              placeholder="0.00"
-              step="0.01"
-            />
-          </div>
-        </div>
       </div>
 
       <div className="flex justify-end space-x-3 pt-4 border-t">
@@ -651,10 +532,8 @@ const EditAccountForm = ({ account, onSave, onCancel }) => {
   );
 };
 
-// Edit position form component
-// Edit position form component
+// Edit position form component - Updated with otherAssets support
 const EditPositionForm = ({ position, assetType, onSave, onCancel, accounts }) => {
-  // Map the unified view fields to the form fields for each asset type
   const mapPositionData = (pos) => {
     const baseData = {
       ...pos,
@@ -686,19 +565,18 @@ const EditPositionForm = ({ position, assetType, onSave, onCancel, accounts }) =
           ...baseData,
           metal_type: pos.identifier || pos.name || '',
           quantity: pos.quantity || '',
-          unit: pos.unit || 'oz',
           purchase_price: pos.cost_per_unit || '',
           current_price_per_unit: pos.current_price_per_unit || ''
         };
       
-      case 'realestate':
+      case 'otherAssets':
         return {
           ...baseData,
-          property_name: pos.identifier || pos.name || '',
-          property_type: pos.property_type || '',
-          address: pos.address || '',
-          purchase_price: pos.total_cost_basis || '',
-          estimated_value: pos.current_value || ''
+          asset_name: pos.identifier || pos.name || '',
+          asset_type: pos.asset_type || 'other',
+          cost: pos.total_cost_basis || 0,
+          current_value: pos.current_value || 0,
+          notes: pos.notes || ''
         };
       
       case 'cash':
@@ -720,7 +598,6 @@ const EditPositionForm = ({ position, assetType, onSave, onCancel, accounts }) =
   const [errors, setErrors] = useState({});
   const config = ASSET_TYPES[assetType];
 
-  // Define which fields are editable per asset type
   const getEditableFields = (type) => {
     switch (type) {
       case 'security':
@@ -729,8 +606,8 @@ const EditPositionForm = ({ position, assetType, onSave, onCancel, accounts }) =
         return ['quantity', 'purchase_price', 'purchase_date'];
       case 'metal':
         return ['quantity', 'purchase_price', 'purchase_date'];
-      case 'realestate':
-        return ['purchase_price', 'estimated_value', 'purchase_date'];
+      case 'otherAssets':
+        return ['asset_name', 'asset_type', 'cost', 'current_value', 'purchase_date', 'notes'];
       case 'cash':
         return ['amount', 'interest_rate'];
       default:
@@ -743,13 +620,11 @@ const EditPositionForm = ({ position, assetType, onSave, onCancel, accounts }) =
   const handleFieldChange = (field, value) => {
     setFormData(prev => ({ ...prev, [field]: value }));
     
-    // Clear error for this field
     if (errors[field]) {
       setErrors(prev => ({ ...prev, [field]: null }));
     }
   };
 
-  // Check if a field has been modified
   const isFieldModified = (field) => {
     return formData[field] !== originalData[field];
   };
@@ -757,7 +632,6 @@ const EditPositionForm = ({ position, assetType, onSave, onCancel, accounts }) =
   const validate = () => {
     const newErrors = {};
     
-    // Validation based on asset type
     switch (assetType) {
       case 'security':
         if (!formData.shares) newErrors.shares = 'Shares required';
@@ -767,6 +641,10 @@ const EditPositionForm = ({ position, assetType, onSave, onCancel, accounts }) =
         break;
       case 'metal':
         if (!formData.quantity) newErrors.quantity = 'Quantity required';
+        break;
+      case 'otherAssets':
+        if (!formData.asset_name) newErrors.asset_name = 'Asset name required';
+        if (!formData.current_value) newErrors.current_value = 'Current value required';
         break;
       case 'cash':
         if (!formData.amount) newErrors.amount = 'Amount required';
@@ -803,10 +681,14 @@ const EditPositionForm = ({ position, assetType, onSave, onCancel, accounts }) =
           updatedData.purchase_date = formData.purchase_date;
           break;
         
-        case 'realestate':
-          updatedData.total_cost_basis = parseFloat(formData.purchase_price) || 0;
-          updatedData.current_value = parseFloat(formData.estimated_value) || 0;
+        case 'otherAssets':
+          updatedData.identifier = formData.asset_name;
+          updatedData.name = formData.asset_name;
+          updatedData.asset_type = formData.asset_type;
+          updatedData.total_cost_basis = parseFloat(formData.cost) || 0;
+          updatedData.current_value = parseFloat(formData.current_value) || 0;
           updatedData.purchase_date = formData.purchase_date;
+          updatedData.notes = formData.notes;
           break;
         
         case 'cash':
@@ -845,14 +727,46 @@ const EditPositionForm = ({ position, assetType, onSave, onCancel, accounts }) =
           const isEditable = editableFields.includes(field);
           const isModified = isFieldModified(field);
           
+          // Special handling for asset_type select in otherAssets
+          if (assetType === 'otherAssets' && field === 'asset_type' && isEditable) {
+            return (
+              <div key={field}>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Asset Type
+                </label>
+                <select
+                  value={formData.asset_type}
+                  onChange={(e) => handleFieldChange('asset_type', e.target.value)}
+                  className={`
+                    w-full px-3 py-2 border rounded-lg text-sm
+                    ${errors.asset_type 
+                      ? 'border-red-300 focus:ring-red-500 focus:border-red-500'
+                      : isModified
+                        ? 'border-blue-400 bg-blue-50 focus:ring-blue-500 focus:border-blue-500'
+                        : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'
+                    }
+                  `}
+                >
+                  <option value="real_estate">Real Estate</option>
+                  <option value="vehicle">Vehicle</option>
+                  <option value="collectible">Collectible</option>
+                  <option value="jewelry">Jewelry</option>
+                  <option value="art">Art</option>
+                  <option value="equipment">Equipment</option>
+                  <option value="other">Other</option>
+                </select>
+              </div>
+            );
+          }
+          
           return (
-            <div key={field} className={field === 'address' ? 'md:col-span-2' : ''}>
+            <div key={field} className={field === 'notes' ? 'md:col-span-2' : ''}>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 {field.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')}
                 {!isEditable && <span className="text-xs text-gray-500 ml-2">(Read-only)</span>}
               </label>
               <input
-                type={field.includes('price') || field.includes('value') || field === 'shares' || field === 'quantity' ? 'number' : 
+                type={field.includes('price') || field.includes('value') || field.includes('cost') || field === 'shares' || field === 'quantity' || field === 'amount' ? 'number' : 
                      field.includes('date') ? 'date' : 'text'}
                 value={formData[field] || ''}
                 onChange={(e) => handleFieldChange(field, e.target.value)}
@@ -902,17 +816,260 @@ const EditPositionForm = ({ position, assetType, onSave, onCancel, accounts }) =
   );
 };
 
-// Main QuickEditDeleteModal component
+// Edit Liability Form Component
+const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
+  const [formData, setFormData] = useState({
+    name: liability.name || '',
+    liability_type: liability.liability_type || '',
+    current_balance: liability.current_balance || 0,
+    original_amount: liability.original_amount || 0,
+    interest_rate: liability.interest_rate || 0,
+    minimum_payment: liability.minimum_payment || 0,
+    due_date: liability.due_date || '',
+    notes: liability.notes || ''
+  });
+  const [errors, setErrors] = useState({});
+  const [isSaving, setIsSaving] = useState(false);
+
+  const handleFieldChange = (field, value) => {
+    setFormData(prev => ({ ...prev, [field]: value }));
+    if (errors[field]) {
+      setErrors(prev => ({ ...prev, [field]: null }));
+    }
+  };
+
+  const validate = () => {
+    const newErrors = {};
+    if (!formData.name) newErrors.name = 'Name required';
+    if (!formData.liability_type) newErrors.liability_type = 'Type required';
+    if (!formData.current_balance) newErrors.current_balance = 'Balance required';
+    
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  const handleSubmit = async () => {
+    if (!validate()) return;
+    
+    setIsSaving(true);
+    try {
+      await onSave({ ...liability, ...formData });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const typeConfig = LIABILITY_TYPES[formData.liability_type];
+  const Icon = typeConfig?.icon || Banknote;
+
+  return (
+    <div className="space-y-4 p-6 bg-white rounded-xl border border-gray-200">
+      <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center space-x-3">
+          <div className="p-3 rounded-xl bg-red-100">
+            <Icon className="w-6 h-6 text-red-600" />
+          </div>
+          <div>
+            <h3 className="text-lg font-semibold text-gray-900">Edit Liability</h3>
+            <p className="text-sm text-gray-500">Update liability details</p>
+          </div>
+        </div>
+        <button
+          onClick={onCancel}
+          className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+        >
+          <X className="w-5 h-5 text-gray-500" />
+        </button>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Name
+          </label>
+          <input
+            type="text"
+            value={formData.name}
+            onChange={(e) => handleFieldChange('name', e.target.value)}
+            className={`
+              w-full px-3 py-2 border rounded-lg text-sm
+              ${errors.name 
+                ? 'border-red-300 focus:ring-red-500 focus:border-red-500' 
+                : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'
+              }
+              transition-colors
+            `}
+            placeholder="Chase Sapphire Card"
+          />
+          {errors.name && (
+            <p className="mt-1 text-xs text-red-600">{errors.name}</p>
+          )}
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Type
+          </label>
+          <select
+            value={formData.liability_type}
+            onChange={(e) => handleFieldChange('liability_type', e.target.value)}
+            className={`
+              w-full px-3 py-2 border rounded-lg text-sm
+              ${errors.liability_type 
+                ? 'border-red-300 focus:ring-red-500 focus:border-red-500' 
+                : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'
+              }
+              transition-colors
+            `}
+          >
+            <option value="">Select type...</option>
+            {Object.entries(LIABILITY_TYPES).map(([key, config]) => (
+              <option key={key} value={key}>
+                {config.label}
+              </option>
+            ))}
+          </select>
+          {errors.liability_type && (
+            <p className="mt-1 text-xs text-red-600">{errors.liability_type}</p>
+          )}
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Current Balance
+          </label>
+          <div className="relative">
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm">$</span>
+            <input
+              type="number"
+              value={formData.current_balance}
+              onChange={(e) => handleFieldChange('current_balance', parseFloat(e.target.value) || 0)}
+              className={`
+                w-full pl-8 pr-3 py-2 border rounded-lg text-sm
+                ${errors.current_balance 
+                  ? 'border-red-300 focus:ring-red-500 focus:border-red-500' 
+                  : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'
+                }
+              `}
+              placeholder="0.00"
+              step="0.01"
+            />
+          </div>
+          {errors.current_balance && (
+            <p className="mt-1 text-xs text-red-600">{errors.current_balance}</p>
+          )}
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Original Amount
+          </label>
+          <div className="relative">
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm">$</span>
+            <input
+              type="number"
+              value={formData.original_amount}
+              onChange={(e) => handleFieldChange('original_amount', parseFloat(e.target.value) || 0)}
+              className="w-full pl-8 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-blue-500 focus:border-blue-500"
+              placeholder="0.00"
+              step="0.01"
+            />
+          </div>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Interest Rate (%)
+          </label>
+          <input
+            type="number"
+            value={formData.interest_rate}
+            onChange={(e) => handleFieldChange('interest_rate', parseFloat(e.target.value) || 0)}
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-blue-500 focus:border-blue-500"
+            placeholder="0.00"
+            step="0.01"
+            min="0"
+            max="100"
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Minimum Payment
+          </label>
+          <div className="relative">
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm">$</span>
+            <input
+              type="number"
+              value={formData.minimum_payment}
+              onChange={(e) => handleFieldChange('minimum_payment', parseFloat(e.target.value) || 0)}
+              className="w-full pl-8 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-blue-500 focus:border-blue-500"
+              placeholder="0.00"
+              step="0.01"
+            />
+          </div>
+        </div>
+
+        <div className="md:col-span-2">
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Notes
+          </label>
+          <textarea
+            value={formData.notes}
+            onChange={(e) => handleFieldChange('notes', e.target.value)}
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-blue-500 focus:border-blue-500"
+            placeholder="Additional notes..."
+            rows={3}
+          />
+        </div>
+      </div>
+
+      <div className="flex justify-end space-x-3 pt-4 border-t">
+        <button
+          onClick={onCancel}
+          className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+        >
+          Cancel
+        </button>
+        <button
+          onClick={handleSubmit}
+          disabled={isSaving}
+          className={`
+            px-4 py-2 text-sm font-medium text-white rounded-lg transition-all
+            ${isSaving 
+              ? 'bg-gray-400 cursor-not-allowed' 
+              : 'bg-red-600 hover:bg-red-700'
+            }
+          `}
+        >
+          {isSaving ? (
+            <>
+              <Loader2 className="w-4 h-4 inline mr-2 animate-spin" />
+              Saving...
+            </>
+          ) : (
+            'Save Changes'
+          )}
+        </button>
+      </div>
+    </div>
+  );
+};
+
+// Main QuickEditDeleteModal component - Updated with liability support
 const QuickEditDeleteModal = ({ isOpen, onClose }) => {
   // State management
-  const [currentView, setCurrentView] = useState('selection'); // 'selection', 'accounts', 'positions'
+  const [currentView, setCurrentView] = useState('selection'); // 'selection', 'accounts', 'positions', 'liabilities'
   const [accounts, setAccounts] = useState([]);
   const [positions, setPositions] = useState([]);
+  const [liabilities, setLiabilities] = useState([]);
   const [filteredAccounts, setFilteredAccounts] = useState([]);
   const [filteredPositions, setFilteredPositions] = useState([]);
+  const [filteredLiabilities, setFilteredLiabilities] = useState([]);
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedAssetTypes, setSelectedAssetTypes] = useState(new Set());
+  const [selectedLiabilityTypes, setSelectedLiabilityTypes] = useState(new Set());
   const [selectedAccountFilter, setSelectedAccountFilter] = useState(new Set());
   const [selectedInstitutionFilter, setSelectedInstitutionFilter] = useState(new Set());
   const [selectedCategories, setSelectedCategories] = useState(new Set());
@@ -920,13 +1077,14 @@ const QuickEditDeleteModal = ({ isOpen, onClose }) => {
   const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' });
   const [showValues, setShowValues] = useState(true);
   const [editingItem, setEditingItem] = useState(null);
-  const [editingType, setEditingType] = useState(null); // 'account' or 'position'
+  const [editingType, setEditingType] = useState(null); // 'account', 'position', or 'liability'
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [message, setMessage] = useState({ type: '', text: '' });
   
   // Selection hooks
   const accountSelection = useSelectionState();
   const positionSelection = useSelectionState();
+  const liabilitySelection = useSelectionState();
 
   // Refs
   const messageTimeoutRef = useRef(null);
@@ -938,8 +1096,10 @@ const QuickEditDeleteModal = ({ isOpen, onClose }) => {
     } else if (isOpen && currentView === 'positions') {
       loadPositions();
       if (accounts.length === 0) {
-        loadAccounts(); // Load accounts for filter options
+        loadAccounts();
       }
+    } else if (isOpen && currentView === 'liabilities') {
+      loadLiabilities();
     }
     
     return () => {
@@ -959,7 +1119,9 @@ const QuickEditDeleteModal = ({ isOpen, onClose }) => {
         setSearchQuery('');
         accountSelection.clearSelection();
         positionSelection.clearSelection();
+        liabilitySelection.clearSelection();
         setSelectedAssetTypes(new Set());
+        setSelectedLiabilityTypes(new Set());
         setSelectedAccountFilter(new Set());
         setSelectedInstitutionFilter(new Set());
         setSelectedCategories(new Set());
@@ -996,23 +1158,35 @@ const QuickEditDeleteModal = ({ isOpen, onClose }) => {
     }
   };
 
+  const loadLiabilities = async () => {
+    setLoading(true);
+    try {
+      const data = await fetchLiabilities();
+      setLiabilities(data.liabilities || []);
+      setFilteredLiabilities(data.liabilities || []);
+    } catch (error) {
+      console.error('Error loading liabilities:', error);
+      showMessage('error', 'Failed to load liabilities');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // Calculate account totals from positions
-    const accountsWithTotals = useMemo(() => {
+  const accountsWithTotals = useMemo(() => {
     if (accounts.length === 0) return accounts;
     
-    // Sum up position values by account
     const accountTotals = {};
     positions.forEach(position => {
-        const accountId = position.account_id;
-        accountTotals[accountId] = (accountTotals[accountId] || 0) + parseFloat(position.current_value || 0);
+      const accountId = position.account_id;
+      accountTotals[accountId] = (accountTotals[accountId] || 0) + parseFloat(position.current_value || 0);
     });
     
-    // Add totals to accounts
     return accounts.map(account => ({
-        ...account,
-        total_value: accountTotals[account.id] || 0
+      ...account,
+      total_value: accountTotals[account.id] || 0
     }));
-    }, [accounts, positions]);
+  }, [accounts, positions]);
 
   // Message display
   const showMessage = (type, text, duration = 5000) => {
@@ -1059,15 +1233,6 @@ const QuickEditDeleteModal = ({ isOpen, onClose }) => {
     }));
   }, [uniqueInstitutions, accounts]);
 
-  const accountTypeFilterOptions = useMemo(() => {
-    return uniqueAccountTypes.map(type => ({
-      value: type,
-      label: type,
-      icon: CreditCard,
-      count: accounts.filter(acc => acc.type === type).length
-    }));
-  }, [uniqueAccountTypes, accounts]);
-
   const accountFilterOptions = useMemo(() => {
     return accounts.map(acc => ({
       value: acc.id,
@@ -1077,23 +1242,19 @@ const QuickEditDeleteModal = ({ isOpen, onClose }) => {
     }));
   }, [accounts, positions]);
 
-  const institutionFilterOptionsForPositions = useMemo(() => {
-    return uniqueInstitutions.map(inst => ({
-      value: inst,
-      label: inst,
-      icon: Building2,
-      count: positions.filter(pos => {
-        const account = accounts.find(acc => acc.id === pos.account_id);
-        return account?.institution === inst;
-      }).length
+  const liabilityTypeFilterOptions = useMemo(() => {
+    return Object.entries(LIABILITY_TYPES).map(([key, config]) => ({
+      value: key,
+      label: config.label,
+      icon: config.icon,
+      count: liabilities.filter(l => l.liability_type === key).length
     }));
-  }, [uniqueInstitutions, positions, accounts]);
+  }, [liabilities]);
 
   // Filter accounts
   useEffect(() => {
-      let filtered = [...accountsWithTotals];
+    let filtered = [...accountsWithTotals];
 
-    // Search filter
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
       filtered = filtered.filter(account => 
@@ -1103,28 +1264,23 @@ const QuickEditDeleteModal = ({ isOpen, onClose }) => {
       );
     }
 
-    // Category filter
     if (selectedCategories.size > 0) {
       filtered = filtered.filter(acc => !selectedCategories.has(acc.account_category));
     }
 
-    // Institution filter
     if (selectedInstitutionFilter.size > 0) {
       filtered = filtered.filter(acc => !selectedInstitutionFilter.has(acc.institution));
     }
 
-    // Account type filter
     if (selectedAccountTypes.size > 0) {
       filtered = filtered.filter(acc => !selectedAccountTypes.has(acc.type));
     }
 
-    // Sorting
     if (sortConfig.key) {
       filtered.sort((a, b) => {
         let aVal = a[sortConfig.key];
         let bVal = b[sortConfig.key];
         
-        // Special handling for balance - use total_value
         if (sortConfig.key === 'balance') {
           aVal = a.total_value || a.balance || 0;
           bVal = b.total_value || b.balance || 0;
@@ -1150,16 +1306,15 @@ const QuickEditDeleteModal = ({ isOpen, onClose }) => {
   useEffect(() => {
     let filtered = [...positions];
 
-    // Search filter
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
       filtered = filtered.filter(pos => {
         const searchableFields = [
-            pos.identifier,
-            pos.name,
-            pos.account_name,
-            pos.sector,
-            pos.industry
+          pos.identifier,
+          pos.name,
+          pos.account_name,
+          pos.sector,
+          pos.industry
         ];
         return searchableFields.some(field => 
           field && field.toLowerCase().includes(query)
@@ -1167,19 +1322,16 @@ const QuickEditDeleteModal = ({ isOpen, onClose }) => {
       });
     }
 
-    // Asset type filter
     if (selectedAssetTypes.size > 0) {
       filtered = filtered.filter(pos => 
         selectedAssetTypes.has(pos.asset_type)
       );
     }
 
-    // Account filter
     if (selectedAccountFilter.size > 0) {
       filtered = filtered.filter(pos => !selectedAccountFilter.has(pos.account_id));
     }
 
-    // Institution filter for positions
     if (selectedInstitutionFilter.size > 0) {
       filtered = filtered.filter(pos => {
         const account = accounts.find(acc => acc.id === pos.account_id);
@@ -1187,7 +1339,6 @@ const QuickEditDeleteModal = ({ isOpen, onClose }) => {
       });
     }
 
-    // Sorting
     if (sortConfig.key) {
       filtered.sort((a, b) => {
         let aVal = a[sortConfig.key];
@@ -1209,6 +1360,45 @@ const QuickEditDeleteModal = ({ isOpen, onClose }) => {
     setFilteredPositions(filtered);
   }, [positions, searchQuery, selectedAssetTypes, selectedAccountFilter, selectedInstitutionFilter, accounts, sortConfig]);
 
+  // Filter liabilities
+  useEffect(() => {
+    let filtered = [...liabilities];
+
+    if (searchQuery) {
+      const query = searchQuery.toLowerCase();
+      filtered = filtered.filter(liability => 
+        liability.name?.toLowerCase().includes(query) ||
+        liability.liability_type?.toLowerCase().includes(query)
+      );
+    }
+
+    if (selectedLiabilityTypes.size > 0) {
+      filtered = filtered.filter(l => 
+        selectedLiabilityTypes.has(l.liability_type)
+      );
+    }
+
+    if (sortConfig.key) {
+      filtered.sort((a, b) => {
+        let aVal = a[sortConfig.key];
+        let bVal = b[sortConfig.key];
+        
+        if (typeof aVal === 'number' && typeof bVal === 'number') {
+          return sortConfig.direction === 'asc' ? aVal - bVal : bVal - aVal;
+        }
+        
+        aVal = String(aVal || '').toLowerCase();
+        bVal = String(bVal || '').toLowerCase();
+        
+        if (aVal < bVal) return sortConfig.direction === 'asc' ? -1 : 1;
+        if (aVal > bVal) return sortConfig.direction === 'asc' ? 1 : -1;
+        return 0;
+      });
+    }
+
+    setFilteredLiabilities(filtered);
+  }, [liabilities, searchQuery, selectedLiabilityTypes, sortConfig]);
+
   // Handle account editing
   const handleEditAccount = (account) => {
     setEditingItem(account);
@@ -1220,7 +1410,6 @@ const QuickEditDeleteModal = ({ isOpen, onClose }) => {
       setIsSubmitting(true);
       await updateAccount(updatedAccount.id, updatedAccount);
       
-      // Update local state
       setAccounts(prev => prev.map(acc => 
         acc.id === updatedAccount.id ? updatedAccount : acc
       ));
@@ -1245,9 +1434,22 @@ const QuickEditDeleteModal = ({ isOpen, onClose }) => {
   const handleSavePosition = async (updatedPosition) => {
     try {
       setIsSubmitting(true);
-      await updatePosition(updatedPosition.id, updatedPosition, updatedPosition.asset_type);
       
-      // Update local state
+      // Special handling for otherAssets
+      if (updatedPosition.asset_type === 'otherAssets') {
+        const otherAssetData = {
+          asset_name: updatedPosition.identifier || updatedPosition.name,
+          asset_type: updatedPosition.asset_type,
+          cost: updatedPosition.total_cost_basis || 0,
+          current_value: updatedPosition.current_value || 0,
+          purchase_date: updatedPosition.purchase_date,
+          notes: updatedPosition.notes || ''
+        };
+        await updateOtherAsset(updatedPosition.id, otherAssetData);
+      } else {
+        await updatePosition(updatedPosition.id, updatedPosition, updatedPosition.asset_type);
+      }
+      
       setPositions(prev => prev.map(pos => 
         pos.id === updatedPosition.id ? updatedPosition : pos
       ));
@@ -1256,8 +1458,34 @@ const QuickEditDeleteModal = ({ isOpen, onClose }) => {
       setEditingType(null);
       showMessage('success', 'Position updated successfully');
     } catch (error) {
-      console.error('Error updating position:', error);
+      console.error(`Error updating ${updatedPosition.asset_type} position:`, error);
       showMessage('error', 'Failed to update position');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // Handle liability editing
+  const handleEditLiability = (liability) => {
+    setEditingItem(liability);
+    setEditingType('liability');
+  };
+
+  const handleSaveLiability = async (updatedLiability) => {
+    try {
+      setIsSubmitting(true);
+      await updateLiability(updatedLiability.id, updatedLiability);
+      
+      setLiabilities(prev => prev.map(l => 
+        l.id === updatedLiability.id ? updatedLiability : l
+      ));
+      
+      setEditingItem(null);
+      setEditingType(null);
+      showMessage('success', 'Liability updated successfully');
+    } catch (error) {
+      console.error('Error updating liability:', error);
+      showMessage('error', 'Failed to update liability');
     } finally {
       setIsSubmitting(false);
     }
@@ -1265,14 +1493,18 @@ const QuickEditDeleteModal = ({ isOpen, onClose }) => {
 
   // Handle deletion
   const handleDeleteSelected = async () => {
-    const isAccounts = currentView === 'accounts';
-    const selectedIds = isAccounts 
-      ? Array.from(accountSelection.selectedItems)
-      : Array.from(positionSelection.selectedItems);
+    const selectedIds = 
+      currentView === 'accounts' ? Array.from(accountSelection.selectedItems) :
+      currentView === 'positions' ? Array.from(positionSelection.selectedItems) :
+      Array.from(liabilitySelection.selectedItems);
 
     if (selectedIds.length === 0) return;
 
-    const itemType = isAccounts ? 'account' : 'position';
+    const itemType = 
+      currentView === 'accounts' ? 'account' :
+      currentView === 'positions' ? 'position' :
+      'liability';
+      
     const confirmed = window.confirm(
       `Delete ${selectedIds.length} ${itemType}${selectedIds.length !== 1 ? 's' : ''}? This action cannot be undone.`
     );
@@ -1286,11 +1518,17 @@ const QuickEditDeleteModal = ({ isOpen, onClose }) => {
     try {
       for (const id of selectedIds) {
         try {
-          if (isAccounts) {
+          if (currentView === 'accounts') {
             await deleteAccount(id);
-          } else {
+          } else if (currentView === 'positions') {
             const position = positions.find(p => p.id === id);
-            await deletePosition(id, position?.asset_type);
+            if (position?.asset_type === 'otherAssets') {
+              await deleteOtherAsset(id);
+            } else {
+              await deletePosition(id, position?.asset_type);
+            }
+          } else {
+            await deleteLiability(id);
           }
           successCount++;
         } catch (error) {
@@ -1300,12 +1538,15 @@ const QuickEditDeleteModal = ({ isOpen, onClose }) => {
       }
 
       // Update local state
-      if (isAccounts) {
+      if (currentView === 'accounts') {
         setAccounts(prev => prev.filter(acc => !selectedIds.includes(acc.id)));
         accountSelection.clearSelection();
-      } else {
+      } else if (currentView === 'positions') {
         setPositions(prev => prev.filter(pos => !selectedIds.includes(pos.id)));
         positionSelection.clearSelection();
+      } else {
+        setLiabilities(prev => prev.filter(l => !selectedIds.includes(l.id)));
+        liabilitySelection.clearSelection();
       }
 
       if (errorCount === 0) {
@@ -1322,355 +1563,474 @@ const QuickEditDeleteModal = ({ isOpen, onClose }) => {
   };
 
   // Export selected items
-  const handleExport = () => {
-    const isAccounts = currentView === 'accounts';
-    const selected = isAccounts
-      ? filteredAccounts.filter(acc => accountSelection.isSelected(acc.id))
-      : filteredPositions.filter(pos => positionSelection.isSelected(pos.id));
+// Export selected items
+ const handleExport = () => {
+   const selected = 
+     currentView === 'accounts' ? filteredAccounts.filter(acc => accountSelection.isSelected(acc.id)) :
+     currentView === 'positions' ? filteredPositions.filter(pos => positionSelection.isSelected(pos.id)) :
+     filteredLiabilities.filter(l => liabilitySelection.isSelected(l.id));
 
-    if (selected.length === 0) return;
+   if (selected.length === 0) return;
 
-    const csv = convertToCSV(selected);
-    const blob = new Blob([csv], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${isAccounts ? 'accounts' : 'positions'}_export_${new Date().toISOString().split('T')[0]}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
-    
-    showMessage('success', `Exported ${selected.length} ${isAccounts ? 'account' : 'position'}${selected.length !== 1 ? 's' : ''}`);
-  };
+   const csv = convertToCSV(selected);
+   const blob = new Blob([csv], { type: 'text/csv' });
+   const url = URL.createObjectURL(blob);
+   const a = document.createElement('a');
+   a.href = url;
+   a.download = `${currentView}_export_${new Date().toISOString().split('T')[0]}.csv`;
+   a.click();
+   URL.revokeObjectURL(url);
+   
+   showMessage('success', `Exported ${selected.length} ${currentView.slice(0, -1)}${selected.length !== 1 ? 's' : ''}`);
+ };
 
-  const convertToCSV = (data) => {
-    if (data.length === 0) return '';
-    
-    const headers = Object.keys(data[0]);
-    const csv = [
-      headers.join(','),
-      ...data.map(row => 
-        headers.map(header => {
-          const value = row[header];
-          const escaped = String(value || '').replace(/"/g, '""');
-          return escaped.includes(',') ? `"${escaped}"` : escaped;
-        }).join(',')
-      )
-    ].join('\n');
-    
-    return csv;
-  };
+ const convertToCSV = (data) => {
+   if (data.length === 0) return '';
+   
+   const headers = Object.keys(data[0]);
+   const csv = [
+     headers.join(','),
+     ...data.map(row => 
+       headers.map(header => {
+         const value = row[header];
+         const escaped = String(value || '').replace(/"/g, '""');
+         return escaped.includes(',') ? `"${escaped}"` : escaped;
+       }).join(',')
+     )
+   ].join('\n');
+   
+   return csv;
+ };
 
-  // Calculate stats
-    const stats = useMemo(() => {
-    if (currentView === 'accounts') {
-        const selected = filteredAccounts.filter(acc => accountSelection.isSelected(acc.id));
-        const totalValue = selected.reduce((sum, acc) => sum + (parseFloat(acc.total_value || acc.balance || 0)), 0);
-        
-        return {
-        selected: selected.length,
-        total: filteredAccounts.length,
-        totalValue
-        };
-    } else {
-        const selected = filteredPositions.filter(pos => positionSelection.isSelected(pos.id));
-        const totalValue = selected.reduce((sum, pos) => sum + (pos.current_value || 0), 0);
-        const totalCost = selected.reduce((sum, pos) => sum + (pos.total_cost_basis || 0), 0);
-        
-        return {
-        selected: selected.length,
-        total: filteredPositions.length,
-        totalValue,
-        totalCost,
-        gainLoss: totalValue - totalCost,
-        gainLossPercent: totalCost > 0 ? ((totalValue - totalCost) / totalCost) * 100 : 0
-        };
-    }
-    }, [currentView, filteredAccounts, filteredPositions, accountSelection, positionSelection]);
+ // Calculate stats
+ const stats = useMemo(() => {
+   if (currentView === 'accounts') {
+     const selected = filteredAccounts.filter(acc => accountSelection.isSelected(acc.id));
+     const totalValue = selected.reduce((sum, acc) => sum + (parseFloat(acc.total_value || acc.balance || 0)), 0);
+     
+     return {
+       selected: selected.length,
+       total: filteredAccounts.length,
+       totalValue
+     };
+   } else if (currentView === 'positions') {
+     const selected = filteredPositions.filter(pos => positionSelection.isSelected(pos.id));
+     const totalValue = selected.reduce((sum, pos) => sum + (pos.current_value || 0), 0);
+     const totalCost = selected.reduce((sum, pos) => sum + (pos.total_cost_basis || 0), 0);
+     
+     return {
+       selected: selected.length,
+       total: filteredPositions.length,
+       totalValue,
+       totalCost,
+       gainLoss: totalValue - totalCost,
+       gainLossPercent: totalCost > 0 ? ((totalValue - totalCost) / totalCost) * 100 : 0
+     };
+   } else {
+     const selected = filteredLiabilities.filter(l => liabilitySelection.isSelected(l.id));
+     const totalBalance = selected.reduce((sum, l) => sum + (parseFloat(l.current_balance || 0)), 0);
+     
+     return {
+       selected: selected.length,
+       total: filteredLiabilities.length,
+       totalBalance
+     };
+   }
+ }, [currentView, filteredAccounts, filteredPositions, filteredLiabilities, accountSelection, positionSelection, liabilitySelection]);
 
-  // Render selection screen
-  const renderSelectionScreen = () => (
-    <div className="p-8">
-      <div className="text-center mb-8">
-        <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-purple-500 to-pink-600 rounded-2xl mb-4 animate-pulse">
-          <Edit3 className="w-8 h-8 text-white" />
-        </div>
-        <h2 className="text-2xl font-bold text-gray-900 mb-2">Edit & Delete Manager</h2>
-        <p className="text-gray-600">Choose what you'd like to manage</p>
-      </div>
+ // Render selection screen
+ const renderSelectionScreen = () => (
+   <div className="p-8">
+     <div className="text-center mb-8">
+       <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-purple-500 to-pink-600 rounded-2xl mb-4 animate-pulse">
+         <Edit3 className="w-8 h-8 text-white" />
+       </div>
+       <h2 className="text-2xl font-bold text-gray-900 mb-2">Edit & Delete Manager</h2>
+       <p className="text-gray-600">Choose what you'd like to manage</p>
+     </div>
 
-      <div className="grid md:grid-cols-2 gap-6 max-w-3xl mx-auto">
-        {/* Accounts Card */}
-        <div 
-          onClick={() => setCurrentView('accounts')}
-          className="group cursor-pointer bg-gradient-to-br from-blue-50 to-indigo-100 rounded-2xl p-8 border-2 border-transparent hover:border-blue-300 hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1"
-        >
-          <div className="flex flex-col items-center text-center">
-            <div className="p-4 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl text-white mb-4 group-hover:scale-110 transition-transform">
-              <Wallet className="w-10 h-10" />
-            </div>
-            <h3 className="text-xl font-bold text-gray-900 mb-2">Manage Accounts</h3>
-            <p className="text-gray-600 mb-4">Edit account details or delete accounts</p>
-            <div className="flex items-center text-sm text-blue-600 group-hover:text-blue-700">
-              <span>Manage Accounts</span>
-              <ChevronRight className="w-4 h-4 ml-1 group-hover:translate-x-1 transition-transform" />
-            </div>
-          </div>
-        </div>
+     <div className="grid md:grid-cols-3 gap-6 max-w-4xl mx-auto">
+       {/* Accounts Card */}
+       <div 
+         onClick={() => setCurrentView('accounts')}
+         className="group cursor-pointer bg-gradient-to-br from-blue-50 to-indigo-100 rounded-2xl p-8 border-2 border-transparent hover:border-blue-300 hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1"
+       >
+         <div className="flex flex-col items-center text-center">
+           <div className="p-4 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl text-white mb-4 group-hover:scale-110 transition-transform">
+             <Wallet className="w-10 h-10" />
+           </div>
+           <h3 className="text-xl font-bold text-gray-900 mb-2">Manage Accounts</h3>
+           <p className="text-gray-600 mb-4">Edit account details or delete accounts</p>
+           <div className="flex items-center text-sm text-blue-600 group-hover:text-blue-700">
+             <span>Manage Accounts</span>
+             <ChevronRight className="w-4 h-4 ml-1 group-hover:translate-x-1 transition-transform" />
+           </div>
+         </div>
+       </div>
 
-        {/* Positions Card */}
-        <div 
-          onClick={() => setCurrentView('positions')}
-          className="group cursor-pointer bg-gradient-to-br from-purple-50 to-pink-100 rounded-2xl p-8 border-2 border-transparent hover:border-purple-300 hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1"
-        >
-          <div className="flex flex-col items-center text-center">
-            <div className="p-4 bg-gradient-to-br from-purple-500 to-pink-600 rounded-2xl text-white mb-4 group-hover:scale-110 transition-transform">
-              <Layers className="w-10 h-10" />
-            </div>
-            <h3 className="text-xl font-bold text-gray-900 mb-2">Manage Positions</h3>
-            <p className="text-gray-600 mb-4">Edit position details or delete positions</p>
-            <div className="flex items-center text-sm text-purple-600 group-hover:text-purple-700">
-              <span>Manage Positions</span>
-              <ChevronRight className="w-4 h-4 ml-1 group-hover:translate-x-1 transition-transform" />
-            </div>
-          </div>
-        </div>
-      </div>
+       {/* Positions Card */}
+       <div 
+         onClick={() => setCurrentView('positions')}
+         className="group cursor-pointer bg-gradient-to-br from-purple-50 to-pink-100 rounded-2xl p-8 border-2 border-transparent hover:border-purple-300 hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1"
+       >
+         <div className="flex flex-col items-center text-center">
+           <div className="p-4 bg-gradient-to-br from-purple-500 to-pink-600 rounded-2xl text-white mb-4 group-hover:scale-110 transition-transform">
+             <Layers className="w-10 h-10" />
+           </div>
+           <h3 className="text-xl font-bold text-gray-900 mb-2">Manage Positions</h3>
+           <p className="text-gray-600 mb-4">Edit position details or delete positions</p>
+           <div className="flex items-center text-sm text-purple-600 group-hover:text-purple-700">
+             <span>Manage Positions</span>
+             <ChevronRight className="w-4 h-4 ml-1 group-hover:translate-x-1 transition-transform" />
+           </div>
+         </div>
+       </div>
 
-      <div className="mt-8 text-center">
-        <div className="inline-flex items-center px-4 py-2 bg-blue-50 rounded-lg">
-          <Info className="w-4 h-4 text-blue-600 mr-2" />
-          <span className="text-sm text-blue-700">
-            You can delete multiple items at once, but edit one at a time
-          </span>
-        </div>
-      </div>
-    </div>
-  );
+       {/* Liabilities Card */}
+       <div 
+         onClick={() => setCurrentView('liabilities')}
+         className="group cursor-pointer bg-gradient-to-br from-red-50 to-orange-100 rounded-2xl p-8 border-2 border-transparent hover:border-red-300 hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1"
+       >
+         <div className="flex flex-col items-center text-center">
+           <div className="p-4 bg-gradient-to-br from-red-500 to-orange-600 rounded-2xl text-white mb-4 group-hover:scale-110 transition-transform">
+             <CreditCard className="w-10 h-10" />
+           </div>
+           <h3 className="text-xl font-bold text-gray-900 mb-2">Manage Liabilities</h3>
+           <p className="text-gray-600 mb-4">Edit liability details or delete debts</p>
+           <div className="flex items-center text-sm text-red-600 group-hover:text-red-700">
+             <span>Manage Liabilities</span>
+             <ChevronRight className="w-4 h-4 ml-1 group-hover:translate-x-1 transition-transform" />
+           </div>
+         </div>
+       </div>
+     </div>
 
-  // Render account row
-  const renderAccountRow = (account, index) => {
-    const category = ACCOUNT_CATEGORIES.find(c => c.id === account.account_category);
-    const Icon = category?.icon || Building;
-    const balance = account.total_value || account.balance || 0; // Fix: use total_value first
-    
-    return (
-      <tr 
-        key={account.id}
-        className={`
-          border-b border-gray-100 transition-all duration-200
-          ${accountSelection.isSelected(account.id) 
-            ? 'bg-blue-50 hover:bg-blue-100' 
-            : 'hover:bg-gray-50'
-          }
-        `}
-      >
-        <td className="w-12 px-4 py-3">
-          <input
-            type="checkbox"
-            checked={accountSelection.isSelected(account.id)}
-            onChange={(e) => accountSelection.toggleSelection(
-              account.id, 
-              index, 
-              e.shiftKey, 
-              filteredAccounts
-            )}
-            className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-          />
-        </td>
-        
-        <td className="px-4 py-3">
-          <div className="flex items-center space-x-3">
-            <div className={`p-2 rounded-lg bg-${category?.color || 'gray'}-100`}>
-              <Icon className={`w-4 h-4 text-${category?.color || 'gray'}-600`} />
-            </div>
-            <div>
-              <div className="font-medium text-gray-900">{account.account_name}</div>
-              <div className="text-sm text-gray-500">{category?.name}</div>
-            </div>
-          </div>
-        </td>
-        
-        <td className="px-4 py-3 text-sm text-gray-900">
-          {account.institution}
-        </td>
-        
-        <td className="px-4 py-3 text-sm text-gray-900">
-          {account.type}
-        </td>
-        
-        <td className="px-4 py-3 text-sm text-gray-900 text-right">
-          {showValues ? formatCurrency(balance) : '••••'}
-        </td>
-        
-        <td className="px-4 py-3">
-          <div className="flex items-center justify-end space-x-2">
-            <button
-              onClick={() => handleEditAccount(account)}
-              className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all"
-              title="Edit"
-            >
-              <Edit3 className="w-4 h-4" />
-            </button>
-            <button
-              onClick={() => {
-                accountSelection.clearSelection();
-                accountSelection.toggleSelection(account.id);
-                handleDeleteSelected();
-              }}
-              className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
-              title="Delete"
-            >
-              <Trash2 className="w-4 h-4" />
-            </button>
-          </div>
-        </td>
-      </tr>
-    );
-  };
+     <div className="mt-8 text-center">
+       <div className="inline-flex items-center px-4 py-2 bg-blue-50 rounded-lg">
+         <Info className="w-4 h-4 text-blue-600 mr-2" />
+         <span className="text-sm text-blue-700">
+           You can delete multiple items at once, but edit one at a time
+         </span>
+       </div>
+     </div>
+   </div>
+ );
 
-  // Render position row
-const renderPositionRow = (position, index) => {
-  const config = ASSET_TYPES[position.asset_type];
-  if (!config) return null;
+ // Render account row
+ const renderAccountRow = (account, index) => {
+   const category = ACCOUNT_CATEGORIES.find(c => c.id === account.account_category);
+   const Icon = category?.icon || Building;
+   const balance = account.total_value || account.balance || 0;
+   
+   return (
+     <tr 
+       key={account.id}
+       className={`
+         border-b border-gray-100 transition-all duration-200
+         ${accountSelection.isSelected(account.id) 
+           ? 'bg-blue-50 hover:bg-blue-100' 
+           : 'hover:bg-gray-50'
+         }
+       `}
+     >
+       <td className="w-12 px-4 py-3">
+         <input
+           type="checkbox"
+           checked={accountSelection.isSelected(account.id)}
+           onChange={(e) => accountSelection.toggleSelection(
+             account.id, 
+             index, 
+             e.shiftKey, 
+             filteredAccounts
+           )}
+           className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+         />
+       </td>
+       
+       <td className="px-4 py-3">
+         <div className="flex items-center space-x-3">
+           <div className={`p-2 rounded-lg bg-${category?.color || 'gray'}-100`}>
+             <Icon className={`w-4 h-4 text-${category?.color || 'gray'}-600`} />
+           </div>
+           <div>
+             <div className="font-medium text-gray-900">{account.account_name}</div>
+             <div className="text-sm text-gray-500">{category?.name}</div>
+           </div>
+         </div>
+       </td>
+       
+       <td className="px-4 py-3 text-sm text-gray-900">
+         {account.institution}
+       </td>
+       
+       <td className="px-4 py-3 text-sm text-gray-900">
+         {account.type}
+       </td>
+       
+       <td className="px-4 py-3 text-sm text-gray-900 text-right">
+         {showValues ? formatCurrency(balance) : '••••'}
+       </td>
+       
+       <td className="px-4 py-3">
+         <div className="flex items-center justify-end space-x-2">
+           <button
+             onClick={() => handleEditAccount(account)}
+             className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all"
+             title="Edit"
+           >
+             <Edit3 className="w-4 h-4" />
+           </button>
+           <button
+             onClick={() => {
+               accountSelection.clearSelection();
+               accountSelection.toggleSelection(account.id);
+               handleDeleteSelected();
+             }}
+             className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
+             title="Delete"
+           >
+             <Trash2 className="w-4 h-4" />
+           </button>
+         </div>
+       </td>
+     </tr>
+   );
+ };
 
-  const Icon = config.icon;
-  const value = position.current_value || 0;
-  const cost = position.total_cost_basis || 0;
-  const gainLoss = position.gain_loss_amt || (value - cost);
-  const gainLossPercent = position.gain_loss_pct || (cost > 0 ? ((value - cost) / cost) * 100 : 0);
+ // Render position row
+ const renderPositionRow = (position, index) => {
+   const config = ASSET_TYPES[position.asset_type];
+   if (!config) return null;
 
-  return (
-    <tr 
-      key={position.id}
-      className={`
-        border-b border-gray-100 transition-all duration-200
-        ${positionSelection.isSelected(position.id) 
-          ? 'bg-blue-50 hover:bg-blue-100' 
-          : 'hover:bg-gray-50'
-        }
-      `}
-    >
-      <td className="w-12 px-4 py-3">
-        <input
-          type="checkbox"
-          checked={positionSelection.isSelected(position.id)}
-          onChange={(e) => positionSelection.toggleSelection(
-            position.id, 
-            index, 
-            e.shiftKey, 
-            filteredPositions
-          )}
-          className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-        />
-      </td>
-      
-      <td className="px-4 py-3">
-        <div className="flex items-center space-x-3">
-          <div className={`p-2 rounded-lg ${config.color.lightBg}`}>
-            <Icon className={`w-4 h-4 ${config.color.text}`} />
-          </div>
-          <div>
-            <div className="font-medium text-gray-900">
-              {position.identifier || position.name || 'Unknown'}
-            </div>
-            <div className="text-sm text-gray-500">{position.name || config.name}</div>
-          </div>
-        </div>
-      </td>
-      
-      <td className="px-4 py-3 text-sm text-gray-900">
-        {position.account_name}
-      </td>
-      
-      <td className="px-4 py-3 text-sm text-gray-900 text-right">
-        {position.quantity || '-'}
-      </td>
-      
-      <td className="px-4 py-3 text-sm text-gray-900 text-right">
-        {showValues ? formatCurrency(value) : '••••'}
-      </td>
-      
-      <td className="px-4 py-3 text-sm text-right">
-        <div className={`
-          flex items-center justify-end space-x-1
-          ${gainLoss >= 0 ? 'text-green-600' : 'text-red-600'}
-        `}>
-          {gainLoss >= 0 ? <TrendingUp className="w-4 h-4" /> : <TrendingDown className="w-4 h-4" />}
-          <span>{showValues ? formatCurrency(Math.abs(gainLoss)) : '••••'}</span>
-          <span className="text-xs">({gainLossPercent.toFixed(1)}%)</span>
-        </div>
-      </td>
-      
-      <td className="px-4 py-3">
-        <div className="flex items-center justify-end space-x-2">
-          <button
-            onClick={() => handleEditPosition(position)}
-            className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all"
-            title="Edit"
-          >
-            <Edit3 className="w-4 h-4" />
-          </button>
-          <button
-            onClick={() => {
-              positionSelection.clearSelection();
-              positionSelection.toggleSelection(position.id);
-              handleDeleteSelected();
-            }}
-            className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
-            title="Delete"
-          >
-            <Trash2 className="w-4 h-4" />
-          </button>
-        </div>
-      </td>
-    </tr>
-  );
-};
+   const Icon = config.icon;
+   const value = position.current_value || 0;
+   const cost = position.total_cost_basis || 0;
+   const gainLoss = position.gain_loss_amt || (value - cost);
+   const gainLossPercent = position.gain_loss_pct || (cost > 0 ? ((value - cost) / cost) * 100 : 0);
 
-  // Get color config for categories
-  const categoryColorConfig = ACCOUNT_CATEGORIES.reduce((acc, cat) => {
-    acc[cat.id] = cat.color;
-    return acc;
-  }, {});
+   return (
+     <tr 
+       key={position.id}
+       className={`
+         border-b border-gray-100 transition-all duration-200
+         ${positionSelection.isSelected(position.id) 
+           ? 'bg-blue-50 hover:bg-blue-100' 
+           : 'hover:bg-gray-50'
+         }
+       `}
+     >
+       <td className="w-12 px-4 py-3">
+         <input
+           type="checkbox"
+           checked={positionSelection.isSelected(position.id)}
+           onChange={(e) => positionSelection.toggleSelection(
+             position.id, 
+             index, 
+             e.shiftKey, 
+             filteredPositions
+           )}
+           className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+         />
+       </td>
+       
+       <td className="px-4 py-3">
+         <div className="flex items-center space-x-3">
+           <div className={`p-2 rounded-lg ${config.color.lightBg}`}>
+             <Icon className={`w-4 h-4 ${config.color.text}`} />
+           </div>
+           <div>
+             <div className="font-medium text-gray-900">
+               {position.identifier || position.name || 'Unknown'}
+             </div>
+             <div className="text-sm text-gray-500">{position.name || config.name}</div>
+           </div>
+         </div>
+       </td>
+       
+       <td className="px-4 py-3 text-sm text-gray-900">
+         {position.account_name || 'No Account'}
+       </td>
+       
+       <td className="px-4 py-3 text-sm text-gray-900 text-right">
+         {position.quantity || '-'}
+       </td>
+       
+       <td className="px-4 py-3 text-sm text-gray-900 text-right">
+         {showValues ? formatCurrency(value) : '••••'}
+       </td>
+       
+       <td className="px-4 py-3 text-sm text-right">
+         <div className={`
+           flex items-center justify-end space-x-1
+           ${gainLoss >= 0 ? 'text-green-600' : 'text-red-600'}
+         `}>
+           {gainLoss >= 0 ? <TrendingUp className="w-4 h-4" /> : <TrendingDown className="w-4 h-4" />}
+           <span>{showValues ? formatCurrency(Math.abs(gainLoss)) : '••••'}</span>
+           <span className="text-xs">({gainLossPercent.toFixed(1)}%)</span>
+         </div>
+       </td>
+       
+       <td className="px-4 py-3">
+         <div className="flex items-center justify-end space-x-2">
+           <button
+             onClick={() => handleEditPosition(position)}
+             className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all"
+             title="Edit"
+           >
+             <Edit3 className="w-4 h-4" />
+           </button>
+           <button
+             onClick={() => {
+               positionSelection.clearSelection();
+               positionSelection.toggleSelection(position.id);
+               handleDeleteSelected();
+             }}
+             className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
+             title="Delete"
+           >
+             <Trash2 className="w-4 h-4" />
+           </button>
+         </div>
+       </td>
+     </tr>
+   );
+ };
 
-  return (
-    <FixedModal
-      isOpen={isOpen}
-      onClose={onClose}
-      title={currentView === 'selection' ? '' : currentView === 'accounts' ? 'Manage Accounts' : 'Manage Positions'}
-      size="max-w-7xl"
-    >
-      <div className="h-[85vh] flex flex-col bg-gray-50">
-        {currentView === 'selection' ? (
-          renderSelectionScreen()
-        ) : (
-          <>
-            {/* Header */}
-            <div className="flex-shrink-0 bg-white border-b border-gray-200 px-6 py-4">
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center space-x-6">
-                  {/* Back button */}
-                  <button
-                    onClick={() => {
-                      setCurrentView('selection');
-                      setEditingItem(null);
-                      setEditingType(null);
-                    }}
-                    className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-                  >
-                    <ArrowLeft className="w-5 h-5 text-gray-600" />
-                  </button>
+ // Render liability row
+ const renderLiabilityRow = (liability, index) => {
+   const typeConfig = LIABILITY_TYPES[liability.liability_type];
+   const Icon = typeConfig?.icon || Banknote;
+   const balance = liability.current_balance || 0;
+   const interestRate = liability.interest_rate || 0;
+   
+   return (
+     <tr 
+       key={liability.id}
+       className={`
+         border-b border-gray-100 transition-all duration-200
+         ${liabilitySelection.isSelected(liability.id) 
+           ? 'bg-red-50 hover:bg-red-100' 
+           : 'hover:bg-gray-50'
+         }
+       `}
+     >
+       <td className="w-12 px-4 py-3">
+         <input
+           type="checkbox"
+           checked={liabilitySelection.isSelected(liability.id)}
+           onChange={(e) => liabilitySelection.toggleSelection(
+             liability.id, 
+             index, 
+             e.shiftKey, 
+             filteredLiabilities
+           )}
+           className="w-4 h-4 text-red-600 border-gray-300 rounded focus:ring-red-500"
+         />
+       </td>
+       
+       <td className="px-4 py-3">
+         <div className="flex items-center space-x-3">
+           <div className="p-2 rounded-lg bg-red-100">
+             <Icon className="w-4 h-4 text-red-600" />
+           </div>
+           <div>
+             <div className="font-medium text-gray-900">{liability.name}</div>
+             <div className="text-sm text-gray-500">{typeConfig?.label}</div>
+           </div>
+         </div>
+       </td>
+       
+       <td className="px-4 py-3 text-sm text-gray-900 text-right">
+         {showValues ? `-${formatCurrency(balance)}` : '••••'}
+       </td>
+       
+       <td className="px-4 py-3 text-sm text-gray-900 text-right">
+         {interestRate.toFixed(2)}%
+       </td>
+       
+       <td className="px-4 py-3 text-sm text-gray-900 text-right">
+         {showValues && liability.minimum_payment ? formatCurrency(liability.minimum_payment) : '-'}
+       </td>
+       
+       <td className="px-4 py-3 text-sm text-gray-900">
+         {liability.due_date || '-'}
+       </td>
+       
+       <td className="px-4 py-3">
+         <div className="flex items-center justify-end space-x-2">
+           <button
+             onClick={() => handleEditLiability(liability)}
+             className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all"
+             title="Edit"
+           >
+             <Edit3 className="w-4 h-4" />
+           </button>
+           <button
+             onClick={() => {
+               liabilitySelection.clearSelection();
+               liabilitySelection.toggleSelection(liability.id);
+               handleDeleteSelected();
+             }}
+             className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
+             title="Delete"
+           >
+             <Trash2 className="w-4 h-4" />
+           </button>
+         </div>
+       </td>
+     </tr>
+   );
+ };
 
-                  {/* Search */}
-                  <div className="relative">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                    <input
-                    type="text"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder={`Search ${currentView}...`}
-                    className="pl-10 pr-4 py-2 w-64 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    />
+ // Get color config for categories
+ const categoryColorConfig = ACCOUNT_CATEGORIES.reduce((acc, cat) => {
+   acc[cat.id] = cat.color;
+   return acc;
+ }, {});
+
+ return (
+   <FixedModal
+     isOpen={isOpen}
+     onClose={onClose}
+     title={
+       currentView === 'selection' ? '' : 
+       currentView === 'accounts' ? 'Manage Accounts' : 
+       currentView === 'positions' ? 'Manage Positions' :
+       'Manage Liabilities'
+     }
+     size="max-w-7xl"
+   >
+     <div className="h-[85vh] flex flex-col bg-gray-50">
+       {currentView === 'selection' ? (
+         renderSelectionScreen()
+       ) : (
+         <>
+           {/* Header */}
+           <div className="flex-shrink-0 bg-white border-b border-gray-200 px-6 py-4">
+             <div className="flex items-center justify-between mb-4">
+               <div className="flex items-center space-x-6">
+                 {/* Back button */}
+                 <button
+                   onClick={() => {
+                     setCurrentView('selection');
+                     setEditingItem(null);
+                     setEditingType(null);
+                   }}
+                   className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                 >
+                   <ArrowLeft className="w-5 h-5 text-gray-600" />
+                 </button>
+
+                 {/* Search */}
+                 <div className="relative">
+                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                   <input
+                     type="text"
+                     value={searchQuery}
+                     onChange={(e) => setSearchQuery(e.target.value)}
+                     placeholder={`Search ${currentView}...`}
+                     className="pl-10 pr-4 py-2 w-64 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                   />
                    {searchQuery && (
                      <button
                        onClick={() => setSearchQuery('')}
@@ -1721,7 +2081,11 @@ const renderPositionRow = (position, index) => {
                  )}
 
                  <button
-                   onClick={currentView === 'accounts' ? loadAccounts : loadPositions}
+                   onClick={
+                     currentView === 'accounts' ? loadAccounts : 
+                     currentView === 'positions' ? loadPositions :
+                     loadLiabilities
+                   }
                    className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
                    title="Refresh"
                  >
@@ -1730,10 +2094,10 @@ const renderPositionRow = (position, index) => {
                </div>
              </div>
 
-                {/* Filters */}
-                {currentView === 'accounts' ? (
-                <div className="flex items-center justify-center space-x-3 w-full">
-                    <span className="text-sm text-gray-500 font-medium">Filters:</span>
+             {/* Filters */}
+             {currentView === 'accounts' ? (
+               <div className="flex items-center justify-center space-x-3 w-full">
+                 <span className="text-sm text-gray-500 font-medium">Filters:</span>
                  
                  <FilterDropdown
                    title="Categories"
@@ -1751,21 +2115,12 @@ const renderPositionRow = (position, index) => {
                    selected={selectedInstitutionFilter}
                    onChange={setSelectedInstitutionFilter}
                  />
-                 
-                 <FilterDropdown
-                   title="Account Types"
-                   icon={CreditCard}
-                   options={accountTypeFilterOptions}
-                   selected={selectedAccountTypes}
-                   onChange={setSelectedAccountTypes}
-                 />
 
-                 {(selectedCategories.size > 0 || selectedInstitutionFilter.size > 0 || selectedAccountTypes.size > 0) && (
+                 {(selectedCategories.size > 0 || selectedInstitutionFilter.size > 0) && (
                    <button
                      onClick={() => {
                        setSelectedCategories(new Set());
                        setSelectedInstitutionFilter(new Set());
-                       setSelectedAccountTypes(new Set());
                      }}
                      className="inline-flex items-center px-3 py-1.5 text-xs font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
                    >
@@ -1774,7 +2129,7 @@ const renderPositionRow = (position, index) => {
                    </button>
                  )}
                </div>
-             ) : (
+             ) : currentView === 'positions' ? (
                <div className="flex items-center space-x-3">
                  <span className="text-sm text-gray-500 font-medium">Filters:</span>
                  
@@ -1829,22 +2184,69 @@ const renderPositionRow = (position, index) => {
                    selected={selectedAccountFilter}
                    onChange={setSelectedAccountFilter}
                  />
-                 
-                 <FilterDropdown
-                   title="Institutions"
-                   icon={Building2}
-                   options={institutionFilterOptionsForPositions}
-                   selected={selectedInstitutionFilter}
-                   onChange={setSelectedInstitutionFilter}
-                 />
 
-                 {(selectedAssetTypes.size > 0 || selectedAccountFilter.size > 0 || selectedInstitutionFilter.size > 0) && (
+                 {(selectedAssetTypes.size > 0 || selectedAccountFilter.size > 0) && (
                    <button
                      onClick={() => {
                        setSelectedAssetTypes(new Set());
                        setSelectedAccountFilter(new Set());
-                       setSelectedInstitutionFilter(new Set());
                      }}
+                     className="inline-flex items-center px-3 py-1.5 text-xs font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+                   >
+                     <FilterX className="w-3 h-3 mr-1" />
+                     Clear Filters
+                   </button>
+                 )}
+               </div>
+             ) : (
+               <div className="flex items-center space-x-3">
+                 <span className="text-sm text-gray-500 font-medium">Filters:</span>
+                 
+                 {/* Liability type filters */}
+                 <div className="flex items-center space-x-2">
+                   {liabilityTypeFilterOptions.map(option => {
+                     const isSelected = selectedLiabilityTypes.has(option.value);
+                     const Icon = option.icon;
+                     
+                     return (
+                       <button
+                         key={option.value}
+                         onClick={() => {
+                           const newSet = new Set(selectedLiabilityTypes);
+                           if (isSelected) {
+                             newSet.delete(option.value);
+                           } else {
+                             newSet.add(option.value);
+                           }
+                           setSelectedLiabilityTypes(newSet);
+                         }}
+                         className={`
+                           inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-medium
+                           transition-all duration-200 transform hover:scale-105
+                           ${isSelected 
+                             ? 'bg-red-600 text-white shadow-sm' 
+                             : 'bg-red-50 text-red-700 hover:bg-red-100'
+                           }
+                         `}
+                       >
+                         <Icon className="w-3.5 h-3.5 mr-1.5" />
+                         {option.label}
+                         {option.count > 0 && (
+                           <span className={`
+                             ml-1.5 px-1.5 py-0.5 rounded-full text-[10px] font-bold
+                             ${isSelected ? 'bg-white/20' : 'bg-red-200'}
+                           `}>
+                             {option.count}
+                           </span>
+                         )}
+                       </button>
+                     );
+                   })}
+                 </div>
+
+                 {selectedLiabilityTypes.size > 0 && (
+                   <button
+                     onClick={() => setSelectedLiabilityTypes(new Set())}
                      className="inline-flex items-center px-3 py-1.5 text-xs font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
                    >
                      <FilterX className="w-3 h-3 mr-1" />
@@ -1872,7 +2274,7 @@ const renderPositionRow = (position, index) => {
                        setEditingType(null);
                      }}
                    />
-                 ) : (
+                 ) : editingType === 'position' ? (
                    <EditPositionForm
                      position={editingItem}
                      assetType={editingItem.asset_type}
@@ -1882,6 +2284,15 @@ const renderPositionRow = (position, index) => {
                        setEditingType(null);
                      }}
                      accounts={accounts}
+                   />
+                 ) : (
+                   <EditLiabilityForm
+                     liability={editingItem}
+                     onSave={handleSaveLiability}
+                     onCancel={() => {
+                       setEditingItem(null);
+                       setEditingType(null);
+                     }}
                    />
                  )}
                </div>
@@ -1895,7 +2306,9 @@ const renderPositionRow = (position, index) => {
                          checked={
                            currentView === 'accounts' 
                              ? accountSelection.selectedItems.size === filteredAccounts.length && filteredAccounts.length > 0
-                             : positionSelection.selectedItems.size === filteredPositions.length && filteredPositions.length > 0
+                             : currentView === 'positions'
+                               ? positionSelection.selectedItems.size === filteredPositions.length && filteredPositions.length > 0
+                               : liabilitySelection.selectedItems.size === filteredLiabilities.length && filteredLiabilities.length > 0
                          }
                          onChange={(e) => {
                            if (currentView === 'accounts') {
@@ -1904,11 +2317,17 @@ const renderPositionRow = (position, index) => {
                              } else {
                                accountSelection.clearSelection();
                              }
-                           } else {
+                           } else if (currentView === 'positions') {
                              if (e.target.checked) {
                                positionSelection.selectAll(filteredPositions);
                              } else {
                                positionSelection.clearSelection();
+                             }
+                           } else {
+                             if (e.target.checked) {
+                               liabilitySelection.selectAll(filteredLiabilities);
+                             } else {
+                               liabilitySelection.clearSelection();
                              }
                            }
                          }}
@@ -1960,7 +2379,7 @@ const renderPositionRow = (position, index) => {
                            </button>
                          </th>
                        </>
-                     ) : (
+                     ) : currentView === 'positions' ? (
                        <>
                          <th className="px-4 py-3 text-left">
                            <button
@@ -2009,6 +2428,48 @@ const renderPositionRow = (position, index) => {
                            </span>
                          </th>
                        </>
+                     ) : (
+                       <>
+                         <th className="px-4 py-3 text-left">
+                           <button
+                             onClick={() => setSortConfig({
+                               key: 'name',
+                               direction: sortConfig.key === 'name' && sortConfig.direction === 'asc' ? 'desc' : 'asc'
+                             })}
+                             className="flex items-center text-xs font-semibold text-gray-600 uppercase tracking-wider hover:text-gray-900"
+                           >
+                             Liability
+                             <ArrowUpDown className="w-3 h-3 ml-1" />
+                           </button>
+                         </th>
+                         <th className="px-4 py-3 text-right">
+                           <button
+                             onClick={() => setSortConfig({
+                               key: 'current_balance',
+                               direction: sortConfig.key === 'current_balance' && sortConfig.direction === 'asc' ? 'desc' : 'asc'
+                             })}
+                             className="flex items-center justify-end text-xs font-semibold text-gray-600 uppercase tracking-wider hover:text-gray-900"
+                           >
+                             Balance
+                             <ArrowUpDown className="w-3 h-3 ml-1" />
+                           </button>
+                         </th>
+                         <th className="px-4 py-3 text-right">
+                           <span className="text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                             Rate
+                           </span>
+                         </th>
+                         <th className="px-4 py-3 text-right">
+                           <span className="text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                             Min Payment
+                           </span>
+                         </th>
+                         <th className="px-4 py-3 text-left">
+                           <span className="text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                             Due Date
+                           </span>
+                         </th>
+                       </>
                      )}
                      
                      <th className="px-4 py-3 text-right">
@@ -2021,8 +2482,10 @@ const renderPositionRow = (position, index) => {
                  <tbody className="bg-white divide-y divide-gray-200">
                    {currentView === 'accounts' ? (
                      filteredAccounts.map((account, index) => renderAccountRow(account, index))
-                   ) : (
+                   ) : currentView === 'positions' ? (
                      filteredPositions.map((position, index) => renderPositionRow(position, index))
+                   ) : (
+                     filteredLiabilities.map((liability, index) => renderLiabilityRow(liability, index))
                    )}
                  </tbody>
                </table>
@@ -2036,7 +2499,7 @@ const renderPositionRow = (position, index) => {
                      <Building className="w-12 h-12 text-gray-300 mb-4" />
                      <p className="text-gray-500 text-lg font-medium">No accounts found</p>
                      <p className="text-gray-400 text-sm mt-1">
-                       {searchQuery || selectedCategories.size > 0 || selectedInstitutionFilter.size > 0 || selectedAccountTypes.size > 0 
+                       {searchQuery || selectedCategories.size > 0 || selectedInstitutionFilter.size > 0 
                          ? 'Try adjusting your filters' 
                          : 'Add accounts to get started'}
                      </p>
@@ -2048,9 +2511,21 @@ const renderPositionRow = (position, index) => {
                      <Database className="w-12 h-12 text-gray-300 mb-4" />
                      <p className="text-gray-500 text-lg font-medium">No positions found</p>
                      <p className="text-gray-400 text-sm mt-1">
-                       {searchQuery || selectedAssetTypes.size > 0 || selectedAccountFilter.size > 0 || selectedInstitutionFilter.size > 0
+                       {searchQuery || selectedAssetTypes.size > 0 || selectedAccountFilter.size > 0 
                          ? 'Try adjusting your filters' 
                          : 'Add positions to get started'}
+                     </p>
+                   </div>
+                 )}
+
+                 {currentView === 'liabilities' && filteredLiabilities.length === 0 && (
+                   <div className="flex flex-col items-center justify-center h-64">
+                     <CreditCard className="w-12 h-12 text-gray-300 mb-4" />
+                     <p className="text-gray-500 text-lg font-medium">No liabilities found</p>
+                     <p className="text-gray-400 text-sm mt-1">
+                       {searchQuery || selectedLiabilityTypes.size > 0 
+                         ? 'Try adjusting your filters' 
+                         : 'Add liabilities to track your debts'}
                      </p>
                    </div>
                  )}
@@ -2067,13 +2542,20 @@ const renderPositionRow = (position, index) => {
                      <AnimatedCounter value={stats.selected} /> selected
                    </span>
                    <div className="flex items-center space-x-4 text-blue-700">
-                     <span>
-                       Total Value: {showValues ? (
-                         <AnimatedCounter value={stats.totalValue} prefix="$" />
-                       ) : '••••'}
-                     </span>
-                     {currentView === 'positions' && stats.totalCost !== undefined && (
+                     {currentView === 'accounts' && (
+                       <span>
+                         Total Value: {showValues ? (
+                           <AnimatedCounter value={stats.totalValue} prefix="$" />
+                         ) : '••••'}
+                       </span>
+                     )}
+                     {currentView === 'positions' && (
                        <>
+                         <span>
+                           Total Value: {showValues ? (
+                             <AnimatedCounter value={stats.totalValue} prefix="$" />
+                           ) : '••••'}
+                         </span>
                          <span className="text-blue-400">•</span>
                          <span>
                            Cost: {showValues ? (
@@ -2089,6 +2571,13 @@ const renderPositionRow = (position, index) => {
                            <span className="text-xs ml-1">({stats.gainLossPercent.toFixed(1)}%)</span>
                          </span>
                        </>
+                     )}
+                     {currentView === 'liabilities' && (
+                       <span>
+                         Total Balance: {showValues ? (
+                           <>-<AnimatedCounter value={stats.totalBalance} prefix="$" /></>
+                         ) : '••••'}
+                       </span>
                      )}
                    </div>
                  </div>
@@ -2124,8 +2613,10 @@ const renderPositionRow = (position, index) => {
                      onClick={() => {
                        if (currentView === 'accounts') {
                          accountSelection.clearSelection();
-                       } else {
+                       } else if (currentView === 'positions') {
                          positionSelection.clearSelection();
+                       } else {
+                         liabilitySelection.clearSelection();
                        }
                      }}
                      className="text-sm text-blue-600 hover:text-blue-700 font-medium"
@@ -2171,7 +2662,7 @@ const renderPositionRow = (position, index) => {
  );
 };
 
-// Export button component to use in your app
+// Export button components
 export const QuickEditDeleteButton = ({ className = '', mobileView = false }) => {
  const [isModalOpen, setIsModalOpen] = useState(false);
 
@@ -2204,6 +2695,53 @@ export const QuickEditDeleteButton = ({ className = '', mobileView = false }) =>
        <div className="relative flex items-center">
          <Edit3 className="w-5 h-5 mr-2 text-purple-400 group-hover:text-white transition-colors" />
          <span className="text-sm text-gray-200 group-hover:text-white font-medium">Edit & Delete</span>
+       </div>
+     </button>
+     
+     <QuickEditDeleteModal 
+       isOpen={isModalOpen} 
+       onClose={() => setIsModalOpen(false)} 
+     />
+   </>
+ );
+};
+
+export const LiabilityEditDeleteButton = ({ className = '', mobileView = false }) => {
+ const [isModalOpen, setIsModalOpen] = useState(false);
+
+ const handleOpenModal = () => {
+   setIsModalOpen(true);
+ };
+
+ if (mobileView) {
+   return (
+     <>
+       <button
+         onClick={handleOpenModal}
+         className={className}
+       >
+         <CreditCard className="h-6 w-6 mb-1 text-white group-hover:text-red-300" />
+         <span className="text-xs text-gray-200 group-hover:text-white">Liabilities</span>
+       </button>
+       
+       <QuickEditDeleteModal 
+         isOpen={isModalOpen} 
+         onClose={() => setIsModalOpen(false)} 
+       />
+     </>
+   );
+ }
+
+ return (
+   <>
+     <button
+       onClick={handleOpenModal}
+       className={`group relative flex items-center text-white py-1 px-4 transition-all duration-300 ${className}`}
+     >
+       <div className="absolute inset-0 bg-gradient-to-r from-red-600 to-orange-600 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+       <div className="relative flex items-center">
+         <CreditCard className="w-5 h-5 mr-2 text-red-400 group-hover:text-white transition-colors" />
+         <span className="text-sm text-gray-200 group-hover:text-white font-medium">Manage Liabilities</span>
        </div>
      </button>
      
