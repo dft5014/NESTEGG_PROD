@@ -719,7 +719,6 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved }) => {
           ]
         },
         { key: 'account_id', label: 'Account', type: 'select', required: true, width: 'w-44' },
-        { key: 'name', label: 'Account Name', type: 'text', required: true, width: 'w-40', placeholder: 'Chase Savings' },
         { key: 'amount', label: 'Amount', type: 'number', required: true, width: 'w-32', placeholder: '10000', prefix: '$', min: 0 },
         { key: 'interest_rate', label: 'APY', type: 'number', width: 'w-24', placeholder: '2.5', suffix: '%', step: '0.01', min: 0, max: 100 },
         { 
@@ -1584,6 +1583,7 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved }) => {
                 const cashData = {
                 ...cleanData,
                 name: cleanData.cash_type
+                interest_rate: cleanData.interest_rate ? cleanData.interest_rate / 100 : null
               };
               await addCashPosition(position.data.account_id, cashData);
               break;

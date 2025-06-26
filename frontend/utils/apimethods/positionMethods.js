@@ -243,9 +243,8 @@ export const updatePosition = async (positionId, positionData, type = 'security'
         break;
     }
     
-    // Try PATCH first, fallback to PUT if needed
     const response = await fetchWithAuth(endpoint, {
-      method: 'PATCH',  // Changed from PUT to PATCH
+      method: 'PUT',
       body: JSON.stringify(positionData)
     });
     
