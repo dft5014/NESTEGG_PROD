@@ -1582,7 +1582,7 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved }) => {
             case 'cash':
                 const cashData = {
                 ...cleanData,
-                name: cleanData.cash_type
+                name: cleanData.cash_type,
                 interest_rate: cleanData.interest_rate ? cleanData.interest_rate / 100 : null
               };
               await addCashPosition(position.data.account_id, cashData);
