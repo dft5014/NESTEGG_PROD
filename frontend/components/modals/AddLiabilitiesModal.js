@@ -361,13 +361,20 @@ export const AddLiabilitiesModal = ({ isOpen, onClose, onLiabilitiesSaved }) => 
                 
                 // Use the addLiability method instead of fetchWithAuth
                 const savedLiability = await addLiability(payload);
-                savedLiabilities.push(savedLiability);
+                // Ensure we're pushing the complete liability data with all fields
+                savedLiabilities.push({
+                    ...payload,
+                    ...savedLiability
+                });
             }
             
             setShowSuccessAnimation(true);
-            setTimeout(() => {
-                onLiabilitiesSaved(savedLiabilities.length, savedLiabilities);
-            }, 1500);
+                setTimeout(() => {
+                    console.log('Saved liabilities:', savedLiabilities); // Debug log
+                    if (onLiabilitiesSaved && savedLiabilities.length > 0) {
+                        onLiabilitiesSaved(savedLiabilities.length, savedLiabilities);
+                    }
+                }, 1500);
             
         } catch (error) {
             console.error('Error saving liabilities:', error);

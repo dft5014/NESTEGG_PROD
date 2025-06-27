@@ -1491,12 +1491,15 @@ const QuickStartModal = ({ isOpen, onClose }) => {
                                 </p>
                                 <p className="text-xs text-gray-600">Total Added</p>
                             </div>
-                            <div className="bg-white rounded-lg p-3 text-center">
-                                <p className="text-2xl font-bold text-orange-600">
-                                    ${(importedLiabilitiesData.reduce((sum, l) => sum + (l.current_balance || 0), 0) / 1000).toFixed(1)}k
-                                </p>
-                                <p className="text-xs text-gray-600">Total Debt</p>
-                            </div>
+                                <div className="bg-white rounded-lg p-3 text-center">
+                                    <p className="text-2xl font-bold text-orange-600">
+                                        ${(() => {
+                                            const total = importedLiabilitiesData.reduce((sum, l) => sum + (parseFloat(l.current_balance) || 0), 0);
+                                            return total >= 1000 ? `${(total / 1000).toFixed(1)}k` : total.toFixed(0);
+                                        })()}
+                                    </p>
+                                    <p className="text-xs text-gray-600">Total Debt</p>
+                                </div>
                             <div className="bg-white rounded-lg p-3 text-center">
                                 <p className="text-2xl font-bold text-purple-600">
                                     {importedLiabilitiesData.filter(l => l.liability_type === 'credit_card').length}
@@ -1505,7 +1508,12 @@ const QuickStartModal = ({ isOpen, onClose }) => {
                             </div>
                             <div className="bg-white rounded-lg p-3 text-center">
                                 <p className="text-2xl font-bold text-green-600">
-                                    {(importedLiabilitiesData.reduce((sum, l) => sum + (l.interest_rate || 0), 0) / importedLiabilitiesData.length || 0).toFixed(1)}%
+                                    {(() => {
+                                        const validRates = importedLiabilitiesData.filter(l => l.interest_rate).map(l => parseFloat(l.interest_rate));
+                                        if (validRates.length === 0) return '0.0';
+                                        const avgRate = validRates.reduce((sum, rate) => sum + rate, 0) / validRates.length;
+                                        return avgRate.toFixed(1);
+                                    })()}%
                                 </p>
                                 <p className="text-xs text-gray-600">Avg Rate</p>
                             </div>
@@ -1532,18 +1540,20 @@ const QuickStartModal = ({ isOpen, onClose }) => {
                                         className="flex items-center justify-between bg-white rounded-lg p-3 border border-gray-100 hover:shadow-sm transition-shadow"
                                         style={{ animationDelay: `${index * 50}ms` }}
                                     >
-                                        <div className="flex items-center">
-                                            <LiabilityIcon className="w-4 h-4 text-gray-600 mr-3" />
-                                            <div>
-                                                <p className="font-medium text-gray-900 text-sm">
-                                                    {liability.name}
+                                        <div className="flex items-center flex-1">
+                                            <LiabilityIcon className={`w-4 h-4 text-${config.color}-600 mr-3 flex-shrink-0`} />
+                                            <div className="flex-1 min-w-0">
+                                                <p className="font-medium text-gray-900 text-sm truncate">
+                                                    {liability.name || 'Unnamed Liability'}
                                                 </p>
                                                 <p className="text-xs text-gray-500">
-                                                    {liability.institution_name} • ${liability.current_balance?.toLocaleString()} @ {liability.interest_rate || 0}%
+                                                    {liability.institution_name || 'Unknown Institution'} • 
+                                                    ${(liability.current_balance || 0).toLocaleString()} 
+                                                    {liability.interest_rate ? ` @ ${liability.interest_rate}%` : ''}
                                                 </p>
                                             </div>
                                         </div>
-                                        <CheckCircle className="w-4 h-4 text-green-500" />
+                                        <CheckCircle className="w-4 h-4 text-green-500 flex-shrink-0 ml-2" />
                                     </div>
                                 );
                             })}
@@ -1884,7 +1894,7 @@ const QuickStartModal = ({ isOpen, onClose }) => {
                                 className="px-5 py-2 bg-gradient-to-r from-purple-600 to-purple-700 text-white font-medium rounded-lg hover:from-purple-700 hover:to-purple-800 transition-all duration-200 flex items-center"
                             >
                                 <FileSpreadsheet className="w-4 h-4 mr-1.5" />
-                                Import Positions
+                                Add Positions
                             </button>
                             <button
                                 onClick={onClose}

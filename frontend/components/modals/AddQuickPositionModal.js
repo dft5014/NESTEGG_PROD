@@ -685,7 +685,7 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved }) => {
         { key: 'shares', label: 'Shares', type: 'number', required: true, width: 'w-24', placeholder: '100', min: 0, step: 1 },
         { key: 'price', label: 'Current Price', type: 'number', required: true, width: 'w-28', placeholder: 'Auto', prefix: '$', min: 0, step: 0.01, readOnly: true, autoFill: true },
         { key: 'cost_basis', label: 'Cost Basis', type: 'number', required: true, width: 'w-28', placeholder: '140.00', prefix: '$', min: 0, step: 0.01 },
-        { key: 'purchase_date', label: 'Purchase Date', type: 'date', required: true, width: 'w-36', max: new Date().toISOString().split('T')[0] },
+        { key: 'purchase_date', label: 'Purchase Date', type: 'date', required: true, width: 'w-36', max: new Date().toISOString().split('T')[0], default: new Date().toISOString().split('T')[0] },
         { key: 'account_id', label: 'Account', type: 'select', required: true, width: 'w-44' }
        ]
     },
@@ -727,7 +727,7 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved }) => {
           type: 'select', 
           width: 'w-28',
           options: [
-            { value: 'annual', label: 'Annual' },
+            { value: 'annually', label: 'Annually' },
             { value: 'monthly', label: 'Monthly' },
             { value: 'quarterly', label: 'Quarterly' }
           ]
@@ -757,7 +757,7 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved }) => {
         { key: 'quantity', label: 'Quantity', type: 'number', required: true, width: 'w-28', placeholder: '0.5', step: '0.00000001', min: 0 },
         { key: 'purchase_price', label: 'Buy Price', type: 'number', required: true, width: 'w-32', placeholder: '45000', prefix: '$', min: 0 },
         { key: 'current_price', label: 'Current Price', type: 'number', width: 'w-32', placeholder: 'Auto', prefix: '$', min: 0, readOnly: true, autoFill: true },
-        { key: 'purchase_date', label: 'Purchase Date', type: 'date', required: true, width: 'w-36', max: new Date().toISOString().split('T')[0] },
+        { key: 'purchase_date', label: 'Purchase Date', type: 'date', required: true, width: 'w-36', max: new Date().toISOString().split('T')[0], default: new Date().toISOString().split('T')[0]  },
         { key: 'account_id', label: 'Account', type: 'select', required: true, width: 'w-44' }
       ]
     },
@@ -797,20 +797,10 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved }) => {
         { key: 'symbol', label: 'Symbol', type: 'text', width: 'w-24', readOnly: true, placeholder: 'Auto-filled' },
         { key: 'name', label: 'Market Name', type: 'text', width: 'w-48', readOnly: true, placeholder: 'Auto-filled' },
         { key: 'quantity', label: 'Quantity', type: 'number', required: true, width: 'w-24', placeholder: '10', min: 0 },
-        { 
-          key: 'unit', 
-          label: 'Unit', 
-          type: 'select', 
-          width: 'w-20',
-          options: [
-            { value: 'oz', label: 'oz' },
-            { value: 'g', label: 'g' },
-            { value: 'kg', label: 'kg' }
-          ]
-        },
+        { key: 'unit', label: 'Unit', type: 'text', width: 'w-20', readOnly: true, default: 'oz' },
         { key: 'purchase_price', label: 'Price/Unit', type: 'number', required: true, width: 'w-28', placeholder: '1800', prefix: '$', min: 0 },
         { key: 'current_price_per_unit', label: 'Current/Unit', type: 'number', width: 'w-28', placeholder: 'Auto', prefix: '$', min: 0, readOnly: true, autoFill: true },
-        { key: 'purchase_date', label: 'Purchase Date', type: 'date', required: true, width: 'w-36', max: new Date().toISOString().split('T')[0] },
+        { key: 'purchase_date', label: 'Purchase Date', type: 'date', required: true, width: 'w-36', max: new Date().toISOString().split('T')[0], default: new Date().toISOString().split('T')[0]  },
         { key: 'account_id', label: 'Account', type: 'select', required: true, width: 'w-44' }
       ]
     },
@@ -829,7 +819,7 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved }) => {
       description: 'Real Estate, Vehicles, Collectibles',
       emoji: '🏠',
       fields: [
-        { key: 'asset_name', label: 'Asset Name', type: 'text', required: true, width: 'w-48', placeholder: 'Main Residence' },
+        { key: 'asset_name', label: 'Asset Name', type: 'text', required: true, width: 'w-48', placeholder: '123 Main Residence St' },
         { 
           key: 'asset_type', 
           label: 'Type', 
@@ -849,7 +839,7 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved }) => {
         },
         { key: 'cost', label: 'Purchase Price', type: 'number', width: 'w-32', placeholder: '500000', prefix: '$', min: 0 },
         { key: 'current_value', label: 'Current Value', type: 'number', required: true, width: 'w-32', placeholder: '550000', prefix: '$', min: 0 },
-        { key: 'purchase_date', label: 'Purchase Date', type: 'date', width: 'w-36', max: new Date().toISOString().split('T')[0] },
+        { key: 'purchase_date', label: 'Purchase Date', type: 'date', width: 'w-36', max: new Date().toISOString().split('T')[0], default: new Date().toISOString().split('T')[0]},
         { key: 'notes', label: 'Notes', type: 'text', width: 'w-52', placeholder: 'Additional details...' }
       ]
     }
@@ -1007,14 +997,18 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved }) => {
     const lastPosition = positions[assetType][positions[assetType].length - 1];
     const defaultData = {};
     
+    // Apply field defaults
+    assetTypes[assetType].fields.forEach(field => {
+      if (field.default !== undefined) {
+        defaultData[field.key] = field.default;
+      }
+    });
+    
     if (lastPosition && lastPosition.data.account_id) {
       defaultData.account_id = lastPosition.data.account_id;
     }
     if (assetType === 'cash' && lastPosition?.data.currency) {
       defaultData.currency = lastPosition.data.currency;
-    }
-    if (assetType === 'metal' && lastPosition?.data.unit) {
-      defaultData.unit = lastPosition.data.unit;
     }
     
     const newPosition = {
