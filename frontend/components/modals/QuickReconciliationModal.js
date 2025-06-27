@@ -25,7 +25,11 @@ import {
   Star, StarHalf, Bell, BellOff, Repeat, RotateCcw, Send,
   Droplets, PlayCircle, Timer, Trophy, Flame, PartyPopper,
   ChevronsRight, Wallet, PiggyBank, Landmark, Receipt,
-  TabletSmartphone, Mic, Keyboard, MousePointer, Gauge
+  TabletSmartphone, Mic, Keyboard, MousePointer, Gauge,
+  Banknote, TrendingUp as TrendUp, CircleDollarSign,
+  Percent, FileCheck, CheckCheck, ArrowUpDown, Maximize2,
+  LineChart, BarChart, Package, Inbox, Users, Settings,
+  HelpCircle, MessageSquare, Heart, Share2, Copy, ExternalLink
 } from 'lucide-react';
 
 // Asset type colors and configs
@@ -50,14 +54,30 @@ const CATEGORY_CONFIGS = {
 // Liquid position types
 const LIQUID_POSITION_TYPES = ['cash', 'checking', 'savings', 'credit_card', 'loan', 'liability'];
 
-// Animated progress ring component
-const ProgressRing = ({ percentage, size = 60, strokeWidth = 4, color = 'blue' }) => {
+// Enhanced animated progress ring with gradient
+const ProgressRing = ({ percentage, size = 60, strokeWidth = 4, color = 'blue', showAnimation = true }) => {
   const radius = (size - strokeWidth) / 2;
   const circumference = radius * 2 * Math.PI;
   const offset = circumference - (percentage / 100) * circumference;
+  const [animatedOffset, setAnimatedOffset] = useState(circumference);
+  
+  useEffect(() => {
+    if (showAnimation) {
+      const timer = setTimeout(() => setAnimatedOffset(offset), 100);
+      return () => clearTimeout(timer);
+    } else {
+      setAnimatedOffset(offset);
+    }
+  }, [offset, showAnimation]);
   
   return (
     <svg width={size} height={size} className="transform -rotate-90">
+      <defs>
+        <linearGradient id={`gradient-${color}`} x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" className={`text-${color}-400`} stopColor="currentColor" />
+          <stop offset="100%" className={`text-${color}-600`} stopColor="currentColor" />
+        </linearGradient>
+      </defs>
       <circle
         cx={size / 2}
         cy={size / 2}
@@ -71,20 +91,20 @@ const ProgressRing = ({ percentage, size = 60, strokeWidth = 4, color = 'blue' }
         cx={size / 2}
         cy={size / 2}
         r={radius}
-        stroke="currentColor"
+        stroke={`url(#gradient-${color})`}
         strokeWidth={strokeWidth}
         fill="none"
         strokeDasharray={circumference}
-        strokeDashoffset={offset}
-        className={`text-${color}-600 transition-all duration-1000 ease-out`}
+        strokeDashoffset={animatedOffset}
+        className="transition-all duration-1000 ease-out"
         strokeLinecap="round"
       />
     </svg>
   );
 };
 
-// Status indicator with pulse animation
-const StatusIndicator = ({ status, showPulse = true }) => {
+// Enhanced status indicator with animation
+const StatusIndicator = ({ status, showPulse = true, size = 'medium' }) => {
   const configs = {
     reconciled: { color: 'green', icon: CheckCircle, label: 'Reconciled' },
     warning: { color: 'yellow', icon: AlertTriangle, label: 'Needs Review' },
@@ -94,27 +114,37 @@ const StatusIndicator = ({ status, showPulse = true }) => {
   
   const config = configs[status] || configs.pending;
   const Icon = config.icon;
+  const sizeClass = size === 'small' ? 'w-4 h-4' : size === 'large' ? 'w-6 h-6' : 'w-5 h-5';
   
   return (
-    <div className="relative inline-flex items-center">
+    <div className="relative inline-flex items-center group">
       {showPulse && status !== 'reconciled' && (
         <span className={`absolute inset-0 rounded-full bg-${config.color}-400 animate-ping opacity-75`} />
       )}
-      <Icon className={`relative w-5 h-5 text-${config.color}-600`} />
+      <Icon className={`relative ${sizeClass} text-${config.color}-600 transition-transform group-hover:scale-110`} />
+      <div className="absolute hidden group-hover:block bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-gray-900 text-white text-xs rounded whitespace-nowrap z-10">
+        {config.label}
+        <div className="absolute top-full left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-900" />
+      </div>
     </div>
   );
 };
 
-// Animated counter with smooth transitions
-const AnimatedValue = ({ value, format = 'currency', className = '', duration = 800 }) => {
+// Enhanced animated value with color transitions
+const AnimatedValue = ({ value, format = 'currency', className = '', duration = 800, showChange = false, previousValue = null }) => {
   const [displayValue, setDisplayValue] = useState(0);
   const [isAnimating, setIsAnimating] = useState(false);
+  const [trend, setTrend] = useState(null);
   
   useEffect(() => {
     setIsAnimating(true);
     const startTime = Date.now();
     const startValue = displayValue;
     const endValue = value || 0;
+    
+    if (previousValue !== null) {
+      setTrend(endValue > previousValue ? 'up' : endValue < previousValue ? 'down' : 'same');
+    }
     
     const animate = () => {
       const now = Date.now();
@@ -139,259 +169,29 @@ const AnimatedValue = ({ value, format = 'currency', className = '', duration = 
     : format === 'percentage'
       ? `${displayValue.toFixed(1)}%`
       : format === 'number'
-        ? displayValue.toFixed(0)
+        ? displayValue.toFixed(0).toLocaleString()
         : displayValue.toLocaleString();
   
   return (
-    <span className={`${className} ${isAnimating ? 'text-blue-600' : ''} transition-colors duration-300`}>
+    <span className={`
+      ${className} 
+      ${isAnimating ? 'text-blue-600' : ''} 
+      ${showChange && trend === 'up' ? 'text-green-600' : ''}
+      ${showChange && trend === 'down' ? 'text-red-600' : ''}
+      transition-colors duration-300 inline-flex items-center
+    `}>
       {formatted}
+      {showChange && trend && (
+        <span className="ml-1">
+          {trend === 'up' ? <TrendingUp className="w-4 h-4" /> : 
+           trend === 'down' ? <TrendingDown className="w-4 h-4" /> : null}
+        </span>
+      )}
     </span>
   );
 };
 
-// Smart reconciliation suggestion component
-const ReconciliationSuggestion = ({ difference, onApply }) => {
-  const suggestions = useMemo(() => {
-    const absDiff = Math.abs(difference);
-    const suggestions = [];
-    
-    // Common fee amounts
-    if (absDiff >= 4.95 && absDiff <= 9.99) {
-      suggestions.push({ type: 'fee', amount: absDiff, label: 'Trading fee' });
-    }
-    if (absDiff >= 0.01 && absDiff <= 1.00) {
-      suggestions.push({ type: 'rounding', amount: absDiff, label: 'Rounding difference' });
-    }
-    if (absDiff % 10 === 0 && absDiff <= 100) {
-      suggestions.push({ type: 'fee', amount: absDiff, label: 'Account maintenance fee' });
-    }
-    
-    return suggestions;
-  }, [difference]);
-  
-  if (suggestions.length === 0) return null;
-  
-  return (
-    <div className="mt-3 p-3 bg-amber-50 rounded-lg border border-amber-200">
-      <div className="flex items-start">
-        <Sparkles className="w-4 h-4 text-amber-600 mt-0.5 mr-2 flex-shrink-0" />
-        <div className="flex-1">
-          <p className="text-sm font-medium text-amber-900">Possible explanations:</p>
-          <div className="mt-1 space-y-1">
-            {suggestions.map((suggestion, idx) => (
-              <button
-                key={idx}
-                onClick={() => onApply(suggestion)}
-                className="flex items-center justify-between w-full text-xs text-amber-700 hover:text-amber-900 py-1 px-2 rounded hover:bg-amber-100 transition-colors"
-              >
-                <span>{suggestion.label}</span>
-                <span className="font-medium">{formatCurrency(suggestion.amount)}</span>
-              </button>
-            ))}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-// Position quick edit component
-const PositionQuickEdit = ({ position, onSave, onDelete, onCancel }) => {
-  const [quantity, setQuantity] = useState(position.quantity || 0);
-  const [value, setValue] = useState(position.current_value || 0);
-  const [isDeleting, setIsDeleting] = useState(false);
-  
-  const handleSave = () => {
-    onSave({
-      ...position,
-      quantity: parseFloat(quantity),
-      current_value: parseFloat(value)
-    });
-  };
-  
-  const handleDelete = () => {
-    setIsDeleting(true);
-    setTimeout(() => {
-      onDelete(position.id);
-    }, 200);
-  };
-  
-  const config = ASSET_CONFIGS[position.asset_type] || ASSET_CONFIGS.security;
-  const Icon = config.icon;
-  
-  return (
-    <div className={`
-      p-4 bg-white rounded-lg border-2 transition-all duration-300
-      ${isDeleting ? 'border-red-300 bg-red-50 scale-95 opacity-50' : 'border-gray-200'}
-    `}>
-      <div className="flex items-center justify-between mb-3">
-        <div className="flex items-center">
-          <div className={`p-2 rounded-lg bg-${config.color}-100 mr-3`}>
-            <Icon className={`w-4 h-4 text-${config.color}-600`} />
-          </div>
-          <div>
-            <h4 className="font-medium text-gray-900">
-              {position.ticker || position.symbol || position.name}
-            </h4>
-            <p className="text-xs text-gray-500">{config.label}</p>
-          </div>
-        </div>
-        <button
-          onClick={onCancel}
-          className="p-1 hover:bg-gray-100 rounded transition-colors"
-        >
-          <X className="w-4 h-4 text-gray-400" />
-        </button>
-      </div>
-      
-      <div className="grid grid-cols-2 gap-3 mb-3">
-        <div>
-          <label className="block text-xs font-medium text-gray-700 mb-1">
-            Quantity
-          </label>
-          <input
-            type="number"
-            value={quantity}
-            onChange={(e) => setQuantity(e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-            step="0.01"
-          />
-        </div>
-        <div>
-          <label className="block text-xs font-medium text-gray-700 mb-1">
-            Value
-          </label>
-          <div className="relative">
-            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm">$</span>
-            <input
-              type="number"
-              value={value}
-              onChange={(e) => setValue(e.target.value)}
-              className="w-full pl-8 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              step="0.01"
-            />
-          </div>
-        </div>
-      </div>
-      
-      <div className="flex justify-between">
-        <button
-          onClick={handleDelete}
-          className="px-3 py-1.5 text-sm font-medium text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-        >
-          Delete
-        </button>
-        <div className="flex space-x-2">
-          <button
-            onClick={onCancel}
-            className="px-3 py-1.5 text-sm font-medium text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={handleSave}
-            className="px-3 py-1.5 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors"
-          >
-            Save
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-// Confetti animation component
-const Confetti = ({ show }) => {
-  const [particles, setParticles] = useState([]);
-  
-  useEffect(() => {
-    if (show) {
-      const colors = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6'];
-      const newParticles = Array.from({ length: 50 }, (_, i) => ({
-        id: i,
-        x: Math.random() * 100,
-        y: -10,
-        vx: (Math.random() - 0.5) * 2,
-        vy: Math.random() * 3 + 2,
-        color: colors[Math.floor(Math.random() * colors.length)],
-        size: Math.random() * 6 + 4,
-        rotation: Math.random() * 360
-      }));
-      setParticles(newParticles);
-      
-      const timer = setTimeout(() => setParticles([]), 3000);
-      return () => clearTimeout(timer);
-    }
-  }, [show]);
-  
-  if (!show || particles.length === 0) return null;
-  
-  return (
-    <div className="fixed inset-0 pointer-events-none z-50">
-      {particles.map(particle => (
-        <div
-          key={particle.id}
-          className="absolute animate-fall"
-          style={{
-            left: `${particle.x}%`,
-            top: `${particle.y}%`,
-            '--vx': particle.vx,
-            '--vy': particle.vy,
-            animation: 'confetti-fall 3s ease-out forwards'
-          }}
-        >
-          <div
-            className="rounded-sm"
-            style={{
-              width: `${particle.size}px`,
-              height: `${particle.size}px`,
-              backgroundColor: particle.color,
-              transform: `rotate(${particle.rotation}deg)`
-            }}
-          />
-        </div>
-      ))}
-      <style jsx>{`
-        @keyframes confetti-fall {
-          to {
-            transform: translate(calc(var(--vx) * 100px), calc(100vh + 100px));
-          }
-        }
-      `}</style>
-    </div>
-  );
-};
-
-// Streak indicator component
-const StreakIndicator = ({ streak }) => {
-  if (!streak || streak < 2) return null;
-  
-  return (
-    <div className="flex items-center space-x-2 px-3 py-1.5 bg-orange-100 text-orange-700 rounded-full">
-      <Flame className="w-4 h-4" />
-      <span className="text-sm font-medium">{streak} day streak!</span>
-    </div>
-  );
-};
-
-// Progress celebration component
-const ProgressCelebration = ({ show, message }) => {
-  if (!show) return null;
-  
-  return (
-    <div className="absolute inset-0 flex items-center justify-center bg-black/20 z-40 animate-in fade-in duration-300">
-      <div className="bg-white rounded-2xl p-8 shadow-2xl text-center animate-in zoom-in-95 duration-300">
-        <div className="mb-4">
-          <Trophy className="w-16 h-16 text-yellow-500 mx-auto animate-bounce" />
-        </div>
-        <h3 className="text-2xl font-bold text-gray-900 mb-2">Awesome!</h3>
-        <p className="text-gray-600">{message}</p>
-      </div>
-    </div>
-  );
-};
-
-// Liquid position card component
+// Enhanced liquid position card with better UX
 const LiquidPositionCard = ({ 
   position, 
   institution, 
@@ -399,11 +199,15 @@ const LiquidPositionCard = ({
   onChange, 
   onComplete,
   isActive,
-  suggestion
+  suggestion,
+  lastUpdated,
+  isUpdated,
+  difference
 }) => {
   const [localValue, setLocalValue] = useState(value || '');
   const [isFocused, setIsFocused] = useState(false);
   const [hasChanged, setHasChanged] = useState(false);
+  const [showSuccess, setShowSuccess] = useState(false);
   const inputRef = useRef(null);
   
   useEffect(() => {
@@ -412,6 +216,13 @@ const LiquidPositionCard = ({
       inputRef.current.select();
     }
   }, [isActive]);
+  
+  useEffect(() => {
+    if (isUpdated && hasChanged) {
+      setShowSuccess(true);
+      setTimeout(() => setShowSuccess(false), 2000);
+    }
+  }, [isUpdated, hasChanged]);
   
   const handleChange = (e) => {
     const newValue = e.target.value.replace(/[^0-9.-]/g, '');
@@ -440,255 +251,458 @@ const LiquidPositionCard = ({
   const Icon = getPositionIcon();
   const isLiability = position.position_type === 'credit_card' || position.position_type === 'loan' || position.type === 'liability';
   
+  // Calculate days since last update
+  const daysSinceUpdate = lastUpdated 
+    ? Math.floor((Date.now() - new Date(lastUpdated).getTime()) / (1000 * 60 * 60 * 24))
+    : null;
+  
   return (
     <div className={`
-      relative rounded-xl border-2 transition-all duration-300
-      ${isActive ? 'border-blue-500 shadow-lg scale-[1.02]' : 'border-gray-200'}
-      ${hasChanged ? 'bg-blue-50' : 'bg-white'}
+      relative rounded-xl border-2 transition-all duration-300 transform
+      ${isActive ? 'border-blue-500 shadow-2xl scale-[1.02] bg-blue-50' : 'border-gray-200 bg-white hover:shadow-lg hover:scale-[1.01]'}
+      ${hasChanged && !isActive ? 'bg-amber-50 border-amber-300' : ''}
+      ${showSuccess ? 'bg-green-50 border-green-400' : ''}
     `}>
-      <div className="p-4">
-        <div className="flex items-start justify-between mb-3">
+      {/* Success overlay */}
+      {showSuccess && (
+        <div className="absolute inset-0 bg-green-500/10 rounded-xl flex items-center justify-center z-10 animate-in fade-in duration-300">
+          <div className="bg-white rounded-full p-3 shadow-lg">
+            <Check className="w-8 h-8 text-green-600 animate-in zoom-in duration-300" />
+          </div>
+        </div>
+      )}
+      
+      <div className="p-6">
+        <div className="flex items-start justify-between mb-4">
           <div className="flex items-center space-x-3">
             <div className={`
-              p-2 rounded-lg transition-colors
+              p-3 rounded-xl transition-all duration-300 transform
               ${isLiability ? 'bg-red-100' : 'bg-green-100'}
+              ${isActive ? 'scale-110 rotate-3' : ''}
             `}>
-              <Icon className={`w-5 h-5 ${isLiability ? 'text-red-600' : 'text-green-600'}`} />
+              <Icon className={`w-6 h-6 ${isLiability ? 'text-red-600' : 'text-green-600'}`} />
             </div>
             <div>
-              <h4 className="font-semibold text-gray-900">{position.name || position.position_name}</h4>
+              <h4 className="font-semibold text-gray-900 text-lg">{position.name || position.position_name}</h4>
               <p className="text-sm text-gray-500">{institution}</p>
+              {daysSinceUpdate !== null && (
+                <div className="flex items-center mt-1 text-xs text-gray-400">
+                  <Clock className="w-3 h-3 mr-1" />
+                  <span>
+                    Last updated: {daysSinceUpdate === 0 ? 'Today' : 
+                                  daysSinceUpdate === 1 ? 'Yesterday' : 
+                                  `${daysSinceUpdate} days ago`}
+                  </span>
+                </div>
+              )}
             </div>
           </div>
           {hasChanged && (
-            <Check className="w-5 h-5 text-green-500 animate-in zoom-in duration-300" />
-          )}
-        </div>
-        
-        <div className="space-y-2">
-          <label className="text-sm font-medium text-gray-700">
-            Current Balance
-          </label>
-          <div className="relative">
-            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">
-              {isLiability ? '-$' : '$'}
-            </span>
-            <input
-              ref={inputRef}
-              type="text"
-              value={localValue}
-              onChange={handleChange}
-              onKeyDown={handleKeyDown}
-              onFocus={() => setIsFocused(true)}
-              onBlur={() => setIsFocused(false)}
-              placeholder="0.00"
-              className={`
-                w-full pl-8 pr-4 py-3 text-lg font-semibold rounded-lg
-                transition-all duration-200 outline-none
-                ${isFocused 
-                  ? 'border-2 border-blue-500 ring-4 ring-blue-100' 
-                  : 'border-2 border-gray-300'
-                }
-              `}
-            />
-          </div>
-          
-          {suggestion && (
-            <div className="flex items-center space-x-2 text-sm text-gray-500">
-              <Sparkles className="w-4 h-4 text-yellow-500" />
-              <span>{suggestion}</span>
+            <div className="flex items-center space-x-2">
+              {difference !== 0 && (
+                <span className={`
+                  text-sm font-medium px-2 py-1 rounded-full
+                  ${difference > 0 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}
+                `}>
+                  {difference > 0 ? '+' : ''}{formatCurrency(difference)}
+                </span>
+              )}
+              <Check className="w-5 h-5 text-green-500 animate-in zoom-in duration-300" />
             </div>
           )}
         </div>
-      </div>
-    </div>
-  );
-};
-
-// Welcome screen component
-const WelcomeScreen = ({ 
-  stats, 
-  onSelectPath, 
-  reconciliationHealth,
-  lastReconciliation,
-  streak
-}) => {
-  const [hoveredPath, setHoveredPath] = useState(null);
-  
-  const paths = [
-    {
-      id: 'liquid',
-      icon: Droplets,
-      title: 'Update Liquid Positions',
-      subtitle: 'Cash, credit cards & loans',
-      stats: `${stats.liquidPositions} positions need updates`,
-      time: '2-3 minutes',
-      color: 'blue',
-      gradient: 'from-blue-500 to-cyan-500'
-    },
-    {
-      id: 'reconcile',
-      icon: CheckSquare,
-      title: 'Reconcile Accounts',
-      subtitle: 'Verify account balances',
-      stats: `${stats.needsReconciliation} accounts need attention`,
-      time: '3-5 minutes',
-      color: 'green',
-      gradient: 'from-green-500 to-emerald-500'
-    },
-    {
-      id: 'full',
-      icon: PlayCircle,
-      title: 'Full Workflow',
-      subtitle: 'Do both in one smooth flow',
-      stats: 'Recommended for best results',
-      time: '5-8 minutes',
-      color: 'purple',
-      gradient: 'from-purple-500 to-pink-500',
-      featured: true
-    }
-  ];
-  
-  return (
-    <div className="space-y-8">
-      {/* Header */}
-      <div className="text-center space-y-4">
-        <div className="inline-flex items-center justify-center w-20 h-20 bg-gradient-to-br from-blue-500 to-purple-500 rounded-full mb-4">
-          <Target className="w-10 h-10 text-white" />
+        
+        <div className="grid grid-cols-2 gap-4 mb-4">
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-gray-700">
+              Current NestEgg Balance
+            </label>
+            <div className="text-xl font-bold text-gray-900">
+              {isLiability ? '-' : ''}{formatCurrency(Math.abs(position.current_value || 0))}
+            </div>
+          </div>
+          
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-gray-700">
+              Balance to Update
+            </label>
+            <div className="relative">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">
+                {isLiability ? '-$' : '$'}
+              </span>
+              <input
+                ref={inputRef}
+                type="text"
+                value={localValue}
+                onChange={handleChange}
+                onKeyDown={handleKeyDown}
+                onFocus={() => setIsFocused(true)}
+                onBlur={() => setIsFocused(false)}
+                placeholder={Math.abs(position.current_value || 0).toFixed(2)}
+                className={`
+                  w-full pl-8 pr-4 py-3 text-xl font-bold rounded-lg
+                  transition-all duration-200 outline-none
+                  ${isFocused 
+                    ? 'border-2 border-blue-500 ring-4 ring-blue-100' 
+                    : 'border-2 border-gray-300 hover:border-gray-400'
+                  }
+                  ${hasChanged && localValue !== String(position.current_value) 
+                    ? 'bg-amber-50' 
+                    : 'bg-white'
+                  }
+                `}
+              />
+            </div>
+          </div>
         </div>
         
-        <h2 className="text-3xl font-bold text-gray-900">
-          Ready to sync your portfolio?
-        </h2>
+        {difference !== 0 && hasChanged && (
+          <div className={`
+            p-3 rounded-lg flex items-center justify-between
+            ${difference > 0 ? 'bg-green-50 border border-green-200' : 'bg-red-50 border border-red-200'}
+          `}>
+            <span className="text-sm font-medium text-gray-700">Difference:</span>
+            <span className={`font-bold ${difference > 0 ? 'text-green-700' : 'text-red-700'}`}>
+              {difference > 0 ? '+' : ''}{formatCurrency(difference)}
+            </span>
+          </div>
+        )}
         
-        <p className="text-lg text-gray-600 max-w-2xl mx-auto">
-          Keep your NestEgg data accurate with our guided reconciliation workflow. 
-          We've made it quick, easy, and dare we say... satisfying!
-        </p>
-        
-        {streak > 1 && (
-          <div className="flex justify-center">
-            <StreakIndicator streak={streak} />
+        {suggestion && (
+          <div className="flex items-center space-x-2 text-sm text-gray-500 mt-3 p-2 bg-blue-50 rounded-lg">
+            <Sparkles className="w-4 h-4 text-blue-500 animate-pulse" />
+            <span>{suggestion}</span>
           </div>
         )}
       </div>
-      
-      {/* Health Status */}
-      <div className="bg-gradient-to-r from-gray-50 to-gray-100 rounded-2xl p-6 border border-gray-200">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-4">
-            <div className="relative">
-              <ProgressRing percentage={reconciliationHealth} size={80} strokeWidth={6} color="blue" />
-              <div className="absolute inset-0 flex items-center justify-center">
-                <span className="text-lg font-bold text-gray-900">{reconciliationHealth}%</span>
+    </div>
+  );
+};
+
+// Enhanced institution selector with visual feedback
+const InstitutionSelector = ({ institutions, selectedInstitution, onSelect, completedInstitutions }) => {
+  return (
+    <div className="flex flex-wrap gap-3 mb-6">
+      {institutions.map(({ institution, positions, totalValue }) => {
+        const isSelected = selectedInstitution === institution;
+        const isCompleted = completedInstitutions.includes(institution);
+        const updatedCount = positions.filter(p => p.hasUpdate).length;
+        
+        return (
+          <button
+            key={institution}
+            onClick={() => onSelect(institution)}
+            className={`
+              relative group px-6 py-4 rounded-xl border-2 transition-all duration-300 transform
+              ${isSelected 
+                ? 'border-blue-500 bg-blue-50 shadow-lg scale-[1.02]' 
+                : isCompleted
+                  ? 'border-green-400 bg-green-50 hover:scale-[1.01]'
+                  : 'border-gray-200 bg-white hover:border-gray-300 hover:shadow-md hover:scale-[1.01]'
+              }
+            `}
+          >
+            {isCompleted && (
+              <div className="absolute -top-2 -right-2 bg-green-500 rounded-full p-1">
+                <Check className="w-4 h-4 text-white" />
+              </div>
+            )}
+            
+            <div className="flex items-center space-x-3">
+              <Landmark className={`
+                w-5 h-5 transition-colors
+                ${isSelected ? 'text-blue-600' : isCompleted ? 'text-green-600' : 'text-gray-400'}
+              `} />
+              <div className="text-left">
+                <h4 className={`
+                  font-semibold transition-colors
+                  ${isSelected ? 'text-blue-900' : 'text-gray-900'}
+                `}>
+                  {institution}
+                </h4>
+                <div className="flex items-center space-x-3 text-sm mt-1">
+                  <span className="text-gray-500">{positions.length} positions</span>
+                  {updatedCount > 0 && (
+                    <span className="text-amber-600 font-medium">
+                      {updatedCount} updated
+                    </span>
+                  )}
+                </div>
               </div>
             </div>
             
-            <div>
-              <h3 className="text-xl font-semibold text-gray-900">
-                Your Reconciliation Health
-              </h3>
-              <p className="text-gray-600">
-                Last full reconciliation: {lastReconciliation}
-              </p>
+            <div className="mt-3 pt-3 border-t border-gray-100">
+              <div className="text-sm text-gray-500">Total Value</div>
+              <div className="font-semibold text-gray-900">{formatCurrency(totalValue)}</div>
+            </div>
+            
+            {/* Progress bar */}
+            <div className="absolute bottom-0 left-0 right-0 h-1 bg-gray-200 rounded-b-xl overflow-hidden">
+              <div 
+                className={`
+                  h-full transition-all duration-500
+                  ${isCompleted ? 'bg-green-500' : 'bg-blue-500'}
+                `}
+                style={{ width: `${(updatedCount / positions.length) * 100}%` }}
+              />
+            </div>
+          </button>
+        );
+      })}
+    </div>
+  );
+};
+
+// Update summary dashboard
+const UpdateSummaryDashboard = ({ pendingUpdates, originalValues }) => {
+  const stats = useMemo(() => {
+    const updates = Object.entries(pendingUpdates);
+    const totalChanges = updates.length;
+    let totalIncrease = 0;
+    let totalDecrease = 0;
+    let netChange = 0;
+    
+    updates.forEach(([posId, newValue]) => {
+      const original = originalValues[posId] || 0;
+      const diff = parseFloat(newValue) - original;
+      netChange += diff;
+      if (diff > 0) totalIncrease += diff;
+      else totalDecrease += Math.abs(diff);
+    });
+    
+    return { totalChanges, totalIncrease, totalDecrease, netChange };
+  }, [pendingUpdates, originalValues]);
+  
+  if (stats.totalChanges === 0) return null;
+  
+  return (
+    <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-2xl p-6 border border-blue-200 shadow-lg">
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="text-lg font-semibold text-gray-900 flex items-center">
+          <FileCheck className="w-5 h-5 mr-2 text-blue-600" />
+          Pending Updates Summary
+        </h3>
+        <div className="flex items-center space-x-2">
+          <span className="text-2xl font-bold text-blue-600">{stats.totalChanges}</span>
+          <span className="text-sm text-gray-600">changes</span>
+        </div>
+      </div>
+      
+      <div className="grid grid-cols-3 gap-4">
+        <div className="bg-white rounded-lg p-4 text-center">
+          <ArrowUpRight className="w-6 h-6 text-green-600 mx-auto mb-2" />
+          <div className="text-sm text-gray-600">Total Increase</div>
+          <div className="text-xl font-bold text-green-600">
+            +{formatCurrency(stats.totalIncrease)}
+          </div>
+        </div>
+        
+        <div className="bg-white rounded-lg p-4 text-center">
+          <ArrowDownRight className="w-6 h-6 text-red-600 mx-auto mb-2" />
+          <div className="text-sm text-gray-600">Total Decrease</div>
+          <div className="text-xl font-bold text-red-600">
+            -{formatCurrency(stats.totalDecrease)}
+          </div>
+        </div>
+        
+        <div className="bg-white rounded-lg p-4 text-center">
+          <TrendingUp className="w-6 h-6 text-blue-600 mx-auto mb-2" />
+          <div className="text-sm text-gray-600">Net Change</div>
+          <div className={`text-xl font-bold ${stats.netChange >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+            {stats.netChange >= 0 ? '+' : ''}{formatCurrency(stats.netChange)}
+          </div>
+        </div>
+      </div>
+      
+      <div className="mt-4 p-3 bg-amber-100 rounded-lg flex items-start space-x-2">
+        <Info className="w-4 h-4 text-amber-600 mt-0.5 flex-shrink-0" />
+        <p className="text-sm text-amber-700">
+          These changes will be applied when you complete the reconciliation process.
+        </p>
+      </div>
+    </div>
+  );
+};
+
+// Enhanced reconciliation summary dashboard
+const ReconciliationSummaryDashboard = ({ 
+  stats, 
+  reconciliationResults,
+  onClose,
+  onStartNewReconciliation
+}) => {
+  const [showConfetti, setShowConfetti] = useState(true);
+  
+  useEffect(() => {
+    const timer = setTimeout(() => setShowConfetti(false), 5000);
+    return () => clearTimeout(timer);
+  }, []);
+  
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 p-8">
+      {showConfetti && <Confetti show={true} />}
+      
+      <div className="max-w-6xl mx-auto">
+        {/* Success Header */}
+        <div className="text-center mb-8 animate-in slide-in-from-top duration-500">
+          <div className="inline-flex items-center justify-center w-24 h-24 bg-gradient-to-br from-green-400 to-emerald-500 rounded-full mb-6 shadow-2xl">
+            <Trophy className="w-12 h-12 text-white animate-bounce" />
+          </div>
+          
+          <h1 className="text-4xl font-bold text-gray-900 mb-4">
+            Reconciliation Complete! 🎉
+          </h1>
+          
+          <p className="text-xl text-gray-600 max-w-2xl mx-auto">
+            Great job! Your accounts are now up-to-date and reconciled.
+          </p>
+        </div>
+        
+        {/* Summary Stats Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+          <div className="bg-white rounded-2xl p-6 shadow-lg border border-gray-100 animate-in slide-in-from-bottom duration-500 delay-100">
+            <div className="flex items-center justify-between mb-4">
+              <CheckCircle className="w-8 h-8 text-green-500" />
+              <span className="text-3xl font-bold text-gray-900">{stats.accountsReconciled}</span>
+            </div>
+            <h3 className="font-semibold text-gray-700">Accounts Reconciled</h3>
+            <p className="text-sm text-gray-500 mt-1">Successfully updated</p>
+          </div>
+          
+          <div className="bg-white rounded-2xl p-6 shadow-lg border border-gray-100 animate-in slide-in-from-bottom duration-500 delay-200">
+            <div className="flex items-center justify-between mb-4">
+              <Droplets className="w-8 h-8 text-blue-500" />
+              <span className="text-3xl font-bold text-gray-900">{stats.liquidPositionsUpdated}</span>
+            </div>
+            <h3 className="font-semibold text-gray-700">Liquid Positions</h3>
+            <p className="text-sm text-gray-500 mt-1">Updated balances</p>
+          </div>
+          
+          <div className="bg-white rounded-2xl p-6 shadow-lg border border-gray-100 animate-in slide-in-from-bottom duration-500 delay-300">
+            <div className="flex items-center justify-between mb-4">
+              <CircleDollarSign className="w-8 h-8 text-indigo-500" />
+              <AnimatedValue 
+                value={stats.totalValueReconciled} 
+                format="currency" 
+                className="text-2xl font-bold text-gray-900"
+              />
+            </div>
+            <h3 className="font-semibold text-gray-700">Total Value</h3>
+            <p className="text-sm text-gray-500 mt-1">Portfolio reconciled</p>
+          </div>
+          
+          <div className="bg-white rounded-2xl p-6 shadow-lg border border-gray-100 animate-in slide-in-from-bottom duration-500 delay-400">
+            <div className="flex items-center justify-between mb-4">
+              <Percent className="w-8 h-8 text-purple-500" />
+              <div className="relative">
+                <ProgressRing percentage={stats.accuracy} size={60} color="purple" />
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <span className="text-sm font-bold">{stats.accuracy}%</span>
+                </div>
+              </div>
+            </div>
+            <h3 className="font-semibold text-gray-700">Accuracy Score</h3>
+            <p className="text-sm text-gray-500 mt-1">Reconciliation health</p>
+          </div>
+        </div>
+        
+        {/* Detailed Results */}
+        {reconciliationResults && reconciliationResults.length > 0 && (
+          <div className="bg-white rounded-2xl p-6 shadow-lg border border-gray-100 mb-8 animate-in slide-in-from-bottom duration-500 delay-500">
+            <h2 className="text-xl font-semibold text-gray-900 mb-4 flex items-center">
+              <FileText className="w-6 h-6 mr-2 text-gray-600" />
+              Reconciliation Details
+            </h2>
+            
+            <div className="space-y-3">
+              {reconciliationResults.map((result, idx) => (
+                <div key={idx} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                  <div className="flex items-center space-x-3">
+                    <CheckCheck className="w-5 h-5 text-green-500" />
+                    <div>
+                      <p className="font-medium text-gray-900">{result.accountName}</p>
+                      <p className="text-sm text-gray-500">{result.institution}</p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <p className="font-semibold text-gray-900">{formatCurrency(result.finalBalance)}</p>
+                    {result.change !== 0 && (
+                      <p className={`text-sm ${result.change > 0 ? 'text-green-600' : 'text-red-600'}`}>
+                        {result.change > 0 ? '+' : ''}{formatCurrency(result.change)}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+        
+        {/* Next Steps */}
+        <div className="bg-gradient-to-r from-blue-600 to-indigo-600 rounded-2xl p-8 text-white shadow-xl animate-in slide-in-from-bottom duration-500 delay-600">
+          <h2 className="text-2xl font-bold mb-4">What's Next?</h2>
+          
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+            <div className="flex items-start space-x-3">
+              <div className="p-2 bg-white/20 rounded-lg">
+                <Calendar className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="font-semibold mb-1">Schedule Regular Updates</h3>
+                <p className="text-sm text-blue-100">We recommend reconciling weekly for best results</p>
+              </div>
+            </div>
+            
+            <div className="flex items-start space-x-3">
+              <div className="p-2 bg-white/20 rounded-lg">
+                <LineChart className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="font-semibold mb-1">Track Your Progress</h3>
+                <p className="text-sm text-blue-100">Monitor your portfolio performance over time</p>
+              </div>
+            </div>
+            
+            <div className="flex items-start space-x-3">
+              <div className="p-2 bg-white/20 rounded-lg">
+                <Bell className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="font-semibold mb-1">Set Up Alerts</h3>
+                <p className="text-sm text-blue-100">Get notified when accounts need attention</p>
+              </div>
             </div>
           </div>
           
-          <div className="flex items-center space-x-6 text-sm">
-            <div className="text-center">
-              <div className="text-2xl font-bold text-green-600">{stats.reconciled}</div>
-              <div className="text-gray-500">Up to date</div>
-            </div>
-            <div className="text-center">
-              <div className="text-2xl font-bold text-amber-600">{stats.needsReconciliation}</div>
-              <div className="text-gray-500">Need attention</div>
-            </div>
+          <div className="flex justify-center space-x-4">
+            <button
+              onClick={onClose}
+              className="px-6 py-3 bg-white text-blue-600 font-semibold rounded-lg hover:bg-gray-100 transition-all transform hover:scale-105"
+            >
+              Back to Dashboard
+            </button>
+            <button
+              onClick={onStartNewReconciliation}
+              className="px-6 py-3 bg-blue-700 text-white font-semibold rounded-lg hover:bg-blue-800 transition-all transform hover:scale-105"
+            >
+              Start New Reconciliation
+            </button>
           </div>
         </div>
-      </div>
-      
-      {/* Path Selection */}
-      <div>
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">Choose your path:</h3>
         
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {paths.map(path => {
-            const Icon = path.icon;
-            return (
-              <button
-                key={path.id}
-                onClick={() => onSelectPath(path.id)}
-                onMouseEnter={() => setHoveredPath(path.id)}
-                onMouseLeave={() => setHoveredPath(null)}
-                className={`
-                  relative group text-left p-6 rounded-2xl border-2 
-                  transition-all duration-300 transform
-                  ${path.featured 
-                    ? 'border-purple-300 bg-gradient-to-br from-purple-50 to-pink-50' 
-                    : 'border-gray-200 bg-white hover:border-gray-300'
-                  }
-                  ${hoveredPath === path.id ? 'scale-[1.02] shadow-xl' : 'shadow-sm'}
-                `}
-              >
-                {path.featured && (
-                  <div className="absolute -top-3 -right-3">
-                    <div className="bg-gradient-to-r from-purple-500 to-pink-500 text-white text-xs font-bold px-3 py-1 rounded-full">
-                      RECOMMENDED
-                    </div>
-                  </div>
-                )}
-                
-                <div className={`
-                  inline-flex p-3 rounded-xl mb-4 transition-all duration-300
-                  ${hoveredPath === path.id 
-                    ? `bg-gradient-to-br ${path.gradient}` 
-                    : `bg-${path.color}-100`
-                  }
-                `}>
-                  <Icon className={`
-                    w-6 h-6 transition-colors duration-300
-                    ${hoveredPath === path.id ? 'text-white' : `text-${path.color}-600`}
-                  `} />
-                </div>
-                
-                <h4 className="text-lg font-semibold text-gray-900 mb-1">{path.title}</h4>
-                <p className="text-sm text-gray-600 mb-3">{path.subtitle}</p>
-                
-                <div className="space-y-2 text-sm">
-                  <div className="flex items-center text-gray-500">
-                    <Activity className="w-4 h-4 mr-2" />
-                    <span>{path.stats}</span>
-                  </div>
-                  <div className="flex items-center text-gray-500">
-                    <Timer className="w-4 h-4 mr-2" />
-                    <span>Est. {path.time}</span>
-                  </div>
-                </div>
-                
-                <div className={`
-                  absolute bottom-6 right-6 transition-all duration-300
-                  ${hoveredPath === path.id ? 'translate-x-1' : ''}
-                `}>
-                  <ChevronRight className="w-5 h-5 text-gray-400" />
-                </div>
-              </button>
-            );
-          })}
-        </div>
-      </div>
-      
-      {/* Tips */}
-      <div className="bg-blue-50 rounded-xl p-6 border border-blue-200">
-        <div className="flex items-start space-x-3">
-          <Info className="w-5 h-5 text-blue-600 mt-0.5" />
-          <div className="space-y-2 text-sm text-blue-900">
-            <p className="font-medium">Pro Tips for Quick Reconciliation:</p>
-            <ul className="space-y-1 ml-4">
-              <li>• We recommend updating liquid positions daily</li>
-              <li>• Reconcile investment accounts weekly or monthly</li>
-              <li>• Use Tab to quickly move between fields</li>
-              <li>• Copy/paste from your banking apps for accuracy</li>
-            </ul>
+        {/* Share Achievement */}
+        <div className="text-center mt-8 animate-in fade-in duration-500 delay-700">
+          <p className="text-gray-600 mb-3">Share your achievement!</p>
+          <div className="flex justify-center space-x-3">
+            <button className="p-3 bg-white rounded-full shadow-md hover:shadow-lg transition-all transform hover:scale-110">
+              <Share2 className="w-5 h-5 text-gray-600" />
+            </button>
+            <button className="p-3 bg-white rounded-full shadow-md hover:shadow-lg transition-all transform hover:scale-110">
+              <Copy className="w-5 h-5 text-gray-600" />
+            </button>
+            <button className="p-3 bg-white rounded-full shadow-md hover:shadow-lg transition-all transform hover:scale-110">
+              <Download className="w-5 h-5 text-gray-600" />
+            </button>
           </div>
         </div>
       </div>
@@ -696,18 +710,102 @@ const WelcomeScreen = ({
   );
 };
 
-// Liquid positions update screen
+// Enhanced confetti component
+const Confetti = ({ show }) => {
+  const [particles, setParticles] = useState([]);
+  
+  useEffect(() => {
+    if (show) {
+      const colors = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899', '#14B8A6'];
+      const shapes = ['square', 'circle'];
+      const newParticles = Array.from({ length: 100 }, (_, i) => ({
+        id: i,
+        x: Math.random() * 100,
+        y: -10,
+        vx: (Math.random() - 0.5) * 3,
+        vy: Math.random() * 5 + 3,
+        color: colors[Math.floor(Math.random() * colors.length)],
+        size: Math.random() * 8 + 4,
+        rotation: Math.random() * 360,
+        rotationSpeed: (Math.random() - 0.5) * 10,
+        shape: shapes[Math.floor(Math.random() * shapes.length)]
+      }));
+      setParticles(newParticles);
+      
+      const timer = setTimeout(() => setParticles([]), 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [show]);
+  
+  if (!show || particles.length === 0) return null;
+  
+  return (
+    <div className="fixed inset-0 pointer-events-none z-50">
+      {particles.map(particle => (
+        <div
+          key={particle.id}
+          className="absolute animate-fall"
+          style={{
+            left: `${particle.x}%`,
+            top: `${particle.y}%`,
+            '--vx': particle.vx,
+            '--vy': particle.vy,
+            '--rotation-speed': particle.rotationSpeed,
+            animation: 'confetti-fall 5s ease-out forwards'
+          }}
+        >
+          <div
+            className={particle.shape === 'circle' ? 'rounded-full' : 'rounded-sm'}
+            style={{
+              width: `${particle.size}px`,
+              height: `${particle.size}px`,
+              backgroundColor: particle.color,
+              transform: `rotate(${particle.rotation}deg)`,
+              animation: 'confetti-spin 5s linear infinite'
+            }}
+          />
+        </div>
+      ))}
+      <style jsx>{`
+        @keyframes confetti-fall {
+          to {
+            transform: translate(calc(var(--vx) * 200px), calc(100vh + 100px));
+          }
+        }
+        @keyframes confetti-spin {
+          to {
+            transform: rotate(calc(360deg * var(--rotation-speed)));
+          }
+        }
+      `}</style>
+    </div>
+  );
+};
+
+// Enhanced liquid positions screen
 const LiquidPositionsScreen = ({ 
   positions, 
   onComplete, 
   onBack,
   onUpdatePosition
 }) => {
-  const [currentIndex, setCurrentIndex] = useState(0);
+  const [selectedInstitution, setSelectedInstitution] = useState(null);
+  const [currentPositionIndex, setCurrentPositionIndex] = useState(0);
   const [updatedPositions, setUpdatedPositions] = useState({});
+  const [completedInstitutions, setCompletedInstitutions] = useState([]);
   const [showCelebration, setShowCelebration] = useState(false);
+  const [originalValues, setOriginalValues] = useState({});
   
-  // Group positions by institution
+  // Initialize original values
+  useEffect(() => {
+    const values = {};
+    positions.forEach(pos => {
+      values[pos.id] = pos.current_value || 0;
+    });
+    setOriginalValues(values);
+  }, [positions]);
+  
+  // Group positions by institution with enriched data
   const groupedPositions = useMemo(() => {
     const groups = {};
     positions.forEach(pos => {
@@ -715,20 +813,38 @@ const LiquidPositionsScreen = ({
       if (!groups[institution]) {
         groups[institution] = [];
       }
-      groups[institution].push(pos);
+      groups[institution].push({
+        ...pos,
+        hasUpdate: updatedPositions[pos.id] !== undefined
+      });
     });
     
-    // Sort by total value
-    return Object.entries(groups).sort((a, b) => {
-      const totalA = a[1].reduce((sum, p) => sum + Math.abs(p.current_value || 0), 0);
-      const totalB = b[1].reduce((sum, p) => sum + Math.abs(p.current_value || 0), 0);
-      return totalB - totalA;
-    });
-  }, [positions]);
+    // Convert to array with metadata
+    return Object.entries(groups).map(([institution, positions]) => ({
+      institution,
+      positions,
+      totalValue: positions.reduce((sum, p) => sum + Math.abs(p.current_value || 0), 0),
+      updatedCount: positions.filter(p => updatedPositions[p.id] !== undefined).length
+    })).sort((a, b) => b.totalValue - a.totalValue);
+  }, [positions, updatedPositions]);
   
-  const allPositions = groupedPositions.flatMap(([_, positions]) => positions);
-  const currentPosition = allPositions[currentIndex];
-  const progress = ((Object.keys(updatedPositions).length / allPositions.length) * 100) || 0;
+  // Auto-select first institution
+  useEffect(() => {
+    if (groupedPositions.length > 0 && !selectedInstitution) {
+      setSelectedInstitution(groupedPositions[0].institution);
+    }
+  }, [groupedPositions, selectedInstitution]);
+  
+  // Get current institution's positions
+  const currentInstitutionData = groupedPositions.find(g => g.institution === selectedInstitution);
+  const currentPositions = currentInstitutionData?.positions || [];
+  const currentPosition = currentPositions[currentPositionIndex];
+  
+  // Calculate progress
+  const totalProgress = ((Object.keys(updatedPositions).length / positions.length) * 100) || 0;
+  const institutionProgress = currentInstitutionData 
+    ? ((currentInstitutionData.updatedCount / currentInstitutionData.positions.length) * 100)
+    : 0;
   
   const handlePositionUpdate = (positionId, value) => {
     setUpdatedPositions(prev => ({
@@ -738,115 +854,138 @@ const LiquidPositionsScreen = ({
   };
   
   const handleNext = () => {
-    if (currentIndex < allPositions.length - 1) {
-      setCurrentIndex(currentIndex + 1);
+    if (currentPositionIndex < currentPositions.length - 1) {
+      setCurrentPositionIndex(currentPositionIndex + 1);
     } else {
-      // All positions updated
-      setShowCelebration(true);
-      setTimeout(() => {
-        onComplete(updatedPositions);
-      }, 2000);
+      // Mark institution as completed
+      setCompletedInstitutions(prev => [...prev, selectedInstitution]);
+      
+      // Find next incomplete institution
+      const nextInstitution = groupedPositions.find(g => 
+        g.institution !== selectedInstitution && !completedInstitutions.includes(g.institution)
+      );
+      
+      if (nextInstitution) {
+        setSelectedInstitution(nextInstitution.institution);
+        setCurrentPositionIndex(0);
+      } else {
+        // All done!
+        setShowCelebration(true);
+        setTimeout(() => {
+          onComplete(updatedPositions);
+        }, 2000);
+      }
     }
   };
   
   const handlePrevious = () => {
-    if (currentIndex > 0) {
-      setCurrentIndex(currentIndex - 1);
+    if (currentPositionIndex > 0) {
+      setCurrentPositionIndex(currentPositionIndex - 1);
     }
   };
   
-  const handleSkip = () => {
-    handleNext();
+  const handleInstitutionSelect = (institution) => {
+    setSelectedInstitution(institution);
+    const institutionData = groupedPositions.find(g => g.institution === institution);
+    // Find first unupdated position or start at beginning
+    const firstUnupdatedIndex = institutionData.positions.findIndex(p => !updatedPositions[p.id]);
+    setCurrentPositionIndex(firstUnupdatedIndex >= 0 ? firstUnupdatedIndex : 0);
   };
   
-  const generateSuggestion = (position) => {
-    // Smart suggestions based on position type and history
-    if (position.position_type === 'checking' || position.type === 'checking') {
-      return 'Tip: Check for pending transactions';
-    } else if (position.position_type === 'credit_card' || position.type === 'credit_card') {
-      return 'Include pending charges';
-    } else if (position.position_type === 'savings' || position.type === 'savings') {
-      return 'Don\'t forget accrued interest';
-    }
-    return null;
+  const calculateDifference = (positionId, newValue) => {
+    const original = originalValues[positionId] || 0;
+    return parseFloat(newValue || 0) - original;
   };
   
   return (
     <div className="space-y-6">
-      {/* Header */}
+      {/* Header with back button */}
       <div>
         <button
           onClick={onBack}
-          className="flex items-center text-gray-600 hover:text-gray-900 mb-4 transition-colors"
+          className="flex items-center text-gray-600 hover:text-gray-900 mb-4 transition-colors group"
         >
-          <ArrowLeft className="w-4 h-4 mr-2" />
+          <ArrowLeft className="w-4 h-4 mr-2 transition-transform group-hover:-translate-x-1" />
           Back to overview
         </button>
         
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h2 className="text-2xl font-bold text-gray-900">Update Liquid Positions</h2>
-            <p className="text-gray-600">Keep your cash and credit balances accurate</p>
+            <h2 className="text-3xl font-bold text-gray-900">Update Liquid Positions</h2>
+            <p className="text-gray-600 mt-1">Keep your cash and credit balances accurate</p>
           </div>
           
           <div className="flex items-center space-x-4">
             <div className="text-right">
-              <div className="text-sm text-gray-500">Progress</div>
-              <div className="text-xl font-bold text-gray-900">
-                {Object.keys(updatedPositions).length} / {allPositions.length}
+              <div className="text-sm text-gray-500">Overall Progress</div>
+              <div className="text-2xl font-bold text-gray-900">
+                {Object.keys(updatedPositions).length} / {positions.length}
               </div>
             </div>
-            <ProgressRing percentage={progress} size={60} color="blue" />
+            <ProgressRing percentage={totalProgress} size={80} color="blue" />
           </div>
         </div>
         
-        {/* Progress bar */}
-        <div className="relative h-2 bg-gray-200 rounded-full overflow-hidden">
+        {/* Overall progress bar */}
+        <div className="relative h-3 bg-gray-200 rounded-full overflow-hidden shadow-inner">
           <div 
-            className="absolute left-0 top-0 h-full bg-gradient-to-r from-blue-500 to-cyan-500 transition-all duration-500"
-            style={{ width: `${progress}%` }}
+            className="absolute left-0 top-0 h-full bg-gradient-to-r from-blue-500 to-cyan-500 transition-all duration-500 ease-out shadow-md"
+            style={{ width: `${totalProgress}%` }}
           />
         </div>
       </div>
       
-      {/* Institution groups overview */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        {groupedPositions.map(([institution, instPositions], idx) => {
-          const updated = instPositions.filter(p => updatedPositions[p.id]).length;
-          const total = instPositions.length;
-          const isComplete = updated === total;
-          
-          return (
-            <div
-              key={institution}
-              className={`
-                p-4 rounded-xl border-2 transition-all duration-300
-                ${isComplete 
-                  ? 'bg-green-50 border-green-300' 
-                  : 'bg-white border-gray-200'
-                }
-              `}
-            >
-              <div className="flex items-center justify-between mb-2">
-                <Landmark className={`w-5 h-5 ${isComplete ? 'text-green-600' : 'text-gray-400'}`} />
-                {isComplete && <Check className="w-4 h-4 text-green-600" />}
+      {/* Institution selector */}
+      <InstitutionSelector
+        institutions={groupedPositions}
+        selectedInstitution={selectedInstitution}
+        onSelect={handleInstitutionSelect}
+        completedInstitutions={completedInstitutions}
+      />
+      
+      {/* Update summary dashboard */}
+      <UpdateSummaryDashboard
+        pendingUpdates={updatedPositions}
+        originalValues={originalValues}
+      />
+      
+      {/* Current institution progress */}
+      {currentInstitutionData && (
+        <div className="bg-gradient-to-r from-gray-50 to-gray-100 rounded-xl p-4 border border-gray-200">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-3">
+              <Landmark className="w-6 h-6 text-gray-600" />
+              <div>
+                <h3 className="font-semibold text-gray-900">{selectedInstitution}</h3>
+                <p className="text-sm text-gray-600">
+                  Position {currentPositionIndex + 1} of {currentPositions.length}
+                </p>
               </div>
-              <h4 className="font-medium text-gray-900 truncate">{institution}</h4>
-              <p className="text-sm text-gray-500">{updated} / {total} updated</p>
             </div>
-          );
-        })}
-      </div>
+            <div className="flex items-center space-x-4">
+              <div className="text-right">
+                <div className="text-sm text-gray-500">Institution Progress</div>
+                <div className="text-lg font-bold text-gray-900">
+                  {currentInstitutionData.updatedCount} / {currentInstitutionData.positions.length}
+                </div>
+              </div>
+              <ProgressRing percentage={institutionProgress} size={60} color="green" />
+            </div>
+          </div>
+          
+          {/* Institution progress bar */}
+          <div className="mt-3 h-2 bg-gray-200 rounded-full overflow-hidden">
+            <div 
+              className="h-full bg-gradient-to-r from-green-500 to-emerald-500 transition-all duration-500"
+              style={{ width: `${institutionProgress}%` }}
+            />
+          </div>
+        </div>
+      )}
       
       {/* Current position card */}
       {currentPosition && (
-        <div className="max-w-xl mx-auto">
-          <div className="mb-4 text-center">
-            <p className="text-sm text-gray-500">
-              Position {currentIndex + 1} of {allPositions.length}
-            </p>
-          </div>
-          
+        <div className="max-w-2xl mx-auto">
           <LiquidPositionCard
             position={currentPosition}
             institution={currentPosition.institution || currentPosition.account_institution}
@@ -854,27 +993,31 @@ const LiquidPositionsScreen = ({
             onChange={handlePositionUpdate}
             onComplete={handleNext}
             isActive={true}
-            suggestion={generateSuggestion(currentPosition)}
+            suggestion={`Tip: Check for pending transactions`}
+            lastUpdated={originalValues[currentPosition.id]?.lastUpdated}
+            isUpdated={!!updatedPositions[currentPosition.id]}
+            difference={calculateDifference(currentPosition.id, updatedPositions[currentPosition.id])}
           />
           
-          {/* Navigation */}
+          {/* Navigation controls */}
           <div className="flex items-center justify-between mt-6">
             <button
               onClick={handlePrevious}
-              disabled={currentIndex === 0}
+              disabled={currentPositionIndex === 0 && completedInstitutions.length === 0}
               className={`
-                px-4 py-2 font-medium rounded-lg transition-all
-                ${currentIndex === 0
+                px-6 py-3 font-medium rounded-lg transition-all transform hover:scale-105
+                ${currentPositionIndex === 0 && completedInstitutions.length === 0
                   ? 'text-gray-400 bg-gray-100 cursor-not-allowed'
-                  : 'text-gray-700 bg-white border border-gray-300 hover:bg-gray-50'
+                  : 'text-gray-700 bg-white border-2 border-gray-300 hover:bg-gray-50 hover:border-gray-400 shadow-md'
                 }
               `}
             >
+              <ArrowLeft className="w-4 h-4 inline mr-2" />
               Previous
             </button>
             
             <button
-              onClick={handleSkip}
+              onClick={() => handleNext()}
               className="text-gray-500 hover:text-gray-700 text-sm font-medium transition-colors"
             >
               Skip this one
@@ -882,23 +1025,32 @@ const LiquidPositionsScreen = ({
             
             <button
               onClick={handleNext}
-              className="px-6 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition-colors flex items-center"
+              className="px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-medium rounded-lg hover:from-blue-700 hover:to-indigo-700 transition-all transform hover:scale-105 shadow-lg flex items-center"
             >
-              {currentIndex === allPositions.length - 1 ? 'Complete' : 'Next'}
+              {currentPositionIndex === currentPositions.length - 1 && 
+               groupedPositions.filter(g => !completedInstitutions.includes(g.institution)).length === 1
+                ? 'Complete All' 
+                : 'Next'}
               <ChevronRight className="w-4 h-4 ml-2" />
             </button>
           </div>
           
-          {/* Keyboard hints */}
-          <div className="mt-8 flex justify-center space-x-6 text-xs text-gray-400">
-            <div className="flex items-center">
-              <Keyboard className="w-4 h-4 mr-1" />
-              <span>Tab: Next field</span>
-            </div>
-            <div className="flex items-center">
-              <span className="px-2 py-0.5 bg-gray-100 rounded text-gray-600 mr-1">Enter</span>
-              <span>Save & continue</span>
-            </div>
+          {/* Position indicators */}
+          <div className="flex justify-center mt-6 space-x-2">
+            {currentPositions.map((_, idx) => (
+              <div
+                key={idx}
+                className={`
+                  h-2 rounded-full transition-all duration-300
+                  ${idx === currentPositionIndex 
+                    ? 'w-8 bg-blue-600' 
+                    : updatedPositions[currentPositions[idx].id]
+                      ? 'w-2 bg-green-500'
+                      : 'w-2 bg-gray-300'
+                  }
+                `}
+              />
+            ))}
           </div>
         </div>
       )}
@@ -906,313 +1058,55 @@ const LiquidPositionsScreen = ({
       {/* Celebration */}
       <ProgressCelebration 
         show={showCelebration}
-        message="All liquid positions updated! Great job!"
+        message="All liquid positions updated! Moving to reconciliation..."
       />
       <Confetti show={showCelebration} />
     </div>
   );
 };
 
-// Main QuickReconciliationModal component - keeping ALL original functionality
-const QuickReconciliationModal = ({ isOpen, onClose }) => {
-  // State management
-  const [currentScreen, setCurrentScreen] = useState('welcome');
-  const [accounts, setAccounts] = useState([]);
-  const [positions, setPositions] = useState({});
-  const [liquidPositions, setLiquidPositions] = useState([]);
+// Enhanced account reconciliation screen
+const AccountReconciliationScreen = ({ 
+  accounts, 
+  onComplete, 
+  onBack,
+  reconciliationData,
+  onUpdateReconciliationData,
+  showValues
+}) => {
+  const [groupedAccounts, setGroupedAccounts] = useState([]);
+  const [selectedInstitution, setSelectedInstitution] = useState(null);
   const [selectedAccount, setSelectedAccount] = useState(null);
+  const [positions, setPositions] = useState({});
   const [loading, setLoading] = useState(false);
-  const [reconciliationData, setReconciliationData] = useState({});
-  const [streak, setStreak] = useState(0);
-  const [showConfetti, setShowConfetti] = useState(false);
-  const [pendingUpdates, setPendingUpdates] = useState({});
-  const [showValues, setShowValues] = useState(true);
-  const [editingPosition, setEditingPosition] = useState(null);
   const [pendingChanges, setPendingChanges] = useState([]);
-  const [message, setMessage] = useState({ type: '', text: '' });
-  const [filter, setFilter] = useState('needsReconciliation');
-  const [searchQuery, setSearchQuery] = useState('');
+  const [editingPosition, setEditingPosition] = useState(null);
   
-  // Refs
-  const balanceInputRef = useRef(null);
-  const messageTimeoutRef = useRef(null);
-  
-  // Load data on mount
+  // Group accounts by institution
   useEffect(() => {
-    if (isOpen) {
-      loadData();
-      loadReconciliationData();
-      calculateStreak();
-    }
-    
-    return () => {
-      if (messageTimeoutRef.current) {
-        clearTimeout(messageTimeoutRef.current);
+    const groups = {};
+    accounts.forEach(account => {
+      const institution = account.institution || 'Other';
+      if (!groups[institution]) {
+        groups[institution] = [];
       }
-    };
-  }, [isOpen]);
-  
-  // Load all data
-  const loadData = async () => {
-    setLoading(true);
-    try {
-      // Load accounts
-      const accountsResponse = await fetchWithAuth('/accounts/enriched');
-      if (!accountsResponse.ok) throw new Error('Failed to fetch accounts');
-      
-      const accountsData = await accountsResponse.json();
-      const accountsList = accountsData.accounts || [];
-      
-      // Enrich with reconciliation status
-      const enrichedAccounts = accountsList.map(account => {
-        const lastRec = reconciliationData[account.id]?.lastReconciled;
-        const daysSince = lastRec ? 
-          Math.floor((Date.now() - new Date(lastRec).getTime()) / (1000 * 60 * 60 * 24)) : 
-          null;
-        
-        return {
-          ...account,
-          reconciliationStatus: getReconciliationStatus(account, daysSince),
-          daysSinceReconciliation: daysSince
-        };
-      });
-      
-      setAccounts(enrichedAccounts);
-      
-      // Load all positions to find liquid ones
-      const positionsResponse = await fetchWithAuth('/positions/unified');
-      if (!positionsResponse.ok) throw new Error('Failed to fetch positions');
-      
-      const positionsData = await positionsResponse.json();
-      const allPositions = positionsData.positions || [];
-      
-      // Filter liquid positions (cash, credit cards, loans)
-      const liquid = allPositions.filter(p => 
-        LIQUID_POSITION_TYPES.includes(p.position_type) || 
-        p.asset_type === 'cash' ||
-        (p.name && (p.name.toLowerCase().includes('checking') || 
-                   p.name.toLowerCase().includes('savings') ||
-                   p.name.toLowerCase().includes('credit') ||
-                   p.name.toLowerCase().includes('loan')))
-      );
-      
-      // Enrich liquid positions with account info
-      const enrichedLiquid = liquid.map(pos => {
-        const account = enrichedAccounts.find(a => a.id === pos.account_id);
-        return {
-          ...pos,
-          institution: account?.institution || 'Unknown',
-          account_institution: account?.institution || 'Unknown',
-          account_name: account?.account_name || 'Unknown Account'
-        };
-      });
-      
-      setLiquidPositions(enrichedLiquid);
-      
-    } catch (error) {
-      console.error('Error loading data:', error);
-      showMessage('error', 'Failed to load data');
-    } finally {
-      setLoading(false);
-    }
-  };
-  
-  // Get reconciliation status
-  const getReconciliationStatus = (account, daysSince) => {
-    if (!daysSince) return 'pending';
-    if (daysSince <= 7) return 'reconciled';
-    if (daysSince <= 30) return 'warning';
-    return 'error';
-  };
-  
-  // Load reconciliation data from localStorage
-  const loadReconciliationData = () => {
-    const saved = localStorage.getItem('nestegg_reconciliation_data');
-    if (saved) {
-      setReconciliationData(JSON.parse(saved));
-    }
-  };
-  
-  // Save reconciliation data to localStorage
-  const saveReconciliationData = (data) => {
-    setReconciliationData(data);
-    localStorage.setItem('nestegg_reconciliation_data', JSON.stringify(data));
-  };
-  
-  // Calculate reconciliation streak
-  const calculateStreak = () => {
-    const history = JSON.parse(localStorage.getItem('nestegg_reconciliation_history') || '[]');
-    let currentStreak = 0;
-    const today = new Date().toDateString();
-    
-    // Check if reconciled today
-    if (history.length > 0 && new Date(history[0]).toDateString() === today) {
-      currentStreak = 1;
-      
-      // Count consecutive days
-      for (let i = 1; i < history.length; i++) {
-        const prevDate = new Date(history[i - 1]);
-        const currDate = new Date(history[i]);
-        const dayDiff = (prevDate - currDate) / (1000 * 60 * 60 * 24);
-        
-        if (dayDiff === 1) {
-          currentStreak++;
-        } else {
-          break;
-        }
-      }
-    }
-    
-    setStreak(currentStreak);
-  };
-  
-  // Save reconciliation to history
-  const saveToHistory = () => {
-    const history = JSON.parse(localStorage.getItem('nestegg_reconciliation_history') || '[]');
-    const today = new Date().toISOString();
-    
-    // Add today if not already present
-    if (!history.some(date => new Date(date).toDateString() === new Date(today).toDateString())) {
-      history.unshift(today);
-      // Keep only last 30 days
-      history.splice(30);
-      localStorage.setItem('nestegg_reconciliation_history', JSON.stringify(history));
-    }
-  };
-  
-  // Show message
-  const showMessage = (type, text, duration = 5000) => {
-    setMessage({ type, text });
-    
-    if (messageTimeoutRef.current) {
-      clearTimeout(messageTimeoutRef.current);
-    }
-    
-    if (duration > 0) {
-      messageTimeoutRef.current = setTimeout(() => {
-        setMessage({ type: '', text: '' });
-      }, duration);
-    }
-  };
-  
-  // Calculate stats
-  const stats = useMemo(() => {
-    const total = accounts.length;
-    const needsReconciliation = accounts.filter(a => 
-      a.reconciliationStatus === 'warning' || 
-      a.reconciliationStatus === 'error' || 
-      a.reconciliationStatus === 'pending'
-    ).length;
-    const reconciled = accounts.filter(a => a.reconciliationStatus === 'reconciled').length;
-    const totalValue = accounts.reduce((sum, a) => sum + (parseFloat(a.total_value) || 0), 0);
-    const reconciledValue = accounts
-      .filter(a => a.reconciliationStatus === 'reconciled')
-      .reduce((sum, a) => sum + (parseFloat(a.total_value) || 0), 0);
-    
-    const liquidNeedingUpdate = liquidPositions.filter(p => {
-      const lastUpdate = reconciliationData[`pos_${p.id}`]?.lastUpdated;
-      const daysSince = lastUpdate ? 
-        Math.floor((Date.now() - new Date(lastUpdate).getTime()) / (1000 * 60 * 60 * 24)) : 
-        999;
-      return daysSince > 1;
-    }).length;
-    
-    return {
-      total,
-      needsReconciliation,
-      reconciled,
-      liquidPositions: liquidNeedingUpdate,
-      percentage: total > 0 ? (reconciled / total) * 100 : 0,
-      totalValue,
-      reconciledValue,
-      valuePercentage: totalValue > 0 ? (reconciledValue / totalValue) * 100 : 0
-    };
-  }, [accounts, liquidPositions, reconciliationData]);
-  
-  // Get reconciliation health
-  const reconciliationHealth = useMemo(() => {
-    const weights = {
-      accountsReconciled: 0.6,
-      liquidPositionsUpdated: 0.3,
-      recency: 0.1
-    };
-    
-    const accountScore = stats.percentage;
-    const liquidScore = liquidPositions.length > 0 
-      ? ((liquidPositions.length - stats.liquidPositions) / liquidPositions.length) * 100
-      : 100;
-    
-    // Recency score (drops off after 7 days)
-    const lastFullReconciliation = Object.values(reconciliationData)
-      .map(d => d.lastReconciled)
-      .filter(Boolean)
-      .sort((a, b) => new Date(b) - new Date(a))[0];
-    
-    const daysSinceLastFull = lastFullReconciliation
-      ? Math.floor((Date.now() - new Date(lastFullReconciliation).getTime()) / (1000 * 60 * 60 * 24))
-      : 30;
-    
-    const recencyScore = Math.max(0, 100 - (daysSinceLastFull * 14));
-    
-    return Math.round(
-      accountScore * weights.accountsReconciled +
-      liquidScore * weights.liquidPositionsUpdated +
-      recencyScore * weights.recency
-    );
-  }, [stats, liquidPositions, reconciliationData]);
-  
-  // Get last reconciliation text
-  const lastReconciliationText = useMemo(() => {
-    const dates = Object.values(reconciliationData)
-      .map(d => d.lastReconciled)
-      .filter(Boolean)
-      .map(d => new Date(d));
-    
-    if (dates.length === 0) return 'Never';
-    
-    const mostRecent = new Date(Math.max(...dates));
-    const daysAgo = Math.floor((Date.now() - mostRecent) / (1000 * 60 * 60 * 24));
-    
-    if (daysAgo === 0) return 'Today';
-    if (daysAgo === 1) return 'Yesterday';
-    if (daysAgo < 7) return `${daysAgo} days ago`;
-    if (daysAgo < 30) return `${Math.floor(daysAgo / 7)} weeks ago`;
-    return `${Math.floor(daysAgo / 30)} months ago`;
-  }, [reconciliationData]);
-  
-  // Filter accounts
-  const filteredAccounts = useMemo(() => {
-    let filtered = [...accounts];
-    
-    // Apply status filter
-    if (filter === 'needsReconciliation') {
-      filtered = filtered.filter(a => 
-        a.reconciliationStatus !== 'reconciled'
-      );
-    } else if (filter === 'reconciled') {
-      filtered = filtered.filter(a => 
-        a.reconciliationStatus === 'reconciled'
-      );
-    }
-    
-    // Apply search
-    if (searchQuery) {
-      const query = searchQuery.toLowerCase();
-      filtered = filtered.filter(a =>
-        a.account_name?.toLowerCase().includes(query) ||
-        a.institution?.toLowerCase().includes(query) ||
-        a.type?.toLowerCase().includes(query)
-      );
-    }
-    
-    // Sort by priority (needs reconciliation first)
-    filtered.sort((a, b) => {
-      const statusOrder = { error: 0, warning: 1, pending: 2, reconciled: 3 };
-      return statusOrder[a.reconciliationStatus] - statusOrder[b.reconciliationStatus];
+      groups[institution].push(account);
     });
     
-    return filtered;
-  }, [accounts, filter, searchQuery]);
+    const grouped = Object.entries(groups).map(([institution, accounts]) => ({
+      institution,
+      accounts,
+      totalValue: accounts.reduce((sum, a) => sum + (parseFloat(a.total_value) || 0), 0),
+      needsReconciliation: accounts.filter(a => 
+        a.reconciliationStatus !== 'reconciled'
+      ).length
+    })).sort((a, b) => b.totalValue - a.totalValue);
+    
+    setGroupedAccounts(grouped);
+    if (grouped.length > 0) {
+      setSelectedInstitution(grouped[0].institution);
+    }
+  }, [accounts]);
   
   // Load positions for account
   const loadPositions = async (accountId) => {
@@ -1227,40 +1121,30 @@ const QuickReconciliationModal = ({ isOpen, onClose }) => {
       }));
     } catch (error) {
       console.error('Error loading positions:', error);
-      showMessage('error', 'Failed to load positions');
     }
   };
   
-  // Select account for reconciliation
+  // Select account
   const selectAccount = async (account) => {
     setSelectedAccount(account);
-    setCurrentScreen('reconcile-account');
-    
-    // Load positions if not already loaded
     if (!positions[account.id]) {
       await loadPositions(account.id);
     }
-    
-    // Auto-focus balance input
-    setTimeout(() => {
-      balanceInputRef.current?.focus();
-    }, 300);
   };
   
   // Handle balance input
   const handleBalanceInput = (accountId, value) => {
-    const numericValue = value.replace(/[^0-9.-]/g, '');
-    saveReconciliationData({
+    onUpdateReconciliationData({
       ...reconciliationData,
       [accountId]: {
         ...reconciliationData[accountId],
-        statementBalance: numericValue,
+        statementBalance: value,
         timestamp: new Date().toISOString()
       }
     });
   };
   
-  // Calculate reconciliation difference
+  // Calculate difference
   const calculateDifference = (account) => {
     const statementBalance = parseFloat(reconciliationData[account.id]?.statementBalance || 0);
     const nesteggBalance = parseFloat(account.total_value || 0);
@@ -1277,704 +1161,947 @@ const QuickReconciliationModal = ({ isOpen, onClose }) => {
     };
   };
   
-  // Quick reconcile (mark as reconciled without changes)
+  // Quick reconcile
   const quickReconcile = async (account) => {
-    try {
-      const response = await fetchWithAuth('/api/reconciliation/account', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          account_id: account.id,
-          app_balance: parseFloat(account.total_value),
-          actual_balance: parseFloat(account.total_value)
-        })
-      });
-      
-      if (!response.ok) throw new Error('Failed to reconcile');
-      
-      // Update local state
-      saveReconciliationData({
-        ...reconciliationData,
-        [account.id]: {
-          ...reconciliationData[account.id],
-          lastReconciled: new Date().toISOString(),
-          statementBalance: account.total_value
-        }
-      });
-      
-      // Update account status
-      setAccounts(prev => prev.map(a => 
-        a.id === account.id 
-          ? { ...a, reconciliationStatus: 'reconciled', daysSinceReconciliation: 0 }
-          : a
-      ));
-      
-      showMessage('success', `${account.account_name} reconciled successfully!`);
-    } catch (error) {
-      console.error('Error reconciling account:', error);
-      showMessage('error', 'Failed to reconcile account');
-    }
-  };
-  
-  // Save position changes
-  const savePositionChanges = async (position) => {
-    setPendingChanges(prev => [
-      ...prev.filter(c => c.id !== position.id),
-      { type: 'update', entity: 'position', data: position }
-    ]);
-    setEditingPosition(null);
+    const updatedData = {
+      ...reconciliationData,
+      [account.id]: {
+        ...reconciliationData[account.id],
+        lastReconciled: new Date().toISOString(),
+        statementBalance: account.total_value
+      }
+    };
+    onUpdateReconciliationData(updatedData);
     
-    // Update local positions
-    setPositions(prev => ({
-      ...prev,
-      [selectedAccount.id]: prev[selectedAccount.id].map(p =>
-        p.id === position.id ? position : p
-      )
-    }));
+    // Update account status
+    account.reconciliationStatus = 'reconciled';
+    account.daysSinceReconciliation = 0;
   };
   
-  // Delete position
-  const deletePositionLocal = (positionId) => {
-    setPendingChanges(prev => [
-      ...prev,
-      { type: 'delete', entity: 'position', id: positionId }
-    ]);
-    
-    // Update local positions
-    setPositions(prev => ({
-      ...prev,
-      [selectedAccount.id]: prev[selectedAccount.id].filter(p => p.id !== positionId)
-    }));
-  };
+  // Get current institution's accounts
+  const currentInstitution = groupedAccounts.find(g => g.institution === selectedInstitution);
+  const currentAccounts = currentInstitution?.accounts || [];
   
-  // Apply all changes and reconcile
-  const applyChangesAndReconcile = async () => {
-    try {
-      setLoading(true);
-      
-      // Apply pending changes
-      for (const change of pendingChanges) {
-        if (change.type === 'update') {
-          await updatePosition(change.data.id, change.data, change.data.asset_type);
-        } else if (change.type === 'delete') {
-          const position = positions[selectedAccount.id].find(p => p.id === change.id);
-          if (position) {
-            await deletePosition(change.id, position.asset_type);
-          }
-        }
-      }
-      
-      // Reconcile account
-      const { statementBalance } = calculateDifference(selectedAccount);
-      await fetchWithAuth('/api/reconciliation/account', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          account_id: selectedAccount.id,
-          app_balance: parseFloat(selectedAccount.total_value),
-          actual_balance: statementBalance
-        })
-      });
-      
-      // Update reconciliation data
-      saveReconciliationData({
-        ...reconciliationData,
-        [selectedAccount.id]: {
-          ...reconciliationData[selectedAccount.id],
-          lastReconciled: new Date().toISOString()
-        }
-      });
-      
-      showMessage('success', 'Account reconciled successfully!');
-      setPendingChanges([]);
-      setCurrentScreen('reconcile');
-      setSelectedAccount(null);
-      
-      // Reload accounts
-      await loadData();
-    } catch (error) {
-      console.error('Error applying changes:', error);
-      showMessage('error', 'Failed to reconcile account');
-    } finally {
-      setLoading(false);
-    }
-  };
-  
-  // Handle path selection
-  const handlePathSelection = (path) => {
-    switch (path) {
-      case 'liquid':
-        setCurrentScreen('liquid');
-        break;
-      case 'reconcile':
-        setCurrentScreen('reconcile');
-        break;
-      case 'full':
-        setCurrentScreen('liquid');
-        setPendingUpdates({ nextScreen: 'reconcile' });
-        break;
-    }
-  };
-  
-  // Handle liquid positions complete
-  const handleLiquidComplete = async (updates) => {
-    try {
-      setLoading(true);
-      
-      // Update positions via API
-      for (const [positionId, value] of Object.entries(updates)) {
-        const position = liquidPositions.find(p => p.id === parseInt(positionId));
-        if (position) {
-          await updatePosition(position.id, {
-            ...position,
-            current_value: parseFloat(value)
-          }, position.asset_type);
-        }
-      }
-      
-      // Update local storage
-      const newRecData = { ...reconciliationData };
-      Object.keys(updates).forEach(posId => {
-        newRecData[`pos_${posId}`] = {
-          lastUpdated: new Date().toISOString(),
-          value: updates[posId]
-        };
-      });
-      
-      localStorage.setItem('nestegg_reconciliation_data', JSON.stringify(newRecData));
-      setReconciliationData(newRecData);
-      
-      // Continue to reconciliation if in full workflow
-      if (pendingUpdates.nextScreen === 'reconcile') {
-        setCurrentScreen('reconcile');
-        setPendingUpdates({});
-      } else {
-        // Show success and go back
-        setShowConfetti(true);
-        saveToHistory();
-        setTimeout(() => {
-          setCurrentScreen('welcome');
-          loadData(); // Refresh data
-        }, 2000);
-      }
-      
-    } catch (error) {
-      console.error('Error updating positions:', error);
-      showMessage('error', 'Failed to update positions');
-    } finally {
-      setLoading(false);
-    }
-  };
-  
-  // Render overview screen (from original)
-  const renderOverview = () => (
+  return (
     <div className="space-y-6">
-      {/* Header Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl p-6 border border-blue-200">
-          <div className="flex items-center justify-between mb-4">
-            <div className="p-3 bg-blue-600 rounded-xl text-white">
-              <Building className="w-6 h-6" />
-            </div>
-            <ProgressRing percentage={stats.percentage} size={50} color="blue" />
-          </div>
-          <h3 className="text-2xl font-bold text-gray-900">
-            {stats.reconciled} / {stats.total}
-          </h3>
-          <p className="text-sm text-gray-600 mt-1">Accounts Reconciled</p>
-          <div className="mt-3 flex items-center text-xs text-blue-700">
-            <TrendingUp className="w-3 h-3 mr-1" />
-            <span>{stats.percentage.toFixed(1)}% Complete</span>
-          </div>
-        </div>
+      {/* Header */}
+      <div>
+        <button
+          onClick={onBack}
+          className="flex items-center text-gray-600 hover:text-gray-900 mb-4 transition-colors group"
+        >
+          <ArrowLeft className="w-4 h-4 mr-2 transition-transform group-hover:-translate-x-1" />
+          Back to workflow selection
+        </button>
         
-        <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-xl p-6 border border-green-200">
-          <div className="flex items-center justify-between mb-4">
-            <div className="p-3 bg-green-600 rounded-xl text-white">
-              <DollarSign className="w-6 h-6" />
-            </div>
-            <ProgressRing percentage={stats.valuePercentage} size={50} color="green" />
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <h2 className="text-3xl font-bold text-gray-900">Reconcile Accounts</h2>
+            <p className="text-gray-600 mt-1">Verify and update your account balances</p>
           </div>
-          <h3 className="text-2xl font-bold text-gray-900">
-            <AnimatedValue value={stats.reconciledValue} format="currency" />
-          </h3>
-          <p className="text-sm text-gray-600 mt-1">Value Reconciled</p>
-          <div className="mt-3 text-xs text-gray-500">
-            of <AnimatedValue value={stats.totalValue} format="currency" className="font-medium" />
-          </div>
-        </div>
-        
-        <div className="bg-gradient-to-br from-amber-50 to-amber-100 rounded-xl p-6 border border-amber-200">
-          <div className="flex items-center justify-between mb-4">
-            <div className="p-3 bg-amber-600 rounded-xl text-white">
-              <AlertCircle className="w-6 h-6" />
+          
+          <div className="flex items-center space-x-4">
+            <div className="text-right">
+              <div className="text-sm text-gray-500">Accounts to Reconcile</div>
+              <div className="text-2xl font-bold text-gray-900">
+                {accounts.filter(a => a.reconciliationStatus !== 'reconciled').length}
+              </div>
             </div>
-            <div className="text-3xl font-bold text-amber-700">
-              {stats.needsReconciliation}
-            </div>
+            <ProgressRing 
+              percentage={
+                accounts.length > 0 
+                  ? (accounts.filter(a => a.reconciliationStatus === 'reconciled').length / accounts.length) * 100
+                  : 0
+              } 
+              size={80} 
+              color="green" 
+            />
           </div>
-          <h3 className="text-lg font-semibold text-gray-900">Need Attention</h3>
-          <p className="text-sm text-gray-600 mt-1">Accounts to reconcile</p>
-          {stats.needsReconciliation > 0 && (
-            <button
-              onClick={() => setFilter('needsReconciliation')}
-              className="mt-3 text-xs text-amber-700 hover:text-amber-800 font-medium flex items-center"
-            >
-              View accounts <ArrowRight className="w-3 h-3 ml-1" />
-            </button>
-          )}
         </div>
       </div>
       
-      {/* Quick Actions */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center space-x-4">
-          {/* Filter buttons */}
-          <div className="flex items-center bg-gray-100 rounded-lg p-1">
+      {/* Institution tabs */}
+      <div className="border-b border-gray-200">
+        <div className="flex space-x-1 overflow-x-auto">
+          {groupedAccounts.map(({ institution, accounts, needsReconciliation }) => (
             <button
-                onClick={() => setFilter('all')}
-             className={`px-4 py-2 text-sm font-medium rounded-md transition-all ${
-               filter === 'all' 
-                 ? 'bg-white text-gray-900 shadow-sm' 
-                 : 'text-gray-600 hover:text-gray-900'
-             }`}
-           >
-             All Accounts
-           </button>
-           <button
-             onClick={() => setFilter('needsReconciliation')}
-             className={`px-4 py-2 text-sm font-medium rounded-md transition-all ${
-               filter === 'needsReconciliation' 
-                 ? 'bg-white text-gray-900 shadow-sm' 
-                 : 'text-gray-600 hover:text-gray-900'
-             }`}
-           >
-             Needs Reconciliation
-           </button>
-           <button
-             onClick={() => setFilter('reconciled')}
-             className={`px-4 py-2 text-sm font-medium rounded-md transition-all ${
-               filter === 'reconciled' 
-                 ? 'bg-white text-gray-900 shadow-sm' 
-                 : 'text-gray-600 hover:text-gray-900'
-             }`}
-           >
-             Reconciled
-           </button>
-         </div>
-         
-         {/* Search */}
-         <div className="relative">
-           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-           <input
-             type="text"
-             value={searchQuery}
-             onChange={(e) => setSearchQuery(e.target.value)}
-             placeholder="Search accounts..."
-             className="pl-10 pr-4 py-2 w-64 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-           />
-         </div>
-       </div>
-       
-       <button
-         onClick={() => setShowValues(!showValues)}
-         className={`p-2 rounded-lg transition-all ${
-           showValues 
-             ? 'bg-blue-100 text-blue-700' 
-             : 'bg-gray-100 text-gray-600'
-         }`}
-       >
-         {showValues ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
-       </button>
-     </div>
-     
-     {/* Account List */}
-     <div className="space-y-3">
-       {filteredAccounts.map(account => {
-         const category = CATEGORY_CONFIGS[account.account_category] || CATEGORY_CONFIGS.brokerage;
-         const CategoryIcon = category.icon;
-         const diff = calculateDifference(account);
-         
-         return (
-           <div
-             key={account.id}
-             className={`
-               group bg-white rounded-xl border-2 p-4 transition-all duration-300
-               hover:shadow-lg hover:scale-[1.01] cursor-pointer
-               ${account.reconciliationStatus === 'reconciled' 
-                 ? 'border-green-200 hover:border-green-300' 
-                 : account.reconciliationStatus === 'warning'
-                   ? 'border-yellow-200 hover:border-yellow-300'
-                   : account.reconciliationStatus === 'error'
-                     ? 'border-red-200 hover:border-red-300'
-                     : 'border-gray-200 hover:border-gray-300'
-               }
-             `}
-             onClick={() => selectAccount(account)}
-           >
-             <div className="flex items-center justify-between">
-               <div className="flex items-center space-x-4">
-                 <div className={`p-3 rounded-xl bg-${category.color}-100`}>
-                   <CategoryIcon className={`w-6 h-6 text-${category.color}-600`} />
+              key={institution}
+              onClick={() => setSelectedInstitution(institution)}
+              className={`
+                px-6 py-3 font-medium text-sm whitespace-nowrap transition-all
+                ${selectedInstitution === institution
+                  ? 'text-blue-600 border-b-2 border-blue-600 bg-blue-50'
+                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                }
+              `}
+            >
+              <div className="flex items-center space-x-2">
+                <Landmark className="w-4 h-4" />
+                <span>{institution}</span>
+                {needsReconciliation > 0 && (
+                  <span className="ml-2 px-2 py-0.5 bg-amber-100 text-amber-700 rounded-full text-xs font-medium">
+                    {needsReconciliation}
+                  </span>
+                )}
+              </div>
+            </button>
+          ))}
+        </div>
+      </div>
+      
+      {/* Accounts grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Account list */}
+        <div className="space-y-4">
+          <h3 className="font-semibold text-gray-900">Select Account to Reconcile</h3>
+          
+          {currentAccounts.map(account => {
+            const isSelected = selectedAccount?.id === account.id;
+            const category = CATEGORY_CONFIGS[account.account_category] || CATEGORY_CONFIGS.brokerage;
+            const CategoryIcon = category.icon;
+            const diff = calculateDifference(account);
+            
+            return (
+              <button
+                key={account.id}
+                onClick={() => selectAccount(account)}
+                className={`
+                  w-full text-left p-4 rounded-xl border-2 transition-all transform
+                  ${isSelected
+                    ? 'border-blue-500 bg-blue-50 shadow-lg scale-[1.01]'
+                    : account.reconciliationStatus === 'reconciled'
+                      ? 'border-green-200 bg-green-50 hover:border-green-300'
+                      : 'border-gray-200 bg-white hover:border-gray-300 hover:shadow-md'
+                  }
+                `}
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-3">
+                    <div className={`p-2 rounded-lg bg-${category.color}-100`}>
+                      <CategoryIcon className={`w-5 h-5 text-${category.color}-600`} />
+                    </div>
+                    <div>
+                      <h4 className="font-semibold text-gray-900">{account.account_name}</h4>
+                      <p className="text-sm text-gray-500">{account.type}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center space-x-3">
+                    <div className="text-right">
+                      <p className="font-semibold text-gray-900">
+                        {showValues ? formatCurrency(account.total_value) : '••••••'}
+                      </p>
+                      <p className="text-xs text-gray-500">{account.total_positions || 0} positions</p>
+                    </div>
+                    <StatusIndicator status={account.reconciliationStatus} showPulse={false} />
+                  </div>
+                </div>
+                
+                {account.reconciliationStatus === 'reconciled' && (
+                  <div className="mt-3 pt-3 border-t border-green-200">
+                    <p className="text-xs text-green-700 flex items-center">
+                      <CheckCircle className="w-3 h-3 mr-1" />
+                      Reconciled {account.daysSinceReconciliation === 0 ? 'today' : `${account.daysSinceReconciliation} days ago`}
+                    </p>
+                  </div>
+                )}
+              </button>
+            );
+          })}
+        </div>
+        
+        {/* Reconciliation panel */}
+        <div>
+          {selectedAccount ? (
+            <div className="bg-white rounded-xl border-2 border-gray-200 p-6 sticky top-6">
+              <h3 className="font-semibold text-gray-900 mb-4">Reconcile Account</h3>
+              
+              {/* Balance comparison */}
+              <div className="space-y-4 mb-6">
+                <div>
+                  <label className="text-sm font-medium text-gray-700">NestEgg Balance</label>
+                  <div className="text-2xl font-bold text-gray-900 mt-1">
+                    {showValues ? formatCurrency(selectedAccount.total_value) : '••••••'}
+                  </div>
+                </div>
+                
+                <div>
+                  <label className="text-sm font-medium text-gray-700">Statement Balance</label>
+                  <div className="relative mt-1">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-lg">$</span>
+                    <input
+                      type="text"
+                      value={reconciliationData[selectedAccount.id]?.statementBalance || ''}
+                      onChange={(e) => handleBalanceInput(selectedAccount.id, e.target.value)}
+                      placeholder="0.00"
+                      className="w-full pl-8 pr-4 py-3 text-2xl font-bold border-2 border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-blue-50"
+                    />
+                  </div>
+                </div>
+                
+                {reconciliationData[selectedAccount.id]?.statementBalance && (
+                  <div>
+                    <label className="text-sm font-medium text-gray-700">Difference</label>
+                    <div className={`
+                      text-2xl font-bold mt-1
+                      ${calculateDifference(selectedAccount).isReconciled ? 'text-green-600' : 'text-amber-600'}
+                    `}>
+                      {formatCurrency(calculateDifference(selectedAccount).difference)}
+                    </div>
+                  </div>
+                )}
+              </div>
+              
+              {/* Reconciliation status */}
+              {reconciliationData[selectedAccount.id]?.statementBalance && (
+                <div className={`
+                  p-4 rounded-lg mb-6
+                  ${calculateDifference(selectedAccount).isReconciled
+                    ? 'bg-green-50 border border-green-200'
+                    : 'bg-amber-50 border border-amber-200'
+                  }
+                `}>
+                  <div className="flex items-center">
+                    {calculateDifference(selectedAccount).isReconciled ? (
+                      <>
+                      <CheckCircle className="w-5 h-5 text-green-600 mr-3" />
+                       <div className="flex-1">
+                         <p className="font-medium text-green-900">Balances Match!</p>
+                         <p className="text-sm text-green-700">Ready to mark as reconciled</p>
+                       </div>
+                     </>
+                   ) : (
+                     <>
+                       <AlertCircle className="w-5 h-5 text-amber-600 mr-3" />
+                       <div className="flex-1">
+                         <p className="font-medium text-amber-900">Balances Don't Match</p>
+                         <p className="text-sm text-amber-700">
+                           Difference of {formatCurrency(Math.abs(calculateDifference(selectedAccount).difference))}
+                         </p>
+                       </div>
+                     </>
+                   )}
                  </div>
-                 
-                 <div className="flex-1">
-                   <div className="flex items-center space-x-3">
-                     <h3 className="font-semibold text-gray-900">{account.account_name}</h3>
-                     <StatusIndicator status={account.reconciliationStatus} showPulse={false} />
-                   </div>
-                   <div className="flex items-center space-x-4 mt-1 text-sm text-gray-600">
-                     <span>{account.institution}</span>
-                     <span>•</span>
-                     <span>{account.type}</span>
-                     {account.daysSinceReconciliation !== null && (
-                       <>
-                         <span>•</span>
-                         <span className="flex items-center">
-                           <Clock className="w-3 h-3 mr-1" />
-                           {account.daysSinceReconciliation === 0 
-                             ? 'Today' 
-                             : `${account.daysSinceReconciliation} days ago`
-                           }
-                         </span>
-                       </>
-                     )}
-                   </div>
-                 </div>
-               </div>
-               
-               <div className="flex items-center space-x-4">
-                 <div className="text-right">
-                   <div className="text-lg font-semibold text-gray-900">
-                     {showValues ? formatCurrency(account.total_value) : '••••••'}
-                   </div>
-                   <div className="text-xs text-gray-500">
-                     {account.total_positions || 0} positions
-                   </div>
-                 </div>
-                 
-                 {account.reconciliationStatus === 'reconciled' ? (
-                   <button
-                     onClick={(e) => {
-                       e.stopPropagation();
-                       quickReconcile(account);
-                     }}
-                     className="px-4 py-2 bg-green-100 text-green-700 text-sm font-medium rounded-lg hover:bg-green-200 transition-colors"
-                   >
-                     <CheckCircle className="w-4 h-4 inline mr-1" />
-                     Re-reconcile
-                   </button>
-                 ) : (
-                   <div className="flex items-center space-x-2">
-                     <button
-                       onClick={(e) => {
-                         e.stopPropagation();
-                         quickReconcile(account);
-                       }}
-                       className="p-2 bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-200 transition-colors"
-                       title="Quick reconcile (mark as matched)"
-                     >
-                       <Zap className="w-4 h-4" />
-                     </button>
-                     <ChevronRight className="w-5 h-5 text-gray-400 group-hover:text-gray-600 transition-colors" />
-                   </div>
-                 )}
-               </div>
-             </div>
-           </div>
-         );
-       })}
-     </div>
-     
-     {filteredAccounts.length === 0 && (
-       <div className="text-center py-12">
-         <div className="inline-flex items-center justify-center w-16 h-16 bg-gray-100 rounded-full mb-4">
-           <Search className="w-8 h-8 text-gray-400" />
-         </div>
-         <p className="text-gray-500">No accounts found</p>
-         {searchQuery && (
-           <button
-             onClick={() => setSearchQuery('')}
-             className="mt-2 text-sm text-blue-600 hover:text-blue-700 font-medium"
-           >
-             Clear search
-           </button>
-         )}
-       </div>
-     )}
-   </div>
- );
- 
- // Render account reconciliation screen (from original)
- const renderAccountReconciliation = () => {
-   if (!selectedAccount) return null;
-   
-   const accountPositions = positions[selectedAccount.id] || [];
-   const diff = calculateDifference(selectedAccount);
-   const category = CATEGORY_CONFIGS[selectedAccount.account_category] || CATEGORY_CONFIGS.brokerage;
-   const CategoryIcon = category.icon;
-   
-   // Calculate position totals
-   const positionTotal = accountPositions.reduce((sum, pos) => 
-     sum + (parseFloat(pos.current_value) || 0), 0
-   );
-   
-   return (
-     <div className="space-y-6">
-       {/* Account Header */}
-       <div className="bg-white rounded-xl border border-gray-200 p-6">
-         <div className="flex items-center justify-between mb-6">
-           <div className="flex items-center space-x-4">
-             <button
-               onClick={() => {
-                 setCurrentScreen('reconcile');
-                 setSelectedAccount(null);
-               }}
-               className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-             >
-               <ArrowLeft className="w-5 h-5 text-gray-600" />
-             </button>
-             
-             <div className={`p-3 rounded-xl bg-${category.color}-100`}>
-               <CategoryIcon className={`w-6 h-6 text-${category.color}-600`} />
-             </div>
-             
-             <div>
-               <h2 className="text-xl font-bold text-gray-900">{selectedAccount.account_name}</h2>
-               <p className="text-sm text-gray-600">{selectedAccount.institution} • {selectedAccount.type}</p>
-             </div>
-           </div>
-           
-           <StatusIndicator status={selectedAccount.reconciliationStatus} />
-         </div>
-         
-         {/* Balance Comparison */}
-         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-           <div className="space-y-2">
-             <label className="text-sm font-medium text-gray-700">NestEgg Balance</label>
-             <div className="text-2xl font-bold text-gray-900">
-               {showValues ? formatCurrency(diff.nesteggBalance) : '••••••'}
-             </div>
-             <div className="text-xs text-gray-500">{accountPositions.length} positions</div>
-           </div>
-           
-           <div className="space-y-2">
-             <label htmlFor="statement-balance" className="text-sm font-medium text-gray-700">
-               Statement Balance
-             </label>
-             <div className="relative">
-               <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-lg">$</span>
-               <input
-                 ref={balanceInputRef}
-                 id="statement-balance"
-                 type="text"
-                 value={reconciliationData[selectedAccount.id]?.statementBalance || ''}
-                 onChange={(e) => handleBalanceInput(selectedAccount.id, e.target.value)}
-                 placeholder="0.00"
-                 className="w-full pl-8 pr-4 py-3 text-2xl font-bold border-2 border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-blue-50"
-               />
-             </div>
-             <p className="text-xs text-gray-500">Enter your current account balance</p>
-           </div>
-           
-           <div className="space-y-2">
-             <label className="text-sm font-medium text-gray-700">Difference</label>
-             <div className={`text-2xl font-bold ${
-               diff.isReconciled ? 'text-green-600' : 
-               Math.abs(diff.percentage) <= 1 ? 'text-yellow-600' : 'text-red-600'
-             }`}>
-               {showValues ? formatCurrency(diff.difference) : '••••'}
-             </div>
-             <div className="text-xs text-gray-500">
-               {diff.percentage !== 0 && `${diff.percentage > 0 ? '+' : ''}${diff.percentage.toFixed(2)}%`}
-             </div>
-           </div>
-         </div>
-         
-         {/* Reconciliation Status */}
-         {diff.statementBalance > 0 && (
-           <div className={`mt-6 p-4 rounded-lg ${
-             diff.isReconciled 
-               ? 'bg-green-50 border border-green-200' 
-               : 'bg-amber-50 border border-amber-200'
-           }`}>
-             <div className="flex items-center justify-between">
-               <div className="flex items-center">
-                 {diff.isReconciled ? (
-                   <>
-                     <CheckCircle className="w-5 h-5 text-green-600 mr-3" />
-                     <div>
-                       <p className="font-medium text-green-900">Balances Match!</p>
-                       <p className="text-sm text-green-700">Your account is perfectly reconciled</p>
-                     </div>
-                   </>
-                 ) : (
-                   <>
-                     <AlertCircle className="w-5 h-5 text-amber-600 mr-3" />
-                     <div>
-                       <p className="font-medium text-amber-900">Balances Don't Match</p>
-                       <p className="text-sm text-amber-700">
-                         Review positions below to find discrepancies
-                       </p>
-                     </div>
-                   </>
-                 )}
-               </div>
-               
-               {diff.isReconciled && (
-                 <button
-                   onClick={() => quickReconcile(selectedAccount)}
-                   className="px-4 py-2 bg-green-600 text-white font-medium rounded-lg hover:bg-green-700 transition-colors"
-                 >
-                   Mark as Reconciled
-                 </button>
-               )}
-             </div>
-             
-             {!diff.isReconciled && diff.difference !== 0 && (
-               <ReconciliationSuggestion 
-                 difference={diff.difference}
-                 onApply={(suggestion) => {
-                   // Apply suggestion logic
-                   console.log('Apply suggestion:', suggestion);
-                 }}
-               />
-             )}
-           </div>
-         )}
-       </div>
-       
-       {/* Positions Section */}
-       {!diff.isReconciled && diff.statementBalance > 0 && (
-         <div className="bg-white rounded-xl border border-gray-200 p-6">
-           <div className="flex items-center justify-between mb-4">
-             <h3 className="text-lg font-semibold text-gray-900">Positions</h3>
-             <div className="flex items-center space-x-2">
-               <span className="text-sm text-gray-500">
-                 Total: {showValues ? formatCurrency(positionTotal) : '••••'}
-               </span>
-               {pendingChanges.length > 0 && (
-                 <span className="px-2 py-1 bg-amber-100 text-amber-700 text-xs font-medium rounded-full">
-                   {pendingChanges.length} unsaved changes
-                 </span>
-               )}
-             </div>
-           </div>
-           
-           <div className="space-y-3">
-             {accountPositions.map(position => {
-               const config = ASSET_CONFIGS[position.asset_type] || ASSET_CONFIGS.security;
-               const Icon = config.icon;
-               
-               if (editingPosition?.id === position.id) {
-                 return (
-                   <PositionQuickEdit
-                     key={position.id}
-                     position={position}
-                     onSave={savePositionChanges}
-                     onDelete={deletePositionLocal}
-                     onCancel={() => setEditingPosition(null)}
-                   />
-                 );
-               }
-               
-               return (
-                 <div
-                   key={position.id}
-                   className="flex items-center justify-between p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors group"
-                 >
-                   <div className="flex items-center space-x-3">
-                     <div className={`p-2 rounded-lg bg-${config.color}-100`}>
-                       <Icon className={`w-4 h-4 text-${config.color}-600`} />
-                     </div>
-                     <div>
-                       <p className="font-medium text-gray-900">
-                         {position.ticker || position.symbol || position.name}
-                       </p>
-                       <p className="text-sm text-gray-500">
-                         {position.quantity} units • {config.label}
-                       </p>
-                     </div>
-                   </div>
-                   
-                   <div className="flex items-center space-x-3">
-                     <div className="text-right">
-                       <p className="font-medium text-gray-900">
-                         {showValues ? formatCurrency(position.current_value) : '••••'}
-                       </p>
-                       <p className="text-xs text-gray-500">Current value</p>
-                     </div>
-                     
-                     <button
-                       onClick={() => setEditingPosition(position)}
-                       className="p-2 text-gray-400 hover:text-gray-600 opacity-0 group-hover:opacity-100 transition-all"
-                     >
-                       <Edit3 className="w-4 h-4" />
-                     </button>
-                   </div>
-                 </div>
-               );
-             })}
-             
-             {accountPositions.length === 0 && (
-               <div className="text-center py-8 text-gray-500">
-                 No positions found in this account
                </div>
              )}
-           </div>
-           
-           {/* Action Buttons */}
-           <div className="mt-6 flex justify-between">
-             <button
-               onClick={() => {
-                 setCurrentScreen('reconcile');
-                 setSelectedAccount(null);
-                 setPendingChanges([]);
-               }}
-               className="px-4 py-2 text-gray-700 bg-white border border-gray-300 font-medium rounded-lg hover:bg-gray-50 transition-colors"
-             >
-               Cancel
-             </button>
              
+             {/* Quick actions */}
              <div className="flex space-x-3">
-               {pendingChanges.length > 0 && (
-                 <button
-                   onClick={() => setPendingChanges([])}
-                   className="px-4 py-2 text-gray-600 font-medium hover:text-gray-700 transition-colors"
-                 >
-                   Discard Changes
-                 </button>
-               )}
+               <button
+                 onClick={() => quickReconcile(selectedAccount)}
+                 className="flex-1 px-4 py-3 bg-green-600 text-white font-medium rounded-lg hover:bg-green-700 transition-all transform hover:scale-105 shadow-md"
+               >
+                 <CheckCircle className="w-4 h-4 inline mr-2" />
+                 Quick Reconcile
+               </button>
                
                <button
-                 onClick={applyChangesAndReconcile}
-                 disabled={loading || (!diff.isReconciled && pendingChanges.length === 0)}
-                 className={`
-                   px-6 py-2 font-medium rounded-lg transition-all
-                   ${loading || (!diff.isReconciled && pendingChanges.length === 0)
-                     ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                     : 'bg-blue-600 text-white hover:bg-blue-700'
-                   }
-                 `}
+                 onClick={() => {
+                   setSelectedAccount(null);
+                   setPendingChanges([]);
+                 }}
+                 className="px-4 py-3 bg-gray-100 text-gray-700 font-medium rounded-lg hover:bg-gray-200 transition-all"
                >
-                 {loading ? (
-                   <>
-                     <Loader2 className="w-4 h-4 inline mr-2 animate-spin" />
-                     Processing...
-                   </>
-                 ) : (
-                   <>
-                     <CheckCircle className="w-4 h-4 inline mr-2" />
-                     {pendingChanges.length > 0 ? 'Save & Reconcile' : 'Mark as Reconciled'}
-                   </>
-                 )}
+                 Cancel
                </button>
              </div>
+           </div>
+         ) : (
+           <div className="bg-gray-50 rounded-xl border-2 border-dashed border-gray-300 p-12 text-center">
+             <Receipt className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+             <p className="text-gray-500">Select an account to begin reconciliation</p>
+           </div>
+         )}
+       </div>
+     </div>
+     
+     {/* Complete reconciliation button */}
+     <div className="flex justify-end mt-8">
+       <button
+         onClick={onComplete}
+         className="px-8 py-4 bg-gradient-to-r from-green-600 to-emerald-600 text-white font-semibold text-lg rounded-xl hover:from-green-700 hover:to-emerald-700 transition-all transform hover:scale-105 shadow-xl flex items-center"
+       >
+         <CheckCheck className="w-6 h-6 mr-3" />
+         Complete Reconciliation
+       </button>
+     </div>
+   </div>
+ );
+};
+
+// Enhanced welcome screen
+const WelcomeScreen = ({ 
+ stats, 
+ onSelectPath, 
+ reconciliationHealth,
+ lastReconciliation,
+ streak
+}) => {
+ const [hoveredPath, setHoveredPath] = useState(null);
+ const [showHealthDetails, setShowHealthDetails] = useState(false);
+ 
+ const paths = [
+   {
+     id: 'liquid',
+     icon: Droplets,
+     title: 'Update Liquid Positions',
+     subtitle: 'Cash, credit cards & loans',
+     stats: `${stats.liquidPositions} positions need updates`,
+     time: '2-3 minutes',
+     color: 'blue',
+     gradient: 'from-blue-500 to-cyan-500',
+     benefits: ['Daily accuracy', 'Track spending', 'Monitor debt']
+   },
+   {
+     id: 'reconcile',
+     icon: CheckSquare,
+     title: 'Reconcile Accounts',
+     subtitle: 'Verify account balances',
+     stats: `${stats.needsReconciliation} accounts need attention`,
+     time: '3-5 minutes',
+     color: 'green',
+     gradient: 'from-green-500 to-emerald-500',
+     benefits: ['Catch discrepancies', 'Verify holdings', 'Peace of mind']
+   },
+   {
+     id: 'full',
+     icon: PlayCircle,
+     title: 'Full Workflow',
+     subtitle: 'Complete reconciliation process',
+     stats: 'Recommended for best results',
+     time: '5-8 minutes',
+     color: 'purple',
+     gradient: 'from-purple-500 to-pink-500',
+     featured: true,
+     benefits: ['Complete accuracy', 'Save time', 'Best practice']
+   }
+ ];
+ 
+ return (
+   <div className="space-y-8 animate-in fade-in duration-500">
+     {/* Header */}
+     <div className="text-center space-y-4">
+       <div className="inline-flex items-center justify-center w-24 h-24 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full mb-4 shadow-2xl animate-in zoom-in duration-700">
+         <Target className="w-12 h-12 text-white" />
+       </div>
+       
+       <h1 className="text-4xl font-bold text-gray-900 animate-in slide-in-from-bottom duration-700 delay-100">
+         Welcome to Smart Reconciliation
+       </h1>
+       
+       <p className="text-xl text-gray-600 max-w-3xl mx-auto animate-in slide-in-from-bottom duration-700 delay-200">
+         Keep your NestEgg portfolio accurate with our intelligent reconciliation workflow. 
+         We've made it quick, easy, and dare we say... delightful!
+       </p>
+       
+       {streak > 1 && (
+         <div className="flex justify-center animate-in zoom-in duration-700 delay-300">
+           <div className="flex items-center space-x-3 px-6 py-3 bg-gradient-to-r from-orange-100 to-red-100 text-orange-700 rounded-full shadow-md">
+             <Flame className="w-6 h-6 animate-pulse" />
+             <span className="text-lg font-bold">{streak} day streak!</span>
+             <Trophy className="w-5 h-5" />
            </div>
          </div>
        )}
      </div>
+     
+     {/* Health Status Card */}
+     <div className="relative bg-gradient-to-br from-white to-gray-50 rounded-3xl p-8 border border-gray-200 shadow-xl animate-in slide-in-from-bottom duration-700 delay-400">
+       <div className="absolute top-4 right-4">
+         <button
+           onClick={() => setShowHealthDetails(!showHealthDetails)}
+           className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+         >
+           <Info className="w-5 h-5 text-gray-400" />
+         </button>
+       </div>
+       
+       <div className="flex items-center justify-between">
+         <div className="flex items-center space-x-6">
+           <div className="relative">
+             <ProgressRing percentage={reconciliationHealth} size={120} strokeWidth={8} color="blue" />
+             <div className="absolute inset-0 flex items-center justify-center">
+               <div>
+                 <span className="text-3xl font-bold text-gray-900">{reconciliationHealth}%</span>
+                 <span className="text-xs text-gray-500 block text-center">Health</span>
+               </div>
+             </div>
+           </div>
+           
+           <div>
+             <h3 className="text-2xl font-bold text-gray-900 mb-2">
+               Your Portfolio Health Score
+             </h3>
+             <p className="text-gray-600 mb-3">
+               Last full reconciliation: <span className="font-semibold">{lastReconciliation}</span>
+             </p>
+             
+             {/* Health indicators */}
+             <div className="flex items-center space-x-6">
+               <div className="flex items-center space-x-2">
+                 <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse" />
+                 <span className="text-sm text-gray-600">{stats.reconciled} up to date</span>
+               </div>
+               <div className="flex items-center space-x-2">
+                 <div className="w-3 h-3 bg-amber-500 rounded-full animate-pulse" />
+                 <span className="text-sm text-gray-600">{stats.needsReconciliation} need attention</span>
+               </div>
+             </div>
+           </div>
+         </div>
+         
+         <div className="grid grid-cols-2 gap-6 text-center">
+           <div className="space-y-2">
+             <div className="text-4xl font-bold text-green-600 animate-in zoom-in duration-700 delay-500">
+               {stats.reconciled}
+             </div>
+             <div className="text-sm text-gray-500">Reconciled</div>
+           </div>
+           <div className="space-y-2">
+             <div className="text-4xl font-bold text-amber-600 animate-in zoom-in duration-700 delay-600">
+               {stats.needsReconciliation}
+             </div>
+             <div className="text-sm text-gray-500">Pending</div>
+           </div>
+         </div>
+       </div>
+       
+       {/* Expandable health details */}
+       {showHealthDetails && (
+         <div className="mt-6 pt-6 border-t border-gray-200 grid grid-cols-3 gap-4 animate-in slide-in-from-top duration-300">
+           <div className="text-center">
+             <Gauge className="w-8 h-8 text-blue-600 mx-auto mb-2" />
+             <div className="text-sm text-gray-600">Account Accuracy</div>
+             <div className="text-lg font-semibold">{stats.percentage.toFixed(1)}%</div>
+           </div>
+           <div className="text-center">
+             <CircleDollarSign className="w-8 h-8 text-green-600 mx-auto mb-2" />
+             <div className="text-sm text-gray-600">Value Reconciled</div>
+             <div className="text-lg font-semibold">{stats.valuePercentage.toFixed(1)}%</div>
+           </div>
+           <div className="text-center">
+             <Clock className="w-8 h-8 text-purple-600 mx-auto mb-2" />
+             <div className="text-sm text-gray-600">Days Since Full</div>
+             <div className="text-lg font-semibold">{lastReconciliation === 'Today' ? 0 : lastReconciliation.match(/\d+/)?.[0] || '30+'}</div>
+           </div>
+         </div>
+       )}
+     </div>
+     
+     {/* Path Selection Cards */}
+     <div>
+       <h3 className="text-xl font-semibold text-gray-900 mb-6 flex items-center">
+         <Sparkles className="w-6 h-6 mr-2 text-yellow-500 animate-pulse" />
+         Choose your reconciliation path:
+       </h3>
+       
+       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+         {paths.map((path, index) => {
+           const Icon = path.icon;
+           return (
+             <button
+               key={path.id}
+               onClick={() => onSelectPath(path.id)}
+               onMouseEnter={() => setHoveredPath(path.id)}
+               onMouseLeave={() => setHoveredPath(null)}
+               className={`
+                 relative group text-left p-8 rounded-3xl border-2 
+                 transition-all duration-300 transform
+                 animate-in slide-in-from-bottom
+                 ${path.featured 
+                   ? 'border-purple-300 bg-gradient-to-br from-purple-50 via-pink-50 to-purple-50 shadow-xl' 
+                   : 'border-gray-200 bg-white hover:border-gray-300 shadow-lg'
+                 }
+                 ${hoveredPath === path.id ? 'scale-[1.03] shadow-2xl' : 'shadow-lg'}
+               `}
+               style={{ animationDelay: `${(index + 5) * 100}ms` }}
+             >
+               {path.featured && (
+                 <div className="absolute -top-4 left-1/2 transform -translate-x-1/2">
+                   <div className="bg-gradient-to-r from-purple-600 to-pink-600 text-white text-sm font-bold px-4 py-1.5 rounded-full shadow-lg flex items-center space-x-2">
+                     <Star className="w-4 h-4" />
+                     <span>RECOMMENDED</span>
+                   </div>
+                 </div>
+               )}
+               
+               <div className={`
+                 inline-flex p-4 rounded-2xl mb-6 transition-all duration-300
+                 ${hoveredPath === path.id 
+                   ? `bg-gradient-to-br ${path.gradient} shadow-lg transform rotate-3` 
+                   : `bg-${path.color}-100`
+                 }
+               `}>
+                 <Icon className={`
+                   w-8 h-8 transition-all duration-300
+                   ${hoveredPath === path.id ? 'text-white scale-110' : `text-${path.color}-600`}
+                 `} />
+               </div>
+               
+               <h4 className="text-xl font-bold text-gray-900 mb-2">{path.title}</h4>
+               <p className="text-gray-600 mb-4">{path.subtitle}</p>
+               
+               <div className="space-y-3 mb-6">
+                 <div className="flex items-center text-gray-700">
+                   <Activity className="w-5 h-5 mr-3 text-gray-400" />
+                   <span className="text-sm font-medium">{path.stats}</span>
+                 </div>
+                 <div className="flex items-center text-gray-700">
+                   <Timer className="w-5 h-5 mr-3 text-gray-400" />
+                   <span className="text-sm">Estimated {path.time}</span>
+                 </div>
+               </div>
+               
+               {/* Benefits */}
+               <div className="space-y-2 mb-6">
+                 {path.benefits.map((benefit, idx) => (
+                   <div key={idx} className="flex items-center text-sm text-gray-600">
+                     <Check className="w-4 h-4 mr-2 text-green-500" />
+                     <span>{benefit}</span>
+                   </div>
+                 ))}
+               </div>
+               
+               <div className={`
+                 absolute bottom-8 right-8 transition-all duration-300
+                 ${hoveredPath === path.id ? 'translate-x-2' : ''}
+               `}>
+                 <ChevronRight className={`
+                   w-6 h-6 
+                   ${path.featured ? 'text-purple-600' : 'text-gray-400'}
+                   ${hoveredPath === path.id ? 'scale-125' : ''}
+                 `} />
+               </div>
+             </button>
+           );
+         })}
+       </div>
+     </div>
+     
+     {/* Pro Tips with enhanced styling */}
+     <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-2xl p-8 border border-blue-200 shadow-lg animate-in slide-in-from-bottom duration-700 delay-700">
+       <div className="flex items-start space-x-4">
+         <div className="p-3 bg-blue-600 rounded-xl text-white flex-shrink-0">
+           <HelpCircle className="w-6 h-6" />
+         </div>
+         <div className="flex-1">
+           <h3 className="text-lg font-bold text-blue-900 mb-3">Pro Tips for Lightning-Fast Reconciliation</h3>
+           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm text-blue-800">
+             <div className="flex items-start space-x-2">
+               <Keyboard className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" />
+               <p>Use <kbd className="px-1.5 py-0.5 bg-blue-200 rounded text-xs font-mono">Tab</kbd> and <kbd className="px-1.5 py-0.5 bg-blue-200 rounded text-xs font-mono">Enter</kbd> to navigate quickly</p>
+             </div>
+             <div className="flex items-start space-x-2">
+               <Copy className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" />
+               <p>Copy/paste from your banking apps for accuracy</p>
+             </div>
+             <div className="flex items-start space-x-2">
+               <Calendar className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" />
+               <p>Update liquid positions daily for best results</p>
+             </div>
+             <div className="flex items-start space-x-2">
+               <Shield className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" />
+               <p>Reconcile investment accounts weekly or monthly</p>
+             </div>
+           </div>
+         </div>
+       </div>
+     </div>
+   </div>
+ );
+};
+
+// Progress celebration component
+const ProgressCelebration = ({ show, message }) => {
+ if (!show) return null;
+ 
+ return (
+   <div className="fixed inset-0 flex items-center justify-center bg-black/30 z-50 animate-in fade-in duration-300">
+     <div className="bg-white rounded-3xl p-10 shadow-2xl text-center animate-in zoom-in-95 duration-500 max-w-md">
+       <div className="mb-6">
+         <div className="inline-flex items-center justify-center w-20 h-20 bg-gradient-to-br from-green-400 to-emerald-500 rounded-full shadow-xl">
+           <Trophy className="w-10 h-10 text-white animate-bounce" />
+         </div>
+       </div>
+       <h3 className="text-3xl font-bold text-gray-900 mb-3">Awesome! 🎉</h3>
+       <p className="text-lg text-gray-600">{message}</p>
+       <div className="mt-6 flex justify-center space-x-2">
+         <div className="w-2 h-2 bg-green-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+         <div className="w-2 h-2 bg-green-500 rounded-full animate-bounce" style={{ animationDelay: '100ms' }} />
+         <div className="w-2 h-2 bg-green-500 rounded-full animate-bounce" style={{ animationDelay: '200ms' }} />
+       </div>
+     </div>
+   </div>
+ );
+};
+
+// Main QuickReconciliationModal component
+const QuickReconciliationModal = ({ isOpen, onClose }) => {
+ // State management
+ const [currentScreen, setCurrentScreen] = useState('welcome');
+ const [accounts, setAccounts] = useState([]);
+ const [positions, setPositions] = useState({});
+ const [liquidPositions, setLiquidPositions] = useState([]);
+ const [selectedAccount, setSelectedAccount] = useState(null);
+ const [loading, setLoading] = useState(false);
+ const [reconciliationData, setReconciliationData] = useState({});
+ const [streak, setStreak] = useState(0);
+ const [showConfetti, setShowConfetti] = useState(false);
+ const [pendingUpdates, setPendingUpdates] = useState({});
+ const [showValues, setShowValues] = useState(true);
+ const [message, setMessage] = useState({ type: '', text: '' });
+ const [reconciliationResults, setReconciliationResults] = useState([]);
+ 
+ // Refs
+ const messageTimeoutRef = useRef(null);
+ 
+ // Load data on mount
+ useEffect(() => {
+   if (isOpen) {
+     loadData();
+     loadReconciliationData();
+     calculateStreak();
+   }
+   
+   return () => {
+     if (messageTimeoutRef.current) {
+       clearTimeout(messageTimeoutRef.current);
+     }
+   };
+ }, [isOpen]);
+ 
+ // Load all data
+ const loadData = async () => {
+   setLoading(true);
+   try {
+     // Load accounts
+     const accountsResponse = await fetchWithAuth('/accounts/enriched');
+     if (!accountsResponse.ok) throw new Error('Failed to fetch accounts');
+     
+     const accountsData = await accountsResponse.json();
+     const accountsList = accountsData.accounts || [];
+     
+     // Enrich with reconciliation status
+     const enrichedAccounts = accountsList.map(account => {
+       const lastRec = reconciliationData[account.id]?.lastReconciled;
+       const daysSince = lastRec ? 
+         Math.floor((Date.now() - new Date(lastRec).getTime()) / (1000 * 60 * 60 * 24)) : 
+         null;
+       
+       return {
+         ...account,
+         reconciliationStatus: getReconciliationStatus(account, daysSince),
+         daysSinceReconciliation: daysSince
+       };
+     });
+     
+     setAccounts(enrichedAccounts);
+     
+     // Load all positions to find liquid ones
+     const positionsResponse = await fetchWithAuth('/positions/unified');
+     if (!positionsResponse.ok) throw new Error('Failed to fetch positions');
+     
+     const positionsData = await positionsResponse.json();
+     const allPositions = positionsData.positions || [];
+     
+     // Filter liquid positions
+     const liquid = allPositions.filter(p => 
+       LIQUID_POSITION_TYPES.includes(p.position_type) || 
+       p.asset_type === 'cash' ||
+       (p.name && (p.name.toLowerCase().includes('checking') || 
+                  p.name.toLowerCase().includes('savings') ||
+                  p.name.toLowerCase().includes('credit') ||
+                  p.name.toLowerCase().includes('loan')))
+     );
+     
+     // Enrich liquid positions with account info
+     const enrichedLiquid = liquid.map(pos => {
+       const account = enrichedAccounts.find(a => a.id === pos.account_id);
+       return {
+         ...pos,
+         institution: account?.institution || 'Unknown',
+         account_institution: account?.institution || 'Unknown',
+         account_name: account?.account_name || 'Unknown Account'
+       };
+     });
+     
+     setLiquidPositions(enrichedLiquid);
+     
+   } catch (error) {
+     console.error('Error loading data:', error);
+     showMessage('error', 'Failed to load data');
+   } finally {
+     setLoading(false);
+   }
+ };
+ 
+ // Get reconciliation status
+ const getReconciliationStatus = (account, daysSince) => {
+   if (!daysSince) return 'pending';
+   if (daysSince <= 7) return 'reconciled';
+   if (daysSince <= 30) return 'warning';
+   return 'error';
+ };
+ 
+ // Load reconciliation data from localStorage
+ const loadReconciliationData = () => {
+   const saved = localStorage.getItem('nestegg_reconciliation_data');
+   if (saved) {
+     setReconciliationData(JSON.parse(saved));
+   }
+ };
+ 
+ // Save reconciliation data to localStorage
+ const saveReconciliationData = (data) => {
+   setReconciliationData(data);
+   localStorage.setItem('nestegg_reconciliation_data', JSON.stringify(data));
+ };
+ 
+ // Calculate reconciliation streak
+ const calculateStreak = () => {
+   const history = JSON.parse(localStorage.getItem('nestegg_reconciliation_history') || '[]');
+   let currentStreak = 0;
+   const today = new Date().toDateString();
+   
+   if (history.length > 0 && new Date(history[0]).toDateString() === today) {
+     currentStreak = 1;
+     
+     for (let i = 1; i < history.length; i++) {
+       const prevDate = new Date(history[i - 1]);
+       const currDate = new Date(history[i]);
+       const dayDiff = (prevDate - currDate) / (1000 * 60 * 60 * 24);
+       
+       if (dayDiff === 1) {
+         currentStreak++;
+       } else {
+         break;
+       }
+     }
+   }
+   
+   setStreak(currentStreak);
+ };
+ 
+ // Save reconciliation to history
+ const saveToHistory = () => {
+   const history = JSON.parse(localStorage.getItem('nestegg_reconciliation_history') || '[]');
+   const today = new Date().toISOString();
+   
+   if (!history.some(date => new Date(date).toDateString() === new Date(today).toDateString())) {
+     history.unshift(today);
+     history.splice(30);
+     localStorage.setItem('nestegg_reconciliation_history', JSON.stringify(history));
+   }
+ };
+ 
+ // Show message
+ const showMessage = (type, text, duration = 5000) => {
+   setMessage({ type, text });
+   
+   if (messageTimeoutRef.current) {
+     clearTimeout(messageTimeoutRef.current);
+   }
+   
+   if (duration > 0) {
+     messageTimeoutRef.current = setTimeout(() => {
+       setMessage({ type: '', text: '' });
+     }, duration);
+   }
+ };
+ 
+ // Calculate stats
+ const stats = useMemo(() => {
+   const total = accounts.length;
+   const needsReconciliation = accounts.filter(a => 
+     a.reconciliationStatus === 'warning' || 
+     a.reconciliationStatus === 'error' || 
+     a.reconciliationStatus === 'pending'
+   ).length;
+   const reconciled = accounts.filter(a => a.reconciliationStatus === 'reconciled').length;
+   const totalValue = accounts.reduce((sum, a) => sum + (parseFloat(a.total_value) || 0), 0);
+   const reconciledValue = accounts
+     .filter(a => a.reconciliationStatus === 'reconciled')
+     .reduce((sum, a) => sum + (parseFloat(a.total_value) || 0), 0);
+   
+   const liquidNeedingUpdate = liquidPositions.filter(p => {
+     const lastUpdate = reconciliationData[`pos_${p.id}`]?.lastUpdated;
+     const daysSince = lastUpdate ? 
+       Math.floor((Date.now() - new Date(lastUpdate).getTime()) / (1000 * 60 * 60 * 24)) : 
+       999;
+     return daysSince > 1;
+   }).length;
+   
+   return {
+     total,
+     needsReconciliation,
+     reconciled,
+     liquidPositions: liquidNeedingUpdate,
+     percentage: total > 0 ? (reconciled / total) * 100 : 0,
+     totalValue,
+     reconciledValue,
+     valuePercentage: totalValue > 0 ? (reconciledValue / totalValue) * 100 : 0
+   };
+ }, [accounts, liquidPositions, reconciliationData]);
+ 
+ // Get reconciliation health
+ const reconciliationHealth = useMemo(() => {
+   const weights = {
+     accountsReconciled: 0.6,
+     liquidPositionsUpdated: 0.3,
+     recency: 0.1
+   };
+   
+   const accountScore = stats.percentage;
+   const liquidScore = liquidPositions.length > 0 
+     ? ((liquidPositions.length - stats.liquidPositions) / liquidPositions.length) * 100
+     : 100;
+   
+   const lastFullReconciliation = Object.values(reconciliationData)
+     .map(d => d.lastReconciled)
+     .filter(Boolean)
+     .sort((a, b) => new Date(b) - new Date(a))[0];
+   
+   const daysSinceLastFull = lastFullReconciliation
+     ? Math.floor((Date.now() - new Date(lastFullReconciliation).getTime()) / (1000 * 60 * 60 * 24))
+     : 30;
+   
+   const recencyScore = Math.max(0, 100 - (daysSinceLastFull * 14));
+   
+   return Math.round(
+     accountScore * weights.accountsReconciled +
+     liquidScore * weights.liquidPositionsUpdated +
+     recencyScore * weights.recency
    );
+ }, [stats, liquidPositions, reconciliationData]);
+ 
+ // Get last reconciliation text
+ const lastReconciliationText = useMemo(() => {
+   const dates = Object.values(reconciliationData)
+     .map(d => d.lastReconciled)
+     .filter(Boolean)
+     .map(d => new Date(d));
+   
+   if (dates.length === 0) return 'Never';
+   
+   const mostRecent = new Date(Math.max(...dates));
+   const daysAgo = Math.floor((Date.now() - mostRecent) / (1000 * 60 * 60 * 24));
+   
+   if (daysAgo === 0) return 'Today';
+   if (daysAgo === 1) return 'Yesterday';
+   if (daysAgo < 7) return `${daysAgo} days ago`;
+   if (daysAgo < 30) return `${Math.floor(daysAgo / 7)} weeks ago`;
+   return `${Math.floor(daysAgo / 30)} months ago`;
+ }, [reconciliationData]);
+ 
+ // Handle path selection
+ const handlePathSelection = (path) => {
+   switch (path) {
+     case 'liquid':
+       setCurrentScreen('liquid');
+       break;
+     case 'reconcile':
+       setCurrentScreen('reconcile');
+       break;
+     case 'full':
+       setCurrentScreen('liquid');
+       setPendingUpdates({ nextScreen: 'reconcile' });
+       break;
+   }
+ };
+ 
+ // Handle liquid positions complete
+ const handleLiquidComplete = async (updates) => {
+   try {
+     setLoading(true);
+     
+     // Update positions via API
+     for (const [positionId, value] of Object.entries(updates)) {
+       const position = liquidPositions.find(p => p.id === parseInt(positionId));
+       if (position) {
+         await updatePosition(position.id, {
+           ...position,
+           current_value: parseFloat(value)
+         }, position.asset_type);
+       }
+     }
+     
+     // Update local storage
+     const newRecData = { ...reconciliationData };
+     Object.keys(updates).forEach(posId => {
+       newRecData[`pos_${posId}`] = {
+         lastUpdated: new Date().toISOString(),
+         value: updates[posId]
+       };
+     });
+     
+     saveReconciliationData(newRecData);
+     
+     // Continue to reconciliation if in full workflow
+     if (pendingUpdates.nextScreen === 'reconcile') {
+       setCurrentScreen('reconcile');
+       setPendingUpdates({});
+     } else {
+       // Show success and go back
+       setShowConfetti(true);
+       saveToHistory();
+       setTimeout(() => {
+         setCurrentScreen('welcome');
+         loadData();
+       }, 2000);
+     }
+     
+   } catch (error) {
+     console.error('Error updating positions:', error);
+     showMessage('error', 'Failed to update positions');
+   } finally {
+     setLoading(false);
+   }
+ };
+ 
+ // Handle reconciliation complete
+ const handleReconciliationComplete = async () => {
+   try {
+     setLoading(true);
+     
+     // Prepare results
+     const results = accounts
+       .filter(a => reconciliationData[a.id]?.statementBalance)
+       .map(account => ({
+         accountName: account.account_name,
+         institution: account.institution,
+         finalBalance: parseFloat(reconciliationData[account.id].statementBalance),
+         change: parseFloat(reconciliationData[account.id].statementBalance) - parseFloat(account.total_value)
+       }));
+     
+     setReconciliationResults(results);
+     
+     // Calculate summary stats
+     const summaryStats = {
+       accountsReconciled: results.length,
+       liquidPositionsUpdated: Object.keys(pendingUpdates).length,
+       totalValueReconciled: results.reduce((sum, r) => sum + r.finalBalance, 0),
+       accuracy: reconciliationHealth
+     };
+     
+     // Save history
+     saveToHistory();
+     
+     // Show summary dashboard
+     setCurrentScreen('summary');
+     
+   } catch (error) {
+     console.error('Error completing reconciliation:', error);
+     showMessage('error', 'Failed to complete reconciliation');
+   } finally {
+     setLoading(false);
+   }
+ };
+ 
+ // Handle start new reconciliation
+ const handleStartNewReconciliation = () => {
+   setCurrentScreen('welcome');
+   setReconciliationResults([]);
+   setPendingUpdates({});
+   loadData();
  };
  
  // Render current screen
@@ -2002,10 +2129,31 @@ const QuickReconciliationModal = ({ isOpen, onClose }) => {
        );
        
      case 'reconcile':
-       return renderOverview();
+       return (
+         <AccountReconciliationScreen
+           accounts={accounts}
+           onComplete={handleReconciliationComplete}
+           onBack={() => setCurrentScreen('welcome')}
+           reconciliationData={reconciliationData}
+           onUpdateReconciliationData={saveReconciliationData}
+           showValues={showValues}
+         />
+       );
        
-     case 'reconcile-account':
-       return renderAccountReconciliation();
+     case 'summary':
+       return (
+         <ReconciliationSummaryDashboard
+           stats={{
+             accountsReconciled: reconciliationResults.length,
+             liquidPositionsUpdated: Object.keys(pendingUpdates).length,
+             totalValueReconciled: reconciliationResults.reduce((sum, r) => sum + r.finalBalance, 0),
+             accuracy: reconciliationHealth
+           }}
+           reconciliationResults={reconciliationResults}
+           onClose={onClose}
+           onStartNewReconciliation={handleStartNewReconciliation}
+         />
+       );
        
      default:
        return null;
@@ -2017,46 +2165,63 @@ const QuickReconciliationModal = ({ isOpen, onClose }) => {
      isOpen={isOpen}
      onClose={onClose}
      title=""
-     size="max-w-5xl"
+     size="max-w-6xl"
      showHeader={false}
    >
-     <div className="min-h-[80vh] bg-gray-50 rounded-lg">
-       {/* Header for reconciliation screens */}
-       {(currentScreen === 'reconcile' || currentScreen === 'reconcile-account') && (
-         <div className="bg-white border-b border-gray-200 px-6 py-4">
-           <div className="flex items-center justify-between mb-3">
-             <h2 className="text-lg font-semibold text-gray-900">
-               {currentScreen === 'reconcile' ? 'Reconciliation Overview' : 'Reconcile Account'}
-             </h2>
-             <div className="flex items-center space-x-3">
-               {stats.total > 0 && currentScreen === 'reconcile' && (
-                 <div className="flex items-center space-x-2 text-sm">
-                   <div className="flex items-center">
-                     <div className="w-2 h-2 bg-green-500 rounded-full mr-1.5" />
-                     <span className="text-gray-600">{stats.reconciled} reconciled</span>
-                   </div>
-                   <span className="text-gray-400">•</span>
-                   <div className="flex items-center">
-                     <div className="w-2 h-2 bg-amber-500 rounded-full mr-1.5" />
-                     <span className="text-gray-600">{stats.needsReconciliation} pending</span>
-                   </div>
-                 </div>
-               )}
+     <div className="min-h-[90vh] bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl overflow-hidden">
+       {/* Dynamic header based on screen */}
+       {(currentScreen === 'liquid' || currentScreen === 'reconcile') && (
+         <div className="bg-white border-b border-gray-200 px-8 py-5 shadow-sm">
+           <div className="flex items-center justify-between">
+             <div className="flex items-center space-x-4">
+               <div className="p-2 bg-gradient-to-br from-blue-500 to-indigo-500 rounded-lg">
+                 <Target className="w-6 h-6 text-white" />
+               </div>
+               <div>
+                 <h2 className="text-xl font-bold text-gray-900">
+                   {currentScreen === 'liquid' ? 'Update Liquid Positions' : 'Reconcile Accounts'}
+                 </h2>
+                 <p className="text-sm text-gray-500">NestEgg Reconciliation Workflow</p>
+               </div>
+             </div>
+             
+             <div className="flex items-center space-x-4">
+               <button
+                 onClick={() => setShowValues(!showValues)}
+                 className={`
+                   p-2.5 rounded-lg transition-all transform hover:scale-105
+                   ${showValues 
+                     ? 'bg-blue-100 text-blue-700 shadow-md' 
+                     : 'bg-gray-100 text-gray-600'
+                   }
+                 `}
+                 title={showValues ? 'Hide values' : 'Show values'}
+               >
+                 {showValues ? <Eye className="w-5 h-5" /> : <EyeOff className="w-5 h-5" />}
+               </button>
+               
                <button
                  onClick={loadData}
-                 className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-                 title="Refresh"
+                 className="p-2.5 bg-gray-100 hover:bg-gray-200 rounded-lg transition-all transform hover:scale-105"
+                 title="Refresh data"
                >
-                 <RefreshCw className={`w-4 h-4 text-gray-600 ${loading ? 'animate-spin' : ''}`} />
+                 <RefreshCw className={`w-5 h-5 text-gray-600 ${loading ? 'animate-spin' : ''}`} />
+               </button>
+               
+               <button
+                 onClick={onClose}
+                 className="p-2.5 bg-gray-100 hover:bg-gray-200 rounded-lg transition-all transform hover:scale-105"
+               >
+                 <X className="w-5 h-5 text-gray-600" />
                </button>
              </div>
            </div>
            
            {/* Progress indicator */}
-           <div className="relative">
-             <div className="h-1 bg-gray-200 rounded-full overflow-hidden">
+           <div className="mt-4 relative">
+             <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
                <div 
-                 className="h-full bg-gradient-to-r from-blue-500 to-blue-600 transition-all duration-1000 ease-out"
+                 className="h-full bg-gradient-to-r from-blue-500 to-indigo-500 transition-all duration-1000 ease-out"
                  style={{ width: `${stats.percentage}%` }}
                />
              </div>
@@ -2064,10 +2229,13 @@ const QuickReconciliationModal = ({ isOpen, onClose }) => {
          </div>
        )}
        
-       <div className="p-8">
+       <div className={currentScreen === 'summary' ? '' : 'p-8'}>
          {loading && currentScreen === 'welcome' ? (
-           <div className="flex items-center justify-center h-64">
-             <Loader2 className="w-8 h-8 text-gray-400 animate-spin" />
+           <div className="flex items-center justify-center h-96">
+             <div className="text-center">
+               <Loader2 className="w-12 h-12 text-blue-500 animate-spin mx-auto mb-4" />
+               <p className="text-gray-600">Loading your portfolio data...</p>
+             </div>
            </div>
          ) : (
            renderScreen()
@@ -2077,7 +2245,7 @@ const QuickReconciliationModal = ({ isOpen, onClose }) => {
        {/* Message Display */}
        {message.text && (
          <div className={`
-           absolute bottom-6 left-6 right-6 px-4 py-3 rounded-lg shadow-lg
+           fixed bottom-6 left-6 right-6 mx-auto max-w-md px-6 py-4 rounded-xl shadow-2xl
            flex items-center justify-between animate-in slide-in-from-bottom duration-300
            ${message.type === 'error' 
              ? 'bg-red-600 text-white' 
@@ -2094,7 +2262,7 @@ const QuickReconciliationModal = ({ isOpen, onClose }) => {
            </div>
            <button
              onClick={() => setMessage({ type: '', text: '' })}
-             className="p-1 hover:bg-white/20 rounded transition-colors"
+             className="p-1 hover:bg-white/20 rounded-lg transition-colors"
            >
              <X className="w-4 h-4" />
            </button>
@@ -2107,20 +2275,31 @@ const QuickReconciliationModal = ({ isOpen, onClose }) => {
  );
 };
 
-// Export button component
+// Export button component with enhanced styling
 export const QuickReconciliationButton = ({ className = '' }) => {
  const [isModalOpen, setIsModalOpen] = useState(false);
+ const [isHovered, setIsHovered] = useState(false);
  
  return (
    <>
      <button
        onClick={() => setIsModalOpen(true)}
-       className={`group relative flex items-center text-white py-1 px-4 transition-all duration-300 ${className}`}
+       onMouseEnter={() => setIsHovered(true)}
+       onMouseLeave={() => setIsHovered(false)}
+       className={`group relative flex items-center text-white py-2 px-5 transition-all duration-300 transform hover:scale-105 ${className}`}
      >
-       <div className="absolute inset-0 bg-gradient-to-r from-emerald-600 to-teal-600 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+       <div className="absolute inset-0 bg-gradient-to-r from-emerald-600 to-teal-600 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-300 shadow-lg"></div>
        <div className="relative flex items-center">
-         <CheckSquare className="w-5 h-5 mr-2 text-emerald-400 group-hover:text-white transition-colors" />
-         <span className="text-sm text-gray-200 group-hover:text-white font-medium">Quick Reconcile</span>
+         <CheckSquare className={`
+           w-5 h-5 mr-2 transition-all duration-300
+           ${isHovered ? 'text-white rotate-12' : 'text-emerald-400'}
+         `} />
+         <span className="text-sm text-gray-200 group-hover:text-white font-medium">
+           Quick Reconcile
+         </span>
+         {isHovered && (
+           <Sparkles className="w-4 h-4 ml-2 text-yellow-300 animate-pulse" />
+         )}
        </div>
      </button>
      

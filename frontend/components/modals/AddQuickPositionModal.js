@@ -1010,6 +1010,10 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved }) => {
     if (assetType === 'cash' && lastPosition?.data.currency) {
       defaultData.currency = lastPosition.data.currency;
     }
+
+    if (assetType === 'cash') {
+    defaultData.interest_period = 'annually';  
+    }
     
     const newPosition = {
       id: Date.now() + Math.random(),
