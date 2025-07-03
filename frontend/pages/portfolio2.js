@@ -97,96 +97,88 @@ export default function Dashboard() {
         // Fetch latest net worth summary
         const latestSummary = await fetchLatestNetWorthSummary();
         
-        // Process the data to ensure proper structure
-        if (latestSummary) {
-            // Ensure assetAllocation exists
-            if (!latestSummary.assetAllocation) {
-            latestSummary.assetAllocation = {
-                securities: {
-                value: latestSummary.security_value || 0,
-                percentage: latestSummary.security_mix || 0,
-                cost_basis: latestSummary.security_cost_basis || 0,
-                gain_loss: latestSummary.security_gain_loss || 0,
-                gain_loss_percent: latestSummary.security_gain_loss_percent || 0,
-                count: latestSummary.security_count || 0,
+        // The data comes as an array with one object, so get the first item
+        const summaryData = Array.isArray(latestSummary) ? latestSummary[0] : latestSummary;
+        
+        if (summaryData) {
+            // Create assetAllocation from the raw data fields
+            summaryData.assetAllocation = {
+            securities: {
+                value: parseFloat(summaryData.security_value) || 0,
+                percentage: parseFloat(summaryData.security_mix) || 0,
+                cost_basis: parseFloat(summaryData.security_cost_basis) || 0,
+                gain_loss: parseFloat(summaryData.security_gain_loss) || 0,
+                gain_loss_percent: parseFloat(summaryData.security_gain_loss_percent) || 0,
+                count: parseInt(summaryData.security_count) || 0,
                 name: 'Securities'
-                },
-                cash: {
-                value: latestSummary.cash_value || 0,
-                percentage: latestSummary.cash_mix || 0,
-                cost_basis: latestSummary.cash_cost_basis || 0,
+            },
+            cash: {
+                value: parseFloat(summaryData.cash_value) || 0,
+                percentage: parseFloat(summaryData.cash_mix) || 0,
+                cost_basis: parseFloat(summaryData.cash_cost_basis) || 0,
                 gain_loss: 0,
                 gain_loss_percent: 0,
-                count: latestSummary.cash_count || 0,
+                count: parseInt(summaryData.cash_count) || 0,
                 name: 'Cash'
-                },
-                crypto: {
-                value: latestSummary.crypto_value || 0,
-                percentage: latestSummary.crypto_mix || 0,
-                cost_basis: latestSummary.crypto_cost_basis || 0,
-                gain_loss: latestSummary.crypto_gain_loss || 0,
-                gain_loss_percent: latestSummary.crypto_gain_loss_percent || 0,
-                count: latestSummary.crypto_count || 0,
+            },
+            crypto: {
+                value: parseFloat(summaryData.crypto_value) || 0,
+                percentage: parseFloat(summaryData.crypto_mix) || 0,
+                cost_basis: parseFloat(summaryData.crypto_cost_basis) || 0,
+                gain_loss: parseFloat(summaryData.crypto_gain_loss) || 0,
+                gain_loss_percent: parseFloat(summaryData.crypto_gain_loss_percent) || 0,
+                count: parseInt(summaryData.crypto_count) || 0,
                 name: 'Crypto'
-                },
-                metals: {
-                value: latestSummary.metal_value || 0,
-                percentage: latestSummary.metal_mix || 0,
-                cost_basis: latestSummary.metal_cost_basis || 0,
-                gain_loss: latestSummary.metal_gain_loss || 0,
-                gain_loss_percent: latestSummary.metal_gain_loss_percent || 0,
-                count: latestSummary.metal_count || 0,
+            },
+            metals: {
+                value: parseFloat(summaryData.metal_value) || 0,
+                percentage: parseFloat(summaryData.metal_mix) || 0,
+                cost_basis: parseFloat(summaryData.metal_cost_basis) || 0,
+                gain_loss: parseFloat(summaryData.metal_gain_loss) || 0,
+                gain_loss_percent: parseFloat(summaryData.metal_gain_loss_percent) || 0,
+                count: parseInt(summaryData.metal_count) || 0,
                 name: 'Metals'
-                },
-                other: {
-                value: latestSummary.other_assets_value || 0,
-                percentage: latestSummary.other_assets_mix || 0,
-                cost_basis: latestSummary.other_assets_cost_basis || 0,
-                gain_loss: latestSummary.other_assets_gain_loss || 0,
-                gain_loss_percent: latestSummary.other_assets_gain_loss_percent || 0,
-                count: latestSummary.other_assets_count || 0,
+            },
+            other: {
+                value: parseFloat(summaryData.other_assets_value) || 0,
+                percentage: parseFloat(summaryData.other_assets_mix) || 0,
+                cost_basis: parseFloat(summaryData.other_assets_cost_basis) || 0,
+                gain_loss: parseFloat(summaryData.other_assets_gain_loss) || 0,
+                gain_loss_percent: parseFloat(summaryData.other_assets_gain_loss_percent) || 0,
+                count: parseInt(summaryData.other_assets_count) || 0,
                 name: 'Other Assets'
-                }
-            };
             }
+            };
             
-            // Ensure periodChanges exists
-            if (!latestSummary.periodChanges) {
-            latestSummary.periodChanges = {
-                '1d': {
-                netWorth: latestSummary.net_worth_1d_change || 0,
-                netWorthPercent: latestSummary.net_worth_1d_change_pct || 0
-                },
-                '1w': {
-                netWorth: latestSummary.net_worth_1w_change || 0,
-                netWorthPercent: latestSummary.net_worth_1w_change_pct || 0
-                },
-                '1m': {
-                netWorth: latestSummary.net_worth_1m_change || 0,
-                netWorthPercent: latestSummary.net_worth_1m_change_pct || 0
-                },
-                'ytd': {
-                netWorth: latestSummary.net_worth_ytd_change || 0,
-                netWorthPercent: latestSummary.net_worth_ytd_change_pct || 0
-                },
-                '1y': {
-                netWorth: latestSummary.net_worth_1y_change || 0,
-                netWorthPercent: latestSummary.net_worth_1y_change_pct || 0
-                }
-            };
+            // Create periodChanges from the raw data fields
+            summaryData.periodChanges = {
+            '1d': {
+                netWorth: parseFloat(summaryData.net_worth_1d_change) || 0,
+                netWorthPercent: parseFloat(summaryData.net_worth_1d_change_pct) || 0
+            },
+            '1w': {
+                netWorth: parseFloat(summaryData.net_worth_1w_change) || 0,
+                netWorthPercent: parseFloat(summaryData.net_worth_1w_change_pct) || 0
+            },
+            '1m': {
+                netWorth: parseFloat(summaryData.net_worth_1m_change) || 0,
+                netWorthPercent: parseFloat(summaryData.net_worth_1m_change_pct) || 0
+            },
+            'ytd': {
+                netWorth: parseFloat(summaryData.net_worth_ytd_change) || 0,
+                netWorthPercent: parseFloat(summaryData.net_worth_ytd_change_pct) || 0
+            },
+            '1y': {
+                netWorth: parseFloat(summaryData.net_worth_1y_change) || 0,
+                netWorthPercent: parseFloat(summaryData.net_worth_1y_change_pct) || 0
             }
+            };
         }
         
-        setNetWorthData(latestSummary);
+        setNetWorthData(summaryData);
         
-        // Try to fetch historical data, but don't fail if it errors
-        try {
-            const history = await fetchNetWorthHistory(selectedTimeframe);
-            setHistoricalData(Array.isArray(history) ? history : []);
-        } catch (historyError) {
-            console.warn('Could not fetch historical data:', historyError);
-            setHistoricalData([]);
-        }
+        // Skip historical data for now
+        setHistoricalData([]);
         
         setError(null);
         } catch (err) {
@@ -196,6 +188,9 @@ export default function Dashboard() {
         setIsLoading(false);
         }
     };
+    
+    fetchData();
+    }, [selectedTimeframe]);
     
     fetchData();
     }, [selectedTimeframe]);
@@ -229,60 +224,55 @@ export default function Dashboard() {
   }, [netWorthData]);
   
   // Get sector allocation data from JSON
-  const sectorAllocationData = useMemo(() => {
-    if (!netWorthData?.sector_allocation) return [];
-    
-    return Object.entries(netWorthData.sector_allocation)
-      .filter(([sector, data]) => data.value > 0)
-      .map(([sector, data]) => ({
-        name: sector === 'Unknown' ? 'Other' : sector,
-        value: data.value,
-        percentage: (data.value / netWorthData.security_value) * 100,
-        positionCount: data.position_count
-      }))
-      .sort((a, b) => b.value - a.value)
-      .slice(0, 8);
-  }, [netWorthData]);
+    const sectorAllocationData = useMemo(() => {
+        if (!netWorthData?.sector_allocation) return [];
+        
+        return Object.entries(netWorthData.sector_allocation)
+            .filter(([sector, data]) => data && data.value > 0)
+            .map(([sector, data]) => ({
+            name: sector === 'Unknown' ? 'Other' : sector,
+            value: parseFloat(data.value) || 0,
+            percentage: (parseFloat(data.value) || 0) / (parseFloat(netWorthData.security_value) || 1) * 100,
+            positionCount: parseInt(data.position_count) || 0
+            }))
+            .sort((a, b) => b.value - a.value)
+            .slice(0, 8);
+        }, [netWorthData]);
   
   // Get institution mix from JSON
     const institutionMixData = useMemo(() => {
-    if (!netWorthData?.institution_allocation) return [];
-    
-    // Check if it's already an array or needs to be converted
-    const institutionData = Array.isArray(netWorthData.institution_allocation) 
-        ? netWorthData.institution_allocation 
-        : Object.values(netWorthData.institution_allocation || {});
-    
-    return institutionData
-        .filter(inst => inst && inst.value > 0)
-        .slice(0, 5)
-        .map(inst => ({
-        name: inst.institution || 'Unknown',
-        value: inst.value,
-        percentage: inst.percentage,
-        color: inst.primary_color || '#6B7280',
-        accountCount: inst.account_count,
-        positionCount: inst.position_count
-        }));
-    }, [netWorthData]);
+        if (!netWorthData?.institution_allocation) return [];
+        
+        return netWorthData.institution_allocation
+            .filter(inst => inst && inst.value > 0)
+            .slice(0, 5)
+            .map(inst => ({
+            name: inst.institution || 'Unknown',
+            value: parseFloat(inst.value) || 0,
+            percentage: parseFloat(inst.percentage) || 0,
+            color: inst.primary_color || '#6B7280',
+            accountCount: parseInt(inst.account_count) || 0,
+            positionCount: parseInt(inst.position_count) || 0
+            }));
+        }, [netWorthData]);
 
   // Get top positions from JSON
-  const topPositionsData = useMemo(() => {
-    if (!netWorthData?.top_performers_amount) return [];
-    
-    return netWorthData.top_performers_amount
-      .slice(0, 5)
-      .map(position => ({
-        name: position.name,
-        identifier: position.identifier,
-        value: position.current_value,
-        gainLoss: position.gain_loss_amount,
-        gainLossPercent: position.gain_loss_percent,
-        percentage: position.current_value / netWorthData.total_assets,
-        assetType: position.asset_type,
-        accountName: position.account_name
-      }));
-  }, [netWorthData]);
+    const topPositionsData = useMemo(() => {
+        if (!netWorthData?.top_performers_amount) return [];
+        
+        return netWorthData.top_performers_amount
+            .slice(0, 5)
+            .map(position => ({
+            name: position.name,
+            identifier: position.identifier,
+            value: parseFloat(position.current_value) || 0,
+            gainLoss: parseFloat(position.gain_loss_amount) || 0,
+            gainLossPercent: parseFloat(position.gain_loss_percent) || 0,
+            percentage: parseFloat(position.current_value) / (parseFloat(netWorthData.total_assets) || 1),
+            assetType: position.asset_type,
+            accountName: position.account_name
+            }));
+        }, [netWorthData]);
   
   // Format utilities
   const formatCurrency = (value) => {
