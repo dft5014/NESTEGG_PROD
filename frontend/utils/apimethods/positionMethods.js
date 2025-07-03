@@ -1246,3 +1246,201 @@ export const formatLiabilityBalance = (balance) => {
     maximumFractionDigits: 2
   })}`;
 };
+
+/**
+ * Fetch comprehensive net worth summary from the summary view
+ * @param {Object} options - Query options
+ * @param {string} options.date - Specific date (YYYY-MM-DD) or 'latest'
+ * @param {string} options.dateFrom - Start date for range query
+ * @param {string} options.dateTo - End date for range query
+ * @param {boolean} options.includeJsonDetails - Include detailed JSON columns (default: true)
+ * @returns {Promise<Object>} - Net worth summary data
+ */
+export const fetchNetWorthSummary = async (options = {}) => {
+  try {
+    const params = new URLSearchParams();
+    
+    if (options.date) params.append('date', options.date);
+    if (options.dateFrom) params.append('date_from', options.dateFrom);
+    if (options.dateTo) params.append('date_to', options.dateTo);
+    if (options.includeJsonDetails !== undefined) {
+      params.append('include_json_details', options.includeJsonDetails);
+    }
+    
+    const queryString = params.toString();
+    const url = `/portfolio/net_worth_summary${queryString ? `?${queryString}` : ''}`;
+    
+    const response = await fetchWithAuth(url);
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(errorText || 'Failed to fetch net worth summary');
+    }
+    
+    const data = await response.json();
+    
+    // Handle single summary vs multiple summaries
+    if (data.summary) {
+      return processNetWorthSummary(data.summary);
+    } else if (data.summaries) {
+      return data.summaries.map(processNetWorthSummary);
+    } else {
+      console.warn('Unexpected response format:', data);
+      return null;
+    }
+  } catch (error) {
+    console.error('Error fetching net worth summary:', error);
+    throw error;
+  }
+};
+
+/**
+ * Helper function to process and enhance net worth summary data
+ * @param {Object} summary - Raw summary data from API
+ * @returns {Object} - Processed summary data
+ */
+const processNetWorthSummary = (summary) => {
+  // Add calculated convenience fields
+  return {
+    ...summary,
+    
+    // Add formatted values for display
+    formatted: {
+      totalAssets: formatCurrency(summary.total_assets),
+      netWorth: formatCurrency(summary.net_worth),
+      liquidAssets: formatCurrency(summary.liquid_assets),
+      totalLiabilities: formatCurrency(summary.total_liabilities),
+      unrealizedGain: formatCurrency(summary.total_unrealized_gain),
+      unrealizedGainPercent: formatPercent(summary.total_unrealized_gain_percent),
+      annualIncome: formatCurrency(summary.annual_income),
+      yieldPercentage: formatPercent(summary.yield_percentage)
+    },
+    
+    // Add quick access to period changes
+    periodChanges: {
+      '1d': {
+        netWorth: summary.net_worth_1d_change,
+        netWorthPercent: summary.net_worth_1d_change_pct,
+        totalAssets: summary.total_assets_1d_change,
+        totalAssetsPercent: summary.total_assets_1d_change_pct
+      },
+      '1w': {
+        netWorth: summary.net_worth_1w_change,
+        netWorthPercent: summary.net_worth_1w_change_pct,
+        totalAssets: summary.total_assets_1w_change,
+        totalAssetsPercent: summary.total_assets_1w_change_pct
+      },
+      '1m': {
+        netWorth: summary.net_worth_1m_change,
+        netWorthPercent: summary.net_worth_1m_change_pct,
+        totalAssets: summary.total_assets_1m_change,
+        totalAssetsPercent: summary.total_assets_1m_change_pct
+      },
+      '3m': {
+        netWorth: summary.net_worth_3m_change,
+        netWorthPercent: summary.net_worth_3m_change_pct,
+        totalAssets: summary.total_assets_3m_change,
+        totalAssetsPercent: summary.total_assets_3m_change_pct
+      },
+      'ytd': {
+        netWorth: summary.net_worth_ytd_change,
+        netWorthPercent: summary.net_worth_ytd_change_pct,
+        totalAssets: summary.total_assets_ytd_change,
+        totalAssetsPercent: summary.total_assets_ytd_change_pct
+      },
+      '1y': {
+        netWorth: summary.net_worth_1y_change,
+        netWorthPercent: summary.net_worth_1y_change_pct,
+        totalAssets: summary.total_assets_1y_change,
+        totalAssetsPercent: summary.total_assets_1y_change_pct
+      }
+    },
+    
+    // Add asset allocation summary
+    assetAllocation: {
+      securities: {
+        value: summary.security_value,
+        percentage: summary.security_mix,
+        count: summary.security_count
+      },
+      cash: {
+        value: summary.cash_value,
+        percentage: summary.cash_mix,
+        count: summary.cash_count
+      },
+      crypto: {
+        value: summary.crypto_value,
+        percentage: summary.crypto_mix,
+        count: summary.crypto_count
+      },
+      metals: {
+        value: summary.metal_value,
+        percentage: summary.metal_mix,
+        count: summary.metal_count
+      },
+      other: {
+        value: summary.other_assets_value,
+        percentage: summary.other_assets_mix,
+        count: summary.other_assets_count
+      }
+    }
+  };
+};
+
+/**
+ * Fetch latest net worth summary (convenience method)
+ * @returns {Promise<Object>} - Latest net worth summary
+ */
+export const fetchLatestNetWorthSummary = async () => {
+  return fetchNetWorthSummary({ date: 'latest' });
+};
+
+/**
+ * Fetch net worth history for charting
+ * @param {string} timeframe - Timeframe (1m, 3m, 6m, 1y, ytd, all)
+ * @returns {Promise<Array>} - Array of summaries for the period
+ */
+export const fetchNetWorthHistory = async (timeframe = '1m') => {
+  const endDate = new Date().toISOString().split('T')[0];
+  let startDate;
+  
+  const now = new Date();
+  switch (timeframe) {
+    case '1m':
+      startDate = new Date(now.setMonth(now.getMonth() - 1)).toISOString().split('T')[0];
+      break;
+    case '3m':
+      startDate = new Date(now.setMonth(now.getMonth() - 3)).toISOString().split('T')[0];
+      break;
+    case '6m':
+      startDate = new Date(now.setMonth(now.getMonth() - 6)).toISOString().split('T')[0];
+      break;
+    case '1y':
+      startDate = new Date(now.setFullYear(now.getFullYear() - 1)).toISOString().split('T')[0];
+      break;
+    case 'ytd':
+      startDate = `${now.getFullYear()}-01-01`;
+      break;
+    default: // 'all'
+      // Let the backend determine the earliest date
+      return fetchNetWorthSummary({ dateFrom: '2000-01-01', dateTo: endDate });
+  }
+  
+  return fetchNetWorthSummary({ dateFrom: startDate, dateTo: endDate });
+};
+
+// Keep existing utility formatting functions
+const formatCurrency = (value) => {
+  if (value === null || value === undefined) return '$0';
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0
+  }).format(value);
+};
+
+const formatPercent = (value) => {
+  if (value === null || value === undefined) return '0%';
+  return `${(value * 100).toFixed(2)}%`;
+};

@@ -6914,6 +6914,8 @@ async def get_portfolio_snapshots(
             detail=f"Failed to fetch portfolio snapshots: {str(e)}"
         )
 
+
+
 @app.get("/portfolio/snapshots/raw")
 async def get_portfolio_snapshots_raw(
     start_date: Optional[date] = Query(None, description="Start date for snapshots"),
@@ -7086,6 +7088,118 @@ async def get_portfolio_snapshots_raw(
     except Exception as e:
         logger.error(f"Error fetching raw snapshots: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+# PRIMARY NEW REPORTING --> INCLUDES LIVE VIEW, OTHER ASSETS, AND LIABILITIES
+@app.get("/portfolio/net_worth_summary")
+async def get_net_worth_summary(
+    date: Optional[str] = Query(None, description="Specific date (YYYY-MM-DD) or 'latest' for most recent"),
+    date_from: Optional[str] = Query(None, description="Start date for range (YYYY-MM-DD)"),
+    date_to: Optional[str] = Query(None, description="End date for range (YYYY-MM-DD)"),
+    include_json_details: bool = Query(True, description="Include detailed JSON columns"),
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Get comprehensive net worth summary from the summary view.
+    This replaces the aggregation-heavy snapshots endpoint with pre-calculated data.
+    
+    Returns data from rept_net_worth_summary view which includes:
+    - Current values and cost basis across all asset types
+    - Performance metrics and unrealized gains
+    - Period changes (1d, 1w, 1m, 3m, YTD, 1y, 2y, 3y)
+    - Asset allocation breakdowns
+    - Top positions and performers
+    - Risk and concentration metrics
+    """
+    try:
+        user_id = current_user["id"]
+        
+        # Build base query
+        base_query = """
+        SELECT * FROM rept_net_worth_summary 
+        WHERE user_id = :user_id
+        """
+        
+        params = {"user_id": user_id}
+        
+        # Handle date filtering
+        if date == "latest":
+            # Get only the most recent snapshot
+            query = f"""
+            WITH latest_date AS (
+                SELECT MAX(snapshot_date) as max_date 
+                FROM rept_net_worth_summary 
+                WHERE user_id = :user_id
+            )
+            {base_query} AND snapshot_date = (SELECT max_date FROM latest_date)
+            """
+        elif date:
+            # Get specific date
+            query = base_query + " AND snapshot_date = :snapshot_date"
+            params["snapshot_date"] = date
+        elif date_from and date_to:
+            # Get date range
+            query = base_query + " AND snapshot_date BETWEEN :date_from AND :date_to ORDER BY snapshot_date"
+            params["date_from"] = date_from
+            params["date_to"] = date_to
+        elif date_from:
+            # Get all from start date
+            query = base_query + " AND snapshot_date >= :date_from ORDER BY snapshot_date"
+            params["date_from"] = date_from
+        else:
+            # Default to latest
+            query = f"""
+            WITH latest_date AS (
+                SELECT MAX(snapshot_date) as max_date 
+                FROM rept_net_worth_summary 
+                WHERE user_id = :user_id
+            )
+            {base_query} AND snapshot_date = (SELECT max_date FROM latest_date)
+            """
+        
+        # Execute query
+        results = await database.fetch_all(query=query, values=params)
+        
+        if not results:
+            return {"summary": None, "message": "No net worth data found"}
+        
+        # Process results
+        summaries = []
+        for row in results:
+            summary = dict(row)
+            
+            # Format timestamps
+            if summary.get('as_of_timestamp'):
+                summary['as_of_timestamp'] = summary['as_of_timestamp'].isoformat()
+            if summary.get('snapshot_date'):
+                summary['snapshot_date'] = summary['snapshot_date'].strftime('%Y-%m-%d')
+            
+            # Optionally exclude JSON columns for lighter responses
+            if not include_json_details:
+                json_columns = [
+                    'top_liquid_positions', 'top_performers_amount', 'top_performers_percent',
+                    'account_diversification', 'asset_performance_detail', 'sector_allocation',
+                    'risk_metrics', 'institution_allocation', 'concentration_metrics',
+                    'dividend_metrics', 'tax_efficiency_metrics'
+                ]
+                for col in json_columns:
+                    summary.pop(col, None)
+            
+            summaries.append(summary)
+        
+        # Return single summary if only one result, otherwise array
+        if len(summaries) == 1:
+            return {"summary": summaries[0]}
+        else:
+            return {"summaries": summaries, "count": len(summaries)}
+        
+    except Exception as e:
+        logger.error(f"Error fetching net worth summary: {str(e)}")
+        import traceback
+        logger.error(traceback.format_exc())
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to fetch net worth summary: {str(e)}"
+        )
 
 
 @app.get("/portfolio/sidebar-stats")
