@@ -7100,15 +7100,6 @@ async def get_net_worth_summary(
 ):
     """
     Get comprehensive net worth summary from the summary view.
-    This replaces the aggregation-heavy snapshots endpoint with pre-calculated data.
-    
-    Returns data from rept_net_worth_trend_summary view which includes:
-    - Current values and cost basis across all asset types
-    - Performance metrics and unrealized gains
-    - Period changes (1d, 1w, 1m, 3m, YTD, 1y, 2y, 3y)
-    - Asset allocation breakdowns
-    - Top positions and performers
-    - Risk and concentration metrics
     """
     try:
         user_id = current_user["id"]
@@ -7123,7 +7114,6 @@ async def get_net_worth_summary(
         
         # Handle date filtering
         if date == "latest":
-            # Get only the most recent snapshot
             query = f"""
             WITH latest_date AS (
                 SELECT MAX(snapshot_date) as max_date 
@@ -7133,24 +7123,21 @@ async def get_net_worth_summary(
             {base_query} AND snapshot_date = (SELECT max_date FROM latest_date)
             """
         elif date:
-            # Get specific date
-            query = base_query + " AND snapshot_date = :snapshot_date"
+            query = base_query + " AND snapshot_date = :snapshot_date::date"
             params["snapshot_date"] = date
         elif date_from and date_to:
-            # Get date range
-            query = base_query + " AND snapshot_date BETWEEN :date_from AND :date_to ORDER BY snapshot_date"
+            query = base_query + " AND snapshot_date BETWEEN :date_from::date AND :date_to::date ORDER BY snapshot_date"
             params["date_from"] = date_from
             params["date_to"] = date_to
         elif date_from:
-            # Get all from start date
-            query = base_query + " AND snapshot_date >= :date_from ORDER BY snapshot_date"
+            query = base_query + " AND snapshot_date >= :date_from::date ORDER BY snapshot_date"
             params["date_from"] = date_from
         else:
             # Default to latest
             query = f"""
             WITH latest_date AS (
                 SELECT MAX(snapshot_date) as max_date 
-                FROM rept_net_worth_trend_summary
+                FROM rept_net_worth_trend_summary 
                 WHERE user_id = :user_id
             )
             {base_query} AND snapshot_date = (SELECT max_date FROM latest_date)
@@ -7200,7 +7187,6 @@ async def get_net_worth_summary(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to fetch net worth summary: {str(e)}"
         )
-
 
 @app.get("/portfolio/sidebar-stats")
 async def get_sidebar_stats(
