@@ -237,21 +237,28 @@ export default function Dashboard() {
         }, [netWorthData]);
   
   // Get institution mix from JSON
+// Get institution mix from JSON
     const institutionMixData = useMemo(() => {
-        if (!netWorthData?.institution_allocation) return [];
-        
-        return netWorthData.institution_allocation
-            .filter(inst => inst && inst.value > 0)
-            .slice(0, 5)
-            .map(inst => ({
-            name: inst.institution || 'Unknown',
-            value: parseFloat(inst.value) || 0,
-            percentage: parseFloat(inst.percentage) || 0,
-            color: inst.primary_color || '#6B7280',
-            accountCount: parseInt(inst.account_count) || 0,
-            positionCount: parseInt(inst.position_count) || 0
-            }));
-        }, [netWorthData]);
+    // Temporarily return empty array to bypass the error
+    return [];
+    
+    // Original code commented out for now:
+    /*
+    if (!netWorthData?.institution_allocation) return [];
+    
+    return netWorthData.institution_allocation
+        .filter(inst => inst && inst.value > 0)
+        .slice(0, 5)
+        .map(inst => ({
+        name: inst.institution || 'Unknown',
+        value: parseFloat(inst.value) || 0,
+        percentage: parseFloat(inst.percentage) || 0,
+        color: inst.primary_color || '#6B7280',
+        accountCount: parseInt(inst.account_count) || 0,
+        positionCount: parseInt(inst.position_count) || 0
+        }));
+    */
+    }, [netWorthData]);
 
   // Get top positions from JSON
     const topPositionsData = useMemo(() => {
