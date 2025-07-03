@@ -6,7 +6,7 @@ import { motion, AnimatePresence, useScroll, useTransform, useSpring } from 'fra
 import { 
  DollarSign, TrendingUp, TrendingDown, Percent, Layers, 
  ArrowUp, ArrowDown, BarChart4, LineChart, PieChart as PieChartIcon,
- Briefcase, RefreshCw, Search, X, Filter, Sparkles,
+ Briefcase, RefreshCw, Search, X, Filter, Sparkles, Droplet,
  Diamond, Coins, Package, Home, Plus, Eye, EyeOff,
  Activity, Zap, Trophy, Target, AlertCircle, ChevronRight,
  Globe, Shield, Clock, Star, ArrowUpRight, ArrowDownRight,
@@ -734,7 +734,7 @@ export default function PositionsPage() {
            {
              title: "Liquidity Ratio",
              value: netWorthSummary?.liquid_ratio,
-             icon: <Droplets className="w-5 h-5" />,
+             icon: <Droplet className="w-5 h-5" />,
              color: "text-purple-400",
              bgColor: "bg-purple-500/10",
              format: (v) => `${(v * 100).toFixed(1)}%`,

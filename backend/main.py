@@ -7102,7 +7102,7 @@ async def get_net_worth_summary(
     Get comprehensive net worth summary from the summary view.
     This replaces the aggregation-heavy snapshots endpoint with pre-calculated data.
     
-    Returns data from rept_net_worth_summary view which includes:
+    Returns data from rept_net_worth_trend_summary view which includes:
     - Current values and cost basis across all asset types
     - Performance metrics and unrealized gains
     - Period changes (1d, 1w, 1m, 3m, YTD, 1y, 2y, 3y)
@@ -7115,7 +7115,7 @@ async def get_net_worth_summary(
         
         # Build base query
         base_query = """
-        SELECT * FROM rept_net_worth_summary 
+        SELECT * FROM rept_net_worth_trend_summary 
         WHERE user_id = :user_id
         """
         
@@ -7127,7 +7127,7 @@ async def get_net_worth_summary(
             query = f"""
             WITH latest_date AS (
                 SELECT MAX(snapshot_date) as max_date 
-                FROM rept_net_worth_summary 
+                FROM rept_net_worth_trend_summary 
                 WHERE user_id = :user_id
             )
             {base_query} AND snapshot_date = (SELECT max_date FROM latest_date)
@@ -7150,7 +7150,7 @@ async def get_net_worth_summary(
             query = f"""
             WITH latest_date AS (
                 SELECT MAX(snapshot_date) as max_date 
-                FROM rept_net_worth_summary 
+                FROM rept_net_worth_trend_summary
                 WHERE user_id = :user_id
             )
             {base_query} AND snapshot_date = (SELECT max_date FROM latest_date)
