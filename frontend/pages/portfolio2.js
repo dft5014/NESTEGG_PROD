@@ -89,29 +89,116 @@ export default function Dashboard() {
   const router = useRouter();
   
   // Fetch net worth summary and historical data
-  useEffect(() => {
+// In the useEffect, update the fetchData function:
+    useEffect(() => {
     const fetchData = async () => {
-      setIsLoading(true);
-      try {
+        setIsLoading(true);
+        try {
         // Fetch latest net worth summary
         const latestSummary = await fetchLatestNetWorthSummary();
+        
+        // Process the data to ensure proper structure
+        if (latestSummary) {
+            // Ensure assetAllocation exists
+            if (!latestSummary.assetAllocation) {
+            latestSummary.assetAllocation = {
+                securities: {
+                value: latestSummary.security_value || 0,
+                percentage: latestSummary.security_mix || 0,
+                cost_basis: latestSummary.security_cost_basis || 0,
+                gain_loss: latestSummary.security_gain_loss || 0,
+                gain_loss_percent: latestSummary.security_gain_loss_percent || 0,
+                count: latestSummary.security_count || 0,
+                name: 'Securities'
+                },
+                cash: {
+                value: latestSummary.cash_value || 0,
+                percentage: latestSummary.cash_mix || 0,
+                cost_basis: latestSummary.cash_cost_basis || 0,
+                gain_loss: 0,
+                gain_loss_percent: 0,
+                count: latestSummary.cash_count || 0,
+                name: 'Cash'
+                },
+                crypto: {
+                value: latestSummary.crypto_value || 0,
+                percentage: latestSummary.crypto_mix || 0,
+                cost_basis: latestSummary.crypto_cost_basis || 0,
+                gain_loss: latestSummary.crypto_gain_loss || 0,
+                gain_loss_percent: latestSummary.crypto_gain_loss_percent || 0,
+                count: latestSummary.crypto_count || 0,
+                name: 'Crypto'
+                },
+                metals: {
+                value: latestSummary.metal_value || 0,
+                percentage: latestSummary.metal_mix || 0,
+                cost_basis: latestSummary.metal_cost_basis || 0,
+                gain_loss: latestSummary.metal_gain_loss || 0,
+                gain_loss_percent: latestSummary.metal_gain_loss_percent || 0,
+                count: latestSummary.metal_count || 0,
+                name: 'Metals'
+                },
+                other: {
+                value: latestSummary.other_assets_value || 0,
+                percentage: latestSummary.other_assets_mix || 0,
+                cost_basis: latestSummary.other_assets_cost_basis || 0,
+                gain_loss: latestSummary.other_assets_gain_loss || 0,
+                gain_loss_percent: latestSummary.other_assets_gain_loss_percent || 0,
+                count: latestSummary.other_assets_count || 0,
+                name: 'Other Assets'
+                }
+            };
+            }
+            
+            // Ensure periodChanges exists
+            if (!latestSummary.periodChanges) {
+            latestSummary.periodChanges = {
+                '1d': {
+                netWorth: latestSummary.net_worth_1d_change || 0,
+                netWorthPercent: latestSummary.net_worth_1d_change_pct || 0
+                },
+                '1w': {
+                netWorth: latestSummary.net_worth_1w_change || 0,
+                netWorthPercent: latestSummary.net_worth_1w_change_pct || 0
+                },
+                '1m': {
+                netWorth: latestSummary.net_worth_1m_change || 0,
+                netWorthPercent: latestSummary.net_worth_1m_change_pct || 0
+                },
+                'ytd': {
+                netWorth: latestSummary.net_worth_ytd_change || 0,
+                netWorthPercent: latestSummary.net_worth_ytd_change_pct || 0
+                },
+                '1y': {
+                netWorth: latestSummary.net_worth_1y_change || 0,
+                netWorthPercent: latestSummary.net_worth_1y_change_pct || 0
+                }
+            };
+            }
+        }
+        
         setNetWorthData(latestSummary);
         
-        // Fetch historical data for charts
-        const history = await fetchNetWorthHistory(selectedTimeframe);
-        setHistoricalData(Array.isArray(history) ? history : []);
+        // Try to fetch historical data, but don't fail if it errors
+        try {
+            const history = await fetchNetWorthHistory(selectedTimeframe);
+            setHistoricalData(Array.isArray(history) ? history : []);
+        } catch (historyError) {
+            console.warn('Could not fetch historical data:', historyError);
+            setHistoricalData([]);
+        }
         
         setError(null);
-      } catch (err) {
+        } catch (err) {
         console.error('Error fetching net worth data:', err);
         setError('Unable to load your portfolio data. Please try again later.');
-      } finally {
+        } finally {
         setIsLoading(false);
-      }
+        }
     };
     
     fetchData();
-  }, [selectedTimeframe]);
+    }, [selectedTimeframe]);
   
   // Process chart data for visualization
   const chartData = useMemo(() => {
@@ -158,22 +245,27 @@ export default function Dashboard() {
   }, [netWorthData]);
   
   // Get institution mix from JSON
-  const institutionMixData = useMemo(() => {
+    const institutionMixData = useMemo(() => {
     if (!netWorthData?.institution_allocation) return [];
     
-    return netWorthData.institution_allocation
-      .filter(inst => inst.value > 0)
-      .slice(0, 5)
-      .map(inst => ({
+    // Check if it's already an array or needs to be converted
+    const institutionData = Array.isArray(netWorthData.institution_allocation) 
+        ? netWorthData.institution_allocation 
+        : Object.values(netWorthData.institution_allocation || {});
+    
+    return institutionData
+        .filter(inst => inst && inst.value > 0)
+        .slice(0, 5)
+        .map(inst => ({
         name: inst.institution || 'Unknown',
         value: inst.value,
         percentage: inst.percentage,
         color: inst.primary_color || '#6B7280',
         accountCount: inst.account_count,
         positionCount: inst.position_count
-      }));
-  }, [netWorthData]);
-  
+        }));
+    }, [netWorthData]);
+
   // Get top positions from JSON
   const topPositionsData = useMemo(() => {
     if (!netWorthData?.top_performers_amount) return [];
