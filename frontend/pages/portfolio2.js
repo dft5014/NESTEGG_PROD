@@ -220,63 +220,20 @@ export default function Dashboard() {
         }));
     }, [netWorthData]);
   
-  // Get sector allocation data from JSON
+    // Get sector allocation data from JSON
     const sectorAllocationData = useMemo(() => {
-        if (!netWorthData?.sector_allocation) return [];
-        
-        return Object.entries(netWorthData.sector_allocation)
-            .filter(([sector, data]) => data && data.value > 0)
-            .map(([sector, data]) => ({
-            name: sector === 'Unknown' ? 'Other' : sector,
-            value: parseFloat(data.value) || 0,
-            percentage: (parseFloat(data.value) || 0) / (parseFloat(netWorthData.security_value) || 1) * 100,
-            positionCount: parseInt(data.position_count) || 0
-            }))
-            .sort((a, b) => b.value - a.value)
-            .slice(0, 8);
-        }, [netWorthData]);
-  
-  // Get institution mix from JSON
-// Get institution mix from JSON
-    const institutionMixData = useMemo(() => {
-    // Temporarily return empty array to bypass the error
-    return [];
-    
-    // Original code commented out for now:
-    /*
-    if (!netWorthData?.institution_allocation) return [];
-    
-    return netWorthData.institution_allocation
-        .filter(inst => inst && inst.value > 0)
-        .slice(0, 5)
-        .map(inst => ({
-        name: inst.institution || 'Unknown',
-        value: parseFloat(inst.value) || 0,
-        percentage: parseFloat(inst.percentage) || 0,
-        color: inst.primary_color || '#6B7280',
-        accountCount: parseInt(inst.account_count) || 0,
-        positionCount: parseInt(inst.position_count) || 0
-        }));
-    */
+    return []; // Placeholder
     }, [netWorthData]);
 
-  // Get top positions from JSON
+    // Get institution mix from JSON
+    const institutionMixData = useMemo(() => {
+    return []; // Placeholder
+    }, [netWorthData]);
+
+    // Get top positions from JSON
     const topPositionsData = useMemo(() => {
-        if (!netWorthData?.top_performers_amount) return [];
-        
-        return netWorthData.top_performers_amount
-            .slice(0, 5)
-            .map(position => ({
-            name: position.name,
-            identifier: position.identifier,
-            value: parseFloat(position.current_value) || 0,
-            gainLoss: parseFloat(position.gain_loss_amount) || 0,
-            gainLossPercent: parseFloat(position.gain_loss_percent) || 0,
-            percentage: parseFloat(position.current_value) / (parseFloat(netWorthData.total_assets) || 1),
-            assetType: position.asset_type,
-            accountName: position.account_name
-            }));
-        }, [netWorthData]);
+    return []; // Placeholder
+    }, [netWorthData]);
   
   // Format utilities
   const formatCurrency = (value) => {
