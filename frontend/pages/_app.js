@@ -6,6 +6,7 @@ import { AuthProvider } from "@/context/AuthContext";
 import { EggMascotProvider, useEggMascot } from "@/context/EggMascotContext";
 import { useRouter } from "next/router";
 import { UpdateCheckProvider } from '@/context/UpdateCheckContext';
+import { DataStoreProvider } from '@/store/DataStore'; 
 import { useState, useEffect } from 'react';
 
 export default function App({ Component, pageProps }) {
@@ -22,18 +23,20 @@ export default function App({ Component, pageProps }) {
   return (
     <AuthProvider>
       <UpdateCheckProvider>
-        <EggMascotProvider>
-          <div className="flex flex-col min-h-screen">
-            {!hideNavigation.includes(router.pathname) && mounted && <Navbar />}
-            <div className="flex flex-1">
-              {!hideNavigation.includes(router.pathname) && mounted && <Sidebar />}
-              <div className="flex-1 p-6 overflow-auto">
-                <Component {...pageProps} />
+        <DataStoreProvider> 
+          <EggMascotProvider>
+            <div className="flex flex-col min-h-screen">
+              {!hideNavigation.includes(router.pathname) && mounted && <Navbar />}
+              <div className="flex flex-1">
+                {!hideNavigation.includes(router.pathname) && mounted && <Sidebar />}
+                <div className="flex-1 p-6 overflow-auto">
+                  <Component {...pageProps} />
+                </div>
               </div>
+              {!hideNavigation.includes(router.pathname) && mounted && <EggMascotWithState />}
             </div>
-            {!hideNavigation.includes(router.pathname) && mounted && <EggMascotWithState />}
-          </div>
-        </EggMascotProvider>
+          </EggMascotProvider>
+        </DataStoreProvider> 
       </UpdateCheckProvider>
     </AuthProvider>
   );

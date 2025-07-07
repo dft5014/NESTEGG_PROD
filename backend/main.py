@@ -7188,6 +7188,86 @@ async def get_net_worth_summary(
             detail=f"Failed to fetch net worth summary: {str(e)}"
         )
 
+@app.get("/portfolio/net_worth_summary/datastore")
+async def get_datastore_summary(
+    include_history: bool = Query(True, description="Include 30-day history for trends"),
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Optimized endpoint for data store - returns latest summary with optional history
+    """
+    try:
+        user_id = current_user["id"]
+        
+        # Get latest summary with all JSON details
+        latest_query = """
+        WITH latest_date AS (
+            SELECT MAX(snapshot_date) as max_date 
+            FROM rept_net_worth_trend_summary 
+            WHERE user_id = :user_id
+        )
+        SELECT * FROM rept_net_worth_trend_summary 
+        WHERE user_id = :user_id 
+        AND snapshot_date = (SELECT max_date FROM latest_date)
+        """
+        
+        latest_result = await database.fetch_one(query=latest_query, values={"user_id": user_id})
+        
+        if not latest_result:
+            return {"summary": None, "history": [], "message": "No net worth data found"}
+        
+        response_data = {
+            "summary": dict(latest_result),
+            "history": []
+        }
+        
+        # Format timestamps
+        if response_data["summary"].get('as_of_timestamp'):
+            response_data["summary"]['as_of_timestamp'] = response_data["summary"]['as_of_timestamp'].isoformat()
+        if response_data["summary"].get('snapshot_date'):
+            response_data["summary"]['snapshot_date'] = response_data["summary"]['snapshot_date'].strftime('%Y-%m-%d')
+        
+        # Optionally include 30-day history for trend charts
+        if include_history:
+            history_query = """
+            SELECT 
+                snapshot_date,
+                net_worth,
+                total_assets,
+                total_liabilities,
+                liquid_assets,
+                total_unrealized_gain,
+                total_unrealized_gain_percent
+            FROM rept_net_worth_trend_summary 
+            WHERE user_id = :user_id 
+            AND snapshot_date >= CURRENT_DATE - INTERVAL '30 days'
+            ORDER BY snapshot_date ASC
+            """
+            
+            history_results = await database.fetch_all(query=history_query, values={"user_id": user_id})
+            
+            response_data["history"] = [
+                {
+                    "date": row['snapshot_date'].strftime('%Y-%m-%d'),
+                    "net_worth": float(row['net_worth']),
+                    "total_assets": float(row['total_assets']),
+                    "total_liabilities": float(row['total_liabilities']),
+                    "liquid_assets": float(row['liquid_assets']),
+                    "unrealized_gain": float(row['total_unrealized_gain']),
+                    "unrealized_gain_percent": float(row['total_unrealized_gain_percent'])
+                }
+                for row in history_results
+            ]
+        
+        return response_data
+        
+    except Exception as e:
+        logger.error(f"Error fetching datastore summary: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to fetch datastore summary: {str(e)}"
+        )
+
 @app.get("/portfolio/sidebar-stats")
 async def get_sidebar_stats(
     current_user: dict = Depends(get_current_user)
