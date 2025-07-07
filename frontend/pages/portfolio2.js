@@ -99,112 +99,113 @@ export default function Dashboard() {
     lastFetched
   } = usePortfolioSummary();
 
+
   // Get trend data
   const { trends } = usePortfolioTrends();
   
-  // Process chart data for visualization
-  const chartData = useMemo(() => {
-    if (!trends.chartData || trends.chartData.length === 0) return [];
+    // Process chart data for visualization
+    const chartData = useMemo(() => {
+    if (!trends?.chartData || !Array.isArray(trends.chartData)) return [];
     
     return trends.chartData.map(day => ({
-      date: new Date(day.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-      value: day.netWorth,
-      totalAssets: day.totalAssets,
-      totalLiabilities: day.totalLiabilities,
-      costBasis: summary?.raw?.total_cost_basis || 0,
-      liquidAssets: day.liquidAssets
+        date: new Date(day.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+        value: day.netWorth,
+        totalAssets: day.totalAssets,
+        totalLiabilities: day.totalLiabilities,
+        costBasis: summary?.raw?.total_cost_basis || 0,
+        liquidAssets: day.liquidAssets
     }));
-  }, [trends.chartData, summary]);
+    }, [trends?.chartData, summary]);
   
-  // Process Net Worth Mix data using alt_ fields
-  const netWorthMixData = useMemo(() => {
+    // Process Net Worth Mix data using alt_ fields
+    const netWorthMixData = useMemo(() => {
     if (!summary?.raw) return [];
     
     const raw = summary.raw;
     
     // Use alt_ fields for net values and nw_ fields for percentages
     const mixData = [
-      {
+        {
         name: 'Securities',
         value: parseFloat(raw.security_value) || 0,
-        percentage: parseFloat(raw.nw_securities_mix) * 100 || 0,
+        percentage: parseFloat(raw.nw_securities_mix || 0) * 100,
         color: assetColors.securities
-      },
-      {
+        },
+        {
         name: 'Net Cash',
         value: parseFloat(raw.alt_net_worth_net_cash_value) || 0,
-        percentage: parseFloat(raw.nw_net_cash_mix) * 100 || 0,
+        percentage: parseFloat(raw.nw_net_cash_mix || 0) * 100,
         color: assetColors.cash
-      },
-      {
+        },
+        {
         name: 'Crypto',
         value: parseFloat(raw.crypto_value) || 0,
-        percentage: parseFloat(raw.nw_crypto_mix) * 100 || 0,
+        percentage: parseFloat(raw.nw_crypto_mix || 0) * 100,
         color: assetColors.crypto
-      },
-      {
+        },
+        {
         name: 'Metals',
         value: parseFloat(raw.metal_value) || 0,
-        percentage: parseFloat(raw.nw_metals_mix) * 100 || 0,
+        percentage: parseFloat(raw.nw_metals_mix || 0) * 100,
         color: assetColors.metals
-      },
-      {
+        },
+        {
         name: 'Real Estate',
         value: parseFloat(raw.alt_net_worth_value_real_estate) || 0,
-        percentage: parseFloat(raw.nw_real_estate_equity_mix) * 100 || 0,
+        percentage: parseFloat(raw.nw_real_estate_equity_mix || 0) * 100,
         color: assetColors.real_estate
-      },
-      {
+        },
+        {
         name: 'Other Assets',
         value: parseFloat(raw.alt_net_worth_net_other_assets) || 0,
-        percentage: parseFloat(raw.nw_net_other_assets_mix) * 100 || 0,
+        percentage: parseFloat(raw.nw_net_other_assets_mix || 0) * 100,
         color: assetColors.other
-      }
+        }
     ].filter(item => item.value > 0 || item.percentage > 0);
     
     return mixData;
-  }, [summary]);
+    }, [summary]);
   
-  // Process sector allocation data
-  const sectorAllocationData = useMemo(() => {
-    if (!rawSectorAllocation) return [];
+    // Process sector allocation data
+    const sectorAllocationData = useMemo(() => {
+    if (!rawSectorAllocation || typeof rawSectorAllocation !== 'object') return [];
     
     return Object.entries(rawSectorAllocation)
-      .filter(([sector, data]) => data.value > 0)
-      .map(([sector, data]) => ({
+        .filter(([sector, data]) => data && data.value > 0)
+        .map(([sector, data]) => ({
         name: sector || 'Unknown',
         value: data.value,
         percentage: (data.percentage || 0) * 100,
         positionCount: data.position_count || 0
-      }))
-      .sort((a, b) => b.value - a.value);
-  }, [rawSectorAllocation]);
+        }))
+        .sort((a, b) => b.value - a.value);
+    }, [rawSectorAllocation]);
 
-  // Process institution mix data
-  const institutionMixData = useMemo(() => {
-    if (!rawInstitutionAllocation || rawInstitutionAllocation.length === 0) return [];
+    // Process institution mix data
+    const institutionMixData = useMemo(() => {
+    if (!rawInstitutionAllocation || !Array.isArray(rawInstitutionAllocation)) return [];
     
     return rawInstitutionAllocation
-      .filter(inst => inst.value > 0)
-      .map(inst => ({
+        .filter(inst => inst && inst.value > 0)
+        .map(inst => ({
         name: inst.institution,
         value: inst.value,
         percentage: inst.percentage || 0,
         accountCount: inst.account_count || 0,
         positionCount: inst.position_count || 0,
         color: inst.primary_color || '#6B7280'
-      }))
-      .sort((a, b) => b.value - a.value)
-      .slice(0, 5);
-  }, [rawInstitutionAllocation]);
+        }))
+        .sort((a, b) => b.value - a.value)
+        .slice(0, 5);
+    }, [rawInstitutionAllocation]);
 
-  // Process top positions data
-  const topPositionsData = useMemo(() => {
-    if (!topPositions || topPositions.length === 0) return [];
+    // Process top positions data
+    const topPositionsData = useMemo(() => {
+    if (!topPositions || !Array.isArray(topPositions)) return [];
     
     return topPositions
-      .slice(0, 5)
-      .map(pos => ({
+        .slice(0, 5)
+        .map(pos => ({
         name: pos.name || pos.identifier,
         identifier: pos.identifier,
         value: pos.current_value || pos.value,
@@ -213,8 +214,8 @@ export default function Dashboard() {
         accountName: pos.account_name,
         assetType: pos.asset_type || 'security',
         percentage: pos.percentage || 0
-      }));
-  }, [topPositions]);
+        }));
+    }, [topPositions]);
   
   // Format utilities
   const formatCurrency = (value) => {
