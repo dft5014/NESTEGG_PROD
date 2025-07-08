@@ -421,7 +421,7 @@ export default function Dashboard() {
             <>
               <div>
                 <p className="text-sm text-gray-400">Cost Basis</p>
-                <p className="text-lg font-semibold text-white">{formatCurrency(data.cost_basis)}</p>
+                <p className="text-lg font-semibold text-white">{formatCurrency(data.costBasis)}</p>
               </div>
               <div>
                 <p className="text-sm text-gray-400">Performance</p>
