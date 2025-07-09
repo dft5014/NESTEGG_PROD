@@ -42,7 +42,7 @@ const assetColors = {
   metal: '#f59e0b',   // Amber
   metals: '#f59e0b',   // Amber
   currency: '#3b82f6', // Blue
-  real_estate: '#ef4444', // Red
+  real_estate: '#14b8a6', // Teal
   other: '#6b7280',   // Gray
   other_assets: '#6b7280' // Gray
 };
@@ -79,6 +79,7 @@ export default function Dashboard() {
   const [selectedTimeframe, setSelectedTimeframe] = useState('1m');
   const [selectedChartType, setSelectedChartType] = useState('value');
   const [showWelcomeBanner, setShowWelcomeBanner] = useState(true);
+  const [showInThousands, setShowInThousands] = useState(false);
   const router = useRouter();
   
   // Get data from the store
@@ -877,240 +878,607 @@ export default function Dashboard() {
           {/* Right column - Allocation & Details */}
           <div className="lg:col-span-4 space-y-4">
            
-           
-           {/* Net Worth Mix */}
-            <motion.div 
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ duration: 0.5 }}
-              className="bg-gray-800 dark:bg-gray-900 rounded-xl shadow-md p-5"
-            >
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold text-white">Net Worth Mix</h3>
-                <PieChartIcon className="h-5 w-5 text-indigo-400" />
+          {/* Net Worth Mix */}
+          <motion.div 
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.5 }}
+            className="bg-gray-800 dark:bg-gray-900 rounded-xl shadow-md p-5"
+          >
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-white">Net Worth Mix</h3>
+              <PieChartIcon className="h-5 w-5 text-indigo-400" />
+            </div>
+            
+            {/* Donut chart */}
+            <div className="h-64">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={netWorthMixData}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={60}
+                    outerRadius={80}
+                    paddingAngle={3}
+                    dataKey="value"
+                  >
+                    {netWorthMixData.map((entry, index) => (
+                      <Cell 
+                        key={`cell-${index}`} 
+                        fill={entry.color} 
+                        stroke="none"
+                      />
+                    ))}
+                  </Pie>
+                  <Tooltip content={<AllocationTooltip />} />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+            
+            {/* Enhanced Legend with Asset/Liability Breakdown */}
+            <div className="mt-4 space-y-1">
+              {/* Format Toggle and Label */}
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-xs text-gray-400">
+                  Values in {showInThousands ? 'thousands (k)' : 'dollars ($)'}
+                </span>
+                <motion.button
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() => setShowInThousands(!showInThousands)}
+                  className="text-xs px-2 py-1 rounded bg-gray-700 hover:bg-gray-600 text-gray-300 transition-colors duration-200"
+                >
+                  {showInThousands ? 'Show $' : 'Show k'}
+                </motion.button>
               </div>
-              
-              {/* Donut chart */}
-              <div className="h-64">
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={netWorthMixData}
-                      cx="50%"
-                      cy="50%"
-                      innerRadius={60}
-                      outerRadius={80}
-                      paddingAngle={3}
-                      dataKey="value"
-                    >
-                      {netWorthMixData.map((entry, index) => (
-                        <Cell 
-                          key={`cell-${index}`} 
-                          fill={entry.color} 
-                          stroke="none"
-                        />
-                      ))}
-                    </Pie>
-                    <Tooltip content={<AllocationTooltip />} />
-                  </PieChart>
-                </ResponsiveContainer>
+
+              {/* Header Row */}
+              <div className="grid grid-cols-12 gap-2 px-2 py-2 text-xs font-medium text-gray-400 border-b border-gray-700">
+                <div className="col-span-3">Category</div>
+                <div className="col-span-3 text-right">% of Net Worth</div>
+                <div className="col-span-2 text-right">Net Worth</div>
+                <div className="col-span-2 text-right">Assets</div>
+                <div className="col-span-2 text-right">Liabilities</div>
               </div>
-              
-              {/* Enhanced Legend with Asset/Liability Breakdown */}
-              <div className="mt-4 space-y-1">
-                {/* Header Row */}
-                <div className="grid grid-cols-12 gap-2 px-2 py-2 text-xs font-medium text-gray-400 border-b border-gray-700">
-                  <div className="col-span-3">Category</div>
-                  <div className="col-span-3 text-right">% of Net Worth</div>
-                  <div className="col-span-2 text-right">Net Worth</div>
-                  <div className="col-span-2 text-right">Assets</div>
-                  <div className="col-span-2 text-right">Liabilities</div>
+
+              {/* Securities Row */}
+              <motion.div 
+                className="grid grid-cols-12 gap-2 px-2 py-2 hover:bg-gray-700/50 rounded transition-all cursor-pointer group"
+                whileHover={{ x: 2 }}
+              >
+                <div className="col-span-3 flex items-center">
+                  <div className="w-3 h-3 rounded-full mr-2 bg-blue-500" />
+                  <span className="text-sm text-white font-medium">Securities</span>
                 </div>
+                <div className="col-span-3 text-right">
+                  <span className="text-sm font-semibold text-blue-400">
+                    {(summary.netWorthMix.securities * 100).toFixed(1)}%
+                  </span>
+                </div>
+                <div className="col-span-2 text-right">
+                  <span className="text-sm text-white">
+                    {showInThousands 
+                      ? `${(summary.assetAllocation.securities.value / 1000).toFixed(1)}k`
+                      : formatCurrency(summary.assetAllocation.securities.value)
+                    }
+                  </span>
+                </div>
+                <div className="col-span-2 text-right">
+                  <span className="text-sm text-green-400">
+                    {showInThousands 
+                      ? `${(summary.assetAllocation.securities.value / 1000).toFixed(1)}k`
+                      : formatCurrency(summary.assetAllocation.securities.value)
+                    }
+                  </span>
+                </div>
+                <div className="col-span-2 text-right">
+                  <span className="text-sm text-gray-500">$0</span>
+                </div>
+              </motion.div>
 
-                {/* Securities Row */}
+              {/* Net Cash Row */}
+              <motion.div 
+                className="grid grid-cols-12 gap-2 px-2 py-2 hover:bg-gray-700/50 rounded transition-all cursor-pointer group"
+                whileHover={{ x: 2 }}
+              >
+                <div className="col-span-3 flex items-center">
+                  <div className="w-3 h-3 rounded-full mr-2 bg-green-500" />
+                  <span className="text-sm text-white font-medium">Net Cash</span>
+                </div>
+                <div className="col-span-3 text-right">
+                  <span className="text-sm font-semibold text-green-400">
+                    {(summary.netWorthMix.netCash * 100).toFixed(1)}%
+                  </span>
+                </div>
+                <div className="col-span-2 text-right">
+                  <span className="text-sm text-white">
+                    {showInThousands 
+                      ? `${(summary.altNetWorth.netCash / 1000).toFixed(1)}k`
+                      : formatCurrency(summary.altNetWorth.netCash)
+                    }
+                  </span>
+                </div>
+                <div className="col-span-2 text-right">
+                  <span className="text-sm text-green-400">
+                    {showInThousands 
+                      ? `${(summary.assetAllocation.cash.value / 1000).toFixed(1)}k`
+                      : formatCurrency(summary.assetAllocation.cash.value)
+                    }
+                  </span>
+                </div>
+                <div className="col-span-2 text-right">
+                  <span className="text-sm text-red-400">
+                    {summary.liabilities.creditCard > 0 
+                      ? (showInThousands ? `-${(summary.liabilities.creditCard / 1000).toFixed(1)}k` : `-${formatCurrency(summary.liabilities.creditCard)}`)
+                      : '$0'
+                    }
+                  </span>
+                </div>
+              </motion.div>
+
+              {/* Crypto Row */}
+              <motion.div 
+                className="grid grid-cols-12 gap-2 px-2 py-2 hover:bg-gray-700/50 rounded transition-all cursor-pointer group"
+                whileHover={{ x: 2 }}
+              >
+                <div className="col-span-3 flex items-center">
+                  <div className="w-3 h-3 rounded-full mr-2 bg-purple-500" />
+                  <span className="text-sm text-white font-medium">Crypto</span>
+                </div>
+                <div className="col-span-3 text-right">
+                  <span className="text-sm font-semibold text-purple-400">
+                    {(summary.netWorthMix.crypto * 100).toFixed(1)}%
+                  </span>
+                </div>
+                <div className="col-span-2 text-right">
+                  <span className="text-sm text-white">
+                    {showInThousands 
+                      ? `${(summary.assetAllocation.crypto.value / 1000).toFixed(1)}k`
+                      : formatCurrency(summary.assetAllocation.crypto.value)
+                    }
+                  </span>
+                </div>
+                <div className="col-span-2 text-right">
+                  <span className="text-sm text-purple-400">
+                    {showInThousands 
+                      ? `${(summary.assetAllocation.crypto.value / 1000).toFixed(1)}k`
+                      : formatCurrency(summary.assetAllocation.crypto.value)
+                    }
+                  </span>
+                </div>
+                <div className="col-span-2 text-right">
+                  <span className="text-sm text-gray-500">$0</span>
+                </div>
+              </motion.div>
+
+              {/* Metals Row */}
+              <motion.div 
+                className="grid grid-cols-12 gap-2 px-2 py-2 hover:bg-gray-700/50 rounded transition-all cursor-pointer group"
+                whileHover={{ x: 2 }}
+              >
+                <div className="col-span-3 flex items-center">
+                  <div className="w-3 h-3 rounded-full mr-2 bg-amber-500" />
+                  <span className="text-sm text-white font-medium">Metals</span>
+                </div>
+                <div className="col-span-3 text-right">
+                  <span className="text-sm font-semibold text-amber-400">
+                    {(summary.netWorthMix.metals * 100).toFixed(1)}%
+                  </span>
+                </div>
+                <div className="col-span-2 text-right">
+                  <span className="text-sm text-white">
+                    {showInThousands 
+                      ? `${(summary.assetAllocation.metals.value / 1000).toFixed(1)}k`
+                      : formatCurrency(summary.assetAllocation.metals.value)
+                    }
+                  </span>
+                </div>
+                <div className="col-span-2 text-right">
+                  <span className="text-sm text-amber-400">
+                    {showInThousands 
+                      ? `${(summary.assetAllocation.metals.value / 1000).toFixed(1)}k`
+                      : formatCurrency(summary.assetAllocation.metals.value)
+                    }
+                  </span>
+                </div>
+                <div className="col-span-2 text-right">
+                  <span className="text-sm text-gray-500">$0</span>
+                </div>
+              </motion.div>
+
+              {/* Real Estate Row - Changed color from red to teal */}
+              <motion.div 
+                className="grid grid-cols-12 gap-2 px-2 py-2 hover:bg-gray-700/50 rounded transition-all cursor-pointer group"
+                whileHover={{ x: 2 }}
+              >
+                <div className="col-span-3 flex items-center">
+                  <div className="w-3 h-3 rounded-full mr-2 bg-teal-500" />
+                  <span className="text-sm text-white font-medium">Real Estate</span>
+                </div>
+                <div className="col-span-3 text-right">
+                  <span className="text-sm font-semibold text-teal-400">
+                    {(summary.netWorthMix.realEstateEquity * 100).toFixed(1)}%
+                  </span>
+                </div>
+                <div className="col-span-2 text-right">
+                  <span className="text-sm text-white">
+                    {showInThousands 
+                      ? `${(summary.altNetWorth.realEstate / 1000).toFixed(1)}k`
+                      : formatCurrency(summary.altNetWorth.realEstate)
+                    }
+                  </span>
+                </div>
+                <div className="col-span-2 text-right">
+                  <span className="text-sm text-teal-400">
+                    {showInThousands 
+                      ? `${(((summary.altNetWorth.realEstate || 0) + (summary.liabilities.mortgage || 0)) / 1000).toFixed(1)}k`
+                      : formatCurrency((summary.altNetWorth.realEstate || 0) + (summary.liabilities.mortgage || 0))
+                    }
+                  </span>
+                </div>
+                <div className="col-span-2 text-right">
+                  <span className="text-sm text-red-400">
+                    {summary.liabilities.mortgage > 0 
+                      ? (showInThousands ? `-${(summary.liabilities.mortgage / 1000).toFixed(1)}k` : `-${formatCurrency(summary.liabilities.mortgage)}`)
+                      : '$0'
+                    }
+                  </span>
+                </div>
+              </motion.div>
+
+              {/* Net Other Assets Row - Updated logic */}
+              <motion.div 
+                className="grid grid-cols-12 gap-2 px-2 py-2 hover:bg-gray-700/50 rounded transition-all cursor-pointer group"
+                whileHover={{ x: 2 }}
+              >
+                <div className="col-span-3 flex items-center">
+                  <div className="w-3 h-3 rounded-full mr-2 bg-gray-500" />
+                  <span className="text-sm text-white font-medium">Net Other Assets</span>
+                </div>
+                <div className="col-span-3 text-right">
+                  <span className="text-sm font-semibold text-gray-400">
+                    {(summary.netWorthMix.netOtherAssets * 100).toFixed(1)}%
+                  </span>
+                </div>
+                <div className="col-span-2 text-right">
+                  <span className="text-sm text-white">
+                    {showInThousands 
+                      ? `${(summary.altNetWorth.netOtherAssets / 1000).toFixed(1)}k`
+                      : formatCurrency(summary.altNetWorth.netOtherAssets)
+                    }
+                  </span>
+                </div>
+                <div className="col-span-2 text-right">
+                  <span className="text-sm text-gray-400">
+                    {showInThousands 
+                      ? `${(summary.assetAllocation.otherAssets.value / 1000).toFixed(1)}k`
+                      : formatCurrency(summary.assetAllocation.otherAssets.value)
+                    }
+                  </span>
+                </div>
+                <div className="col-span-2 text-right">
+                  <span className="text-sm text-red-400">
+                    {/* Other liabilities = total liabilities - credit card - mortgage */}
+                    {(() => {
+                      const otherLiabilities = (summary.liabilities.total || 0) - 
+                                            (summary.liabilities.creditCard || 0) - 
+                                            (summary.liabilities.mortgage || 0);
+                      return otherLiabilities > 0 
+                        ? (showInThousands ? `-${(otherLiabilities / 1000).toFixed(1)}k` : `-${formatCurrency(otherLiabilities)}`)
+                        : '$0';
+                    })()}
+                  </span>
+                </div>
+              </motion.div>
+
+              {/* Totals Row */}
+              <div className="border-t border-gray-600 mt-2 pt-2">
                 <motion.div 
-                  className="grid grid-cols-12 gap-2 px-2 py-2 hover:bg-gray-700/50 rounded transition-all cursor-pointer group"
-                  whileHover={{ x: 2 }}
+                  className="grid grid-cols-12 gap-2 px-2 py-2 bg-gray-700/30 rounded"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ delay: 0.3 }}
                 >
                   <div className="col-span-3 flex items-center">
-                    <div className="w-3 h-3 rounded-full mr-2 bg-blue-500" />
-                    <span className="text-sm text-white font-medium">Securities</span>
+                    <span className="text-sm text-white font-bold">Total</span>
                   </div>
                   <div className="col-span-3 text-right">
-                    <span className="text-sm font-semibold text-blue-400">{formatPercentage(summary.netWorthMix.securities * 100)}</span>
+                    <span className="text-sm font-bold text-indigo-400">100.0%</span>
                   </div>
                   <div className="col-span-2 text-right">
-                    <span className="text-sm text-white">{formatCurrency(summary.assetAllocation.securities.value)}</span>
-                  </div>
-                  <div className="col-span-2 text-right">
-                    <span className="text-sm text-green-400">{formatCurrency(summary.assetAllocation.securities.value)}</span>
-                  </div>
-                  <div className="col-span-2 text-right">
-                    <span className="text-sm text-gray-500">$0</span>
-                  </div>
-                </motion.div>
-
-                {/* Net Cash Row - Shows cash assets minus credit card liabilities */}
-                <motion.div 
-                  className="grid grid-cols-12 gap-2 px-2 py-2 hover:bg-gray-700/50 rounded transition-all cursor-pointer group"
-                  whileHover={{ x: 2 }}
-                >
-                  <div className="col-span-3 flex items-center">
-                    <div className="w-3 h-3 rounded-full mr-2 bg-green-500" />
-                    <span className="text-sm text-white font-medium">Net Cash</span>
-                  </div>
-                  <div className="col-span-3 text-right">
-                    <span className="text-sm font-semibold text-green-400">{formatPercentage(summary.netWorthMix.netCash * 100)}</span>
-                  </div>
-                  <div className="col-span-2 text-right">
-                    <span className="text-sm text-white">{formatCurrency(summary.altNetWorth.netCash)}</span>
-                  </div>
-                  <div className="col-span-2 text-right">
-                    <span className="text-sm text-green-400">{formatCurrency(summary.assetAllocation.cash.value)}</span>
-                  </div>
-                  <div className="col-span-2 text-right">
-                    <span className="text-sm text-red-400">
-                      {summary.liabilities.creditCard > 0 ? `-${formatCurrency(summary.liabilities.creditCard)}` : '$0'}
+                    <span className="text-sm font-bold text-indigo-400">
+                      {showInThousands 
+                        ? `${(summary.netWorth / 1000).toFixed(1)}k`
+                        : formatCurrency(summary.netWorth)
+                      }
                     </span>
                   </div>
-                </motion.div>
-
-                {/* Crypto Row */}
-                <motion.div 
-                  className="grid grid-cols-12 gap-2 px-2 py-2 hover:bg-gray-700/50 rounded transition-all cursor-pointer group"
-                  whileHover={{ x: 2 }}
-                >
-                  <div className="col-span-3 flex items-center">
-                    <div className="w-3 h-3 rounded-full mr-2 bg-purple-500" />
-                    <span className="text-sm text-white font-medium">Crypto</span>
-                  </div>
-                  <div className="col-span-3 text-right">
-                    <span className="text-sm font-semibold text-purple-400">{formatPercentage(summary.netWorthMix.crypto * 100)}</span>
-                  </div>
                   <div className="col-span-2 text-right">
-                    <span className="text-sm text-white">{formatCurrency(summary.assetAllocation.crypto.value)}</span>
-                  </div>
-                  <div className="col-span-2 text-right">
-                    <span className="text-sm text-purple-400">{formatCurrency(summary.assetAllocation.crypto.value)}</span>
-                  </div>
-                  <div className="col-span-2 text-right">
-                    <span className="text-sm text-gray-500">$0</span>
-                  </div>
-                </motion.div>
-
-                {/* Metals Row */}
-                <motion.div 
-                  className="grid grid-cols-12 gap-2 px-2 py-2 hover:bg-gray-700/50 rounded transition-all cursor-pointer group"
-                  whileHover={{ x: 2 }}
-                >
-                  <div className="col-span-3 flex items-center">
-                    <div className="w-3 h-3 rounded-full mr-2 bg-amber-500" />
-                    <span className="text-sm text-white font-medium">Metals</span>
-                  </div>
-                  <div className="col-span-3 text-right">
-                    <span className="text-sm font-semibold text-amber-400">{formatPercentage(summary.netWorthMix.metals * 100)}</span>
-                  </div>
-                  <div className="col-span-2 text-right">
-                    <span className="text-sm text-white">{formatCurrency(summary.assetAllocation.metals.value)}</span>
-                  </div>
-                  <div className="col-span-2 text-right">
-                    <span className="text-sm text-amber-400">{formatCurrency(summary.assetAllocation.metals.value)}</span>
-                  </div>
-                  <div className="col-span-2 text-right">
-                    <span className="text-sm text-gray-500">$0</span>
-                  </div>
-                </motion.div>
-
-                {/* Real Estate Row - Shows equity (asset value minus mortgage) */}
-                <motion.div 
-                  className="grid grid-cols-12 gap-2 px-2 py-2 hover:bg-gray-700/50 rounded transition-all cursor-pointer group"
-                  whileHover={{ x: 2 }}
-                >
-                  <div className="col-span-3 flex items-center">
-                    <div className="w-3 h-3 rounded-full mr-2 bg-red-500" />
-                    <span className="text-sm text-white font-medium">Real Estate</span>
-                  </div>
-                  <div className="col-span-3 text-right">
-                    <span className="text-sm font-semibold text-red-400">{formatPercentage(summary.netWorthMix.realEstateEquity * 100)}</span>
-                  </div>
-                  <div className="col-span-2 text-right">
-                    <span className="text-sm text-white">{formatCurrency(summary.altNetWorth.realEstate)}</span>
-                  </div>
-                  <div className="col-span-2 text-right">
-                    <span className="text-sm text-red-400">
-                      {/* Real estate asset value would be equity + mortgage */}
-                      {formatCurrency((summary.altNetWorth.realEstate || 0) + (summary.liabilities.mortgage || 0))}
+                    <span className="text-sm font-bold text-green-400">
+                      {showInThousands 
+                        ? `${(summary.totalAssets / 1000).toFixed(1)}k`
+                        : formatCurrency(summary.totalAssets)
+                      }
                     </span>
                   </div>
                   <div className="col-span-2 text-right">
-                    <span className="text-sm text-red-400">
-                      {summary.liabilities.mortgage > 0 ? `-${formatCurrency(summary.liabilities.mortgage)}` : '$0'}
-                    </span>
-                  </div>
-                </motion.div>
-
-                {/* Other Assets Row - Shows net other assets (other assets minus other liabilities) */}
-                <motion.div 
-                  className="grid grid-cols-12 gap-2 px-2 py-2 hover:bg-gray-700/50 rounded transition-all cursor-pointer group"
-                  whileHover={{ x: 2 }}
-                >
-                  <div className="col-span-3 flex items-center">
-                    <div className="w-3 h-3 rounded-full mr-2 bg-gray-500" />
-                    <span className="text-sm text-white font-medium">Other Assets</span>
-                  </div>
-                  <div className="col-span-3 text-right">
-                    <span className="text-sm font-semibold text-gray-400">{formatPercentage(summary.netWorthMix.netOtherAssets * 100)}</span>
-                  </div>
-                  <div className="col-span-2 text-right">
-                    <span className="text-sm text-white">{formatCurrency(summary.altNetWorth.netOtherAssets)}</span>
-                  </div>
-                  <div className="col-span-2 text-right">
-                    <span className="text-sm text-gray-400">{formatCurrency(summary.assetAllocation.otherAssets.value)}</span>
-                  </div>
-                  <div className="col-span-2 text-right">
-                    <span className="text-sm text-red-400">
-                      {(summary.liabilities.loan > 0 || summary.liabilities.other > 0) 
-                        ? `-${formatCurrency((summary.liabilities.loan || 0) + (summary.liabilities.other || 0))}`
+                    <span className="text-sm font-bold text-red-400">
+                      {summary.liabilities.total > 0 
+                        ? (showInThousands ? `-${(summary.liabilities.total / 1000).toFixed(1)}k` : `-${formatCurrency(summary.liabilities.total)}`)
                         : '$0'
                       }
                     </span>
                   </div>
                 </motion.div>
-
-                {/* Totals Row with subtle separator */}
-                <div className="border-t border-gray-600 mt-2 pt-2">
-                  <motion.div 
-                    className="grid grid-cols-12 gap-2 px-2 py-2 bg-gray-700/30 rounded"
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    transition={{ delay: 0.3 }}
-                  >
-                    <div className="col-span-3 flex items-center">
-                      <span className="text-sm text-white font-bold">Total</span>
-                    </div>
-                    <div className="col-span-3 text-right">
-                      <span className="text-sm font-bold text-indigo-400">100.0%</span>
-                    </div>
-                    <div className="col-span-2 text-right">
-                      <span className="text-sm font-bold text-indigo-400">{formatCurrency(summary.netWorth)}</span>
-                    </div>
-                    <div className="col-span-2 text-right">
-                      <span className="text-sm font-bold text-green-400">{formatCurrency(summary.totalAssets)}</span>
-                    </div>
-                    <div className="col-span-2 text-right">
-                      <span className="text-sm font-bold text-red-400">
-                        {summary.liabilities.total > 0 ? `-${formatCurrency(summary.liabilities.total)}` : '$0'}
-                      </span>
-                    </div>
-                  </motion.div>
-                </div>
-
-                {/* Interactive hover hint */}
-                <div className="mt-3 text-center">
-                  <p className="text-xs text-gray-500 italic">Hover over rows to see detailed breakdown</p>
-                </div>
               </div>
-            </motion.div>
+
+              {/* Interactive hover hint */}
+              <div className="mt-3 text-center">
+                <p className="text-xs text-gray-500 italic">Hover over rows to see detailed breakdown</p>
+              </div>
+            </div>
+          </motion.div>
+
+          {/* NEW: Invested Amount Section */}
+          <motion.div 
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.5, delay: 0.15 }}
+            className="bg-gray-800 dark:bg-gray-900 rounded-xl shadow-md p-5 mt-4"
+          >
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-white">Invested Amount</h3>
+              <Calculator className="h-5 w-5 text-indigo-400" />
+            </div>
+            
+            <div className="space-y-1">
+              {/* Format Toggle */}
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-xs text-gray-400">
+                  Values in {showInThousands ? 'thousands (k)' : 'dollars ($)'}
+                </span>
+              </div>
+
+              {/* Header Row */}
+              <div className="grid grid-cols-12 gap-2 px-2 py-2 text-xs font-medium text-gray-400 border-b border-gray-700">
+                <div className="col-span-3">Asset Class</div>
+                <div className="col-span-3 text-right">Market Value</div>
+                <div className="col-span-3 text-right">Cost Basis</div>
+                <div className="col-span-3 text-right">Gain/Loss</div>
+              </div>
+
+              {/* Securities Row */}
+              <motion.div 
+                className="grid grid-cols-12 gap-2 px-2 py-2 hover:bg-gray-700/50 rounded transition-all cursor-pointer"
+                whileHover={{ x: 2 }}
+              >
+                <div className="col-span-3 flex items-center">
+                  <div className="w-3 h-3 rounded-full mr-2 bg-blue-500" />
+                  <span className="text-sm text-white font-medium">Securities</span>
+                </div>
+                <div className="col-span-3 text-right">
+                  <span className="text-sm text-white">
+                    {showInThousands 
+                      ? `${(summary.assetAllocation.securities.value / 1000).toFixed(1)}k`
+                      : formatCurrency(summary.assetAllocation.securities.value)
+                    }
+                  </span>
+                </div>
+                <div className="col-span-3 text-right">
+                  <span className="text-sm text-gray-300">
+                    {showInThousands 
+                      ? `${(summary.assetAllocation.securities.costBasis / 1000).toFixed(1)}k`
+                      : formatCurrency(summary.assetAllocation.securities.costBasis)
+                    }
+                  </span>
+                </div>
+                <div className="col-span-3 text-right">
+                  <span className={`text-sm ${summary.assetAllocation.securities.gainLoss >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                    {showInThousands 
+                      ? `${(summary.assetAllocation.securities.gainLoss / 1000).toFixed(1)}k`
+                      : formatCurrency(summary.assetAllocation.securities.gainLoss)
+                    }
+                    <span className="text-xs ml-1">
+                      ({(summary.assetAllocation.securities.gainLossPercent * 100).toFixed(1)}%)
+                    </span>
+                  </span>
+                </div>
+              </motion.div>
+
+              {/* Cash Row */}
+              <motion.div 
+                className="grid grid-cols-12 gap-2 px-2 py-2 hover:bg-gray-700/50 rounded transition-all cursor-pointer"
+                whileHover={{ x: 2 }}
+              >
+                <div className="col-span-3 flex items-center">
+                  <div className="w-3 h-3 rounded-full mr-2 bg-green-500" />
+                  <span className="text-sm text-white font-medium">Cash</span>
+                </div>
+                <div className="col-span-3 text-right">
+                  <span className="text-sm text-white">
+                    {showInThousands 
+                      ? `${(summary.assetAllocation.cash.value / 1000).toFixed(1)}k`
+                      : formatCurrency(summary.assetAllocation.cash.value)
+                    }
+                  </span>
+                </div>
+                <div className="col-span-3 text-right">
+                  <span className="text-sm text-gray-300">
+                    {showInThousands 
+                      ? `${(summary.assetAllocation.cash.costBasis / 1000).toFixed(1)}k`
+                      : formatCurrency(summary.assetAllocation.cash.costBasis)
+                    }
+                  </span>
+                </div>
+                <div className="col-span-3 text-right">
+                  <span className="text-sm text-gray-400">-</span>
+                </div>
+              </motion.div>
+
+              {/* Crypto Row */}
+              <motion.div 
+                className="grid grid-cols-12 gap-2 px-2 py-2 hover:bg-gray-700/50 rounded transition-all cursor-pointer"
+                whileHover={{ x: 2 }}
+              >
+                <div className="col-span-3 flex items-center">
+                  <div className="w-3 h-3 rounded-full mr-2 bg-purple-500" />
+                  <span className="text-sm text-white font-medium">Crypto</span>
+                </div>
+                <div className="col-span-3 text-right">
+                  <span className="text-sm text-white">
+                    {showInThousands 
+                      ? `${(summary.assetAllocation.crypto.value / 1000).toFixed(1)}k`
+                      : formatCurrency(summary.assetAllocation.crypto.value)
+                    }
+                  </span>
+                </div>
+                <div className="col-span-3 text-right">
+                  <span className="text-sm text-gray-300">
+                    {showInThousands 
+                      ? `${(summary.assetAllocation.crypto.costBasis / 1000).toFixed(1)}k`
+                      : formatCurrency(summary.assetAllocation.crypto.costBasis)
+                    }
+                  </span>
+                </div>
+                <div className="col-span-3 text-right">
+                  <span className={`text-sm ${summary.assetAllocation.crypto.gainLoss >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                    {showInThousands 
+                      ? `${(summary.assetAllocation.crypto.gainLoss / 1000).toFixed(1)}k`
+                      : formatCurrency(summary.assetAllocation.crypto.gainLoss)
+                    }
+                    <span className="text-xs ml-1">
+                      ({(summary.assetAllocation.crypto.gainLossPercent * 100).toFixed(1)}%)
+                    </span>
+                  </span>
+                </div>
+              </motion.div>
+
+              {/* Metals Row */}
+              <motion.div 
+                className="grid grid-cols-12 gap-2 px-2 py-2 hover:bg-gray-700/50 rounded transition-all cursor-pointer"
+                whileHover={{ x: 2 }}
+              >
+                <div className="col-span-3 flex items-center">
+                  <div className="w-3 h-3 rounded-full mr-2 bg-amber-500" />
+                  <span className="text-sm text-white font-medium">Metals</span>
+                </div>
+                <div className="col-span-3 text-right">
+                  <span className="text-sm text-white">
+                    {showInThousands 
+                      ? `${(summary.assetAllocation.metals.value / 1000).toFixed(1)}k`
+                      : formatCurrency(summary.assetAllocation.metals.value)
+                    }
+                  </span>
+                </div>
+                <div className="col-span-3 text-right">
+                  <span className="text-sm text-gray-300">
+                    {showInThousands 
+                      ? `${(summary.assetAllocation.metals.costBasis / 1000).toFixed(1)}k`
+                      : formatCurrency(summary.assetAllocation.metals.costBasis)
+                    }
+                  </span>
+                </div>
+                <div className="col-span-3 text-right">
+                  <span className={`text-sm ${summary.assetAllocation.metals.gainLoss >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                    {showInThousands 
+                      ? `${(summary.assetAllocation.metals.gainLoss / 1000).toFixed(1)}k`
+                      : formatCurrency(summary.assetAllocation.metals.gainLoss)
+                    }
+                    <span className="text-xs ml-1">
+                      ({(summary.assetAllocation.metals.gainLossPercent * 100).toFixed(1)}%)
+                    </span>
+                  </span>
+                </div>
+              </motion.div>
+
+              {/* Other Assets Row */}
+              <motion.div 
+                className="grid grid-cols-12 gap-2 px-2 py-2 hover:bg-gray-700/50 rounded transition-all cursor-pointer"
+                whileHover={{ x: 2 }}
+              >
+                <div className="col-span-3 flex items-center">
+                  <div className="w-3 h-3 rounded-full mr-2 bg-gray-500" />
+                  <span className="text-sm text-white font-medium">Other Assets</span>
+                </div>
+                <div className="col-span-3 text-right">
+                  <span className="text-sm text-white">
+                    {showInThousands 
+                      ? `${(summary.assetAllocation.otherAssets.value / 1000).toFixed(1)}k`
+                      : formatCurrency(summary.assetAllocation.otherAssets.value)
+                    }
+                  </span>
+                </div>
+                <div className="col-span-3 text-right">
+                  <span className="text-sm text-gray-300">
+                    {showInThousands 
+                      ? `${(summary.assetAllocation.otherAssets.costBasis / 1000).toFixed(1)}k`
+                      : formatCurrency(summary.assetAllocation.otherAssets.costBasis)
+                    }
+                  </span>
+                </div>
+                <div className="col-span-3 text-right">
+                  <span className={`text-sm ${summary.assetAllocation.otherAssets.gainLoss >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                    {summary.assetAllocation.otherAssets.gainLoss !== null 
+                      ? (
+                        <>
+                          {showInThousands 
+                            ? `${(summary.assetAllocation.otherAssets.gainLoss / 1000).toFixed(1)}k`
+                            : formatCurrency(summary.assetAllocation.otherAssets.gainLoss)
+                          }
+                          <span className="text-xs ml-1">
+                            ({(summary.assetAllocation.otherAssets.gainLossPercent * 100).toFixed(1)}%)
+                          </span>
+                        </>
+                      )
+                      : '-'
+                    }
+                  </span>
+                </div>
+              </motion.div>
+
+              {/* Totals Row */}
+              <div className="border-t border-gray-600 mt-2 pt-2">
+                <motion.div 
+                  className="grid grid-cols-12 gap-2 px-2 py-2 bg-gray-700/30 rounded"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ delay: 0.3 }}
+                >
+                  <div className="col-span-3 flex items-center">
+                    <span className="text-sm text-white font-bold">Total</span>
+                  </div>
+                  <div className="col-span-3 text-right">
+                    <span className="text-sm font-bold text-indigo-400">
+                      {showInThousands 
+                        ? `${(summary.totalAssets / 1000).toFixed(1)}k`
+                        : formatCurrency(summary.totalAssets)
+                      }
+                    </span>
+                  </div>
+                  <div className="col-span-3 text-right">
+                    <span className="text-sm font-bold text-gray-300">
+                      {showInThousands 
+                        ? `${(summary.totalCostBasis / 1000).toFixed(1)}k`
+                        : formatCurrency(summary.totalCostBasis)
+                      }
+                    </span>
+                  </div>
+                  <div className="col-span-3 text-right">
+                    <span className={`text-sm font-bold ${summary.unrealizedGain >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                      {showInThousands 
+                        ? `${(summary.unrealizedGain / 1000).toFixed(1)}k`
+                        : formatCurrency(summary.unrealizedGain)
+                      }
+                      <span className="text-xs ml-1">
+                        ({(summary.unrealizedGainPercent * 100).toFixed(1)}%)
+                      </span>
+                    </span>
+                  </div>
+                </motion.div>
+              </div>
+            </div>
+          </motion.div>
 
 
 
