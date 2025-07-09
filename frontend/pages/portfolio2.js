@@ -215,8 +215,17 @@ export default function Dashboard() {
   }, [topPositions]);
   
   // Format utilities
-  const formatCurrency = (value) => {
+  const formatCurrency = (value, inThousands = false) => {
     if (value === null || value === undefined) return '-';
+    
+    if (inThousands) {
+      const thousands = value / 1000;
+      return `$${thousands.toLocaleString('en-US', {
+        minimumFractionDigits: 1,
+        maximumFractionDigits: 1
+      })}k`;
+    }
+    
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
       currency: 'USD',
@@ -1101,18 +1110,12 @@ export default function Dashboard() {
                 </div>
                 <div className="col-span-2 text-right">
                   <span className="text-sm text-white">
-                    {showInThousands 
-                      ? `${(summary.assetAllocation.securities.value / 1000).toFixed(1)}k`
-                      : formatCurrency(summary.assetAllocation.securities.value)
-                    }
+                    {formatCurrency(summary.assetAllocation.securities.value, showInThousands)}
                   </span>
                 </div>
                 <div className="col-span-2 text-right">
                   <span className="text-sm text-green-400">
-                    {showInThousands 
-                      ? `${(summary.assetAllocation.securities.value / 1000).toFixed(1)}k`
-                      : formatCurrency(summary.assetAllocation.securities.value)
-                    }
+                    {formatCurrency(summary.assetAllocation.securities.value, showInThousands)}
                   </span>
                 </div>
                 <div className="col-span-2 text-right">
@@ -1136,24 +1139,18 @@ export default function Dashboard() {
                 </div>
                 <div className="col-span-2 text-right">
                   <span className="text-sm text-white">
-                    {showInThousands 
-                      ? `${(summary.altNetWorth.netCash / 1000).toFixed(1)}k`
-                      : formatCurrency(summary.altNetWorth.netCash)
-                    }
+                    {formatCurrency(summary.altNetWorth.netCash, showInThousands)}
                   </span>
                 </div>
                 <div className="col-span-2 text-right">
                   <span className="text-sm text-green-400">
-                    {showInThousands 
-                      ? `${(summary.assetAllocation.cash.value / 1000).toFixed(1)}k`
-                      : formatCurrency(summary.assetAllocation.cash.value)
-                    }
+                    {formatCurrency(summary.assetAllocation.cash.value, showInThousands)}
                   </span>
                 </div>
                 <div className="col-span-2 text-right">
                   <span className="text-sm text-red-400">
                     {summary.liabilities.creditCard > 0 
-                      ? (showInThousands ? `-${(summary.liabilities.creditCard / 1000).toFixed(1)}k` : `-${formatCurrency(summary.liabilities.creditCard)}`)
+                      ? `-${formatCurrency(summary.liabilities.creditCard, showInThousands).substring(1)}`
                       : '$0'
                     }
                   </span>
@@ -1176,18 +1173,12 @@ export default function Dashboard() {
                 </div>
                 <div className="col-span-2 text-right">
                   <span className="text-sm text-white">
-                    {showInThousands 
-                      ? `${(summary.assetAllocation.crypto.value / 1000).toFixed(1)}k`
-                      : formatCurrency(summary.assetAllocation.crypto.value)
-                    }
+                    {formatCurrency(summary.assetAllocation.crypto.value, showInThousands)}
                   </span>
                 </div>
                 <div className="col-span-2 text-right">
                   <span className="text-sm text-purple-400">
-                    {showInThousands 
-                      ? `${(summary.assetAllocation.crypto.value / 1000).toFixed(1)}k`
-                      : formatCurrency(summary.assetAllocation.crypto.value)
-                    }
+                    {formatCurrency(summary.assetAllocation.crypto.value, showInThousands)}
                   </span>
                 </div>
                 <div className="col-span-2 text-right">
@@ -1211,18 +1202,12 @@ export default function Dashboard() {
                 </div>
                 <div className="col-span-2 text-right">
                   <span className="text-sm text-white">
-                    {showInThousands 
-                      ? `${(summary.assetAllocation.metals.value / 1000).toFixed(1)}k`
-                      : formatCurrency(summary.assetAllocation.metals.value)
-                    }
+                    {formatCurrency(summary.assetAllocation.metals.value, showInThousands)}
                   </span>
                 </div>
                 <div className="col-span-2 text-right">
                   <span className="text-sm text-amber-400">
-                    {showInThousands 
-                      ? `${(summary.assetAllocation.metals.value / 1000).toFixed(1)}k`
-                      : formatCurrency(summary.assetAllocation.metals.value)
-                    }
+                    {formatCurrency(summary.assetAllocation.metals.value, showInThousands)}
                   </span>
                 </div>
                 <div className="col-span-2 text-right">
@@ -1246,24 +1231,18 @@ export default function Dashboard() {
                 </div>
                 <div className="col-span-2 text-right">
                   <span className="text-sm text-white">
-                    {showInThousands 
-                      ? `${(summary.altNetWorth.realEstate / 1000).toFixed(1)}k`
-                      : formatCurrency(summary.altNetWorth.realEstate)
-                    }
+                    {formatCurrency(summary.altNetWorth.realEstate, showInThousands)}
                   </span>
                 </div>
                 <div className="col-span-2 text-right">
                   <span className="text-sm text-teal-400">
-                    {showInThousands 
-                      ? `${(((summary.altNetWorth.realEstate || 0) + (summary.liabilities.mortgage || 0)) / 1000).toFixed(1)}k`
-                      : formatCurrency((summary.altNetWorth.realEstate || 0) + (summary.liabilities.mortgage || 0))
-                    }
+                    {formatCurrency((summary.altNetWorth.realEstate || 0) + (summary.liabilities.mortgage || 0), showInThousands)}
                   </span>
                 </div>
                 <div className="col-span-2 text-right">
                   <span className="text-sm text-red-400">
                     {summary.liabilities.mortgage > 0 
-                      ? (showInThousands ? `-${(summary.liabilities.mortgage / 1000).toFixed(1)}k` : `-${formatCurrency(summary.liabilities.mortgage)}`)
+                      ? `-${formatCurrency(summary.liabilities.mortgage, showInThousands).substring(1)}`
                       : '$0'
                     }
                   </span>
@@ -1286,25 +1265,16 @@ export default function Dashboard() {
                 </div>
                 <div className="col-span-2 text-right">
                   <span className="text-sm text-white">
-                    {showInThousands 
-                      ? formatThousands(summary.altNetWorth.netOtherAssets)
-                      : formatCurrency(summary.altNetWorth.netOtherAssets)
-                    }
+                    {formatCurrency(summary.altNetWorth.netOtherAssets, showInThousands)}
                   </span>
                 </div>
                 <div className="col-span-2 text-right">
                   <span className="text-sm text-gray-400">
                     {/* Other Assets minus Real Estate assets to avoid double counting */}
-                    {showInThousands 
-                      ? formatThousands(
+                    {formatCurrency(
                           (summary.assetAllocation.otherAssets.value || 0) - 
                           ((summary.altNetWorth.realEstate || 0) + (summary.liabilities.mortgage || 0))
-                        )
-                      : formatCurrency(
-                          (summary.assetAllocation.otherAssets.value || 0) - 
-                          ((summary.altNetWorth.realEstate || 0) + (summary.liabilities.mortgage || 0))
-                        )
-                    }
+                        , showInThousands)}
                   </span>
                 </div>
                 <div className="col-span-2 text-right">
@@ -1315,7 +1285,7 @@ export default function Dashboard() {
                                             (summary.liabilities.creditCard || 0) - 
                                             (summary.liabilities.mortgage || 0);
                       return otherLiabilities > 0 
-                        ? (showInThousands ? `-${formatThousands(otherLiabilities)}` : `-${formatCurrency(otherLiabilities)}`)
+                        ? (`-${formatCurrency(otherLiabilities, showInThousands)}`)
                         : '$0';
                     })()}
                   </span>
@@ -1338,24 +1308,20 @@ export default function Dashboard() {
                   </div>
                   <div className="col-span-2 text-right">
                     <span className="text-sm font-bold text-indigo-400">
-                      {showInThousands 
-                        ? `${(summary.netWorth / 1000).toFixed(1)}k`
-                        : formatCurrency(summary.netWorth)
-                      }
+                      {formatCurrency(summary.netWorth, showInThousands)}
+                      
                     </span>
                   </div>
                   <div className="col-span-2 text-right">
                     <span className="text-sm font-bold text-green-400">
-                      {showInThousands 
-                        ? `${(summary.totalAssets / 1000).toFixed(1)}k`
-                        : formatCurrency(summary.totalAssets)
-                      }
+                      {formatCurrency(summary.totalAssets, showInThousands)}
+                      
                     </span>
                   </div>
                   <div className="col-span-2 text-right">
                     <span className="text-sm font-bold text-red-400">
                       {summary.liabilities.total > 0 
-                        ? (showInThousands ? `-${(summary.liabilities.total / 1000).toFixed(1)}k` : `-${formatCurrency(summary.liabilities.total)}`)
+                        ? `-${formatCurrency(summary.liabilities.total, showInThousands).substring(1)}`
                         : '$0'
                       }
                     </span>
@@ -1409,26 +1375,17 @@ export default function Dashboard() {
                 </div>
                 <div className="col-span-3 text-right">
                   <span className="text-sm text-white">
-                    {showInThousands 
-                      ? `${(summary.assetAllocation.securities.value / 1000).toFixed(1)}k`
-                      : formatCurrency(summary.assetAllocation.securities.value)
-                    }
+                    {formatCurrency(summary.assetAllocation.securities.value, showInThousands)}
                   </span>
                 </div>
                 <div className="col-span-3 text-right">
                   <span className="text-sm text-gray-300">
-                    {showInThousands 
-                      ? `${(summary.assetAllocation.securities.costBasis / 1000).toFixed(1)}k`
-                      : formatCurrency(summary.assetAllocation.securities.costBasis)
-                    }
+                    {formatCurrency(summary.assetAllocation.securities.costBasis, showInThousands)}
                   </span>
                 </div>
                 <div className="col-span-3 text-right">
                   <span className={`text-sm ${summary.assetAllocation.securities.gainLoss >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                    {showInThousands 
-                      ? `${(summary.assetAllocation.securities.gainLoss / 1000).toFixed(1)}k`
-                      : formatCurrency(summary.assetAllocation.securities.gainLoss)
-                    }
+                    {formatCurrency(summary.assetAllocation.securities.gainLoss, showInThousands)}
                     <span className="text-xs ml-1">
                       ({(summary.assetAllocation.securities.gainLossPercent * 100).toFixed(1)}%)
                     </span>
@@ -1447,18 +1404,12 @@ export default function Dashboard() {
                 </div>
                 <div className="col-span-3 text-right">
                   <span className="text-sm text-white">
-                    {showInThousands 
-                      ? `${(summary.assetAllocation.cash.value / 1000).toFixed(1)}k`
-                      : formatCurrency(summary.assetAllocation.cash.value)
-                    }
+                    {formatCurrency(summary.assetAllocation.cash.value, showInThousands)}
                   </span>
                 </div>
                 <div className="col-span-3 text-right">
                   <span className="text-sm text-gray-300">
-                    {showInThousands 
-                      ? `${(summary.assetAllocation.cash.costBasis / 1000).toFixed(1)}k`
-                      : formatCurrency(summary.assetAllocation.cash.costBasis)
-                    }
+                    {formatCurrency(summary.assetAllocation.cash.costBasis, showInThousands)}
                   </span>
                 </div>
                 <div className="col-span-3 text-right">
@@ -1477,26 +1428,17 @@ export default function Dashboard() {
                 </div>
                 <div className="col-span-3 text-right">
                   <span className="text-sm text-white">
-                    {showInThousands 
-                      ? `${(summary.assetAllocation.crypto.value / 1000).toFixed(1)}k`
-                      : formatCurrency(summary.assetAllocation.crypto.value)
-                    }
+                    {formatCurrency(summary.assetAllocation.crypto.value, showInThousands)}
                   </span>
                 </div>
                 <div className="col-span-3 text-right">
                   <span className="text-sm text-gray-300">
-                    {showInThousands 
-                      ? `${(summary.assetAllocation.crypto.costBasis / 1000).toFixed(1)}k`
-                      : formatCurrency(summary.assetAllocation.crypto.costBasis)
-                    }
+                    {formatCurrency(summary.assetAllocation.crypto.costBasis, showInThousands)}
                   </span>
                 </div>
                 <div className="col-span-3 text-right">
                   <span className={`text-sm ${summary.assetAllocation.crypto.gainLoss >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                    {showInThousands 
-                      ? `${(summary.assetAllocation.crypto.gainLoss / 1000).toFixed(1)}k`
-                      : formatCurrency(summary.assetAllocation.crypto.gainLoss)
-                    }
+                    {formatCurrency(summary.assetAllocation.crypto.gainLoss, showInThousands)}
                     <span className="text-xs ml-1">
                       ({(summary.assetAllocation.crypto.gainLossPercent * 100).toFixed(1)}%)
                     </span>
@@ -1515,26 +1457,17 @@ export default function Dashboard() {
                 </div>
                 <div className="col-span-3 text-right">
                   <span className="text-sm text-white">
-                    {showInThousands 
-                      ? `${(summary.assetAllocation.metals.value / 1000).toFixed(1)}k`
-                      : formatCurrency(summary.assetAllocation.metals.value)
-                    }
+                    {formatCurrency(summary.assetAllocation.metals.value, showInThousands)}
                   </span>
                 </div>
                 <div className="col-span-3 text-right">
                   <span className="text-sm text-gray-300">
-                    {showInThousands 
-                      ? `${(summary.assetAllocation.metals.costBasis / 1000).toFixed(1)}k`
-                      : formatCurrency(summary.assetAllocation.metals.costBasis)
-                    }
+                    {formatCurrency(summary.assetAllocation.metals.costBasis, showInThousands)}
                   </span>
                 </div>
                 <div className="col-span-3 text-right">
                   <span className={`text-sm ${summary.assetAllocation.metals.gainLoss >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                    {showInThousands 
-                      ? `${(summary.assetAllocation.metals.gainLoss / 1000).toFixed(1)}k`
-                      : formatCurrency(summary.assetAllocation.metals.gainLoss)
-                    }
+                    {formatCurrency(summary.assetAllocation.metals.gainLoss, showInThousands)}
                     <span className="text-xs ml-1">
                       ({(summary.assetAllocation.metals.gainLossPercent * 100).toFixed(1)}%)
                     </span>
@@ -1553,18 +1486,14 @@ export default function Dashboard() {
                 </div>
                 <div className="col-span-3 text-right">
                   <span className="text-sm text-white">
-                    {showInThousands 
-                      ? `${(summary.assetAllocation.otherAssets.value / 1000).toFixed(1)}k`
-                      : formatCurrency(summary.assetAllocation.otherAssets.value)
-                    }
+                    {formatCurrency(summary.assetAllocation.otherAssets.value, showInThousands)}
+                    
                   </span>
                 </div>
                 <div className="col-span-3 text-right">
                   <span className="text-sm text-gray-300">
-                    {showInThousands 
-                      ? `${(summary.assetAllocation.otherAssets.costBasis / 1000).toFixed(1)}k`
-                      : formatCurrency(summary.assetAllocation.otherAssets.costBasis)
-                    }
+                    {formatCurrency(summary.assetAllocation.otherAssets.costBasis, showInThousands)}
+                    
                   </span>
                 </div>
                 <div className="col-span-3 text-right">
@@ -1572,10 +1501,7 @@ export default function Dashboard() {
                     {summary.assetAllocation.otherAssets.gainLoss !== null 
                       ? (
                         <>
-                          {showInThousands 
-                            ? `${(summary.assetAllocation.otherAssets.gainLoss / 1000).toFixed(1)}k`
-                            : formatCurrency(summary.assetAllocation.otherAssets.gainLoss)
-                          }
+                          {formatCurrency(summary.assetAllocation.otherAssets.gainLoss, showInThousands)}
                           <span className="text-xs ml-1">
                             ({(summary.assetAllocation.otherAssets.gainLossPercent * 100).toFixed(1)}%)
                           </span>
@@ -1600,26 +1526,17 @@ export default function Dashboard() {
                   </div>
                   <div className="col-span-3 text-right">
                     <span className="text-sm font-bold text-indigo-400">
-                      {showInThousands 
-                        ? `${(summary.totalAssets / 1000).toFixed(1)}k`
-                        : formatCurrency(summary.totalAssets)
-                      }
+                      {formatCurrency(summary.totalAssets, showInThousands)}
                     </span>
                   </div>
                   <div className="col-span-3 text-right">
                     <span className="text-sm font-bold text-gray-300">
-                      {showInThousands 
-                        ? `${(summary.totalCostBasis / 1000).toFixed(1)}k`
-                        : formatCurrency(summary.totalCostBasis)
-                      }
+                      {formatCurrency(summary.totalCostBasis, showInThousands)}
                     </span>
                   </div>
                   <div className="col-span-3 text-right">
                     <span className={`text-sm font-bold ${summary.unrealizedGain >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                      {showInThousands 
-                        ? `${(summary.unrealizedGain / 1000).toFixed(1)}k`
-                        : formatCurrency(summary.unrealizedGain)
-                      }
+                      {formatCurrency(summary.unrealizedGain, showInThousands)}
                       <span className="text-xs ml-1">
                         ({(summary.unrealizedGainPercent * 100).toFixed(1)}%)
                       </span>
