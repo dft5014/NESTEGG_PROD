@@ -350,69 +350,114 @@ export default function Dashboard() {
   };
 
   // Asset class card component
-  const AssetClassCard = ({ type, data, icon, colorClass }) => (
-    <motion.div 
-      whileHover={{ scale: 1.02, boxShadow: '0 8px 30px rgba(0,0,0,0.3)' }}
-      className="bg-gray-800/70 backdrop-blur-sm rounded-xl p-4 border border-gray-700 relative overflow-hidden hover:border-gray-600 transition-all duration-300"
-    >
-      <div className={`absolute top-0 right-0 w-24 h-24 rounded-full ${colorClass}/10 -mr-10 -mt-10`}></div>
-      <div className="flex items-center mb-2">
-        <motion.div 
-          whileHover={{ rotate: 360 }}
-          transition={{ duration: 0.5 }}
-          className={`${colorClass}/20 p-2 rounded-lg mr-3`}
-        >
-          {icon}
-        </motion.div>
-        <h3 className="text-lg font-semibold text-white">{data.name}</h3>
-      </div>
-      <div className="space-y-2">
-        <div>
-          <p className="text-sm text-gray-400">
-            {type === 'liability' ? 'Outstanding Balance' : 'Market Value'}
-          </p>
-          <p className="text-xl font-bold text-white">
-            {type === 'liability' ? '-' : ''}{formatCurrency(Math.abs(data.value))}
-          </p>
-          <p className="text-xs text-gray-500">
-            {data.percentage > 0 ? `${formatPercentage(data.percentage * 100)} of ${type === 'liability' ? 'liabilities' : 'portfolio'}` : 'No holdings'}
-          </p>
-        </div>
-        
-        {/* Show cost basis for assets and liabilities */}
-        {(type !== 'cash' || type === 'liability') && data.costBasis !== undefined && (
-          <div>
-            <p className="text-sm text-gray-400">
-              {type === 'liability' ? 'Original Amount' : 'Cost Basis'}
-            </p>
-            <p className="text-lg font-semibold text-white">{formatCurrency(data.costBasis)}</p>
-          </div>
-        )}
-        
-        {/* Show performance for non-cash assets */}
-        {type !== 'cash' && type !== 'liability' && data.gainLoss !== undefined && (
-          <div>
-            <p className="text-sm text-gray-400">Performance</p>
-            <p className={`text-lg font-semibold ${data.gainLoss >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-              {data.gainLoss >= 0 ? '+' : ''}{formatCurrency(data.gainLoss)}
-              {data.gainLossPercent !== undefined && (
-                <span className="text-sm ml-1">
-                  ({data.gainLossPercent >= 0 ? '+' : ''}{formatPercentage(data.gainLossPercent * 100)})
-                </span>
+  const AssetClassCard = ({ type, data, icon, colorClass }) => {
+    // Get performance data for different periods
+    const performanceData = {
+      '1D': data.performance?.['1d']?.changePercent || 0,
+      '1W': data.performance?.['1w']?.changePercent || 0,
+      '1M': data.performance?.['1m']?.changePercent || 0,
+      'YTD': data.performance?.['ytd']?.changePercent || 0,
+      '1Y': data.performance?.['1y']?.changePercent || 0,
+    };
+
+    return (
+      <motion.div 
+        whileHover={{ scale: 1.02, boxShadow: '0 8px 30px rgba(0,0,0,0.3)' }}
+        className="bg-gray-800/70 backdrop-blur-sm rounded-xl p-4 border border-gray-700 relative overflow-hidden hover:border-gray-600 transition-all duration-300"
+      >
+        <div className={`absolute top-0 right-0 w-24 h-24 rounded-full ${colorClass}/10 -mr-10 -mt-10`}></div>
+        <div className="flex justify-between items-start">
+          <div className="flex-1">
+            <div className="flex items-center mb-2">
+              <motion.div 
+                whileHover={{ rotate: 360 }}
+                transition={{ duration: 0.5 }}
+                className={`${colorClass}/20 p-2 rounded-lg mr-3`}
+              >
+                {icon}
+              </motion.div>
+              <h3 className="text-lg font-semibold text-white">{data.name}</h3>
+            </div>
+            <div className="space-y-2">
+              <div>
+                <p className="text-sm text-gray-400">
+                  {type === 'liability' ? 'Outstanding Balance' : 'Market Value'}
+                </p>
+                <p className="text-xl font-bold text-white">
+                  {type === 'liability' ? '-' : ''}{formatCurrency(Math.abs(data.value))}
+                </p>
+                <p className="text-xs text-gray-500">
+                  {data.percentage > 0 ? `${formatPercentage(data.percentage * 100)} of ${type === 'liability' ? 'liabilities' : 'portfolio'}` : 'No holdings'}
+                </p>
+              </div>
+              
+              {/* Show cost basis for assets and liabilities */}
+              {(type !== 'cash' || type === 'liability') && data.costBasis !== undefined && (
+                <div>
+                  <p className="text-sm text-gray-400">
+                    {type === 'liability' ? 'Original Amount' : 'Cost Basis'}
+                  </p>
+                  <p className="text-lg font-semibold text-white">{formatCurrency(data.costBasis)}</p>
+                </div>
               )}
-            </p>
+              
+              {/* Show performance for non-cash assets */}
+              {type !== 'cash' && type !== 'liability' && data.gainLoss !== undefined && (
+                <div>
+                  <p className="text-sm text-gray-400">Performance</p>
+                  <p className={`text-lg font-semibold ${data.gainLoss >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                    {data.gainLoss >= 0 ? '+' : ''}{formatCurrency(data.gainLoss)}
+                    {data.gainLossPercent !== undefined && (
+                      <span className="text-sm ml-1">
+                        ({data.gainLossPercent >= 0 ? '+' : ''}{formatPercentage(data.gainLossPercent * 100)})
+                      </span>
+                    )}
+                  </p>
+                </div>
+              )}
+              
+              {/* Show count if available */}
+              {data.count !== undefined && data.count > 0 && (
+                <p className="text-xs text-gray-500 mt-1">
+                  {data.count} {type === 'liability' ? 'liabilities' : 'positions'}
+                </p>
+              )}
+            </div>
           </div>
-        )}
-        
-        {/* Show count if available */}
-        {data.count !== undefined && data.count > 0 && (
-          <p className="text-xs text-gray-500 mt-1">
-            {data.count} {type === 'liability' ? 'liabilities' : 'positions'}
-          </p>
-        )}
-      </div>
-    </motion.div>
-  );
+
+          {/* Performance Timeline - Right Side */}
+          {type !== 'liability' && (
+            <div className="ml-4 flex flex-col space-y-1.5 min-w-[80px]">
+              <div className="text-xs font-medium text-gray-500 mb-1 text-right">Performance</div>
+              {Object.entries(performanceData).map(([period, value]) => (
+                <motion.div 
+                  key={period}
+                  initial={{ opacity: 0, x: 10 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: 0.1 }}
+                  className="flex items-center justify-between space-x-2"
+                >
+                  <span className="text-xs text-gray-500">{period}</span>
+                  <motion.span 
+                    className={`text-xs font-medium px-1.5 py-0.5 rounded ${
+                      value > 0 
+                        ? 'bg-green-500/20 text-green-400' 
+                        : value < 0 
+                        ? 'bg-red-500/20 text-red-400' 
+                        : 'bg-gray-600/20 text-gray-400'
+                    }`}
+                    whileHover={{ scale: 1.1 }}
+                  >
+                    {value > 0 ? '+' : ''}{value.toFixed(1)}%
+                  </motion.span>
+                </motion.div>
+              ))}
+            </div>
+          )}
+        </div>
+      </motion.div>
+    );
+  };
   
   // Dashboard Display Component
   const DashboardContent = () => {
@@ -869,28 +914,200 @@ export default function Dashboard() {
                 </ResponsiveContainer>
               </div>
               
-              {/* Legend */}
-              <div className="mt-2 space-y-2">
-                {netWorthMixData.map((entry, index) => (
+              {/* Enhanced Legend with Asset/Liability Breakdown */}
+              <div className="mt-4 space-y-1">
+                {/* Header Row */}
+                <div className="grid grid-cols-12 gap-2 px-2 py-2 text-xs font-medium text-gray-400 border-b border-gray-700">
+                  <div className="col-span-3">Category</div>
+                  <div className="col-span-3 text-right">% of Net Worth</div>
+                  <div className="col-span-2 text-right">Net Worth</div>
+                  <div className="col-span-2 text-right">Assets</div>
+                  <div className="col-span-2 text-right">Liabilities</div>
+                </div>
+
+                {/* Securities Row */}
+                <motion.div 
+                  className="grid grid-cols-12 gap-2 px-2 py-2 hover:bg-gray-700/50 rounded transition-all cursor-pointer group"
+                  whileHover={{ x: 2 }}
+                >
+                  <div className="col-span-3 flex items-center">
+                    <div className="w-3 h-3 rounded-full mr-2 bg-blue-500" />
+                    <span className="text-sm text-white font-medium">Securities</span>
+                  </div>
+                  <div className="col-span-3 text-right">
+                    <span className="text-sm font-semibold text-blue-400">{formatPercentage(summary.netWorthMix.securities * 100)}</span>
+                  </div>
+                  <div className="col-span-2 text-right">
+                    <span className="text-sm text-white">{formatCurrency(summary.assetAllocation.securities.value)}</span>
+                  </div>
+                  <div className="col-span-2 text-right">
+                    <span className="text-sm text-green-400">{formatCurrency(summary.assetAllocation.securities.value)}</span>
+                  </div>
+                  <div className="col-span-2 text-right">
+                    <span className="text-sm text-gray-500">$0</span>
+                  </div>
+                </motion.div>
+
+                {/* Net Cash Row - Shows cash assets minus credit card liabilities */}
+                <motion.div 
+                  className="grid grid-cols-12 gap-2 px-2 py-2 hover:bg-gray-700/50 rounded transition-all cursor-pointer group"
+                  whileHover={{ x: 2 }}
+                >
+                  <div className="col-span-3 flex items-center">
+                    <div className="w-3 h-3 rounded-full mr-2 bg-green-500" />
+                    <span className="text-sm text-white font-medium">Net Cash</span>
+                  </div>
+                  <div className="col-span-3 text-right">
+                    <span className="text-sm font-semibold text-green-400">{formatPercentage(summary.netWorthMix.netCash * 100)}</span>
+                  </div>
+                  <div className="col-span-2 text-right">
+                    <span className="text-sm text-white">{formatCurrency(summary.altNetWorth.netCash)}</span>
+                  </div>
+                  <div className="col-span-2 text-right">
+                    <span className="text-sm text-green-400">{formatCurrency(summary.assetAllocation.cash.value)}</span>
+                  </div>
+                  <div className="col-span-2 text-right">
+                    <span className="text-sm text-red-400">
+                      {summary.liabilities.creditCard > 0 ? `-${formatCurrency(summary.liabilities.creditCard)}` : '$0'}
+                    </span>
+                  </div>
+                </motion.div>
+
+                {/* Crypto Row */}
+                <motion.div 
+                  className="grid grid-cols-12 gap-2 px-2 py-2 hover:bg-gray-700/50 rounded transition-all cursor-pointer group"
+                  whileHover={{ x: 2 }}
+                >
+                  <div className="col-span-3 flex items-center">
+                    <div className="w-3 h-3 rounded-full mr-2 bg-purple-500" />
+                    <span className="text-sm text-white font-medium">Crypto</span>
+                  </div>
+                  <div className="col-span-3 text-right">
+                    <span className="text-sm font-semibold text-purple-400">{formatPercentage(summary.netWorthMix.crypto * 100)}</span>
+                  </div>
+                  <div className="col-span-2 text-right">
+                    <span className="text-sm text-white">{formatCurrency(summary.assetAllocation.crypto.value)}</span>
+                  </div>
+                  <div className="col-span-2 text-right">
+                    <span className="text-sm text-purple-400">{formatCurrency(summary.assetAllocation.crypto.value)}</span>
+                  </div>
+                  <div className="col-span-2 text-right">
+                    <span className="text-sm text-gray-500">$0</span>
+                  </div>
+                </motion.div>
+
+                {/* Metals Row */}
+                <motion.div 
+                  className="grid grid-cols-12 gap-2 px-2 py-2 hover:bg-gray-700/50 rounded transition-all cursor-pointer group"
+                  whileHover={{ x: 2 }}
+                >
+                  <div className="col-span-3 flex items-center">
+                    <div className="w-3 h-3 rounded-full mr-2 bg-amber-500" />
+                    <span className="text-sm text-white font-medium">Metals</span>
+                  </div>
+                  <div className="col-span-3 text-right">
+                    <span className="text-sm font-semibold text-amber-400">{formatPercentage(summary.netWorthMix.metals * 100)}</span>
+                  </div>
+                  <div className="col-span-2 text-right">
+                    <span className="text-sm text-white">{formatCurrency(summary.assetAllocation.metals.value)}</span>
+                  </div>
+                  <div className="col-span-2 text-right">
+                    <span className="text-sm text-amber-400">{formatCurrency(summary.assetAllocation.metals.value)}</span>
+                  </div>
+                  <div className="col-span-2 text-right">
+                    <span className="text-sm text-gray-500">$0</span>
+                  </div>
+                </motion.div>
+
+                {/* Real Estate Row - Shows equity (asset value minus mortgage) */}
+                <motion.div 
+                  className="grid grid-cols-12 gap-2 px-2 py-2 hover:bg-gray-700/50 rounded transition-all cursor-pointer group"
+                  whileHover={{ x: 2 }}
+                >
+                  <div className="col-span-3 flex items-center">
+                    <div className="w-3 h-3 rounded-full mr-2 bg-red-500" />
+                    <span className="text-sm text-white font-medium">Real Estate</span>
+                  </div>
+                  <div className="col-span-3 text-right">
+                    <span className="text-sm font-semibold text-red-400">{formatPercentage(summary.netWorthMix.realEstateEquity * 100)}</span>
+                  </div>
+                  <div className="col-span-2 text-right">
+                    <span className="text-sm text-white">{formatCurrency(summary.altNetWorth.realEstate)}</span>
+                  </div>
+                  <div className="col-span-2 text-right">
+                    <span className="text-sm text-red-400">
+                      {/* Real estate asset value would be equity + mortgage */}
+                      {formatCurrency((summary.altNetWorth.realEstate || 0) + (summary.liabilities.mortgage || 0))}
+                    </span>
+                  </div>
+                  <div className="col-span-2 text-right">
+                    <span className="text-sm text-red-400">
+                      {summary.liabilities.mortgage > 0 ? `-${formatCurrency(summary.liabilities.mortgage)}` : '$0'}
+                    </span>
+                  </div>
+                </motion.div>
+
+                {/* Other Assets Row - Shows net other assets (other assets minus other liabilities) */}
+                <motion.div 
+                  className="grid grid-cols-12 gap-2 px-2 py-2 hover:bg-gray-700/50 rounded transition-all cursor-pointer group"
+                  whileHover={{ x: 2 }}
+                >
+                  <div className="col-span-3 flex items-center">
+                    <div className="w-3 h-3 rounded-full mr-2 bg-gray-500" />
+                    <span className="text-sm text-white font-medium">Other Assets</span>
+                  </div>
+                  <div className="col-span-3 text-right">
+                    <span className="text-sm font-semibold text-gray-400">{formatPercentage(summary.netWorthMix.netOtherAssets * 100)}</span>
+                  </div>
+                  <div className="col-span-2 text-right">
+                    <span className="text-sm text-white">{formatCurrency(summary.altNetWorth.netOtherAssets)}</span>
+                  </div>
+                  <div className="col-span-2 text-right">
+                    <span className="text-sm text-gray-400">{formatCurrency(summary.assetAllocation.otherAssets.value)}</span>
+                  </div>
+                  <div className="col-span-2 text-right">
+                    <span className="text-sm text-red-400">
+                      {(summary.liabilities.loan > 0 || summary.liabilities.other > 0) 
+                        ? `-${formatCurrency((summary.liabilities.loan || 0) + (summary.liabilities.other || 0))}`
+                        : '$0'
+                      }
+                    </span>
+                  </div>
+                </motion.div>
+
+                {/* Totals Row with subtle separator */}
+                <div className="border-t border-gray-600 mt-2 pt-2">
                   <motion.div 
-                    key={index} 
-                    className="flex items-center justify-between hover:bg-gray-700/50 p-1 rounded transition-colors"
-                    whileHover={{ x: 2 }}
+                    className="grid grid-cols-12 gap-2 px-2 py-2 bg-gray-700/30 rounded"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ delay: 0.3 }}
                   >
-                    <div className="flex items-center">
-                      <div 
-                        className="w-3 h-3 rounded-full mr-2" 
-                        style={{ backgroundColor: entry.color }}
-                      />
-                      <span className="text-sm text-white">{entry.name}</span>
+                    <div className="col-span-3 flex items-center">
+                      <span className="text-sm text-white font-bold">Total</span>
                     </div>
-                    <div className="text-right">
-                      <span className="text-sm text-gray-400">{entry.percentage.toFixed(1)}%</span>
+                    <div className="col-span-3 text-right">
+                      <span className="text-sm font-bold text-indigo-400">100.0%</span>
+                    </div>
+                    <div className="col-span-2 text-right">
+                      <span className="text-sm font-bold text-indigo-400">{formatCurrency(summary.netWorth)}</span>
+                    </div>
+                    <div className="col-span-2 text-right">
+                      <span className="text-sm font-bold text-green-400">{formatCurrency(summary.totalAssets)}</span>
+                    </div>
+                    <div className="col-span-2 text-right">
+                      <span className="text-sm font-bold text-red-400">
+                        {summary.liabilities.total > 0 ? `-${formatCurrency(summary.liabilities.total)}` : '$0'}
+                      </span>
                     </div>
                   </motion.div>
-                ))}
+                </div>
+
+                {/* Interactive hover hint */}
+                <div className="mt-3 text-center">
+                  <p className="text-xs text-gray-500 italic">Hover over rows to see detailed breakdown</p>
+                </div>
               </div>
-            </motion.div>
             
             {/* Net worth breakdown */}
             <motion.div 
@@ -961,6 +1178,14 @@ export default function Dashboard() {
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="text-lg font-semibold text-white">Liquidity Analysis</h3>
                   <Droplet className="h-5 w-5 text-blue-400" />
+                </div>
+                
+                {/* Total Assets Summary - New Addition */}
+                <div className="mb-4 p-3 bg-gray-700/50 rounded-lg">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium text-gray-300">Total Assets</span>
+                    <span className="text-xl font-bold text-white">{formatCurrency(totalAssets)}</span>
+                  </div>
                 </div>
                 
                 <div className="space-y-3">
