@@ -79,7 +79,7 @@ export default function Dashboard() {
   const [selectedTimeframe, setSelectedTimeframe] = useState('1m');
   const [selectedChartType, setSelectedChartType] = useState('value');
   const [showWelcomeBanner, setShowWelcomeBanner] = useState(true);
-  const [showInThousands, setShowInThousands] = useState(false);
+  const [showInThousands, setShowInThousands] = useState(true);
   const router = useRouter();
   
   // Get data from the store
@@ -221,7 +221,8 @@ export default function Dashboard() {
       style: 'currency',
       currency: 'USD',
       minimumFractionDigits: 0,
-      maximumFractionDigits: 0
+      maximumFractionDigits: 0,
+      useGrouping: true 
     }).format(value);
   };
   
@@ -328,6 +329,44 @@ export default function Dashboard() {
     return null;
   };
   
+  // Custom tooltip for asset chart
+  const AssetTooltip = ({ active, payload, label }) => {
+    if (active && payload && payload.length) {
+      const assetValue = payload.find(p => p.dataKey === 'totalAssets')?.value || 0;
+      const costBasis = payload.find(p => p.dataKey === 'costBasis')?.value || 0;
+      const unrealizedGain = assetValue - costBasis;
+      const unrealizedGainPercent = costBasis > 0 ? ((unrealizedGain / costBasis) * 100) : 0;
+
+      return (
+        <motion.div 
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="bg-gray-800 dark:bg-gray-800 p-3 border border-gray-700 dark:border-gray-700 rounded-lg shadow-lg text-white"
+        >
+          <p className="font-medium text-white mb-2">{label}</p>
+          <div className="space-y-1">
+            <p className="text-sm text-indigo-400 dark:text-indigo-400">
+              <span className="font-medium">Asset Value: </span> 
+              {formatCurrency(assetValue)}
+            </p>
+            <p className="text-sm text-emerald-400 dark:text-emerald-400">
+              <span className="font-medium">Cost Basis: </span> 
+              {formatCurrency(costBasis)}
+            </p>
+            <div className="border-t border-gray-600 mt-2 pt-2">
+              <p className={`text-sm font-medium ${unrealizedGain >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                <span>Unrealized: </span> 
+                {formatCurrency(unrealizedGain)} ({formatPercentage(unrealizedGainPercent)})
+              </p>
+            </div>
+          </div>
+        </motion.div>
+      );
+    }
+    return null;
+  };
+
+
   // Allocation Chart Tooltip
   const AllocationTooltip = ({ active, payload }) => {
     if (active && payload && payload.length) {
@@ -707,6 +746,110 @@ export default function Dashboard() {
               </div>
             </motion.div>
             
+            {/* Asset Value Chart - NEW */}
+            <motion.div 
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, delay: 0.25 }}
+              className="bg-gray-800 dark:bg-gray-900 rounded-xl shadow-md p-5"
+            >
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold text-white">Asset Value & Cost Basis</h3>
+                <div className="flex items-center space-x-2">
+                  <div className="flex items-center space-x-4 text-xs">
+                    <div className="flex items-center">
+                      <div className="w-3 h-3 rounded-full bg-indigo-500 mr-1"></div>
+                      <span className="text-gray-400">Asset Value</span>
+                    </div>
+                    <div className="flex items-center">
+                      <div className="w-3 h-3 rounded-full bg-emerald-500 mr-1"></div>
+                      <span className="text-gray-400">Cost Basis</span>
+                    </div>
+                  </div>
+                  <div className="text-sm text-gray-400">
+                    {selectedTimeframe.toUpperCase()}
+                  </div>
+                </div>
+              </div>
+              <div className="h-72">
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart
+                    data={chartData}
+                    margin={{ top: 5, right: 5, left: 5, bottom: 5 }}
+                  >
+                    <defs>
+                      <linearGradient id="colorAssets" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#4f46e5" stopOpacity={0.3} />
+                        <stop offset="95%" stopColor="#4f46e5" stopOpacity={0} />
+                      </linearGradient>
+                      <linearGradient id="colorBasis" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#10b981" stopOpacity={0.3} />
+                        <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
+                      </linearGradient>
+                    </defs>
+                    <XAxis 
+                      dataKey="date" 
+                      tick={{ fill: '#6b7280' }} 
+                      axisLine={{ stroke: '#374151' }}
+                      tickLine={false}
+                      dy={10}
+                    />
+                    <YAxis 
+                      tick={{ fill: '#6b7280' }}
+                      axisLine={false}
+                      tickLine={false}
+                      tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`}
+                      dx={-10}
+                    />
+                    <Tooltip content={<AssetTooltip />} />
+                    <CartesianGrid vertical={false} stroke="#374151" strokeDasharray="3 3" />
+                    <Area 
+                      type="monotone" 
+                      dataKey="totalAssets" 
+                      stroke="#4f46e5" 
+                      fill="url(#colorAssets)" 
+                      strokeWidth={2}
+                      activeDot={{ r: 6, strokeWidth: 0, fill: '#4f46e5' }}
+                    />
+                    <Area 
+                      type="monotone" 
+                      dataKey="costBasis" 
+                      stroke="#10b981" 
+                      fill="url(#colorBasis)" 
+                      strokeWidth={2}
+                      strokeDasharray="5 5"
+                    />
+                    {/* Reference line for starting asset value */}
+                    <ReferenceLine 
+                      y={chartData[0]?.totalAssets || 0} 
+                      stroke="#374151" 
+                      strokeDasharray="3 3" 
+                    />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </div>
+              
+              {/* Summary metrics below chart */}
+              <div className="mt-4 grid grid-cols-3 gap-4">
+                <div className="text-center">
+                  <p className="text-xs text-gray-400">Current Assets</p>
+                  <p className="text-lg font-semibold text-white">{formatCurrency(summary.totalAssets)}</p>
+                </div>
+                <div className="text-center">
+                  <p className="text-xs text-gray-400">Total Cost Basis</p>
+                  <p className="text-lg font-semibold text-white">{formatCurrency(summary.totalCostBasis)}</p>
+                </div>
+                <div className="text-center">
+                  <p className="text-xs text-gray-400">Unrealized Gain</p>
+                  <p className={`text-lg font-semibold ${summary.unrealizedGain >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                    {formatCurrency(summary.unrealizedGain)}
+                    <span className="text-xs ml-1">({formatPercentage(summary.unrealizedGainPercent * 100)})</span>
+                  </p>
+                </div>
+              </div>
+            </motion.div>
+
+
             {/* Asset Class Allocation Section */}
             <motion.div 
               initial={{ opacity: 0, y: 20 }}
@@ -1144,16 +1287,23 @@ export default function Dashboard() {
                 <div className="col-span-2 text-right">
                   <span className="text-sm text-white">
                     {showInThousands 
-                      ? `${(summary.altNetWorth.netOtherAssets / 1000).toFixed(1)}k`
+                      ? formatThousands(summary.altNetWorth.netOtherAssets)
                       : formatCurrency(summary.altNetWorth.netOtherAssets)
                     }
                   </span>
                 </div>
                 <div className="col-span-2 text-right">
                   <span className="text-sm text-gray-400">
+                    {/* Other Assets minus Real Estate assets to avoid double counting */}
                     {showInThousands 
-                      ? `${(summary.assetAllocation.otherAssets.value / 1000).toFixed(1)}k`
-                      : formatCurrency(summary.assetAllocation.otherAssets.value)
+                      ? formatThousands(
+                          (summary.assetAllocation.otherAssets.value || 0) - 
+                          ((summary.altNetWorth.realEstate || 0) + (summary.liabilities.mortgage || 0))
+                        )
+                      : formatCurrency(
+                          (summary.assetAllocation.otherAssets.value || 0) - 
+                          ((summary.altNetWorth.realEstate || 0) + (summary.liabilities.mortgage || 0))
+                        )
                     }
                   </span>
                 </div>
@@ -1165,7 +1315,7 @@ export default function Dashboard() {
                                             (summary.liabilities.creditCard || 0) - 
                                             (summary.liabilities.mortgage || 0);
                       return otherLiabilities > 0 
-                        ? (showInThousands ? `-${(otherLiabilities / 1000).toFixed(1)}k` : `-${formatCurrency(otherLiabilities)}`)
+                        ? (showInThousands ? `-${formatThousands(otherLiabilities)}` : `-${formatCurrency(otherLiabilities)}`)
                         : '$0';
                     })()}
                   </span>
