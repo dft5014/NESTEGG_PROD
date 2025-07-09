@@ -876,7 +876,9 @@ export default function Dashboard() {
           
           {/* Right column - Allocation & Details */}
           <div className="lg:col-span-4 space-y-4">
-            {/* Net Worth Mix */}
+           
+           
+           {/* Net Worth Mix */}
             <motion.div 
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
@@ -1108,6 +1110,10 @@ export default function Dashboard() {
                   <p className="text-xs text-gray-500 italic">Hover over rows to see detailed breakdown</p>
                 </div>
               </div>
+            </motion.div>
+
+
+
             
             {/* Net worth breakdown */}
             <motion.div 
