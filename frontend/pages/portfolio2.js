@@ -99,113 +99,109 @@ export default function Dashboard() {
     lastFetched
   } = usePortfolioSummary();
 
-
   // Get trend data
   const { trends } = usePortfolioTrends();
   
-    // Process chart data for visualization
-    const chartData = useMemo(() => {
+  // Process chart data for visualization
+  const chartData = useMemo(() => {
     if (!trends?.chartData || !Array.isArray(trends.chartData)) return [];
     
     return trends.chartData.map(day => ({
-        date: new Date(day.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-        value: day.netWorth,
-        totalAssets: day.totalAssets,
-        totalLiabilities: day.totalLiabilities,
-        costBasis: summary?.raw?.total_cost_basis || 0,
-        liquidAssets: day.liquidAssets
+      date: new Date(day.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+      value: day.netWorth,
+      totalAssets: day.totalAssets,
+      totalLiabilities: day.totalLiabilities,
+      costBasis: summary?.totalCostBasis || 0,
+      liquidAssets: day.liquidAssets
     }));
-    }, [trends?.chartData, summary]);
+  }, [trends?.chartData, summary]);
   
-    // Process Net Worth Mix data using alt_ fields
-    const netWorthMixData = useMemo(() => {
-    if (!summary?.raw) return [];
+  // Process Net Worth Mix data
+  const netWorthMixData = useMemo(() => {
+    if (!summary) return [];
     
-    const raw = summary.raw;
-    
-    // Use alt_ fields for net values and nw_ fields for percentages
     const mixData = [
-        {
+      {
         name: 'Securities',
-        value: parseFloat(raw.security_value) || 0,
-        percentage: parseFloat(raw.nw_securities_mix || 0) * 100,
+        value: summary.assetAllocation.securities.value,
+        percentage: summary.netWorthMix.securities * 100,
         color: assetColors.securities
-        },
-        {
+      },
+      {
         name: 'Net Cash',
-        value: parseFloat(raw.alt_net_worth_net_cash_value) || 0,
-        percentage: parseFloat(raw.nw_net_cash_mix || 0) * 100,
+        value: summary.altNetWorth.netCash,
+        percentage: summary.netWorthMix.netCash * 100,
         color: assetColors.cash
-        },
-        {
+      },
+      {
         name: 'Crypto',
-        value: parseFloat(raw.crypto_value) || 0,
-        percentage: parseFloat(raw.nw_crypto_mix || 0) * 100,
+        value: summary.assetAllocation.crypto.value,
+        percentage: summary.netWorthMix.crypto * 100,
         color: assetColors.crypto
-        },
-        {
+      },
+      {
         name: 'Metals',
-        value: parseFloat(raw.metal_value) || 0,
-        percentage: parseFloat(raw.nw_metals_mix || 0) * 100,
+        value: summary.assetAllocation.metals.value,
+        percentage: summary.netWorthMix.metals * 100,
         color: assetColors.metals
-        },
-        {
+      },
+      {
         name: 'Real Estate',
-        value: parseFloat(raw.alt_net_worth_value_real_estate) || 0,
-        percentage: parseFloat(raw.nw_real_estate_equity_mix || 0) * 100,
+        value: summary.altNetWorth.realEstate,
+        percentage: summary.netWorthMix.realEstateEquity * 100,
         color: assetColors.real_estate
-        },
-        {
+      },
+      {
         name: 'Other Assets',
-        value: parseFloat(raw.alt_net_worth_net_other_assets) || 0,
-        percentage: parseFloat(raw.nw_net_other_assets_mix || 0) * 100,
+        value: summary.altNetWorth.netOtherAssets,
+        percentage: summary.netWorthMix.netOtherAssets * 100,
         color: assetColors.other
-        }
+      }
     ].filter(item => item.value > 0 || item.percentage > 0);
     
     return mixData;
-    }, [summary]);
+  }, [summary]);
   
-    // Process sector allocation data
-    const sectorAllocationData = useMemo(() => {
+  // Process sector allocation data
+  const sectorAllocationData = useMemo(() => {
     if (!rawSectorAllocation || typeof rawSectorAllocation !== 'object') return [];
     
     return Object.entries(rawSectorAllocation)
-        .filter(([sector, data]) => data && data.value > 0)
-        .map(([sector, data]) => ({
+      .filter(([sector, data]) => data && data.value > 0)
+      .map(([sector, data]) => ({
         name: sector || 'Unknown',
         value: data.value,
         percentage: (data.percentage || 0) * 100,
         positionCount: data.position_count || 0
-        }))
-        .sort((a, b) => b.value - a.value);
-    }, [rawSectorAllocation]);
+      }))
+      .sort((a, b) => b.value - a.value);
+  }, [rawSectorAllocation]);
 
-    // Process institution mix data
-    const institutionMixData = useMemo(() => {
+  // Process institution mix data
+  const institutionMixData = useMemo(() => {
     if (!rawInstitutionAllocation || !Array.isArray(rawInstitutionAllocation)) return [];
     
     return rawInstitutionAllocation
-        .filter(inst => inst && inst.value > 0)
-        .map(inst => ({
+      .filter(inst => inst && inst.value > 0)
+      .map(inst => ({
         name: inst.institution,
         value: inst.value,
         percentage: inst.percentage || 0,
         accountCount: inst.account_count || 0,
         positionCount: inst.position_count || 0,
         color: inst.primary_color || '#6B7280'
-        }))
-        .sort((a, b) => b.value - a.value)
-        .slice(0, 5);
-    }, [rawInstitutionAllocation]);
+      }))
+      .sort((a, b) => b.value - a.value)
+      .slice(0, 5);
+  }, [rawInstitutionAllocation]);
 
-    // Process top positions data
-    const topPositionsData = useMemo(() => {
+  // Process top positions data
+  const topPositionsData = useMemo(() => {
     if (!topPositions || !Array.isArray(topPositions)) return [];
     
     return topPositions
-        .slice(0, 5)
-        .map(pos => ({
+      .slice(0, 5)
+      .map(pos => ({
         name: pos.name || pos.identifier,
         identifier: pos.identifier,
         value: pos.current_value || pos.value,
@@ -214,8 +210,8 @@ export default function Dashboard() {
         accountName: pos.account_name,
         assetType: pos.asset_type || 'security',
         percentage: pos.percentage || 0
-        }));
-    }, [topPositions]);
+      }));
+  }, [topPositions]);
   
   // Format utilities
   const formatCurrency = (value) => {
@@ -352,25 +348,90 @@ export default function Dashboard() {
     }
     return null;
   };
+
+  // Asset class card component
+  const AssetClassCard = ({ type, data, icon, colorClass }) => (
+    <motion.div 
+      whileHover={{ scale: 1.02, boxShadow: '0 8px 30px rgba(0,0,0,0.3)' }}
+      className="bg-gray-800/70 backdrop-blur-sm rounded-xl p-4 border border-gray-700 relative overflow-hidden hover:border-gray-600 transition-all duration-300"
+    >
+      <div className={`absolute top-0 right-0 w-24 h-24 rounded-full ${colorClass}/10 -mr-10 -mt-10`}></div>
+      <div className="flex items-center mb-2">
+        <motion.div 
+          whileHover={{ rotate: 360 }}
+          transition={{ duration: 0.5 }}
+          className={`${colorClass}/20 p-2 rounded-lg mr-3`}
+        >
+          {icon}
+        </motion.div>
+        <h3 className="text-lg font-semibold text-white">{data.name}</h3>
+      </div>
+      <div className="space-y-2">
+        <div>
+          <p className="text-sm text-gray-400">
+            {type === 'liability' ? 'Outstanding Balance' : 'Market Value'}
+          </p>
+          <p className="text-xl font-bold text-white">
+            {type === 'liability' ? '-' : ''}{formatCurrency(Math.abs(data.value))}
+          </p>
+          <p className="text-xs text-gray-500">
+            {data.percentage > 0 ? `${formatPercentage(data.percentage * 100)} of ${type === 'liability' ? 'liabilities' : 'portfolio'}` : 'No holdings'}
+          </p>
+        </div>
+        
+        {/* Show cost basis for assets and liabilities */}
+        {(type !== 'cash' || type === 'liability') && data.costBasis !== undefined && (
+          <div>
+            <p className="text-sm text-gray-400">
+              {type === 'liability' ? 'Original Amount' : 'Cost Basis'}
+            </p>
+            <p className="text-lg font-semibold text-white">{formatCurrency(data.costBasis)}</p>
+          </div>
+        )}
+        
+        {/* Show performance for non-cash assets */}
+        {type !== 'cash' && type !== 'liability' && data.gainLoss !== undefined && (
+          <div>
+            <p className="text-sm text-gray-400">Performance</p>
+            <p className={`text-lg font-semibold ${data.gainLoss >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+              {data.gainLoss >= 0 ? '+' : ''}{formatCurrency(data.gainLoss)}
+              {data.gainLossPercent !== undefined && (
+                <span className="text-sm ml-1">
+                  ({data.gainLossPercent >= 0 ? '+' : ''}{formatPercentage(data.gainLossPercent * 100)})
+                </span>
+              )}
+            </p>
+          </div>
+        )}
+        
+        {/* Show count if available */}
+        {data.count !== undefined && data.count > 0 && (
+          <p className="text-xs text-gray-500 mt-1">
+            {data.count} {type === 'liability' ? 'liabilities' : 'positions'}
+          </p>
+        )}
+      </div>
+    </motion.div>
+  );
   
   // Dashboard Display Component
   const DashboardContent = () => {
     if (!summary) return null;
     
     // Extract data from processed summary
-    const totalAssets = summary.totalAssets || 0;
-    const totalLiabilities = summary.totalLiabilities || 0;
-    const netWorth = summary.netWorth || 0;
-    const totalCostBasis = summary.raw?.total_cost_basis || 0;
-    const unrealizedGain = summary.unrealizedGain || 0;
-    const unrealizedGainPercent = summary.unrealizedGainPercent || 0;
-    const annualIncome = summary.annualIncome || 0;
-    const yieldPercentage = summary.yieldPercentage || 0;
-    const liquidAssets = summary.liquidAssets || 0;
-    const otherAssets = summary.raw?.other_assets_value || 0;
+    const totalAssets = summary.totalAssets;
+    const totalLiabilities = summary.liabilities.total;
+    const netWorth = summary.netWorth;
+    const totalCostBasis = summary.totalCostBasis;
+    const unrealizedGain = summary.unrealizedGain;
+    const unrealizedGainPercent = summary.unrealizedGainPercent;
+    const annualIncome = summary.income.annual;
+    const yieldPercentage = summary.income.yield;
+    const liquidAssets = summary.liquidAssets;
+    const otherAssets = summary.otherAssets;
     
     // Get period changes
-    const periodChanges = summary.periodChanges || {};
+    const periodChanges = summary.periodChanges;
     
     // Time period badge component
     const TimePeriodBadge = ({ label, change, changePercent }) => (
@@ -390,53 +451,6 @@ export default function Dashboard() {
             ) : null}
             {formatPercentage(changePercent?.netWorthPercent || 0)}
           </span>
-        </div>
-      </motion.div>
-    );
-
-    // Asset class card component
-    const AssetClassCard = ({ type, data, icon, colorClass }) => (
-      <motion.div 
-        whileHover={{ scale: 1.02, boxShadow: '0 8px 30px rgba(0,0,0,0.3)' }}
-        className="bg-gray-800/70 backdrop-blur-sm rounded-xl p-4 border border-gray-700 relative overflow-hidden hover:border-gray-600 transition-all duration-300"
-      >
-        <div className={`absolute top-0 right-0 w-24 h-24 rounded-full ${colorClass}/10 -mr-10 -mt-10`}></div>
-        <div className="flex items-center mb-2">
-          <motion.div 
-            whileHover={{ rotate: 360 }}
-            transition={{ duration: 0.5 }}
-            className={`${colorClass}/20 p-2 rounded-lg mr-3`}
-          >
-            {icon}
-          </motion.div>
-          <h3 className="text-lg font-semibold text-white">{data.name}</h3>
-        </div>
-        <div className="space-y-2">
-          <div>
-            <p className="text-sm text-gray-400">Market Value</p>
-            <p className="text-xl font-bold text-white">{formatCurrency(data.value)}</p>
-            <p className="text-xs text-gray-500">{formatPercentage(data.percentage * 100)} of portfolio</p>
-          </div>
-          {type !== 'cash' && type !== 'other' && (
-            <>
-              <div>
-                <p className="text-sm text-gray-400">Cost Basis</p>
-                <p className="text-lg font-semibold text-white">{formatCurrency(data.costBasis)}</p>
-              </div>
-              <div>
-                <p className="text-sm text-gray-400">Performance</p>
-                <p className={`text-lg font-semibold ${data.gain_loss >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                  {data.gain_loss >= 0 ? '+' : ''}{formatCurrency(data.gain_loss)}
-                  <span className="text-sm ml-1">
-                    ({data.gain_loss >= 0 ? '+' : ''}{formatPercentage(data.gain_loss_percent * 100)})
-                  </span>
-                </p>
-              </div>
-            </>
-          )}
-          {data.count > 0 && (
-            <p className="text-xs text-gray-500 mt-1">{data.count} positions</p>
-          )}
         </div>
       </motion.div>
     );
@@ -656,194 +670,78 @@ export default function Dashboard() {
             >
               <h2 className="text-lg font-semibold mb-4 text-white">Asset Allocation</h2>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                {/* Securities */}
-                {summary.assetAllocation?.securities && (
-                  <AssetClassCard
-                    type="security"
-                    data={{
-                      ...summary.assetAllocation.securities,
-                      name: 'Securities'
-                    }}
-                    icon={<LineChart className="h-5 w-5 text-blue-400" />}
-                    colorClass="bg-blue-500"
-                  />
-                )}
+                {/* Securities - Always show */}
+                <AssetClassCard
+                  type="security"
+                  data={{
+                    ...summary.assetAllocation.securities,
+                    name: 'Securities'
+                  }}
+                  icon={<LineChart className="h-5 w-5 text-blue-400" />}
+                  colorClass="bg-blue-500"
+                />
                 
-                {/* Cash */}
-                {summary.assetAllocation?.cash && (
-                  <AssetClassCard
-                    type="cash"
-                    data={{
-                      ...summary.assetAllocation.cash,
-                      name: 'Cash'
-                    }}
-                    icon={<Banknote className="h-5 w-5 text-green-400" />}
-                    colorClass="bg-green-500"
-                  />
-                )}
+                {/* Cash - Always show */}
+                <AssetClassCard
+                  type="cash"
+                  data={{
+                    ...summary.assetAllocation.cash,
+                    name: 'Cash'
+                  }}
+                  icon={<Banknote className="h-5 w-5 text-green-400" />}
+                  colorClass="bg-green-500"
+                />
 
-                {/* Crypto */}
-                {summary.assetAllocation?.crypto && (
-                  <AssetClassCard
-                    type="crypto"
-                    data={{
-                      ...summary.assetAllocation.crypto,
-                      name: 'Crypto'
-                    }}
-                    icon={<Coins className="h-5 w-5 text-purple-400" />}
-                    colorClass="bg-purple-500"
-                  />
-                )}
+                {/* Crypto - Always show */}
+                <AssetClassCard
+                  type="crypto"
+                  data={{
+                    ...summary.assetAllocation.crypto,
+                    name: 'Crypto'
+                  }}
+                  icon={<Coins className="h-5 w-5 text-purple-400" />}
+                  colorClass="bg-purple-500"
+                />
 
-                {/* Metals */}
-                {summary.assetAllocation?.metals && summary.assetAllocation.metals.value > 0 && (
-                  <AssetClassCard
-                    type="metal"
-                    data={{
-                      ...summary.assetAllocation.metals,
-                      name: 'Metals'
-                    }}
-                    icon={<Package className="h-5 w-5 text-amber-400" />}
-                    colorClass="bg-amber-500"
-                  />
-                )}
+                {/* Metals - Always show */}
+                <AssetClassCard
+                  type="metal"
+                  data={{
+                    ...summary.assetAllocation.metals,
+                    name: 'Metals'
+                  }}
+                  icon={<Package className="h-5 w-5 text-amber-400" />}
+                  colorClass="bg-amber-500"
+                />
 
-                {/* Other Assets */}
-                {summary.assetAllocation?.other && summary.assetAllocation.other.value > 0 && (
+                {/* Other Assets - Always show */}
+                <AssetClassCard
+                  type="other"
+                  data={{
+                    ...summary.assetAllocation.otherAssets,
+                    name: 'Other Assets'
+                  }}
+                  icon={<Home className="h-5 w-5 text-red-400" />}
+                  colorClass="bg-red-500"
+                />
+
+                {/* Liabilities - Show as a card if any exist */}
+                {summary.liabilities.total > 0 && (
                   <AssetClassCard
-                    type="other"
+                    type="liability"
                     data={{
-                      ...summary.assetAllocation.other,
-                      name: 'Other Assets'
+                      value: summary.liabilities.total,
+                      percentage: summary.ratios.debtToAssetRatio,
+                      costBasis: summary.liabilities.total,
+                      count: summary.liabilities.counts.total,
+                      name: 'Total Liabilities'
                     }}
-                    icon={<Home className="h-5 w-5 text-red-400" />}
+                    icon={<MinusCircle className="h-5 w-5 text-red-400" />}
                     colorClass="bg-red-500"
                   />
                 )}
               </div>
             </motion.div>
-
-            {/* Other Assets and Liabilities Section */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* Other Assets Card */}
-              {otherAssets > 0 && (
-                <motion.div 
-                  initial={{ opacity: 0, x: -20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ duration: 0.5, delay: 0.4 }}
-                  className="bg-gray-800 dark:bg-gray-900 rounded-xl shadow-md p-5"
-                >
-                  <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-lg font-semibold text-white flex items-center">
-                      <Home className="h-5 w-5 text-red-400 mr-2" />
-                      Other Assets
-                    </h3>
-                    <span className="text-lg font-bold text-red-400">
-                      {formatCurrency(otherAssets)}
-                    </span>
-                  </div>
-                  
-                  <div className="space-y-3">
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm text-gray-400">Total Value</span>
-                      <span className="text-white font-medium">{formatCurrency(otherAssets)}</span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm text-gray-400">Cost Basis</span>
-                      <span className="text-white font-medium">{formatCurrency(summary.raw?.other_assets_cost_basis || 0)}</span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm text-gray-400">Gain/Loss</span>
-                      <span className={`font-medium ${summary.raw?.other_assets_gain_loss >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                        {formatCurrency(summary.raw?.other_assets_gain_loss || 0)}
-                        <span className="text-xs ml-1">
-                          ({formatPercentage((summary.raw?.other_assets_gain_loss_percent || 0) * 100)})
-                        </span>
-                      </span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm text-gray-400">Count</span>
-                      <span className="text-white font-medium">{summary.raw?.other_assets_count || 0}</span>
-                    </div>
-                    <div className="pt-2 mt-2 border-t border-gray-700">
-                      <p className="text-xs text-gray-500">
-                        {formatPercentage((otherAssets / totalAssets) * 100)} of total assets
-                      </p>
-                    </div>
-                  </div>
-                </motion.div>
-              )}
-
-              {/* Liabilities Card */}
-              {totalLiabilities > 0 && (
-                <motion.div 
-                  initial={{ opacity: 0, x: 20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ duration: 0.5, delay: 0.4 }}
-                  className="bg-gray-800 dark:bg-gray-900 rounded-xl shadow-md p-5"
-                >
-                  <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-lg font-semibold text-white flex items-center">
-                      <MinusCircle className="h-5 w-5 text-red-400 mr-2" />
-                      Liabilities
-                    </h3>
-                    <span className="text-lg font-bold text-red-400">
-                      -{formatCurrency(totalLiabilities)}
-                    </span>
-                  </div>
-                  
-                  <div className="space-y-3">
-                    {/* Liability breakdown */}
-                    {summary.raw?.credit_card_liabilities > 0 && (
-                      <div className="flex justify-between items-center">
-                        <div className="flex items-center">
-                          <CreditCard className="h-4 w-4 text-red-400 mr-2" />
-                          <span className="text-sm text-gray-300">Credit Cards</span>
-                        </div>
-                        <span className="text-white font-medium">{formatCurrency(summary.raw.credit_card_liabilities)}</span>
-                      </div>
-                    )}
-                    {summary.raw?.mortgage_liabilities > 0 && (
-                      <div className="flex justify-between items-center">
-                        <div className="flex items-center">
-                          <Home className="h-4 w-4 text-orange-400 mr-2" />
-                          <span className="text-sm text-gray-300">Mortgage</span>
-                        </div>
-                        <span className="text-white font-medium">{formatCurrency(summary.raw.mortgage_liabilities)}</span>
-                      </div>
-                    )}
-                    {summary.raw?.loan_liabilities > 0 && (
-                      <div className="flex justify-between items-center">
-                        <div className="flex items-center">
-                          <FileText className="h-4 w-4 text-yellow-400 mr-2" />
-                          <span className="text-sm text-gray-300">Loans</span>
-                        </div>
-                        <span className="text-white font-medium">{formatCurrency(summary.raw.loan_liabilities)}</span>
-                      </div>
-                    )}
-                    {summary.raw?.other_liabilities_value > 0 && (
-                      <div className="flex justify-between items-center">
-                        <div className="flex items-center">
-                          <AlertCircle className="h-4 w-4 text-gray-400 mr-2" />
-                          <span className="text-sm text-gray-300">Other</span>
-                        </div>
-                        <span className="text-white font-medium">{formatCurrency(summary.raw.other_liabilities_value)}</span>
-                      </div>
-                    )}
-                    
-                    {/* Debt to Asset Ratio */}
-                    <div className="pt-3 mt-3 border-t border-gray-700">
-                      <div className="flex justify-between items-center">
-                        <span className="text-sm text-gray-400">Debt to Asset Ratio</span>
-                        <span className={`font-medium ${(riskMetrics?.debt_to_asset_ratio || 0) < 0.3 ? 'text-green-400' : (riskMetrics?.debt_to_asset_ratio || 0) < 0.5 ? 'text-yellow-400' : 'text-red-400'}`}>
-                          {formatPercentage((riskMetrics?.debt_to_asset_ratio || 0) * 100)}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                </motion.div>
-              )}
-            </div>
 
             {/* Portfolio Insights with Risk Metrics */}
             <motion.div 
@@ -863,7 +761,7 @@ export default function Dashboard() {
                   <div className="flex justify-between items-center p-3 rounded-lg bg-gray-700 dark:bg-gray-750">
                     <div>
                       <span className="text-xs text-gray-300 dark:text-gray-400">Total Positions</span>
-                      <p className="font-medium text-white dark:text-white">{summary.raw?.total_position_count || 0}</p>
+                      <p className="font-medium text-white dark:text-white">{summary.positionStats.totalCount}</p>
                     </div>
                     <Layers className="h-5 w-5 text-indigo-400" />
                   </div>
@@ -871,7 +769,7 @@ export default function Dashboard() {
                   <div className="flex justify-between items-center p-3 rounded-lg bg-gray-700 dark:bg-gray-750">
                     <div>
                       <span className="text-xs text-gray-300 dark:text-gray-400">Active Accounts</span>
-                      <p className="font-medium text-white dark:text-white">{summary.raw?.active_account_count || 0}</p>
+                      <p className="font-medium text-white dark:text-white">{summary.positionStats.activeAccountCount}</p>
                     </div>
                     <Briefcase className="h-5 w-5 text-indigo-400" />
                   </div>
@@ -933,7 +831,7 @@ export default function Dashboard() {
           
           {/* Right column - Allocation & Details */}
           <div className="lg:col-span-4 space-y-4">
-            {/* Net Worth Mix - Updated to use alt_ fields */}
+            {/* Net Worth Mix */}
             <motion.div 
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
@@ -1239,135 +1137,135 @@ export default function Dashboard() {
               <motion.div 
                 initial={{ opacity: 0, x: 20 }}
                 animate={{ opacity: 1, x: 0 }}
-               transition={{ duration: 0.5, delay: 0.6 }}
-               className="bg-gray-800 dark:bg-gray-900 rounded-xl shadow-md p-5"
-             >
-               <div className="flex items-center justify-between mb-4">
-                 <h3 className="text-lg font-semibold text-white">Sector Breakdown</h3>
-                 <PieChartIcon className="h-5 w-5 text-indigo-400" />
-               </div>
-               
-               <div className="space-y-2">
-                 {sectorAllocationData.map((sector, index) => (
-                   <motion.div 
-                     key={index} 
-                     className="flex items-center justify-between hover:bg-gray-700/50 p-1 rounded transition-colors"
-                     whileHover={{ x: 2 }}
-                   >
-                     <div className="flex items-center flex-1">
-                       <div 
-                         className="h-2 w-2 rounded-full mr-2" 
-                         style={{ backgroundColor: sectorColors[sector.name] || sectorColors.Other }}
-                       />
-                       <span className="text-xs text-gray-300">{sector.name}</span>
-                     </div>
-                     <div className="flex items-center space-x-2">
-                       <span className="text-xs text-gray-500">{sector.positionCount} pos</span>
-                       <span className="text-xs font-medium text-white w-12 text-right">
-                         {sector.percentage.toFixed(1)}%
-                       </span>
-                     </div>
-                   </motion.div>
-                 ))}
-               </div>
-             </motion.div>
-           )}
-         </div>
-       </div>
-     </div>
-   );
- };
+                transition={{ duration: 0.5, delay: 0.6 }}
+                className="bg-gray-800 dark:bg-gray-900 rounded-xl shadow-md p-5"
+              >
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-semibold text-white">Sector Breakdown</h3>
+                  <PieChartIcon className="h-5 w-5 text-indigo-400" />
+                </div>
+                
+                <div className="space-y-2">
+                  {sectorAllocationData.map((sector, index) => (
+                    <motion.div 
+                      key={index} 
+                      className="flex items-center justify-between hover:bg-gray-700/50 p-1 rounded transition-colors"
+                      whileHover={{ x: 2 }}
+                    >
+                      <div className="flex items-center flex-1">
+                        <div 
+                          className="h-2 w-2 rounded-full mr-2" 
+                          style={{ backgroundColor: sectorColors[sector.name] || sectorColors.Other }}
+                        />
+                        <span className="text-xs text-gray-300">{sector.name}</span>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <span className="text-xs text-gray-500">{sector.positionCount} pos</span>
+                        <span className="text-xs font-medium text-white w-12 text-right">
+                          {sector.percentage.toFixed(1)}%
+                        </span>
+                      </div>
+                    </motion.div>
+                  ))}
+                </div>
+              </motion.div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  };
 
- // Loading State
- if (isLoading && !summary) {
-   return (
-     <div className="min-h-screen flex flex-col justify-center items-center bg-gradient-to-br from-gray-900 to-gray-800 dark:from-gray-900 dark:to-gray-800">
-       <motion.div
-         animate={{ rotate: 360 }}
-         transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-         className="w-16 h-16 border-4 border-indigo-500 border-t-transparent rounded-full"
-       />
-       <motion.p 
-         initial={{ opacity: 0 }}
-         animate={{ opacity: 1 }}
-         transition={{ delay: 0.5 }}
-         className="mt-4 text-gray-300 dark:text-gray-300"
-       >
-         Loading your financial dashboard...
-       </motion.p>
-     </div>
-   );
- }
- 
- // Error State
- if (error && !summary) {
-   return (
-     <div className="min-h-screen flex flex-col justify-center items-center bg-gradient-to-br from-gray-900 to-gray-800 dark:from-gray-900 dark:to-gray-800 p-4">
-       <motion.div 
-         initial={{ scale: 0 }}
-         animate={{ scale: 1 }}
-         transition={{ type: "spring", stiffness: 260, damping: 20 }}
-         className="text-red-500 dark:text-red-400 mb-4"
-       >
-         <AlertCircle size={48} />
-       </motion.div>
-       <h1 className="text-2xl font-bold text-white dark:text-white mb-2">Unable to Load Dashboard</h1>
-       <p className="text-gray-300 dark:text-gray-300 mb-6 text-center max-w-md">{error}</p>
-       <motion.button 
-         whileHover={{ scale: 1.05 }}
-         whileTap={{ scale: 0.95 }}
-         onClick={refreshData}
-         className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
-       >
-         Retry
-       </motion.button>
-     </div>
-   );
- }
- 
- return (
-   <div className="min-h-screen bg-gradient-to-br from-gray-900 to-blue-900 text-white transition-colors duration-200">
-     <Head>
-       <title>NestEgg | Financial Dashboard</title>
-       <meta name="description" content="Your personal financial dashboard" />
-       <link rel="icon" href="/favicon.ico" />
-     </Head>
+  // Loading State
+  if (isLoading && !summary) {
+    return (
+      <div className="min-h-screen flex flex-col justify-center items-center bg-gradient-to-br from-gray-900 to-gray-800 dark:from-gray-900 dark:to-gray-800">
+        <motion.div
+          animate={{ rotate: 360 }}
+          transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+          className="w-16 h-16 border-4 border-indigo-500 border-t-transparent rounded-full"
+        />
+        <motion.p 
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.5 }}
+          className="mt-4 text-gray-300 dark:text-gray-300"
+        >
+          Loading your financial dashboard...
+        </motion.p>
+      </div>
+    );
+  }
+  
+  // Error State
+  if (error && !summary) {
+    return (
+      <div className="min-h-screen flex flex-col justify-center items-center bg-gradient-to-br from-gray-900 to-gray-800 dark:from-gray-900 dark:to-gray-800 p-4">
+        <motion.div 
+          initial={{ scale: 0 }}
+          animate={{ scale: 1 }}
+          transition={{ type: "spring", stiffness: 260, damping: 20 }}
+          className="text-red-500 dark:text-red-400 mb-4"
+        >
+          <AlertCircle size={48} />
+        </motion.div>
+        <h1 className="text-2xl font-bold text-white dark:text-white mb-2">Unable to Load Dashboard</h1>
+        <p className="text-gray-300 dark:text-gray-300 mb-6 text-center max-w-md">{error}</p>
+        <motion.button 
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
+          onClick={refreshData}
+          className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
+        >
+          Retry
+        </motion.button>
+      </div>
+    );
+  }
+  
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-gray-900 to-blue-900 text-white transition-colors duration-200">
+      <Head>
+        <title>NestEgg | Financial Dashboard</title>
+        <meta name="description" content="Your personal financial dashboard" />
+        <link rel="icon" href="/favicon.ico" />
+      </Head>
 
-     <main className="container mx-auto px-4 py-8">
-       {/* Welcome Banner */}
-       <AnimatePresence>
-         {showWelcomeBanner && (
-           <motion.div 
-             initial={{ opacity: 0, y: -20 }}
-             animate={{ opacity: 1, y: 0 }}
-             exit={{ opacity: 0, y: -20 }}
-             className="relative bg-gradient-to-r from-indigo-500 to-blue-600 rounded-2xl p-0.5 mb-6 shadow-2xl"
-           >
-             <div className="bg-gray-900 rounded-2xl p-4 md:p-5 relative overflow-hidden">
-               {/* Animated background pattern */}
-               <div className="absolute inset-0 opacity-10">
-                 <div className="absolute inset-0 bg-gradient-to-r from-blue-500/20 via-purple-500/20 to-blue-500/20"></div>
-               </div>
-               
-               {/* Close button in top right */}
-               <button 
-                 onClick={() => setShowWelcomeBanner(false)}
-                 className="absolute top-3 right-3 z-10 p-1.5 bg-gray-800/80 rounded-lg text-gray-400 hover:text-white hover:bg-gray-700/80 transition-all duration-200"
-               >
-                 <X size={16} />
-               </button>
-               
-               <div className="relative z-10">
-                 <div className="flex items-center space-x-3 mb-3">
-                   <motion.div
-                     animate={{ rotate: [0, 10, -10, 0] }}
-                     transition={{ duration: 4, repeat: Infinity }}
-                     className="p-2 bg-gradient-to-br from-blue-400 to-indigo-600 rounded-xl shadow-lg"
-                   >
-                     <Sparkles className="w-5 h-5 text-white" />
-                   </motion.div>
-                   <div className="pr-8">
-                     <h1 className="text-lg md:text-xl font-bold text-white">
+      <main className="container mx-auto px-4 py-8">
+        {/* Welcome Banner */}
+        <AnimatePresence>
+          {showWelcomeBanner && (
+            <motion.div 
+              initial={{ opacity: 0, y: -20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              className="relative bg-gradient-to-r from-indigo-500 to-blue-600 rounded-2xl p-0.5 mb-6 shadow-2xl"
+            >
+              <div className="bg-gray-900 rounded-2xl p-4 md:p-5 relative overflow-hidden">
+                {/* Animated background pattern */}
+                <div className="absolute inset-0 opacity-10">
+                  <div className="absolute inset-0 bg-gradient-to-r from-blue-500/20 via-purple-500/20 to-blue-500/20"></div>
+                </div>
+                
+                {/* Close button in top right */}
+                <button 
+                  onClick={() => setShowWelcomeBanner(false)}
+                  className="absolute top-3 right-3 z-10 p-1.5 bg-gray-800/80 rounded-lg text-gray-400 hover:text-white hover:bg-gray-700/80 transition-all duration-200"
+                >
+                  <X size={16} />
+                </button>
+                
+                <div className="relative z-10">
+                  <div className="flex items-center space-x-3 mb-3">
+                    <motion.div
+                      animate={{ rotate: [0, 10, -10, 0] }}
+                      transition={{ duration: 4, repeat: Infinity }}
+                      className="p-2 bg-gradient-to-br from-blue-400 to-indigo-600 rounded-xl shadow-lg"
+                    >
+                      <Sparkles className="w-5 h-5 text-white" />
+                    </motion.div>
+                    <div className="pr-8">
+                      <h1 className="text-lg md:text-xl font-bold text-white">
                        Welcome to NestEgg - Your Financial Command Center 🚀
                      </h1>
                      <p className="text-gray-400 text-sm mt-0.5">
