@@ -85,18 +85,23 @@ export default function Dashboard() {
   const {
     summary,
     topPositions,
+    topPerformersAmount,  // Add this
+    topPerformersPercent, // Add this
+    accountDiversification,
+    assetPerformance,     // This is assetPerformanceDetail from the store
     sectorAllocation: rawSectorAllocation,
     institutionAllocation: rawInstitutionAllocation,
-    accountDiversification,
-    assetPerformance,
     riskMetrics,
     concentrationMetrics,
     dividendMetrics,
+    taxEfficiencyMetrics, // Add this if you want to use it
     history,
     loading: isLoading,
     error,
     refresh: refreshData,
-    lastFetched
+    lastFetched,
+    isStale,             // Add this
+    markStale            // Add this
   } = usePortfolioSummary();
 
   // Get trend data
@@ -529,6 +534,17 @@ export default function Dashboard() {
   const DashboardContent = () => {
     if (!summary) return null;
     
+      // Add this debug section
+    console.log('Debug - Full summary:', summary);
+    console.log('Debug - topPositions:', topPositions);
+    console.log('Debug - accountDiversification:', accountDiversification);
+    console.log('Debug - assetPerformance:', assetPerformance);
+    console.log('Debug - Raw data from store:', {
+      topLiquidPositions: portfolioSummary.topLiquidPositions,
+      accountDiversification: portfolioSummary.accountDiversification,
+      assetPerformanceDetail: portfolioSummary.assetPerformanceDetail
+  });
+
     // Extract data from processed summary
     const totalAssets = summary.totalAssets;
     const totalLiabilities = summary.liabilities.total;
@@ -2113,6 +2129,47 @@ export default function Dashboard() {
            <span>Settings</span>
          </motion.button>
        </div>
+
+
+    {/* Debug Panel - Remove this in production */}
+    <motion.div 
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="mt-8 bg-gray-800 rounded-xl p-6"
+    >
+      <h3 className="text-lg font-semibold text-white mb-4">🔍 Debug Data</h3>
+      
+      <div className="space-y-4">
+        <div>
+          <h4 className="text-sm font-medium text-gray-400 mb-2">Top Positions Data:</h4>
+          <pre className="bg-gray-900 p-3 rounded text-xs text-gray-300 overflow-auto max-h-48">
+            {JSON.stringify(topPositions, null, 2)}
+          </pre>
+        </div>
+        
+        <div>
+          <h4 className="text-sm font-medium text-gray-400 mb-2">Account Diversification Data:</h4>
+          <pre className="bg-gray-900 p-3 rounded text-xs text-gray-300 overflow-auto max-h-48">
+            {JSON.stringify(accountDiversification, null, 2)}
+          </pre>
+        </div>
+        
+        <div>
+          <h4 className="text-sm font-medium text-gray-400 mb-2">Asset Performance Detail:</h4>
+          <pre className="bg-gray-900 p-3 rounded text-xs text-gray-300 overflow-auto max-h-48">
+            {JSON.stringify(assetPerformance, null, 2)}
+          </pre>
+        </div>
+        
+        <div>
+          <h4 className="text-sm font-medium text-gray-400 mb-2">Period Changes:</h4>
+          <pre className="bg-gray-900 p-3 rounded text-xs text-gray-300 overflow-auto max-h-48">
+            {JSON.stringify(summary?.periodChanges, null, 2)}
+          </pre>
+        </div>
+      </div>
+    </motion.div>
+
      </main>
    </div>
  );
