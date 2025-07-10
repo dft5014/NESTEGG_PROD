@@ -2,6 +2,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import Head from 'next/head';
 import { useRouter } from 'next/router';
+import { useDataStore } from '@/store/DataStore';
 import { 
   AreaChart, Area, BarChart, Bar, PieChart, Pie, LineChart, Line,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell, ReferenceLine
@@ -80,6 +81,7 @@ export default function Dashboard() {
   const [showWelcomeBanner, setShowWelcomeBanner] = useState(true);
   const [showInThousands, setShowInThousands] = useState(true);
   const router = useRouter();
+  const { state } = useDataStore();
   
   // Get data from the store
   const {
@@ -534,16 +536,18 @@ export default function Dashboard() {
   const DashboardContent = () => {
     if (!summary) return null;
     
-      // Add this debug section
+    // Fixed debug section
     console.log('Debug - Full summary:', summary);
     console.log('Debug - topPositions:', topPositions);
     console.log('Debug - accountDiversification:', accountDiversification);
     console.log('Debug - assetPerformance:', assetPerformance);
+    
+    // If you need raw state, use it like this:
     console.log('Debug - Raw data from store:', {
-      topLiquidPositions: portfolioSummary.topLiquidPositions,
-      accountDiversification: portfolioSummary.accountDiversification,
-      assetPerformanceDetail: portfolioSummary.assetPerformanceDetail
-  });
+      topLiquidPositions: state.portfolioSummary.topLiquidPositions,
+      accountDiversification: state.portfolioSummary.accountDiversification,
+      assetPerformanceDetail: state.portfolioSummary.assetPerformanceDetail
+    });
 
     // Extract data from processed summary
     const totalAssets = summary.totalAssets;
