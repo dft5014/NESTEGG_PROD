@@ -235,7 +235,7 @@ export default function Dashboard() {
   };
   
   const formatPercentage = (value) => {
-    if (value === null || value === undefined) return '-';
+    if (value === null || value === undefined || isNaN(value)) return '0%';
     return `${value > 0 ? '+' : ''}${value.toFixed(2)}%`;
   };
   
@@ -587,17 +587,19 @@ export default function Dashboard() {
                     <p className="text-sm text-gray-300">Net Worth</p>
                   </div>
                   <h3 className="text-2xl font-bold mt-1 text-white">{formatCurrency(netWorth)}</h3>
-                  <div className="flex items-center mt-1">
-                    {periodChanges['1d']?.netWorthPercent > 0 ? (
-                      <ArrowUp className="h-4 w-4 text-green-500" />
-                    ) : periodChanges['1d']?.netWorthPercent < 0 ? (
-                      <ArrowDown className="h-4 w-4 text-red-500" />
-                    ) : null}
-                    <span className={`text-sm ml-1 ${periodChanges['1d']?.netWorthPercent > 0 ? 'text-green-500' : periodChanges['1d']?.netWorthPercent < 0 ? 'text-red-500' : 'text-gray-400'}`}>
-                      {(formatPercentage(periodChanges['1d']?.netWorthPercent || 0)* 100)}
-                    </span>
-                    <span className="text-xs text-gray-400 ml-1">Today</span>
-                  </div>
+                    <div className="flex items-center mt-1">
+                      {(periodChanges['1d']?.netWorthPercent || 0) > 0 ? (
+                        <ArrowUp className="h-4 w-4 text-green-500" />
+                      ) : (periodChanges['1d']?.netWorthPercent || 0) < 0 ? (
+                        <ArrowDown className="h-4 w-4 text-red-500" />
+                      ) : null}
+                      <span className={`text-sm ml-1 ${(periodChanges['1d']?.netWorthPercent || 0) > 0 ? 'text-green-500' : (periodChanges['1d']?.netWorthPercent || 0) < 0 ? 'text-red-500' : 'text-gray-400'}`}>
+                        {periodChanges['1d']?.netWorthPercent !== null && periodChanges['1d']?.netWorthPercent !== undefined 
+                          ? formatPercentage(periodChanges['1d'].netWorthPercent * 100)
+                          : 'N/A'
+                        } Today
+                      </span>
+                    </div>
                 </div>
                 
                 {/* Total Assets */}
