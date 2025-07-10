@@ -400,13 +400,13 @@ export default function Dashboard() {
   // Asset class card component
   const AssetClassCard = ({ type, data, icon, colorClass }) => {
     // Get performance data for different periods
-    const performanceData = {
-      '1D': data.performance?.['1d']?.changePercent || 0,
-      '1W': data.performance?.['1w']?.changePercent || 0,
-      '1M': data.performance?.['1m']?.changePercent || 0,
-      'YTD': data.performance?.['ytd']?.changePercent || 0,
-      '1Y': data.performance?.['1y']?.changePercent || 0,
-    };
+      const performanceData = {
+        '1D': data.daily?.percent_change || 0,
+        '1W': data.weekly?.percent_change || 0,
+        '1M': data.monthly?.percent_change || 0,
+        'YTD': data.ytd?.percent_change || 0,
+        '1Y': data.yearly?.percent_change || 0,
+      };
 
     return (
       <motion.div 
@@ -475,7 +475,7 @@ export default function Dashboard() {
 
           {/* Performance Timeline - Right Side */}
           {type !== 'liability' && (
-            <div className="ml-4 flex flex-col space-y-1.5 min-w-[80px]">
+            <div className="ml-4 flex-col space-y-1.5 min-w-[80px] hidden sm:flex">
               <div className="text-xs font-medium text-gray-500 mb-1 text-right">Performance</div>
               {Object.entries(performanceData).map(([period, value]) => (
                 <motion.div 
@@ -500,6 +500,24 @@ export default function Dashboard() {
                   </motion.span>
                 </motion.div>
               ))}
+            </div>
+          )}
+
+          {/* Mobile Performance - Show below main content */}
+          {type !== 'liability' && (
+            <div className="mt-3 pt-3 border-t border-gray-700 flex sm:hidden">
+              <div className="flex flex-wrap gap-2 w-full">
+                {Object.entries(performanceData).map(([period, value]) => (
+                  <div key={period} className="flex items-center space-x-1">
+                    <span className="text-xs text-gray-500">{period}:</span>
+                    <span className={`text-xs font-medium ${
+                      value > 0 ? 'text-green-400' : value < 0 ? 'text-red-400' : 'text-gray-400'
+                    }`}>
+                      {value > 0 ? '+' : ''}{value.toFixed(1)}%
+                    </span>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
         </div>
@@ -576,7 +594,7 @@ export default function Dashboard() {
                       <ArrowDown className="h-4 w-4 text-red-500" />
                     ) : null}
                     <span className={`text-sm ml-1 ${periodChanges['1d']?.netWorthPercent > 0 ? 'text-green-500' : periodChanges['1d']?.netWorthPercent < 0 ? 'text-red-500' : 'text-gray-400'}`}>
-                      {formatPercentage(periodChanges['1d']?.netWorthPercent || 0)}
+                      {(formatPercentage(periodChanges['1d']?.netWorthPercent || 0)* 100)}
                     </span>
                     <span className="text-xs text-gray-400 ml-1">Today</span>
                   </div>
@@ -681,7 +699,7 @@ export default function Dashboard() {
               className="bg-gray-800 dark:bg-gray-900 rounded-xl shadow-md p-5"
             >
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold text-white">Your Nest Egg Trended Net Worth</h3>
+                <h3 className="text-lg font-semibold text-white">Trended Net Worth</h3>
                 <div className="text-sm text-gray-400">
                   {selectedTimeframe.toUpperCase()}
                 </div>
@@ -850,13 +868,14 @@ export default function Dashboard() {
               className="bg-gray-800 dark:bg-gray-900 rounded-xl shadow-md p-5"
             >
               <h2 className="text-lg font-semibold mb-4 text-white">Asset Allocation</h2>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                 {/* Securities - Always show */}
                 <AssetClassCard
                   type="security"
                   data={{
                     ...summary.assetAllocation.securities,
-                    name: 'Securities'
+                    name: 'Securities',
+                    ...assetPerformance?.security
                   }}
                   icon={<LineChart className="h-5 w-5 text-blue-400" />}
                   colorClass="bg-blue-500"
@@ -878,18 +897,19 @@ export default function Dashboard() {
                   type="crypto"
                   data={{
                     ...summary.assetAllocation.crypto,
-                    name: 'Crypto'
+                    name: 'Crypto',
+                    ...assetPerformance?.crypto
                   }}
                   icon={<Coins className="h-5 w-5 text-purple-400" />}
                   colorClass="bg-purple-500"
                 />
-
                 {/* Metals - Always show */}
                 <AssetClassCard
                   type="metal"
                   data={{
                     ...summary.assetAllocation.metals,
-                    name: 'Metals'
+                    name: 'Metals',
+                    ...assetPerformance?.metal
                   }}
                   icon={<Package className="h-5 w-5 text-amber-400" />}
                   colorClass="bg-amber-500"
@@ -900,7 +920,8 @@ export default function Dashboard() {
                   type="other"
                   data={{
                     ...summary.assetAllocation.otherAssets,
-                    name: 'Other Assets'
+                    name: 'Other Assets',
+                    ...assetPerformance?.other_assets
                   }}
                   icon={<Home className="h-5 w-5 text-red-400" />}
                   colorClass="bg-red-500"
