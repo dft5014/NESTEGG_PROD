@@ -1,4 +1,5 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
+import { useDataStore } from '@/store/DataStore';
 import { 
     FileSpreadsheet, 
     Download, 
@@ -410,6 +411,8 @@ const QuickStartModal = ({ isOpen, onClose }) => {
     const [importedPositionsData, setImportedPositionsData] = useState([]);
     const [importedLiabilities, setImportedLiabilities] = useState(0);
     const [importedLiabilitiesData, setImportedLiabilitiesData] = useState([]);
+    const { actions } = useDataStore();
+    const { refreshData } = actions;
 
 
 
@@ -576,7 +579,9 @@ const QuickStartModal = ({ isOpen, onClose }) => {
             
             setImportedAccounts(successfulAccounts);
             await fetchExistingAccounts(); // Refresh the accounts list
+            await refreshData();
             setActiveTab('success');
+            
         } catch (error) {
             console.error('Error submitting accounts:', error);
             alert(`Failed to create accounts: ${error.message}`);

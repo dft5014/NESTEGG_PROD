@@ -1,4 +1,5 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
+import { useDataStore } from '@/store/DataStore';
 import { 
     TrendingUp,
     DollarSign,
@@ -353,6 +354,8 @@ const QuickAddPositionsModal = ({ isOpen, onClose, accounts = [] }) => {
     const [bulkEditMode, setBulkEditMode] = useState(false);
     const [selectedPositions, setSelectedPositions] = useState(new Set());
     const newRowRef = useRef(null);
+    const { actions } = useDataStore();
+    const { refreshData } = actions;
     
     // Get today's date in YYYY-MM-DD format
     const today = new Date().toISOString().split('T')[0];
@@ -552,6 +555,8 @@ const QuickAddPositionsModal = ({ isOpen, onClose, accounts = [] }) => {
                     throw new Error(`Failed to create position ${position.symbol}: ${errorText}`);
                 }
             }
+
+            await refreshData();
             
             setShowSuccess(true);
         } catch (error) {
