@@ -77,7 +77,6 @@ const sectorColors = {
 export default function Dashboard() {
   // State management
   const [selectedTimeframe, setSelectedTimeframe] = useState('1m');
-  const [selectedChartType, setSelectedChartType] = useState('value');
   const [showWelcomeBanner, setShowWelcomeBanner] = useState(true);
   const [showInThousands, setShowInThousands] = useState(true);
   const router = useRouter();
@@ -543,7 +542,7 @@ export default function Dashboard() {
             ) : (changePercent?.netWorthPercent || 0) < 0 ? (
               <ArrowDown className="h-3 w-3 mr-1" />
             ) : null}
-            {formatPercentage(changePercent?.netWorthPercent || 0)}
+            {formatPercentage((changePercent?.netWorthPercent || 0) * 100)}
           </span>
         </div>
       </motion.div>
@@ -682,19 +681,13 @@ export default function Dashboard() {
               className="bg-gray-800 dark:bg-gray-900 rounded-xl shadow-md p-5"
             >
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold text-white">Portfolio Value</h3>
-                <div className="flex items-center space-x-2">
-                  <button
-                    onClick={() => setSelectedChartType(selectedChartType === 'value' ? 'costBasis' : 'value')}
-                    className="text-xs px-2 py-1 rounded bg-gray-700 hover:bg-gray-600 text-gray-300 transition-colors duration-200"
-                  >
-                    {selectedChartType === 'value' ? 'Show Cost Basis' : 'Hide Cost Basis'}
-                  </button>
-                  <div className="text-sm text-gray-400">
-                    {selectedTimeframe.toUpperCase()}
-                  </div>
+                <h3 className="text-lg font-semibold text-white">Your Nest Egg Trended Net Worth</h3>
+                <div className="text-sm text-gray-400">
+                  {selectedTimeframe.toUpperCase()}
                 </div>
               </div>
+
+
               <div className="h-72">
                 <ResponsiveContainer width="100%" height="100%">
                   <AreaChart
@@ -735,16 +728,6 @@ export default function Dashboard() {
                       strokeWidth={2}
                       activeDot={{ r: 6, strokeWidth: 0, fill: '#4f46e5' }}
                     />
-                    {selectedChartType === 'costBasis' && (
-                      <Area 
-                        type="monotone" 
-                        dataKey="costBasis" 
-                        stroke="#10b981" 
-                        fill="url(#colorCost)" 
-                        strokeWidth={2}
-                        strokeDasharray="5 5"
-                      />
-                    )}
                     <ReferenceLine 
                       y={chartData[0]?.value || 0} 
                       stroke="#374151" 
