@@ -51,7 +51,8 @@ const dataStoreReducer = (state, action) => {
       };
 
     case ActionTypes.FETCH_SUMMARY_SUCCESS:
-      const summary = action.payload.summary || {};
+      // CRITICAL: Make a deep copy of the original summary to ensure it's not mutated
+      const originalSummary = action.payload.summary || {};
       const history = action.payload.history || [];
       
       // Helper function to safely parse JSON fields
@@ -67,34 +68,35 @@ const dataStoreReducer = (state, action) => {
         return field || defaultValue;
       };
       
-      // Parse JSON fields that need it
-      const topLiquidPositions = safeJsonParse(summary.top_liquid_positions);
-      const topPerformersAmount = safeJsonParse(summary.top_performers_amount);
-      const topPerformersPercent = safeJsonParse(summary.top_performers_percent);
-      const accountDiversification = safeJsonParse(summary.account_diversification);
-      const sectorAllocation = safeJsonParse(summary.sector_allocation, {});
-      const institutionAllocation = safeJsonParse(summary.institution_allocation);
-      const riskMetrics = safeJsonParse(summary.risk_metrics, {});
-      const concentrationMetrics = safeJsonParse(summary.concentration_metrics, {});
-      const dividendMetrics = safeJsonParse(summary.dividend_metrics, {});
-      const taxEfficiencyMetrics = safeJsonParse(summary.tax_efficiency_metrics, {});
-      const netCashBasisMetrics = safeJsonParse(summary.net_cash_basis_metrics, {});
+      // Parse JSON fields - work with copies, not the original
+      const topLiquidPositions = safeJsonParse(originalSummary.top_liquid_positions);
+      const topPerformersAmount = safeJsonParse(originalSummary.top_performers_amount);
+      const topPerformersPercent = safeJsonParse(originalSummary.top_performers_percent);
+      const accountDiversification = safeJsonParse(originalSummary.account_diversification);
+      const sectorAllocation = safeJsonParse(originalSummary.sector_allocation, {});
+      const institutionAllocation = safeJsonParse(originalSummary.institution_allocation);
+      const riskMetrics = safeJsonParse(originalSummary.risk_metrics, {});
+      const concentrationMetrics = safeJsonParse(originalSummary.concentration_metrics, {});
+      const dividendMetrics = safeJsonParse(originalSummary.dividend_metrics, {});
+      const taxEfficiencyMetrics = safeJsonParse(originalSummary.tax_efficiency_metrics, {});
+      const netCashBasisMetrics = safeJsonParse(originalSummary.net_cash_basis_metrics, {});
       
       // Parse and process asset_performance_detail
-      let assetPerformanceDetail = safeJsonParse(summary.asset_performance_detail, {});
+      let assetPerformanceDetail = safeJsonParse(originalSummary.asset_performance_detail, {});
       
       // Process asset performance to multiply ONLY percent_change and gain_loss_percent by 100
       const processedAssetPerformance = {};
       Object.entries(assetPerformanceDetail).forEach(([assetType, data]) => {
+        // Create a deep copy to avoid mutations
         processedAssetPerformance[assetType] = { ...data };
         
         // Process time period data
         ['daily', 'weekly', 'monthly', 'ytd', 'quarterly', 'yearly', 'two_year', 'three_year'].forEach(period => {
-          if (data[period] && data[period].percent_change !== null && data[period].percent_change !== undefined) {
-            processedAssetPerformance[assetType][period] = {
-              ...data[period],
-              percent_change: data[period].percent_change * 100
-            };
+          if (data[period] && typeof data[period] === 'object') {
+            processedAssetPerformance[assetType][period] = { ...data[period] };
+            if (data[period].percent_change !== null && data[period].percent_change !== undefined) {
+              processedAssetPerformance[assetType][period].percent_change = data[period].percent_change * 100;
+            }
           }
         });
         
@@ -102,12 +104,11 @@ const dataStoreReducer = (state, action) => {
         if (data.gain_loss_percent !== null && data.gain_loss_percent !== undefined) {
           processedAssetPerformance[assetType].gain_loss_percent = data.gain_loss_percent * 100;
         }
-        // IMPORTANT: Keep 'percentage' field as-is (it's already correct for portfolio mix)
       });
       
       // Clean and process top positions
       const cleanedTopPositions = (Array.isArray(topLiquidPositions) ? topLiquidPositions : [])
-        .filter(position => position.current_value !== null && position.current_value > 0)
+        .filter(position => position && position.current_value !== null && position.current_value > 0)
         .sort((a, b) => b.current_value - a.current_value)
         .map(position => ({
           ...position,
@@ -119,19 +120,20 @@ const dataStoreReducer = (state, action) => {
       
       // Clean account diversification
       const cleanedAccountDivers = (Array.isArray(accountDiversification) ? accountDiversification : [])
-        .filter(account => account.value !== null && account.value > 0)
+        .filter(account => account && account.value !== null && account.value > 0)
         .sort((a, b) => b.value - a.value);
       
       // Filter institution allocation to only include liquid assets
       const cleanedInstitutionAlloc = (Array.isArray(institutionAllocation) ? institutionAllocation : [])
-        .filter(inst => inst.value > 0)
+        .filter(inst => inst && inst.value > 0)
         .sort((a, b) => b.value - a.value);
 
       return {
         ...state,
         portfolioSummary: {
           ...state.portfolioSummary,
-          data: summary,  // PRESERVE ORIGINAL SUMMARY DATA - This is critical!
+          // CRITICAL: Pass the ORIGINAL summary, not a modified version
+          data: originalSummary,
           history: history,
           topLiquidPositions: cleanedTopPositions,
           topPerformersAmount: topPerformersAmount,
