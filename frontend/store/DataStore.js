@@ -50,45 +50,56 @@ const dataStoreReducer = (state, action) => {
         },
       };
 
-  case ActionTypes.FETCH_SUMMARY_SUCCESS:
-    const summary = action.payload.summary || {};
-    const history = action.payload.history || [];
-    
-    // Clean and process top positions
-    const cleanedTopPositions = (summary.top_liquid_positions || [])
-      .filter(position => position.current_value !== null && position.current_value > 0)
-      .sort((a, b) => b.current_value - a.current_value)
-      .map(position => ({
-        ...position,
-        name: position.name || position.identifier,
-        gain_loss_percent: position.gain_loss_percent || 0,
-        sector: position.sector || 'Unknown',
-        percentage: position.percentage || 0
-      }));
+    case ActionTypes.FETCH_SUMMARY_SUCCESS:
+      const summary = action.payload.summary || {};
+      const history = action.payload.history || [];
+      
+      // Parse top_liquid_positions if it's a string
+      let topPositionsData = summary.top_liquid_positions || [];
+      if (typeof topPositionsData === 'string') {
+        try {
+          topPositionsData = JSON.parse(topPositionsData);
+        } catch (e) {
+          console.error('Failed to parse top_liquid_positions:', e);
+          topPositionsData = [];
+        }
+      }
+      
+      // Clean and process top positions
+      const cleanedTopPositions = (Array.isArray(topPositionsData) ? topPositionsData : [])
+        .filter(position => position.current_value !== null && position.current_value > 0)
+        .sort((a, b) => b.current_value - a.current_value)
+        .map(position => ({
+          ...position,
+          name: position.name || position.identifier,
+          gain_loss_percent: position.gain_loss_percent || 0,
+          sector: position.sector || 'Unknown',
+          percentage: position.percentage || 0
+        }));
 
-    return {
-      ...state,
-      portfolioSummary: {
-        ...state.portfolioSummary,
-        data: summary,
-        history: history,
-        topLiquidPositions: cleanedTopPositions,
-        topPerformersAmount: summary.top_performers_amount || [],
-        topPerformersPercent: summary.top_performers_percent || [],
-        accountDiversification: summary.account_diversification || [],
-        assetPerformanceDetail: summary.asset_performance_detail || {},
-        sectorAllocation: summary.sector_allocation || {},
-        riskMetrics: summary.risk_metrics || {},
-        institutionAllocation: summary.institution_allocation || [],
-        concentrationMetrics: summary.concentration_metrics || {},
-        dividendMetrics: summary.dividend_metrics || {},
-        taxEfficiencyMetrics: summary.tax_efficiency_metrics || {},
-        loading: false,
-        error: null,
-        lastFetched: Date.now(),
-        isStale: false,
-      },
-    };
+      return {
+        ...state,
+        portfolioSummary: {
+          ...state.portfolioSummary,
+          data: summary,
+          history: history,
+          topLiquidPositions: cleanedTopPositions,
+          topPerformersAmount: summary.top_performers_amount || [],
+          topPerformersPercent: summary.top_performers_percent || [],
+          accountDiversification: summary.account_diversification || [],
+          assetPerformanceDetail: summary.asset_performance_detail || {},
+          sectorAllocation: summary.sector_allocation || {},
+          riskMetrics: summary.risk_metrics || {},
+          institutionAllocation: summary.institution_allocation || [],
+          concentrationMetrics: summary.concentration_metrics || {},
+          dividendMetrics: summary.dividend_metrics || {},
+          taxEfficiencyMetrics: summary.tax_efficiency_metrics || {},
+          loading: false,
+          error: null,
+          lastFetched: Date.now(),
+          isStale: false,
+        },
+      };
 
     case ActionTypes.FETCH_SUMMARY_ERROR:
       return {
