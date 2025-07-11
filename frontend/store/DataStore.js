@@ -80,6 +80,27 @@ const dataStoreReducer = (state, action) => {
       const dividendData = parseJsonField(summary.dividend_metrics, {});
       const taxEfficiencyData = parseJsonField(summary.tax_efficiency_metrics, {});
       
+      // Process asset performance data to multiply percentages by 100
+      const processedAssetPerformance = {};
+      Object.entries(assetPerformanceData).forEach(([assetType, data]) => {
+        processedAssetPerformance[assetType] = { ...data };
+        
+        // Process time period data if it exists (like for securities)
+        ['daily', 'weekly', 'monthly', 'ytd', 'quarterly', 'yearly', 'two_year', 'three_year'].forEach(period => {
+          if (data[period] && data[period].percent_change !== null) {
+            processedAssetPerformance[assetType][period] = {
+              ...data[period],
+              percent_change: data[period].percent_change * 100
+            };
+          }
+        });
+        
+        // Process overall gain_loss_percent if it exists
+        if (data.gain_loss_percent !== null && data.gain_loss_percent !== undefined) {
+          processedAssetPerformance[assetType].gain_loss_percent = data.gain_loss_percent * 100;
+        }
+      });
+      
       // Clean and process top positions
       const cleanedTopPositions = (Array.isArray(topPositionsData) ? topPositionsData : [])
         .filter(position => position.current_value !== null && position.current_value > 0)
@@ -107,7 +128,7 @@ const dataStoreReducer = (state, action) => {
           topPerformersAmount: topPerformersAmountData,
           topPerformersPercent: topPerformersPercentData,
           accountDiversification: cleanedAccountDivers,
-          assetPerformanceDetail: assetPerformanceData,
+          assetPerformanceDetail: processedAssetPerformance,
           sectorAllocation: sectorAllocData,
           riskMetrics: riskMetricsData,
           institutionAllocation: institutionAllocData,
