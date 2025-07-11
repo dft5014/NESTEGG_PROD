@@ -51,64 +51,61 @@ const dataStoreReducer = (state, action) => {
       };
 
     case ActionTypes.FETCH_SUMMARY_SUCCESS:
-      // CRITICAL: Deep clone the summary to prevent ANY mutations
-      const rawSummary = action.payload.summary || {};
-      const summary = JSON.parse(JSON.stringify(rawSummary)); // Deep clone
+      const summary = action.payload.summary || {};
       const history = action.payload.history || [];
       
-      // Helper function to safely parse JSON fields
-      const safeJsonParse = (fieldValue, defaultValue = []) => {
-        if (typeof fieldValue === 'string') {
+      // Helper function to parse JSON fields
+      const parseJsonField = (field, defaultValue = []) => {
+        if (typeof field === 'string') {
           try {
-            return JSON.parse(fieldValue);
+            return JSON.parse(field);
           } catch (e) {
-            console.error('Failed to parse JSON field:', e);
+            console.error(`Failed to parse field:`, e);
             return defaultValue;
           }
         }
-        return fieldValue || defaultValue;
+        return field || defaultValue;
       };
       
-      // Parse JSON fields from the cloned summary
-      const topLiquidPositions = safeJsonParse(summary.top_liquid_positions);
-      const topPerformersAmount = safeJsonParse(summary.top_performers_amount);
-      const topPerformersPercent = safeJsonParse(summary.top_performers_percent);
-      const accountDiversification = safeJsonParse(summary.account_diversification);
-      const sectorAllocation = safeJsonParse(summary.sector_allocation, {});
-      const institutionAllocation = safeJsonParse(summary.institution_allocation);
-      const riskMetrics = safeJsonParse(summary.risk_metrics, {});
-      const concentrationMetrics = safeJsonParse(summary.concentration_metrics, {});
-      const dividendMetrics = safeJsonParse(summary.dividend_metrics, {});
-      const taxEfficiencyMetrics = safeJsonParse(summary.tax_efficiency_metrics, {});
-      const netCashBasisMetrics = safeJsonParse(summary.net_cash_basis_metrics, {});
+      // Parse all JSON string fields
+      const topPositionsData = parseJsonField(summary.top_liquid_positions);
+      const accountDiversData = parseJsonField(summary.account_diversification);
+      const topPerformersAmountData = parseJsonField(summary.top_performers_amount);
+      const topPerformersPercentData = parseJsonField(summary.top_performers_percent);
+      const assetPerformanceData = parseJsonField(summary.asset_performance_detail, {});
+      const sectorAllocData = parseJsonField(summary.sector_allocation, {});
+      const institutionAllocData = parseJsonField(summary.institution_allocation);
+      const riskMetricsData = parseJsonField(summary.risk_metrics, {});
+      const concentrationData = parseJsonField(summary.concentration_metrics, {});
+      const dividendData = parseJsonField(summary.dividend_metrics, {});
+      const taxEfficiencyData = parseJsonField(summary.tax_efficiency_metrics, {});
+      const netCashBasisData = parseJsonField(summary.net_cash_basis_metrics, {});
+
       
-      // Parse and process asset_performance_detail
-      let assetPerformanceDetail = safeJsonParse(summary.asset_performance_detail, {});
-      
-      // Process asset performance to multiply ONLY percent_change and gain_loss_percent by 100
+      // Process asset performance data to multiply percentages by 100
       const processedAssetPerformance = {};
-      Object.entries(assetPerformanceDetail).forEach(([assetType, data]) => {
+      Object.entries(assetPerformanceData).forEach(([assetType, data]) => {
         processedAssetPerformance[assetType] = { ...data };
         
-        // Process time period data
+        // Process time period data if it exists (like for securities)
         ['daily', 'weekly', 'monthly', 'ytd', 'quarterly', 'yearly', 'two_year', 'three_year'].forEach(period => {
-          if (data[period] && typeof data[period] === 'object') {
-            processedAssetPerformance[assetType][period] = { ...data[period] };
-            if (data[period].percent_change !== null && data[period].percent_change !== undefined) {
-              processedAssetPerformance[assetType][period].percent_change = data[period].percent_change * 100;
-            }
+          if (data[period] && data[period].percent_change !== null) {
+            processedAssetPerformance[assetType][period] = {
+              ...data[period],
+              percent_change: data[period].percent_change * 100
+            };
           }
         });
         
-        // Process gain_loss_percent but NOT percentage (which is portfolio mix)
+        // Process overall gain_loss_percent if it exists
         if (data.gain_loss_percent !== null && data.gain_loss_percent !== undefined) {
           processedAssetPerformance[assetType].gain_loss_percent = data.gain_loss_percent * 100;
         }
       });
       
       // Clean and process top positions
-      const cleanedTopPositions = (Array.isArray(topLiquidPositions) ? topLiquidPositions : [])
-        .filter(position => position && position.current_value !== null && position.current_value > 0)
+      const cleanedTopPositions = (Array.isArray(topPositionsData) ? topPositionsData : [])
+        .filter(position => position.current_value !== null && position.current_value > 0)
         .sort((a, b) => b.current_value - a.current_value)
         .map(position => ({
           ...position,
@@ -118,34 +115,29 @@ const dataStoreReducer = (state, action) => {
           percentage: position.percentage || 0
         }));
       
-      // Clean account diversification
-      const cleanedAccountDivers = (Array.isArray(accountDiversification) ? accountDiversification : [])
-        .filter(account => account && account.value !== null && account.value > 0)
-        .sort((a, b) => b.value - a.value);
-      
-      // Filter institution allocation
-      const cleanedInstitutionAlloc = (Array.isArray(institutionAllocation) ? institutionAllocation : [])
-        .filter(inst => inst && inst.value > 0)
+      // Clean account diversification data
+      const cleanedAccountDivers = (Array.isArray(accountDiversData) ? accountDiversData : [])
+        .filter(account => account.value !== null && account.value > 0)
         .sort((a, b) => b.value - a.value);
 
       return {
         ...state,
         portfolioSummary: {
           ...state.portfolioSummary,
-          data: rawSummary,  // Use the ORIGINAL, unmutated summary
+          data: summary,
           history: history,
           topLiquidPositions: cleanedTopPositions,
-          topPerformersAmount: topPerformersAmount,
-          topPerformersPercent: topPerformersPercent,
+          topPerformersAmount: topPerformersAmountData,
+          topPerformersPercent: topPerformersPercentData,
           accountDiversification: cleanedAccountDivers,
           assetPerformanceDetail: processedAssetPerformance,
-          sectorAllocation: sectorAllocation,
-          riskMetrics: riskMetrics,
-          institutionAllocation: cleanedInstitutionAlloc,
-          concentrationMetrics: concentrationMetrics,
-          dividendMetrics: dividendMetrics,
-          taxEfficiencyMetrics: taxEfficiencyMetrics,
-          netCashBasisMetrics: netCashBasisMetrics,
+          sectorAllocation: sectorAllocData,
+          riskMetrics: riskMetricsData,
+          institutionAllocation: institutionAllocData,
+          concentrationMetrics: concentrationData,
+          dividendMetrics: dividendData,
+          taxEfficiencyMetrics: taxEfficiencyData,
+          netCashBasisMetrics: netCashBasisData,
           loading: false,
           error: null,
           lastFetched: Date.now(),
