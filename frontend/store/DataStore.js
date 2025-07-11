@@ -51,43 +51,43 @@ const dataStoreReducer = (state, action) => {
       };
 
     case ActionTypes.FETCH_SUMMARY_SUCCESS:
-      // CRITICAL: Make a deep copy of the original summary to ensure it's not mutated
-      const originalSummary = action.payload.summary || {};
+      // CRITICAL: Deep clone the summary to prevent ANY mutations
+      const rawSummary = action.payload.summary || {};
+      const summary = JSON.parse(JSON.stringify(rawSummary)); // Deep clone
       const history = action.payload.history || [];
       
       // Helper function to safely parse JSON fields
-      const safeJsonParse = (field, defaultValue = []) => {
-        if (typeof field === 'string') {
+      const safeJsonParse = (fieldValue, defaultValue = []) => {
+        if (typeof fieldValue === 'string') {
           try {
-            return JSON.parse(field);
+            return JSON.parse(fieldValue);
           } catch (e) {
             console.error('Failed to parse JSON field:', e);
             return defaultValue;
           }
         }
-        return field || defaultValue;
+        return fieldValue || defaultValue;
       };
       
-      // Parse JSON fields - work with copies, not the original
-      const topLiquidPositions = safeJsonParse(originalSummary.top_liquid_positions);
-      const topPerformersAmount = safeJsonParse(originalSummary.top_performers_amount);
-      const topPerformersPercent = safeJsonParse(originalSummary.top_performers_percent);
-      const accountDiversification = safeJsonParse(originalSummary.account_diversification);
-      const sectorAllocation = safeJsonParse(originalSummary.sector_allocation, {});
-      const institutionAllocation = safeJsonParse(originalSummary.institution_allocation);
-      const riskMetrics = safeJsonParse(originalSummary.risk_metrics, {});
-      const concentrationMetrics = safeJsonParse(originalSummary.concentration_metrics, {});
-      const dividendMetrics = safeJsonParse(originalSummary.dividend_metrics, {});
-      const taxEfficiencyMetrics = safeJsonParse(originalSummary.tax_efficiency_metrics, {});
-      const netCashBasisMetrics = safeJsonParse(originalSummary.net_cash_basis_metrics, {});
+      // Parse JSON fields from the cloned summary
+      const topLiquidPositions = safeJsonParse(summary.top_liquid_positions);
+      const topPerformersAmount = safeJsonParse(summary.top_performers_amount);
+      const topPerformersPercent = safeJsonParse(summary.top_performers_percent);
+      const accountDiversification = safeJsonParse(summary.account_diversification);
+      const sectorAllocation = safeJsonParse(summary.sector_allocation, {});
+      const institutionAllocation = safeJsonParse(summary.institution_allocation);
+      const riskMetrics = safeJsonParse(summary.risk_metrics, {});
+      const concentrationMetrics = safeJsonParse(summary.concentration_metrics, {});
+      const dividendMetrics = safeJsonParse(summary.dividend_metrics, {});
+      const taxEfficiencyMetrics = safeJsonParse(summary.tax_efficiency_metrics, {});
+      const netCashBasisMetrics = safeJsonParse(summary.net_cash_basis_metrics, {});
       
       // Parse and process asset_performance_detail
-      let assetPerformanceDetail = safeJsonParse(originalSummary.asset_performance_detail, {});
+      let assetPerformanceDetail = safeJsonParse(summary.asset_performance_detail, {});
       
       // Process asset performance to multiply ONLY percent_change and gain_loss_percent by 100
       const processedAssetPerformance = {};
       Object.entries(assetPerformanceDetail).forEach(([assetType, data]) => {
-        // Create a deep copy to avoid mutations
         processedAssetPerformance[assetType] = { ...data };
         
         // Process time period data
@@ -123,7 +123,7 @@ const dataStoreReducer = (state, action) => {
         .filter(account => account && account.value !== null && account.value > 0)
         .sort((a, b) => b.value - a.value);
       
-      // Filter institution allocation to only include liquid assets
+      // Filter institution allocation
       const cleanedInstitutionAlloc = (Array.isArray(institutionAllocation) ? institutionAllocation : [])
         .filter(inst => inst && inst.value > 0)
         .sort((a, b) => b.value - a.value);
@@ -132,8 +132,7 @@ const dataStoreReducer = (state, action) => {
         ...state,
         portfolioSummary: {
           ...state.portfolioSummary,
-          // CRITICAL: Pass the ORIGINAL summary, not a modified version
-          data: originalSummary,
+          data: rawSummary,  // Use the ORIGINAL, unmutated summary
           history: history,
           topLiquidPositions: cleanedTopPositions,
           topPerformersAmount: topPerformersAmount,
