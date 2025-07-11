@@ -1016,9 +1016,9 @@ export default function Dashboard() {
                 </div>
               </motion.div>
             )}
-
-            {/* Cash Flow Trend - ADD THIS ENTIRE SECTION */}
-            {trends?.chartData && trends.chartData.length > 0 && (
+            
+            {/* Cash Flow Trend - REPLACE THE ENTIRE CHART SECTION WITH THIS */}
+            {netCashBasisMetrics && trends?.chartData && trends.chartData.length > 0 && (
               <motion.div 
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -1034,7 +1034,7 @@ export default function Dashboard() {
                 
                 <div className="h-64">
                   <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={trends.chartData}>
+                    <ComposedChart data={trends.chartData}>
                       <defs>
                         <linearGradient id="cashFlowGradient" x1="0" y1="0" x2="0" y2="1">
                           <stop offset="5%" stopColor="#10b981" stopOpacity={0.3}/>
@@ -1048,6 +1048,14 @@ export default function Dashboard() {
                         tick={{ fill: '#9ca3af', fontSize: 12 }}
                       />
                       <YAxis 
+                        yAxisId="left"
+                        stroke="#9ca3af"
+                        tick={{ fill: '#9ca3af', fontSize: 12 }}
+                        tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`}
+                      />
+                      <YAxis 
+                        yAxisId="right"
+                        orientation="right"
                         stroke="#9ca3af"
                         tick={{ fill: '#9ca3af', fontSize: 12 }}
                         tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`}
@@ -1059,44 +1067,62 @@ export default function Dashboard() {
                           borderRadius: '0.5rem',
                           color: '#e5e7eb'
                         }}
-                        formatter={(value) => [`$${value.toLocaleString()}`, 'Net Cash Position']}
+                        formatter={(value, name) => {
+                          if (name === 'Daily Change') {
+                            return [`$${value.toLocaleString()}`, name];
+                          }
+                          return [`$${value.toLocaleString()}`, 'Net Cash Position'];
+                        }}
                         labelStyle={{ color: '#9ca3af' }}
                       />
+                      <Bar
+                        yAxisId="right"
+                        dataKey="dailyChange"
+                        name="Daily Change"
+                        fill={(data) => data.dailyChange >= 0 ? '#10b981' : '#ef4444'}
+                      />
                       <Area
+                        yAxisId="left"
                         type="monotone"
                         dataKey="netCashPosition"
-                        stroke="#10b981"
+                        stroke="#60a5fa"
                         strokeWidth={2}
                         fillOpacity={1}
                         fill="url(#cashFlowGradient)"
                       />
-                    </AreaChart>
+                    </ComposedChart>
                   </ResponsiveContainer>
                 </div>
                 
-                <div className="mt-4 grid grid-cols-3 gap-4 text-center">
+                <div className="mt-4 grid grid-cols-4 gap-4 text-center">
                   <div>
-                    <p className="text-xs text-gray-500">Start</p>
+                    <p className="text-xs text-gray-500">Current Position</p>
                     <p className="text-sm font-medium text-gray-300">
-                      {trends.chartData[0] && formatCurrency(trends.chartData[0].netCashPosition)}
+                      {formatCurrency(netCashBasisMetrics.net_cash_position)}
                     </p>
                   </div>
                   <div>
-                    <p className="text-xs text-gray-500">Current</p>
-                    <p className="text-sm font-medium text-gray-300">
-                      {trends.chartData[trends.chartData.length - 1] && 
-                        formatCurrency(trends.chartData[trends.chartData.length - 1].netCashPosition)}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-gray-500">Change</p>
+                    <p className="text-xs text-gray-500">Today's Change</p>
                     <p className={`text-sm font-medium ${
-                      trends.chartData[0] && trends.chartData[trends.chartData.length - 1] &&
-                      (trends.chartData[trends.chartData.length - 1].netCashPosition - trends.chartData[0].netCashPosition) > 0
-                        ? 'text-green-400' : 'text-red-400'
+                      netCashBasisMetrics.cash_flow_1d > 0 ? 'text-green-400' : 'text-red-400'
                     }`}>
-                      {trends.chartData[0] && trends.chartData[trends.chartData.length - 1] &&
-                        formatCurrency(trends.chartData[trends.chartData.length - 1].netCashPosition - trends.chartData[0].netCashPosition)}
+                      {formatCurrency(netCashBasisMetrics.cash_flow_1d)}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-500">This Month</p>
+                    <p className={`text-sm font-medium ${
+                      netCashBasisMetrics.cash_flow_1m > 0 ? 'text-green-400' : 'text-red-400'
+                    }`}>
+                      {formatCurrency(netCashBasisMetrics.cash_flow_1m)}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-500">YTD</p>
+                    <p className={`text-sm font-medium ${
+                      netCashBasisMetrics.cash_flow_ytd > 0 ? 'text-green-400' : 'text-red-400'
+                    }`}>
+                      {formatCurrency(netCashBasisMetrics.cash_flow_ytd)}
                     </p>
                   </div>
                 </div>
