@@ -79,6 +79,8 @@ const dataStoreReducer = (state, action) => {
       const concentrationData = parseJsonField(summary.concentration_metrics, {});
       const dividendData = parseJsonField(summary.dividend_metrics, {});
       const taxEfficiencyData = parseJsonField(summary.tax_efficiency_metrics, {});
+      const netCashBasisData = parseJsonField(summary.net_cash_basis_metrics, {});
+
       
       // Process asset performance data to multiply percentages by 100
       const processedAssetPerformance = {};
@@ -135,6 +137,7 @@ const dataStoreReducer = (state, action) => {
           concentrationMetrics: concentrationData,
           dividendMetrics: dividendData,
           taxEfficiencyMetrics: taxEfficiencyData,
+          netCashBasisMetrics: netCashBasisData,
           loading: false,
           error: null,
           lastFetched: Date.now(),

@@ -256,6 +256,8 @@ export const usePortfolioSummary = () => {
     concentrationMetrics: portfolioSummary.concentrationMetrics,
     dividendMetrics: portfolioSummary.dividendMetrics,
     taxEfficiencyMetrics: portfolioSummary.taxEfficiencyMetrics,
+    netCashBasisMetrics: portfolioSummary.netCashBasisMetrics,
+
     
     // History for trends
     history: portfolioSummary.history,

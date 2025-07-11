@@ -97,6 +97,7 @@ export default function Dashboard() {
     concentrationMetrics,
     dividendMetrics,
     taxEfficiencyMetrics, // Add this if you want to use it
+    netCashBasisMetrics,
     history,
     loading: isLoading,
     error,
@@ -536,20 +537,6 @@ export default function Dashboard() {
   const DashboardContent = () => {
     if (!summary) return null;
     
-    // Fixed debug section
-    console.log('Debug - Full summary:', summary);
-    console.log('Debug - topPositions:', topPositions);
-    console.log('Debug - accountDiversification:', accountDiversification);
-    console.log('Debug - assetPerformance:', assetPerformance);
-    
-    // If you need raw state, use it like this:
-    console.log('Debug - Raw data from store:', {
-      topLiquidPositions: state.portfolioSummary.topLiquidPositions,
-      accountDiversification: state.portfolioSummary.accountDiversification,
-      assetPerformanceDetail: state.portfolioSummary.assetPerformanceDetail
-    });
-    console.log('Debug - Raw asset_performance_detail from store:', state.portfolioSummary.assetPerformanceDetail);
-
     // Extract data from processed summary
     const totalAssets = summary.totalAssets;
     const totalLiabilities = summary.liabilities.total;
@@ -967,6 +954,69 @@ export default function Dashboard() {
                 )}
               </div>
             </motion.div>
+
+            {/* Personal Cash Flow - ADD THIS ENTIRE SECTION */}
+            {netCashBasisMetrics && (
+              <motion.div 
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5, delay: 0.3 }}
+                className="rounded-xl bg-gray-800 dark:bg-gray-800 p-6 shadow-xl backdrop-blur-sm bg-opacity-90 hover:shadow-2xl transition-all duration-300"
+              >
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-semibold text-white dark:text-white flex items-center">
+                    <Wallet className="w-5 h-5 mr-2 text-green-400" />
+                    Personal Cash Flow
+                  </h3>
+                  <span className="text-2xl font-bold text-white">
+                    {formatCurrency(netCashBasisMetrics.net_cash_position)}
+                  </span>
+                </div>
+                
+                <div className="grid grid-cols-3 gap-4">
+                  {[
+                    { label: 'Day', flow: netCashBasisMetrics.cash_flow_1d, pct: netCashBasisMetrics.cash_flow_1d_pct },
+                    { label: 'Week', flow: netCashBasisMetrics.cash_flow_1w, pct: netCashBasisMetrics.cash_flow_1w_pct },
+                    { label: 'Month', flow: netCashBasisMetrics.cash_flow_1m, pct: netCashBasisMetrics.cash_flow_1m_pct, highlight: true }
+                  ].map(({ label, flow, pct, highlight }) => (
+                    <div key={label} className={`p-3 rounded-lg ${highlight ? 'bg-gray-700/50 ring-1 ring-gray-600' : 'bg-gray-700/30'}`}>
+                      <p className="text-xs text-gray-400 mb-1">{label}</p>
+                      <p className={`text-sm font-semibold flex items-center ${
+                        flow > 0 ? 'text-green-400' : flow < 0 ? 'text-red-400' : 'text-gray-400'
+                      }`}>
+                        {flow !== 0 && (flow > 0 ? <ArrowUp className="w-3 h-3 mr-1" /> : <ArrowDown className="w-3 h-3 mr-1" />)}
+                        {formatCurrency(flow)}
+                      </p>
+                      <p className={`text-xs ${
+                        pct > 0 ? 'text-green-400' : pct < 0 ? 'text-red-400' : 'text-gray-500'
+                      }`}>
+                        {pct ? `${pct > 0 ? '+' : ''}${(pct * 100).toFixed(1)}%` : '-'}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+                
+                <div className="mt-4 pt-4 border-t border-gray-700">
+                  <div className="grid grid-cols-3 gap-4 text-center">
+                    {[
+                      { label: 'YTD', flow: netCashBasisMetrics.cash_flow_ytd },
+                      { label: '1 Year', flow: netCashBasisMetrics.cash_flow_1y },
+                      { label: '3 Years', flow: netCashBasisMetrics.cash_flow_3y }
+                    ].map(({ label, flow }) => (
+                      <div key={label}>
+                        <p className="text-xs text-gray-500">{label}</p>
+                        <p className={`text-sm font-medium ${
+                          flow > 0 ? 'text-green-400' : flow < 0 ? 'text-red-400' : 'text-gray-400'
+                        }`}>
+                          {formatCurrency(flow)}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </motion.div>
+            )}
+
 
             {/* Portfolio Insights with Risk Metrics */}
             <motion.div 
@@ -2135,45 +2185,6 @@ export default function Dashboard() {
          </motion.button>
        </div>
 
-
-    {/* Debug Panel - Remove this in production */}
-    <motion.div 
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      className="mt-8 bg-gray-800 rounded-xl p-6"
-    >
-      <h3 className="text-lg font-semibold text-white mb-4">🔍 Debug Data</h3>
-      
-      <div className="space-y-4">
-        <div>
-          <h4 className="text-sm font-medium text-gray-400 mb-2">Top Positions Data:</h4>
-          <pre className="bg-gray-900 p-3 rounded text-xs text-gray-300 overflow-auto max-h-48">
-            {JSON.stringify(topPositions, null, 2)}
-          </pre>
-        </div>
-        
-        <div>
-          <h4 className="text-sm font-medium text-gray-400 mb-2">Account Diversification Data:</h4>
-          <pre className="bg-gray-900 p-3 rounded text-xs text-gray-300 overflow-auto max-h-48">
-            {JSON.stringify(accountDiversification, null, 2)}
-          </pre>
-        </div>
-        
-        <div>
-          <h4 className="text-sm font-medium text-gray-400 mb-2">Asset Performance Detail:</h4>
-          <pre className="bg-gray-900 p-3 rounded text-xs text-gray-300 overflow-auto max-h-48">
-            {JSON.stringify(assetPerformance, null, 2)}
-          </pre>
-        </div>
-        
-        <div>
-          <h4 className="text-sm font-medium text-gray-400 mb-2">Period Changes:</h4>
-          <pre className="bg-gray-900 p-3 rounded text-xs text-gray-300 overflow-auto max-h-48">
-            {JSON.stringify(summary?.periodChanges, null, 2)}
-          </pre>
-        </div>
-      </div>
-    </motion.div>
 
      </main>
    </div>
