@@ -548,6 +548,7 @@ export default function Dashboard() {
       accountDiversification: state.portfolioSummary.accountDiversification,
       assetPerformanceDetail: state.portfolioSummary.assetPerformanceDetail
     });
+    console.log('Debug - Raw asset_performance_detail from store:', state.portfolioSummary.assetPerformanceDetail);
 
     // Extract data from processed summary
     const totalAssets = summary.totalAssets;
