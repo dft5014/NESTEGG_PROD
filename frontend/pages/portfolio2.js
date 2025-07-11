@@ -459,12 +459,12 @@ export default function Dashboard() {
               {/* Show performance for non-cash assets */}
               {type !== 'cash' && type !== 'liability' && data.gainLoss !== undefined && (
                 <div>
-                  <p className="text-sm text-gray-400">Performance</p>
+                  <p className="text-sm text-gray-400">Gain or Loss</p>
                   <p className={`text-lg font-semibold ${data.gainLoss >= 0 ? 'text-green-400' : 'text-red-400'}`}>
                     {data.gainLoss >= 0 ? '+' : ''}{formatCurrency(data.gainLoss)}
                     {data.gainLossPercent !== undefined && (
                       <span className="text-sm ml-1">
-                        ({data.gainLossPercent >= 0 ? '+' : ''}{formatPercentage(data.gainLossPercent * 100)})
+                        ({formatPercentage(data.gainLossPercent * 100)})
                       </span>
                     )}
                   </p>
@@ -1710,7 +1710,7 @@ export default function Dashboard() {
                 <div className="bg-rose-500/20 p-2 rounded-lg mr-3">
                   <BarChart3 className="h-5 w-5 text-rose-400" />
                 </div>
-                <h3 className="text-lg font-semibold text-white">Top Positions</h3>
+                <h3 className="text-lg font-semibold text-white">Top Individual Positions</h3>
               </div>
               
               <div className="space-y-3">

@@ -65,6 +65,17 @@ const dataStoreReducer = (state, action) => {
         }
       }
       
+      // Parse account_diversification if it's a string
+      let accountDiversData = summary.account_diversification || [];
+      if (typeof accountDiversData === 'string') {
+        try {
+          accountDiversData = JSON.parse(accountDiversData);
+        } catch (e) {
+          console.error('Failed to parse account_diversification:', e);
+          accountDiversData = [];
+        }
+      }
+      
       // Clean and process top positions
       const cleanedTopPositions = (Array.isArray(topPositionsData) ? topPositionsData : [])
         .filter(position => position.current_value !== null && position.current_value > 0)
@@ -76,6 +87,11 @@ const dataStoreReducer = (state, action) => {
           sector: position.sector || 'Unknown',
           percentage: position.percentage || 0
         }));
+      
+      // Clean account diversification data
+      const cleanedAccountDivers = (Array.isArray(accountDiversData) ? accountDiversData : [])
+        .filter(account => account.value !== null && account.value > 0)
+        .sort((a, b) => b.value - a.value);
 
       return {
         ...state,
@@ -86,7 +102,7 @@ const dataStoreReducer = (state, action) => {
           topLiquidPositions: cleanedTopPositions,
           topPerformersAmount: summary.top_performers_amount || [],
           topPerformersPercent: summary.top_performers_percent || [],
-          accountDiversification: summary.account_diversification || [],
+          accountDiversification: cleanedAccountDivers,
           assetPerformanceDetail: summary.asset_performance_detail || {},
           sectorAllocation: summary.sector_allocation || {},
           riskMetrics: summary.risk_metrics || {},
