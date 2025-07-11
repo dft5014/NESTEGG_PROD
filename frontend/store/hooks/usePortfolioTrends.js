@@ -34,6 +34,7 @@ export const usePortfolioTrends = () => {
       totalAssets: portfolioSummary.history.map(p => p.total_assets),
       totalLiabilities: portfolioSummary.history.map(p => p.total_liabilities),
       liquidAssets: portfolioSummary.history.map(p => p.liquid_assets),
+      netCashPosition: point.net_cash_position,
       chartData,
     };
   }, [portfolioSummary.history]);
