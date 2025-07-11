@@ -26,6 +26,7 @@ export const usePortfolioTrends = () => {
       liquidAssets: point.liquid_assets,
       unrealizedGain: point.unrealized_gain,
       unrealizedGainPercent: point.unrealized_gain_percent,
+      netCashPosition: point.net_cash_position || null,
     }));
 
     return {
@@ -34,7 +35,7 @@ export const usePortfolioTrends = () => {
       totalAssets: portfolioSummary.history.map(p => p.total_assets),
       totalLiabilities: portfolioSummary.history.map(p => p.total_liabilities),
       liquidAssets: portfolioSummary.history.map(p => p.liquid_assets),
-      netCashPosition: point.net_cash_position,
+      netCashPosition: portfolioSummary.history.map(p => p.net_cash_position || null), 
       chartData,
     };
   }, [portfolioSummary.history]);
