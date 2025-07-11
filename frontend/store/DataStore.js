@@ -54,27 +54,31 @@ const dataStoreReducer = (state, action) => {
       const summary = action.payload.summary || {};
       const history = action.payload.history || [];
       
-      // Parse top_liquid_positions if it's a string
-      let topPositionsData = summary.top_liquid_positions || [];
-      if (typeof topPositionsData === 'string') {
-        try {
-          topPositionsData = JSON.parse(topPositionsData);
-        } catch (e) {
-          console.error('Failed to parse top_liquid_positions:', e);
-          topPositionsData = [];
+      // Helper function to parse JSON fields
+      const parseJsonField = (field, defaultValue = []) => {
+        if (typeof field === 'string') {
+          try {
+            return JSON.parse(field);
+          } catch (e) {
+            console.error(`Failed to parse field:`, e);
+            return defaultValue;
+          }
         }
-      }
+        return field || defaultValue;
+      };
       
-      // Parse account_diversification if it's a string
-      let accountDiversData = summary.account_diversification || [];
-      if (typeof accountDiversData === 'string') {
-        try {
-          accountDiversData = JSON.parse(accountDiversData);
-        } catch (e) {
-          console.error('Failed to parse account_diversification:', e);
-          accountDiversData = [];
-        }
-      }
+      // Parse all JSON string fields
+      const topPositionsData = parseJsonField(summary.top_liquid_positions);
+      const accountDiversData = parseJsonField(summary.account_diversification);
+      const topPerformersAmountData = parseJsonField(summary.top_performers_amount);
+      const topPerformersPercentData = parseJsonField(summary.top_performers_percent);
+      const assetPerformanceData = parseJsonField(summary.asset_performance_detail, {});
+      const sectorAllocData = parseJsonField(summary.sector_allocation, {});
+      const institutionAllocData = parseJsonField(summary.institution_allocation);
+      const riskMetricsData = parseJsonField(summary.risk_metrics, {});
+      const concentrationData = parseJsonField(summary.concentration_metrics, {});
+      const dividendData = parseJsonField(summary.dividend_metrics, {});
+      const taxEfficiencyData = parseJsonField(summary.tax_efficiency_metrics, {});
       
       // Clean and process top positions
       const cleanedTopPositions = (Array.isArray(topPositionsData) ? topPositionsData : [])
@@ -100,16 +104,16 @@ const dataStoreReducer = (state, action) => {
           data: summary,
           history: history,
           topLiquidPositions: cleanedTopPositions,
-          topPerformersAmount: summary.top_performers_amount || [],
-          topPerformersPercent: summary.top_performers_percent || [],
+          topPerformersAmount: topPerformersAmountData,
+          topPerformersPercent: topPerformersPercentData,
           accountDiversification: cleanedAccountDivers,
-          assetPerformanceDetail: summary.asset_performance_detail || {},
-          sectorAllocation: summary.sector_allocation || {},
-          riskMetrics: summary.risk_metrics || {},
-          institutionAllocation: summary.institution_allocation || [],
-          concentrationMetrics: summary.concentration_metrics || {},
-          dividendMetrics: summary.dividend_metrics || {},
-          taxEfficiencyMetrics: summary.tax_efficiency_metrics || {},
+          assetPerformanceDetail: assetPerformanceData,
+          sectorAllocation: sectorAllocData,
+          riskMetrics: riskMetricsData,
+          institutionAllocation: institutionAllocData,
+          concentrationMetrics: concentrationData,
+          dividendMetrics: dividendData,
+          taxEfficiencyMetrics: taxEfficiencyData,
           loading: false,
           error: null,
           lastFetched: Date.now(),
