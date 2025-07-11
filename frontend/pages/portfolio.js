@@ -3,7 +3,10 @@ import { useState, useEffect, useMemo } from 'react';
 import Head from 'next/head';
 import { useRouter } from 'next/router';
 import { useDataStore } from '@/store/DataStore';
-import { LineChart, Line, AreaChart, Area, BarChart, Bar, ReferenceLine, ComposedChart, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
+import { 
+  AreaChart, Area, BarChart, Bar, PieChart, Pie, LineChart, Line,
+  XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell, ReferenceLine
+} from 'recharts';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   TrendingUp, TrendingDown, DollarSign, 
@@ -13,7 +16,7 @@ import {
   Eye, Gift, Clock, ArrowUp, ArrowDown, Calculator,
   Banknote, Coins, Package, Home, Building2, BarChart3, Sparkles, 
   Wallet, FileText, MessageCircle, Zap, Target, PieChart as PieChartIcon,
-  TrendingDownIcon, Gauge, AlertTriangle, DollarSignIcon, MinusCircle, RefreshCw  
+  TrendingDownIcon, Gauge, AlertTriangle, DollarSignIcon, MinusCircle, RefreshCw
 } from 'lucide-react';
 
 // Import data store hooks
@@ -1013,9 +1016,9 @@ export default function Dashboard() {
                 </div>
               </motion.div>
             )}
-            
-            {/* Cash Flow Trend - REPLACE THE ENTIRE CHART SECTION WITH THIS */}
-            {netCashBasisMetrics && trends?.chartData && trends.chartData.length > 0 && (
+
+            {/* Cash Flow Trend - ADD THIS ENTIRE SECTION */}
+            {trends?.chartData && trends.chartData.length > 0 && (
               <motion.div 
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -1031,7 +1034,7 @@ export default function Dashboard() {
                 
                 <div className="h-64">
                   <ResponsiveContainer width="100%" height="100%">
-                    <ComposedChart data={trends.chartData}>
+                    <AreaChart data={trends.chartData}>
                       <defs>
                         <linearGradient id="cashFlowGradient" x1="0" y1="0" x2="0" y2="1">
                           <stop offset="5%" stopColor="#10b981" stopOpacity={0.3}/>
@@ -1045,14 +1048,6 @@ export default function Dashboard() {
                         tick={{ fill: '#9ca3af', fontSize: 12 }}
                       />
                       <YAxis 
-                        yAxisId="left"
-                        stroke="#9ca3af"
-                        tick={{ fill: '#9ca3af', fontSize: 12 }}
-                        tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`}
-                      />
-                      <YAxis 
-                        yAxisId="right"
-                        orientation="right"
                         stroke="#9ca3af"
                         tick={{ fill: '#9ca3af', fontSize: 12 }}
                         tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`}
@@ -1064,62 +1059,44 @@ export default function Dashboard() {
                           borderRadius: '0.5rem',
                           color: '#e5e7eb'
                         }}
-                        formatter={(value, name) => {
-                          if (name === 'Daily Change') {
-                            return [`$${value.toLocaleString()}`, name];
-                          }
-                          return [`$${value.toLocaleString()}`, 'Net Cash Position'];
-                        }}
+                        formatter={(value) => [`$${value.toLocaleString()}`, 'Net Cash Position']}
                         labelStyle={{ color: '#9ca3af' }}
                       />
-                      <Bar
-                        yAxisId="right"
-                        dataKey="dailyChange"
-                        name="Daily Change"
-                        fill={(data) => data.dailyChange >= 0 ? '#10b981' : '#ef4444'}
-                      />
                       <Area
-                        yAxisId="left"
                         type="monotone"
                         dataKey="netCashPosition"
-                        stroke="#60a5fa"
+                        stroke="#10b981"
                         strokeWidth={2}
                         fillOpacity={1}
                         fill="url(#cashFlowGradient)"
                       />
-                    </ComposedChart>
+                    </AreaChart>
                   </ResponsiveContainer>
                 </div>
                 
-                <div className="mt-4 grid grid-cols-4 gap-4 text-center">
+                <div className="mt-4 grid grid-cols-3 gap-4 text-center">
                   <div>
-                    <p className="text-xs text-gray-500">Current Position</p>
+                    <p className="text-xs text-gray-500">Start</p>
                     <p className="text-sm font-medium text-gray-300">
-                      {formatCurrency(netCashBasisMetrics.net_cash_position)}
+                      {trends.chartData[0] && formatCurrency(trends.chartData[0].netCashPosition)}
                     </p>
                   </div>
                   <div>
-                    <p className="text-xs text-gray-500">Today's Change</p>
-                    <p className={`text-sm font-medium ${
-                      netCashBasisMetrics.cash_flow_1d > 0 ? 'text-green-400' : 'text-red-400'
-                    }`}>
-                      {formatCurrency(netCashBasisMetrics.cash_flow_1d)}
+                    <p className="text-xs text-gray-500">Current</p>
+                    <p className="text-sm font-medium text-gray-300">
+                      {trends.chartData[trends.chartData.length - 1] && 
+                        formatCurrency(trends.chartData[trends.chartData.length - 1].netCashPosition)}
                     </p>
                   </div>
                   <div>
-                    <p className="text-xs text-gray-500">This Month</p>
+                    <p className="text-xs text-gray-500">Change</p>
                     <p className={`text-sm font-medium ${
-                      netCashBasisMetrics.cash_flow_1m > 0 ? 'text-green-400' : 'text-red-400'
+                      trends.chartData[0] && trends.chartData[trends.chartData.length - 1] &&
+                      (trends.chartData[trends.chartData.length - 1].netCashPosition - trends.chartData[0].netCashPosition) > 0
+                        ? 'text-green-400' : 'text-red-400'
                     }`}>
-                      {formatCurrency(netCashBasisMetrics.cash_flow_1m)}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-gray-500">YTD</p>
-                    <p className={`text-sm font-medium ${
-                      netCashBasisMetrics.cash_flow_ytd > 0 ? 'text-green-400' : 'text-red-400'
-                    }`}>
-                      {formatCurrency(netCashBasisMetrics.cash_flow_ytd)}
+                      {trends.chartData[0] && trends.chartData[trends.chartData.length - 1] &&
+                        formatCurrency(trends.chartData[trends.chartData.length - 1].netCashPosition - trends.chartData[0].netCashPosition)}
                     </p>
                   </div>
                 </div>
@@ -1319,7 +1296,7 @@ export default function Dashboard() {
                 </div>
                 <div className="col-span-3 text-right">
                   <span className="text-sm font-semibold text-green-400">
-                    {(summary.netWorthMix.netCash).toFixed(1)}%
+                    {(summary.netWorthMix.netCash * 100).toFixed(1)}%
                   </span>
                 </div>
                 <div className="col-span-2 text-right">

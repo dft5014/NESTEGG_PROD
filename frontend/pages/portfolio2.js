@@ -107,15 +107,6 @@ export default function Dashboard() {
     markStale            // Add this
   } = usePortfolioSummary();
 
-      // ADD THIS DEBUG SECTION
-    console.log('=== NET WORTH MIX DEBUG ===');
-    console.log('1. Raw state from store:', state.portfolioSummary.data);
-    console.log('2. Summary from hook:', summary);
-    if (summary) {
-      console.log('3. netWorthMix object:', summary.netWorthMix);
-      console.log('4. netWorthMix.securities:', summary.netWorthMix?.securities);
-    }
-
   // Get trend data
   const { trends } = usePortfolioTrends();
   
@@ -137,11 +128,6 @@ export default function Dashboard() {
   const netWorthMixData = useMemo(() => {
     if (!summary) return [];
     
-      console.log('=== CALCULATING NET WORTH MIX DATA ===');
-      console.log('summary.netWorthMix:', summary.netWorthMix);
-      console.log('summary.assetAllocation:', summary.assetAllocation);
-      console.log('summary.altNetWorth:', summary.altNetWorth);
-
     const mixData = [
       {
         name: 'Securities',
