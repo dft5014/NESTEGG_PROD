@@ -16,7 +16,7 @@ import {
   Eye, Gift, Clock, ArrowUp, ArrowDown, Calculator,
   Banknote, Coins, Package, Home, Building2, BarChart3, Sparkles, 
   Wallet, FileText, MessageCircle, Zap, Target, PieChart as PieChartIcon,
-  TrendingDownIcon, Gauge, AlertTriangle, DollarSignIcon, MinusCircle, RefreshCw
+  TrendingDownIcon, Gauge, AlertTriangle, DollarSignIcon, MinusCircle, RefreshCw  
 } from 'lucide-react';
 
 // Import data store hooks
