@@ -67,7 +67,10 @@ const dataStoreReducer = (state, action) => {
         return field || defaultValue;
       };
       
-      // Parse all JSON string fields
+      // IMPORTANT: Only parse fields that are actually JSON strings
+      // Don't parse the main summary object or numeric fields
+      
+      // Parse only the JSON string fields that need it
       const topPositionsData = parseJsonField(summary.top_liquid_positions);
       const accountDiversData = parseJsonField(summary.account_diversification);
       const topPerformersAmountData = parseJsonField(summary.top_performers_amount);
@@ -80,7 +83,6 @@ const dataStoreReducer = (state, action) => {
       const dividendData = parseJsonField(summary.dividend_metrics, {});
       const taxEfficiencyData = parseJsonField(summary.tax_efficiency_metrics, {});
       const netCashBasisData = parseJsonField(summary.net_cash_basis_metrics, {});
-
       
       // Process asset performance data to multiply percentages by 100
       const processedAssetPerformance = {};
@@ -124,7 +126,7 @@ const dataStoreReducer = (state, action) => {
         ...state,
         portfolioSummary: {
           ...state.portfolioSummary,
-          data: summary,
+          data: summary,  // KEEP THE ORIGINAL SUMMARY DATA INTACT
           history: history,
           topLiquidPositions: cleanedTopPositions,
           topPerformersAmount: topPerformersAmountData,
