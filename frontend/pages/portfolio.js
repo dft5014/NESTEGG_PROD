@@ -1319,7 +1319,7 @@ export default function Dashboard() {
                 </div>
                 <div className="col-span-3 text-right">
                   <span className="text-sm font-semibold text-green-400">
-                    {(summary.netWorthMix.netCash * 100).toFixed(1)}%
+                    {(summary.netWorthMix.netCash).toFixed(1)}%
                   </span>
                 </div>
                 <div className="col-span-2 text-right">
