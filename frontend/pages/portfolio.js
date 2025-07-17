@@ -124,6 +124,20 @@ export default function Dashboard() {
     }));
   }, [trends?.chartData, summary]);
   
+  const cashFlowTrendData = useMemo(() => {
+    if (!history || history.length === 0) return [];
+    
+    return history
+      .filter(item => item.net_cash_basis_metrics?.net_cash_position !== null && item.net_cash_basis_metrics?.net_cash_position !== undefined)
+      .map(item => ({
+        date: new Date(item.snapshot_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+        value: item.net_cash_basis_metrics.net_cash_position,
+        change: item.net_cash_basis_metrics.cash_flow_1d || 0,
+        changePercent: item.net_cash_basis_metrics.cash_flow_1d_pct || 0
+      }))
+      .sort((a, b) => new Date(a.date) - new Date(b.date)); // Sort by date ascending for chart
+  }, [history]);
+  
   // Process Net Worth Mix data
   const netWorthMixData = useMemo(() => {
     if (!summary) return [];
@@ -1016,9 +1030,9 @@ export default function Dashboard() {
                 </div>
               </motion.div>
             )}
-
-            {/* Cash Flow Trend - ADD THIS ENTIRE SECTION */}
-            {trends?.chartData && trends.chartData.length > 0 && (
+            
+            {/* Cash Flow Trend */}
+            {cashFlowTrendData && cashFlowTrendData.length > 0 && (
               <motion.div 
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -1034,10 +1048,10 @@ export default function Dashboard() {
                 
                 <div className="h-64">
                   <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={trends.chartData}>
+                    <AreaChart data={cashFlowTrendData}>
                       <defs>
                         <linearGradient id="cashFlowGradient" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#10b981" stopOpacity={0.3}/>
+                          <stop offset="5%" stopColor="#10b981" stopOpacity={0.8}/>
                           <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
                         </linearGradient>
                       </defs>
@@ -1045,60 +1059,33 @@ export default function Dashboard() {
                       <XAxis 
                         dataKey="date" 
                         stroke="#9ca3af"
-                        tick={{ fill: '#9ca3af', fontSize: 12 }}
+                        tick={{ fontSize: 12 }}
                       />
                       <YAxis 
                         stroke="#9ca3af"
-                        tick={{ fill: '#9ca3af', fontSize: 12 }}
+                        tick={{ fontSize: 12 }}
                         tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`}
                       />
                       <Tooltip 
-                        contentStyle={{ 
-                          backgroundColor: '#1f2937', 
-                          border: '1px solid #374151',
-                          borderRadius: '0.5rem',
-                          color: '#e5e7eb'
-                        }}
-                        formatter={(value) => [`$${value.toLocaleString()}`, 'Net Cash Position']}
+                        contentStyle={{ backgroundColor: '#1f2937', border: 'none', borderRadius: '0.5rem' }}
                         labelStyle={{ color: '#9ca3af' }}
+                        formatter={(value, name) => {
+                          if (name === 'value') {
+                            return [`$${value.toLocaleString()}`, 'Net Cash Position'];
+                          }
+                          return [value, name];
+                        }}
                       />
-                      <Area
-                        type="monotone"
-                        dataKey="netCashPosition"
-                        stroke="#10b981"
+                      <Area 
+                        type="monotone" 
+                        dataKey="value" 
+                        stroke="#10b981" 
+                        fillOpacity={1} 
+                        fill="url(#cashFlowGradient)" 
                         strokeWidth={2}
-                        fillOpacity={1}
-                        fill="url(#cashFlowGradient)"
                       />
                     </AreaChart>
                   </ResponsiveContainer>
-                </div>
-                
-                <div className="mt-4 grid grid-cols-3 gap-4 text-center">
-                  <div>
-                    <p className="text-xs text-gray-500">Start</p>
-                    <p className="text-sm font-medium text-gray-300">
-                      {trends.chartData[0] && formatCurrency(trends.chartData[0].netCashPosition)}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-gray-500">Current</p>
-                    <p className="text-sm font-medium text-gray-300">
-                      {trends.chartData[trends.chartData.length - 1] && 
-                        formatCurrency(trends.chartData[trends.chartData.length - 1].netCashPosition)}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-gray-500">Change</p>
-                    <p className={`text-sm font-medium ${
-                      trends.chartData[0] && trends.chartData[trends.chartData.length - 1] &&
-                      (trends.chartData[trends.chartData.length - 1].netCashPosition - trends.chartData[0].netCashPosition) > 0
-                        ? 'text-green-400' : 'text-red-400'
-                    }`}>
-                      {trends.chartData[0] && trends.chartData[trends.chartData.length - 1] &&
-                        formatCurrency(trends.chartData[trends.chartData.length - 1].netCashPosition - trends.chartData[0].netCashPosition)}
-                    </p>
-                  </div>
                 </div>
               </motion.div>
             )}
