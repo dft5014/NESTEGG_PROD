@@ -1030,7 +1030,7 @@ export default function Dashboard() {
                 </div>
               </motion.div>
             )}
-            
+
             {/* Cash Flow Trend */}
             {cashFlowTrendData && cashFlowTrendData.length > 0 && (
               <motion.div 
@@ -1051,7 +1051,7 @@ export default function Dashboard() {
                     <AreaChart data={cashFlowTrendData}>
                       <defs>
                         <linearGradient id="cashFlowGradient" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#10b981" stopOpacity={0.8}/>
+                          <stop offset="5%" stopColor="#10b981" stopOpacity={0.3}/>
                           <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
                         </linearGradient>
                       </defs>
@@ -1059,33 +1059,60 @@ export default function Dashboard() {
                       <XAxis 
                         dataKey="date" 
                         stroke="#9ca3af"
-                        tick={{ fontSize: 12 }}
+                        tick={{ fill: '#9ca3af', fontSize: 12 }}
                       />
                       <YAxis 
                         stroke="#9ca3af"
-                        tick={{ fontSize: 12 }}
+                        tick={{ fill: '#9ca3af', fontSize: 12 }}
                         tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`}
                       />
                       <Tooltip 
-                        contentStyle={{ backgroundColor: '#1f2937', border: 'none', borderRadius: '0.5rem' }}
-                        labelStyle={{ color: '#9ca3af' }}
-                        formatter={(value, name) => {
-                          if (name === 'value') {
-                            return [`$${value.toLocaleString()}`, 'Net Cash Position'];
-                          }
-                          return [value, name];
+                        contentStyle={{ 
+                          backgroundColor: '#1f2937', 
+                          border: '1px solid #374151',
+                          borderRadius: '0.5rem',
+                          color: '#e5e7eb'
                         }}
+                        formatter={(value) => [`$${value.toLocaleString()}`, 'Net Cash Position']}
+                        labelStyle={{ color: '#9ca3af' }}
                       />
-                      <Area 
-                        type="monotone" 
-                        dataKey="value" 
-                        stroke="#10b981" 
-                        fillOpacity={1} 
-                        fill="url(#cashFlowGradient)" 
+                      <Area
+                        type="monotone"
+                        dataKey="netCashPosition"
+                        stroke="#10b981"
                         strokeWidth={2}
+                        fillOpacity={1}
+                        fill="url(#cashFlowGradient)"
                       />
                     </AreaChart>
                   </ResponsiveContainer>
+                </div>
+                
+                <div className="mt-4 grid grid-cols-3 gap-4 text-center">
+                  <div>
+                    <p className="text-xs text-gray-500">Start</p>
+                    <p className="text-sm font-medium text-gray-300">
+                      {cashFlowTrendData[0] && formatCurrency(cashFlowTrendData[0].netCashPosition)}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-500">Current</p>
+                    <p className="text-sm font-medium text-gray-300">
+                      {cashFlowTrendData[cashFlowTrendData.length - 1] && 
+                        formatCurrency(cashFlowTrendData[cashFlowTrendData.length - 1].netCashPosition)}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-500">Change</p>
+                    <p className={`text-sm font-medium ${
+                      cashFlowTrendData[0] && cashFlowTrendData[cashFlowTrendData.length - 1] &&
+                      (cashFlowTrendData[cashFlowTrendData.length - 1].netCashPosition - cashFlowTrendData[0].netCashPosition) > 0
+                        ? 'text-green-400' : 'text-red-400'
+                    }`}>
+                      {cashFlowTrendData[0] && cashFlowTrendData[cashFlowTrendData.length - 1] &&
+                        formatCurrency(cashFlowTrendData[cashFlowTrendData.length - 1].netCashPosition - cashFlowTrendData[0].netCashPosition)}
+                    </p>
+                  </div>
                 </div>
               </motion.div>
             )}
