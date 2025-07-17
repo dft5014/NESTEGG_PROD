@@ -125,19 +125,39 @@ export default function Dashboard() {
   }, [trends?.chartData, summary]);
   
   const cashFlowTrendData = useMemo(() => {
-    if (!history || history.length === 0) return [];
+    if (!history || history.length === 0) {
+      console.log('No history data available');
+      return [];
+    }
     
-    return history
-      .filter(item => item.net_cash_basis_metrics?.net_cash_position !== null && item.net_cash_basis_metrics?.net_cash_position !== undefined)
+    const filteredData = history
+      .filter(item => {
+        const hasNetCashPosition = item.net_cash_basis_metrics?.net_cash_position !== null && 
+                                  item.net_cash_basis_metrics?.net_cash_position !== undefined;
+        if (!hasNetCashPosition) {
+          console.log('Item missing net_cash_position:', item.snapshot_date);
+        }
+        return hasNetCashPosition;
+      })
       .map(item => ({
-        date: new Date(item.snapshot_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-        value: item.net_cash_basis_metrics.net_cash_position,
+        date: item.snapshot_date, // Keep original date for sorting
+        displayDate: new Date(item.snapshot_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+        netCashPosition: item.net_cash_basis_metrics.net_cash_position,
         change: item.net_cash_basis_metrics.cash_flow_1d || 0,
         changePercent: item.net_cash_basis_metrics.cash_flow_1d_pct || 0
       }))
-      .sort((a, b) => new Date(a.date) - new Date(b.date)); // Sort by date ascending for chart
+      .sort((a, b) => new Date(a.date) - new Date(b.date)); // Sort by date ascending
+    
+    console.log('Filtered cash flow data:', filteredData);
+    return filteredData;
   }, [history]);
   
+    useEffect(() => {
+      console.log('History length:', history?.length);
+      console.log('History sample:', history?.[0]);
+      console.log('CashFlowTrendData:', cashFlowTrendData);
+    }, [history, cashFlowTrendData]);
+
   // Process Net Worth Mix data
   const netWorthMixData = useMemo(() => {
     if (!summary) return [];
@@ -1057,7 +1077,7 @@ export default function Dashboard() {
                       </defs>
                       <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
                       <XAxis 
-                        dataKey="date" 
+                        dataKey="displayDate" 
                         stroke="#9ca3af"
                         tick={{ fill: '#9ca3af', fontSize: 12 }}
                       />
@@ -1117,6 +1137,8 @@ export default function Dashboard() {
               </motion.div>
             )}
             
+
+
             {/* Portfolio Insights with Risk Metrics */}
             <motion.div 
               initial={{ opacity: 0, y: 20 }}
