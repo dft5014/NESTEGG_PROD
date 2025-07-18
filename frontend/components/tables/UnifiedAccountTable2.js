@@ -5,26 +5,33 @@ import {
   Building2, TrendingUp, TrendingDown, ChevronRight, ChevronDown,
   DollarSign, Briefcase, Eye, EyeOff, ArrowUpDown, Search,
   Wallet, RefreshCw, AlertCircle, PiggyBank, Landmark,
-  CreditCard, Shield, X, Filter
+  CreditCard, Shield, X, Filter, Home, Banknote, Coins,
+  Bitcoin, Globe, Building, University, CircleDollarSign,
+  LineChart, BarChart2
 } from 'lucide-react';
 import { useAccounts } from '@/store/hooks';
 import { formatCurrency, formatPercentage } from '@/utils/formatters';
-import { 
-  ACCOUNT_CATEGORIES, 
-  ASSET_TYPES, 
-  INSTITUTION_ICONS,
-  INSTITUTION_COLORS 
-} from '@/utils/constants';
+import { popularBrokerages } from '@/utils/constants';
 
-// Helper function to get institution icon
-const getInstitutionIcon = (institutionName) => {
-  const IconComponent = INSTITUTION_ICONS[institutionName] || Building2;
-  return IconComponent;
-};
+// Account category configuration - matching existing table
+const ACCOUNT_CATEGORIES = [
+  { id: 'investment', name: 'Investment', icon: LineChart, color: 'blue' },
+  { id: 'retirement', name: 'Retirement', icon: PiggyBank, color: 'green' },
+  { id: 'cash', name: 'Cash & Savings', icon: Wallet, color: 'emerald' },
+  { id: 'crypto', name: 'Cryptocurrency', icon: Bitcoin, color: 'purple' },
+  { id: 'realestate', name: 'Real Estate', icon: Home, color: 'orange' },
+  { id: 'other', name: 'Other Assets', icon: Briefcase, color: 'gray' },
+  { id: 'brokerage', name: 'Brokerage', icon: BarChart2, color: 'indigo' }
+];
 
-// Helper function to get institution color
-const getInstitutionColor = (institutionName) => {
-  return INSTITUTION_COLORS[institutionName] || 'gray';
+// Asset type badges
+const ASSET_TYPES = {
+  security: { label: 'Stocks', color: 'blue' },
+  crypto: { label: 'Crypto', color: 'purple' },
+  cash: { label: 'Cash', color: 'green' },
+  metal: { label: 'Metal', color: 'yellow' },
+  realestate: { label: 'RE', color: 'orange' },
+  other: { label: 'Other', color: 'gray' }
 };
 
 const UnifiedAccountTable2 = () => {
@@ -46,7 +53,7 @@ const UnifiedAccountTable2 = () => {
   const [selectedInstitutions, setSelectedInstitutions] = useState(new Set());
   const [showFilters, setShowFilters] = useState(false);
 
-  // Time period mapping
+  // Time period mapping - matching existing table
   const timeframePeriods = {
     '1D': '1d',
     '1W': '1w', 
@@ -58,7 +65,15 @@ const UnifiedAccountTable2 = () => {
     '3Y': '3y'
   };
 
-  // Get unique institutions and categories
+  // Get institution logo
+  const getInstitutionLogo = (institutionName) => {
+    const brokerage = popularBrokerages.find(b => 
+      b.name.toLowerCase() === institutionName.toLowerCase()
+    );
+    return brokerage?.logo;
+  };
+
+  // Get unique institutions and categories from accounts
   const uniqueInstitutions = useMemo(() => {
     return [...new Set(accounts.map(acc => acc.institution))].sort();
   }, [accounts]);
@@ -67,7 +82,7 @@ const UnifiedAccountTable2 = () => {
     return [...new Set(accounts.map(acc => acc.category))].sort();
   }, [accounts]);
 
-  // Get performance data based on selected timeframe
+  // Get performance data for selected timeframe
   const getPerformanceData = (account) => {
     const period = timeframePeriods[selectedTimeframe];
     const changeKey = `value${period.charAt(0).toUpperCase() + period.slice(1)}Change`;
@@ -83,7 +98,6 @@ const UnifiedAccountTable2 = () => {
   const filteredAccounts = useMemo(() => {
     let filtered = accounts;
 
-    // Search filter
     if (searchTerm) {
       filtered = filtered.filter(account => 
         account.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -91,14 +105,12 @@ const UnifiedAccountTable2 = () => {
       );
     }
 
-    // Category filter
     if (selectedCategories.size > 0) {
       filtered = filtered.filter(account => 
         selectedCategories.has(account.category)
       );
     }
 
-    // Institution filter
     if (selectedInstitutions.size > 0) {
       filtered = filtered.filter(account => 
         selectedInstitutions.has(account.institution)
@@ -131,8 +143,8 @@ const UnifiedAccountTable2 = () => {
         bValue = b[sortConfig.key];
       }
       
-      if (aValue === null) return 1;
-      if (bValue === null) return -1;
+      if (aValue === null || aValue === undefined) return 1;
+      if (bValue === null || bValue === undefined) return -1;
       
       if (sortConfig.direction === 'asc') {
         return aValue > bValue ? 1 : -1;
@@ -144,7 +156,6 @@ const UnifiedAccountTable2 = () => {
     return sorted;
   }, [filteredAccounts, sortConfig, selectedTimeframe]);
 
-  // Handle sort
   const handleSort = (key) => {
     setSortConfig(prev => ({
       key,
@@ -152,7 +163,6 @@ const UnifiedAccountTable2 = () => {
     }));
   };
 
-  // Toggle row expansion
   const toggleRow = (accountId) => {
     const newExpanded = new Set(expandedRows);
     if (newExpanded.has(accountId)) {
@@ -163,7 +173,6 @@ const UnifiedAccountTable2 = () => {
     setExpandedRows(newExpanded);
   };
 
-  // Toggle category filter
   const toggleCategory = (category) => {
     const newCategories = new Set(selectedCategories);
     if (newCategories.has(category)) {
@@ -174,7 +183,6 @@ const UnifiedAccountTable2 = () => {
     setSelectedCategories(newCategories);
   };
 
-  // Toggle institution filter
   const toggleInstitution = (institution) => {
     const newInstitutions = new Set(selectedInstitutions);
     if (newInstitutions.has(institution)) {
@@ -277,19 +285,22 @@ const UnifiedAccountTable2 = () => {
             <div>
               <h3 className="text-sm font-medium text-gray-300 mb-2">Categories</h3>
               <div className="flex flex-wrap gap-2">
-                {uniqueCategories.map(category => (
-                  <button
-                    key={category}
-                    onClick={() => toggleCategory(category)}
-                    className={`px-3 py-1 rounded-full text-sm transition-colors ${
-                      selectedCategories.has(category)
-                        ? 'bg-blue-500 text-white'
-                        : 'bg-gray-600 text-gray-300 hover:bg-gray-500'
-                    }`}
-                  >
-                    {category}
-                  </button>
-                ))}
+                {uniqueCategories.map(category => {
+                  const categoryConfig = ACCOUNT_CATEGORIES.find(c => c.id === category);
+                  return (
+                    <button
+                      key={category}
+                      onClick={() => toggleCategory(category)}
+                      className={`px-3 py-1 rounded-full text-sm transition-colors ${
+                        selectedCategories.has(category)
+                          ? 'bg-blue-500 text-white'
+                          : 'bg-gray-600 text-gray-300 hover:bg-gray-500'
+                      }`}
+                    >
+                      {categoryConfig?.name || category}
+                    </button>
+                  );
+                })}
               </div>
             </div>
 
@@ -405,9 +416,8 @@ const UnifiedAccountTable2 = () => {
               const perf = getPerformanceData(account);
               const isExpanded = expandedRows.has(account.id);
               const categoryConfig = ACCOUNT_CATEGORIES.find(cat => cat.id === account.category);
-              const CategoryIcon = categoryConfig?.icon || Wallet;
-              const InstitutionIcon = getInstitutionIcon(account.institution);
-              const institutionColor = getInstitutionColor(account.institution);
+              const CategoryIcon = categoryConfig?.icon || Briefcase;
+              const institutionLogo = getInstitutionLogo(account.institution);
               
               return (
                 <React.Fragment key={account.id}>
@@ -420,9 +430,17 @@ const UnifiedAccountTable2 = () => {
                   >
                     <td className="py-3 px-4">
                       <div className="flex items-center gap-3">
-                        <div className={`p-1.5 bg-${institutionColor}-100 dark:bg-${institutionColor}-900/20 rounded-lg`}>
-                          <InstitutionIcon className={`w-5 h-5 text-${institutionColor}-600 dark:text-${institutionColor}-400`} />
-                        </div>
+                        {institutionLogo ? (
+                          <img 
+                            src={institutionLogo} 
+                            alt={account.institution}
+                            className="w-8 h-8 rounded-lg object-contain bg-gray-700 p-1"
+                          />
+                        ) : (
+                          <div className="p-1.5 bg-gray-700 rounded-lg">
+                            <Building2 className="w-5 h-5 text-gray-400" />
+                          </div>
+                        )}
                         <div>
                           <div className="font-medium text-white text-sm">{account.name}</div>
                           <div className="text-xs text-gray-400">{account.institution} • {account.type}</div>
@@ -484,9 +502,9 @@ const UnifiedAccountTable2 = () => {
                             {account.cashPositions}
                           </span>
                         )}
-                        {account.otherPositions > 0 && (
-                          <span className="text-xs bg-gray-900/20 text-gray-400 px-2 py-0.5 rounded">
-                            {account.otherPositions}
+                        {(account.metalPositions > 0 || account.otherPositions > 0) && (
+                          <span className="text-xs bg-gray-700 text-gray-300 px-2 py-0.5 rounded">
+                            {(account.metalPositions || 0) + (account.otherPositions || 0)}
                           </span>
                         )}
                       </div>
@@ -498,7 +516,7 @@ const UnifiedAccountTable2 = () => {
                     </td>
                   </motion.tr>
 
-                  {/* Expanded row with account details */}
+                  {/* Expanded row */}
                   <AnimatePresence>
                     {isExpanded && (
                       <motion.tr
