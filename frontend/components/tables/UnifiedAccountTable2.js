@@ -1,673 +1,596 @@
 // frontend/components/tables/UnifiedAccountTable2.js
-import React, { useState, useMemo, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  Building2, TrendingUp, TrendingDown, ChevronRight, ChevronDown,
-  DollarSign, Briefcase, Eye, EyeOff, ArrowUpDown, Search,
-  Wallet, RefreshCw, AlertCircle, PiggyBank, Landmark,
-  CreditCard, Shield, X, Filter, Home, Banknote, Coins,
-  Bitcoin, Globe, Building, University, CircleDollarSign,
-  LineChart, BarChart2
-} from 'lucide-react';
+import React, { useState, useEffect, useMemo } from 'react';
+import ReactDOM from 'react-dom';
+
+// Store hooks
 import { useAccounts } from '@/store/hooks';
-import { formatCurrency, formatPercentage } from '@/utils/formatters';
+
+// Utils
+import { formatCurrency, formatDate, formatPercentage } from '@/utils/formatters';
 import { popularBrokerages } from '@/utils/constants';
 
-// Account category configuration - matching existing table
-const ACCOUNT_CATEGORIES = [
-  { id: 'investment', name: 'Investment', icon: LineChart, color: 'blue' },
-  { id: 'retirement', name: 'Retirement', icon: PiggyBank, color: 'green' },
-  { id: 'cash', name: 'Cash & Savings', icon: Wallet, color: 'emerald' },
-  { id: 'crypto', name: 'Cryptocurrency', icon: Bitcoin, color: 'purple' },
-  { id: 'realestate', name: 'Real Estate', icon: Home, color: 'orange' },
-  { id: 'other', name: 'Other Assets', icon: Briefcase, color: 'gray' },
-  { id: 'brokerage', name: 'Brokerage', icon: BarChart2, color: 'indigo' }
-];
+// Button Components
+import AddAccountButton from '@/components/AddAccountButton';
+import EditAccountButton from '@/components/EditAccountButton';
+import AddPositionButton from '@/components/AddPositionButton';
 
-// Asset type badges
-const ASSET_TYPES = {
-  security: { label: 'Stocks', color: 'blue' },
-  crypto: { label: 'Crypto', color: 'purple' },
-  cash: { label: 'Cash', color: 'green' },
-  metal: { label: 'Metal', color: 'yellow' },
-  realestate: { label: 'RE', color: 'orange' },
-  other: { label: 'Other', color: 'gray' }
+// Modal Components & Flows
+import AccountDetailModal from '@/components/modals/AccountDetailModal';
+import FixedModal from '@/components/modals/FixedModal';
+import AccountModal from '@/components/modals/AccountModal';
+import AddPositionFlow from '@/components/flows/AddPositionFlow';
+
+// Icons
+import { Briefcase, Loader, Search, Plus, SlidersHorizontal, Trash, Settings, ChevronUp, ChevronDown } from 'lucide-react';
+
+// --- Delete Confirmation Component ---
+const DeleteConfirmationModal = ({ isOpen, onClose, onConfirm, itemName, itemType = "item" }) => {
+    return (
+        <FixedModal
+            isOpen={isOpen}
+            onClose={onClose}
+            title={`Delete ${itemType}?`}
+            size="max-w-sm"
+        >
+            <div className="pt-2 pb-4 text-gray-700">
+                <p>Are you sure you want to delete "{itemName}"? This action cannot be undone.</p>
+            </div>
+            <div className="flex justify-end space-x-3 pt-4 border-t border-gray-200">
+                <button onClick={onClose} className="px-4 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 text-sm">Cancel</button>
+                <button onClick={onConfirm} className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 text-sm">Delete</button>
+            </div>
+        </FixedModal>
+    );
 };
 
-const UnifiedAccountTable2 = () => {
-  const { 
-    accounts, 
-    summary, 
-    loading, 
-    error, 
-    refresh,
-    isStale 
-  } = useAccounts();
-
-  const [showValues, setShowValues] = useState(true);
-  const [sortConfig, setSortConfig] = useState({ key: 'totalValue', direction: 'desc' });
-  const [selectedTimeframe, setSelectedTimeframe] = useState('1D');
-  const [expandedRows, setExpandedRows] = useState(new Set());
-  const [searchTerm, setSearchTerm] = useState('');
-  const [selectedCategories, setSelectedCategories] = useState(new Set());
-  const [selectedInstitutions, setSelectedInstitutions] = useState(new Set());
-  const [showFilters, setShowFilters] = useState(false);
-
-  // Time period mapping - matching existing table
-  const timeframePeriods = {
-    '1D': '1d',
-    '1W': '1w', 
-    '1M': '1m',
-    '3M': '3m',
-    'YTD': 'ytd',
-    '1Y': '1y',
-    '2Y': '2y',
-    '3Y': '3y'
-  };
-
-  // Get institution logo - FIXED to handle null/undefined
-  const getInstitutionLogo = (institutionName) => {
+// Helper function to get logo
+const getInstitutionLogo = (institutionName) => {
     if (!institutionName) return null;
-    
-    const brokerage = popularBrokerages.find(b => 
-      b.name && b.name.toLowerCase() === institutionName.toLowerCase()
+    const brokerage = popularBrokerages.find(
+        broker => broker.name.toLowerCase() === institutionName.toLowerCase()
     );
-    return brokerage?.logo;
-  };
+    const FallbackIcon = () => <Briefcase className="w-5 h-5 text-gray-500" />;
+    return brokerage ? brokerage.logo : FallbackIcon;
+};
 
-  // Get unique institutions and categories from accounts
-  const uniqueInstitutions = useMemo(() => {
-    return [...new Set(accounts.map(acc => acc.institution).filter(Boolean))].sort();
-  }, [accounts]);
+// --- Main UnifiedAccountTable2 Component ---
+const UnifiedAccountTable2 = ({
+    initialSort = "value-high",
+    title = "Your Accounts",
+    onDataChanged = () => {}
+}) => {
+    console.log("UnifiedAccountTable2: Rendering start");
 
-  const uniqueCategories = useMemo(() => {
-    return [...new Set(accounts.map(acc => acc.category).filter(Boolean))].sort();
-  }, [accounts]);
+    // Use the store hook to get data
+    const { 
+        accounts, 
+        summary, 
+        loading, 
+        error, 
+        refresh,
+        deleteAccount: deleteAccountFromStore,
+        isStale 
+    } = useAccounts();
 
-  // Get performance data for selected timeframe
-  const getPerformanceData = (account) => {
-    const period = timeframePeriods[selectedTimeframe];
-    const changeKey = `value${period.charAt(0).toUpperCase() + period.slice(1)}Change`;
-    const changePctKey = `value${period.charAt(0).toUpperCase() + period.slice(1)}ChangePct`;
-    
-    return {
-      change: account[changeKey] || 0,
-      changePct: account[changePctKey] || 0
+    // Modal States
+    const [selectedAccountDetail, setSelectedAccountDetail] = useState(null);
+    const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
+    const [accountToDelete, setAccountToDelete] = useState(null);
+    const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+    const [accountToEdit, setAccountToEdit] = useState(null);
+    const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+    const [accountForPosition, setAccountForPosition] = useState(null);
+    const [isAddPositionFlowOpen, setIsAddPositionFlowOpen] = useState(false);
+
+    // UI Feedback State
+    const [successMessage, setSuccessMessage] = useState("");
+
+    // Sorting and Filtering State
+    const [sortField, setSortField] = useState(initialSort.split('-')[0]);
+    const [sortDirection, setSortDirection] = useState(initialSort.includes('-low') ? 'asc' : 'desc');
+    const [searchQuery, setSearchQuery] = useState("");
+
+    // Calculate totals for summary row
+    const totals = useMemo(() => {
+        if (!accounts || accounts.length === 0) {
+            return {
+                totalValue: 0,
+                totalCostBasis: 0,
+                totalGainLoss: 0,
+                positionsCount: 0,
+                cashBalance: 0,
+                totalGainLossPercent: 0
+            };
+        }
+
+        const result = accounts.reduce((acc, account) => {
+            acc.totalValue += account.totalValue ?? 0;
+            acc.totalCostBasis += account.totalCostBasis ?? 0;
+            acc.totalGainLoss += account.totalGainLoss ?? 0;
+            acc.positionsCount += account.positionsCount ?? 0;
+            acc.cashBalance += account.cashValue ?? 0;
+            return acc;
+        }, { 
+            totalValue: 0, 
+            totalCostBasis: 0, 
+            totalGainLoss: 0, 
+            positionsCount: 0,
+            cashBalance: 0
+        });
+        
+        // Calculate gain/loss percent at the summary level
+        result.totalGainLossPercent = result.totalCostBasis > 0 
+            ? (result.totalGainLoss / result.totalCostBasis) 
+            : 0;
+            
+        return result;
+    }, [accounts]);
+
+    // Handle column sort
+    const handleSortChange = (field) => {
+        if (field === sortField) {
+            // Toggle direction if same field
+            setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+        } else {
+            // Default to desc for new field
+            setSortField(field);
+            setSortDirection('desc');
+        }
     };
-  };
 
-  // Filter accounts
-  const filteredAccounts = useMemo(() => {
-    let filtered = accounts;
+    // Get sort indicator for column headers
+    const getSortIndicator = (field) => {
+        if (field !== sortField) return null;
+        return sortDirection === 'asc' ? 
+            <ChevronUp className="inline-block w-4 h-4 ml-1" /> : 
+            <ChevronDown className="inline-block w-4 h-4 ml-1" />;
+    };
 
-    if (searchTerm) {
-      filtered = filtered.filter(account => 
-        (account.name && account.name.toLowerCase().includes(searchTerm.toLowerCase())) ||
-        (account.institution && account.institution.toLowerCase().includes(searchTerm.toLowerCase()))
-      );
-    }
+    // --- Filtering & Sorting ---
+    const filteredAndSortedAccounts = useMemo(() => {
+        let filtered = accounts || [];
+        if (searchQuery) {
+            const lowerCaseQuery = searchQuery.toLowerCase();
+            filtered = filtered.filter(acc =>
+                acc.name?.toLowerCase().includes(lowerCaseQuery) ||
+                acc.institution?.toLowerCase().includes(lowerCaseQuery) ||
+                acc.type?.toLowerCase().includes(lowerCaseQuery)
+            );
+        }
+        if (!Array.isArray(filtered)) return [];
 
-    if (selectedCategories.size > 0) {
-      filtered = filtered.filter(account => 
-        account.category && selectedCategories.has(account.category)
-      );
-    }
+        const sorted = [...filtered].sort((a, b) => {
+            const valueA = a.totalValue ?? 0;
+            const valueB = b.totalValue ?? 0;
+            const costBasisA = a.totalCostBasis ?? 0;
+            const costBasisB = b.totalCostBasis ?? 0;
+            const gainLossA = a.totalGainLoss ?? 0;
+            const gainLossB = b.totalGainLoss ?? 0;
+            const nameA = a.name || "";
+            const nameB = b.name || "";
+            const institutionA = a.institution || "";
+            const institutionB = b.institution || "";
+            const positionsCountA = a.positionsCount ?? 0;
+            const positionsCountB = b.positionsCount ?? 0;
 
-    if (selectedInstitutions.size > 0) {
-      filtered = filtered.filter(account => 
-        account.institution && selectedInstitutions.has(account.institution)
-      );
-    }
+            let comparison = 0;
+            
+            // Handle different sort fields
+            switch (sortField) {
+                case "value": comparison = valueB - valueA; break;
+                case "cost_basis": comparison = costBasisB - costBasisA; break;
+                case "gain_loss": comparison = gainLossB - gainLossA; break;
+                case "name": comparison = nameA.localeCompare(nameB); break;
+                case "institution": comparison = institutionA.localeCompare(institutionB); break;
+                case "positions": comparison = positionsCountB - positionsCountA; break;
+                case "cash": comparison = (b.cashValue ?? 0) - (a.cashValue ?? 0); break;
+                default: comparison = valueB - valueA; // Default to value
+            }
+            
+            // Apply sort direction
+            return sortDirection === 'asc' ? -comparison : comparison;
+        });
+        
+        return sorted;
+    }, [accounts, sortField, sortDirection, searchQuery]);
 
-    return filtered;
-  }, [accounts, searchTerm, selectedCategories, selectedInstitutions]);
-
-  // Sort accounts
-  const sortedAccounts = useMemo(() => {
-    if (!filteredAccounts) return [];
+    // --- Modal Trigger Handlers ---
+    const handleRowClick = (account) => { 
+        setSelectedAccountDetail(account); 
+        setIsDetailModalOpen(true); 
+    };
     
-    const sorted = [...filteredAccounts].sort((a, b) => {
-      let aValue, bValue;
-      
-      if (sortConfig.key === 'performance') {
-        const aPref = getPerformanceData(a);
-        const bPref = getPerformanceData(b);
-        aValue = aPref.changePct;
-        bValue = bPref.changePct;
-      } else if (sortConfig.key === 'name') {
-        aValue = (a.name || '').toLowerCase();
-        bValue = (b.name || '').toLowerCase();
-      } else if (sortConfig.key === 'institution') {
-        aValue = (a.institution || '').toLowerCase();
-        bValue = (b.institution || '').toLowerCase();
-      } else {
-        aValue = a[sortConfig.key];
-        bValue = b[sortConfig.key];
-      }
-      
-      if (aValue === null || aValue === undefined) return 1;
-      if (bValue === null || bValue === undefined) return -1;
-      
-      if (sortConfig.direction === 'asc') {
-        return aValue > bValue ? 1 : -1;
-      } else {
-        return aValue < bValue ? 1 : -1;
-      }
-    });
-    
-    return sorted;
-  }, [filteredAccounts, sortConfig, selectedTimeframe]);
+    const handleCloseDetailModal = () => setIsDetailModalOpen(false);
 
-  const handleSort = (key) => {
-    setSortConfig(prev => ({
-      key,
-      direction: prev.key === key && prev.direction === 'desc' ? 'asc' : 'desc'
-    }));
-  };
+    // --- Delete Handlers ---
+    const handleDeleteClick = (account) => {
+        console.log("UnifiedAccountTable2: Delete triggered for:", account?.name);
+        setAccountToDelete(account);
+        setIsDeleteModalOpen(true);
+    };
+    const handleCloseDeleteModal = () => {
+        setIsDeleteModalOpen(false);
+        setTimeout(() => setAccountToDelete(null), 300);
+    };
+    const handleConfirmDelete = async () => {
+        if (!accountToDelete) return;
+        const deletedName = accountToDelete.name;
+        console.log("UnifiedAccountTable2: Confirming delete for account:", accountToDelete.id);
+        try {
+            await deleteAccountFromStore(accountToDelete.id);
+            handleCloseDeleteModal();
+            setSuccessMessage(`Account "${deletedName}" deleted successfully!`);
+            setTimeout(() => setSuccessMessage(""), 3000);
+            // Refresh data after delete
+            refresh();
+            onDataChanged();
+        } catch (err) {
+            console.error("UnifiedAccountTable2: Delete failed:", err);
+            handleCloseDeleteModal();
+        }
+    };
 
-  const toggleRow = (accountId) => {
-    const newExpanded = new Set(expandedRows);
-    if (newExpanded.has(accountId)) {
-      newExpanded.delete(accountId);
-    } else {
-      newExpanded.add(accountId);
-    }
-    setExpandedRows(newExpanded);
-  };
+    // --- Edit Handlers ---
+    const handleEditClick = (account) => {
+        console.log("UnifiedAccountTable2: Edit triggered for account:", account?.name);
+        setAccountToEdit(account);
+        setIsEditModalOpen(true);
+    };
+    const handleCloseEditModal = (didSave) => {
+        const accountName = accountToEdit?.name;
+        setIsEditModalOpen(false);
+        setAccountToEdit(null);
+        if (didSave) {
+            setSuccessMessage(`Account "${accountName}" updated successfully!`);
+            setTimeout(() => setSuccessMessage(""), 3000);
+            // Refresh data after edit
+            refresh();
+            onDataChanged();
+        }
+    };
 
-  const toggleCategory = (category) => {
-    const newCategories = new Set(selectedCategories);
-    if (newCategories.has(category)) {
-      newCategories.delete(category);
-    } else {
-      newCategories.add(category);
-    }
-    setSelectedCategories(newCategories);
-  };
+    // --- Add Position Handlers ---
+    const handleAddPositionClick = (account) => {
+        console.log("UnifiedAccountTable2: Add Position triggered for account:", account?.name);
+        setAccountForPosition(account);
+        setIsAddPositionFlowOpen(true);
+    };
+    const handleCloseAddPositionFlow = (didSave) => {
+        const accountName = accountForPosition?.name;
+        setIsAddPositionFlowOpen(false);
+        setAccountForPosition(null);
+        if (didSave) {
+            setSuccessMessage(`Position added to "${accountName}" successfully!`);
+            setTimeout(() => setSuccessMessage(""), 3000);
+            // Refresh data after position add
+            refresh();
+            onDataChanged();
+        }
+    };
 
-  const toggleInstitution = (institution) => {
-    const newInstitutions = new Set(selectedInstitutions);
-    if (newInstitutions.has(institution)) {
-      newInstitutions.delete(institution);
-    } else {
-      newInstitutions.add(institution);
-    }
-    setSelectedInstitutions(newInstitutions);
-  };
-
-  if (loading && !accounts.length) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="text-center">
-          <RefreshCw className="w-8 h-8 animate-spin text-blue-500 mx-auto mb-2" />
-          <p className="text-gray-500">Loading accounts...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="text-center">
-          <AlertCircle className="w-8 h-8 text-red-500 mx-auto mb-2" />
-          <p className="text-red-500">Error loading accounts</p>
-          <button 
-            onClick={refresh}
-            className="mt-2 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
-          >
-            Retry
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="bg-gray-800 rounded-xl shadow-sm">
-      {/* Header */}
-      <div className="p-4 border-b border-gray-700">
-        <div className="flex justify-between items-center mb-4">
-          <h2 className="text-xl font-semibold text-white">Accounts</h2>
-          
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setShowValues(!showValues)}
-              className="p-2 rounded-lg bg-gray-700 hover:bg-gray-600 transition-colors"
-              title={showValues ? 'Hide values' : 'Show values'}
-            >
-              {showValues ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
-            </button>
-
-            <button
-              onClick={refresh}
-              disabled={loading}
-              className={`p-2 rounded-lg bg-gray-700 hover:bg-gray-600 transition-colors ${
-                loading ? 'opacity-50 cursor-not-allowed' : ''
-              }`}
-              title="Refresh data"
-            >
-              <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-            </button>
-          </div>
-        </div>
-
-        {/* Search and Filters */}
-        <div className="flex flex-col sm:flex-row gap-2">
-          <div className="flex-1 relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-            <input
-              type="text"
-              placeholder="Search accounts..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
-          
-          <button
-            onClick={() => setShowFilters(!showFilters)}
-            className={`px-4 py-2 rounded-lg bg-gray-700 hover:bg-gray-600 transition-colors flex items-center gap-2 ${
-              (selectedCategories.size > 0 || selectedInstitutions.size > 0) ? 'ring-2 ring-blue-500' : ''
-            }`}
-          >
-            <Filter className="w-4 h-4" />
-            <span>Filters</span>
-            {(selectedCategories.size > 0 || selectedInstitutions.size > 0) && (
-              <span className="bg-blue-500 text-white text-xs rounded-full px-2">
-                {selectedCategories.size + selectedInstitutions.size}
-              </span>
-            )}
-          </button>
-        </div>
-
-        {/* Filter Dropdowns */}
-        {showFilters && (
-          <div className="mt-4 p-4 bg-gray-700 rounded-lg space-y-4">
-            <div>
-              <h3 className="text-sm font-medium text-gray-300 mb-2">Categories</h3>
-              <div className="flex flex-wrap gap-2">
-                {uniqueCategories.map(category => {
-                  const categoryConfig = ACCOUNT_CATEGORIES.find(c => c.id === category);
-                  return (
-                    <button
-                      key={category}
-                      onClick={() => toggleCategory(category)}
-                      className={`px-3 py-1 rounded-full text-sm transition-colors ${
-                        selectedCategories.has(category)
-                          ? 'bg-blue-500 text-white'
-                          : 'bg-gray-600 text-gray-300 hover:bg-gray-500'
-                      }`}
-                    >
-                      {categoryConfig?.name || category}
-                    </button>
-                  );
-                })}
-              </div>
+    // --- Render Logic ---
+    if (loading && !accounts?.length) {
+        console.log("UnifiedAccountTable2: Rendering Loading State");
+        return (
+            <div className="bg-gray-800/70 backdrop-blur-sm rounded-xl p-6 text-center min-h-[180px] flex items-center justify-center text-white">
+                <div>
+                    <Loader className="inline-block w-6 h-6 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mb-3" />
+                    <p className="text-gray-400">Loading accounts...</p>
+                </div>
             </div>
+        );
+    }
 
-            <div>
-              <h3 className="text-sm font-medium text-gray-300 mb-2">Institutions</h3>
-              <div className="flex flex-wrap gap-2">
-                {uniqueInstitutions.map(institution => (
-                  <button
-                    key={institution}
-                    onClick={() => toggleInstitution(institution)}
-                    className={`px-3 py-1 rounded-full text-sm transition-colors ${
-                      selectedInstitutions.has(institution)
-                        ? 'bg-blue-500 text-white'
-                        : 'bg-gray-600 text-gray-300 hover:bg-gray-500'
-                    }`}
-                  >
-                    {institution}
-                  </button>
-                ))}
-              </div>
-            </div>
+    console.log("UnifiedAccountTable2: Rendering Table Content, accounts count:", accounts?.length || 0);
 
-            {(selectedCategories.size > 0 || selectedInstitutions.size > 0) && (
-              <button
-                onClick={() => {
-                  setSelectedCategories(new Set());
-                  setSelectedInstitutions(new Set());
-                }}
-                className="text-sm text-blue-400 hover:text-blue-300"
-              >
-                Clear all filters
-              </button>
-            )}
-          </div>
-        )}
-      </div>
+    // Main Table Render
+    return (
+        <>
+            {/* --- Fixed Position UI Feedback --- */}
+            {successMessage && (<div className="fixed bottom-4 right-4 p-4 bg-green-600 text-white rounded-lg shadow-lg z-[100]">{successMessage}</div>)}
+            {error && !loading && (<div className="fixed bottom-4 right-4 p-4 bg-red-600 text-white rounded-lg shadow-lg z-[100]">Error: {error}<button onClick={()=>refresh()} className="ml-2 text-xs underline font-semibold">Retry</button></div>)}
 
-      {/* Time Period Selector */}
-      <div className="px-4 py-2 border-b border-gray-700">
-        <div className="flex items-center gap-1">
-          {Object.keys(timeframePeriods).map(period => (
-            <button
-              key={period}
-              onClick={() => setSelectedTimeframe(period)}
-              className={`px-3 py-1 text-sm font-medium rounded transition-colors ${
-                selectedTimeframe === period
-                  ? 'bg-blue-600 text-white'
-                  : 'text-gray-400 hover:text-white hover:bg-gray-700'
-              }`}
-            >
-              {period}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Table */}
-      <div className="overflow-x-auto">
-        <table className="w-full">
-          <thead>
-            <tr className="border-b border-gray-700">
-              <th className="text-left py-2 px-4">
-                <button
-                  onClick={() => handleSort('name')}
-                  className="flex items-center gap-1 text-gray-400 hover:text-white transition-colors text-sm font-medium"
-                >
-                  Account
-                  <ArrowUpDown className="w-3 h-3" />
-                </button>
-              </th>
-              <th className="text-right py-2 px-4">
-                <button
-                  onClick={() => handleSort('totalValue')}
-                  className="flex items-center gap-1 text-gray-400 hover:text-white transition-colors ml-auto text-sm font-medium"
-                >
-                  Total Value
-                  <ArrowUpDown className="w-3 h-3" />
-                </button>
-              </th>
-              <th className="text-right py-2 px-4">
-                <button
-                  onClick={() => handleSort('totalGainLoss')}
-                  className="flex items-center gap-1 text-gray-400 hover:text-white transition-colors ml-auto text-sm font-medium"
-                >
-                  Gain/Loss
-                  <ArrowUpDown className="w-3 h-3" />
-                </button>
-              </th>
-              <th className="text-right py-2 px-4">
-                <button
-                  onClick={() => handleSort('performance')}
-                  className="flex items-center gap-1 text-gray-400 hover:text-white transition-colors ml-auto text-sm font-medium"
-                >
-                  {selectedTimeframe} Performance
-                  <ArrowUpDown className="w-3 h-3" />
-                </button>
-              </th>
-              <th className="text-right py-2 px-4">
-                <button
-                  onClick={() => handleSort('allocationPercent')}
-                  className="flex items-center gap-1 text-gray-400 hover:text-white transition-colors ml-auto text-sm font-medium"
-                >
-                  Allocation
-                  <ArrowUpDown className="w-3 h-3" />
-                </button>
-              </th>
-              <th className="text-center py-2 px-4 text-sm font-medium text-gray-400">Assets</th>
-              <th className="w-8"></th>
-            </tr>
-          </thead>
-          <tbody>
-            {sortedAccounts.map((account) => {
-              const perf = getPerformanceData(account);
-              const isExpanded = expandedRows.has(account.id);
-              const categoryConfig = ACCOUNT_CATEGORIES.find(cat => cat.id === account.category);
-              const CategoryIcon = categoryConfig?.icon || Briefcase;
-              const institutionLogo = getInstitutionLogo(account.institution);
-              
-              return (
-                <React.Fragment key={account.id}>
-                  <motion.tr 
-                    className="border-b border-gray-700 hover:bg-gray-700/50 transition-colors cursor-pointer"
-                    onClick={() => toggleRow(account.id)}
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    transition={{ duration: 0.3 }}
-                  >
-                    <td className="py-3 px-4">
-                      <div className="flex items-center gap-3">
-                        {institutionLogo ? (
-                          <img 
-                            src={institutionLogo} 
-                            alt={account.institution || 'Institution'}
-                            className="w-8 h-8 rounded-lg object-contain bg-gray-700 p-1"
-                          />
-                        ) : (
-                          <div className="p-1.5 bg-gray-700 rounded-lg">
-                            <Building2 className="w-5 h-5 text-gray-400" />
-                          </div>
-                        )}
-                        <div>
-                          <div className="font-medium text-white text-sm">{account.name || 'Unnamed Account'}</div>
-                          <div className="text-xs text-gray-400">
-                            {account.institution || 'Unknown'} • {account.type || 'Account'}
-                          </div>
+            {/* --- Table Section --- */}
+            <div className="bg-gray-800/70 backdrop-blur-sm rounded-xl mb-8 overflow-hidden">
+                {/* Header */}
+                <div className="flex flex-wrap justify-between items-center p-3 border-b border-gray-700 gap-4 text-white">
+                    <h2 className="text-xl font-semibold flex items-center whitespace-nowrap"><Briefcase className="w-5 h-5 mr-2 text-blue-400" />{title}</h2>
+                    <div className='flex flex-wrap items-center gap-4'>
+                        {/* Search Input */}
+                        <div className="relative">
+                            <Search className="absolute h-4 w-4 text-gray-400 left-3 inset-y-0 my-auto" />
+                            <input type="text" className="bg-gray-700 text-white pl-9 pr-3 py-2 rounded-lg text-sm focus:ring-1 focus:ring-blue-500 focus:outline-none" placeholder="Search Name/Inst..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
                         </div>
-                      </div>
-                    </td>
-                    <td className="text-right py-3 px-4">
-                      <div className="text-white font-medium text-sm">
-                        {showValues ? formatCurrency(account.totalValue) : '••••'}
-                      </div>
-                    </td>
-                    <td className="text-right py-3 px-4">
-                      <div className={`flex items-center justify-end gap-1 text-sm ${
-                        account.totalGainLoss >= 0 ? 'text-green-400' : 'text-red-400'
-                      }`}>
-                        {account.totalGainLoss >= 0 ? 
-                          <TrendingUp className="w-3 h-3" /> : 
-                          <TrendingDown className="w-3 h-3" />
-                        }
-                        <span className="font-medium">
-                          {showValues ? formatCurrency(Math.abs(account.totalGainLoss)) : '••••'}
-                        </span>
-                        <span className="text-xs">
-                          ({formatPercentage(account.totalGainLossPercent)})
-                        </span>
-                      </div>
-                    </td>
-                    <td className="text-right py-3 px-4">
-                      <div className={`text-sm ${
-                        perf.changePct >= 0 ? 'text-green-400' : 'text-red-400'
-                      }`}>
-                        <span className="font-medium">
-                          {showValues ? formatCurrency(Math.abs(perf.change)) : '••••'}
-                        </span>
-                        <span className="text-xs ml-1">
-                          ({perf.changePct >= 0 ? '+' : ''}{formatPercentage(perf.changePct)})
-                        </span>
-                      </div>
-                    </td>
-                    <td className="text-right py-3 px-4">
-                      <div className="text-gray-300 text-sm">
-                        {formatPercentage(account.allocationPercent)}
-                      </div>
-                    </td>
-                    <td className="text-center py-3 px-4">
-                      <div className="flex items-center justify-center gap-2">
-                        {account.securityPositions > 0 && (
-                          <span className="text-xs bg-blue-900/20 text-blue-400 px-2 py-0.5 rounded">
-                            {account.securityPositions}
-                          </span>
-                        )}
-                        {account.cryptoPositions > 0 && (
-                          <span className="text-xs bg-purple-900/20 text-purple-400 px-2 py-0.5 rounded">
-                            {account.cryptoPositions}
-                          </span>
-                        )}
-                        {account.cashPositions > 0 && (
-                          <span className="text-xs bg-green-900/20 text-green-400 px-2 py-0.5 rounded">
-                            {account.cashPositions}
-                          </span>
-                        )}
-                        {(account.metalPositions > 0 || account.otherPositions > 0) && (
-                          <span className="text-xs bg-gray-700 text-gray-300 px-2 py-0.5 rounded">
-                            {(account.metalPositions || 0) + (account.otherPositions || 0)}
-                          </span>
-                        )}
-                      </div>
-                    </td>
-                    <td className="py-3 px-4">
-                      <ChevronRight className={`w-4 h-4 text-gray-400 transform transition-transform ${
-                        isExpanded ? 'rotate-90' : ''
-                      }`} />
-                    </td>
-                  </motion.tr>
+                        {/* Sort Select */}
+                        <div className="relative">
+                            <SlidersHorizontal className="absolute h-4 w-4 text-gray-400 left-3 inset-y-0 my-auto" />
+                            <select 
+                                className="bg-gray-700 text-white pl-9 pr-8 py-2 rounded-lg text-sm focus:ring-1 focus:ring-blue-500 focus:outline-none appearance-none" 
+                                value={`${sortField}-${sortDirection === 'asc' ? 'low' : 'high'}`}
+                                onChange={(e) => {
+                                    const [field, direction] = e.target.value.split('-');
+                                    setSortField(field);
+                                    setSortDirection(direction === 'low' ? 'asc' : 'desc');
+                                }}
+                            >
+                                <option value="value-high">Sort: Value (High-Low)</option>
+                                <option value="value-low">Sort: Value (Low-High)</option>
+                                <option value="name-high">Sort: Name (A-Z)</option>
+                                <option value="institution-high">Sort: Institution (A-Z)</option>
+                                <option value="cost_basis-high">Sort: Cost Basis (High-Low)</option>
+                                <option value="cost_basis-low">Sort: Cost Basis (Low-High)</option>
+                                <option value="gain_loss-high">Sort: Gain $ (High-Low)</option>
+                                <option value="gain_loss-low">Sort: Gain $ (Low-High)</option>
+                                <option value="positions-high">Sort: Positions (High-Low)</option>
+                                <option value="positions-low">Sort: Positions (Low-High)</option>
+                                <option value="cash-high">Sort: Cash (High-Low)</option>
+                                <option value="cash-low">Sort: Cash (Low-High)</option>
+                            </select>
+                            <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none"><svg className="h-4 w-4 text-gray-400" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" /></svg></div>
+                        </div>
+                        {/* Add Account Button (Triggers parent refresh) */}
+                        <AddAccountButton className="bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded-lg text-sm" onAccountAdded={() => {
+                            refresh();
+                            onDataChanged();
+                        }} />
+                    </div>
+                </div>
 
-                  {/* Expanded row */}
-                  <AnimatePresence>
-                    {isExpanded && (
-                      <motion.tr
-                        initial={{ opacity: 0, height: 0 }}
-                        animate={{ opacity: 1, height: 'auto' }}
-                        exit={{ opacity: 0, height: 0 }}
-                        transition={{ duration: 0.3 }}
-                      >
-                        <td colSpan={7} className="bg-gray-750 px-4 py-3">
-                          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                            {/* Asset breakdown */}
-                            <div>
-                              <h4 className="text-xs font-medium text-gray-400 mb-1">Asset Breakdown</h4>
-                              <div className="space-y-0.5">
-                                {account.securityValue > 0 && (
-                                  <div className="flex justify-between text-xs">
-                                    <span className="text-gray-500">Securities</span>
-                                    <span className="text-white">{formatCurrency(account.securityValue)}</span>
-                                  </div>
-                                )}
-                                {account.cryptoValue > 0 && (
-                                  <div className="flex justify-between text-xs">
-                                    <span className="text-gray-500">Crypto</span>
-                                    <span className="text-white">{formatCurrency(account.cryptoValue)}</span>
-                                  </div>
-                                )}
-                                {account.cashValue > 0 && (
-                                  <div className="flex justify-between text-xs">
-                                    <span className="text-gray-500">Cash</span>
-                                    <span className="text-white">{formatCurrency(account.cashValue)}</span>
-                                  </div>
-                                )}
-                                {account.metalValue > 0 && (
-                                  <div className="flex justify-between text-xs">
-                                    <span className="text-gray-500">Metals</span>
-                                    <span className="text-white">{formatCurrency(account.metalValue)}</span>
-                                  </div>
-                                )}
-                                {account.otherAssetsValue > 0 && (
-                                  <div className="flex justify-between text-xs">
-                                    <span className="text-gray-500">Other</span>
-                                    <span className="text-white">{formatCurrency(account.otherAssetsValue)}</span>
-                                  </div>
-                                )}
-                              </div>
-                            </div>
+                {/* Table Content */}
+                {filteredAndSortedAccounts.length === 0 ? (
+                    <div className="p-6 text-center text-gray-400">No accounts match your criteria.</div>
+                ) : (
+                    <div className="overflow-x-auto">
+                        <table className="min-w-full divide-y divide-gray-700 text-white">
+                            <thead className="bg-gray-900/50 sticky top-0 z-10 shadow-sm">
+                                <tr>
+                                    <th scope="col" className="px-3 py-2 text-center text-xs font-medium text-gray-400 uppercase tracking-wider w-10">#</th>
+                                    <th 
+                                        scope="col" 
+                                        className="px-3 py-2 text-left text-xs font-medium text-gray-400 uppercase tracking-wider cursor-pointer hover:bg-gray-800/50"
+                                        onClick={() => handleSortChange('institution')}
+                                    >
+                                        Institution {getSortIndicator('institution')}
+                                    </th>
+                                    <th 
+                                        scope="col" 
+                                        className="px-3 py-2 text-left text-xs font-medium text-gray-400 uppercase tracking-wider cursor-pointer hover:bg-gray-800/50"
+                                        onClick={() => handleSortChange('name')}
+                                    >
+                                        Account Name {getSortIndicator('name')}
+                                    </th>
+                                    <th 
+                                        scope="col" 
+                                        className="px-3 py-2 text-right text-xs font-medium text-gray-400 uppercase tracking-wider hidden sm:table-cell w-20 cursor-pointer hover:bg-gray-800/50"
+                                        onClick={() => handleSortChange('positions')}
+                                    >
+                                        Positions {getSortIndicator('positions')}
+                                    </th>
+                                    <th 
+                                        scope="col" 
+                                        className="px-3 py-2 text-right text-xs font-medium text-gray-400 uppercase tracking-wider w-28 cursor-pointer hover:bg-gray-800/50"
+                                        onClick={() => handleSortChange('value')}
+                                    >
+                                        Value {getSortIndicator('value')}
+                                    </th>
+                                    <th 
+                                        scope="col" 
+                                        className="px-3 py-2 text-right text-xs font-medium text-gray-400 uppercase tracking-wider hidden md:table-cell w-28 cursor-pointer hover:bg-gray-800/50"
+                                        onClick={() => handleSortChange('cash')}
+                                    >
+                                        Cash {getSortIndicator('cash')}
+                                    </th>
+                                    <th 
+                                        scope="col" 
+                                        className="px-3 py-2 text-right text-xs font-medium text-gray-400 uppercase tracking-wider hidden md:table-cell w-28 cursor-pointer hover:bg-gray-800/50"
+                                        onClick={() => handleSortChange('cost_basis')}
+                                    >
+                                        Cost Basis {getSortIndicator('cost_basis')}
+                                    </th>
+                                    <th 
+                                        scope="col" 
+                                        className="px-3 py-2 text-right text-xs font-medium text-gray-400 uppercase tracking-wider w-28 cursor-pointer hover:bg-gray-800/50"
+                                        onClick={() => handleSortChange('gain_loss')}
+                                    >
+                                        Gain/Loss {getSortIndicator('gain_loss')}
+                                    </th>
+                                    <th scope="col" className="px-3 py-2 text-center text-xs font-medium text-gray-400 uppercase tracking-wider w-20">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-700">
+                                {/* NestEgg Summary Row */}
+                                <tr className="bg-blue-900/30 font-medium border-b-2 border-blue-700">
+                                    <td className="px-3 py-2 text-center whitespace-nowrap">
+                                        <span className="font-bold">•</span>
+                                    </td>
+                                    <td className="px-3 py-2 whitespace-nowrap">
+                                        <span className="text-sm font-bold text-white">Total NestEgg</span>
+                                    </td>
+                                    <td className="px-3 py-2 whitespace-nowrap text-sm">
+                                        {/* Leave account name cell empty */}
+                                    </td>
+                                    <td className="px-3 py-2 whitespace-nowrap text-right text-sm hidden sm:table-cell">
+                                        {totals.positionsCount}
+                                    </td>
+                                    <td className="px-3 py-2 whitespace-nowrap text-right text-sm font-bold">
+                                        {formatCurrency(totals.totalValue)}
+                                    </td>
+                                    <td className="px-3 py-2 whitespace-nowrap text-right text-sm hidden md:table-cell">
+                                        {formatCurrency(totals.cashBalance)}
+                                    </td>
+                                    <td className="px-3 py-2 whitespace-nowrap text-right text-sm hidden md:table-cell">
+                                        {formatCurrency(totals.totalCostBasis)}
+                                    </td>
+                                    <td className="px-3 py-2 whitespace-nowrap text-right">
+                                        <div className="flex flex-col items-end">
+                                            <div className={`text-sm font-bold ${totals.totalGainLoss >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                                                {totals.totalGainLoss >= 0 ? '+' : ''}{formatCurrency(totals.totalGainLoss)}
+                                            </div>
+                                            <div className={`text-xs ${totals.totalGainLoss >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                                                ({totals.totalGainLoss >= 0 ? '+' : ''}{formatPercentage(totals.totalGainLossPercent)})
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td className="px-3 py-2 whitespace-nowrap text-center">
+                                        {/* Leave actions cell empty */}
+                                    </td>
+                                </tr>
+                                
+                                {/* Regular account rows */}
+                                {filteredAndSortedAccounts.map((account, index) => {
+                                    const costBasis = account.totalCostBasis ?? 0;
+                                    const gainLoss = account.totalGainLoss ?? 0;
+                                    const gainLossPercent = account.totalGainLossPercent ?? 0;
+                                    const positionsCount = account.positionsCount ?? 0;
+                                    const totalValue = account.totalValue ?? 0;
+                                    const LogoComponent = getInstitutionLogo(account.institution);
 
-                            {/* Metrics */}
-                            <div>
-                              <h4 className="text-xs font-medium text-gray-400 mb-1">Metrics</h4>
-                              <div className="space-y-0.5">
-                                <div className="flex justify-between text-xs">
-                                  <span className="text-gray-500">Cost Basis</span>
-                                  <span className="text-white">{formatCurrency(account.totalCostBasis)}</span>
-                                </div>
-                                {account.yieldPercent > 0 && (
-                                  <div className="flex justify-between text-xs">
-                                    <span className="text-gray-500">Yield</span>
-                                    <span className="text-white">{formatPercentage(account.yieldPercent)}</span>
-                                  </div>
-                                )}
-                                {account.dividendIncomeAnnual > 0 && (
-                                  <div className="flex justify-between text-xs">
-                                    <span className="text-gray-500">Annual Income</span>
-                                    <span className="text-white">{formatCurrency(account.dividendIncomeAnnual)}</span>
-                                  </div>
-                                )}
-                              </div>
-                            </div>
+                                    // Map the account object to match what modals expect
+                                    const accountForModals = {
+                                        ...account,
+                                        id: account.id,
+                                        account_name: account.name,
+                                        cash_balance: account.cashValue,
+                                        total_value: account.totalValue,
+                                        total_cost_basis: account.totalCostBasis,
+                                        total_gain_loss: account.totalGainLoss,
+                                        total_gain_loss_percent: account.totalGainLossPercent,
+                                        positions_count: account.positionsCount
+                                    };
 
-                            {/* Liquidity */}
-                            <div>
-                              <h4 className="text-xs font-medium text-gray-400 mb-1">Liquidity</h4>
-                              <div className="space-y-0.5">
-                                <div className="flex justify-between text-xs">
-                                  <span className="text-gray-500">Liquid</span>
-                                  <span className="text-white">{formatCurrency(account.liquidValue)}</span>
-                                </div>
-                                {account.illiquidValue > 0 && (
-                                  <div className="flex justify-between text-xs">
-                                    <span className="text-gray-500">Illiquid</span>
-                                    <span className="text-white">{formatCurrency(account.illiquidValue)}</span>
-                                  </div>
-                                )}
-                              </div>
-                            </div>
+                                    return (
+                                        <tr key={account.id} className="hover:bg-gray-700/50 transition-colors cursor-pointer" onClick={() => handleRowClick(accountForModals)}>
+                                            {/* Rank Number */}
+                                            <td className="px-3 py-2 text-center whitespace-nowrap">
+                                                <span className="text-sm text-gray-300">{index + 1}</span>
+                                            </td>
+                                            
+                                            {/* Institution */}
+                                            <td className="px-3 py-2 whitespace-nowrap text-sm">
+                                                <div className="flex items-center max-w-xs">
+                                                    {typeof LogoComponent === 'string'
+                                                        ? <img src={LogoComponent} alt={account.institution || ''} className="w-5 h-5 object-contain mr-2 rounded-sm flex-shrink-0"/>
+                                                        : LogoComponent
+                                                            ? <div className="w-5 h-5 mr-2 flex items-center justify-center"><LogoComponent /></div>
+                                                            : (account.institution &&
+                                                                <div className="flex-shrink-0 h-5 w-5 rounded-sm bg-gray-600 flex items-center justify-center mr-2 text-xs font-medium text-gray-300">
+                                                                    {account.institution.charAt(0).toUpperCase()}
+                                                                </div>
+                                                              )
+                                                    }
+                                                    <span className="break-words whitespace-normal">{account.institution || "N/A"}</span>
+                                                </div>
+                                            </td>
+                                            
+                                            {/* Account Name + Type (combined) */}
+                                            <td className="px-3 py-2 whitespace-nowrap">
+                                                <div className="text-sm font-medium">{account.name}</div>
+                                                {account.type && (
+                                                    <div className="text-xs text-gray-400 italic">{account.type}</div>
+                                                )}
+                                            </td>
+                                            
+                                            {/* Positions Count */}
+                                            <td className="px-3 py-2 whitespace-nowrap text-right text-sm hidden sm:table-cell">{positionsCount}</td>
+                                            
+                                            {/* Value */}
+                                            <td className="px-3 py-2 whitespace-nowrap text-right text-sm font-medium">{formatCurrency(totalValue)}</td>
+                                            
+                                            {/* Cash Balance */}
+                                            <td className="px-3 py-2 whitespace-nowrap text-right text-sm hidden md:table-cell">{formatCurrency(account.cashValue ?? 0)}</td>
+                                            
+                                            {/* Cost Basis */}
+                                            <td className="px-3 py-2 whitespace-nowrap text-right text-sm hidden md:table-cell">{formatCurrency(costBasis)}</td>
+                                            
+                                            {/* Gain/Loss */}
+                                            <td className="px-3 py-2 whitespace-nowrap text-right">
+                                                <div className="flex flex-col items-end">
+                                                    <div className={`text-sm font-medium ${gainLoss >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                                                        {gainLoss >= 0 ? '+' : ''}{formatCurrency(gainLoss)}
+                                                    </div>
+                                                    <div className={`text-xs ${gainLoss >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                                                    ({gainLoss >= 0 ? '+' : ''}{formatPercentage(gainLossPercent)})
+                                                    </div>
+                                                </div>
+                                            </td>
+                                            
+                                            {/* Actions Cell */}
+                                            <td className="px-3 py-2 whitespace-nowrap text-center">
+                                                <div className="flex items-center justify-center space-x-2">
+                                                    <AddPositionButton 
+                                                        accountId={account.id}
+                                                        className="p-1.5 bg-green-600/20 text-green-400 rounded-full hover:bg-green-600/40"
+                                                        buttonContent={<Plus className="h-4 w-4" />}
+                                                        onPositionAdded={() => {
+                                                            refresh();
+                                                            onDataChanged();
+                                                        }}
+                                                    />
+                                                    <EditAccountButton 
+                                                        account={accountForModals}
+                                                        className="p-1.5 bg-purple-600/20 text-purple-400 rounded-full hover:bg-purple-600/40" 
+                                                        onAccountEdited={() => {
+                                                            refresh();
+                                                            onDataChanged();
+                                                        }}
+                                                    />
+                                                    <button 
+                                                        onClick={(e) => { e.stopPropagation(); handleDeleteClick(account); }} 
+                                                        className="p-1.5 bg-red-600/20 text-red-400 rounded-full hover:bg-red-600/40" 
+                                                        title="Delete Account"
+                                                    >
+                                                        <Trash className="h-4 w-4" />
+                                                    </button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    );
+                                })}
+                            </tbody>
+                        </table>
+                    </div>
+                )}
+            </div>
 
-                            {/* Performance Summary */}
-                            <div>
-                              <h4 className="text-xs font-medium text-gray-400 mb-1">Performance</h4>
-                              <div className="space-y-0.5">
-                                <div className="flex justify-between text-xs">
-                                  <span className="text-gray-500">1W</span>
-                                  <span className={account.value1wChangePct >= 0 ? 'text-green-400' : 'text-red-400'}>
-                                    {formatPercentage(account.value1wChangePct)}
-                                  </span>
-                                </div>
-                                <div className="flex justify-between text-xs">
-                                  <span className="text-gray-500">1M</span>
-                                  <span className={account.value1mChangePct >= 0 ? 'text-green-400' : 'text-red-400'}>
-                                    {formatPercentage(account.value1mChangePct)}
-                                  </span>
-                                </div>
-                                <div className="flex justify-between text-xs">
-                                  <span className="text-gray-500">YTD</span>
-                                  <span className={account.valueYtdChangePct >= 0 ? 'text-green-400' : 'text-red-400'}>
-                                    {formatPercentage(account.valueYtdChangePct)}
-                                  </span>
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                        </td>
-                      </motion.tr>
-                    )}
-                  </AnimatePresence>
-                </React.Fragment>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
+            {/* --- Render Modals / Flows --- */}
+            {selectedAccountDetail && (
+                <AccountDetailModal
+                    isOpen={isDetailModalOpen}
+                    onClose={handleCloseDetailModal}
+                    account={selectedAccountDetail}
+                    onTriggerEdit={handleEditClick}
+                    onTriggerDelete={handleDeleteClick}
+                    onTriggerAddPosition={handleAddPositionClick}
+                />
+            )}
 
-      {/* Summary Footer */}
-      {summary && (
-        <div className="p-4 border-t border-gray-700 bg-gray-750">
-          <div className="flex justify-between items-center text-sm">
-            <span className="text-gray-400">
-              {filteredAccounts.length} of {accounts.length} accounts
-            </span>
-            <span className="text-white font-medium">
-              Total: {showValues ? formatCurrency(summary.totalPortfolioValue) : '••••'}
-            </span>
-          </div>
-        </div>
-      )}
+            {accountToDelete && (
+                <DeleteConfirmationModal
+                    isOpen={isDeleteModalOpen}
+                    onClose={handleCloseDeleteModal}
+                    onConfirm={handleConfirmDelete}
+                    itemName={accountToDelete?.name}
+                    itemType="account"
+                />
+            )}
 
-      {/* Auto-refresh indicator */}
-      {isStale && (
-        <div className="px-4 py-2 bg-yellow-900/20 border-t border-yellow-900/40">
-          <p className="text-xs text-yellow-500 text-center">
-            Data is being refreshed...
-          </p>
-        </div>
-      )}
-    </div>
-  );
+            {isEditModalOpen && (
+                <AccountModal
+                    isOpen={isEditModalOpen}
+                    onClose={handleCloseEditModal}
+                    editAccount={accountToEdit}
+                />
+            )}
+
+            {isAddPositionFlowOpen && (
+                <AddPositionFlow
+                    isOpen={isAddPositionFlowOpen}
+                    onClose={handleCloseAddPositionFlow}
+                    initialAccount={accountForPosition}
+                />
+            )}
+        </>
+    );
 };
 
 export default UnifiedAccountTable2;
