@@ -65,21 +65,23 @@ const UnifiedAccountTable2 = () => {
     '3Y': '3y'
   };
 
-  // Get institution logo
+  // Get institution logo - FIXED to handle null/undefined
   const getInstitutionLogo = (institutionName) => {
+    if (!institutionName) return null;
+    
     const brokerage = popularBrokerages.find(b => 
-      b.name.toLowerCase() === institutionName.toLowerCase()
+      b.name && b.name.toLowerCase() === institutionName.toLowerCase()
     );
     return brokerage?.logo;
   };
 
   // Get unique institutions and categories from accounts
   const uniqueInstitutions = useMemo(() => {
-    return [...new Set(accounts.map(acc => acc.institution))].sort();
+    return [...new Set(accounts.map(acc => acc.institution).filter(Boolean))].sort();
   }, [accounts]);
 
   const uniqueCategories = useMemo(() => {
-    return [...new Set(accounts.map(acc => acc.category))].sort();
+    return [...new Set(accounts.map(acc => acc.category).filter(Boolean))].sort();
   }, [accounts]);
 
   // Get performance data for selected timeframe
@@ -100,20 +102,20 @@ const UnifiedAccountTable2 = () => {
 
     if (searchTerm) {
       filtered = filtered.filter(account => 
-        account.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        account.institution.toLowerCase().includes(searchTerm.toLowerCase())
+        (account.name && account.name.toLowerCase().includes(searchTerm.toLowerCase())) ||
+        (account.institution && account.institution.toLowerCase().includes(searchTerm.toLowerCase()))
       );
     }
 
     if (selectedCategories.size > 0) {
       filtered = filtered.filter(account => 
-        selectedCategories.has(account.category)
+        account.category && selectedCategories.has(account.category)
       );
     }
 
     if (selectedInstitutions.size > 0) {
       filtered = filtered.filter(account => 
-        selectedInstitutions.has(account.institution)
+        account.institution && selectedInstitutions.has(account.institution)
       );
     }
 
@@ -133,11 +135,11 @@ const UnifiedAccountTable2 = () => {
         aValue = aPref.changePct;
         bValue = bPref.changePct;
       } else if (sortConfig.key === 'name') {
-        aValue = a.name.toLowerCase();
-        bValue = b.name.toLowerCase();
+        aValue = (a.name || '').toLowerCase();
+        bValue = (b.name || '').toLowerCase();
       } else if (sortConfig.key === 'institution') {
-        aValue = a.institution.toLowerCase();
-        bValue = b.institution.toLowerCase();
+        aValue = (a.institution || '').toLowerCase();
+        bValue = (b.institution || '').toLowerCase();
       } else {
         aValue = a[sortConfig.key];
         bValue = b[sortConfig.key];
@@ -433,7 +435,7 @@ const UnifiedAccountTable2 = () => {
                         {institutionLogo ? (
                           <img 
                             src={institutionLogo} 
-                            alt={account.institution}
+                            alt={account.institution || 'Institution'}
                             className="w-8 h-8 rounded-lg object-contain bg-gray-700 p-1"
                           />
                         ) : (
@@ -442,8 +444,10 @@ const UnifiedAccountTable2 = () => {
                           </div>
                         )}
                         <div>
-                          <div className="font-medium text-white text-sm">{account.name}</div>
-                          <div className="text-xs text-gray-400">{account.institution} • {account.type}</div>
+                          <div className="font-medium text-white text-sm">{account.name || 'Unnamed Account'}</div>
+                          <div className="text-xs text-gray-400">
+                            {account.institution || 'Unknown'} • {account.type || 'Account'}
+                          </div>
                         </div>
                       </div>
                     </td>
