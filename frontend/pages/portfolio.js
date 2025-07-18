@@ -136,7 +136,7 @@ export default function Dashboard() {
                         item.net_cash_basis_metrics?.net_cash_position !== undefined)
         .map(item => ({
           date: item.date || item.snapshot_date,
-          displayDate: new Date(item.snapshot_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+          displayDate: dateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
           netCashPosition: item.net_cash_basis_metrics.net_cash_position,
           change: item.net_cash_basis_metrics.cash_flow_1d || 0,
           changePercent: item.net_cash_basis_metrics.cash_flow_1d_pct || 0
