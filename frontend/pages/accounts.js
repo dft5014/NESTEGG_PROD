@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import KpiCard from '@/components/ui/KpiCard';
 import AccountTable from '@/components/tables/UnifiedAccountTable';
+import UnifiedAccountTable2 from '@/components/tables/UnifiedAccountTable2'; // New DataStore version
 import { fetchWithAuth } from '@/utils/api';
 import { formatCurrency, formatPercentage } from '@/utils/formatters';
 import { fetchAllAccounts } from '@/utils/apimethods/accountMethods';
@@ -31,6 +32,7 @@ export default function AccountsPage() {
   const [hoveredPosition, setHoveredPosition] = useState(null);
   const [selectedTimeframe, setSelectedTimeframe] = useState('1m');
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [useDataStore, setUseDataStore] = useState(true);
   
   const router = useRouter();
 
@@ -470,6 +472,22 @@ export default function AccountsPage() {
             <AccountTable title="" onAccountsChanged={handleAccountAdded} />
           </div>
         </motion.section>
+
+      {/* Divider */}
+      <div className="border-t border-gray-700 my-8"></div>
+
+        {/* DataStore Version */}
+        <div>
+          <div className="mb-4 p-4 bg-green-900/20 border border-green-500/30 rounded-lg">
+            <h2 className="text-xl font-semibold text-green-400 mb-1">
+              New: DataStore Implementation
+            </h2>
+            <p className="text-sm text-gray-400">
+              Uses centralized DataStore with automatic caching and refresh
+            </p>
+          </div>
+          <UnifiedAccountTable2 />
+        </div>
 
         {/* Analytics Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6 mb-8">

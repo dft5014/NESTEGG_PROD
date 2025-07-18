@@ -7270,6 +7270,98 @@ async def get_datastore_summary(
             detail=f"Failed to fetch datastore summary: {str(e)}"
         )
 
+# Add to main.py
+@app.get("/datastore/accounts/summary")
+async def get_datastore_accounts_summary(
+    snapshot_date: Optional[str] = Query(None, description="Specific date (YYYY-MM-DD) or 'latest' for most recent"),
+    include_history: bool = Query(True, description="Include historical performance data"),
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Get account summaries from rept_summary_accounts view for DataStore
+    """
+    try:
+        user_id = current_user["id"]
+        
+        # Build base query
+        base_query = """
+        SELECT * FROM rept_summary_accounts 
+        WHERE user_id = :user_id
+        """
+        
+        params = {"user_id": user_id}
+        
+        # Handle date filtering
+        if snapshot_date == "latest" or snapshot_date is None:
+            query = f"""
+            WITH latest_date AS (
+                SELECT MAX(snapshot_date) as max_date 
+                FROM rept_summary_accounts 
+                WHERE user_id = :user_id
+            )
+            {base_query} AND snapshot_date = (SELECT max_date FROM latest_date)
+            ORDER BY account_name
+            """
+        else:
+            query = base_query + " AND snapshot_date = :snapshot_date::date ORDER BY account_name"
+            params["snapshot_date"] = snapshot_date
+        
+        # Execute query
+        results = await database.fetch_all(query=query, values=params)
+        
+        if not results:
+            return {"accounts": [], "message": "No account data found"}
+        
+        # Process results
+        accounts = []
+        for row in results:
+            account = dict(row)
+            
+            # Format timestamps
+            if account.get('as_of_timestamp'):
+                account['as_of_timestamp'] = account['as_of_timestamp'].isoformat()
+            if account.get('snapshot_date'):
+                account['snapshot_date'] = account['snapshot_date'].strftime('%Y-%m-%d')
+            if account.get('oldest_position_date'):
+                account['oldest_position_date'] = account['oldest_position_date'].strftime('%Y-%m-%d')
+            if account.get('newest_position_date'):
+                account['newest_position_date'] = account['newest_position_date'].strftime('%Y-%m-%d')
+            
+            # Convert Decimal to float for JSON serialization
+            for key, value in account.items():
+                if isinstance(value, Decimal):
+                    account[key] = float(value)
+            
+            accounts.append(account)
+        
+        # Get total portfolio value for allocation percentages
+        total_portfolio_value = sum(acc['total_value'] for acc in accounts if acc['total_value'])
+        
+        # Add allocation percentage to each account
+        for account in accounts:
+            if total_portfolio_value > 0 and account['total_value']:
+                account['allocation_percent'] = (account['total_value'] / total_portfolio_value) * 100
+            else:
+                account['allocation_percent'] = 0
+        
+        return {
+            "accounts": accounts,
+            "summary": {
+                "total_accounts": len(accounts),
+                "total_portfolio_value": total_portfolio_value,
+                "snapshot_date": accounts[0]['snapshot_date'] if accounts else None
+            }
+        }
+        
+    except Exception as e:
+        logger.error(f"Error fetching accounts summary: {str(e)}")
+        import traceback
+        logger.error(traceback.format_exc())
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to fetch accounts summary: {str(e)}"
+        )
+
 @app.get("/portfolio/sidebar-stats")
 async def get_sidebar_stats(
     current_user: dict = Depends(get_current_user)
