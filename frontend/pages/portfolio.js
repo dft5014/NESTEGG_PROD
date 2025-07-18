@@ -125,38 +125,37 @@ export default function Dashboard() {
   }, [trends?.chartData, summary]);
   
   const cashFlowTrendData = useMemo(() => {
-    if (!history || history.length === 0) {
-      console.log('No history data available');
-      return [];
+    const historyData = [];
+    
+    // Process historical data if available
+    if (history && history.length > 0) {
+      historyData.push(...history
+        .filter(item => item.net_cash_basis_metrics?.net_cash_position !== null && 
+                        item.net_cash_basis_metrics?.net_cash_position !== undefined)
+        .map(item => ({
+          date: item.snapshot_date,
+          displayDate: new Date(item.snapshot_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+          netCashPosition: item.net_cash_basis_metrics.net_cash_position,
+          change: item.net_cash_basis_metrics.cash_flow_1d || 0,
+          changePercent: item.net_cash_basis_metrics.cash_flow_1d_pct || 0
+        }))
+        .sort((a, b) => new Date(a.date) - new Date(b.date)));
     }
     
-    const filteredData = history
-      .filter(item => {
-        const hasNetCashPosition = item.net_cash_basis_metrics?.net_cash_position !== null && 
-                                  item.net_cash_basis_metrics?.net_cash_position !== undefined;
-        if (!hasNetCashPosition) {
-          console.log('Item missing net_cash_position:', item.snapshot_date);
-        }
-        return hasNetCashPosition;
-      })
-      .map(item => ({
-        date: item.snapshot_date, // Keep original date for sorting
-        displayDate: new Date(item.snapshot_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-        netCashPosition: item.net_cash_basis_metrics.net_cash_position,
-        change: item.net_cash_basis_metrics.cash_flow_1d || 0,
-        changePercent: item.net_cash_basis_metrics.cash_flow_1d_pct || 0
-      }))
-      .sort((a, b) => new Date(a.date) - new Date(b.date)); // Sort by date ascending
+    // If we have current netCashBasisMetrics but no history, create a single point
+    if (historyData.length === 0 && netCashBasisMetrics?.net_cash_position) {
+      historyData.push({
+        date: new Date().toISOString().split('T')[0],
+        displayDate: 'Today',
+        netCashPosition: netCashBasisMetrics.net_cash_position,
+        change: 0,
+        changePercent: 0
+      });
+    }
     
-    console.log('Filtered cash flow data:', filteredData);
-    return filteredData;
-  }, [history]);
-  
-    useEffect(() => {
-      console.log('History length:', history?.length);
-      console.log('History sample:', history?.[0]);
-      console.log('CashFlowTrendData:', cashFlowTrendData);
-    }, [history, cashFlowTrendData]);
+    console.log('Cash flow trend data:', historyData); // Debug log
+    return historyData;
+  }, [history, netCashBasisMetrics]);
 
   // Process Net Worth Mix data
   const netWorthMixData = useMemo(() => {
@@ -1137,7 +1136,106 @@ export default function Dashboard() {
               </motion.div>
             )}
             
-
+            {/* Cash Flow Trend */}
+            <motion.div 
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, delay: 0.4 }}
+              className="rounded-xl bg-gray-800 dark:bg-gray-800 p-6 shadow-xl backdrop-blur-sm bg-opacity-90 hover:shadow-2xl transition-all duration-300"
+            >
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="text-lg font-semibold text-white dark:text-white flex items-center">
+                  <Activity className="w-5 h-5 mr-2 text-green-400" />
+                  Cash Flow Trend
+                </h3>
+              </div>
+              
+              {cashFlowTrendData && cashFlowTrendData.length > 1 ? (
+                <>
+                  <div className="h-64">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <AreaChart data={cashFlowTrendData}>
+                        <defs>
+                          <linearGradient id="cashFlowGradient" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor="#10b981" stopOpacity={0.3}/>
+                            <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
+                          </linearGradient>
+                        </defs>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                        <XAxis 
+                          dataKey="displayDate" 
+                          stroke="#9ca3af"
+                          tick={{ fill: '#9ca3af', fontSize: 12 }}
+                        />
+                        <YAxis 
+                          stroke="#9ca3af"
+                          tick={{ fill: '#9ca3af', fontSize: 12 }}
+                          tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`}
+                        />
+                        <Tooltip 
+                          contentStyle={{ 
+                            backgroundColor: '#1f2937', 
+                            border: '1px solid #374151',
+                            borderRadius: '0.5rem',
+                            color: '#e5e7eb'
+                          }}
+                          formatter={(value) => [`$${value.toLocaleString()}`, 'Net Cash Position']}
+                          labelStyle={{ color: '#9ca3af' }}
+                        />
+                        <Area
+                          type="monotone"
+                          dataKey="netCashPosition"
+                          stroke="#10b981"
+                          strokeWidth={2}
+                          fillOpacity={1}
+                          fill="url(#cashFlowGradient)"
+                        />
+                      </AreaChart>
+                    </ResponsiveContainer>
+                  </div>
+                  
+                  <div className="mt-4 grid grid-cols-3 gap-4 text-center">
+                    <div>
+                      <p className="text-xs text-gray-500">Start</p>
+                      <p className="text-sm font-medium text-gray-300">
+                        {formatCurrency(cashFlowTrendData[0].netCashPosition)}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-500">Current</p>
+                      <p className="text-sm font-medium text-gray-300">
+                        {formatCurrency(cashFlowTrendData[cashFlowTrendData.length - 1].netCashPosition)}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-500">Change</p>
+                      <p className={`text-sm font-medium ${
+                        (cashFlowTrendData[cashFlowTrendData.length - 1].netCashPosition - cashFlowTrendData[0].netCashPosition) > 0
+                          ? 'text-green-400' : 'text-red-400'
+                      }`}>
+                        {formatCurrency(cashFlowTrendData[cashFlowTrendData.length - 1].netCashPosition - cashFlowTrendData[0].netCashPosition)}
+                      </p>
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <div className="h-64 flex items-center justify-center">
+                  <div className="text-center">
+                    <Activity className="w-12 h-12 text-gray-600 mx-auto mb-3" />
+                    <p className="text-gray-400 text-sm">
+                      {cashFlowTrendData.length === 1 
+                        ? "Only current data available. Trend will appear as history accumulates."
+                        : "No cash flow data available yet."}
+                    </p>
+                    {netCashBasisMetrics?.net_cash_position && (
+                      <p className="text-gray-500 text-xs mt-2">
+                        Current Position: {formatCurrency(netCashBasisMetrics.net_cash_position)}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              )}
+            </motion.div>
 
             {/* Portfolio Insights with Risk Metrics */}
             <motion.div 

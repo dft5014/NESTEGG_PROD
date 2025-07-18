@@ -81,7 +81,25 @@ const dataStoreReducer = (state, action) => {
       const taxEfficiencyData = parseJsonField(summary.tax_efficiency_metrics, {});
       const netCashBasisData = parseJsonField(summary.net_cash_basis_metrics, {});
 
-      
+            // Process history data to parse JSON fields in each history item
+      const processedHistory = history.map(item => {
+        return {
+          ...item,
+          // Parse JSON fields if they exist as strings
+          net_cash_basis_metrics: parseJsonField(item.net_cash_basis_metrics, {}),
+          risk_metrics: parseJsonField(item.risk_metrics, {}),
+          concentration_metrics: parseJsonField(item.concentration_metrics, {}),
+          dividend_metrics: parseJsonField(item.dividend_metrics, {}),
+          tax_efficiency_metrics: parseJsonField(item.tax_efficiency_metrics, {}),
+          institution_allocation: parseJsonField(item.institution_allocation, []),
+          sector_allocation: parseJsonField(item.sector_allocation, {}),
+          account_diversification: parseJsonField(item.account_diversification, []),
+          top_liquid_positions: parseJsonField(item.top_liquid_positions, []),
+          asset_performance_detail: parseJsonField(item.asset_performance_detail, {}),
+        };
+      });
+
+
       // Process asset performance data to multiply percentages by 100
       const processedAssetPerformance = {};
       Object.entries(assetPerformanceData).forEach(([assetType, data]) => {
@@ -125,7 +143,7 @@ const dataStoreReducer = (state, action) => {
         portfolioSummary: {
           ...state.portfolioSummary,
           data: summary,
-          history: history,
+          history: processedHistory,
           topLiquidPositions: cleanedTopPositions,
           topPerformersAmount: topPerformersAmountData,
           topPerformersPercent: topPerformersPercentData,
