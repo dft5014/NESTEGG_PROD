@@ -7166,7 +7166,7 @@ async def get_net_worth_summary(
                     'top_liquid_positions', 'top_performers_amount', 'top_performers_percent',
                     'account_diversification', 'asset_performance_detail', 'sector_allocation',
                     'risk_metrics', 'institution_allocation', 'concentration_metrics',
-                    'dividend_metrics', 'tax_efficiency_metrics'
+                    'dividend_metrics', 'tax_efficiency_metrics', 'net_cash_basis_metrics'
                 ]
                 for col in json_columns:
                     summary.pop(col, None)
@@ -7237,7 +7237,8 @@ async def get_datastore_summary(
                 total_liabilities,
                 liquid_assets,
                 total_unrealized_gain,
-                total_unrealized_gain_percent
+                total_unrealized_gain_percent,
+                net_cash_basis_metrics
             FROM rept_net_worth_trend_summary 
             WHERE user_id = :user_id 
             AND snapshot_date >= CURRENT_DATE - INTERVAL '30 days'
@@ -7254,7 +7255,8 @@ async def get_datastore_summary(
                     "total_liabilities": float(row['total_liabilities']),
                     "liquid_assets": float(row['liquid_assets']),
                     "unrealized_gain": float(row['total_unrealized_gain']),
-                    "unrealized_gain_percent": float(row['total_unrealized_gain_percent'])
+                    "unrealized_gain_percent": float(row['total_unrealized_gain_percent']),
+                    "net_cash_basis_metrics": row['net_cash_basis_metrics']
                 }
                 for row in history_results
             ]
