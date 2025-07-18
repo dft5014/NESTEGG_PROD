@@ -26,6 +26,7 @@ const initialState = {
     lastFetched: null,
     isStale: false,
   },
+  // NEW: Accounts data
   accounts: {
     data: [],
     summary: null,
@@ -33,8 +34,7 @@ const initialState = {
     error: null,
     lastFetched: null,
     isStale: false
-  },
-
+  }
 };
 
 // Action types
@@ -44,13 +44,11 @@ export const ActionTypes = {
   FETCH_SUMMARY_ERROR: 'FETCH_SUMMARY_ERROR',
   MARK_DATA_STALE: 'MARK_DATA_STALE',
   RESET_STORE: 'RESET_STORE',
-
-// Accounts
+  // Accounts
   FETCH_ACCOUNTS_START: 'FETCH_ACCOUNTS_START',
   FETCH_ACCOUNTS_SUCCESS: 'FETCH_ACCOUNTS_SUCCESS',
   FETCH_ACCOUNTS_ERROR: 'FETCH_ACCOUNTS_ERROR',
   MARK_ACCOUNTS_STALE: 'MARK_ACCOUNTS_STALE',
-
 };
 
 // Reducer
@@ -83,49 +81,6 @@ const dataStoreReducer = (state, action) => {
         return field || defaultValue;
       };
       
-        case ActionTypes.FETCH_ACCOUNTS_START:
-      return {
-        ...state,
-        accounts: {
-          ...state.accounts,
-          loading: true,
-          error: null
-        }
-      };
-
-      case ActionTypes.FETCH_ACCOUNTS_SUCCESS:
-        return {
-          ...state,
-          accounts: {
-            ...state.accounts,
-            data: action.payload.accounts,
-            summary: action.payload.summary,
-            loading: false,
-            error: null,
-            lastFetched: Date.now(),
-            isStale: false
-          }
-        };
-
-      case ActionTypes.FETCH_ACCOUNTS_ERROR:
-        return {
-          ...state,
-          accounts: {
-            ...state.accounts,
-            loading: false,
-            error: action.payload
-          }
-        };
-
-      case ActionTypes.MARK_ACCOUNTS_STALE:
-        return {
-          ...state,
-          accounts: {
-            ...state.accounts,
-            isStale: true
-          }
-        };
-
       // Parse all JSON string fields
       const topPositionsData = parseJsonField(summary.top_liquid_positions);
       const accountDiversData = parseJsonField(summary.account_diversification);
@@ -140,7 +95,7 @@ const dataStoreReducer = (state, action) => {
       const taxEfficiencyData = parseJsonField(summary.tax_efficiency_metrics, {});
       const netCashBasisData = parseJsonField(summary.net_cash_basis_metrics, {});
 
-            // Process history data to parse JSON fields in each history item
+      // Process history data to parse JSON fields in each history item
       const processedHistory = history.map(item => {
         return {
           ...item,
@@ -157,7 +112,6 @@ const dataStoreReducer = (state, action) => {
           asset_performance_detail: parseJsonField(item.asset_performance_detail, {}),
         };
       });
-
 
       // Process asset performance data to multiply percentages by 100
       const processedAssetPerformance = {};
@@ -241,6 +195,50 @@ const dataStoreReducer = (state, action) => {
         },
       };
 
+    // Accounts cases
+    case ActionTypes.FETCH_ACCOUNTS_START:
+      return {
+        ...state,
+        accounts: {
+          ...state.accounts,
+          loading: true,
+          error: null
+        }
+      };
+
+    case ActionTypes.FETCH_ACCOUNTS_SUCCESS:
+      return {
+        ...state,
+        accounts: {
+          ...state.accounts,
+          data: action.payload.accounts || [],
+          summary: action.payload.summary || null,
+          loading: false,
+          error: null,
+          lastFetched: Date.now(),
+          isStale: false
+        }
+      };
+
+    case ActionTypes.FETCH_ACCOUNTS_ERROR:
+      return {
+        ...state,
+        accounts: {
+          ...state.accounts,
+          loading: false,
+          error: action.payload
+        }
+      };
+
+    case ActionTypes.MARK_ACCOUNTS_STALE:
+      return {
+        ...state,
+        accounts: {
+          ...state.accounts,
+          isStale: true
+        }
+      };
+
     case ActionTypes.RESET_STORE:
       return initialState;
 
@@ -293,7 +291,7 @@ export const DataStoreProvider = ({ children }) => {
     }
   }, [state.portfolioSummary.loading, state.portfolioSummary.lastFetched, state.portfolioSummary.isStale]);
 
-    // Fetch accounts data
+  // Fetch accounts data
   const fetchAccountsData = useCallback(async (force = false) => {
     if (state.accounts.loading && !force) return;
 
@@ -333,6 +331,11 @@ export const DataStoreProvider = ({ children }) => {
     dispatch({ type: ActionTypes.MARK_DATA_STALE });
   }, []);
 
+  // Mark accounts as stale
+  const markAccountsStale = useCallback(() => {
+    dispatch({ type: ActionTypes.MARK_ACCOUNTS_STALE });
+  }, []);
+
   // Initial load
   useEffect(() => {
     fetchPortfolioData();
@@ -344,6 +347,13 @@ export const DataStoreProvider = ({ children }) => {
       fetchPortfolioData();
     }
   }, [state.portfolioSummary.isStale, state.portfolioSummary.loading, fetchPortfolioData]);
+
+  // Auto-refresh stale accounts
+  useEffect(() => {
+    if (state.accounts.isStale && !state.accounts.loading) {
+      fetchAccountsData();
+    }
+  }, [state.accounts.isStale, state.accounts.loading, fetchAccountsData]);
 
   const value = {
     state,
