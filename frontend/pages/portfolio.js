@@ -109,12 +109,6 @@ export default function Dashboard() {
 
 
 
-  // Also add this right after cashFlowTrendData is created
-  useEffect(() => {
-    console.log('Processed cashFlowTrendData:', cashFlowTrendData);
-    console.log('cashFlowTrendData length:', cashFlowTrendData.length);
-  }, [cashFlowTrendData]);
-
   // Get trend data
   const { trends } = usePortfolioTrends();
   
@@ -166,36 +160,42 @@ export default function Dashboard() {
   }, [history, netCashBasisMetrics]);
 
 
-  // Add this right after you destructure from usePortfolioSummary
-  useEffect(() => {
-    console.log('Raw history data:', history);
-    console.log('History length:', history?.length);
-    
-    // Log first few history items to see structure
-    if (history && history.length > 0) {
-      console.log('First history item:', history[0]);
-      console.log('First history net_cash_basis_metrics:', history[0].net_cash_basis_metrics);
-      
-      // Check if we have net_cash_position in history
-      const itemsWithCashPosition = history.filter(item => 
-        item.net_cash_basis_metrics?.net_cash_position !== null && 
-        item.net_cash_basis_metrics?.net_cash_position !== undefined
-      );
-      console.log('Items with net_cash_position:', itemsWithCashPosition.length);
-    }
-  }, [history]);
 
-  // Add this near the top of your component
-  useEffect(() => {
-    console.log('Portfolio Summary State:', {
-      loading: isLoading,
-      error: error,
-      hasHistory: history && history.length > 0,
-      hasNetCashMetrics: !!netCashBasisMetrics,
-      historySample: history?.[0]
-    });
-  }, [isLoading, error, history, netCashBasisMetrics]);
+      // Add this right after you destructure from usePortfolioSummary
+      useEffect(() => {
+        console.log('Raw history data:', history);
+        console.log('History length:', history?.length);
+        
+        // Log first few history items to see structure
+        if (history && history.length > 0) {
+          console.log('First history item:', history[0]);
+          console.log('First history net_cash_basis_metrics:', history[0].net_cash_basis_metrics);
+          
+          // Check if we have net_cash_position in history
+          const itemsWithCashPosition = history.filter(item => 
+            item.net_cash_basis_metrics?.net_cash_position !== null && 
+            item.net_cash_basis_metrics?.net_cash_position !== undefined
+          );
+          console.log('Items with net_cash_position:', itemsWithCashPosition.length);
+        }
+      }, [history]);
 
+      // Add this near the top of your component
+      useEffect(() => {
+        console.log('Portfolio Summary State:', {
+          loading: isLoading,
+          error: error,
+          hasHistory: history && history.length > 0,
+          hasNetCashMetrics: !!netCashBasisMetrics,
+          historySample: history?.[0]
+        });
+      }, [isLoading, error, history, netCashBasisMetrics]);
+
+      // Also add this right after cashFlowTrendData is created
+      useEffect(() => {
+        console.log('Processed cashFlowTrendData:', cashFlowTrendData);
+        console.log('cashFlowTrendData length:', cashFlowTrendData.length);
+      }, [cashFlowTrendData]);
   // Process Net Worth Mix data
   const netWorthMixData = useMemo(() => {
     if (!summary) return [];
