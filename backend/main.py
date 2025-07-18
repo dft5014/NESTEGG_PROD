@@ -21,6 +21,7 @@ import databases
 import jwt
 import statistics
 import sqlalchemy
+import decimal from Decimal
 from dotenv import load_dotenv
 from fastapi import FastAPI, Depends, HTTPException, status, Query, File, UploadFile, Form, Response, BackgroundTasks, Request
 from fastapi.middleware.cors import CORSMiddleware
