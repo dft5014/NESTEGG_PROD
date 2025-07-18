@@ -127,39 +127,33 @@ export default function Dashboard() {
   }, [trends?.chartData, summary]);
   
   const cashFlowTrendData = useMemo(() => {
-    const historyData = [];
+    if (!history || history.length === 0) {
+      return [];
+    }
     
-    // Process historical data if available
-    if (history && history.length > 0) {
-      historyData.push(...history
-        .filter(item => item.net_cash_basis_metrics?.net_cash_position !== null && 
-                        item.net_cash_basis_metrics?.net_cash_position !== undefined)
-        .map(item => ({
-          date: item.date || item.snapshot_date,
+    const filteredData = history
+      .filter(item => {
+        return item.net_cash_basis_metrics?.net_cash_position !== null && 
+              item.net_cash_basis_metrics?.net_cash_position !== undefined;
+      })
+      .map(item => {
+        // Parse the date string properly
+        const dateStr = item.date || item.snapshot_date;
+        const [year, month, day] = dateStr.split('-').map(num => parseInt(num));
+        const dateObj = new Date(year, month - 1, day); // month is 0-indexed in JS
+        
+        return {
+          date: dateStr,
           displayDate: dateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
           netCashPosition: item.net_cash_basis_metrics.net_cash_position,
           change: item.net_cash_basis_metrics.cash_flow_1d || 0,
           changePercent: item.net_cash_basis_metrics.cash_flow_1d_pct || 0
-        }))
-        .sort((a, b) => new Date(a.date) - new Date(b.date)));
-    }
+        };
+      })
+      .sort((a, b) => new Date(a.date) - new Date(b.date));
     
-    // If we have current netCashBasisMetrics but no history, create a single point
-    if (historyData.length === 0 && netCashBasisMetrics?.net_cash_position) {
-      historyData.push({
-        date: new Date().toISOString().split('T')[0],
-        displayDate: 'Today',
-        netCashPosition: netCashBasisMetrics.net_cash_position,
-        change: 0,
-        changePercent: 0
-      });
-    }
-    
-    console.log('Cash flow trend data:', historyData); // Debug log
-    return historyData;
-  }, [history, netCashBasisMetrics]);
-
-
+    return filteredData;
+  }, [history]);
 
       // Add this right after you destructure from usePortfolioSummary
       useEffect(() => {
