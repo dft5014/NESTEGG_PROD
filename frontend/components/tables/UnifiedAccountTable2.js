@@ -9,35 +9,238 @@ import { useAccounts } from '@/store/hooks';
 import { formatCurrency, formatDate, formatPercentage } from '@/utils/formatters';
 import { popularBrokerages } from '@/utils/constants';
 
-// Button Components
-import AddAccountButton from '@/components/AddAccountButton';
-import EditAccountButton from '@/components/EditAccountButton';
-import AddPositionButton from '@/components/AddPositionButton';
-
-// Modal Components & Flows
-import AccountDetailModal from '@/components/modals/AccountDetailModal';
+// Modal Components
 import FixedModal from '@/components/modals/FixedModal';
-import AccountModal from '@/components/modals/AccountModal';
-import AddPositionFlow from '@/components/flows/AddPositionFlow';
 
 // Icons
-import { Briefcase, Loader, Search, Plus, SlidersHorizontal, Trash, Settings, ChevronUp, ChevronDown } from 'lucide-react';
+import { 
+    Briefcase, 
+    Loader, 
+    Search, 
+    TrendingUp, 
+    TrendingDown, 
+    ChevronUp, 
+    ChevronDown, 
+    BarChart3, 
+    LineChart, 
+    Activity,
+    Info,
+    ArrowUpRight,
+    ArrowDownRight,
+    Minus
+} from 'lucide-react';
 
-// --- Delete Confirmation Component ---
-const DeleteConfirmationModal = ({ isOpen, onClose, onConfirm, itemName, itemType = "item" }) => {
+// Performance Indicator Component
+const PerformanceIndicator = ({ value, format = 'percentage', size = 'sm' }) => {
+    const isPositive = value > 0;
+    const isNeutral = value === 0;
+    const Icon = isPositive ? ArrowUpRight : isNeutral ? Minus : ArrowDownRight;
+    const colorClass = isPositive ? 'text-green-500' : isNeutral ? 'text-gray-400' : 'text-red-500';
+    const bgClass = isPositive ? 'bg-green-500/10' : isNeutral ? 'bg-gray-500/10' : 'bg-red-500/10';
+    
+    const formattedValue = format === 'percentage' 
+        ? formatPercentage(value)
+        : formatCurrency(Math.abs(value));
+    
+    return (
+        <div className={`inline-flex items-center gap-1 px-2 py-1 rounded-md ${bgClass} ${colorClass} ${size === 'sm' ? 'text-xs' : 'text-sm'}`}>
+            <Icon className={size === 'sm' ? 'w-3 h-3' : 'w-4 h-4'} />
+            <span className="font-medium">
+                {!isNeutral && (isPositive ? '+' : '')}{formattedValue}
+            </span>
+        </div>
+    );
+};
+
+// Account Trends Modal Component
+const AccountTrendsModal = ({ isOpen, onClose, account }) => {
+    if (!account) return null;
+
+    const performancePeriods = [
+        { label: '1D', value: account.value1dChangePct, amount: account.value1dChange },
+        { label: '1W', value: account.value1wChangePct, amount: account.value1wChange },
+        { label: '1M', value: account.value1mChangePct, amount: account.value1mChange },
+        { label: '3M', value: account.value3mChangePct, amount: account.value3mChange },
+        { label: 'YTD', value: account.valueYtdChangePct, amount: account.valueYtdChange },
+        { label: '1Y', value: account.value1yChangePct, amount: account.value1yChange },
+    ];
+
     return (
         <FixedModal
             isOpen={isOpen}
             onClose={onClose}
-            title={`Delete ${itemType}?`}
-            size="max-w-sm"
+            title={
+                <div className="flex items-center gap-3">
+                    <LineChart className="w-5 h-5 text-blue-500" />
+                    <span>Performance Trends: {account.name}</span>
+                </div>
+            }
+            size="max-w-4xl"
         >
-            <div className="pt-2 pb-4 text-gray-700">
-                <p>Are you sure you want to delete "{itemName}"? This action cannot be undone.</p>
+            <div className="space-y-6">
+                {/* Account Overview */}
+                <div className="bg-gray-50 rounded-lg p-4">
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        <div>
+                            <p className="text-sm text-gray-600">Current Value</p>
+                            <p className="text-xl font-bold">{formatCurrency(account.totalValue)}</p>
+                        </div>
+                        <div>
+                            <p className="text-sm text-gray-600">Cost Basis</p>
+                            <p className="text-xl font-bold">{formatCurrency(account.totalCostBasis)}</p>
+                        </div>
+                        <div>
+                            <p className="text-sm text-gray-600">Total Gain/Loss</p>
+                            <div className="flex items-center gap-2">
+                                <p className={`text-xl font-bold ${account.totalGainLoss >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                    {account.totalGainLoss >= 0 ? '+' : ''}{formatCurrency(account.totalGainLoss)}
+                                </p>
+                            </div>
+                        </div>
+                        <div>
+                            <p className="text-sm text-gray-600">Gain/Loss %</p>
+                            <PerformanceIndicator value={account.totalGainLossPercent} size="lg" />
+                        </div>
+                    </div>
+                </div>
+
+                {/* Performance Grid */}
+                <div>
+                    <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                        <TrendingUp className="w-5 h-5 text-blue-500" />
+                        Historical Performance
+                    </h3>
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                        {performancePeriods.map((period) => (
+                            <div 
+                                key={period.label}
+                                className="bg-white border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow"
+                            >
+                                <div className="flex justify-between items-start mb-2">
+                                    <span className="text-sm font-medium text-gray-600">{period.label}</span>
+                                    {period.value > 0 ? (
+                                        <TrendingUp className="w-4 h-4 text-green-500" />
+                                    ) : period.value < 0 ? (
+                                        <TrendingDown className="w-4 h-4 text-red-500" />
+                                    ) : (
+                                        <Minus className="w-4 h-4 text-gray-400" />
+                                    )}
+                                </div>
+                                <div className="space-y-1">
+                                    <PerformanceIndicator value={period.value} />
+                                    <p className={`text-sm ${period.amount >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                        {period.amount >= 0 ? '+' : ''}{formatCurrency(period.amount)}
+                                    </p>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+
+                {/* Asset Allocation */}
+                <div>
+                    <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                        <BarChart3 className="w-5 h-5 text-blue-500" />
+                        Asset Allocation
+                    </h3>
+                    <div className="space-y-3">
+                        {[
+                            { label: 'Securities', value: account.securityValue, color: 'bg-blue-500' },
+                            { label: 'Crypto', value: account.cryptoValue, color: 'bg-purple-500' },
+                            { label: 'Cash', value: account.cashValue, color: 'bg-green-500' },
+                            { label: 'Metals', value: account.metalValue, color: 'bg-yellow-500' },
+                            { label: 'Other Assets', value: account.otherAssetsValue, color: 'bg-gray-500' },
+                        ].filter(item => item.value > 0).map((item) => {
+                            const percentage = account.totalValue > 0 ? (item.value / account.totalValue) * 100 : 0;
+                            return (
+                                <div key={item.label} className="space-y-1">
+                                    <div className="flex justify-between text-sm">
+                                        <span>{item.label}</span>
+                                        <span className="font-medium">{formatCurrency(item.value)} ({percentage.toFixed(1)}%)</span>
+                                    </div>
+                                    <div className="w-full bg-gray-200 rounded-full h-2">
+                                        <div 
+                                            className={`${item.color} h-2 rounded-full transition-all duration-500`}
+                                            style={{ width: `${percentage}%` }}
+                                        />
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                </div>
             </div>
-            <div className="flex justify-end space-x-3 pt-4 border-t border-gray-200">
-                <button onClick={onClose} className="px-4 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 text-sm">Cancel</button>
-                <button onClick={onConfirm} className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 text-sm">Delete</button>
+        </FixedModal>
+    );
+};
+
+// Account Details Modal Component
+const AccountDetailsModal = ({ isOpen, onClose, account }) => {
+    if (!account) return null;
+
+    return (
+        <FixedModal
+            isOpen={isOpen}
+            onClose={onClose}
+            title={
+                <div className="flex items-center gap-3">
+                    <Info className="w-5 h-5 text-blue-500" />
+                    <span>Account Details: {account.name}</span>
+                </div>
+            }
+            size="max-w-2xl"
+        >
+            <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-3">
+                        <div>
+                            <p className="text-sm text-gray-600">Institution</p>
+                            <p className="font-medium">{account.institution}</p>
+                        </div>
+                        <div>
+                            <p className="text-sm text-gray-600">Account Type</p>
+                            <p className="font-medium">{account.type}</p>
+                        </div>
+                        <div>
+                            <p className="text-sm text-gray-600">Category</p>
+                            <p className="font-medium capitalize">{account.category}</p>
+                        </div>
+                    </div>
+                    <div className="space-y-3">
+                        <div>
+                            <p className="text-sm text-gray-600">Total Positions</p>
+                            <p className="font-medium">{account.positionsCount}</p>
+                        </div>
+                        <div>
+                            <p className="text-sm text-gray-600">Liquid Value</p>
+                            <p className="font-medium">{formatCurrency(account.liquidValue)}</p>
+                        </div>
+                        <div>
+                            <p className="text-sm text-gray-600">Last Updated</p>
+                            <p className="font-medium">{formatDate(account.lastUpdated)}</p>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Position Breakdown */}
+                <div className="border-t pt-4">
+                    <h4 className="font-medium mb-3">Position Breakdown</h4>
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                        {[
+                            { label: 'Securities', count: account.securityPositions, value: account.securityValue },
+                            { label: 'Crypto', count: account.cryptoPositions, value: account.cryptoValue },
+                            { label: 'Cash', count: account.cashPositions, value: account.cashValue },
+                            { label: 'Metals', count: account.metalPositions, value: account.metalValue },
+                            { label: 'Other', count: account.otherPositions, value: account.otherAssetsValue },
+                        ].map((item) => (
+                            <div key={item.label} className="bg-gray-50 rounded-lg p-3">
+                                <p className="text-sm text-gray-600">{item.label}</p>
+                                <p className="font-medium">{item.count} positions</p>
+                                <p className="text-sm text-gray-500">{formatCurrency(item.value)}</p>
+                            </div>
+                        ))}
+                    </div>
+                </div>
             </div>
         </FixedModal>
     );
@@ -68,71 +271,103 @@ const UnifiedAccountTable2 = ({
         loading, 
         error, 
         refresh,
-        deleteAccount: deleteAccountFromStore,
         isStale 
     } = useAccounts();
 
     // Modal States
-    const [selectedAccountDetail, setSelectedAccountDetail] = useState(null);
-    const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
-    const [accountToDelete, setAccountToDelete] = useState(null);
-    const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
-    const [accountToEdit, setAccountToEdit] = useState(null);
-    const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-    const [accountForPosition, setAccountForPosition] = useState(null);
-    const [isAddPositionFlowOpen, setIsAddPositionFlowOpen] = useState(false);
+    const [selectedAccount, setSelectedAccount] = useState(null);
+    const [isTrendsModalOpen, setIsTrendsModalOpen] = useState(false);
+    const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
 
     // UI Feedback State
-    const [successMessage, setSuccessMessage] = useState("");
+    const [hoveredAccountId, setHoveredAccountId] = useState(null);
 
     // Sorting and Filtering State
     const [sortField, setSortField] = useState(initialSort.split('-')[0]);
     const [sortDirection, setSortDirection] = useState(initialSort.includes('-low') ? 'asc' : 'desc');
     const [searchQuery, setSearchQuery] = useState("");
 
-    // Calculate totals for summary row
-    const totals = useMemo(() => {
+    // Separate liquid and illiquid accounts
+    const { liquidAccounts, illiquidAccounts } = useMemo(() => {
+        if (!accounts || accounts.length === 0) return { liquidAccounts: [], illiquidAccounts: [] };
+        
+        const liquid = accounts.filter(acc => acc.category !== 'other_assets');
+        const illiquid = accounts.filter(acc => acc.category === 'other_assets');
+        
+        return { liquidAccounts: liquid, illiquidAccounts: illiquid };
+    }, [accounts]);
+
+    // Calculate totals for different categories
+    const { totals, liquidTotals, illiquidTotals } = useMemo(() => {
         if (!accounts || accounts.length === 0) {
-            return {
+            const emptyTotals = {
                 totalValue: 0,
                 totalCostBasis: 0,
                 totalGainLoss: 0,
                 positionsCount: 0,
                 cashBalance: 0,
-                totalGainLossPercent: 0
+                totalGainLossPercent: 0,
+                value1dChange: 0,
+                value1dChangePct: 0,
+                valueYtdChange: 0,
+                valueYtdChangePct: 0,
+                valueMtdChange: 0,
+                valueMtdChangePct: 0
             };
+            return { totals: emptyTotals, liquidTotals: emptyTotals, illiquidTotals: emptyTotals };
         }
 
-        const result = accounts.reduce((acc, account) => {
-            acc.totalValue += account.totalValue ?? 0;
-            acc.totalCostBasis += account.totalCostBasis ?? 0;
-            acc.totalGainLoss += account.totalGainLoss ?? 0;
-            acc.positionsCount += account.positionsCount ?? 0;
-            acc.cashBalance += account.cashValue ?? 0;
-            return acc;
-        }, { 
-            totalValue: 0, 
-            totalCostBasis: 0, 
-            totalGainLoss: 0, 
-            positionsCount: 0,
-            cashBalance: 0
-        });
-        
-        // Calculate gain/loss percent at the summary level
-        result.totalGainLossPercent = result.totalCostBasis > 0 
-            ? (result.totalGainLoss / result.totalCostBasis) 
-            : 0;
+        const calculateTotals = (accountList) => {
+            const result = accountList.reduce((acc, account) => {
+                acc.totalValue += account.totalValue ?? 0;
+                acc.totalCostBasis += account.totalCostBasis ?? 0;
+                acc.totalGainLoss += account.totalGainLoss ?? 0;
+                acc.positionsCount += account.positionsCount ?? 0;
+                acc.cashBalance += account.cashValue ?? 0;
+                acc.value1dChange += account.value1dChange ?? 0;
+                acc.valueYtdChange += account.valueYtdChange ?? 0;
+                acc.valueMtdChange += account.value1mChange ?? 0;
+                return acc;
+            }, { 
+                totalValue: 0, 
+                totalCostBasis: 0, 
+                totalGainLoss: 0, 
+                positionsCount: 0,
+                cashBalance: 0,
+                value1dChange: 0,
+                valueYtdChange: 0,
+                valueMtdChange: 0
+            });
             
-        return result;
-    }, [accounts]);
+            // Calculate percentages
+            result.totalGainLossPercent = result.totalCostBasis > 0 
+                ? (result.totalGainLoss / result.totalCostBasis)
+                : 0;
+                
+            // Calculate performance percentages based on previous values
+            const prev1dValue = result.totalValue - result.value1dChange;
+            const prevYtdValue = result.totalValue - result.valueYtdChange;
+            const prevMtdValue = result.totalValue - result.valueMtdChange;
+            
+            result.value1dChangePct = prev1dValue > 0 ? (result.value1dChange / prev1dValue) : 0;
+            result.valueYtdChangePct = prevYtdValue > 0 ? (result.valueYtdChange / prevYtdValue) : 0;
+            result.valueMtdChangePct = prevMtdValue > 0 ? (result.valueMtdChange / prevMtdValue) : 0;
+                
+            return result;
+        };
+
+        return {
+            totals: calculateTotals(accounts),
+            liquidTotals: calculateTotals(liquidAccounts),
+            illiquidTotals: calculateTotals(illiquidAccounts)
+        };
+    }, [accounts, liquidAccounts, illiquidAccounts]);
 
     // Handle column sort
     const handleSortChange = (field) => {
         if (field === sortField) {
-            // Toggle direction if same field
             setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
         } else {
-            // Default to desc for new field
             setSortField(field);
             setSortDirection('desc');
         }
@@ -160,117 +395,82 @@ const UnifiedAccountTable2 = ({
         if (!Array.isArray(filtered)) return [];
 
         const sorted = [...filtered].sort((a, b) => {
-            const valueA = a.totalValue ?? 0;
-            const valueB = b.totalValue ?? 0;
-            const costBasisA = a.totalCostBasis ?? 0;
-            const costBasisB = b.totalCostBasis ?? 0;
-            const gainLossA = a.totalGainLoss ?? 0;
-            const gainLossB = b.totalGainLoss ?? 0;
-            const nameA = a.name || "";
-            const nameB = b.name || "";
-            const institutionA = a.institution || "";
-            const institutionB = b.institution || "";
-            const positionsCountA = a.positionsCount ?? 0;
-            const positionsCountB = b.positionsCount ?? 0;
-
             let comparison = 0;
             
-            // Handle different sort fields
             switch (sortField) {
-                case "value": comparison = valueB - valueA; break;
-                case "cost_basis": comparison = costBasisB - costBasisA; break;
-                case "gain_loss": comparison = gainLossB - gainLossA; break;
-                case "name": comparison = nameA.localeCompare(nameB); break;
-                case "institution": comparison = institutionA.localeCompare(institutionB); break;
-                case "positions": comparison = positionsCountB - positionsCountA; break;
+                case "value": comparison = (b.totalValue ?? 0) - (a.totalValue ?? 0); break;
+                case "cost_basis": comparison = (b.totalCostBasis ?? 0) - (a.totalCostBasis ?? 0); break;
+                case "gain_loss": comparison = (b.totalGainLoss ?? 0) - (a.totalGainLoss ?? 0); break;
+                case "name": comparison = (a.name || "").localeCompare(b.name || ""); break;
+                case "institution": comparison = (a.institution || "").localeCompare(b.institution || ""); break;
+                case "positions": comparison = (b.positionsCount ?? 0) - (a.positionsCount ?? 0); break;
                 case "cash": comparison = (b.cashValue ?? 0) - (a.cashValue ?? 0); break;
-                default: comparison = valueB - valueA; // Default to value
+                case "performance": comparison = (b.totalGainLossPercent ?? 0) - (a.totalGainLossPercent ?? 0); break;
+                default: comparison = (b.totalValue ?? 0) - (a.totalValue ?? 0);
             }
             
-            // Apply sort direction
             return sortDirection === 'asc' ? -comparison : comparison;
         });
         
         return sorted;
     }, [accounts, sortField, sortDirection, searchQuery]);
 
-    // --- Modal Trigger Handlers ---
-    const handleRowClick = (account) => { 
-        setSelectedAccountDetail(account); 
-        setIsDetailModalOpen(true); 
-    };
-    
-    const handleCloseDetailModal = () => setIsDetailModalOpen(false);
-
-    // --- Delete Handlers ---
-    const handleDeleteClick = (account) => {
-        console.log("UnifiedAccountTable2: Delete triggered for:", account?.name);
-        setAccountToDelete(account);
-        setIsDeleteModalOpen(true);
-    };
-    const handleCloseDeleteModal = () => {
-        setIsDeleteModalOpen(false);
-        setTimeout(() => setAccountToDelete(null), 300);
-    };
-    const handleConfirmDelete = async () => {
-        if (!accountToDelete) return;
-        const deletedName = accountToDelete.name;
-        console.log("UnifiedAccountTable2: Confirming delete for account:", accountToDelete.id);
-        try {
-            await deleteAccountFromStore(accountToDelete.id);
-            handleCloseDeleteModal();
-            setSuccessMessage(`Account "${deletedName}" deleted successfully!`);
-            setTimeout(() => setSuccessMessage(""), 3000);
-            // Refresh data after delete
-            refresh();
-            onDataChanged();
-        } catch (err) {
-            console.error("UnifiedAccountTable2: Delete failed:", err);
-            handleCloseDeleteModal();
-        }
+    // Quick Analysis Handlers
+    const handleTrendsClick = (account) => {
+        setSelectedAccount(account);
+        setIsTrendsModalOpen(true);
     };
 
-    // --- Edit Handlers ---
-    const handleEditClick = (account) => {
-        console.log("UnifiedAccountTable2: Edit triggered for account:", account?.name);
-        setAccountToEdit(account);
-        setIsEditModalOpen(true);
-    };
-    const handleCloseEditModal = (didSave) => {
-        const accountName = accountToEdit?.name;
-        setIsEditModalOpen(false);
-        setAccountToEdit(null);
-        if (didSave) {
-            setSuccessMessage(`Account "${accountName}" updated successfully!`);
-            setTimeout(() => setSuccessMessage(""), 3000);
-            // Refresh data after edit
-            refresh();
-            onDataChanged();
-        }
+    const handleDetailsClick = (account) => {
+        setSelectedAccount(account);
+        setIsDetailsModalOpen(true);
     };
 
-    // --- Add Position Handlers ---
-    const handleAddPositionClick = (account) => {
-        console.log("UnifiedAccountTable2: Add Position triggered for account:", account?.name);
-        setAccountForPosition(account);
-        setIsAddPositionFlowOpen(true);
-    };
-    const handleCloseAddPositionFlow = (didSave) => {
-        const accountName = accountForPosition?.name;
-        setIsAddPositionFlowOpen(false);
-        setAccountForPosition(null);
-        if (didSave) {
-            setSuccessMessage(`Position added to "${accountName}" successfully!`);
-            setTimeout(() => setSuccessMessage(""), 3000);
-            // Refresh data after position add
-            refresh();
-            onDataChanged();
-        }
-    };
+    // Summary Row Component
+    const SummaryRow = ({ label, data, bgColor = "bg-blue-900/30", borderColor = "border-blue-700" }) => (
+        <tr className={`${bgColor} font-medium border-b-2 ${borderColor}`}>
+            <td className="px-3 py-2 text-center whitespace-nowrap">
+                <span className="font-bold">•</span>
+            </td>
+            <td className="px-3 py-2 whitespace-nowrap">
+                <span className="text-sm font-bold text-white">{label}</span>
+            </td>
+            <td className="px-3 py-2 whitespace-nowrap text-sm">
+                {/* Account name - empty for summary */}
+            </td>
+            <td className="px-3 py-2 whitespace-nowrap text-right text-sm hidden sm:table-cell">
+                {data.positionsCount}
+            </td>
+            <td className="px-3 py-2 whitespace-nowrap text-right text-sm font-bold">
+                {formatCurrency(data.totalValue)}
+            </td>
+            <td className="px-3 py-2 whitespace-nowrap text-right text-sm hidden md:table-cell">
+                {formatCurrency(data.cashBalance)}
+            </td>
+            <td className="px-3 py-2 whitespace-nowrap text-right text-sm hidden md:table-cell">
+                {formatCurrency(data.totalCostBasis)}
+            </td>
+            <td className="px-3 py-2 whitespace-nowrap text-right">
+                <div className="flex flex-col items-end">
+                    <div className={`text-sm font-bold ${data.totalGainLoss >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                        {data.totalGainLoss >= 0 ? '+' : ''}{formatCurrency(data.totalGainLoss)}
+                    </div>
+                    <div className={`text-xs ${data.totalGainLoss >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                        ({data.totalGainLoss >= 0 ? '+' : ''}{formatPercentage(data.totalGainLossPercent)})
+                    </div>
+                </div>
+            </td>
+            <td className="px-3 py-2 whitespace-nowrap text-center">
+                <div className="flex items-center justify-center gap-1">
+                    <PerformanceIndicator value={data.value1dChangePct} size="sm" />
+                    <PerformanceIndicator value={data.valueYtdChangePct} size="sm" />
+                </div>
+            </td>
+        </tr>
+    );
 
     // --- Render Logic ---
     if (loading && !accounts?.length) {
-        console.log("UnifiedAccountTable2: Rendering Loading State");
         return (
             <div className="bg-gray-800/70 backdrop-blur-sm rounded-xl p-6 text-center min-h-[180px] flex items-center justify-center text-white">
                 <div>
@@ -281,58 +481,36 @@ const UnifiedAccountTable2 = ({
         );
     }
 
-    console.log("UnifiedAccountTable2: Rendering Table Content, accounts count:", accounts?.length || 0);
-
-    // Main Table Render
     return (
         <>
-            {/* --- Fixed Position UI Feedback --- */}
-            {successMessage && (<div className="fixed bottom-4 right-4 p-4 bg-green-600 text-white rounded-lg shadow-lg z-[100]">{successMessage}</div>)}
-            {error && !loading && (<div className="fixed bottom-4 right-4 p-4 bg-red-600 text-white rounded-lg shadow-lg z-[100]">Error: {error}<button onClick={()=>refresh()} className="ml-2 text-xs underline font-semibold">Retry</button></div>)}
-
             {/* --- Table Section --- */}
             <div className="bg-gray-800/70 backdrop-blur-sm rounded-xl mb-8 overflow-hidden">
                 {/* Header */}
                 <div className="flex flex-wrap justify-between items-center p-3 border-b border-gray-700 gap-4 text-white">
-                    <h2 className="text-xl font-semibold flex items-center whitespace-nowrap"><Briefcase className="w-5 h-5 mr-2 text-blue-400" />{title}</h2>
+                    <h2 className="text-xl font-semibold flex items-center whitespace-nowrap">
+                        <Briefcase className="w-5 h-5 mr-2 text-blue-400" />
+                        {title}
+                    </h2>
                     <div className='flex flex-wrap items-center gap-4'>
                         {/* Search Input */}
                         <div className="relative">
                             <Search className="absolute h-4 w-4 text-gray-400 left-3 inset-y-0 my-auto" />
-                            <input type="text" className="bg-gray-700 text-white pl-9 pr-3 py-2 rounded-lg text-sm focus:ring-1 focus:ring-blue-500 focus:outline-none" placeholder="Search Name/Inst..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
+                            <input 
+                                type="text" 
+                                className="bg-gray-700 text-white pl-9 pr-3 py-2 rounded-lg text-sm focus:ring-1 focus:ring-blue-500 focus:outline-none" 
+                                placeholder="Search accounts..." 
+                                value={searchQuery} 
+                                onChange={(e) => setSearchQuery(e.target.value)} 
+                            />
                         </div>
-                        {/* Sort Select */}
-                        <div className="relative">
-                            <SlidersHorizontal className="absolute h-4 w-4 text-gray-400 left-3 inset-y-0 my-auto" />
-                            <select 
-                                className="bg-gray-700 text-white pl-9 pr-8 py-2 rounded-lg text-sm focus:ring-1 focus:ring-blue-500 focus:outline-none appearance-none" 
-                                value={`${sortField}-${sortDirection === 'asc' ? 'low' : 'high'}`}
-                                onChange={(e) => {
-                                    const [field, direction] = e.target.value.split('-');
-                                    setSortField(field);
-                                    setSortDirection(direction === 'low' ? 'asc' : 'desc');
-                                }}
-                            >
-                                <option value="value-high">Sort: Value (High-Low)</option>
-                                <option value="value-low">Sort: Value (Low-High)</option>
-                                <option value="name-high">Sort: Name (A-Z)</option>
-                                <option value="institution-high">Sort: Institution (A-Z)</option>
-                                <option value="cost_basis-high">Sort: Cost Basis (High-Low)</option>
-                                <option value="cost_basis-low">Sort: Cost Basis (Low-High)</option>
-                                <option value="gain_loss-high">Sort: Gain $ (High-Low)</option>
-                                <option value="gain_loss-low">Sort: Gain $ (Low-High)</option>
-                                <option value="positions-high">Sort: Positions (High-Low)</option>
-                                <option value="positions-low">Sort: Positions (Low-High)</option>
-                                <option value="cash-high">Sort: Cash (High-Low)</option>
-                                <option value="cash-low">Sort: Cash (Low-High)</option>
-                            </select>
-                            <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none"><svg className="h-4 w-4 text-gray-400" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" /></svg></div>
-                        </div>
-                        {/* Add Account Button (Triggers parent refresh) */}
-                        <AddAccountButton className="bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded-lg text-sm" onAccountAdded={() => {
-                            refresh();
-                            onDataChanged();
-                        }} />
+                        {/* Refresh Button */}
+                        <button
+                            onClick={refresh}
+                            className="bg-gray-700 hover:bg-gray-600 text-white py-2 px-4 rounded-lg text-sm flex items-center gap-2 transition-colors"
+                        >
+                            <Activity className="w-4 h-4" />
+                            Refresh
+                        </button>
                     </div>
                 </div>
 
@@ -394,75 +572,48 @@ const UnifiedAccountTable2 = ({
                                     >
                                         Gain/Loss {getSortIndicator('gain_loss')}
                                     </th>
-                                    <th scope="col" className="px-3 py-2 text-center text-xs font-medium text-gray-400 uppercase tracking-wider w-20">Actions</th>
+                                    <th scope="col" className="px-3 py-2 text-center text-xs font-medium text-gray-400 uppercase tracking-wider w-32">
+                                        Quick Analysis
+                                    </th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-700">
-                                {/* NestEgg Summary Row */}
-                                <tr className="bg-blue-900/30 font-medium border-b-2 border-blue-700">
-                                    <td className="px-3 py-2 text-center whitespace-nowrap">
-                                        <span className="font-bold">•</span>
-                                    </td>
-                                    <td className="px-3 py-2 whitespace-nowrap">
-                                        <span className="text-sm font-bold text-white">Total NestEgg</span>
-                                    </td>
-                                    <td className="px-3 py-2 whitespace-nowrap text-sm">
-                                        {/* Leave account name cell empty */}
-                                    </td>
-                                    <td className="px-3 py-2 whitespace-nowrap text-right text-sm hidden sm:table-cell">
-                                        {totals.positionsCount}
-                                    </td>
-                                    <td className="px-3 py-2 whitespace-nowrap text-right text-sm font-bold">
-                                        {formatCurrency(totals.totalValue)}
-                                    </td>
-                                    <td className="px-3 py-2 whitespace-nowrap text-right text-sm hidden md:table-cell">
-                                        {formatCurrency(totals.cashBalance)}
-                                    </td>
-                                    <td className="px-3 py-2 whitespace-nowrap text-right text-sm hidden md:table-cell">
-                                        {formatCurrency(totals.totalCostBasis)}
-                                    </td>
-                                    <td className="px-3 py-2 whitespace-nowrap text-right">
-                                        <div className="flex flex-col items-end">
-                                            <div className={`text-sm font-bold ${totals.totalGainLoss >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                                                {totals.totalGainLoss >= 0 ? '+' : ''}{formatCurrency(totals.totalGainLoss)}
-                                            </div>
-                                            <div className={`text-xs ${totals.totalGainLoss >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                                                ({totals.totalGainLoss >= 0 ? '+' : ''}{formatPercentage(totals.totalGainLossPercent)})
-                                            </div>
-                                        </div>
-                                    </td>
-                                    <td className="px-3 py-2 whitespace-nowrap text-center">
-                                        {/* Leave actions cell empty */}
-                                    </td>
-                                </tr>
+                                {/* Total NestEgg Summary Row */}
+                                <SummaryRow label="Total NestEgg" data={totals} />
+                                
+                                {/* Liquid Accounts Summary Row */}
+                                <SummaryRow 
+                                    label="Liquid Accounts" 
+                                    data={liquidTotals} 
+                                    bgColor="bg-green-900/20" 
+                                    borderColor="border-green-700" 
+                                />
+                                
+                                {/* Illiquid Accounts Summary Row */}
+                                <SummaryRow 
+                                    label="Illiquid Accounts" 
+                                    data={illiquidTotals} 
+                                    bgColor="bg-purple-900/20" 
+                                    borderColor="border-purple-700" 
+                                />
                                 
                                 {/* Regular account rows */}
                                 {filteredAndSortedAccounts.map((account, index) => {
-                                    const costBasis = account.totalCostBasis ?? 0;
-                                    const gainLoss = account.totalGainLoss ?? 0;
-                                    const gainLossPercent = account.totalGainLossPercent ?? 0;
-                                    const positionsCount = account.positionsCount ?? 0;
-                                    const totalValue = account.totalValue ?? 0;
                                     const LogoComponent = getInstitutionLogo(account.institution);
-
-                                    // Map the account object to match what modals expect
-                                    const accountForModals = {
-                                        ...account,
-                                        id: account.id,
-                                        account_name: account.name,
-                                        cash_balance: account.cashValue,
-                                        total_value: account.totalValue,
-                                        total_cost_basis: account.totalCostBasis,
-                                        total_gain_loss: account.totalGainLoss,
-                                        total_gain_loss_percent: account.totalGainLossPercent,
-                                        positions_count: account.positionsCount
-                                    };
+                                    const isHovered = hoveredAccountId === account.id;
 
                                     return (
-                                        <tr key={account.id} className="hover:bg-gray-700/50 transition-colors cursor-pointer" onClick={() => handleRowClick(accountForModals)}>
+                                        <tr 
+                                            key={account.id} 
+                                            className={`hover:bg-gray-700/50 transition-all duration-200 ${isHovered ? 'bg-gray-700/30' : ''}`}
+                                            onMouseEnter={() => setHoveredAccountId(account.id)}
+                                            onMouseLeave={() => setHoveredAccountId(null)}
+                                        >
                                             {/* Rank Number */}
                                             <td className="px-3 py-2 text-center whitespace-nowrap">
-                                                <span className="text-sm text-gray-300">{index + 1}</span>
+                                                <span className={`text-sm transition-colors ${isHovered ? 'text-blue-400' : 'text-gray-300'}`}>
+                                                    {index + 1}
+                                                </span>
                                             </td>
                                             
                                             {/* Institution */}
@@ -482,64 +633,82 @@ const UnifiedAccountTable2 = ({
                                                 </div>
                                             </td>
                                             
-                                            {/* Account Name + Type (combined) */}
+                                            {/* Account Name + Type */}
                                             <td className="px-3 py-2 whitespace-nowrap">
-                                                <div className="text-sm font-medium">{account.name}</div>
-                                                {account.type && (
-                                                    <div className="text-xs text-gray-400 italic">{account.type}</div>
-                                                )}
+                                                <div>
+                                                    <div className="text-sm font-medium">{account.name}</div>
+                                                    {account.type && (
+                                                        <div className="text-xs text-gray-400 italic">{account.type}</div>
+                                                    )}
+                                                </div>
                                             </td>
                                             
                                             {/* Positions Count */}
-                                            <td className="px-3 py-2 whitespace-nowrap text-right text-sm hidden sm:table-cell">{positionsCount}</td>
+                                            <td className="px-3 py-2 whitespace-nowrap text-right text-sm hidden sm:table-cell">
+                                                {account.totalPositions || 0}
+                                            </td>
                                             
-                                            {/* Value */}
-                                            <td className="px-3 py-2 whitespace-nowrap text-right text-sm font-medium">{formatCurrency(totalValue)}</td>
-                                            
-                                            {/* Cash Balance */}
-                                            <td className="px-3 py-2 whitespace-nowrap text-right text-sm hidden md:table-cell">{formatCurrency(account.cashValue ?? 0)}</td>
-                                            
-                                            {/* Cost Basis */}
-                                            <td className="px-3 py-2 whitespace-nowrap text-right text-sm hidden md:table-cell">{formatCurrency(costBasis)}</td>
-                                            
-                                            {/* Gain/Loss */}
+                                            {/* Value with Performance */}
                                             <td className="px-3 py-2 whitespace-nowrap text-right">
-                                                <div className="flex flex-col items-end">
-                                                    <div className={`text-sm font-medium ${gainLoss >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                                                        {gainLoss >= 0 ? '+' : ''}{formatCurrency(gainLoss)}
-                                                    </div>
-                                                    <div className={`text-xs ${gainLoss >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                                                    ({gainLoss >= 0 ? '+' : ''}{formatPercentage(gainLossPercent)})
+                                                <div className="space-y-1">
+                                                    <div className="text-sm font-medium">{formatCurrency(account.totalValue)}</div>
+                                                    <div className="flex items-center justify-end gap-1">
+                                                        <span className="text-xs text-gray-400">1D:</span>
+                                                        <PerformanceIndicator value={account.value1dChangePct} size="sm" />
                                                     </div>
                                                 </div>
                                             </td>
                                             
-                                            {/* Actions Cell */}
+                                            {/* Cash Balance */}
+                                            <td className="px-3 py-2 whitespace-nowrap text-right text-sm hidden md:table-cell">
+                                                {formatCurrency(account.cashValue ?? 0)}
+                                            </td>
+                                            
+                                            {/* Cost Basis */}
+                                            <td className="px-3 py-2 whitespace-nowrap text-right text-sm hidden md:table-cell">
+                                                {formatCurrency(account.totalCostBasis)}
+                                            </td>
+                                            
+                                            {/* Gain/Loss with YTD Performance */}
+                                            <td className="px-3 py-2 whitespace-nowrap text-right">
+                                                <div className="space-y-1">
+                                                    <div className="flex flex-col items-end">
+                                                        <div className={`text-sm font-medium ${account.totalGainLoss >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                                                            {account.totalGainLoss >= 0 ? '+' : ''}{formatCurrency(account.totalGainLoss)}
+                                                        </div>
+                                                        <div className={`text-xs ${account.totalGainLoss >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                                                            ({account.totalGainLoss >= 0 ? '+' : ''}{formatPercentage(account.totalGainLossPercent)})
+                                                        </div>
+                                                    </div>
+                                                    <div className="flex items-center justify-end gap-1">
+                                                        <span className="text-xs text-gray-400">YTD:</span>
+                                                        <PerformanceIndicator value={account.valueYtdChangePct} size="sm" />
+                                                    </div>
+                                                </div>
+                                            </td>
+                                            
+                                            {/* Quick Analysis Actions */}
                                             <td className="px-3 py-2 whitespace-nowrap text-center">
-                                                <div className="flex items-center justify-center space-x-2">
-                                                    <AddPositionButton 
-                                                        accountId={account.id}
-                                                        className="p-1.5 bg-green-600/20 text-green-400 rounded-full hover:bg-green-600/40"
-                                                        buttonContent={<Plus className="h-4 w-4" />}
-                                                        onPositionAdded={() => {
-                                                            refresh();
-                                                            onDataChanged();
-                                                        }}
-                                                    />
-                                                    <EditAccountButton 
-                                                        account={accountForModals}
-                                                        className="p-1.5 bg-purple-600/20 text-purple-400 rounded-full hover:bg-purple-600/40" 
-                                                        onAccountEdited={() => {
-                                                            refresh();
-                                                            onDataChanged();
-                                                        }}
-                                                    />
+                                                <div className="flex items-center justify-center gap-1">
                                                     <button 
-                                                        onClick={(e) => { e.stopPropagation(); handleDeleteClick(account); }} 
-                                                        className="p-1.5 bg-red-600/20 text-red-400 rounded-full hover:bg-red-600/40" 
-                                                        title="Delete Account"
+                                                        onClick={() => handleTrendsClick(account)}
+                                                        className="p-1.5 bg-blue-600/20 text-blue-400 rounded-full hover:bg-blue-600/40 transition-all duration-200 hover:scale-110" 
+                                                        title="View Trends"
                                                     >
-                                                        <Trash className="h-4 w-4" />
+                                                        <LineChart className="h-4 w-4" />
+                                                    </button>
+                                                    <button 
+                                                        onClick={() => handleDetailsClick(account)}
+                                                        className="p-1.5 bg-purple-600/20 text-purple-400 rounded-full hover:bg-purple-600/40 transition-all duration-200 hover:scale-110" 
+                                                        title="View Details"
+                                                    >
+                                                        <Info className="h-4 w-4" />
+                                                    </button>
+                                                    <button 
+                                                        className="p-1.5 bg-green-600/20 text-green-400 rounded-full hover:bg-green-600/40 transition-all duration-200 hover:scale-110" 
+                                                        title="Performance Analysis"
+                                                    >
+                                                        <BarChart3 className="h-4 w-4" />
                                                     </button>
                                                 </div>
                                             </td>
@@ -552,43 +721,18 @@ const UnifiedAccountTable2 = ({
                 )}
             </div>
 
-            {/* --- Render Modals / Flows --- */}
-            {selectedAccountDetail && (
-                <AccountDetailModal
-                    isOpen={isDetailModalOpen}
-                    onClose={handleCloseDetailModal}
-                    account={selectedAccountDetail}
-                    onTriggerEdit={handleEditClick}
-                    onTriggerDelete={handleDeleteClick}
-                    onTriggerAddPosition={handleAddPositionClick}
-                />
-            )}
-
-            {accountToDelete && (
-                <DeleteConfirmationModal
-                    isOpen={isDeleteModalOpen}
-                    onClose={handleCloseDeleteModal}
-                    onConfirm={handleConfirmDelete}
-                    itemName={accountToDelete?.name}
-                    itemType="account"
-                />
-            )}
-
-            {isEditModalOpen && (
-                <AccountModal
-                    isOpen={isEditModalOpen}
-                    onClose={handleCloseEditModal}
-                    editAccount={accountToEdit}
-                />
-            )}
-
-            {isAddPositionFlowOpen && (
-                <AddPositionFlow
-                    isOpen={isAddPositionFlowOpen}
-                    onClose={handleCloseAddPositionFlow}
-                    initialAccount={accountForPosition}
-                />
-            )}
+            {/* --- Modals --- */}
+            <AccountTrendsModal
+                isOpen={isTrendsModalOpen}
+                onClose={() => setIsTrendsModalOpen(false)}
+                account={selectedAccount}
+            />
+            
+            <AccountDetailsModal
+                isOpen={isDetailsModalOpen}
+                onClose={() => setIsDetailsModalOpen(false)}
+                account={selectedAccount}
+            />
         </>
     );
 };
