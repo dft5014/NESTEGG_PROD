@@ -27,42 +27,39 @@ import {
     Info,
     ArrowUpRight,
     ArrowDownRight,
-    Minus
+    Minus,
+    SlidersHorizontal,
+    Filter
 } from 'lucide-react';
 
 // Performance Indicator Component
-const PerformanceIndicator = ({ value, format = 'percentage', size = 'sm' }) => {
+const PerformanceIndicator = ({ value, format = 'percentage', size = 'sm', showSign = true }) => {
     const isPositive = value > 0;
     const isNeutral = value === 0;
-    const Icon = isPositive ? ArrowUpRight : isNeutral ? Minus : ArrowDownRight;
     const colorClass = isPositive ? 'text-green-500' : isNeutral ? 'text-gray-400' : 'text-red-500';
-    const bgClass = isPositive ? 'bg-green-500/10' : isNeutral ? 'bg-gray-500/10' : 'bg-red-500/10';
     
     const formattedValue = format === 'percentage' 
-        ? formatPercentage(value)
+        ? `${value > 0 && showSign ? '+' : ''}${(value * 100).toFixed(2)}%`
         : formatCurrency(Math.abs(value));
     
     return (
-        <div className={`inline-flex items-center gap-1 px-2 py-1 rounded-md ${bgClass} ${colorClass} ${size === 'sm' ? 'text-xs' : 'text-sm'}`}>
-            <Icon className={size === 'sm' ? 'w-3 h-3' : 'w-4 h-4'} />
-            <span className="font-medium">
-                {!isNeutral && (isPositive ? '+' : '')}{formattedValue}
-            </span>
-        </div>
+        <span className={`${colorClass} ${size === 'sm' ? 'text-xs' : 'text-sm'} font-medium`}>
+            {formattedValue}
+        </span>
     );
 };
 
-// Account Trends Modal Component
-const AccountTrendsModal = ({ isOpen, onClose, account }) => {
+// Account Performance Modal Component
+const AccountPerformanceModal = ({ isOpen, onClose, account }) => {
     if (!account) return null;
 
     const performancePeriods = [
-        { label: '1D', value: account.value1dChangePct, amount: account.value1dChange },
-        { label: '1W', value: account.value1wChangePct, amount: account.value1wChange },
-        { label: '1M', value: account.value1mChangePct, amount: account.value1mChange },
-        { label: '3M', value: account.value3mChangePct, amount: account.value3mChange },
-        { label: 'YTD', value: account.valueYtdChangePct, amount: account.valueYtdChange },
-        { label: '1Y', value: account.value1yChangePct, amount: account.value1yChange },
+        { label: '1 Day', value: account.value1dChangePct || 0, amount: account.value1dChange || 0 },
+        { label: '1 Week', value: account.value1wChangePct || 0, amount: account.value1wChange || 0 },
+        { label: '1 Month', value: account.value1mChangePct || 0, amount: account.value1mChange || 0 },
+        { label: '3 Months', value: account.value3mChangePct || 0, amount: account.value3mChange || 0 },
+        { label: 'YTD', value: account.valueYtdChangePct || 0, amount: account.valueYtdChange || 0 },
+        { label: '1 Year', value: account.value1yChangePct || 0, amount: account.value1yChange || 0 },
     ];
 
     return (
@@ -72,7 +69,7 @@ const AccountTrendsModal = ({ isOpen, onClose, account }) => {
             title={
                 <div className="flex items-center gap-3">
                     <LineChart className="w-5 h-5 text-blue-500" />
-                    <span>Performance Trends: {account.name}</span>
+                    <span>Performance Analysis: {account.name}</span>
                 </div>
             }
             size="max-w-4xl"
@@ -83,23 +80,23 @@ const AccountTrendsModal = ({ isOpen, onClose, account }) => {
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                         <div>
                             <p className="text-sm text-gray-600">Current Value</p>
-                            <p className="text-xl font-bold">{formatCurrency(account.totalValue)}</p>
+                            <p className="text-xl font-bold">{formatCurrency(account.totalValue || 0)}</p>
                         </div>
                         <div>
                             <p className="text-sm text-gray-600">Cost Basis</p>
-                            <p className="text-xl font-bold">{formatCurrency(account.totalCostBasis)}</p>
+                            <p className="text-xl font-bold">{formatCurrency(account.totalCostBasis || 0)}</p>
                         </div>
                         <div>
                             <p className="text-sm text-gray-600">Total Gain/Loss</p>
-                            <div className="flex items-center gap-2">
-                                <p className={`text-xl font-bold ${account.totalGainLoss >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                                    {account.totalGainLoss >= 0 ? '+' : ''}{formatCurrency(account.totalGainLoss)}
-                                </p>
-                            </div>
+                            <p className={`text-xl font-bold ${(account.totalGainLoss || 0) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                {(account.totalGainLoss || 0) >= 0 ? '+' : ''}{formatCurrency(account.totalGainLoss || 0)}
+                            </p>
                         </div>
                         <div>
-                            <p className="text-sm text-gray-600">Gain/Loss %</p>
-                            <PerformanceIndicator value={account.totalGainLossPercent} size="lg" />
+                            <p className="text-sm text-gray-600">Return %</p>
+                            <p className={`text-xl font-bold ${(account.totalGainLossPercent || 0) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                <PerformanceIndicator value={account.totalGainLossPercent || 0} size="lg" />
+                            </p>
                         </div>
                     </div>
                 </div>
@@ -127,7 +124,9 @@ const AccountTrendsModal = ({ isOpen, onClose, account }) => {
                                     )}
                                 </div>
                                 <div className="space-y-1">
-                                    <PerformanceIndicator value={period.value} />
+                                    <p className={`text-lg font-semibold ${period.value >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                        <PerformanceIndicator value={period.value} size="lg" />
+                                    </p>
                                     <p className={`text-sm ${period.amount >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                                         {period.amount >= 0 ? '+' : ''}{formatCurrency(period.amount)}
                                     </p>
@@ -145,13 +144,13 @@ const AccountTrendsModal = ({ isOpen, onClose, account }) => {
                     </h3>
                     <div className="space-y-3">
                         {[
-                            { label: 'Securities', value: account.securityValue, color: 'bg-blue-500' },
-                            { label: 'Crypto', value: account.cryptoValue, color: 'bg-purple-500' },
-                            { label: 'Cash', value: account.cashValue, color: 'bg-green-500' },
-                            { label: 'Metals', value: account.metalValue, color: 'bg-yellow-500' },
-                            { label: 'Other Assets', value: account.otherAssetsValue, color: 'bg-gray-500' },
+                            { label: 'Securities', value: account.securityValue || 0, color: 'bg-blue-500' },
+                            { label: 'Crypto', value: account.cryptoValue || 0, color: 'bg-purple-500' },
+                            { label: 'Cash', value: account.cashValue || 0, color: 'bg-green-500' },
+                            { label: 'Metals', value: account.metalValue || 0, color: 'bg-yellow-500' },
+                            { label: 'Other Assets', value: account.otherAssetsValue || 0, color: 'bg-gray-500' },
                         ].filter(item => item.value > 0).map((item) => {
-                            const percentage = account.totalValue > 0 ? (item.value / account.totalValue) * 100 : 0;
+                            const percentage = (account.totalValue || 0) > 0 ? (item.value / account.totalValue) * 100 : 0;
                             return (
                                 <div key={item.label} className="space-y-1">
                                     <div className="flex justify-between text-sm">
@@ -167,78 +166,6 @@ const AccountTrendsModal = ({ isOpen, onClose, account }) => {
                                 </div>
                             );
                         })}
-                    </div>
-                </div>
-            </div>
-        </FixedModal>
-    );
-};
-
-// Account Details Modal Component
-const AccountDetailsModal = ({ isOpen, onClose, account }) => {
-    if (!account) return null;
-
-    return (
-        <FixedModal
-            isOpen={isOpen}
-            onClose={onClose}
-            title={
-                <div className="flex items-center gap-3">
-                    <Info className="w-5 h-5 text-blue-500" />
-                    <span>Account Details: {account.name}</span>
-                </div>
-            }
-            size="max-w-2xl"
-        >
-            <div className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-3">
-                        <div>
-                            <p className="text-sm text-gray-600">Institution</p>
-                            <p className="font-medium">{account.institution}</p>
-                        </div>
-                        <div>
-                            <p className="text-sm text-gray-600">Account Type</p>
-                            <p className="font-medium">{account.type}</p>
-                        </div>
-                        <div>
-                            <p className="text-sm text-gray-600">Category</p>
-                            <p className="font-medium capitalize">{account.category}</p>
-                        </div>
-                    </div>
-                    <div className="space-y-3">
-                        <div>
-                            <p className="text-sm text-gray-600">Total Positions</p>
-                            <p className="font-medium">{account.positionsCount}</p>
-                        </div>
-                        <div>
-                            <p className="text-sm text-gray-600">Liquid Value</p>
-                            <p className="font-medium">{formatCurrency(account.liquidValue)}</p>
-                        </div>
-                        <div>
-                            <p className="text-sm text-gray-600">Last Updated</p>
-                            <p className="font-medium">{formatDate(account.lastUpdated)}</p>
-                        </div>
-                    </div>
-                </div>
-
-                {/* Position Breakdown */}
-                <div className="border-t pt-4">
-                    <h4 className="font-medium mb-3">Position Breakdown</h4>
-                    <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                        {[
-                            { label: 'Securities', count: account.securityPositions, value: account.securityValue },
-                            { label: 'Crypto', count: account.cryptoPositions, value: account.cryptoValue },
-                            { label: 'Cash', count: account.cashPositions, value: account.cashValue },
-                            { label: 'Metals', count: account.metalPositions, value: account.metalValue },
-                            { label: 'Other', count: account.otherPositions, value: account.otherAssetsValue },
-                        ].map((item) => (
-                            <div key={item.label} className="bg-gray-50 rounded-lg p-3">
-                                <p className="text-sm text-gray-600">{item.label}</p>
-                                <p className="font-medium">{item.count} positions</p>
-                                <p className="text-sm text-gray-500">{formatCurrency(item.value)}</p>
-                            </div>
-                        ))}
                     </div>
                 </div>
             </div>
@@ -276,16 +203,13 @@ const UnifiedAccountTable2 = ({
 
     // Modal States
     const [selectedAccount, setSelectedAccount] = useState(null);
-    const [isTrendsModalOpen, setIsTrendsModalOpen] = useState(false);
-    const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
-
-    // UI Feedback State
-    const [hoveredAccountId, setHoveredAccountId] = useState(null);
+    const [isPerformanceModalOpen, setIsPerformanceModalOpen] = useState(false);
 
     // Sorting and Filtering State
     const [sortField, setSortField] = useState(initialSort.split('-')[0]);
     const [sortDirection, setSortDirection] = useState(initialSort.includes('-low') ? 'asc' : 'desc');
     const [searchQuery, setSearchQuery] = useState("");
+    const [assetTypeFilter, setAssetTypeFilter] = useState("all");
 
     // Separate liquid and illiquid accounts
     const { liquidAccounts, illiquidAccounts } = useMemo(() => {
@@ -310,9 +234,7 @@ const UnifiedAccountTable2 = ({
                 value1dChange: 0,
                 value1dChangePct: 0,
                 valueYtdChange: 0,
-                valueYtdChangePct: 0,
-                valueMtdChange: 0,
-                valueMtdChangePct: 0
+                valueYtdChangePct: 0
             };
             return { totals: emptyTotals, liquidTotals: emptyTotals, illiquidTotals: emptyTotals };
         }
@@ -322,11 +244,10 @@ const UnifiedAccountTable2 = ({
                 acc.totalValue += account.totalValue ?? 0;
                 acc.totalCostBasis += account.totalCostBasis ?? 0;
                 acc.totalGainLoss += account.totalGainLoss ?? 0;
-                acc.positionsCount += account.positionsCount ?? 0;
+                acc.positionsCount += account.totalPositions ?? 0;
                 acc.cashBalance += account.cashValue ?? 0;
                 acc.value1dChange += account.value1dChange ?? 0;
                 acc.valueYtdChange += account.valueYtdChange ?? 0;
-                acc.valueMtdChange += account.value1mChange ?? 0;
                 return acc;
             }, { 
                 totalValue: 0, 
@@ -335,8 +256,7 @@ const UnifiedAccountTable2 = ({
                 positionsCount: 0,
                 cashBalance: 0,
                 value1dChange: 0,
-                valueYtdChange: 0,
-                valueMtdChange: 0
+                valueYtdChange: 0
             });
             
             // Calculate percentages
@@ -347,11 +267,9 @@ const UnifiedAccountTable2 = ({
             // Calculate performance percentages based on previous values
             const prev1dValue = result.totalValue - result.value1dChange;
             const prevYtdValue = result.totalValue - result.valueYtdChange;
-            const prevMtdValue = result.totalValue - result.valueMtdChange;
             
             result.value1dChangePct = prev1dValue > 0 ? (result.value1dChange / prev1dValue) : 0;
             result.valueYtdChangePct = prevYtdValue > 0 ? (result.valueYtdChange / prevYtdValue) : 0;
-            result.valueMtdChangePct = prevMtdValue > 0 ? (result.valueMtdChange / prevMtdValue) : 0;
                 
             return result;
         };
@@ -384,6 +302,8 @@ const UnifiedAccountTable2 = ({
     // --- Filtering & Sorting ---
     const filteredAndSortedAccounts = useMemo(() => {
         let filtered = accounts || [];
+        
+        // Apply search filter
         if (searchQuery) {
             const lowerCaseQuery = searchQuery.toLowerCase();
             filtered = filtered.filter(acc =>
@@ -392,6 +312,20 @@ const UnifiedAccountTable2 = ({
                 acc.type?.toLowerCase().includes(lowerCaseQuery)
             );
         }
+        
+        // Apply asset type filter
+        if (assetTypeFilter !== "all") {
+            filtered = filtered.filter(acc => {
+                switch (assetTypeFilter) {
+                    case "brokerage": return acc.category === "brokerage";
+                    case "retirement": return acc.category === "retirement";
+                    case "cash": return acc.category === "cash";
+                    case "other_assets": return acc.category === "other_assets";
+                    default: return true;
+                }
+            });
+        }
+        
         if (!Array.isArray(filtered)) return [];
 
         const sorted = [...filtered].sort((a, b) => {
@@ -403,9 +337,10 @@ const UnifiedAccountTable2 = ({
                 case "gain_loss": comparison = (b.totalGainLoss ?? 0) - (a.totalGainLoss ?? 0); break;
                 case "name": comparison = (a.name || "").localeCompare(b.name || ""); break;
                 case "institution": comparison = (a.institution || "").localeCompare(b.institution || ""); break;
-                case "positions": comparison = (b.positionsCount ?? 0) - (a.positionsCount ?? 0); break;
+                case "positions": comparison = (b.totalPositions ?? 0) - (a.totalPositions ?? 0); break;
                 case "cash": comparison = (b.cashValue ?? 0) - (a.cashValue ?? 0); break;
-                case "performance": comparison = (b.totalGainLossPercent ?? 0) - (a.totalGainLossPercent ?? 0); break;
+                case "1d": comparison = (b.value1dChangePct ?? 0) - (a.value1dChangePct ?? 0); break;
+                case "ytd": comparison = (b.valueYtdChangePct ?? 0) - (a.valueYtdChangePct ?? 0); break;
                 default: comparison = (b.totalValue ?? 0) - (a.totalValue ?? 0);
             }
             
@@ -413,17 +348,12 @@ const UnifiedAccountTable2 = ({
         });
         
         return sorted;
-    }, [accounts, sortField, sortDirection, searchQuery]);
+    }, [accounts, sortField, sortDirection, searchQuery, assetTypeFilter]);
 
     // Quick Analysis Handlers
-    const handleTrendsClick = (account) => {
+    const handlePerformanceClick = (account) => {
         setSelectedAccount(account);
-        setIsTrendsModalOpen(true);
-    };
-
-    const handleDetailsClick = (account) => {
-        setSelectedAccount(account);
-        setIsDetailsModalOpen(true);
+        setIsPerformanceModalOpen(true);
     };
 
     // Summary Row Component
@@ -435,9 +365,7 @@ const UnifiedAccountTable2 = ({
             <td className="px-3 py-2 whitespace-nowrap">
                 <span className="text-sm font-bold text-white">{label}</span>
             </td>
-            <td className="px-3 py-2 whitespace-nowrap text-sm">
-                {/* Account name - empty for summary */}
-            </td>
+            <td className="px-3 py-2 whitespace-nowrap text-sm"></td>
             <td className="px-3 py-2 whitespace-nowrap text-right text-sm hidden sm:table-cell">
                 {data.positionsCount}
             </td>
@@ -460,12 +388,13 @@ const UnifiedAccountTable2 = ({
                     </div>
                 </div>
             </td>
-            <td className="px-3 py-2 whitespace-nowrap text-center">
-                <div className="flex items-center justify-center gap-1">
-                    <PerformanceIndicator value={data.value1dChangePct} size="sm" />
-                    <PerformanceIndicator value={data.valueYtdChangePct} size="sm" />
-                </div>
+            <td className="px-3 py-2 whitespace-nowrap text-right">
+                <PerformanceIndicator value={data.value1dChangePct} />
             </td>
+            <td className="px-3 py-2 whitespace-nowrap text-right">
+                <PerformanceIndicator value={data.valueYtdChangePct} />
+            </td>
+            <td className="px-3 py-2 whitespace-nowrap text-center"></td>
         </tr>
     );
 
@@ -503,19 +432,70 @@ const UnifiedAccountTable2 = ({
                                 onChange={(e) => setSearchQuery(e.target.value)} 
                             />
                         </div>
-                        {/* Refresh Button */}
-                        <button
-                            onClick={refresh}
-                            className="bg-gray-700 hover:bg-gray-600 text-white py-2 px-4 rounded-lg text-sm flex items-center gap-2 transition-colors"
-                        >
-                            <Activity className="w-4 h-4" />
-                            Refresh
-                        </button>
+                        
+                        {/* Asset Type Filter */}
+                        <div className="relative">
+                            <Filter className="absolute h-4 w-4 text-gray-400 left-3 inset-y-0 my-auto" />
+                            <select 
+                                className="bg-gray-700 text-white pl-9 pr-8 py-2 rounded-lg text-sm focus:ring-1 focus:ring-blue-500 focus:outline-none appearance-none" 
+                                value={assetTypeFilter}
+                                onChange={(e) => setAssetTypeFilter(e.target.value)}
+                            >
+                                <option value="all">All Types</option>
+                                <option value="brokerage">Brokerage</option>
+                                <option value="retirement">Retirement</option>
+                                <option value="cash">Cash</option>
+                                <option value="other_assets">Other Assets</option>
+                            </select>
+                            <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
+                                <svg className="h-4 w-4 text-gray-400" viewBox="0 0 20 20" fill="currentColor">
+                                    <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+                                </svg>
+                            </div>
+                        </div>
+                        
+                        {/* Sort Select */}
+                        <div className="relative">
+                            <SlidersHorizontal className="absolute h-4 w-4 text-gray-400 left-3 inset-y-0 my-auto" />
+                            <select 
+                                className="bg-gray-700 text-white pl-9 pr-8 py-2 rounded-lg text-sm focus:ring-1 focus:ring-blue-500 focus:outline-none appearance-none" 
+                                value={`${sortField}-${sortDirection === 'asc' ? 'low' : 'high'}`}
+                                onChange={(e) => {
+                                    const [field, direction] = e.target.value.split('-');
+                                    setSortField(field);
+                                    setSortDirection(direction === 'low' ? 'asc' : 'desc');
+                                }}
+                            >
+                                <option value="value-high">Sort: Value (High-Low)</option>
+                                <option value="value-low">Sort: Value (Low-High)</option>
+                                <option value="name-high">Sort: Name (A-Z)</option>
+                                <option value="name-low">Sort: Name (Z-A)</option>
+                                <option value="institution-high">Sort: Institution (A-Z)</option>
+                                <option value="institution-low">Sort: Institution (Z-A)</option>
+                                <option value="cost_basis-high">Sort: Cost Basis (High-Low)</option>
+                                <option value="cost_basis-low">Sort: Cost Basis (Low-High)</option>
+                                <option value="gain_loss-high">Sort: Gain $ (High-Low)</option>
+                                <option value="gain_loss-low">Sort: Gain $ (Low-High)</option>
+                                <option value="positions-high">Sort: Positions (High-Low)</option>
+                                <option value="positions-low">Sort: Positions (Low-High)</option>
+                                <option value="cash-high">Sort: Cash (High-Low)</option>
+                                <option value="cash-low">Sort: Cash (Low-High)</option>
+                                <option value="1d-high">Sort: 1D % (High-Low)</option>
+                                <option value="1d-low">Sort: 1D % (Low-High)</option>
+                                <option value="ytd-high">Sort: YTD % (High-Low)</option>
+                                <option value="ytd-low">Sort: YTD % (Low-High)</option>
+                            </select>
+                            <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
+                                <svg className="h-4 w-4 text-gray-400" viewBox="0 0 20 20" fill="currentColor">
+                                    <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+                                </svg>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
                 {/* Table Content */}
-                {filteredAndSortedAccounts.length === 0 ? (
+                {filteredAndSortedAccounts.length === 0 && !loading ? (
                     <div className="p-6 text-center text-gray-400">No accounts match your criteria.</div>
                 ) : (
                     <div className="overflow-x-auto">
@@ -572,8 +552,22 @@ const UnifiedAccountTable2 = ({
                                     >
                                         Gain/Loss {getSortIndicator('gain_loss')}
                                     </th>
-                                    <th scope="col" className="px-3 py-2 text-center text-xs font-medium text-gray-400 uppercase tracking-wider w-32">
-                                        Quick Analysis
+                                    <th 
+                                        scope="col" 
+                                        className="px-3 py-2 text-right text-xs font-medium text-gray-400 uppercase tracking-wider w-20 cursor-pointer hover:bg-gray-800/50"
+                                        onClick={() => handleSortChange('1d')}
+                                    >
+                                        1D % {getSortIndicator('1d')}
+                                    </th>
+                                    <th 
+                                        scope="col" 
+                                        className="px-3 py-2 text-right text-xs font-medium text-gray-400 uppercase tracking-wider w-20 cursor-pointer hover:bg-gray-800/50"
+                                        onClick={() => handleSortChange('ytd')}
+                                    >
+                                        YTD % {getSortIndicator('ytd')}
+                                    </th>
+                                    <th scope="col" className="px-3 py-2 text-center text-xs font-medium text-gray-400 uppercase tracking-wider w-20">
+                                        Actions
                                     </th>
                                 </tr>
                             </thead>
@@ -581,7 +575,7 @@ const UnifiedAccountTable2 = ({
                                 {/* Total NestEgg Summary Row */}
                                 <SummaryRow label="Total NestEgg" data={totals} />
                                 
-                                {/* Liquid Accounts Summary Row */}
+                                {/* Liquid Accounts Summary Row (exclude other_assets) */}
                                 <SummaryRow 
                                     label="Liquid Accounts" 
                                     data={liquidTotals} 
@@ -589,31 +583,28 @@ const UnifiedAccountTable2 = ({
                                     borderColor="border-green-700" 
                                 />
                                 
-                                {/* Illiquid Accounts Summary Row */}
-                                <SummaryRow 
-                                    label="Illiquid Accounts" 
-                                    data={illiquidTotals} 
-                                    bgColor="bg-purple-900/20" 
-                                    borderColor="border-purple-700" 
-                                />
+                                {/* Illiquid Accounts Summary Row (only other_assets) */}
+                                {illiquidTotals.totalValue > 0 && (
+                                    <SummaryRow 
+                                        label="Illiquid Accounts" 
+                                        data={illiquidTotals} 
+                                        bgColor="bg-purple-900/20" 
+                                        borderColor="border-purple-700" 
+                                    />
+                                )}
                                 
                                 {/* Regular account rows */}
                                 {filteredAndSortedAccounts.map((account, index) => {
                                     const LogoComponent = getInstitutionLogo(account.institution);
-                                    const isHovered = hoveredAccountId === account.id;
 
                                     return (
                                         <tr 
                                             key={account.id} 
-                                            className={`hover:bg-gray-700/50 transition-all duration-200 ${isHovered ? 'bg-gray-700/30' : ''}`}
-                                            onMouseEnter={() => setHoveredAccountId(account.id)}
-                                            onMouseLeave={() => setHoveredAccountId(null)}
+                                            className="hover:bg-gray-700/50 transition-colors"
                                         >
                                             {/* Rank Number */}
                                             <td className="px-3 py-2 text-center whitespace-nowrap">
-                                                <span className={`text-sm transition-colors ${isHovered ? 'text-blue-400' : 'text-gray-300'}`}>
-                                                    {index + 1}
-                                                </span>
+                                                <span className="text-sm text-gray-300">{index + 1}</span>
                                             </td>
                                             
                                             {/* Institution */}
@@ -648,69 +639,52 @@ const UnifiedAccountTable2 = ({
                                                 {account.totalPositions || 0}
                                             </td>
                                             
-                                            {/* Value with Performance */}
-                                            <td className="px-3 py-2 whitespace-nowrap text-right">
-                                                <div className="space-y-1">
-                                                    <div className="text-sm font-medium">{formatCurrency(account.totalValue)}</div>
-                                                    <div className="flex items-center justify-end gap-1">
-                                                        <span className="text-xs text-gray-400">1D:</span>
-                                                        <PerformanceIndicator value={account.value1dChangePct} size="sm" />
-                                                    </div>
-                                                </div>
+                                            {/* Value */}
+                                            <td className="px-3 py-2 whitespace-nowrap text-right text-sm font-medium">
+                                                {formatCurrency(account.totalValue || 0)}
                                             </td>
                                             
                                             {/* Cash Balance */}
                                             <td className="px-3 py-2 whitespace-nowrap text-right text-sm hidden md:table-cell">
-                                                {formatCurrency(account.cashValue ?? 0)}
+                                                {formatCurrency(account.cashValue || 0)}
                                             </td>
                                             
                                             {/* Cost Basis */}
                                             <td className="px-3 py-2 whitespace-nowrap text-right text-sm hidden md:table-cell">
-                                                {formatCurrency(account.totalCostBasis)}
+                                                {formatCurrency(account.totalCostBasis || 0)}
                                             </td>
                                             
-                                            {/* Gain/Loss with YTD Performance */}
+                                            {/* Gain/Loss */}
                                             <td className="px-3 py-2 whitespace-nowrap text-right">
-                                                <div className="space-y-1">
-                                                    <div className="flex flex-col items-end">
-                                                        <div className={`text-sm font-medium ${account.totalGainLoss >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                                                            {account.totalGainLoss >= 0 ? '+' : ''}{formatCurrency(account.totalGainLoss)}
-                                                        </div>
-                                                        <div className={`text-xs ${account.totalGainLoss >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                                                            ({account.totalGainLoss >= 0 ? '+' : ''}{formatPercentage(account.totalGainLossPercent)})
-                                                        </div>
+                                                <div className="flex flex-col items-end">
+                                                    <div className={`text-sm font-medium ${(account.totalGainLoss || 0) >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                                                        {(account.totalGainLoss || 0) >= 0 ? '+' : ''}{formatCurrency(account.totalGainLoss || 0)}
                                                     </div>
-                                                    <div className="flex items-center justify-end gap-1">
-                                                        <span className="text-xs text-gray-400">YTD:</span>
-                                                        <PerformanceIndicator value={account.valueYtdChangePct} size="sm" />
+                                                    <div className={`text-xs ${(account.totalGainLoss || 0) >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                                                        ({(account.totalGainLoss || 0) >= 0 ? '+' : ''}{formatPercentage(account.totalGainLossPercent || 0)})
                                                     </div>
                                                 </div>
+                                            </td>
+                                            
+                                            {/* 1D % */}
+                                            <td className="px-3 py-2 whitespace-nowrap text-right">
+                                                <PerformanceIndicator value={account.value1dChangePct || 0} />
+                                            </td>
+                                            
+                                            {/* YTD % */}
+                                            <td className="px-3 py-2 whitespace-nowrap text-right">
+                                                <PerformanceIndicator value={account.valueYtdChangePct || 0} />
                                             </td>
                                             
                                             {/* Quick Analysis Actions */}
                                             <td className="px-3 py-2 whitespace-nowrap text-center">
-                                                <div className="flex items-center justify-center gap-1">
-                                                    <button 
-                                                        onClick={() => handleTrendsClick(account)}
-                                                        className="p-1.5 bg-blue-600/20 text-blue-400 rounded-full hover:bg-blue-600/40 transition-all duration-200 hover:scale-110" 
-                                                        title="View Trends"
-                                                    >
-                                                        <LineChart className="h-4 w-4" />
-                                                    </button>
-                                                    <button 
-                                                        onClick={() => handleDetailsClick(account)}
-                                                        className="p-1.5 bg-purple-600/20 text-purple-400 rounded-full hover:bg-purple-600/40 transition-all duration-200 hover:scale-110" 
-                                                        title="View Details"
-                                                    >
-                                                        <Info className="h-4 w-4" />
-                                                    </button>
-                                                    <button 
-                                                        className="p-1.5 bg-green-600/20 text-green-400 rounded-full hover:bg-green-600/40 transition-all duration-200 hover:scale-110" 
-                                                        title="Performance Analysis"
-                                                    >
-                                                        <BarChart3 className="h-4 w-4" />
-                                                    </button>
-                                                </div>
+                                                <button 
+                                                    onClick={() => handlePerformanceClick(account)}
+                                                    className="p-1.5 bg-blue-600/20 text-blue-400 rounded-full hover:bg-blue-600/40 transition-colors" 
+                                                    title="View Performance"
+                                                >
+                                                    <LineChart className="h-4 w-4" />
+                                                </button>
                                             </td>
                                         </tr>
                                     );
@@ -722,15 +696,9 @@ const UnifiedAccountTable2 = ({
             </div>
 
             {/* --- Modals --- */}
-            <AccountTrendsModal
-                isOpen={isTrendsModalOpen}
-                onClose={() => setIsTrendsModalOpen(false)}
-                account={selectedAccount}
-            />
-            
-            <AccountDetailsModal
-                isOpen={isDetailsModalOpen}
-                onClose={() => setIsDetailsModalOpen(false)}
+            <AccountPerformanceModal
+                isOpen={isPerformanceModalOpen}
+                onClose={() => setIsPerformanceModalOpen(false)}
                 account={selectedAccount}
             />
         </>
