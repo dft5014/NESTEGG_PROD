@@ -7363,6 +7363,191 @@ async def get_datastore_accounts_summary(
             detail=f"Failed to fetch accounts summary: {str(e)}"
         )
 
+@app.get("/datastore/positions/grouped")
+async def get_datastore_grouped_positions(
+    snapshot_date: Optional[str] = Query(None, description="Specific date (YYYY-MM-DD) or 'latest' for most recent"),
+    asset_type: Optional[str] = Query(None, description="Filter by asset type (security, crypto, cash, metal)"),
+    min_value: Optional[float] = Query(None, description="Minimum position value"),
+    sort_by: Optional[str] = Query("value", description="Sort field: value, quantity, gain_pct, allocation"),
+    sort_order: Optional[str] = Query("desc", description="Sort order: asc or desc"),
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Get grouped positions from rept_summary_grouped_positions view for DataStore
+    Groups positions by identifier across all accounts with historical performance
+    """
+    try:
+        user_id = current_user["id"]
+        
+        # Build base query
+        base_query = """
+        SELECT * FROM rept_summary_grouped_positions 
+        WHERE user_id = :user_id
+        """
+        
+        params = {"user_id": user_id}
+        
+        # Handle date filtering
+        if snapshot_date == "latest" or snapshot_date is None:
+            query = f"""
+            WITH latest_date AS (
+                SELECT MAX(snapshot_date) as max_date 
+                FROM rept_summary_grouped_positions 
+                WHERE user_id = :user_id
+            )
+            {base_query} AND snapshot_date = (SELECT max_date FROM latest_date)
+            """
+        else:
+            query = base_query + " AND snapshot_date = :snapshot_date::date"
+            params["snapshot_date"] = snapshot_date
+        
+        # Add asset type filter
+        if asset_type:
+            query += " AND asset_type = :asset_type"
+            params["asset_type"] = asset_type
+        
+        # Add minimum value filter
+        if min_value is not None:
+            query += " AND total_current_value >= :min_value"
+            params["min_value"] = min_value
+        
+        # Add sorting
+        sort_field_map = {
+            "value": "total_current_value",
+            "quantity": "total_quantity",
+            "gain_pct": "total_gain_loss_pct",
+            "allocation": "portfolio_allocation_pct",
+            "gain_amt": "total_gain_loss_amt",
+            "income": "total_annual_income",
+            "1d_change": "value_1d_change_pct",
+            "1w_change": "value_1w_change_pct",
+            "1m_change": "value_1m_change_pct"
+        }
+        
+        sort_field = sort_field_map.get(sort_by, "total_current_value")
+        sort_direction = "DESC" if sort_order.lower() == "desc" else "ASC"
+        
+        # Handle NULL values in sorting
+        query += f" ORDER BY {sort_field} {sort_direction} NULLS LAST, identifier ASC"
+        
+        # Execute query
+        results = await database.fetch_all(query=query, values=params)
+        
+        if not results:
+            return {
+                "positions": [], 
+                "summary": {
+                    "total_positions": 0,
+                    "unique_assets": 0,
+                    "total_value": 0,
+                    "total_gain_loss": 0,
+                    "total_gain_loss_pct": 0,
+                    "total_annual_income": 0,
+                    "snapshot_date": snapshot_date,
+                    "asset_type_breakdown": {}
+                }
+            }
+        
+        # Process results
+        positions = []
+        total_value = 0
+        total_cost_basis = 0
+        
+        for row in results:
+            position = dict(row)
+            
+            # Format dates
+            date_fields = ['snapshot_date', 'earliest_purchase_date', 'latest_purchase_date', 'earliest_snapshot_date']
+            for field in date_fields:
+                if position.get(field):
+                    position[field] = position[field].strftime('%Y-%m-%d')
+            
+            # Format timestamps
+            timestamp_fields = ['last_updated', 'price_last_updated']
+            for field in timestamp_fields:
+                if position.get(field):
+                    position[field] = position[field].isoformat()
+            
+            # Convert Decimal to float for JSON serialization
+            for key, value in position.items():
+                if isinstance(value, Decimal):
+                    position[key] = float(value)
+            
+            # Parse account_details JSONB
+            if isinstance(position.get('account_details'), str):
+                try:
+                    position['account_details'] = json.loads(position['account_details'])
+                except:
+                    position['account_details'] = []
+            
+            # Ensure account_details have proper date formatting
+            for account in position.get('account_details', []):
+                if account.get('purchase_date'):
+                    try:
+                        # Handle both string and date objects
+                        if isinstance(account['purchase_date'], str):
+                            account['purchase_date'] = account['purchase_date']
+                        else:
+                            account['purchase_date'] = account['purchase_date'].strftime('%Y-%m-%d')
+                    except:
+                        pass
+            
+            total_value += position.get('total_current_value', 0)
+            total_cost_basis += position.get('total_cost_basis', 0)
+            positions.append(position)
+        
+        # Calculate summary statistics
+        summary = {
+            "total_positions": len(positions),
+            "unique_assets": len(positions),
+            "total_value": total_value,
+            "total_cost_basis": total_cost_basis,
+            "total_gain_loss": sum(p.get('total_gain_loss_amt', 0) for p in positions),
+            "total_gain_loss_pct": ((total_value - total_cost_basis) / total_cost_basis * 100) if total_cost_basis > 0 else 0,
+            "total_annual_income": sum(p.get('total_annual_income', 0) for p in positions),
+            "snapshot_date": positions[0]['snapshot_date'] if positions else None,
+            "long_term_value": sum(p.get('long_term_value', 0) for p in positions),
+            "short_term_value": sum(p.get('short_term_value', 0) for p in positions),
+            "asset_type_breakdown": {}
+        }
+        
+        # Calculate asset type breakdown
+        asset_types = {}
+        for position in positions:
+            asset_type = position.get('asset_type', 'unknown')
+            if asset_type not in asset_types:
+                asset_types[asset_type] = {
+                    "count": 0,
+                    "value": 0,
+                    "cost_basis": 0,
+                    "gain_loss": 0,
+                    "allocation_pct": 0
+                }
+            asset_types[asset_type]["count"] += 1
+            asset_types[asset_type]["value"] += position.get('total_current_value', 0)
+            asset_types[asset_type]["cost_basis"] += position.get('total_cost_basis', 0)
+            asset_types[asset_type]["gain_loss"] += position.get('total_gain_loss_amt', 0)
+        
+        # Calculate allocation percentages
+        for asset_type, data in asset_types.items():
+            data["allocation_pct"] = (data["value"] / total_value * 100) if total_value > 0 else 0
+        
+        summary["asset_type_breakdown"] = asset_types
+        
+        return {
+            "positions": positions,
+            "summary": summary
+        }
+        
+    except Exception as e:
+        logger.error(f"Error fetching grouped positions: {str(e)}")
+        import traceback
+        logger.error(traceback.format_exc())
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to fetch grouped positions: {str(e)}"
+        )
+
 @app.get("/portfolio/sidebar-stats")
 async def get_sidebar_stats(
     current_user: dict = Depends(get_current_user)

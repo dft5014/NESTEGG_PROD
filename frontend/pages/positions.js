@@ -25,6 +25,8 @@ import { formatCurrency, formatPercentage } from '@/utils/formatters';
 import { fetchUnifiedPositions } from '@/utils/apimethods/positionMethods';
 import { fetchAllAccounts } from '@/utils/apimethods/accountMethods';
 import AddPositionButton from '@/components/AddPositionButton';
+import UnifiedGroupPositionsTable2 from '@/components/tables/UnifiedGroupPositionsTable2';
+
 
 export default function PositionsPage() {
   const [positions, setPositions] = useState([]);
@@ -847,6 +849,17 @@ export default function PositionsPage() {
             />
           </div>
         </section>
+
+            {/* ADD SPACING */}
+            <div className="mb-12" /> {/* This creates vertical space between tables */}
+            
+            {/* NEW DATASTORE TABLE */}
+            <UnifiedGroupPositionsTable2 
+              initialSort="value-high" 
+              title="Consolidated Portfolio (DataStore)" 
+              showHistoricalColumns={true} // Show the 1W, 1M columns for comparison
+            />
+
 
         {/* Analytics Section */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">

@@ -34,7 +34,17 @@ const initialState = {
     error: null,
     lastFetched: null,
     isStale: false
-  }
+  },
+
+  groupedPositions: {
+    data: [],
+    summary: null,
+    loading: false,
+    error: null,
+    lastFetched: null,
+    isStale: false,
+  },
+
 };
 
 // Action types
@@ -49,6 +59,12 @@ export const ActionTypes = {
   FETCH_ACCOUNTS_SUCCESS: 'FETCH_ACCOUNTS_SUCCESS',
   FETCH_ACCOUNTS_ERROR: 'FETCH_ACCOUNTS_ERROR',
   MARK_ACCOUNTS_STALE: 'MARK_ACCOUNTS_STALE',
+  // GROUPED POSITIONS
+  FETCH_GROUPED_POSITIONS_START: 'FETCH_GROUPED_POSITIONS_START',
+  FETCH_GROUPED_POSITIONS_SUCCESS: 'FETCH_GROUPED_POSITIONS_SUCCESS',
+  FETCH_GROUPED_POSITIONS_ERROR: 'FETCH_GROUPED_POSITIONS_ERROR',
+  MARK_GROUPED_POSITIONS_STALE: 'MARK_GROUPED_POSITIONS_STALE',
+
 };
 
 // Reducer
@@ -242,6 +258,49 @@ const dataStoreReducer = (state, action) => {
     case ActionTypes.RESET_STORE:
       return initialState;
 
+
+    case ActionTypes.FETCH_GROUPED_POSITIONS_START:
+      return {
+        ...state,
+        groupedPositions: {
+          ...state.groupedPositions,
+          loading: true,
+          error: null,
+        },
+      };
+
+    case ActionTypes.FETCH_GROUPED_POSITIONS_SUCCESS:
+      return {
+        ...state,
+        groupedPositions: {
+          data: action.payload.positions || [],
+          summary: action.payload.summary || null,
+          loading: false,
+          error: null,
+          lastFetched: Date.now(),
+          isStale: false,
+        },
+      };
+
+    case ActionTypes.FETCH_GROUPED_POSITIONS_ERROR:
+      return {
+        ...state,
+        groupedPositions: {
+          ...state.groupedPositions,
+          loading: false,
+          error: action.payload,
+        },
+      };
+
+    case ActionTypes.MARK_GROUPED_POSITIONS_STALE:
+      return {
+        ...state,
+        groupedPositions: {
+          ...state.groupedPositions,
+          isStale: true,
+        },
+      };
+
     default:
       return state;
   }
@@ -326,9 +385,61 @@ export const DataStoreProvider = ({ children }) => {
     }
   }, [state.accounts.loading, state.accounts.lastFetched, state.accounts.isStale]);
 
+  const fetchGroupedPositionsData = useCallback(async (force = false) => {
+    if (state.groupedPositions.loading && !force) return;
+
+    const oneMinuteAgo = Date.now() - 60000;
+    if (!force && 
+        state.groupedPositions.lastFetched && 
+        state.groupedPositions.lastFetched > oneMinuteAgo && 
+        !state.groupedPositions.isStale) {
+      return;
+    }
+
+    dispatch({ type: ActionTypes.FETCH_GROUPED_POSITIONS_START });
+
+    try {
+      const response = await fetchWithAuth('/datastore/positions/grouped?snapshot_date=latest');
+      if (!response.ok) {
+        throw new Error(`Failed to fetch grouped positions: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      
+      dispatch({
+        type: ActionTypes.FETCH_GROUPED_POSITIONS_SUCCESS,
+        payload: data
+      });
+    } catch (error) {
+      console.error('Error fetching grouped positions:', error);
+      dispatch({
+        type: ActionTypes.FETCH_GROUPED_POSITIONS_ERROR,
+        payload: error.message,
+      });
+    }
+  }, [state.groupedPositions.loading, state.groupedPositions.lastFetched, state.groupedPositions.isStale]);
+
+  // Refresh all data sources
+  const refreshData = useCallback(async (force = true) => {
+    await Promise.all([
+      fetchPortfolioData(force),
+      fetchAccountsData(force),
+      fetchGroupedPositionsData(force),
+    ]);
+  }, [fetchPortfolioData, fetchAccountsData, fetchGroupedPositionsData]);
+
+  // Auto-refresh stale grouped positions
+  useEffect(() => {
+    if (state.groupedPositions.isStale && !state.groupedPositions.loading) {
+      fetchGroupedPositionsData();
+    }
+  }, [state.groupedPositions.isStale, state.groupedPositions.loading, fetchGroupedPositionsData]);
+
   // Mark data as stale
   const markDataStale = useCallback(() => {
-    dispatch({ type: ActionTypes.MARK_DATA_STALE });
+    dispatch({ type: ActionTypes.MARK_DATA_STALE })
+    dispatch({ type: ActionTypes.MARK_ACCOUNTS_STALE });
+    dispatch({ type: ActionTypes.MARK_GROUPED_POSITIONS_STALE });
   }, []);
 
   // Mark accounts as stale
@@ -360,10 +471,12 @@ export const DataStoreProvider = ({ children }) => {
     actions: {
       fetchPortfolioData,
       fetchAccountsData,
+      fetchGroupedPositionsData,  // NEW
       markDataStale,
       markAccountsStale,
-      refreshData: () => fetchPortfolioData(true),
-      refreshAccounts: () => fetchAccountsData(true)
+      refreshData,  // CHANGED - now uses the function we created above
+      refreshAccounts: () => fetchAccountsData(true),
+      refreshGroupedPositions: () => fetchGroupedPositionsData(true),  // NEW
     },
   };
 
