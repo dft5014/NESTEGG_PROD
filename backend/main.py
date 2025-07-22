@@ -7440,10 +7440,13 @@ async def get_datastore_grouped_positions(
                     "total_positions": 0,
                     "unique_assets": 0,
                     "total_value": 0,
+                    "total_cost_basis": 0,
                     "total_gain_loss": 0,
                     "total_gain_loss_pct": 0,
                     "total_annual_income": 0,
                     "snapshot_date": snapshot_date,
+                    "long_term_value": 0,
+                    "short_term_value": 0,
                     "asset_type_breakdown": {}
                 }
             }
@@ -7468,10 +7471,13 @@ async def get_datastore_grouped_positions(
                 if position.get(field):
                     position[field] = position[field].isoformat()
             
-            # Convert Decimal to float for JSON serialization
+            # Convert Decimal to float for JSON serialization, handling None values
             for key, value in position.items():
                 if isinstance(value, Decimal):
                     position[key] = float(value)
+                elif value is None and key.endswith(('_value', '_amt', '_pct', '_change')):
+                    # Set numeric fields to 0 if they're None
+                    position[key] = 0.0
             
             # Parse account_details JSONB
             if isinstance(position.get('account_details'), str):
@@ -7479,6 +7485,8 @@ async def get_datastore_grouped_positions(
                     position['account_details'] = json.loads(position['account_details'])
                 except:
                     position['account_details'] = []
+            elif position.get('account_details') is None:
+                position['account_details'] = []
             
             # Ensure account_details have proper date formatting
             for account in position.get('account_details', []):
@@ -7492,26 +7500,32 @@ async def get_datastore_grouped_positions(
                     except:
                         pass
             
-            total_value += position.get('total_current_value', 0)
-            total_cost_basis += position.get('total_cost_basis', 0)
+            # Use 0.0 as default for None values in calculations
+            total_value += position.get('total_current_value') or 0.0
+            total_cost_basis += position.get('total_cost_basis') or 0.0
             positions.append(position)
         
-        # Calculate summary statistics
+        # Calculate summary statistics with None handling
+        total_gain_loss = sum(p.get('total_gain_loss_amt') or 0.0 for p in positions)
+        total_annual_income = sum(p.get('total_annual_income') or 0.0 for p in positions)
+        long_term_value = sum(p.get('long_term_value') or 0.0 for p in positions)
+        short_term_value = sum(p.get('short_term_value') or 0.0 for p in positions)
+        
         summary = {
             "total_positions": len(positions),
             "unique_assets": len(positions),
             "total_value": total_value,
             "total_cost_basis": total_cost_basis,
-            "total_gain_loss": sum(p.get('total_gain_loss_amt', 0) for p in positions),
+            "total_gain_loss": total_gain_loss,
             "total_gain_loss_pct": ((total_value - total_cost_basis) / total_cost_basis * 100) if total_cost_basis > 0 else 0,
-            "total_annual_income": sum(p.get('total_annual_income', 0) for p in positions),
+            "total_annual_income": total_annual_income,
             "snapshot_date": positions[0]['snapshot_date'] if positions else None,
-            "long_term_value": sum(p.get('long_term_value', 0) for p in positions),
-            "short_term_value": sum(p.get('short_term_value', 0) for p in positions),
+            "long_term_value": long_term_value,
+            "short_term_value": short_term_value,
             "asset_type_breakdown": {}
         }
         
-        # Calculate asset type breakdown
+        # Calculate asset type breakdown with None handling
         asset_types = {}
         for position in positions:
             asset_type = position.get('asset_type', 'unknown')
@@ -7524,9 +7538,9 @@ async def get_datastore_grouped_positions(
                     "allocation_pct": 0
                 }
             asset_types[asset_type]["count"] += 1
-            asset_types[asset_type]["value"] += position.get('total_current_value', 0)
-            asset_types[asset_type]["cost_basis"] += position.get('total_cost_basis', 0)
-            asset_types[asset_type]["gain_loss"] += position.get('total_gain_loss_amt', 0)
+            asset_types[asset_type]["value"] += position.get('total_current_value') or 0.0
+            asset_types[asset_type]["cost_basis"] += position.get('total_cost_basis') or 0.0
+            asset_types[asset_type]["gain_loss"] += position.get('total_gain_loss_amt') or 0.0
         
         # Calculate allocation percentages
         for asset_type, data in asset_types.items():
