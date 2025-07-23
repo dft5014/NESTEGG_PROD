@@ -352,7 +352,18 @@ const UnifiedAccountTable2 = ({
 
     // Quick Analysis Handlers
     const handlePerformanceClick = (account) => {
-        setSelectedAccount(account);
+        // Ensure all string fields have defaults to prevent replace() errors
+        const safeAccount = {
+            ...account,
+            name: account.name || '',
+            account_name: account.account_name || account.name || '',
+            institution: account.institution || '',
+            type: account.type || '',
+            account_type: account.account_type || account.type || '',
+            category: account.category || '',
+            account_category: account.account_category || account.category || ''
+        };
+        setSelectedAccount(safeAccount);
         setIsPerformanceModalOpen(true);
     };
 
