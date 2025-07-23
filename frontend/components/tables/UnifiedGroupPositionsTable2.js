@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { BarChart4, Loader, Search, Filter, TrendingUp, TrendingDown, X, RefreshCw, Info, DollarSign, Home, Package, ChevronDown, Check } from 'lucide-react';
+import { BarChart4, Loader, Search, Filter, TrendingUp, TrendingDown, X, RefreshCw, Info, DollarSign, Home, Package, ChevronDown, Check, ChevronUp, ArrowUpDown } from 'lucide-react';
 import { formatCurrency, formatPercentage, formatNumber, formatDate } from '@/utils/formatters';
 import { useGroupedPositions } from '@/store/hooks/useGroupedPositions';
 
@@ -95,6 +95,7 @@ const UnifiedGroupPositionsTable2 = ({
  const [assetTypeFilter, setAssetTypeFilter] = useState([]);
  const [holdingTermFilter, setHoldingTermFilter] = useState([]);
  const [showOnlyChanged, setShowOnlyChanged] = useState(false);
+ const [positionDetailSort, setPositionDetailSort] = useState({ field: 'value', direction: 'desc' });
 
  // Get unique asset types
  const assetTypes = useMemo(() => {
@@ -102,10 +103,14 @@ const UnifiedGroupPositionsTable2 = ({
    return types.sort();
  }, [positions]);
 
- // Initialize default filter (everything except real_estate)
+ // Initialize default filter (everything except real_estate, vehicles, other_assets)
  useEffect(() => {
    if (assetTypes.length > 0 && assetTypeFilter.length === 0) {
-     setAssetTypeFilter(assetTypes.filter(type => type !== 'real_estate'));
+     setAssetTypeFilter(assetTypes.filter(type => 
+       type !== 'real_estate' && 
+       type !== 'vehicle' && 
+       type !== 'other_asset'
+     ));
    }
  }, [assetTypes]);
 
@@ -204,7 +209,11 @@ const UnifiedGroupPositionsTable2 = ({
 
  // Calculate liquid assets summary (excluding real_estate and other non-liquid assets)
  const liquidSummary = useMemo(() => {
-   const liquidPositions = processedPositions.filter(p => p.asset_type !== 'real_estate' && p.asset_type !== 'other_asset');
+   const liquidPositions = processedPositions.filter(p => 
+     p.asset_type !== 'real_estate' && 
+     p.asset_type !== 'other_asset' && 
+     p.asset_type !== 'vehicle'
+   );
    const totalValue = liquidPositions.reduce((sum, p) => sum + (p.total_current_value || 0), 0);
    const totalCost = liquidPositions.reduce((sum, p) => sum + (p.total_cost_basis || 0), 0);
    const totalGainLoss = liquidPositions.reduce((sum, p) => sum + (p.total_gain_loss_amt || 0), 0);
@@ -220,6 +229,39 @@ const UnifiedGroupPositionsTable2 = ({
      avgYield: totalValue > 0 ? (totalIncome / totalValue) * 100 : 0
    };
  }, [processedPositions]);
+
+ // Calculate illiquid assets summary (only other_asset)
+ const illiquidSummary = useMemo(() => {
+   const illiquidPositions = processedPositions.filter(p => p.asset_type === 'other_asset');
+   const totalValue = illiquidPositions.reduce((sum, p) => sum + (p.total_current_value || 0), 0);
+   const totalCost = illiquidPositions.reduce((sum, p) => sum + (p.total_cost_basis || 0), 0);
+   const totalGainLoss = illiquidPositions.reduce((sum, p) => sum + (p.total_gain_loss_amt || 0), 0);
+   const totalIncome = illiquidPositions.reduce((sum, p) => sum + (p.total_annual_income || 0), 0);
+   
+   return {
+     count: illiquidPositions.length,
+     totalValue,
+     totalCost,
+     totalGainLoss,
+     totalGainLossPct: totalCost > 0 ? (totalGainLoss / totalCost) * 100 : 0,
+     totalIncome,
+     avgYield: totalValue > 0 ? (totalIncome / totalValue) * 100 : 0
+   };
+ }, [processedPositions]);
+
+ // Sort handler for table headers
+ const handleSort = (field) => {
+   const newDirection = sortOption.startsWith(field) && sortOption.endsWith('high') ? 'low' : 'high';
+   setSortOption(`${field}-${newDirection}`);
+ };
+
+ // Get sort icon for headers
+ const getSortIcon = (field) => {
+   if (!sortOption.startsWith(field)) return <ArrowUpDown className="w-3 h-3 opacity-50" />;
+   return sortOption.endsWith('high') ? 
+     <ChevronDown className="w-3 h-3" /> : 
+     <ChevronUp className="w-3 h-3" />;
+ };
 
  // Format helpers
  const formatChange = (value, isPercent = false) => {
@@ -291,11 +333,53 @@ const UnifiedGroupPositionsTable2 = ({
      case 'real_estate':
        return <Home className="w-4 h-4 mr-2 text-purple-400" />;
      case 'other_asset':
+     case 'vehicle':
        return <Package className="w-4 h-4 mr-2 text-gray-400" />;
      default:
        return <Package className="w-4 h-4 mr-2 text-gray-400" />;
    }
  };
+
+ // Sort position details for modal
+ const sortedPositionDetails = useMemo(() => {
+   if (!selectedPosition?.account_details) return [];
+   
+   return [...selectedPosition.account_details].sort((a, b) => {
+     let compareValue = 0;
+     const { field, direction } = positionDetailSort;
+     
+     switch (field) {
+       case 'account':
+         compareValue = (a.account_name || '').localeCompare(b.account_name || '');
+         break;
+       case 'date':
+         compareValue = new Date(a.purchase_date || 0) - new Date(b.purchase_date || 0);
+         break;
+       case 'age':
+         compareValue = (a.position_age_days || 0) - (b.position_age_days || 0);
+         break;
+       case 'quantity':
+         compareValue = (a.quantity || 0) - (b.quantity || 0);
+         break;
+       case 'value':
+         compareValue = (a.value || 0) - (b.value || 0);
+         break;
+       case 'cost':
+         compareValue = (a.cost || 0) - (b.cost || 0);
+         break;
+       case 'gain':
+         compareValue = (a.gain_loss_amt || 0) - (b.gain_loss_amt || 0);
+         break;
+       case 'gain_pct':
+         compareValue = (a.gain_loss_pct || 0) - (b.gain_loss_pct || 0);
+         break;
+       default:
+         compareValue = (a.value || 0) - (b.value || 0);
+     }
+     
+     return direction === 'asc' ? compareValue : -compareValue;
+   });
+ }, [selectedPosition, positionDetailSort]);
 
  if (loading) {
    return (
@@ -460,43 +544,61 @@ const UnifiedGroupPositionsTable2 = ({
                    #
                  </th>
                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
-                   Position
+                   <button onClick={() => handleSort('name')} className="flex items-center space-x-1 hover:text-white">
+                     <span>Position</span>
+                     {getSortIcon('name')}
+                   </button>
                  </th>
                  <th className="px-3 py-2 text-right text-xs font-medium text-gray-400 uppercase tracking-wider">
-                   Quantity
+                   <button onClick={() => handleSort('quantity')} className="flex items-center space-x-1 hover:text-white ml-auto">
+                     <span>Quantity</span>
+                     {getSortIcon('quantity')}
+                   </button>
                  </th>
                  <th className="px-3 py-2 text-right text-xs font-medium text-gray-400 uppercase tracking-wider">
                    Price
                  </th>
                  <th className="px-3 py-2 text-right text-xs font-medium text-gray-400 uppercase tracking-wider">
-                   Value
+                   <button onClick={() => handleSort('value')} className="flex items-center space-x-1 hover:text-white ml-auto">
+                     <span>Value</span>
+                     {getSortIcon('value')}
+                   </button>
                  </th>
                  <th className="px-3 py-2 text-right text-xs font-medium text-gray-400 uppercase tracking-wider">
                    Cost Basis
                  </th>
                  <th className="px-3 py-2 text-right text-xs font-medium text-gray-400 uppercase tracking-wider">
-                   Gain/Loss
-                 </th>
-                 <th className="px-3 py-2 text-right text-xs font-medium text-gray-400 uppercase tracking-wider">
-                   Income
+                   <button onClick={() => handleSort('gain_amt')} className="flex items-center space-x-1 hover:text-white ml-auto">
+                     <span>Gain/Loss</span>
+                     {getSortIcon('gain_amt')}
+                   </button>
                  </th>
                  <th colSpan="4" className="px-3 py-2 text-center text-xs font-medium text-gray-400 uppercase tracking-wider">
                    Performance
                  </th>
                  <th className="px-3 py-2 text-right text-xs font-medium text-gray-400 uppercase tracking-wider">
-                   Weight
+                   <button onClick={() => handleSort('income')} className="flex items-center space-x-1 hover:text-white ml-auto">
+                     <span>Income</span>
+                     {getSortIcon('income')}
+                   </button>
+                 </th>
+                 <th className="px-3 py-2 text-right text-xs font-medium text-gray-400 uppercase tracking-wider">
+                   <button onClick={() => handleSort('allocation')} className="flex items-center space-x-1 hover:text-white ml-auto">
+                     <span>Weight</span>
+                     {getSortIcon('allocation')}
+                   </button>
                  </th>
                  <th className="px-3 py-2 text-center text-xs font-medium text-gray-400 uppercase tracking-wider">
                    Accounts
                  </th>
                </tr>
                <tr className="bg-gray-800/50">
-                 <th colSpan="8"></th>
+                 <th colSpan="7"></th>
                  <th className="px-1 py-1 text-center text-xs text-gray-500">1D</th>
                  <th className="px-1 py-1 text-center text-xs text-gray-500">1W</th>
                  <th className="px-1 py-1 text-center text-xs text-gray-500">1M</th>
                  <th className="px-1 py-1 text-center text-xs text-gray-500">YTD</th>
-                 <th colSpan="2"></th>
+                 <th colSpan="3"></th>
                </tr>
              </thead>
              <tbody className="bg-gray-800/30 divide-y divide-gray-700">
@@ -525,11 +627,11 @@ const UnifiedGroupPositionsTable2 = ({
                      ({filteredSummary.totalGainLoss >= 0 ? '+' : ''}{formatPercentage(filteredSummary.totalGainLossPct / 100)})
                    </div>
                  </td>
+                 <td colSpan="4" className="px-3 py-3"></td>
                  <td className="px-3 py-3 text-right">
                    <div className="font-medium">{formatCurrency(filteredSummary.totalIncome)}</div>
                    <div className="text-xs text-gray-400">{filteredSummary.avgYield.toFixed(2)}% yield</div>
                  </td>
-                 <td colSpan="4" className="px-3 py-3"></td>
                  <td className="px-3 py-3 text-right font-medium">100.00%</td>
                  <td className="px-3 py-3"></td>
                </tr>
@@ -559,16 +661,54 @@ const UnifiedGroupPositionsTable2 = ({
                      ({liquidSummary.totalGainLoss >= 0 ? '+' : ''}{formatPercentage(liquidSummary.totalGainLossPct / 100)})
                    </div>
                  </td>
+                 <td colSpan="4" className="px-3 py-3"></td>
                  <td className="px-3 py-3 text-right">
                    <div className="font-medium">{formatCurrency(liquidSummary.totalIncome)}</div>
                    <div className="text-xs text-gray-400">{liquidSummary.avgYield.toFixed(2)}% yield</div>
                  </td>
-                 <td colSpan="4" className="px-3 py-3"></td>
                  <td className="px-3 py-3 text-right font-medium">
                    {filteredSummary.totalValue > 0 ? `${((liquidSummary.totalValue / filteredSummary.totalValue) * 100).toFixed(2)}%` : '-'}
                  </td>
                  <td className="px-3 py-3"></td>
                </tr>
+
+               {/* Illiquid Assets Row */}
+               {illiquidSummary.count > 0 && (
+                 <tr className="bg-orange-900/20 font-medium border-b-2 border-orange-700">
+                   <td className="px-3 py-3 text-center">
+                     <span className="font-bold text-orange-400">■</span>
+                   </td>
+                   <td className="px-3 py-3 whitespace-nowrap">
+                     <div className="font-medium text-orange-400">Illiquid Assets</div>
+                     <div className="text-xs text-gray-400">{illiquidSummary.count} positions</div>
+                   </td>
+                   <td className="px-3 py-3"></td>
+                   <td className="px-3 py-3"></td>
+                   <td className="px-3 py-3 text-right font-medium text-orange-400">
+                     {formatCurrency(illiquidSummary.totalValue)}
+                   </td>
+                   <td className="px-3 py-3 text-right text-gray-300">
+                     {formatCurrency(illiquidSummary.totalCost)}
+                   </td>
+                   <td className="px-3 py-3 text-right">
+                     <div className={`font-medium ${illiquidSummary.totalGainLoss >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                       {illiquidSummary.totalGainLoss >= 0 ? '+' : ''}{formatCurrency(illiquidSummary.totalGainLoss)}
+                     </div>
+                     <div className={`text-xs ${illiquidSummary.totalGainLoss >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                       ({illiquidSummary.totalGainLoss >= 0 ? '+' : ''}{formatPercentage(illiquidSummary.totalGainLossPct / 100)})
+                     </div>
+                   </td>
+                   <td colSpan="4" className="px-3 py-3"></td>
+                   <td className="px-3 py-3 text-right">
+                     <div className="font-medium">{formatCurrency(illiquidSummary.totalIncome)}</div>
+                     <div className="text-xs text-gray-400">{illiquidSummary.avgYield.toFixed(2)}% yield</div>
+                   </td>
+                   <td className="px-3 py-3 text-right font-medium">
+                     {filteredSummary.totalValue > 0 ? `${((illiquidSummary.totalValue / filteredSummary.totalValue) * 100).toFixed(2)}%` : '-'}
+                   </td>
+                   <td className="px-3 py-3"></td>
+                 </tr>
+               )}
 
                {/* Individual Position Rows */}
                {processedPositions.map((position, index) => (
@@ -621,12 +761,28 @@ const UnifiedGroupPositionsTable2 = ({
                      )}
                    </td>
                    <td className="px-3 py-3 whitespace-nowrap text-sm text-right">
-                     <div className={position.total_gain_loss_amt >= 0 ? 'text-green-400' : 'text-red-400'}>
-                       {position.total_gain_loss_amt >= 0 && '+'}{formatCurrency(position.total_gain_loss_amt)}
-                     </div>
-                     <div className={`text-xs ${position.total_gain_loss_amt >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                       {position.total_gain_loss_amt >= 0 && '+'}{formatPercentage(position.total_gain_loss_pct)}
-                     </div>
+                     {position.asset_type !== 'cash' ? (
+                       <>
+                         <div className={position.total_gain_loss_amt >= 0 ? 'text-green-400' : 'text-red-400'}>
+                           {position.total_gain_loss_amt >= 0 && '+'}{formatCurrency(position.total_gain_loss_amt)}
+                         </div>
+                         <div className={`text-xs ${position.total_gain_loss_amt >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                           {position.total_gain_loss_amt >= 0 && '+'}{formatPercentage(position.total_gain_loss_pct)}
+                         </div>
+                       </>
+                     ) : null}
+                   </td>
+                   <td className="px-1 py-3 text-center text-sm">
+                     {formatPerformanceChange(position.value_1d_change_pct, position.value_1d_change)}
+                   </td>
+                   <td className="px-1 py-3 text-center text-sm">
+                     {formatPerformanceChange(position.value_1w_change_pct, position.value_1w_change)}
+                   </td>
+                   <td className="px-1 py-3 text-center text-sm">
+                     {formatPerformanceChange(position.value_1m_change_pct, position.value_1m_change)}
+                   </td>
+                   <td className="px-1 py-3 text-center text-sm">
+                     {formatPerformanceChange(position.value_ytd_change_pct, position.value_ytd_change)}
                    </td>
                    <td className="px-3 py-3 whitespace-nowrap text-sm text-right">
                      {position.asset_type !== 'cash' && position.total_annual_income > 0 ? (
@@ -644,18 +800,6 @@ const UnifiedGroupPositionsTable2 = ({
                      ) : (
                        <span className="text-gray-500">-</span>
                      )}
-                   </td>
-                   <td className="px-1 py-3 text-center text-sm">
-                     {formatPerformanceChange(position.value_1d_change_pct, position.value_1d_change)}
-                   </td>
-                   <td className="px-1 py-3 text-center text-sm">
-                     {formatPerformanceChange(position.value_1w_change_pct, position.value_1w_change)}
-                   </td>
-                   <td className="px-1 py-3 text-center text-sm">
-                     {formatPerformanceChange(position.value_1m_change_pct, position.value_1m_change)}
-                   </td>
-                   <td className="px-1 py-3 text-center text-sm">
-                     {formatPerformanceChange(position.value_ytd_change_pct, position.value_ytd_change)}
                    </td>
                    <td className="px-3 py-3 whitespace-nowrap text-sm text-right">
                      <div className="font-medium">{formatPercentage(position.portfolio_allocation_pct / 100)}</div>
@@ -681,182 +825,290 @@ const UnifiedGroupPositionsTable2 = ({
        <div className="fixed inset-0 z-50 overflow-hidden">
          <div className="absolute inset-0 bg-black bg-opacity-50 transition-opacity" onClick={() => setIsDetailModalOpen(false)} />
          
-         <div className="fixed inset-y-0 right-0 flex max-w-full">
-           <div className="w-screen max-w-2xl">
-             <div className="flex h-full flex-col bg-gray-900 shadow-xl">
-               {/* Modal Header */}
-               <div className="px-6 py-4 bg-gray-800 border-b border-gray-700">
-                 <div className="flex items-start justify-between">
-                   <div className="flex items-center space-x-3">
-                     <div className="p-2 bg-gray-700 rounded-lg">
-                       {getAssetIcon(selectedPosition.asset_type)}
+         <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-full max-w-4xl max-h-[85vh]">
+           <div className="bg-gray-900 rounded-lg shadow-2xl overflow-hidden flex flex-col h-full">
+             {/* Modal Header */}
+             <div className="px-6 py-4 bg-gray-800 border-b border-gray-700 flex-shrink-0">
+               <div className="flex items-start justify-between">
+                 <div className="flex items-center space-x-3">
+                   <div className="p-2 bg-gray-700 rounded-lg">
+                     {getAssetIcon(selectedPosition.asset_type)}
+                   </div>
+                   <div>
+                     <h3 className="text-lg font-semibold">{selectedPosition.identifier}</h3>
+                     <p className="text-sm text-gray-400">{selectedPosition.name}</p>
+                     <div className="flex items-center space-x-2 mt-1">
+                       <span className={`text-xs px-2 py-1 rounded ${
+                         selectedPosition.predominant_holding_term === 'Long Term' 
+                           ? 'bg-green-900/30 text-green-400' 
+                           : 'bg-yellow-900/30 text-yellow-400'
+                       }`}>
+                         {selectedPosition.predominant_holding_term}
+                       </span>
+                       <span className="text-xs text-gray-500">
+                         {selectedPosition.long_term_positions} LT / {selectedPosition.short_term_positions} ST
+                       </span>
                      </div>
-                     <div>
-                       <h3 className="text-lg font-semibold">{selectedPosition.identifier}</h3>
-                       <p className="text-sm text-gray-400">{selectedPosition.name}</p>
-                       <div className="flex items-center space-x-2 mt-1">
+                   </div>
+                 </div>
+                 <button 
+                   onClick={() => setIsDetailModalOpen(false)}
+                   className="text-gray-400 hover:text-white transition-colors"
+                 >
+                   <X className="w-5 h-5" />
+                 </button>
+               </div>
+             </div>
+
+             {/* Modal Body - Scrollable */}
+             <div className="flex-1 overflow-y-auto p-6">
+               {/* Key Metrics */}
+               <div className="grid grid-cols-3 gap-4 mb-6">
+                 <div className="bg-gray-800/50 p-4 rounded">
+                   <div className="text-xs text-gray-400">Total Value</div>
+                   <div className="text-xl font-semibold">{formatCurrency(selectedPosition.total_current_value)}</div>
+                   <div className="text-xs text-gray-500 mt-1">
+                     {formatPercentage(selectedPosition.portfolio_allocation_pct / 100)} of portfolio
+                   </div>
+                 </div>
+                 <div className="bg-gray-800/50 p-4 rounded">
+                   <div className="text-xs text-gray-400">Total Gain/Loss</div>
+                   <div className={`text-xl font-semibold ${
+                     selectedPosition.total_gain_loss_amt >= 0 ? 'text-green-400' : 'text-red-400'
+                   }`}>
+                     {selectedPosition.total_gain_loss_amt >= 0 && '+'}{formatCurrency(selectedPosition.total_gain_loss_amt)}
+                   </div>
+                   <div className="text-xs text-gray-500 mt-1">
+                     {selectedPosition.total_gain_loss_amt >= 0 && '+'}{formatPercentage(selectedPosition.total_gain_loss_pct)}
+                   </div>
+                 </div>
+                 <div className="bg-gray-800/50 p-4 rounded">
+                   <div className="text-xs text-gray-400">Annual Income</div>
+                   <div className="text-xl font-semibold">{formatCurrency(selectedPosition.total_annual_income)}</div>
+                   <div className="text-xs text-gray-500 mt-1">
+                     {selectedPosition.dividend_yield}% yield
+                   </div>
+                 </div>
+               </div>
+
+               {/* Account Summary */}
+               <div className="mb-6">
+                 <h4 className="text-sm font-medium text-gray-400 mb-3">Account Summary</h4>
+                 <div className="grid grid-cols-2 gap-3">
+                   {selectedPosition.account_details.map((account, idx) => (
+                     <div key={idx} className="bg-gray-800/30 p-3 rounded">
+                       <div className="flex justify-between items-start mb-1">
+                         <div>
+                           <div className="text-sm font-medium">{account.account_name || 'Other Asset'}</div>
+                           <div className="text-xs text-gray-400">{account.institution}</div>
+                         </div>
                          <span className={`text-xs px-2 py-1 rounded ${
-                           selectedPosition.predominant_holding_term === 'Long Term' 
+                           account.holding_term === 'Long Term' 
                              ? 'bg-green-900/30 text-green-400' 
                              : 'bg-yellow-900/30 text-yellow-400'
                          }`}>
-                           {selectedPosition.predominant_holding_term}
-                         </span>
-                         <span className="text-xs text-gray-500">
-                           {selectedPosition.long_term_positions} LT / {selectedPosition.short_term_positions} ST
+                           {account.holding_term || 'N/A'}
                          </span>
                        </div>
-                     </div>
-                   </div>
-                   <button 
-                     onClick={() => setIsDetailModalOpen(false)}
-                     className="text-gray-400 hover:text-white transition-colors"
-                   >
-                     <X className="w-5 h-5" />
-                   </button>
-                 </div>
-               </div>
-
-               {/* Modal Body - Scrollable */}
-               <div className="flex-1 overflow-y-auto">
-                 <div className="p-6">
-                   {/* Performance Grid */}
-                   <div className="mb-6">
-                     <h4 className="text-sm font-medium text-gray-400 mb-3">Performance Over Time</h4>
-                     <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-3">
-                       {[
-                         { label: '1D', value: selectedPosition.value_1d_change_pct, amount: selectedPosition.value_1d_change },
-                         { label: '1W', value: selectedPosition.value_1w_change_pct, amount: selectedPosition.value_1w_change },
-                         { label: '1M', value: selectedPosition.value_1m_change_pct, amount: selectedPosition.value_1m_change },
-                         { label: '3M', value: selectedPosition.value_3m_change_pct, amount: selectedPosition.value_3m_change },
-                         { label: 'YTD', value: selectedPosition.value_ytd_change_pct, amount: selectedPosition.value_ytd_change },
-                         { label: '1Y', value: selectedPosition.value_1y_change_pct, amount: selectedPosition.value_1y_change },
-                         { label: '2Y', value: selectedPosition.value_2y_change_pct, amount: selectedPosition.value_2y_change },
-                         { label: '3Y', value: selectedPosition.value_3y_change_pct, amount: selectedPosition.value_3y_change },
-                         { label: '5Y', value: selectedPosition.value_5y_change_pct, amount: selectedPosition.value_5y_change },
-                         { label: 'Max', value: selectedPosition.value_max_change_pct, amount: selectedPosition.value_max_change },
-                       ].map((period) => {
-                         const showNA = period.value === 100 && period.amount > 0;
-                         return (
-                           <div key={period.label} className="bg-gray-800/50 p-3 rounded">
-                             <div className="text-xs text-gray-400 mb-1">{period.label}</div>
-                             <div className={`text-sm font-semibold ${
-                               showNA ? 'text-gray-400' : 
-                               period.value > 0 ? 'text-green-400' : 
-                               period.value < 0 ? 'text-red-400' : 'text-gray-400'
-                             }`}>
-                               {showNA ? 'n.a.' : 
-                                period.value ? `${period.value > 0 ? '+' : ''}${period.value.toFixed(2)}%` : '-'}
-                             </div>
-                             <div className="text-xs text-gray-500">
-                               {!showNA && period.amount ? formatCurrency(period.amount) : '-'}
-                             </div>
-                           </div>
-                         );
-                       })}
-                     </div>
-                   </div>
-
-                   {/* Key Metrics */}
-                   <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-6">
-                     <div className="bg-gray-800/50 p-4 rounded">
-                       <div className="text-xs text-gray-400">Total Value</div>
-                       <div className="text-xl font-semibold">{formatCurrency(selectedPosition.total_current_value)}</div>
-                       <div className="text-xs text-gray-500 mt-1">
-                         {formatPercentage(selectedPosition.portfolio_allocation_pct / 100)} of portfolio
-                       </div>
-                     </div>
-                     <div className="bg-gray-800/50 p-4 rounded">
-                       <div className="text-xs text-gray-400">Total Gain/Loss</div>
-                       <div className={`text-xl font-semibold ${
-                         selectedPosition.total_gain_loss_amt >= 0 ? 'text-green-400' : 'text-red-400'
-                       }`}>
-                         {selectedPosition.total_gain_loss_amt >= 0 && '+'}{formatCurrency(selectedPosition.total_gain_loss_amt)}
-                       </div>
-                       <div className="text-xs text-gray-500 mt-1">
-                         {selectedPosition.total_gain_loss_amt >= 0 && '+'}{formatPercentage(selectedPosition.total_gain_loss_pct)}
-                       </div>
-                     </div>
-                     <div className="bg-gray-800/50 p-4 rounded">
-                       <div className="text-xs text-gray-400">Annual Income</div>
-                       <div className="text-xl font-semibold">{formatCurrency(selectedPosition.total_annual_income)}</div>
-                       <div className="text-xs text-gray-500 mt-1">
-                         {selectedPosition.dividend_yield}% yield
-                       </div>
-                     </div>
-                   </div>
-
-                   {/* Account Details */}
-                   <div>
-                     <h4 className="text-sm font-medium text-gray-400 mb-3">Account Breakdown</h4>
-                     <div className="space-y-2">
-                       {selectedPosition.account_details.map((account, idx) => (
-                         <div key={idx} className="bg-gray-800/30 p-4 rounded">
-                           <div className="flex justify-between items-start mb-2">
-                             <div>
-                               <div className="font-medium">{account.account_name || 'Other Asset'}</div>
-                               <div className="text-xs text-gray-400">
-                                 {account.institution} • {account.account_type}
-                               </div>
-                             </div>
-                             <span className={`text-xs px-2 py-1 rounded ${
-                               account.holding_term === 'Long Term' 
-                                 ? 'bg-green-900/30 text-green-400' 
-                                 : 'bg-yellow-900/30 text-yellow-400'
-                             }`}>
-                               {account.holding_term || 'N/A'}
-                             </span>
-                           </div>
-                           <div className="grid grid-cols-2 gap-4 text-sm">
-                             <div>
-                               <span className="text-gray-400">Quantity:</span>
-                               <span className="ml-2">{formatNumber(account.quantity || 0, { maximumFractionDigits: 4 })}</span>
-                             </div>
-                             <div>
-                               <span className="text-gray-400">Value:</span>
-                               <span className="ml-2">{formatCurrency(account.value)}</span>
-                             </div>
-                             <div>
-                               <span className="text-gray-400">Cost:</span>
-                               <span className="ml-2">{formatCurrency(account.cost)}</span>
-                             </div>
-                             <div>
-                               <span className="text-gray-400">Gain/Loss:</span>
-                               <span className={`ml-2 ${account.gain_loss_amt >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                                 {account.gain_loss_amt >= 0 && '+'}{formatCurrency(account.gain_loss_amt)}
-                                 <span className="text-xs ml-1">({account.gain_loss_pct >= 0 && '+'}{formatPercentage(account.gain_loss_pct)})</span>
-                               </span>
-                             </div>
-                           </div>
-                           {account.purchase_date && (
-                             <div className="mt-2 text-xs text-gray-400">
-                               Purchased: {account.purchase_date} • {account.position_age_days} days ago
-                             </div>
-                           )}
+                       <div className="grid grid-cols-2 gap-2 text-xs">
+                         <div>
+                           <span className="text-gray-400">Value:</span>
+                           <span className="ml-1 font-medium">{formatCurrency(account.value)}</span>
                          </div>
-                       ))}
+                         <div>
+                           <span className="text-gray-400">Gain:</span>
+                           <span className={`ml-1 font-medium ${account.gain_loss_amt >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                             {account.gain_loss_amt >= 0 && '+'}{formatPercentage(account.gain_loss_pct)}
+                           </span>
+                         </div>
+                       </div>
                      </div>
-                   </div>
-
-                   {/* Additional Info */}
-                   {selectedPosition.earliest_snapshot_date && (
-                     <div className="mt-6 p-4 bg-gray-800/30 rounded">
-                       <div className="text-xs text-gray-400 mb-1">Historical Data Available Since</div>
-                       <div className="text-sm">{selectedPosition.earliest_snapshot_date}</div>
-                     </div>
-                   )}
+                   ))}
                  </div>
                </div>
 
-               {/* Modal Footer */}
-               <div className="px-6 py-4 bg-gray-800 border-t border-gray-700">
-                 <button 
-                   onClick={() => setIsDetailModalOpen(false)}
-                   className="w-full px-4 py-2 bg-blue-600 rounded hover:bg-blue-700 transition-colors text-white font-medium"
-                 >
-                   Close
-                 </button>
+               {/* Position Details Table */}
+               <div>
+                 <h4 className="text-sm font-medium text-gray-400 mb-3">Position Details</h4>
+                 <div className="bg-gray-800/30 rounded overflow-hidden">
+                   <div className="max-h-64 overflow-y-auto">
+                     <table className="min-w-full divide-y divide-gray-700">
+                       <thead className="bg-gray-900/50 sticky top-0">
+                         <tr>
+                           <th className="px-2 py-2 text-left text-xs font-medium text-gray-400">
+                             <button
+                               onClick={() => setPositionDetailSort({
+                                 field: 'account',
+                                 direction: positionDetailSort.field === 'account' && positionDetailSort.direction === 'desc' ? 'asc' : 'desc'
+                               })}
+                               className="flex items-center space-x-1 hover:text-white"
+                             >
+                               <span>Account</span>
+                               {positionDetailSort.field === 'account' && (
+                                 positionDetailSort.direction === 'desc' ? <ChevronDown className="w-3 h-3" /> : <ChevronUp className="w-3 h-3" />
+                               )}
+                             </button>
+                           </th>
+                           <th className="px-2 py-2 text-left text-xs font-medium text-gray-400">
+                             <button
+                               onClick={() => setPositionDetailSort({
+                                 field: 'date',
+                                 direction: positionDetailSort.field === 'date' && positionDetailSort.direction === 'desc' ? 'asc' : 'desc'
+                               })}
+                               className="flex items-center space-x-1 hover:text-white"
+                             >
+                               <span>Purchase Date</span>
+                               {positionDetailSort.field === 'date' && (
+                                 positionDetailSort.direction === 'desc' ? <ChevronDown className="w-3 h-3" /> : <ChevronUp className="w-3 h-3" />
+                               )}
+                             </button>
+                           </th>
+                           <th className="px-2 py-2 text-right text-xs font-medium text-gray-400">
+                             <button
+                               onClick={() => setPositionDetailSort({
+                                 field: 'age',
+                                 direction: positionDetailSort.field === 'age' && positionDetailSort.direction === 'desc' ? 'asc' : 'desc'
+                               })}
+                               className="flex items-center space-x-1 hover:text-white ml-auto"
+                             >
+                               <span>Age</span>
+                               {positionDetailSort.field === 'age' && (
+                                 positionDetailSort.direction === 'desc' ? <ChevronDown className="w-3 h-3" /> : <ChevronUp className="w-3 h-3" />
+                               )}
+                             </button>
+                           </th>
+                           <th className="px-2 py-2 text-right text-xs font-medium text-gray-400">
+                             <button
+                               onClick={() => setPositionDetailSort({
+                                 field: 'quantity',
+                                 direction: positionDetailSort.field === 'quantity' && positionDetailSort.direction === 'desc' ? 'asc' : 'desc'
+                               })}
+                               className="flex items-center space-x-1 hover:text-white ml-auto"
+                             >
+                               <span>Quantity</span>
+                               {positionDetailSort.field === 'quantity' && (
+                                 positionDetailSort.direction === 'desc' ? <ChevronDown className="w-3 h-3" /> : <ChevronUp className="w-3 h-3" />
+                               )}
+                             </button>
+                           </th>
+                           <th className="px-2 py-2 text-right text-xs font-medium text-gray-400">
+                             <button
+                               onClick={() => setPositionDetailSort({
+                                 field: 'value',
+                                 direction: positionDetailSort.field === 'value' && positionDetailSort.direction === 'desc' ? 'asc' : 'desc'
+                               })}
+                               className="flex items-center space-x-1 hover:text-white ml-auto"
+                             >
+                               <span>Market Value</span>
+                               {positionDetailSort.field === 'value' && (
+                                 positionDetailSort.direction === 'desc' ? <ChevronDown className="w-3 h-3" /> : <ChevronUp className="w-3 h-3" />
+                               )}
+                             </button>
+                           </th>
+                           <th className="px-2 py-2 text-right text-xs font-medium text-gray-400">
+                             <button
+                               onClick={() => setPositionDetailSort({
+                                 field: 'cost',
+                                 direction: positionDetailSort.field === 'cost' && positionDetailSort.direction === 'desc' ? 'asc' : 'desc'
+                               })}
+                               className="flex items-center space-x-1 hover:text-white ml-auto"
+                             >
+                               <span>Cost Basis</span>
+                               {positionDetailSort.field === 'cost' && (
+                                 positionDetailSort.direction === 'desc' ? <ChevronDown className="w-3 h-3" /> : <ChevronUp className="w-3 h-3" />
+                               )}
+                             </button>
+                           </th>
+                           <th className="px-2 py-2 text-right text-xs font-medium text-gray-400">
+                             <button
+                               onClick={() => setPositionDetailSort({
+                                 field: 'gain',
+                                 direction: positionDetailSort.field === 'gain' && positionDetailSort.direction === 'desc' ? 'asc' : 'desc'
+                               })}
+                               className="flex items-center space-x-1 hover:text-white ml-auto"
+                             >
+                               <span>Gain/Loss</span>
+                               {positionDetailSort.field === 'gain' && (
+                                 positionDetailSort.direction === 'desc' ? <ChevronDown className="w-3 h-3" /> : <ChevronUp className="w-3 h-3" />
+                               )}
+                             </button>
+                           </th>
+                           <th className="px-2 py-2 text-right text-xs font-medium text-gray-400">
+                             <button
+                               onClick={() => setPositionDetailSort({
+                                 field: 'gain_pct',
+                                 direction: positionDetailSort.field === 'gain_pct' && positionDetailSort.direction === 'desc' ? 'asc' : 'desc'
+                               })}
+                               className="flex items-center space-x-1 hover:text-white ml-auto"
+                             >
+                               <span>%</span>
+                               {positionDetailSort.field === 'gain_pct' && (
+                                 positionDetailSort.direction === 'desc' ? <ChevronDown className="w-3 h-3" /> : <ChevronUp className="w-3 h-3" />
+                               )}
+                             </button>
+                           </th>
+                           <th className="px-2 py-2 text-center text-xs font-medium text-gray-400">Term</th>
+                         </tr>
+                       </thead>
+                       <tbody className="divide-y divide-gray-700">
+                         {sortedPositionDetails.map((detail, idx) => (
+                           <tr key={idx} className="hover:bg-gray-700/30">
+                             <td className="px-2 py-2 text-xs">{detail.account_name || 'Other'}</td>
+                             <td className="px-2 py-2 text-xs">{detail.purchase_date || '-'}</td>
+                             <td className="px-2 py-2 text-xs text-right">{detail.position_age_days || 0}d</td>
+                             <td className="px-2 py-2 text-xs text-right">
+                               {formatNumber(detail.quantity || 0, { maximumFractionDigits: 4 })}
+                             </td>
+                             <td className="px-2 py-2 text-xs text-right font-medium">
+                               {formatCurrency(detail.value)}
+                             </td>
+                             <td className="px-2 py-2 text-xs text-right text-gray-400">
+                               {formatCurrency(detail.cost)}
+                             </td>
+                             <td className="px-2 py-2 text-xs text-right">
+                               <span className={detail.gain_loss_amt >= 0 ? 'text-green-400' : 'text-red-400'}>
+                                 {detail.gain_loss_amt >= 0 && '+'}{formatCurrency(detail.gain_loss_amt)}
+                               </span>
+                             </td>
+                             <td className="px-2 py-2 text-xs text-right">
+                               <span className={detail.gain_loss_pct >= 0 ? 'text-green-400' : 'text-red-400'}>
+                                 {detail.gain_loss_pct >= 0 && '+'}{formatPercentage(detail.gain_loss_pct)}
+                               </span>
+                             </td>
+                             <td className="px-2 py-2 text-xs text-center">
+                               <span className={`px-1 py-0.5 rounded text-xs ${
+                                 detail.holding_term === 'Long Term' 
+                                   ? 'bg-green-900/30 text-green-400' 
+                                   : 'bg-yellow-900/30 text-yellow-400'
+                               }`}>
+                                 {detail.holding_term === 'Long Term' ? 'LT' : 'ST'}
+                               </span>
+                             </td>
+                           </tr>
+                         ))}
+                       </tbody>
+                     </table>
+                   </div>
+                 </div>
                </div>
+
+               {/* Historical Data Info */}
+               {selectedPosition.earliest_snapshot_date && (
+                 <div className="mt-6 p-3 bg-gray-800/30 rounded">
+                   <div className="text-xs text-gray-400">Historical Data Available Since</div>
+                   <div className="text-sm">{selectedPosition.earliest_snapshot_date}</div>
+                 </div>
+               )}
+             </div>
+
+             {/* Modal Footer */}
+             <div className="px-6 py-4 bg-gray-800 border-t border-gray-700 flex-shrink-0">
+               <button 
+                 onClick={() => setIsDetailModalOpen(false)}
+                 className="w-full px-4 py-2 bg-blue-600 rounded hover:bg-blue-700 transition-colors text-white font-medium"
+               >
+                 Close
+               </button>
              </div>
            </div>
          </div>
