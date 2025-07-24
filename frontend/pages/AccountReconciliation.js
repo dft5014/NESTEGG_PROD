@@ -1,205 +1,207 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import Head from 'next/head';
+import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { motion } from 'framer-motion';
 import { 
-  DollarSign, TrendingUp, TrendingDown, Percent, Layers, 
-  ArrowUp, ArrowDown, BarChart4, LineChart, PieChart as PieChartIcon,
-  Briefcase, RefreshCw, Search, X, Filter, Sparkles,
-  Diamond, Coins, Package, Home, Plus, Eye, EyeOff,
-  Activity, Zap, Trophy, Target, AlertCircle, ChevronRight,
-  Globe, Shield, Clock, Star, ArrowUpRight, ArrowDownRight,
-  Wallet, CreditCard, Building2, ChartBar, Gauge, Flame,
-  Moon, Sun, Cpu, Gem, DollarSign as Dollar, Bitcoin, Info
+  DollarSign, Briefcase, Building2, Landmark, 
+  ArrowUp, CreditCard, PieChart as PieChartIcon,
+  Shield, BarChart2, LineChart, Plus, RefreshCw,
+  TrendingUp, TrendingDown, Zap, Sparkles, ChevronRight,
+  Activity, ArrowUpRight, ArrowDownRight, Eye, EyeOff,
+  Wallet, PiggyBank, Target, Award, Info, Calendar,
+  Clock, Star, AlertCircle
 } from 'lucide-react';
 import { 
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
-  PieChart, Pie, Cell, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar,
-  AreaChart, Area, LineChart as RechartsLineChart, Line, ComposedChart
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer
 } from 'recharts';
 import KpiCard from '@/components/ui/KpiCard';
-import UnifiedGroupedPositionsTable from '@/components/tables/UnifiedGroupedPositionsTable';
+import UnifiedAccountTable2 from '@/components/tables/UnifiedAccountTable2';
 import { formatCurrency, formatPercentage } from '@/utils/formatters';
-import AddPositionButton from '@/components/AddPositionButton';
-import UnifiedGroupPositionsTable2 from '@/components/tables/UnifiedGroupPositionsTable2';
-
-// Import Data Store hooks
+import { useAccounts } from '@/store/hooks/useAccounts';
 import { usePortfolioSummary } from '@/store/hooks/usePortfolioSummary';
-import { useGroupedPositions } from '@/store/hooks/useGroupedPositions';
 
-export default function PositionsPage() {
-  // Data Store hooks
+export default function AccountsPage() {
+  // Data Store hooks - the authoritative source
   const { 
-    summary: portfolioData,
-    topPositions,
-    topPerformersPercent,
-    loading: summaryLoading,
-    error: summaryError,
-    refresh: refreshSummary,
-    isStale: summaryStale
-  } = usePortfolioSummary();
+    accounts, 
+    summary: accountsSummary, 
+    loading: accountsLoading, 
+    error: accountsError, 
+    refresh: refreshAccounts 
+  } = useAccounts();
   
   const { 
-    positions,
-    summary: positionsSummary,
-    metrics: positionsMetrics,
-    loading: positionsLoading,
-    error: positionsError,
-    refreshData: refreshPositions,
-    isStale: positionsStale
-  } = useGroupedPositions();
+    summary: portfolioData,
+    institutionAllocation,
+    loading: summaryLoading, 
+    error: summaryError,
+    refresh: refreshSummary 
+  } = usePortfolioSummary();
 
-  // Local UI state
-  const [filterView, setFilterView] = useState('all');
-  const [searchTerm, setSearchTerm] = useState('');
-  const [selectedTimeframe, setSelectedTimeframe] = useState('1m');
+  // Local state
   const [showValues, setShowValues] = useState(true);
+  const [selectedTimeframe, setSelectedTimeframe] = useState('1m');
   const [isRefreshing, setIsRefreshing] = useState(false);
   
   const router = useRouter();
 
-  // Combined loading and error states
-  const isLoading = summaryLoading || positionsLoading;
-  const error = summaryError || positionsError;
+  // Combined loading/error states
+  const isLoading = accountsLoading || summaryLoading;
+  const error = accountsError || summaryError;
 
-  // Process position metrics from data store
-  const positionMetrics = useMemo(() => {
-    if (!portfolioData || !positionsMetrics) return {};
+  // Process accounts metrics from Data Store
+  const accountsMetrics = useMemo(() => {
+    if (!accounts || accounts.length === 0) {
+      return {
+        totalAccounts: 0,
+        activeAccounts: 0,
+        totalValue: 0,
+        avgAccountValue: 0,
+        liquidValue: 0,
+        illiquidValue: 0,
+        topInstitution: null
+      };
+    }
 
-    // Find largest position from top positions
-    const largestPosition = topPositions?.[0] || {};
+    const totalValue = accounts.reduce((sum, acc) => sum + (acc.totalValue || 0), 0);
+    const activeAccounts = accounts.filter(acc => (acc.totalValue || 0) > 0);
+    const liquidAccounts = accounts.filter(acc => acc.category !== 'other_assets');
+    const illiquidAccounts = accounts.filter(acc => acc.category === 'other_assets');
     
-    // Find best performer from top performers
-    const bestPerformer = topPerformersPercent?.[0] || {};
+    // Institution analysis
+    const byInstitution = accounts.reduce((acc, account) => {
+      const inst = account.institution || 'Other';
+      if (!acc[inst]) {
+        acc[inst] = { count: 0, totalValue: 0 };
+      }
+      acc[inst].count += 1;
+      acc[inst].totalValue += account.totalValue || 0;
+      return acc;
+    }, {});
+
+    const topInstitution = Object.entries(byInstitution)
+      .sort(([,a], [,b]) => b.totalValue - a.totalValue)[0];
 
     return {
-      totalValue: portfolioData.liquidAssets || 0,
-      totalCostBasis: portfolioData.liquidCostBasis || 0,
-      totalGainLoss: portfolioData.liquidUnrealizedGain || 0,
-      totalGainLossPercent: portfolioData.liquidUnrealizedGainPercent || 0,
-      largestPosition: largestPosition.value ? {
-        value: largestPosition.value,
-        name: largestPosition.name || largestPosition.identifier
-      } : null,
-      mostProfitablePosition: bestPerformer.gain_loss_pct ? {
-        gainLossPercent: bestPerformer.gain_loss_pct,
-        name: bestPerformer.name || bestPerformer.identifier
-      } : null,
-      periodChanges: portfolioData.periodChanges || {}
+      totalAccounts: accounts.length,
+      activeAccounts: activeAccounts.length,
+      totalValue,
+      avgAccountValue: accounts.length > 0 ? totalValue / accounts.length : 0,
+      liquidValue: liquidAccounts.reduce((sum, acc) => sum + (acc.totalValue || 0), 0),
+      illiquidValue: illiquidAccounts.reduce((sum, acc) => sum + (acc.totalValue || 0), 0),
+      topInstitution: topInstitution ? { name: topInstitution[0], ...topInstitution[1] } : null,
+      institutionBreakdown: byInstitution
     };
-  }, [portfolioData, positionsMetrics, topPositions, topPerformersPercent]);
+  }, [accounts]);
 
-  // Filter options
-  const filterOptions = [
-    { id: 'all', label: 'All Positions', icon: Layers, color: 'text-blue-400' },
-    { id: 'gainers', label: 'Gainers', icon: TrendingUp, color: 'text-green-400' },
-    { id: 'losers', label: 'Losers', icon: TrendingDown, color: 'text-red-400' }
-  ];
-
-  // Filtered positions based on current filter view
-  const filteredPositions = useMemo(() => {
-    if (!positions) return [];
-    
-    return positions.filter(position => {
-      // Search filter
-      const matchesSearch = !searchTerm || 
-        (position.identifier && position.identifier.toLowerCase().includes(searchTerm.toLowerCase())) ||
-        (position.name && position.name.toLowerCase().includes(searchTerm.toLowerCase()));
-      
-      // Filter view logic
-      let matchesFilter = true;
-      switch (filterView) {
-        case 'gainers':
-          const gainLoss = (parseFloat(position.total_current_value) || 0) - (parseFloat(position.total_cost_basis) || 0);
-          matchesFilter = gainLoss > 0;
-          break;
-        case 'losers':
-          const loss = (parseFloat(position.total_current_value) || 0) - (parseFloat(position.total_cost_basis) || 0);
-          matchesFilter = loss < 0;
-          break;
-        default:
-          matchesFilter = true;
-      }
-      
-      return matchesSearch && matchesFilter;
-    });
-  }, [positions, searchTerm, filterView]);
-
-  // Custom tooltip for charts
-  const CustomTooltip = ({ active, payload, label }) => {
-    if (active && payload && payload.length) {
-      const data = payload[0].payload;
-      return (
-        <div className="bg-gray-900 p-3 shadow-lg rounded-lg border border-gray-700">
-          <p className="font-medium text-white text-sm mb-1">{data.name || label}</p>
-          {payload.map((entry, index) => (
-            <div key={index} className="flex justify-between items-center space-x-3">
-              <span className="text-gray-400 text-xs">{entry.name}:</span>
-              <span className="text-white text-sm font-medium">
-                {entry.name.includes('%') ? formatPercentage(entry.value) : formatCurrency(entry.value)}
-              </span>
-            </div>
-          ))}
-        </div>
-      );
+  // Performance metrics from portfolio data
+  const performanceMetrics = useMemo(() => {
+    if (!portfolioData?.performance) {
+      return { '1d': 0, '1w': 0, '1m': 0, 'ytd': 0 };
     }
-    return null;
-  };
 
-  // Refresh handler - now uses data store refresh methods
-  const handleRefreshPositions = async () => {
+    return {
+      '1d': portfolioData.performance['1d']?.totalAssetsPercent || 0,
+      '1w': portfolioData.performance['1w']?.totalAssetsPercent || 0, 
+      '1m': portfolioData.performance['1m']?.totalAssetsPercent || 0,
+      'ytd': portfolioData.performance['ytd']?.totalAssetsPercent || 0
+    };
+  }, [portfolioData]);
+
+  // Institution allocation chart data
+  const institutionChartData = useMemo(() => {
+    if (!institutionAllocation || institutionAllocation.length === 0) {
+      // Fallback to processing from accounts if portfolio summary doesn't have it
+      if (accountsMetrics.institutionBreakdown) {
+        return Object.entries(accountsMetrics.institutionBreakdown)
+          .map(([name, data]) => ({
+            name: name.length > 15 ? name.substring(0, 15) + '...' : name,
+            value: data.totalValue,
+            percentage: accountsMetrics.totalValue > 0 ? (data.totalValue / accountsMetrics.totalValue) * 100 : 0
+          }))
+          .sort((a, b) => b.value - a.value)
+          .slice(0, 8); // Top 8 institutions
+      }
+      return [];
+    }
+
+    return institutionAllocation
+      .slice(0, 8) // Top 8 institutions
+      .map(item => ({
+        name: (item.institution || item.name || 'Unknown').length > 15 
+          ? (item.institution || item.name || 'Unknown').substring(0, 15) + '...' 
+          : (item.institution || item.name || 'Unknown'),
+        value: item.value || 0,
+        percentage: item.percentage || 0
+      }));
+  }, [institutionAllocation, accountsMetrics]);
+
+  // Refresh all data
+  const handleRefresh = async () => {
     setIsRefreshing(true);
     try {
       await Promise.all([
-        refreshSummary(),
-        refreshPositions()
+        refreshAccounts(true),
+        refreshSummary(true)
       ]);
-    } catch (error) {
-      console.error("Error refreshing positions:", error);
+    } catch (err) {
+      console.error('Error refreshing data:', err);
     } finally {
       setIsRefreshing(false);
     }
   };
 
-  // Get current period change
-  const getCurrentPeriodChange = () => {
-    const periodMap = {
-      '1d': positionMetrics.periodChanges?.['1d'],
-      '1w': positionMetrics.periodChanges?.['1w'],
-      '1m': positionMetrics.periodChanges?.['1m'],
-      'ytd': positionMetrics.periodChanges?.['ytd']
-    };
-    return periodMap[selectedTimeframe] || positionMetrics.periodChanges?.['1d'] || {};
+  // Auto-refresh on mount
+  useEffect(() => {
+    if (!accountsLoading && !summaryLoading && accounts.length === 0) {
+      handleRefresh();
+    }
+  }, []);
+
+  const getPerformanceColor = (value) => {
+    if (value > 0) return 'text-green-500';
+    if (value < 0) return 'text-red-500';
+    return 'text-gray-400';
   };
 
-  const currentPeriodChange = getCurrentPeriodChange();
+  const getPerformanceIcon = (value) => {
+    if (value > 0) return <ArrowUpRight className="w-4 h-4" />;
+    if (value < 0) return <ArrowDownRight className="w-4 h-4" />;
+    return <Activity className="w-4 h-4" />;
+  };
 
-  // Loading state
-  if (isLoading) {
+  if (isLoading && accounts.length === 0) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 flex items-center justify-center">
-        <div className="text-center">
-          <RefreshCw className="w-8 h-8 animate-spin text-blue-500 mx-auto mb-4" />
-          <p className="text-gray-400">Loading positions...</p>
+      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-gray-900 text-white">
+        <div className="container mx-auto px-4 py-8">
+          <div className="flex items-center justify-center min-h-[60vh]">
+            <div className="text-center">
+              <RefreshCw className="w-8 h-8 animate-spin mx-auto mb-4 text-blue-400" />
+              <p className="text-gray-300">Loading account analytics...</p>
+            </div>
+          </div>
         </div>
       </div>
     );
   }
 
-  // Error state
   if (error) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 flex items-center justify-center">
-        <div className="text-center">
-          <AlertCircle className="w-8 h-8 text-red-500 mx-auto mb-4" />
-          <p className="text-red-400 mb-4">Error loading positions: {error}</p>
-          <button
-            onClick={handleRefreshPositions}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-            disabled={isRefreshing}
-          >
-            {isRefreshing ? <RefreshCw className="w-4 h-4 animate-spin" /> : 'Retry'}
-          </button>
+      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-gray-900 text-white">
+        <div className="container mx-auto px-4 py-8">
+          <div className="flex items-center justify-center min-h-[60vh]">
+            <div className="text-center">
+              <AlertCircle className="w-8 h-8 mx-auto mb-4 text-red-400" />
+              <p className="text-red-300 mb-4">Error loading data: {error}</p>
+              <button 
+                onClick={handleRefresh}
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors"
+              >
+                Try Again
+              </button>
+            </div>
+          </div>
         </div>
       </div>
     );
@@ -208,261 +210,183 @@ export default function PositionsPage() {
   return (
     <>
       <Head>
-        <title>Positions | NestEgg</title>
-        <meta name="description" content="View and manage your investment positions" />
+        <title>Accounts - NestEgg Portfolio</title>
+        <meta name="description" content="Account-level portfolio analytics and management" />
       </Head>
 
-      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 p-4 md:p-6">
-        {/* Header */}
-        <header className="mb-8">
-          <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6">
+      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-gray-900 text-white">
+        <div className="container mx-auto px-4 py-8 max-w-7xl">
+          {/* Header */}
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-8">
             <div>
-              <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-400 to-purple-500 bg-clip-text text-transparent mb-2">
-                Portfolio Positions
+              <h1 className="text-3xl font-bold mb-2 flex items-center">
+                <Briefcase className="w-8 h-8 mr-3 text-blue-400" />
+                Account Analytics
               </h1>
-              <p className="text-gray-400">Track your investments across all accounts</p>
+              <p className="text-gray-300">
+                Portfolio-level insights across your financial institutions
+              </p>
             </div>
             
-            <div className="flex items-center space-x-3 mt-4 md:mt-0">
-              <motion.button
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
+            <div className="flex items-center space-x-3 mt-4 sm:mt-0">
+              <button
                 onClick={() => setShowValues(!showValues)}
-                className="group relative flex items-center px-4 py-2 bg-gray-700 rounded-lg font-medium hover:bg-gray-600 transition-colors"
+                className="p-2 bg-gray-800/50 hover:bg-gray-700/50 rounded-lg transition-colors"
                 title={showValues ? "Hide values" : "Show values"}
               >
-                {showValues ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
-                <span className="absolute -bottom-8 left-1/2 transform -translate-x-1/2 bg-gray-800 text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
-                  {showValues ? "Hide values" : "Show values"}
-                </span>
-              </motion.button>
+                {showValues ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+              </button>
               
-              <motion.button
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                onClick={handleRefreshPositions}
-                className="flex items-center px-4 py-2 bg-blue-600 rounded-lg font-medium hover:bg-blue-700 transition-colors"
+              <button
+                onClick={handleRefresh}
                 disabled={isRefreshing}
+                className="flex items-center px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 rounded-lg transition-colors"
               >
                 <RefreshCw className={`w-4 h-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
                 Refresh
-              </motion.button>
-              
-              <motion.button
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                onClick={() => router.push('/positions/add')}
-                className="flex items-center px-4 py-2 bg-green-600 rounded-lg font-medium hover:bg-green-700 transition-colors"
-              >
-                <Plus className="w-4 h-4 mr-2" />
-                Add Position
-              </motion.button>
+              </button>
             </div>
           </div>
-        </header>
 
-        {/* Summary Section */}
-        <section className="mb-8">
-          <div className="bg-gray-900 rounded-xl p-6 border border-gray-800">
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              {/* Main metrics */}
-              <div className="lg:col-span-2">
-                <div className="flex items-center justify-between mb-3">
-                  <p className="text-gray-400 text-sm">Portfolio Value</p>
-                  <div className="flex items-center space-x-2">
-                    {['1d', '1w', '1m', 'ytd'].map((period) => (
-                      <button
-                        key={period}
-                        onClick={() => setSelectedTimeframe(period)}
-                        className={`px-2 py-1 rounded text-xs font-medium transition-colors ${
-                          selectedTimeframe === period
-                            ? 'bg-blue-600 text-white'
-                            : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
-                        }`}
-                      >
-                        {period.toUpperCase()}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-                
-                <h2 className="text-3xl font-bold mb-2">
-                  {showValues ? formatCurrency(positionMetrics.totalValue) : '••••••••'}
-                </h2>
-                
-                <div className={`flex items-center text-sm ${
-                  (currentPeriodChange.liquidAssets || 0) >= 0 ? 'text-green-400' : 'text-red-400'
-                }`}>
-                  {(currentPeriodChange.liquidAssets || 0) >= 0 ? 
-                    <ArrowUp className="w-4 h-4 mr-1" /> : 
-                    <ArrowDown className="w-4 h-4 mr-1" />
-                  }
-                  {showValues ? (
-                    <>
-                      {formatCurrency(Math.abs(currentPeriodChange.liquidAssets || 0))} 
-                      ({formatPercentage((currentPeriodChange.liquidAssetsPercent || 0) / 100)})
-                    </>
-                  ) : '••••'}
-                  <span className="text-gray-400 ml-2">{selectedTimeframe.toUpperCase()}</span>
-                </div>
-              </div>
-
-              {/* Quick stats */}
-              <div className="space-y-3">
-                <div className="flex justify-between">
-                  <span className="text-gray-400 text-sm">Total Return</span>
-                  <div className={`text-sm ${positionMetrics.totalGainLoss >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                    {showValues ? (
-                      <>
-                        {formatCurrency(positionMetrics.totalGainLoss)}
-                        <span className="text-xs ml-1">
-                          ({formatPercentage(positionMetrics.totalGainLossPercent / 100)})
-                        </span>
-                      </>
-                    ) : '••••'}
-                  </div>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-400 text-sm">Cost Basis</span>
-                  <span className="text-sm">
-                    {showValues ? formatCurrency(positionMetrics.totalCostBasis) : '••••'}
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-400 text-sm">Positions</span>
-                  <span className="text-sm">{filteredPositions.length}</span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        {/* KPI Cards */}
-        <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-          {[
-            {
-              title: "Total Value",
-              value: positionMetrics.totalValue,
-              icon: <Wallet className="w-5 h-5" />,
-              color: "text-blue-400",
-              bgColor: "bg-blue-500/10",
-              format: (v) => showValues ? formatCurrency(v) : '••••',
-              subtitle: "All liquid positions"
-            },
-            {
-              title: "Unrealized P&L",
-              value: positionMetrics.totalGainLoss,
-              icon: positionMetrics.totalGainLoss >= 0 ? <TrendingUp className="w-5 h-5" /> : <TrendingDown className="w-5 h-5" />,
-              color: positionMetrics.totalGainLoss >= 0 ? "text-green-400" : "text-red-400",
-              bgColor: positionMetrics.totalGainLoss >= 0 ? "bg-green-500/10" : "bg-red-500/10",
-              format: (v) => showValues ? formatCurrency(v) : '••••',
-              subtitle: `${formatPercentage(positionMetrics.totalGainLossPercent / 100)} return`
-            },
-            {
-              title: "Largest Position",
-              value: positionMetrics.largestPosition?.value,
-              icon: <Target className="w-5 h-5" />,
-              color: "text-purple-400",
-              bgColor: "bg-purple-500/10",
-              format: (v) => showValues ? formatCurrency(v) : '••••',
-              subtitle: positionMetrics.largestPosition?.name
-            },
-            {
-              title: "Best Performer",
-              value: positionMetrics.mostProfitablePosition?.gainLossPercent,
-              icon: <Flame className="w-5 h-5" />,
-              color: "text-orange-400",
-              bgColor: "bg-orange-500/10",
-              format: (v) => `+${formatPercentage(v / 100)}`,
-              subtitle: positionMetrics.mostProfitablePosition?.name
-            }
-          ].map((metric, index) => (
-            <motion.div
-              key={metric.title}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.1 + index * 0.05 }}
-              className="bg-gray-900 rounded-lg p-4 border border-gray-800 hover:bg-gray-800 transition-colors"
-            >
-              <div className="flex items-start justify-between mb-2">
-                <div className={`p-2 rounded-lg ${metric.bgColor}`}>
-                  <div className={metric.color}>{metric.icon}</div>
-                </div>
-              </div>
-              <h3 className="text-gray-400 text-xs mb-1">{metric.title}</h3>
-              <p className="text-xl font-bold mb-1">{metric.format(metric.value)}</p>
-              {metric.subtitle && (
-                <p className="text-xs text-gray-500 truncate">{metric.subtitle}</p>
-              )}
-            </motion.div>
-          ))}
-        </section>
-
-        {/* Positions Table Section */}
-        <section className="mb-8">
-          <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-4">
-            <h3 className="text-xl font-bold flex items-center">
-              <Wallet className="w-5 h-5 mr-2 text-blue-400" />
-              Positions
-            </h3>
+          {/* KPI Dashboard */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+            <KpiCard
+              title="Total Accounts"
+              value={accountsMetrics.totalAccounts}
+              icon={<Briefcase className="w-6 h-6" />}
+              format="number"
+              showValue={showValues}
+            />
             
-            {/* Filter and Search */}
-            <div className="flex flex-col md:flex-row space-y-3 md:space-y-0 md:space-x-3 mt-3 md:mt-0">
-              {/* Filter Pills */}
-              <div className="flex flex-wrap gap-2">
-                {filterOptions.map(option => (
-                  <button
-                    key={option.id}
-                    onClick={() => setFilterView(option.id)}
-                    className={`flex items-center px-3 py-1 rounded-lg text-sm font-medium transition-colors ${
-                      filterView === option.id 
-                        ? 'bg-blue-600 text-white' 
-                        : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
-                    }`}
-                  >
-                    <option.icon className={`w-3 h-3 mr-1 ${option.color}`} />
-                    {option.label}
-                  </button>
-                ))}
+            <KpiCard
+              title="Active Accounts"
+              value={accountsMetrics.activeAccounts}
+              subtitle={`${((accountsMetrics.activeAccounts / Math.max(accountsMetrics.totalAccounts, 1)) * 100).toFixed(0)}% active`}
+              icon={<Activity className="w-6 h-6" />}
+              format="number"
+              showValue={showValues}
+            />
+            
+            <KpiCard
+              title="Average Account Size"
+              value={accountsMetrics.avgAccountValue}
+              icon={<Target className="w-6 h-6" />}
+              format="currency"
+              showValue={showValues}
+            />
+            
+            <KpiCard
+              title="Largest Institution"
+              value={accountsMetrics.topInstitution?.totalValue || 0}
+              subtitle={accountsMetrics.topInstitution?.name || 'N/A'}
+              icon={<Building2 className="w-6 h-6" />}
+              format="currency"
+              showValue={showValues}
+            />
+          </div>
+
+          {/* Performance Metrics */}
+          <div className="bg-gray-800/70 backdrop-blur-sm rounded-xl p-6 mb-8">
+            <h2 className="text-xl font-semibold mb-6 flex items-center">
+              <LineChart className="w-5 h-5 mr-2 text-blue-400" />
+              Aggregate Performance Trends
+            </h2>
+            
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+              {Object.entries(performanceMetrics).map(([period, value]) => (
+                <div key={period} className="bg-gray-900/50 rounded-lg p-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-sm text-gray-400 uppercase font-medium">
+                      {period === 'ytd' ? 'YTD' : period.toUpperCase()}
+                    </span>
+                    <div className={getPerformanceColor(value)}>
+                      {getPerformanceIcon(value)}
+                    </div>
+                  </div>
+                  
+                  <div className={`text-lg font-bold ${getPerformanceColor(value)}`}>
+                    {showValues ? (
+                      `${value >= 0 ? '+' : ''}${formatPercentage(value / 100)}`
+                    ) : (
+                      '••••'
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Institution Mix Chart */}
+          {institutionChartData.length > 0 && (
+            <div className="bg-gray-800/70 backdrop-blur-sm rounded-xl p-6 mb-8">
+              <h2 className="text-xl font-semibold mb-6 flex items-center">
+                <PieChartIcon className="w-5 h-5 mr-2 text-blue-400" />
+                Institution Mix
+              </h2>
+              
+              <div className="h-80">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={institutionChartData} layout="horizontal">
+                    <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                    <XAxis 
+                      type="number" 
+                      stroke="#9CA3AF"
+                      tickFormatter={(value) => showValues ? formatCurrency(value) : '•••'}
+                    />
+                    <YAxis 
+                      type="category" 
+                      dataKey="name" 
+                      stroke="#9CA3AF"
+                      width={120}
+                    />
+                    <Tooltip 
+                      formatter={(value, name) => [
+                        showValues ? formatCurrency(value) : '•••••',
+                        'Value'
+                      ]}
+                      labelFormatter={(label) => `Institution: ${label}`}
+                      contentStyle={{
+                        backgroundColor: '#1F2937',
+                        border: '1px solid #374151',
+                        borderRadius: '8px',
+                        color: '#F3F4F6'
+                      }}
+                    />
+                    <Bar 
+                      dataKey="value" 
+                      fill="#3B82F6"
+                      radius={[0, 4, 4, 0]}
+                    />
+                  </BarChart>
+                </ResponsiveContainer>
               </div>
               
-              {/* Search */}
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-                <input
-                  type="text"
-                  placeholder="Search positions..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10 pr-10 py-2 bg-gray-800 border border-gray-700 rounded-lg focus:outline-none focus:border-blue-500 text-sm min-w-[200px]"
-                />
-                {searchTerm && (
-                  <button
-                    onClick={() => setSearchTerm('')}
-                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-white"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
-                )}
+              <div className="mt-4 text-sm text-gray-400">
+                Showing top {institutionChartData.length} institutions by account value
               </div>
             </div>
-          </div>
+          )}
 
-          {/* Both table components for testing */}
-          <div className="space-y-6">
-            {/* Legacy Table */}
-            <div>
-              <h4 className="text-lg font-semibold mb-3 text-gray-300">Grouped Positions Table (Legacy)</h4>
-              <UnifiedGroupedPositionsTable />
+          {/* Detailed Account Table */}
+          <div className="bg-gray-800/70 backdrop-blur-sm rounded-xl p-6">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-xl font-semibold flex items-center">
+                <BarChart2 className="w-5 h-5 mr-2 text-blue-400" />
+                Account Details
+              </h2>
+              
+              <div className="text-sm text-gray-400">
+                {accounts.length} total accounts
+              </div>
             </div>
-
-            {/* New Table */}
-            <div>
-              <h4 className="text-lg font-semibold mb-3 text-gray-300">Unified Group Positions Table 2 (New)</h4>
-              <UnifiedGroupPositionsTable2 />
-            </div>
+            
+            <UnifiedAccountTable2 
+              initialSort="value-high"
+              title=""
+              onDataChanged={handleRefresh}
+            />
           </div>
-        </section>
+        </div>
       </div>
     </>
   );
