@@ -3,6 +3,7 @@ import Head from 'next/head';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { motion } from 'framer-motion';
+import dynamic from 'next/dynamic';
 import { 
   DollarSign, Briefcase, Building2, Landmark, 
   ArrowUp, CreditCard, PieChart as PieChartIcon,
@@ -16,20 +17,103 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer
 } from 'recharts';
 import KpiCard from '@/components/ui/KpiCard';
-import UnifiedAccountTable2 from '@/components/tables/UnifiedAccountTable2';
 import { formatCurrency, formatPercentage } from '@/utils/formatters';
-import { useAccounts } from '@/store/hooks/useAccounts';
-import { usePortfolioSummary } from '@/store/hooks/usePortfolioSummary';
+
+// Dynamic imports to avoid SSR issues
+const UnifiedAccountTable2 = dynamic(
+  () => import('@/components/tables/UnifiedAccountTable2'),
+  { 
+    ssr: false,
+    loading: () => (
+      <div className="bg-gray-800/70 backdrop-blur-sm rounded-xl p-6 text-center min-h-[200px] flex items-center justify-center">
+        <div>
+          <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-3 text-blue-400" />
+          <p className="text-gray-400">Loading account table...</p>
+        </div>
+      </div>
+    )
+  }
+);
+
+// Client-side data component to avoid SSR issues
+const AccountDataComponent = ({ children }) => {
+  const [isClient, setIsClient] = useState(false);
+  
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
+  
+  if (!isClient) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-gray-900 text-white">
+        <div className="container mx-auto px-4 py-8">
+          <div className="flex items-center justify-center min-h-[60vh]">
+            <div className="text-center">
+              <RefreshCw className="w-8 h-8 animate-spin mx-auto mb-4 text-blue-400" />
+              <p className="text-gray-300">Loading account analytics...</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+  
+  return children;
+};
 
 export default function AccountsPage() {
-  // Data Store hooks - the authoritative source
+  return (
+    <AccountDataComponent>
+      <AccountsPageContent />
+    </AccountDataComponent>
+  );
+}
+
+function AccountsPageContent() {
+  // Lazy load hooks to avoid SSR issues
+  const [hooks, setHooks] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
+  
+  useEffect(() => {
+    const loadHooks = async () => {
+      try {
+        const { useAccounts } = await import('@/store/hooks/useAccounts');
+        const { usePortfolioSummary } = await import('@/store/hooks/usePortfolioSummary');
+        setHooks({ useAccounts, usePortfolioSummary });
+      } catch (error) {
+        console.error('Error loading hooks:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    
+    loadHooks();
+  }, []);
+  
+  // Use hooks only when available
+  const accountsHook = hooks?.useAccounts ? hooks.useAccounts() : {
+    accounts: [],
+    summary: null,
+    loading: true,
+    error: null,
+    refresh: () => {}
+  };
+  
+  const portfolioHook = hooks?.usePortfolioSummary ? hooks.usePortfolioSummary() : {
+    summary: null,
+    institutionAllocation: [],
+    loading: true,
+    error: null,
+    refresh: () => {}
+  };
+  
   const { 
     accounts, 
     summary: accountsSummary, 
     loading: accountsLoading, 
     error: accountsError, 
     refresh: refreshAccounts 
-  } = useAccounts();
+  } = accountsHook;
   
   const { 
     summary: portfolioData,
@@ -37,7 +121,7 @@ export default function AccountsPage() {
     loading: summaryLoading, 
     error: summaryError,
     refresh: refreshSummary 
-  } = usePortfolioSummary();
+  } = portfolioHook;
 
   // Local state
   const [showValues, setShowValues] = useState(true);
@@ -47,7 +131,7 @@ export default function AccountsPage() {
   const router = useRouter();
 
   // Combined loading/error states
-  const isLoading = accountsLoading || summaryLoading;
+  const combinedLoading = isLoading || accountsLoading || summaryLoading;
   const error = accountsError || summaryError;
 
   // Process accounts metrics from Data Store
@@ -154,10 +238,10 @@ export default function AccountsPage() {
 
   // Auto-refresh on mount
   useEffect(() => {
-    if (!accountsLoading && !summaryLoading && accounts.length === 0) {
+    if (!combinedLoading && accounts.length === 0 && hooks) {
       handleRefresh();
     }
-  }, []);
+  }, [hooks]);
 
   const getPerformanceColor = (value) => {
     if (value > 0) return 'text-green-500';
@@ -171,7 +255,7 @@ export default function AccountsPage() {
     return <Activity className="w-4 h-4" />;
   };
 
-  if (isLoading && accounts.length === 0) {
+  if (combinedLoading && accounts.length === 0) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-gray-900 text-white">
         <div className="container mx-auto px-4 py-8">
