@@ -3,7 +3,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import ReactDOM from 'react-dom';
 
 // Store hooks
-import { useAccounts } from '@/store/hooks';
+import { useAccounts } from '@/store/hooks/useAccounts';
 
 // Utils
 import { formatCurrency, formatDate, formatPercentage } from '@/utils/formatters';
@@ -43,114 +43,71 @@ const PerformanceIndicator = ({ value, format = 'percentage', size = 'sm', showS
         : formatCurrency(Math.abs(value));
     
     return (
-        <span className={`${colorClass} ${size === 'sm' ? 'text-xs' : 'text-sm'} font-medium`}>
+        <span className={`${colorClass} ${size === 'sm' ? 'text-sm' : 'text-base'} font-medium flex items-center`}>
             {formattedValue}
         </span>
     );
 };
 
-// Account Performance Modal Component
-const AccountPerformanceModal = ({ isOpen, onClose, account }) => {
-    if (!account) return null;
-
-    const performancePeriods = [
-        { label: '1 Day', value: account.value1dChangePct || 0, amount: account.value1dChange || 0 },
-        { label: '1 Week', value: account.value1wChangePct || 0, amount: account.value1wChange || 0 },
-        { label: '1 Month', value: account.value1mChangePct || 0, amount: account.value1mChange || 0 },
-        { label: '3 Months', value: account.value3mChangePct || 0, amount: account.value3mChange || 0 },
-        { label: 'YTD', value: account.valueYtdChangePct || 0, amount: account.valueYtdChange || 0 },
-        { label: '1 Year', value: account.value1yChangePct || 0, amount: account.value1yChange || 0 },
-    ];
+// Performance Modal Component
+const PerformanceModal = ({ isOpen, onClose, account }) => {
+    if (!isOpen || !account) return null;
 
     return (
-        <FixedModal
-            isOpen={isOpen}
-            onClose={onClose}
-            title={
-                <div className="flex items-center gap-3">
-                    <LineChart className="w-5 h-5 text-blue-500" />
-                    <span>Performance Analysis: {account.name}</span>
-                </div>
-            }
-            size="max-w-4xl"
-        >
-            <div className="space-y-6">
-                {/* Account Overview */}
-                <div className="bg-gray-50 rounded-lg p-4">
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                        <div>
-                            <p className="text-sm text-gray-600">Current Value</p>
-                            <p className="text-xl font-bold">{formatCurrency(account.totalValue || 0)}</p>
-                        </div>
-                        <div>
-                            <p className="text-sm text-gray-600">Cost Basis</p>
-                            <p className="text-xl font-bold">{formatCurrency(account.totalCostBasis || 0)}</p>
-                        </div>
-                        <div>
-                            <p className="text-sm text-gray-600">Total Gain/Loss</p>
-                            <p className={`text-xl font-bold ${(account.totalGainLoss || 0) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                                {(account.totalGainLoss || 0) >= 0 ? '+' : ''}{formatCurrency(account.totalGainLoss || 0)}
-                            </p>
-                        </div>
-                        <div>
-                            <p className="text-sm text-gray-600">Return %</p>
-                            <p className={`text-xl font-bold ${(account.totalGainLossPercent || 0) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                                <PerformanceIndicator value={account.totalGainLossPercent || 0} size="lg" />
-                            </p>
-                        </div>
+        <FixedModal isOpen={isOpen} onClose={onClose} title={`${account.name || account.account_name || 'Account'} Performance`}>
+            <div className="p-6 space-y-6">
+                {/* Performance Summary */}
+                <div className="grid grid-cols-2 gap-4">
+                    <div className="bg-gray-100 p-4 rounded-lg">
+                        <h4 className="text-sm text-gray-600 mb-1">Total Value</h4>
+                        <p className="text-2xl font-bold">{formatCurrency(account.totalValue || 0)}</p>
+                    </div>
+                    <div className="bg-gray-100 p-4 rounded-lg">
+                        <h4 className="text-sm text-gray-600 mb-1">All-Time Return</h4>
+                        <p className={`text-2xl font-bold ${(account.totalGainLoss || 0) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                            {formatPercentage(account.totalGainLossPercent || 0)}
+                        </p>
                     </div>
                 </div>
 
-                {/* Performance Grid */}
+                {/* Time Period Performance */}
                 <div>
-                    <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                        <TrendingUp className="w-5 h-5 text-blue-500" />
-                        Historical Performance
-                    </h3>
-                    <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                        {performancePeriods.map((period) => (
-                            <div 
-                                key={period.label}
-                                className="bg-white border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow"
-                            >
-                                <div className="flex justify-between items-start mb-2">
-                                    <span className="text-sm font-medium text-gray-600">{period.label}</span>
-                                    {period.value > 0 ? (
-                                        <TrendingUp className="w-4 h-4 text-green-500" />
-                                    ) : period.value < 0 ? (
-                                        <TrendingDown className="w-4 h-4 text-red-500" />
-                                    ) : (
-                                        <Minus className="w-4 h-4 text-gray-400" />
-                                    )}
-                                </div>
-                                <div className="space-y-1">
-                                    <p className={`text-lg font-semibold ${period.value >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                                        <PerformanceIndicator value={period.value} size="lg" />
-                                    </p>
-                                    <p className={`text-sm ${period.amount >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                                        {period.amount >= 0 ? '+' : ''}{formatCurrency(period.amount)}
-                                    </p>
+                    <h4 className="font-semibold mb-3">Performance by Period</h4>
+                    <div className="space-y-2">
+                        {[
+                            { label: '1 Day', value: account.value1dChangePct, amount: account.value1dChange },
+                            { label: '1 Week', value: account.value1wChangePct, amount: account.value1wChange },
+                            { label: '1 Month', value: account.value1mChangePct, amount: account.value1mChange },
+                            { label: 'YTD', value: account.valueYtdChangePct, amount: account.valueYtdChange },
+                            { label: '1 Year', value: account.value1yChangePct, amount: account.value1yChange }
+                        ].map(period => (
+                            <div key={period.label} className="flex justify-between items-center py-2 border-b">
+                                <span className="text-gray-700">{period.label}</span>
+                                <div className="text-right">
+                                    <div className={`font-semibold ${(period.value || 0) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                        {formatPercentage(period.value || 0)}
+                                    </div>
+                                    <div className="text-sm text-gray-500">
+                                        {formatCurrency(period.amount || 0)}
+                                    </div>
                                 </div>
                             </div>
                         ))}
                     </div>
                 </div>
 
-                {/* Asset Allocation */}
+                {/* Asset Breakdown */}
                 <div>
-                    <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                        <BarChart3 className="w-5 h-5 text-blue-500" />
-                        Asset Allocation
-                    </h3>
-                    <div className="space-y-3">
+                    <h4 className="font-semibold mb-3">Asset Breakdown</h4>
+                    <div className="space-y-2">
                         {[
-                            { label: 'Securities', value: account.securityValue || 0, color: 'bg-blue-500' },
-                            { label: 'Crypto', value: account.cryptoValue || 0, color: 'bg-purple-500' },
-                            { label: 'Cash', value: account.cashValue || 0, color: 'bg-green-500' },
-                            { label: 'Metals', value: account.metalValue || 0, color: 'bg-yellow-500' },
-                            { label: 'Other Assets', value: account.otherAssetsValue || 0, color: 'bg-gray-500' },
-                        ].filter(item => item.value > 0).map((item) => {
-                            const percentage = (account.totalValue || 0) > 0 ? (item.value / account.totalValue) * 100 : 0;
+                            { label: 'Securities', value: account.securityValue, color: 'bg-blue-500' },
+                            { label: 'Crypto', value: account.cryptoValue, color: 'bg-purple-500' },
+                            { label: 'Cash', value: account.cashValue, color: 'bg-green-500' },
+                            { label: 'Metals', value: account.metalValue, color: 'bg-yellow-500' },
+                            { label: 'Other', value: account.otherAssetsValue, color: 'bg-gray-500' }
+                        ].filter(item => item.value > 0).map(item => {
+                            const percentage = account.totalValue > 0 ? (item.value / account.totalValue) * 100 : 0;
                             return (
                                 <div key={item.label} className="space-y-1">
                                     <div className="flex justify-between text-sm">
@@ -211,31 +168,37 @@ const UnifiedAccountTable2 = ({
     const [searchQuery, setSearchQuery] = useState("");
     const [assetTypeFilter, setAssetTypeFilter] = useState("all");
 
+    // Ensure accounts is always an array
+    const safeAccounts = useMemo(() => {
+        return Array.isArray(accounts) ? accounts : [];
+    }, [accounts]);
+
     // Separate liquid and illiquid accounts
     const { liquidAccounts, illiquidAccounts } = useMemo(() => {
-        if (!accounts || accounts.length === 0) return { liquidAccounts: [], illiquidAccounts: [] };
+        if (safeAccounts.length === 0) return { liquidAccounts: [], illiquidAccounts: [] };
         
-        const liquid = accounts.filter(acc => acc.category !== 'other_assets');
-        const illiquid = accounts.filter(acc => acc.category === 'other_assets');
+        const liquid = safeAccounts.filter(acc => acc.category !== 'other_assets');
+        const illiquid = safeAccounts.filter(acc => acc.category === 'other_assets');
         
         return { liquidAccounts: liquid, illiquidAccounts: illiquid };
-    }, [accounts]);
+    }, [safeAccounts]);
 
     // Calculate totals for different categories
     const { totals, liquidTotals, illiquidTotals } = useMemo(() => {
-        if (!accounts || accounts.length === 0) {
-            const emptyTotals = {
-                totalValue: 0,
-                totalCostBasis: 0,
-                totalGainLoss: 0,
-                positionsCount: 0,
-                cashBalance: 0,
-                totalGainLossPercent: 0,
-                value1dChange: 0,
-                value1dChangePct: 0,
-                valueYtdChange: 0,
-                valueYtdChangePct: 0
-            };
+        const emptyTotals = {
+            totalValue: 0,
+            totalCostBasis: 0,
+            totalGainLoss: 0,
+            positionsCount: 0,
+            cashBalance: 0,
+            totalGainLossPercent: 0,
+            value1dChange: 0,
+            value1dChangePct: 0,
+            valueYtdChange: 0,
+            valueYtdChangePct: 0
+        };
+
+        if (safeAccounts.length === 0) {
             return { totals: emptyTotals, liquidTotals: emptyTotals, illiquidTotals: emptyTotals };
         }
 
@@ -249,15 +212,7 @@ const UnifiedAccountTable2 = ({
                 acc.value1dChange += account.value1dChange ?? 0;
                 acc.valueYtdChange += account.valueYtdChange ?? 0;
                 return acc;
-            }, { 
-                totalValue: 0, 
-                totalCostBasis: 0, 
-                totalGainLoss: 0, 
-                positionsCount: 0,
-                cashBalance: 0,
-                value1dChange: 0,
-                valueYtdChange: 0
-            });
+            }, { ...emptyTotals });
             
             // Calculate percentages
             result.totalGainLossPercent = result.totalCostBasis > 0 
@@ -275,11 +230,11 @@ const UnifiedAccountTable2 = ({
         };
 
         return {
-            totals: calculateTotals(accounts),
+            totals: calculateTotals(safeAccounts),
             liquidTotals: calculateTotals(liquidAccounts),
             illiquidTotals: calculateTotals(illiquidAccounts)
         };
-    }, [accounts, liquidAccounts, illiquidAccounts]);
+    }, [safeAccounts, liquidAccounts, illiquidAccounts]);
 
     // Handle column sort
     const handleSortChange = (field) => {
@@ -301,7 +256,7 @@ const UnifiedAccountTable2 = ({
 
     // --- Filtering & Sorting ---
     const filteredAndSortedAccounts = useMemo(() => {
-        let filtered = accounts || [];
+        let filtered = [...safeAccounts];
         
         // Apply search filter
         if (searchQuery) {
@@ -317,16 +272,15 @@ const UnifiedAccountTable2 = ({
         if (assetTypeFilter !== "all") {
             filtered = filtered.filter(acc => {
                 switch (assetTypeFilter) {
+                    case "liquid": return acc.category !== "other_assets";
+                    case "illiquid": return acc.category === "other_assets";
                     case "brokerage": return acc.category === "brokerage";
                     case "retirement": return acc.category === "retirement";
                     case "cash": return acc.category === "cash";
-                    case "other_assets": return acc.category === "other_assets";
                     default: return true;
                 }
             });
         }
-        
-        if (!Array.isArray(filtered)) return [];
 
         const sorted = [...filtered].sort((a, b) => {
             let comparison = 0;
@@ -348,7 +302,7 @@ const UnifiedAccountTable2 = ({
         });
         
         return sorted;
-    }, [accounts, sortField, sortDirection, searchQuery, assetTypeFilter]);
+    }, [safeAccounts, sortField, sortDirection, searchQuery, assetTypeFilter]);
 
     // Quick Analysis Handlers
     const handlePerformanceClick = (account) => {
@@ -410,7 +364,7 @@ const UnifiedAccountTable2 = ({
     );
 
     // --- Render Logic ---
-    if (loading && !accounts?.length) {
+    if (loading && safeAccounts.length === 0) {
         return (
             <div className="bg-gray-800/70 backdrop-blur-sm rounded-xl p-6 text-center min-h-[180px] flex items-center justify-center text-white">
                 <div>
@@ -428,270 +382,229 @@ const UnifiedAccountTable2 = ({
                 {/* Header */}
                 <div className="flex flex-wrap justify-between items-center p-3 border-b border-gray-700 gap-4 text-white">
                     <h2 className="text-xl font-semibold flex items-center whitespace-nowrap">
-                        <Briefcase className="w-5 h-5 mr-2 text-blue-400" />
+                        <BarChart3 className="w-5 h-5 mr-2 text-blue-400" />
                         {title}
                     </h2>
-                    <div className='flex flex-wrap items-center gap-4'>
-                        {/* Search Input */}
+                    
+                    <div className="flex flex-wrap items-center gap-3">
+                        {/* Search */}
                         <div className="relative">
-                            <Search className="absolute h-4 w-4 text-gray-400 left-3 inset-y-0 my-auto" />
-                            <input 
-                                type="text" 
-                                className="bg-gray-700 text-white pl-9 pr-3 py-2 rounded-lg text-sm focus:ring-1 focus:ring-blue-500 focus:outline-none" 
-                                placeholder="Search accounts..." 
-                                value={searchQuery} 
-                                onChange={(e) => setSearchQuery(e.target.value)} 
+                            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+                            <input
+                                type="text"
+                                placeholder="Search accounts..."
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                                className="pl-9 pr-3 py-1.5 bg-gray-700 text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm w-48"
                             />
                         </div>
                         
-                        {/* Asset Type Filter */}
-                        <div className="relative">
-                            <Filter className="absolute h-4 w-4 text-gray-400 left-3 inset-y-0 my-auto" />
-                            <select 
-                                className="bg-gray-700 text-white pl-9 pr-8 py-2 rounded-lg text-sm focus:ring-1 focus:ring-blue-500 focus:outline-none appearance-none" 
-                                value={assetTypeFilter}
-                                onChange={(e) => setAssetTypeFilter(e.target.value)}
-                            >
-                                <option value="all">All Types</option>
-                                <option value="brokerage">Brokerage</option>
-                                <option value="retirement">Retirement</option>
-                                <option value="cash">Cash</option>
-                                <option value="other_assets">Other Assets</option>
-                            </select>
-                            <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
-                                <svg className="h-4 w-4 text-gray-400" viewBox="0 0 20 20" fill="currentColor">
-                                    <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
-                                </svg>
-                            </div>
-                        </div>
+                        {/* Filter by Type */}
+                        <select
+                            value={assetTypeFilter}
+                            onChange={(e) => setAssetTypeFilter(e.target.value)}
+                            className="px-3 py-1.5 bg-gray-700 text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                        >
+                            <option value="all">All Types</option>
+                            <option value="liquid">Liquid Only</option>
+                            <option value="illiquid">Illiquid Only</option>
+                            <option value="brokerage">Brokerage</option>
+                            <option value="retirement">Retirement</option>
+                            <option value="cash">Cash</option>
+                        </select>
                         
-                        {/* Sort Select */}
-                        <div className="relative">
-                            <SlidersHorizontal className="absolute h-4 w-4 text-gray-400 left-3 inset-y-0 my-auto" />
-                            <select 
-                                className="bg-gray-700 text-white pl-9 pr-8 py-2 rounded-lg text-sm focus:ring-1 focus:ring-blue-500 focus:outline-none appearance-none" 
-                                value={`${sortField}-${sortDirection === 'asc' ? 'low' : 'high'}`}
-                                onChange={(e) => {
-                                    const [field, direction] = e.target.value.split('-');
-                                    setSortField(field);
-                                    setSortDirection(direction === 'low' ? 'asc' : 'desc');
-                                }}
-                            >
-                                <option value="value-high">Sort: Value (High-Low)</option>
-                                <option value="value-low">Sort: Value (Low-High)</option>
-                                <option value="name-high">Sort: Name (A-Z)</option>
-                                <option value="name-low">Sort: Name (Z-A)</option>
-                                <option value="institution-high">Sort: Institution (A-Z)</option>
-                                <option value="institution-low">Sort: Institution (Z-A)</option>
-                                <option value="cost_basis-high">Sort: Cost Basis (High-Low)</option>
-                                <option value="cost_basis-low">Sort: Cost Basis (Low-High)</option>
-                                <option value="gain_loss-high">Sort: Gain $ (High-Low)</option>
-                                <option value="gain_loss-low">Sort: Gain $ (Low-High)</option>
-                                <option value="positions-high">Sort: Positions (High-Low)</option>
-                                <option value="positions-low">Sort: Positions (Low-High)</option>
-                                <option value="cash-high">Sort: Cash (High-Low)</option>
-                                <option value="cash-low">Sort: Cash (Low-High)</option>
-                                <option value="1d-high">Sort: 1D % (High-Low)</option>
-                                <option value="1d-low">Sort: 1D % (Low-High)</option>
-                                <option value="ytd-high">Sort: YTD % (High-Low)</option>
-                                <option value="ytd-low">Sort: YTD % (Low-High)</option>
-                            </select>
-                            <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
-                                <svg className="h-4 w-4 text-gray-400" viewBox="0 0 20 20" fill="currentColor">
-                                    <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
-                                </svg>
-                            </div>
-                        </div>
+                        {/* Refresh */}
+                        <button
+                            onClick={refresh}
+                            className="p-1.5 bg-gray-700 text-gray-300 rounded-lg hover:bg-gray-600 transition-colors"
+                            disabled={loading}
+                        >
+                            <Activity className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+                        </button>
                     </div>
                 </div>
 
-                {/* Table Content */}
-                {filteredAndSortedAccounts.length === 0 && !loading ? (
-                    <div className="p-6 text-center text-gray-400">No accounts match your criteria.</div>
+                {/* Error State */}
+                {error && (
+                    <div className="p-4 bg-red-500/10 border-b border-red-500/20">
+                        <p className="text-red-400 text-sm">{error}</p>
+                    </div>
+                )}
+
+                {/* Table */}
+                {safeAccounts.length === 0 && !loading ? (
+                    <div className="p-6 text-center min-h-[180px] flex flex-col items-center justify-center">
+                        <div className="bg-gray-700/50 rounded-full w-16 h-16 flex items-center justify-center mx-auto mb-4">
+                            <Briefcase className="h-8 w-8 text-gray-500" />
+                        </div>
+                        <h3 className="text-xl font-medium mb-2">No accounts found</h3>
+                        <p className="text-gray-400 max-w-md mx-auto">
+                            {searchQuery || assetTypeFilter !== "all" ? 
+                                "No accounts match your search criteria." : 
+                                "Add your first account to start tracking your portfolio."}
+                        </p>
+                    </div>
                 ) : (
                     <div className="overflow-x-auto">
-                        <table className="min-w-full divide-y divide-gray-700 text-white">
+                        <table className="min-w-full divide-y divide-gray-700">
                             <thead className="bg-gray-900/50 sticky top-0 z-10 shadow-sm">
                                 <tr>
                                     <th scope="col" className="px-3 py-2 text-center text-xs font-medium text-gray-400 uppercase tracking-wider w-10">#</th>
-                                    <th 
-                                        scope="col" 
-                                        className="px-3 py-2 text-left text-xs font-medium text-gray-400 uppercase tracking-wider cursor-pointer hover:bg-gray-800/50"
-                                        onClick={() => handleSortChange('institution')}
-                                    >
-                                        Institution {getSortIndicator('institution')}
-                                    </th>
-                                    <th 
-                                        scope="col" 
-                                        className="px-3 py-2 text-left text-xs font-medium text-gray-400 uppercase tracking-wider cursor-pointer hover:bg-gray-800/50"
+                                    <th scope="col" 
+                                        className="px-3 py-2 text-left text-xs font-medium text-gray-400 uppercase tracking-wider cursor-pointer hover:text-gray-300"
                                         onClick={() => handleSortChange('name')}
                                     >
-                                        Account Name {getSortIndicator('name')}
+                                        <div className="flex items-center">
+                                            Account / Institution
+                                            {getSortIndicator('name')}
+                                        </div>
                                     </th>
-                                    <th 
-                                        scope="col" 
-                                        className="px-3 py-2 text-right text-xs font-medium text-gray-400 uppercase tracking-wider hidden sm:table-cell w-20 cursor-pointer hover:bg-gray-800/50"
+                                    <th scope="col" className="px-3 py-2 text-left text-xs font-medium text-gray-400 uppercase tracking-wider hidden md:table-cell">Type</th>
+                                    <th scope="col" 
+                                        className="px-3 py-2 text-right text-xs font-medium text-gray-400 uppercase tracking-wider cursor-pointer hover:text-gray-300 hidden sm:table-cell"
                                         onClick={() => handleSortChange('positions')}
                                     >
-                                        Positions {getSortIndicator('positions')}
+                                        <div className="flex items-center justify-end">
+                                            Positions
+                                            {getSortIndicator('positions')}
+                                        </div>
                                     </th>
-                                    <th 
-                                        scope="col" 
-                                        className="px-3 py-2 text-right text-xs font-medium text-gray-400 uppercase tracking-wider w-28 cursor-pointer hover:bg-gray-800/50"
+                                    <th scope="col" 
+                                        className="px-3 py-2 text-right text-xs font-medium text-gray-400 uppercase tracking-wider cursor-pointer hover:text-gray-300"
                                         onClick={() => handleSortChange('value')}
                                     >
-                                        Value {getSortIndicator('value')}
+                                        <div className="flex items-center justify-end">
+                                            Value
+                                            {getSortIndicator('value')}
+                                        </div>
                                     </th>
-                                    <th 
-                                        scope="col" 
-                                        className="px-3 py-2 text-right text-xs font-medium text-gray-400 uppercase tracking-wider hidden md:table-cell w-28 cursor-pointer hover:bg-gray-800/50"
+                                    <th scope="col" 
+                                        className="px-3 py-2 text-right text-xs font-medium text-gray-400 uppercase tracking-wider cursor-pointer hover:text-gray-300 hidden md:table-cell"
                                         onClick={() => handleSortChange('cash')}
                                     >
-                                        Cash {getSortIndicator('cash')}
+                                        <div className="flex items-center justify-end">
+                                            Cash
+                                            {getSortIndicator('cash')}
+                                        </div>
                                     </th>
-                                    <th 
-                                        scope="col" 
-                                        className="px-3 py-2 text-right text-xs font-medium text-gray-400 uppercase tracking-wider hidden md:table-cell w-28 cursor-pointer hover:bg-gray-800/50"
+                                    <th scope="col" 
+                                        className="px-3 py-2 text-right text-xs font-medium text-gray-400 uppercase tracking-wider cursor-pointer hover:text-gray-300 hidden md:table-cell"
                                         onClick={() => handleSortChange('cost_basis')}
                                     >
-                                        Cost Basis {getSortIndicator('cost_basis')}
+                                        <div className="flex items-center justify-end">
+                                            Cost Basis
+                                            {getSortIndicator('cost_basis')}
+                                        </div>
                                     </th>
-                                    <th 
-                                        scope="col" 
-                                        className="px-3 py-2 text-right text-xs font-medium text-gray-400 uppercase tracking-wider w-28 cursor-pointer hover:bg-gray-800/50"
+                                    <th scope="col" 
+                                        className="px-3 py-2 text-right text-xs font-medium text-gray-400 uppercase tracking-wider cursor-pointer hover:text-gray-300"
                                         onClick={() => handleSortChange('gain_loss')}
                                     >
-                                        Gain/Loss {getSortIndicator('gain_loss')}
+                                        <div className="flex items-center justify-end">
+                                            Gain/Loss
+                                            {getSortIndicator('gain_loss')}
+                                        </div>
                                     </th>
-                                    <th 
-                                        scope="col" 
-                                        className="px-3 py-2 text-right text-xs font-medium text-gray-400 uppercase tracking-wider w-20 cursor-pointer hover:bg-gray-800/50"
+                                    <th scope="col" 
+                                        className="px-3 py-2 text-right text-xs font-medium text-gray-400 uppercase tracking-wider cursor-pointer hover:text-gray-300"
                                         onClick={() => handleSortChange('1d')}
                                     >
-                                        1D % {getSortIndicator('1d')}
+                                        <div className="flex items-center justify-end">
+                                            1D
+                                            {getSortIndicator('1d')}
+                                        </div>
                                     </th>
-                                    <th 
-                                        scope="col" 
-                                        className="px-3 py-2 text-right text-xs font-medium text-gray-400 uppercase tracking-wider w-20 cursor-pointer hover:bg-gray-800/50"
+                                    <th scope="col" 
+                                        className="px-3 py-2 text-right text-xs font-medium text-gray-400 uppercase tracking-wider cursor-pointer hover:text-gray-300"
                                         onClick={() => handleSortChange('ytd')}
                                     >
-                                        YTD % {getSortIndicator('ytd')}
+                                        <div className="flex items-center justify-end">
+                                            YTD
+                                            {getSortIndicator('ytd')}
+                                        </div>
                                     </th>
-                                    <th scope="col" className="px-3 py-2 text-center text-xs font-medium text-gray-400 uppercase tracking-wider w-20">
-                                        Actions
-                                    </th>
+                                    <th scope="col" className="px-3 py-2 text-center text-xs font-medium text-gray-400 uppercase tracking-wider">Analysis</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-700">
-                                {/* Total NestEgg Summary Row */}
+                                {/* Summary Rows */}
                                 <SummaryRow label="Total NestEgg" data={totals} />
-                                
-                                {/* Liquid Accounts Summary Row (exclude other_assets) */}
-                                <SummaryRow 
-                                    label="Liquid Accounts" 
-                                    data={liquidTotals} 
-                                    bgColor="bg-green-900/20" 
-                                    borderColor="border-green-700" 
-                                />
-                                
-                                {/* Illiquid Accounts Summary Row (only other_assets) */}
-                                {illiquidTotals.totalValue > 0 && (
+                                {liquidTotals.totalValue > 0 && (
                                     <SummaryRow 
-                                        label="Illiquid Accounts" 
-                                        data={illiquidTotals} 
-                                        bgColor="bg-purple-900/20" 
-                                        borderColor="border-purple-700" 
+                                        label="Liquid Assets" 
+                                        data={liquidTotals} 
+                                        bgColor="bg-green-900/20" 
+                                        borderColor="border-green-700" 
                                     />
                                 )}
-                                
-                                {/* Regular account rows */}
-                                {filteredAndSortedAccounts.map((account, index) => {
-                                    const LogoComponent = getInstitutionLogo(account.institution);
+                                {illiquidTotals.totalValue > 0 && (
+                                    <SummaryRow 
+                                        label="Illiquid Assets" 
+                                        data={illiquidTotals} 
+                                        bgColor="bg-orange-900/20" 
+                                        borderColor="border-orange-700" 
+                                    />
+                                )}
 
+                                {/* Individual Account Rows */}
+                                {filteredAndSortedAccounts.map((account, index) => {
+                                    const Logo = getInstitutionLogo(account.institution);
+                                    const isLiquid = account.category !== 'other_assets';
+                                    
                                     return (
                                         <tr 
-                                            key={account.id} 
-                                            className="hover:bg-gray-700/50 transition-colors"
+                                            key={account.id}
+                                            className="hover:bg-gray-700/50 transition-colors cursor-pointer"
                                         >
-                                            {/* Rank Number */}
                                             <td className="px-3 py-2 text-center whitespace-nowrap">
                                                 <span className="text-sm text-gray-300">{index + 1}</span>
                                             </td>
-                                            
-                                            {/* Institution */}
-                                            <td className="px-3 py-2 whitespace-nowrap text-sm">
-                                                <div className="flex items-center max-w-xs">
-                                                    {typeof LogoComponent === 'string'
-                                                        ? <img src={LogoComponent} alt={account.institution || ''} className="w-5 h-5 object-contain mr-2 rounded-sm flex-shrink-0"/>
-                                                        : LogoComponent
-                                                            ? <div className="w-5 h-5 mr-2 flex items-center justify-center"><LogoComponent /></div>
-                                                            : (account.institution &&
-                                                                <div className="flex-shrink-0 h-5 w-5 rounded-sm bg-gray-600 flex items-center justify-center mr-2 text-xs font-medium text-gray-300">
-                                                                    {account.institution.charAt(0).toUpperCase()}
-                                                                </div>
-                                                              )
-                                                    }
-                                                    <span className="break-words whitespace-normal">{account.institution || "N/A"}</span>
-                                                </div>
-                                            </td>
-                                            
-                                            {/* Account Name + Type */}
                                             <td className="px-3 py-2 whitespace-nowrap">
-                                                <div>
-                                                    <div className="text-sm font-medium">{account.name}</div>
-                                                    {account.type && (
-                                                        <div className="text-xs text-gray-400 italic">{account.type}</div>
-                                                    )}
+                                                <div className="flex items-center">
+                                                    <div className="flex-shrink-0 mr-3">
+                                                        {Logo && <Logo />}
+                                                    </div>
+                                                    <div>
+                                                        <div className="font-medium text-white">{account.name}</div>
+                                                        <div className="text-xs text-gray-400">{account.institution}</div>
+                                                    </div>
                                                 </div>
                                             </td>
-                                            
-                                            {/* Positions Count */}
-                                            <td className="px-3 py-2 whitespace-nowrap text-right text-sm hidden sm:table-cell">
-                                                {account.totalPositions || 0}
+                                            <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-300 hidden md:table-cell">
+                                                {account.type}
                                             </td>
-                                            
-                                            {/* Value */}
+                                            <td className="px-3 py-2 whitespace-nowrap text-right text-sm text-gray-300 hidden sm:table-cell">
+                                                {account.totalPositions}
+                                            </td>
                                             <td className="px-3 py-2 whitespace-nowrap text-right text-sm font-medium">
-                                                {formatCurrency(account.totalValue || 0)}
+                                                {formatCurrency(account.totalValue)}
                                             </td>
-                                            
-                                            {/* Cash Balance */}
-                                            <td className="px-3 py-2 whitespace-nowrap text-right text-sm hidden md:table-cell">
-                                                {formatCurrency(account.cashValue || 0)}
+                                            <td className="px-3 py-2 whitespace-nowrap text-right text-sm text-gray-300 hidden md:table-cell">
+                                                {formatCurrency(account.cashValue)}
                                             </td>
-                                            
-                                            {/* Cost Basis */}
-                                            <td className="px-3 py-2 whitespace-nowrap text-right text-sm hidden md:table-cell">
-                                                {formatCurrency(account.totalCostBasis || 0)}
+                                            <td className="px-3 py-2 whitespace-nowrap text-right text-sm text-gray-300 hidden md:table-cell">
+                                                {formatCurrency(account.totalCostBasis)}
                                             </td>
-                                            
-                                            {/* Gain/Loss */}
                                             <td className="px-3 py-2 whitespace-nowrap text-right">
                                                 <div className="flex flex-col items-end">
-                                                    <div className={`text-sm font-medium ${(account.totalGainLoss || 0) >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                                                        {(account.totalGainLoss || 0) >= 0 ? '+' : ''}{formatCurrency(account.totalGainLoss || 0)}
+                                                    <div className={`text-sm font-medium ${account.totalGainLoss >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                                                        {account.totalGainLoss >= 0 ? '+' : ''}{formatCurrency(account.totalGainLoss)}
                                                     </div>
-                                                    <div className={`text-xs ${(account.totalGainLoss || 0) >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                                                        ({(account.totalGainLoss || 0) >= 0 ? '+' : ''}{formatPercentage(account.totalGainLossPercent || 0)})
+                                                    <div className={`text-xs ${account.totalGainLoss >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                                                        ({account.totalGainLoss >= 0 ? '+' : ''}{formatPercentage(account.totalGainLossPercent)})
                                                     </div>
                                                 </div>
                                             </td>
-                                            
-                                            {/* 1D % */}
                                             <td className="px-3 py-2 whitespace-nowrap text-right">
-                                                <PerformanceIndicator value={account.value1dChangePct || 0} />
+                                                <PerformanceIndicator value={account.value1dChangePct} />
                                             </td>
-                                            
-                                            {/* YTD % */}
                                             <td className="px-3 py-2 whitespace-nowrap text-right">
-                                                <PerformanceIndicator value={account.valueYtdChangePct || 0} />
+                                                <PerformanceIndicator value={account.valueYtdChangePct} />
                                             </td>
-                                            
-                                            {/* Quick Analysis Actions */}
                                             <td className="px-3 py-2 whitespace-nowrap text-center">
-                                                <button 
+                                                <button
                                                     onClick={() => handlePerformanceClick(account)}
-                                                    className="p-1.5 bg-blue-600/20 text-blue-400 rounded-full hover:bg-blue-600/40 transition-colors" 
+                                                    className="p-1.5 bg-blue-600/20 text-blue-400 rounded-full hover:bg-blue-600/40"
                                                     title="View Performance"
                                                 >
                                                     <LineChart className="h-4 w-4" />
@@ -706,8 +619,8 @@ const UnifiedAccountTable2 = ({
                 )}
             </div>
 
-            {/* --- Modals --- */}
-            <AccountPerformanceModal
+            {/* Performance Modal */}
+            <PerformanceModal 
                 isOpen={isPerformanceModalOpen}
                 onClose={() => setIsPerformanceModalOpen(false)}
                 account={selectedAccount}
