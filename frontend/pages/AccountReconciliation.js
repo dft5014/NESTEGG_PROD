@@ -1,1870 +1,1133 @@
-// pages/AccountReconciliation.js
-import React, { useState, useEffect, useRef } from 'react';
-import { fetchWithAuth } from '../utils/api';
+import React, { useState, useEffect, useMemo } from 'react';
 import Head from 'next/head';
-import AddPositionButton from '@/components/AddPositionButton'
-import EditPositionButton from '@/components/EditPositionButton'
-import DeletePositionButton from '@/components/DeletePositionButton';
-import { Menu, ArrowUpDown, CheckCircle, Info, Clock, X, Filter, Search, Edit} from 'lucide-react';
+import { useRouter } from 'next/router';
+import { motion, AnimatePresence } from 'framer-motion';
+import { 
+  BarChart4, TrendingUp, TrendingDown, DollarSign, Package,
+  Search, Filter, RefreshCw, Eye, EyeOff, ChevronRight,
+  Activity, ArrowUpRight, ArrowDownRight, Clock, Calendar,
+  Layers, Shield, Zap, Star, Award, Info, AlertCircle,
+  PieChart as PieChartIcon, LineChart, BarChart2, Target,
+  Hash, Briefcase, Building2, Coins, Gem, Wallet,
+  ChevronUp, ChevronDown, X, ExternalLink, Edit2,
+  Settings, Download, Upload, Sparkles, Globe,
+  Timer, TrendingUp as TrendIcon, Database, CheckCircle
+} from 'lucide-react';
+import { 
+  PieChart, Pie, Cell, ResponsiveContainer, Tooltip,
+  LineChart as RechartsLineChart, Line, XAxis, YAxis, CartesianGrid,
+  BarChart, Bar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar,
+  Treemap, Legend
+} from 'recharts';
+import UnifiedGroupPositionsTable2 from '@/components/tables/UnifiedGroupPositionsTable2';
+import { formatCurrency, formatPercentage, formatNumber } from '@/utils/formatters';
+import { useDataStore } from '@/store/DataStore';
+import { useGroupedPositions } from '@/store/hooks/useGroupedPositions';
+import { usePortfolioSummary } from '@/store/hooks/usePortfolioSummary';
+import { useAccounts } from '@/store/hooks/useAccounts';
 
-// Helper function to format currency
-const formatCurrency = (amount) => {
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2
-  }).format(amount);
-};
-
-// Helper function to format number with commas
-const formatNumber = (number) => {
-  return new Intl.NumberFormat('en-US', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2
-  }).format(number);
-};
-
-// Helper function to format percentage
-const formatPercentage = (value) => {
-  return new Intl.NumberFormat('en-US', {
-    style: 'percent',
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2
-  }).format(value / 100);
-};
-
-// Helper function to format dates
-const formatDate = (dateString) => {
-  if (!dateString) return 'Never';
-  const options = { year: 'numeric', month: 'short', day: 'numeric' };
-  return new Date(dateString).toLocaleDateString('en-US', options);
-};
-
-// Helper to determine days since last reconciliation
-const daysSinceLastReconciled = (dateString) => {
-  if (!dateString) return null;
-  const lastDate = new Date(dateString);
-  const currentDate = new Date();
-  const diffTime = Math.abs(currentDate - lastDate);
-  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-  return diffDays;
-};
-
-// Helper function to determine variance level
-const getVarianceLevel = (percentDifference) => {
-  const absDifference = Math.abs(percentDifference);
+export default function PositionsPage() {
+  // DataStore hooks
+  const { 
+    positions, 
+    summary, 
+    metrics,
+    loading: positionsLoading, 
+    error: positionsError, 
+    refreshData: refreshPositions 
+  } = useGroupedPositions();
   
-  if (absDifference <= 1) {
-    return { 
-      level: 'good', 
-      color: 'text-green-600',
-      bgColor: 'bg-green-100',
-      message: 'Within acceptable range (±1%)'
-    };
-  } else if (absDifference <= 2) {
-    return { 
-      level: 'warning', 
-      color: 'text-yellow-600',
-      bgColor: 'bg-yellow-100',
-      message: 'Minor variance (±1-2%)'
-    };
-  } else {
-    return { 
-      level: 'critical', 
-      color: 'text-red-600',
-      bgColor: 'bg-red-100',
-      message: 'Significant variance (>±2%)'
-    };
-  }
-};
+  const { 
+    summary: portfolioData,
+    sectorAllocation,
+    assetPerformance,
+    concentrationMetrics,
+    topPositions,
+    loading: summaryLoading,
+    refresh: refreshSummary
+  } = usePortfolioSummary();
 
-// Format input value with commas and decimal points
-const formatInputValue = (value) => {
-  if (!value) return '';
-  
-  // Remove non-numeric characters except decimal point
-  const numericValue = value.replace(/[^0-9.]/g, '');
-  
-  // Format with commas and decimal points
-  const parts = numericValue.split('.');
-  parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ',');
-  
-  return parts.join('.');
-};
+  const { accounts } = useAccounts();
 
-// Component for status icon
-const StatusIcon = ({ status }) => {
-  if (status === 'Reconciled' || status === 'reconciled') {
-    return <CheckCircle className="h-5 w-5 text-green-600" />;
-  } else if (status === 'Needs Review' || status === 'needsReview') {
-    return <Info className="h-5 w-5 text-yellow-500" />;
-  } else {
-    return <X className="h-5 w-5 text-red-600" />;
-  }
-};
+  // Local state
+  const [showValues, setShowValues] = useState(true);
+  const [selectedView, setSelectedView] = useState('grid');
+  const [selectedTimeframe, setSelectedTimeframe] = useState('all');
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [selectedMetric, setSelectedMetric] = useState('value');
+  const [showAdvancedMetrics, setShowAdvancedMetrics] = useState(false);
+  const [selectedPosition, setSelectedPosition] = useState(null);
+  const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
+  const [hoveredSector, setHoveredSector] = useState(null);
+  const [animationComplete, setAnimationComplete] = useState(false);
 
-const AccountSearchFilter = ({ filterText, setFilterText }) => {
-  return (
-  <div className="relative w-full md:w-96">
-    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-      <Search className="h-4 w-4 text-gray-400" />
-    </div>
-    <input
-      type="text"
-      className="block w-full pl-10 pr-10 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-      placeholder="Filter accounts (name, institution, type, status)..."
-      value={filterText}
-      onChange={(e) => setFilterText(e.target.value)}
-    />
-    {filterText && (
-      <div className="absolute inset-y-0 right-0 pr-3 flex items-center">
-        <button
-          type="button"
-          className="text-gray-400 hover:text-gray-500 focus:outline-none focus:text-gray-500"
-          onClick={() => setFilterText('')}
-        >
-          <X className="h-4 w-4" aria-hidden="true" />
-        </button>
-      </div>
-    )}
-  </div>
-  );
-};
+  const router = useRouter();
 
-const FilterStats = ({ filteredCount, totalCount, filterText, setFilterText }) => {
-  if (filteredCount === totalCount || !filterText) {
-    return null; // Don't show if all accounts are visible or no filter applied
-  }
-  
-  return (
-    <div className="text-sm text-gray-500 mt-2">
-      Showing {filteredCount} of {totalCount} accounts
-      <button
-        type="button"
-        className="ml-2 text-blue-500 hover:text-blue-700 focus:outline-none"
-        onClick={() => setFilterText('')}
-      >
-        Clear filter
-      </button>
-    </div>
-  );
-};
+  // Combined loading/error states
+  const isLoading = positionsLoading || summaryLoading;
+  const error = positionsError;
 
-const AccountReconciliation = () => {
-  // State variables for accounts and UI state
-  const [accounts, setAccounts] = useState([]);
-  const [expandedAccount, setExpandedAccount] = useState(null);
-  const [positions, setPositions] = useState({});
-  const [loading, setLoading] = useState(false);
-  const [loadingPositions, setLoadingPositions] = useState({});
-  const [successMessage, setSuccessMessage] = useState('');
-  const [errorMessage, setErrorMessage] = useState('');
-  const [showTips, setShowTips] = useState(true);
-  const [activeReconcileDropdown, setActiveReconcileDropdown] = useState(null);
-  
-  // State for form inputs
-  const [positionInputs, setPositionInputs] = useState({});
-  const [accountInputs, setAccountInputs] = useState({});
-  const [formattedInputs, setFormattedInputs] = useState({});
-  
-  // State for reconciliation dialog
-  const [reconcileDialogOpen, setReconcileDialogOpen] = useState(false);
-  const [selectedAccount, setSelectedAccount] = useState(null);
-  const [enteredBalance, setEnteredBalance] = useState('');
-  const dropdownRef = useRef(null);
-  const [filterText, setFilterText] = useState('');
-
-  // State for sorting positions
-  const [sortConfig, setSortConfig] = useState({
-    key: 'name',
-    direction: 'ascending'
-  });
-
-  const [accountSortConfig, setAccountSortConfig] = useState({
-  key: 'account_name',
-  direction: 'ascending'
-});
-
-  // Load accounts on component mount
+  // Animation on mount
   useEffect(() => {
-    fetchAccounts();
+    setTimeout(() => setAnimationComplete(true), 1200);
   }, []);
 
-  // Fetch accounts from enriched_accounts
-  const fetchAccounts = async () => {
-    setLoading(true);
-    try {
-      const response = await fetchWithAuth('/accounts/enriched');
-      
-      if (!response.ok) {
-        throw new Error(`Failed to fetch accounts: ${response.status} ${response.statusText}`);
-      }
-      
-      const data = await response.json();
-      const accountsData = data.accounts || [];
-      
-      // Initialize form inputs based on account data
-      const initialAccountInputs = {};
-      const initialFormattedInputs = {};
-      
-      accountsData.forEach(account => {
-        initialAccountInputs[account.id] = {
-          balance: parseFloat(account.total_value) || 0,
+  // Process positions data with enriched metrics
+  const processedData = useMemo(() => {
+    if (!positions || positions.length === 0) return {
+      byAssetType: {},
+      bySector: {},
+      byHoldingPeriod: {},
+      performanceMetrics: {},
+      concentrationRisk: {},
+      incomeMetrics: {}
+    };
+
+    // Group by asset type
+    const byAssetType = positions.reduce((acc, pos) => {
+      const type = pos.asset_type || 'other';
+      if (!acc[type]) {
+        acc[type] = {
+          positions: [],
+          totalValue: 0,
+          totalGainLoss: 0,
+          totalCostBasis: 0,
+          count: 0,
+          allocation: 0
         };
-        
-        initialFormattedInputs[`account_${account.id}`] = 
-          formatCurrency(parseFloat(account.total_value) || 0).replace('$', '');
-      });
-      
-      setAccounts(accountsData);
-      setAccountInputs(initialAccountInputs);
-      setFormattedInputs(initialFormattedInputs);
-    } catch (error) {
-      console.error('Error fetching accounts:', error);
-      setErrorMessage('Failed to load accounts. Please try again.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    function handleClickOutside(event) {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
-        setActiveReconcileDropdown(null);
       }
-    }
-    
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-    };
-  }, []);
+      acc[type].positions.push(pos);
+      acc[type].totalValue += pos.total_value || 0;
+      acc[type].totalGainLoss += pos.total_gain_loss || 0;
+      acc[type].totalCostBasis += pos.total_cost_basis || 0;
+      acc[type].count += 1;
+      return acc;
+    }, {});
 
-  // Fetch positions when an account is expanded
-  const fetchPositions = async (accountId) => {
-    setLoadingPositions(prev => ({ ...prev, [accountId]: true }));
-    try {
-      const response = await fetchWithAuth(`/positions/unified?account_id=${accountId}`);
-      
-      if (!response.ok) {
-        throw new Error(`Failed to fetch positions: ${response.status} ${response.statusText}`);
-      }
-      
-      const data = await response.json();
-      const positionsData = data.positions || [];
-      
-      // Initialize position inputs
-      const newPositionInputs = { ...positionInputs };
-      const newFormattedInputs = { ...formattedInputs };
-      
-      positionsData.forEach(position => {
-        if (!newPositionInputs[position.id]) {
-          newPositionInputs[position.id] = {
-            shares: parseFloat(position.quantity) || 0,
-            value: parseFloat(position.current_value) || 0
+    // Calculate allocations
+    const totalValue = Object.values(byAssetType).reduce((sum, type) => sum + type.totalValue, 0);
+    Object.values(byAssetType).forEach(type => {
+      type.allocation = totalValue > 0 ? (type.totalValue / totalValue) * 100 : 0;
+      type.gainLossPercent = type.totalCostBasis > 0 
+        ? (type.totalGainLoss / type.totalCostBasis) * 100 
+        : 0;
+    });
+
+    // Group by sector (for securities)
+    const bySector = positions
+      .filter(pos => pos.asset_type === 'security' && pos.sector)
+      .reduce((acc, pos) => {
+        const sector = pos.sector || 'Unknown';
+        if (!acc[sector]) {
+          acc[sector] = {
+            positions: [],
+            totalValue: 0,
+            totalGainLoss: 0,
+            count: 0
           };
-          
-          newFormattedInputs[`position_shares_${position.id}`] = formatNumber(parseFloat(position.quantity) || 0);
-          newFormattedInputs[`position_value_${position.id}`] = formatCurrency(parseFloat(position.current_value) || 0).replace('$', '');
         }
-      });
-      
-      setPositions(prev => ({ ...prev, [accountId]: positionsData }));
-      setPositionInputs(newPositionInputs);
-      setFormattedInputs(newFormattedInputs);
-    } catch (error) {
-      console.error(`Error fetching positions for account ${accountId}:`, error);
-      setErrorMessage('Failed to load positions. Please try again.');
-    } finally {
-      setLoadingPositions(prev => ({ ...prev, [accountId]: false }));
-    }
-  };
+        acc[sector].positions.push(pos);
+        acc[sector].totalValue += pos.total_value || 0;
+        acc[sector].totalGainLoss += pos.total_gain_loss || 0;
+        acc[sector].count += 1;
+        return acc;
+      }, {});
 
-  const getFilteredAccounts = () => {
-    if (!filterText.trim()) {
-      // If no filter text, return all sorted accounts
-      return getSortedAccounts();
-    }
-
-    const searchTerm = filterText.toLowerCase().trim();
-    
-    // Filter accounts based on various criteria
-    return getSortedAccounts().filter(account => {
-      return (
-        // Search by account name
-        (account.account_name && account.account_name.toLowerCase().includes(searchTerm)) ||
-        // Search by institution
-        (account.institution && account.institution.toLowerCase().includes(searchTerm)) ||
-        // Search by account type
-        (account.type && account.type.toLowerCase().includes(searchTerm)) ||
-        // Search by reconciliation status
-        (account.reconciliation_status && account.reconciliation_status.toLowerCase().includes(searchTerm))
-      );
-    });
-  };
-
-  // Handle expanding an account to view positions
-  const handleAccountExpand = (accountId) => {
-    if (expandedAccount === accountId) {
-      setExpandedAccount(null);
-    } else {
-      setExpandedAccount(accountId);
-      if (!positions[accountId]) {
-        fetchPositions(accountId);
-      }
-    }
-  };
-
-  const handleOpenReconcileDialog = (account) => {
-    setSelectedAccount(account);
-    setEnteredBalance(parseFloat(account.total_value).toString());
-    setReconcileDialogOpen(true);
-  };
-
-  const handleCloseReconcileDialog = () => {
-    setReconcileDialogOpen(false);
-    setSelectedAccount(null);
-    setEnteredBalance('');
-  };
-
-  const handleBalanceChange = (e) => {
-    // Allow only numbers and decimal point
-    const value = e.target.value.replace(/[^0-9.]/g, '');
-    setEnteredBalance(value);
-  };
-
-  // Handle changes to account level balance input
-  const handleAccountInputChange = (accountId, value) => {
-    // Store raw numeric value
-    const numericValue = value.replace(/[^0-9.]/g, '');
-    setAccountInputs({
-      ...accountInputs,
-      [accountId]: {
-        ...accountInputs[accountId],
-        balance: numericValue
-      }
-    });
-    
-    // Store formatted value for display
-    setFormattedInputs({
-      ...formattedInputs,
-      [`account_${accountId}`]: formatInputValue(value)
-    });
-  };
-
-  // Handle changes to position level inputs
-  const handlePositionInputChange = (positionId, field, value) => {
-    // Store raw numeric value
-    const numericValue = value.replace(/[^0-9.]/g, '');
-    setPositionInputs({
-      ...positionInputs,
-      [positionId]: {
-        ...positionInputs[positionId],
-        [field]: numericValue
-      }
-    });
-    
-    // Store formatted value for display
-    setFormattedInputs({
-      ...formattedInputs,
-      [`position_${field}_${positionId}`]: formatInputValue(value)
-    });
-  };
-
-  const handleReconcileAccount = async () => {
-    try {
-      setLoading(true);
-      
-      // Get the input values or use the current values if not modified
-      const actualBalance = parseFloat(enteredBalance) || parseFloat(selectedAccount.total_value);
-      
-      // Prepare the data for API call
-      const reconciliationData = {
-        account_id: selectedAccount.id,
-        app_balance: parseFloat(selectedAccount.total_value),
-        actual_balance: actualBalance
-      };
-      
-      // Call the API
-      const response = await fetchWithAuth('/api/reconciliation/account', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(reconciliationData),
-      });
-      
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.detail || `Failed to reconcile account: ${response.status} ${response.statusText}`);
-      }
-      
-      const data = await response.json();
-      
-      // Close the dialog
-      setReconcileDialogOpen(false);
-      
-      // Refresh accounts to get updated status
-      fetchAccounts();
-      
-      setSuccessMessage(`${selectedAccount.account_name} has been reconciled successfully.`);
-      
-      // Clear success message after 5 seconds
-      setTimeout(() => {
-        setSuccessMessage('');
-      }, 5000);
-    } catch (error) {
-      console.error("Error reconciling account:", error);
-      setErrorMessage(`Failed to reconcile account: ${error.message}`);
-      
-      // Clear error message after 5 seconds
-      setTimeout(() => {
-        setErrorMessage('');
-      }, 5000);
-    } finally {
-      setLoading(false);
-      setSelectedAccount(null);
-      setEnteredBalance('');
-    }
-  };
-
-  const handleReconcilePosition = async (accountId, position, reconcileQuantity = true, reconcileValue = true) => {
-    try {
-      const positionId = position.id;
-      setLoading(true);
-      
-      // Get the input values or use the current values if not modified
-      const actualQuantity = parseFloat(positionInputs[positionId]?.shares || position.quantity);
-      const actualValue = parseFloat(positionInputs[positionId]?.value || position.current_value);
-      
-      // Prepare the data for API call
-      const reconciliationData = {
-        position_id: positionId,
-        account_id: accountId,
-        asset_type: position.asset_type || "security", // Default to "security" if not specified
-        app_quantity: parseFloat(position.quantity || 0),
-        app_value: parseFloat(position.current_value || 0),
-        actual_quantity: actualQuantity,
-        actual_value: actualValue,
-        reconcile_quantity: reconcileQuantity,
-        reconcile_value: reconcileValue
-      };
-      
-      // Call the API
-      const response = await fetchWithAuth('/api/reconciliation/position', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(reconciliationData),
-      });
-      
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.detail || `Failed to reconcile position: ${response.status}`);
-      }
-      
-      // Update UI to reflect the reconciled status
-      fetchPositions(accountId);
-      
-      let message = "Position has been reconciled successfully.";
-      if (reconcileQuantity && !reconcileValue) {
-        message = "Position quantity has been reconciled successfully.";
-      } else if (!reconcileQuantity && reconcileValue) {
-        message = "Position value has been reconciled successfully.";
-      }
-      
-      setSuccessMessage(message);
-      
-      // Clear success message after 5 seconds
-      setTimeout(() => {
-        setSuccessMessage('');
-      }, 5000);
-    } catch (error) {
-      console.error("Error reconciling position:", error);
-      setErrorMessage(`Failed to reconcile position: ${error.message}`);
-      
-      // Clear error message after 5 seconds
-      setTimeout(() => {
-        setErrorMessage('');
-      }, 5000);
-    } finally {
-      setLoading(false);
-      // Close the dropdown
-      setActiveReconcileDropdown(null);
-    }
-  };
-  
-  const handleReconcileAllPositions = async (accountId) => {
-    try {
-      setLoading(true);
-      
-      // Get all positions for this account
-      const accountPositions = positions[accountId] || [];
-      
-      // Reconcile each position one by one
-      for (const position of accountPositions) {
-        const reconciliationData = {
-          position_id: position.id,
-          account_id: accountId,
-          asset_type: position.asset_type || "security",
-          app_quantity: parseFloat(position.quantity),
-          app_value: parseFloat(position.current_value),
-          actual_quantity: parseFloat(position.quantity), // Using NestEgg values
-          actual_value: parseFloat(position.current_value) // Using NestEgg values
-        };
-        
-        // Call the API
-        const response = await fetchWithAuth('/api/reconciliation/position', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(reconciliationData),
-        });
-        
-        if (!response.ok) {
-          throw new Error(`Failed to reconcile position ${position.id}: ${response.status} ${response.statusText}`);
-        }
-      }
-      
-      // Refresh positions to get updated status
-      fetchPositions(accountId);
-      
-      setSuccessMessage(`All positions have been reconciled successfully.`);
-      
-      // Clear success message after 5 seconds
-      setTimeout(() => {
-        setSuccessMessage('');
-      }, 5000);
-    } catch (error) {
-      console.error("Error reconciling all positions:", error);
-      setErrorMessage(`Failed to reconcile all positions: ${error.message}`);
-      
-      // Clear error message after 5 seconds
-      setTimeout(() => {
-        setErrorMessage('');
-      }, 5000);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleReconcileAllUnreconciled = async () => {
-    try {
-      setLoading(true);
-      
-      // Process each account
-      for (const account of accounts) {
-        // Fetch positions if we haven't already
-        if (!positions[account.id]) {
-          await fetchPositions(account.id);
-        }
-        
-        const accountPositions = positions[account.id] || [];
-        
-        // Reconcile each position
-        for (const position of accountPositions) {
-          // Check if position needs reconciliation
-          if (position.reconciliation_status !== 'Reconciled' && position.reconciliation_status !== 'reconciled') {
-            const reconciliationData = {
-              position_id: position.id,
-              account_id: account.id,
-              asset_type: position.asset_type || "security",
-              app_quantity: parseFloat(position.quantity),
-              app_value: parseFloat(position.current_value),
-              actual_quantity: parseFloat(position.quantity), // Using NestEgg values
-              actual_value: parseFloat(position.current_value) // Using NestEgg values
-            };
-            
-            // Call the API
-            const response = await fetchWithAuth('/api/reconciliation/position', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify(reconciliationData),
-            });
-            
-            if (!response.ok) {
-              throw new Error(`Failed to reconcile position ${position.id}: ${response.status} ${response.statusText}`);
-            }
-          }
-        }
-      }
-      
-      // Refresh accounts and positions
-      fetchAccounts();
-      
-      setSuccessMessage(`All unreconciled positions have been reconciled successfully.`);
-      
-      // Clear success message after 5 seconds
-      setTimeout(() => {
-        setSuccessMessage('');
-      }, 5000);
-    } catch (error) {
-      console.error("Error reconciling all unreconciled positions:", error);
-      setErrorMessage(`Failed to reconcile all unreconciled positions: ${error.message}`);
-      
-      // Clear error message after 5 seconds
-      setTimeout(() => {
-        setErrorMessage('');
-      }, 5000);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Calculate difference for account balance input
-  const calculateAccountDifference = (account) => {
-    if (!accountInputs[account.id]) return { difference: 0, percentDifference: 0 };
-    
-    const inputBalance = parseFloat(accountInputs[account.id].balance) || 0;
-    const accountValue = parseFloat(account.total_value) || 0;
-    const difference = inputBalance - accountValue;
-    const percentDifference = accountValue ? (difference / accountValue) * 100 : 0;
-    
-    return { difference, percentDifference };
-  };
-
-  // Calculate difference for position inputs
-  const calculatePositionDifference = (position) => {
-    if (!positionInputs[position.id]) return { shareDiff: 0, valueDiff: 0, valuePercentDiff: 0 };
-    
-    const inputShares = parseFloat(positionInputs[position.id].shares) || 0;
-    const inputValue = parseFloat(positionInputs[position.id].value) || 0;
-    
-    const positionShares = parseFloat(position.quantity) || 0;
-    const positionValue = parseFloat(position.current_value) || 0;
-    
-    const shareDiff = inputShares - positionShares;
-    const valueDiff = inputValue - positionValue;
-    const valuePercentDiff = positionValue ? (valueDiff / positionValue) * 100 : 0;
-    
-    return { shareDiff, valueDiff, valuePercentDiff };
-  };
-
-  // Calculate reconciliation dashboard metrics
-  const calculateDashboardMetrics = () => {
-    // Initialize counters
-    let totalAccounts = accounts.length;
-    let totalPositions = 0;
-    let reconciledAccounts = 0;
-    let reconciledPositions = 0;
-    let totalNestEggValue = 0;
-    let totalReconciledValue = 0;
-    let accountsReconciledLast30Days = 0;
-    let accountsReconciledLast90Days = 0;
-    let accountsRequiringReconciliation = 0;
-    
-    // Account status counts
-    let accountStatusCounts = {
-      reconciled: 0,
-      needsReview: 0,
-      outOfDate: 0
+    // Group by holding period
+    const byHoldingPeriod = {
+      longTerm: positions.filter(pos => pos.long_term_value > 0),
+      shortTerm: positions.filter(pos => pos.short_term_value > 0),
+      mixed: positions.filter(pos => pos.long_term_value > 0 && pos.short_term_value > 0)
     };
+
+    // Performance metrics
+    const performanceMetrics = {
+      winners: positions.filter(pos => pos.total_gain_loss > 0).length,
+      losers: positions.filter(pos => pos.total_gain_loss < 0).length,
+      unchanged: positions.filter(pos => pos.total_gain_loss === 0).length,
+      bestPerformer: positions.reduce((best, pos) => 
+        (pos.total_gain_loss_pct || 0) > (best?.total_gain_loss_pct || -Infinity) ? pos : best, null),
+      worstPerformer: positions.reduce((worst, pos) => 
+        (pos.total_gain_loss_pct || 0) < (worst?.total_gain_loss_pct || Infinity) ? pos : worst, null),
+      avgGainLossPercent: positions.length > 0 
+        ? positions.reduce((sum, pos) => sum + (pos.total_gain_loss_pct || 0), 0) / positions.length 
+        : 0
+    };
+
+    // Concentration risk analysis
+    const sortedByValue = [...positions].sort((a, b) => b.total_value - a.total_value);
+    const top5Value = sortedByValue.slice(0, 5).reduce((sum, pos) => sum + pos.total_value, 0);
+    const top10Value = sortedByValue.slice(0, 10).reduce((sum, pos) => sum + pos.total_value, 0);
     
-    // Process accounts
-    accounts.forEach(account => {
-      const accountValue = parseFloat(account.total_value) || 0;
-      totalNestEggValue += accountValue;
-      
-      // Check reconciliation status
-      if (account.is_reconciled) {
-        reconciledAccounts++;
-        totalReconciledValue += accountValue;
-      }
-      
-      // Count by status
-      if (account.reconciliation_status === 'Reconciled') {
-        accountStatusCounts.reconciled++;
-      } else if (account.reconciliation_status === 'Needs Review') {
-        accountStatusCounts.needsReview++;
-      } else {
-        accountStatusCounts.outOfDate++;
-      }
-      
-      // Check reconciliation age
-      const days = account.days_since_reconciliation || 0;
-      if (days <= 30) {
-        accountsReconciledLast30Days++;
-      }
-      if (days <= 90) {
-        accountsReconciledLast90Days++;
-      }
-      if (days > 30 || !account.last_reconciled_date) {
-        accountsRequiringReconciliation++;
-      }
-      
-      // Count positions
-      totalPositions += parseInt(account.total_positions) || 0;
-      
-      // For simplicity, we're making a rough estimate of reconciled positions
-      // Ideally this would come from the position data
-      if (account.is_reconciled) {
-        reconciledPositions += parseInt(account.total_positions) || 0;
-      }
-    });
-    
+    const concentrationRisk = {
+      top5Concentration: totalValue > 0 ? (top5Value / totalValue) * 100 : 0,
+      top10Concentration: totalValue > 0 ? (top10Value / totalValue) * 100 : 0,
+      herfindahlIndex: positions.reduce((sum, pos) => {
+        const weight = totalValue > 0 ? pos.total_value / totalValue : 0;
+        return sum + Math.pow(weight, 2);
+      }, 0) * 10000, // Scale to 0-10000
+      diversificationRatio: positions.length
+    };
+
+    // Income metrics
+    const incomeMetrics = {
+      totalAnnualIncome: positions.reduce((sum, pos) => sum + (pos.est_annual_income || 0), 0),
+      incomeYield: totalValue > 0 
+        ? (positions.reduce((sum, pos) => sum + (pos.est_annual_income || 0), 0) / totalValue) * 100 
+        : 0,
+      incomeProducingPositions: positions.filter(pos => pos.est_annual_income > 0).length,
+      topIncomePositions: [...positions]
+        .filter(pos => pos.est_annual_income > 0)
+        .sort((a, b) => b.est_annual_income - a.est_annual_income)
+        .slice(0, 5)
+    };
+
     return {
-      totalAccounts,
-      totalPositions,
-      reconciledAccounts,
-      reconciledPositions,
-      totalNestEggValue,
-      totalReconciledValue,
-      accountsReconciledLast30Days,
-      accountsReconciledLast90Days,
-      accountsRequiringReconciliation,
-      accountStatusCounts,
-      reconciledAccountPercentage: totalAccounts ? (reconciledAccounts / totalAccounts) * 100 : 0,
-      reconciledPositionPercentage: totalPositions ? (reconciledPositions / totalPositions) * 100 : 0,
-      reconciledValuePercentage: totalNestEggValue ? (totalReconciledValue / totalNestEggValue) * 100 : 0
+      byAssetType,
+      bySector,
+      byHoldingPeriod,
+      performanceMetrics,
+      concentrationRisk,
+      incomeMetrics,
+      totalValue
     };
-  };
+  }, [positions]);
 
-  const dashboardMetrics = calculateDashboardMetrics();
-
-  // Handle sorting for positions table
-  const requestSort = (key) => {
-    let direction = 'ascending';
-    if (sortConfig.key === key && sortConfig.direction === 'ascending') {
-      direction = 'descending';
-    }
-    setSortConfig({ key, direction });
-  };
-
-  // Get sorted positions based on current sort configuration
-const getSortedPositions = (accountId) => {
-  const positionsList = positions[accountId] || [];
-  if (!positionsList.length) return positionsList;
-
-  const sortablePositions = [...positionsList];
-  if (sortConfig.key) {
-    sortablePositions.sort((a, b) => {
-      // Handle different data types
-      let valueA, valueB;
-      
-      // Special handling for nested properties or calculated values
-      switch(sortConfig.key) {
-        case 'current_value':
-          valueA = parseFloat(a.current_value) || 0;
-          valueB = parseFloat(b.current_value) || 0;
-          break;
-        case 'quantity':
-          valueA = parseFloat(a.quantity) || 0;
-          valueB = parseFloat(b.quantity) || 0;
-          break;
-        case 'identifier':
-          valueA = a.identifier || '';
-          valueB = b.identifier || '';
-          break;
-        case 'name':
-          valueA = a.name || '';
-          valueB = b.name || '';
-          break;
-        case 'reconciliation_status':
-          valueA = a.reconciliation_status || '';
-          valueB = b.reconciliation_status || '';
-          break;
-        default:
-          valueA = a[sortConfig.key] || '';
-          valueB = b[sortConfig.key] || '';
-      }
-      
-      // String comparison for strings
-      if (typeof valueA === 'string') {
-        valueA = valueA.toLowerCase();
-        valueB = valueB.toLowerCase();
-      }
-      
-      if (valueA < valueB) {
-        return sortConfig.direction === 'ascending' ? -1 : 1;
-      }
-      if (valueA > valueB) {
-        return sortConfig.direction === 'ascending' ? 1 : -1;
-      }
-      return 0;
-    });
-  }
-  
-  // Group positions by ticker/identifier within this function
-  const groupedByTicker = {};
-  sortablePositions.forEach(position => {
-    const key = position.identifier || position.ticker || 'unknown';
-    if (!groupedByTicker[key]) {
-      groupedByTicker[key] = [];
-    }
-    groupedByTicker[key].push(position);
-  });
-  
-  // Create a new array with subtotals
-  const result = [];
-  Object.keys(groupedByTicker).forEach(ticker => {
-    const positions = groupedByTicker[ticker];
-    
-    // Add each position
-    positions.forEach(position => {
-      result.push(position);
-    });
-    
-    // Only add subtotal row if there are multiple positions with the same ticker
-    if (positions.length > 1) {
-      // Calculate subtotals
-      const totalQuantity = positions.reduce((sum, pos) => sum + parseFloat(pos.quantity || 0), 0);
-      const totalValue = positions.reduce((sum, pos) => sum + parseFloat(pos.current_value || 0), 0);
-      
-      // Add a subtotal row
-      result.push({
-        id: `subtotal-${ticker}`,
-        name: `${ticker} Total`,
-        identifier: ticker,
-        quantity: totalQuantity,
-        current_value: totalValue,
-        isSubtotal: true, // Flag to identify subtotal rows
-        asset_type: positions[0].asset_type, // Inherit from first position
-        reconciliation_status: 'Subtotal' // Special status for styling
-      });
-    }
-  });
-  
-  return result;
-};
-
-const getSortedAccounts = () => {
-  if (!accounts.length) return accounts;
-
-  const sortableAccounts = [...accounts];
-  
-  if (accountSortConfig.key) {
-    sortableAccounts.sort((a, b) => {
-      // Handle different data types
-      let valueA, valueB;
-      
-      // Special handling for nested properties or calculated values
-      switch(accountSortConfig.key) {
-        case 'total_value':
-          valueA = parseFloat(a.total_value) || 0;
-          valueB = parseFloat(b.total_value) || 0;
-          break;
-        case 'institution':
-          valueA = a.institution || '';
-          valueB = b.institution || '';
-          break;
-        case 'type':
-          valueA = a.type || '';
-          valueB = b.type || '';
-          break;
-        case 'reconciliation_status':
-          valueA = a.reconciliation_status || '';
-          valueB = b.reconciliation_status || '';
-          break;
-        case 'last_reconciled_date':
-          valueA = a.last_reconciled_date ? new Date(a.last_reconciled_date).getTime() : 0;
-          valueB = b.last_reconciled_date ? new Date(b.last_reconciled_date).getTime() : 0;
-          break;
-        default:
-          valueA = a[accountSortConfig.key] || '';
-          valueB = b[accountSortConfig.key] || '';
-      }
-      
-      // String comparison for strings
-      if (typeof valueA === 'string') {
-        valueA = valueA.toLowerCase();
-        valueB = valueB.toLowerCase();
-      }
-      
-      if (valueA < valueB) {
-        return accountSortConfig.direction === 'ascending' ? -1 : 1;
-      }
-      if (valueA > valueB) {
-        return accountSortConfig.direction === 'ascending' ? 1 : -1;
-      }
-      return 0;
-    });
-  }
-  
-  return sortableAccounts;
-};
-
-
-
-const AccountSortDropdown = () => {
-  const sortOptions = [
-    { label: 'Account Name (A-Z)', value: { key: 'account_name', direction: 'ascending' } },
-    { label: 'Account Name (Z-A)', value: { key: 'account_name', direction: 'descending' } },
-    { label: 'Institution (A-Z)', value: { key: 'institution', direction: 'ascending' } },
-    { label: 'Account Type', value: { key: 'type', direction: 'ascending' } },
-    { label: 'Value (High to Low)', value: { key: 'total_value', direction: 'descending' } },
-    { label: 'Value (Low to High)', value: { key: 'total_value', direction: 'ascending' } },
-    { label: 'Reconciliation Status', value: { key: 'reconciliation_status', direction: 'ascending' } },
-    { label: 'Recent Reconciliation', value: { key: 'last_reconciled_date', direction: 'descending' } },
-    { label: 'Oldest Reconciliation', value: { key: 'last_reconciled_date', direction: 'ascending' } },
+  // Chart colors
+  const CHART_COLORS = [
+    '#3B82F6', // blue
+    '#10B981', // emerald
+    '#F59E0B', // amber
+    '#EF4444', // red
+    '#8B5CF6', // violet
+    '#EC4899', // pink
+    '#14B8A6', // teal
+    '#F97316', // orange
   ];
 
-  return (
-    <div className="relative inline-block text-left">
-      <div>
-        <label htmlFor="account-sort" className="sr-only">Sort Accounts</label>
-        <select
-          id="account-sort"
-          className="block w-full pl-3 pr-10 py-2 text-sm border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 rounded-md"
-          value={`${accountSortConfig.key}_${accountSortConfig.direction}`}
-          onChange={(e) => {
-            const selectedOption = sortOptions.find(option => 
-              `${option.value.key}_${option.value.direction}` === e.target.value
-            );
-            if (selectedOption) {
-              setAccountSortConfig(selectedOption.value);
-            }
-          }}
-        >
-          {sortOptions.map(option => (
-            <option 
-              key={`${option.value.key}_${option.value.direction}`}
-              value={`${option.value.key}_${option.value.direction}`}
-            >
-              {option.label}
-            </option>
-          ))}
-        </select>
-      </div>
-    </div>
-  );
-};
+  // Asset type icons and colors
+  const getAssetTypeStyle = (type) => {
+    const styles = {
+      security: { icon: <Briefcase className="w-4 h-4" />, color: 'from-blue-500 to-blue-700', label: 'Securities' },
+      crypto: { icon: <Coins className="w-4 h-4" />, color: 'from-purple-500 to-purple-700', label: 'Crypto' },
+      cash: { icon: <Wallet className="w-4 h-4" />, color: 'from-green-500 to-green-700', label: 'Cash' },
+      metal: { icon: <Gem className="w-4 h-4" />, color: 'from-yellow-500 to-yellow-700', label: 'Metals' },
+      other: { icon: <Package className="w-4 h-4" />, color: 'from-gray-500 to-gray-700', label: 'Other' }
+    };
+    return styles[type] || styles.other;
+  };
 
-  // Render the reconciliation dashboard
-  const renderDashboard = () => {
-    const metrics = dashboardMetrics;
-    
-    // Calculate percentage-based widths for progress bars
-    const reconciledAccountsWidth = `${metrics.reconciledAccountPercentage}%`;
-    const reconciledPositionsWidth = `${metrics.reconciledPositionPercentage}%`;
-    const reconciledValueWidth = `${metrics.reconciledValuePercentage}%`;
-    
+  // Handle refresh
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    try {
+      await Promise.all([
+        refreshPositions(),
+        refreshSummary()
+      ]);
+    } finally {
+      setTimeout(() => setIsRefreshing(false), 500);
+    }
+  };
+
+  // Prepare data for charts
+  const assetAllocationData = useMemo(() => {
+    return Object.entries(processedData.byAssetType).map(([type, data]) => ({
+      name: getAssetTypeStyle(type).label,
+      value: data.totalValue,
+      percentage: data.allocation
+    }));
+  }, [processedData.byAssetType]);
+
+  const sectorData = useMemo(() => {
+    return Object.entries(processedData.bySector)
+      .map(([sector, data]) => ({
+        name: sector,
+        value: data.totalValue,
+        gainLoss: data.totalGainLoss
+      }))
+      .sort((a, b) => b.value - a.value)
+      .slice(0, 8);
+  }, [processedData.bySector]);
+
+  // View modes
+  const viewModes = [
+    { key: 'grid', label: 'Grid View', icon: <Layers className="w-4 h-4" /> },
+    { key: 'table', label: 'Table View', icon: <BarChart4 className="w-4 h-4" /> },
+    { key: 'analytics', label: 'Analytics', icon: <LineChart className="w-4 h-4" /> }
+  ];
+
+  if (error) {
     return (
-      <div className="bg-white rounded-lg shadow-sm overflow-hidden mb-8">
-        <div className="px-6 py-5 border-b border-gray-200">
-          <div className="flex items-center">
-            <div className="mr-2">
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                <path d="M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5zM8 7a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1 1H9a1 1 0 01-1-1V7zM14 4a1 1 0 011-1h2a1 1 0 011 1v12a1 1 0 01-1 1h-2a1 1 0 01-1-1V4z" />
-              </svg>
-            </div>
-            <h2 className="text-lg font-medium text-gray-900">Reconciliation Dashboard</h2>
-          </div>
-        </div>
-        
-        <div className="px-6 py-5">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {/* Summary Stats */}
-            <div className="bg-gray-50 rounded-lg p-4">
-              <h3 className="text-sm font-medium text-gray-700 mb-3">Portfolio Summary</h3>
-              
-              <div className="space-y-3">
-                <div>
-                  <div className="flex justify-between mb-1">
-                    <span className="text-xs text-gray-500">Total NestEgg Value</span>
-                    <span className="text-xs font-medium">{formatCurrency(metrics.totalNestEggValue)}</span>
-                  </div>
-                  <div className="w-full bg-gray-200 rounded-full h-2">
-                    <div className="bg-blue-600 h-2 rounded-full" style={{ width: '100%' }}></div>
-                  </div>
-                </div>
-                
-                <div>
-                  <div className="flex justify-between mb-1">
-                    <span className="text-xs text-gray-500">Reconciled Value</span>
-                    <span className="text-xs font-medium">{formatCurrency(metrics.totalReconciledValue)} ({metrics.reconciledValuePercentage.toFixed(1)}%)</span>
-                  </div>
-                  <div className="w-full bg-gray-200 rounded-full h-2">
-                    <div className="bg-green-500 h-2 rounded-full" style={{ width: reconciledValueWidth }}></div>
-                  </div>
-                </div>
-                
-                <div className="pt-2 grid grid-cols-2 gap-3">
-                  <div className="bg-white rounded p-2 border border-gray-200">
-                    <div className="text-sm font-medium text-gray-900">{metrics.totalAccounts}</div>
-                    <div className="text-xs text-gray-500">Total Accounts</div>
-                  </div>
-                  <div className="bg-white rounded p-2 border border-gray-200">
-                    <div className="text-sm font-medium text-gray-900">{metrics.totalPositions}</div>
-                    <div className="text-xs text-gray-500">Total Positions</div>
-                  </div>
-                </div>
-              </div>
-            </div>
-            
-            {/* Reconciliation Progress */}
-            <div className="bg-gray-50 rounded-lg p-4">
-              <h3 className="text-sm font-medium text-gray-700 mb-3">Reconciliation Progress</h3>
-              
-              <div className="space-y-4">
-                <div>
-                  <div className="flex justify-between mb-1">
-                    <span className="text-xs text-gray-500">Accounts Reconciled</span>
-                    <span className="text-xs font-medium">{metrics.reconciledAccounts} of {metrics.totalAccounts} ({metrics.reconciledAccountPercentage.toFixed(1)}%)</span>
-                  </div>
-                  <div className="w-full bg-gray-200 rounded-full h-2">
-                    <div className="bg-green-500 h-2 rounded-full" style={{ width: reconciledAccountsWidth }}></div>
-                  </div>
-                </div>
-                
-                <div>
-                  <div className="flex justify-between mb-1">
-                    <span className="text-xs text-gray-500">Positions Reconciled</span>
-                    <span className="text-xs font-medium">{metrics.reconciledPositions} of {metrics.totalPositions} ({metrics.reconciledPositionPercentage.toFixed(1)}%)</span>
-                  </div>
-                  <div className="w-full bg-gray-200 rounded-full h-2">
-                    <div className="bg-green-500 h-2 rounded-full" style={{ width: reconciledPositionsWidth }}></div>
-                  </div>
-                </div>
-                
-                <div className="bg-white rounded p-3 border border-gray-200">
-                  <div className="grid grid-cols-3 gap-2">
-                    <div className="text-center">
-                      <div className="text-xs font-medium text-gray-900">{metrics.accountStatusCounts.reconciled}</div>
-                      <div className="text-xs px-1.5 py-0.5 bg-green-100 text-green-800 rounded-full mx-auto w-min whitespace-nowrap">Reconciled</div>
-                    </div>
-                    <div className="text-center">
-                      <div className="text-xs font-medium text-gray-900">{metrics.accountStatusCounts.needsReview}</div>
-                      <div className="text-xs px-1.5 py-0.5 bg-yellow-100 text-yellow-800 rounded-full mx-auto w-min whitespace-nowrap">Needs Review</div>
-                    </div>
-                    <div className="text-center">
-                      <div className="text-xs font-medium text-gray-900">{metrics.accountStatusCounts.outOfDate}</div>
-                      <div className="text-xs px-1.5 py-0.5 bg-red-100 text-red-800 rounded-full mx-auto w-min whitespace-nowrap">Out of Date</div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-            
-            {/* Reconciliation Timeline */}
-            <div className="bg-gray-50 rounded-lg p-4">
-              <h3 className="text-sm font-medium text-gray-700 mb-3">Reconciliation Timeline</h3>
-              
-              <div className="space-y-3">
-                <div className="flex items-center justify-between p-2 bg-white border border-gray-200 rounded">
-                  <div className="flex items-center">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-green-600" viewBox="0 0 20 20" fill="currentColor">
-                      <path fillRule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clipRule="evenodd" />
-                    </svg>
-                    <span className="ml-2 text-sm text-gray-900">Last 30 Days</span>
-                  </div>
-                  <span className="text-sm font-medium">{metrics.accountsReconciledLast30Days} Accounts</span>
-                </div>
-                
-                <div className="flex items-center justify-between p-2 bg-white border border-gray-200 rounded">
-                  <div className="flex items-center">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-blue-600" viewBox="0 0 20 20" fill="currentColor">
-                      <path fillRule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clipRule="evenodd" />
-                    </svg>
-                    <span className="ml-2 text-sm text-gray-900">Last 90 Days</span>
-                  </div>
-                  <span className="text-sm font-medium">{metrics.accountsReconciledLast90Days} Accounts</span>
-                </div>
-                
-                <div className="flex items-center p-3 bg-yellow-50 border border-yellow-200 rounded">
-                  <div className="flex-1">
-                    <div className="flex items-center">
-                      <div className="mr-2">
-                        <StatusIcon status="Needs Review" />
-                      </div>
-                      <div>
-                        <h4 className="text-sm font-medium text-gray-900">Reconciliation Due</h4>
-                        <p className="text-xs text-gray-500">Accounts not reconciled in 30+ days</p>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="text-xl font-bold text-yellow-600">
-                    {metrics.accountsRequiringReconciliation}
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
+      <div className="min-h-screen bg-gray-950 text-white p-8">
+        <div className="max-w-2xl mx-auto">
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-red-900/20 border border-red-500/30 rounded-xl p-6 text-center"
+          >
+            <AlertCircle className="w-12 h-12 text-red-400 mx-auto mb-4" />
+            <h2 className="text-xl font-bold mb-2">Error Loading Positions</h2>
+            <p className="text-gray-400 mb-4">{error}</p>
+            <button
+              onClick={handleRefresh}
+              className="px-4 py-2 bg-red-600 hover:bg-red-700 rounded-lg transition-colors"
+            >
+              Try Again
+            </button>
+          </motion.div>
         </div>
       </div>
     );
-  };
+  }
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <div className="min-h-screen bg-gray-950 text-white">
       <Head>
-        <title>Account Reconciliation | NestEgg</title>
+        <title>Positions - NestEgg</title>
       </Head>
 
-      <div className="flex justify-between items-center mb-8">
-        <h1 className="text-2xl font-semibold text-gray-900">
-          Account Reconciliation
-        </h1>
-        
-        <div className="flex space-x-4">
-          <button
-            type="button"
-            className="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-            onClick={() => setShowTips(!showTips)}
-          >
-            <Info className="mr-2 -ml-1 h-5 w-5" />
-            {showTips ? 'Hide Tips' : 'Show Tips'}
-          </button>
-          
-          <button
-            type="button"
-            className="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-            onClick={handleReconcileAllUnreconciled}
-          >
-            <CheckCircle className="mr-2 h-5 w-5" />
-            Reconcile All Positions
-          </button>
+      <div className="relative">
+        {/* Animated Background */}
+        <div className="absolute inset-0 overflow-hidden pointer-events-none">
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: animationComplete ? 0.5 : 0 }}
+            transition={{ duration: 2 }}
+            className="absolute -top-40 -right-40 w-96 h-96 bg-blue-500/10 rounded-full blur-3xl"
+          />
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: animationComplete ? 0.5 : 0 }}
+            transition={{ duration: 2, delay: 0.5 }}
+            className="absolute -bottom-40 -left-40 w-96 h-96 bg-purple-500/10 rounded-full blur-3xl"
+          />
         </div>
-      </div>
 
-      {showTips && (
-        <div className="bg-blue-50 border border-blue-200 rounded-md p-6 mb-8">
-          <div className="flex">
-            <div className="flex-shrink-0">
-              <Info className="h-5 w-5 text-blue-600" />
-            </div>
-            <div className="ml-3">
-              <h3 className="text-lg font-medium text-blue-800">
-                Reconciliation Tips
-              </h3>
-              <div className="mt-2 text-sm text-blue-700">
-                <p className="mb-3">
-                  Regular reconciliation ensures your NestEgg data accurately reflects your actual financial accounts.
-                </p>
-                <div className="grid md:grid-cols-3 gap-6">
-                  <div>
-                    <h4 className="font-medium mb-1">When to Reconcile</h4>
-                    <ul className="list-disc pl-5 space-y-1">
-                      <li>After any transactions occur</li>
-                      <li>At month-end</li>
-                      <li>After major purchases or sales</li>
-                    </ul>
-                  </div>
-                  <div>
-                    <h4 className="font-medium mb-1">Reconciliation Process</h4>
-                    <ol className="list-decimal pl-5 space-y-1">
-                      <li>Enter your actual account balance</li>
-                      <li>Verify each position is correct</li>
-                      <li>Mark all positions as reconciled</li>
-                    </ol>
-                  </div>
-                  <div>
-                    <h4 className="font-medium mb-1">Data Integrity</h4>
-                    <p>
-                      Reconciled accounts display a reliability indicator in reports and dashboards to show data confidence.
-                    </p>
-                  </div>
+        <div className="relative z-10 p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto">
+          {/* Premium Header */}
+          <motion.header
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mb-8"
+          >
+            <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+              <div className="flex items-center gap-4">
+                <motion.div
+                  whileHover={{ rotate: 180 }}
+                  transition={{ duration: 0.5 }}
+                  className="p-3 bg-gradient-to-br from-purple-500 to-pink-600 rounded-xl shadow-lg"
+                >
+                  <BarChart4 className="w-8 h-8 text-white" />
+                </motion.div>
+                <div>
+                  <h1 className="text-3xl font-bold bg-gradient-to-r from-white to-gray-300 bg-clip-text text-transparent">
+                    Portfolio Positions
+                  </h1>
+                  <p className="text-gray-400 text-sm mt-1">
+                    {summary?.total_positions || 0} positions across {summary?.unique_assets || 0} unique assets
+                  </p>
                 </div>
               </div>
-            </div>
-          </div>
-        </div>
-      )}
 
-      {/* Reconciliation Dashboard */}
-      {renderDashboard()}
-
-      {loading && (
-        <div className="flex justify-center my-8">
-          <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-blue-500"></div>
-        </div>
-      )}
-
-      {successMessage && (
-        <div className="bg-green-50 border border-green-200 rounded-md p-4 mb-6">
-          <div className="flex">
-            <div className="flex-shrink-0">
-              <CheckCircle className="h-5 w-5 text-green-600" />
-            </div>
-            <div className="ml-3">
-              <p className="text-sm text-green-800">
-                {successMessage}
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {errorMessage && (
-        <div className="bg-red-50 border border-red-200 rounded-md p-4 mb-6">
-          <div className="flex">
-            <div className="flex-shrink-0">
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-red-600" viewBox="0 0 20 20" fill="currentColor">
-                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-              </svg>
-            </div>
-            <div className="ml-3">
-              <p className="text-sm text-red-800">
-                {errorMessage}
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
-
-      <div className="flex flex-col space-y-4 mb-6">
-        <div className="flex justify-between items-center">
-          <h2 className="text-gray-600 text-sm font-medium uppercase tracking-wider">
-            Your Accounts
-          </h2>
-          
-          <div className="flex items-center space-x-4">
-            <div className="flex items-center">
-              <div className="text-sm text-gray-500 mr-2">Sort:</div>
-              <AccountSortDropdown />
-            </div>
-          </div>
-        </div>
-        
-        <div className="flex justify-between items-center">
-          <AccountSearchFilter 
-            filterText={filterText} 
-            setFilterText={setFilterText} 
-          />
-          <FilterStats 
-            filteredCount={getFilteredAccounts().length} 
-            totalCount={accounts.length}
-            filterText={filterText}
-            setFilterText={setFilterText} 
-          />
-        </div>
-
-        <div className="border-t border-gray-200"></div>
-      </div>
-
-
-      <div className="space-y-4">
-        {getFilteredAccounts().map((account) => {
-          // Determine border color based on status
-          let borderColor = "border-green-500";
-          if (account.reconciliation_status === "Needs Review") {
-            borderColor = "border-yellow-500";
-          } else if (account.reconciliation_status === "Not Reconciled" || !account.reconciliation_status) {
-            borderColor = "border-red-500";
-          }
-          
-          // Determine if account is expanded
-          const isExpanded = expandedAccount === account.id;
-          
-          // Calculate account differences
-          const { difference: accountDifference, percentDifference: accountPercentDifference } = 
-            calculateAccountDifference(account);
-          
-          // Get variance level based on percentage difference
-          const varianceLevel = getVarianceLevel(accountPercentDifference);
-          
-          return (
-            <div 
-              key={account.id} 
-              className={`bg-white shadow-sm rounded-lg border-l-4 ${borderColor} overflow-hidden transition-shadow hover:shadow-md`}
-            >
-              <div className="px-6 py-4">
-                <div className="grid md:grid-cols-12 gap-4 items-center">
-                  <div className="md:col-span-3">
-                    <div className="flex items-center">
-                      <StatusIcon status={account.reconciliation_status || "Not Reconciled"} />
-                      <div className="ml-3">
-                        <h3 className="text-lg font-medium text-gray-900">
-                          {account.account_name}
-                        </h3>
-                        <p className="text-sm text-gray-500">
-                          {account.institution} • {account.type}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                  
-                  <div className="md:col-span-2">
-                    <p className="text-sm text-gray-500">
-                      NestEgg Value
-                    </p>
-                    <p className="text-lg font-semibold text-gray-900">
-                      {formatCurrency(parseFloat(account.total_value) || 0)}
-                    </p>
-                  </div>
-                  
-                  <div className="md:col-span-3">
-                    <div className="flex flex-col">
-                      <label htmlFor={`account-balance-${account.id}`} className="text-sm text-gray-500 mb-1">
-                        Statement Balance
-                      </label>
-                      <div className="relative rounded-md shadow-sm">
-                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                          <span className="text-gray-500 sm:text-sm">$</span>
-                        </div>
-                        <input
-                          type="text"
-                          id={`account-balance-${account.id}`}
-                          className="focus:ring-blue-500 focus:border-blue-500 block w-full pl-7 pr-12 sm:text-sm border-gray-300 rounded-md bg-blue-50"
-                          value={formattedInputs[`account_${account.id}`] || ''}
-                          onChange={(e) => handleAccountInputChange(account.id, e.target.value)}
-                        />
-                      </div>
-                      
-                      {/* Difference display with conditional formatting */}
-                      {accountDifference !== 0 && (
-                        <div className="flex mt-1">
-                          <span className={`text-xs ${varianceLevel.color}`}>
-                            {formatCurrency(accountDifference)} ({formatPercentage(accountPercentDifference)})
-                          </span>
-                          <span className="ml-1 text-xs text-gray-500">
-                            • {varianceLevel.message}
-                          </span>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                  
-                    <div className="md:col-span-4 flex items-center space-x-2">
-                      {/* Status Badge */}
-                      <span 
-                        className={`inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium 
-                          ${account.reconciliation_status === 'Reconciled' ? 'bg-green-100 text-green-800 border border-green-300' : 
-                            account.reconciliation_status === 'Needs Review' ? 'bg-yellow-100 text-yellow-800 border border-yellow-300' : 
-                            'bg-red-100 text-red-800 border border-red-300'}`}
-                      >
-                        <StatusIcon status={account.reconciliation_status || "Not Reconciled"} className="h-3.5 w-3.5 mr-1" />
-                        <span>{account.reconciliation_status || "Not Reconciled"}</span>
-                      </span>
-                      
-                      {/* Age Badge */}
-                      <span 
-                        className={`inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium 
-                          ${!account.days_since_reconciliation ? 'bg-gray-100 text-gray-800 border border-gray-300' : 
-                            account.days_since_reconciliation <= 30 ? 'bg-green-100 text-green-800 border border-green-300' : 
-                            account.days_since_reconciliation <= 90 ? 'bg-yellow-100 text-yellow-800 border border-yellow-300' : 
-                            'bg-red-100 text-red-800 border border-red-300'}`}
-                        title={`Last reconciled: ${formatDate(account.last_reconciled_date)}`}
-                      >
-                        <Clock className="h-3.5 w-3.5 mr-1" />
-                        {account.days_since_reconciliation 
-                          ? `${account.days_since_reconciliation} days` 
-                          : "Never"}
-                      </span>
-                      
-                      {/* Action Buttons */}
-                      <div className="flex space-x-1 ml-auto">
-                        <button
-                          type="button"
-                          className="inline-flex items-center px-2 py-1 border border-gray-300 text-xs font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                          onClick={() => {/* Add edit account functionality */}}
-                          title="Edit Account"
-                        >
-                          <Edit className="h-3.5 w-3.5" />
-                        </button>
-                        
-                        <button
-                          type="button"
-                          className="inline-flex items-center px-2 py-1 border border-gray-300 text-xs font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                          onClick={() => handleAccountExpand(account.id)}
-                          title={isExpanded ? 'Hide Positions' : 'View Positions'}
-                        >
-                          <ArrowUpDown className="h-3.5 w-3.5" />
-                          <span className="ml-1">{isExpanded ? 'Hide' : 'View'}</span>
-                        </button>
-                        
-                        <button
-                          type="button"
-                          className="inline-flex items-center px-2 py-1 border border-transparent text-xs font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                          onClick={() => handleOpenReconcileDialog(account)}
-                          title="Reconcile account balance"
-                        >
-                          <CheckCircle className="h-3.5 w-3.5" />
-                          <span className="ml-1">Reconcile</span>
-                        </button>
-                      </div>
-                    </div>
-                  
-                  <div className="md:col-span-2 flex justify-end space-x-2">
+              <div className="flex items-center gap-3">
+                {/* View Mode Selector */}
+                <div className="flex bg-gray-900/50 backdrop-blur-sm rounded-lg p-1 border border-gray-800">
+                  {viewModes.map((mode) => (
                     <button
-                      type="button"
-                      className="inline-flex items-center px-2.5 py-1.5 border border-gray-300 shadow-sm text-xs font-medium rounded text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-                      onClick={() => handleAccountExpand(account.id)}
+                      key={mode.key}
+                      onClick={() => setSelectedView(mode.key)}
+                      className={`px-3 py-1.5 text-sm font-medium rounded flex items-center gap-2 transition-all ${
+                        selectedView === mode.key
+                          ? 'bg-purple-600 text-white shadow-lg'
+                          : 'text-gray-400 hover:text-white hover:bg-gray-800'
+                      }`}
                     >
-                      {isExpanded ? 'Hide' : 'View'} Positions
-                      <ArrowUpDown className="ml-1 h-4 w-4" />
+                      {mode.icon}
+                      <span className="hidden sm:inline">{mode.label}</span>
                     </button>
+                  ))}
+                </div>
+
+                {/* Action Buttons */}
+                <motion.button
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() => setShowValues(!showValues)}
+                  className="p-2 bg-gray-800 hover:bg-gray-700 rounded-lg transition-colors group"
+                >
+                  {showValues ? 
+                    <Eye className="w-5 h-5 text-gray-400 group-hover:text-white" /> : 
+                    <EyeOff className="w-5 h-5 text-gray-400 group-hover:text-white" />
+                  }
+                </motion.button>
+
+                <motion.button
+                  whileTap={{ scale: 0.95 }}
+                  onClick={handleRefresh}
+                  disabled={isRefreshing}
+                  className="p-2 bg-gray-800 hover:bg-gray-700 rounded-lg transition-colors group disabled:opacity-50"
+                >
+                  <RefreshCw className={`w-5 h-5 text-gray-400 group-hover:text-white ${
+                    isRefreshing ? 'animate-spin' : ''
+                  }`} />
+                </motion.button>
+              </div>
+            </div>
+          </motion.header>
+
+          {/* Portfolio Value Summary Card */}
+          <motion.section
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ delay: 0.1 }}
+            className="mb-8"
+          >
+            <div className="relative bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 rounded-2xl border border-gray-700 overflow-hidden">
+              {/* Animated gradient overlay */}
+              <div className="absolute inset-0 opacity-20">
+                <div className="absolute inset-0 bg-gradient-to-r from-purple-600 via-pink-600 to-blue-600 animate-gradient-x" />
+              </div>
+
+              <div className="relative z-10 p-6 lg:p-8">
+                <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+                  {/* Total Portfolio Value */}
+                  <div className="lg:col-span-2">
+                    <div className="flex items-center gap-2 mb-2">
+                      <DollarSign className="w-5 h-5 text-gray-400" />
+                      <h2 className="text-sm font-medium text-gray-400">Portfolio Value</h2>
+                    </div>
                     
-                    <button
-                      type="button"
-                      className="inline-flex items-center px-2.5 py-1.5 border border-transparent shadow-sm text-xs font-medium rounded text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-                      onClick={() => handleOpenReconcileDialog(account)}
-                      title="Reconcile account balance and update all positions"
+                    <motion.div
+                      initial={{ opacity: 0, x: -20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: 0.2 }}
+                      className="mb-4"
                     >
-                      <CheckCircle className="mr-1 h-4 w-4" />
-                      Reconcile
-                    </button>
-                  </div>
-                </div>
-                
-                {isExpanded && (
-                  <div className="mt-6">
-                    <div className="border-t border-gray-200 pt-4 mb-3">
-                      <div className="flex justify-between items-center mb-4">
-                        <h4 className="text-sm font-medium text-gray-900">
-                          Positions
-                        </h4>
-                        
-                        <div className="flex space-x-2">
-                          <AddPositionButton 
-                            accountId={account.id}
-                            onPositionAdded={() => fetchPositions(account.id)} // Refresh positions when added
-                            buttonContent={
-                              <div className="inline-flex items-center px-3 py-1.5 border border-gray-300 shadow-sm text-xs font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1.5 -ml-0.5 text-gray-600" viewBox="0 0 20 20" fill="currentColor">
-                                  <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
-                                </svg>
-                                Add Position
-                              </div>
-                            }
-                          />
-                          
-                          <button
-                            type="button"
-                            className="inline-flex items-center px-3 py-1.5 border border-gray-300 shadow-sm text-xs font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-                            onClick={() => handleReconcileAllPositions(account.id)}
-                            disabled={account.reconciliation_status === 'Reconciled'}
-                          >
-                            <CheckCircle className="mr-1.5 -ml-0.5 h-4 w-4" />
-                            Mark All Positions as Reconciled
-                          </button>
-                        </div>
+                      <div className="text-4xl lg:text-5xl font-bold bg-gradient-to-r from-white to-gray-200 bg-clip-text text-transparent">
+                        {showValues ? formatCurrency(summary?.total_value || 0) : '••••••••'}
                       </div>
                       
-                      {loadingPositions[account.id] ? (
-                        <div className="flex justify-center py-8">
-                          <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500"></div>
+                      <div className="mt-2 flex items-center gap-3">
+                        <div className={`flex items-center gap-1 ${
+                          (summary?.total_gain_loss || 0) >= 0 ? 'text-green-400' : 'text-red-400'
+                        }`}>
+                          {(summary?.total_gain_loss || 0) >= 0 ? 
+                            <ArrowUpRight className="w-5 h-5" /> : 
+                            <ArrowDownRight className="w-5 h-5" />
+                          }
+                          <span className="font-semibold">
+                            {showValues ? formatCurrency(Math.abs(summary?.total_gain_loss || 0)) : '••••'}
+                          </span>
+                          <span className="text-sm">
+                            ({formatPercentage(summary?.total_gain_loss_pct || 0)})
+                          </span>
                         </div>
-                      ) : (
-                        <div className="relative overflow-x-auto border border-gray-200 rounded-md shadow-sm">
-                          <table className="min-w-full divide-y divide-gray-200">
-                            <thead className="bg-gray-50">
-                              <tr>
-                                <th 
-                                  scope="col" 
-                                  className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer"
-                                  onClick={() => requestSort('name')}
-                                >
-                                  <div className="flex items-center">
-                                    Position
-                                    <ArrowUpDown className="ml-1 h-4 w-4" />
-                                  </div>
-                                </th>
-                                <th 
-                                  scope="col" 
-                                  className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer"
-                                  onClick={() => requestSort('identifier')}
-                                >
-                                  <div className="flex items-center">
-                                    Ticker
-                                    <ArrowUpDown className="ml-1 h-4 w-4" />
-                                  </div>
-                                </th>
-                                <th 
-                                  scope="col" 
-                                  className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer"
-                                  onClick={() => requestSort('purchase_date')}
-                                >
-                                  <div className="flex items-center">
-                                    Purchase Date
-                                    <ArrowUpDown className="ml-1 h-4 w-4" />
-                                  </div>
-                                </th>
-                                <th 
-                                  scope="col" 
-                                  className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer"
-                                  onClick={() => requestSort('quantity')}
-                                >
-                                  <div className="flex items-center justify-end">
-                                    NestEgg Qty
-                                    <ArrowUpDown className="ml-1 h-4 w-4" />
-                                  </div>
-                                </th>
-                                <th scope="col" className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                  Statement Qty
-                                </th>
-                                <th scope="col" className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                  Qty Diff
-                                </th>
-                                <th 
-                                  scope="col" 
-                                  className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer"
-                                  onClick={() => requestSort('current_value')}
-                                >
-                                  <div className="flex items-center justify-end">
-                                    NestEgg Value
-                                    <ArrowUpDown className="ml-1 h-4 w-4" />
-                                  </div>
-                                </th>
-                                <th scope="col" className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                  Statement Value
-                                </th>
-                                <th scope="col" className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                  Value Diff
-                                </th>
-                                <th 
-                                  scope="col" 
-                                  className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer"
-                                  onClick={() => requestSort('reconciliation_status')}
-                                >
-                                  <div className="flex items-center">
-                                    Status
-                                    <ArrowUpDown className="ml-1 h-4 w-4" />
-                                  </div>
-                                </th>
-                                <th scope="col" className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider w-28">
-                                  Actions
-                                </th>
-                              </tr>
-                            </thead>
-                            <tbody className="bg-white divide-y divide-gray-200">
-                              {getSortedPositions(account.id).map((position) => {
-                                // Get position status - either from the position or default to account status
-                                  if (position.isSubtotal) {
-                                    return (
-                                      <tr 
-                                        key={position.id}
-                                        className="bg-gray-100 font-medium"
-                                      >
-                                        <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-900 font-semibold" colSpan="2">
-                                          {position.name}
-                                        </td>
-                                        <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-900 font-semibold text-right">
-                                          {formatNumber(parseFloat(position.quantity) || 0)}
-                                        </td>
-                                        <td colSpan="2"></td>
-                                        <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-900 font-semibold text-right">
-                                          {formatCurrency(parseFloat(position.current_value) || 0)}
-                                        </td>
-                                        <td colSpan="4"></td>
-                                      </tr>
-                                    );
-                                  }
-                                const positionStatus = position.reconciliation_status || account.reconciliation_status || "Not Reconciled";
-                                
-                                // Calculate position differences
-                                const { 
-                                  shareDiff, 
-                                  valueDiff, 
-                                  valuePercentDiff 
-                                } = calculatePositionDifference(position);
-                                
-                                // Get variance level based on percentage difference for shares and value
-                                const shareVarianceLevel = getVarianceLevel(shareDiff / (parseFloat(position.quantity) || 1) * 100);
-                                const valueVarianceLevel = getVarianceLevel(valuePercentDiff);
-                                
-                                return (
-                                  <tr 
-                                    key={position.id}
-                                    className={positionStatus === 'Reconciled' || positionStatus === 'reconciled' ? 'bg-green-50' : ''}
-                                  >
-                                    <td className="px-4 py-2 whitespace-nowrap text-sm font-medium text-gray-900">
-                                      {position.name}
-                                    </td>
-                                    <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-500">
-                                      {position.identifier}
-                                    </td>
-                                    <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-500">
-                                      {position.purchase_date ? formatDate(position.purchase_date) : 'N/A'}
-                                    </td>  
-                                    <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-500 text-right">
-                                      {formatNumber(parseFloat(position.quantity) || 0)}
-                                    </td>
-                                    <td className="px-4 py-2 whitespace-nowrap text-right">
-                                      <input
-                                        type="text"
-                                        className="border-gray-300 focus:ring-blue-500 focus:border-blue-500 block w-full px-2 py-1 sm:text-sm rounded-md text-right bg-blue-50"
-                                        value={formattedInputs[`position_shares_${position.id}`] || ''}
-                                        onChange={(e) => handlePositionInputChange(position.id, 'shares', e.target.value)}
-                                      />
-                                    </td>
-                                    <td className="px-4 py-2 whitespace-nowrap text-sm text-right">
-                                      {shareDiff !== 0 && (
-                                        <span className={shareVarianceLevel.color} title={shareVarianceLevel.message}>
-                                          {formatNumber(shareDiff)}
-                                        </span>
-                                      )}
-                                    </td>
-                                    <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-900 font-medium text-right">
-                                      {formatCurrency(parseFloat(position.current_value) || 0)}
-                                    </td>
-                                    <td className="px-4 py-2 whitespace-nowrap text-right">
-                                      <div className="relative rounded-md shadow-sm">
-                                        <div className="absolute inset-y-0 left-0 pl-2 flex items-center pointer-events-none">
-                                          <span className="text-gray-500 sm:text-xs">$</span>
-                                        </div>
-                                        <input
-                                          type="text"
-                                          className="border-gray-300 focus:ring-blue-500 focus:border-blue-500 block w-full pl-6 py-1 sm:text-sm rounded-md text-right bg-blue-50"
-                                          value={formattedInputs[`position_value_${position.id}`] || ''}
-                                          onChange={(e) => handlePositionInputChange(position.id, 'value', e.target.value)}
-                                        />
-                                      </div>
-                                    </td>
-                                    <td className="px-4 py-2 whitespace-nowrap text-sm text-right">
-                                      {valueDiff !== 0 && (
-                                        <div>
-                                          <span className={valueVarianceLevel.color} title={valueVarianceLevel.message}>
-                                            {formatCurrency(valueDiff)} 
-                                          </span>
-                                          <div className="text-xs text-gray-500">
-                                            {valuePercentDiff.toFixed(2)}%
-                                          </div>
-                                        </div>
-                                      )}
-                                    </td>
-                                    <td className="px-4 py-2 whitespace-nowrap">
-                                      <div className="flex flex-col space-y-1">
-                                        <span 
-                                          className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium 
-                                            ${positionStatus === 'Reconciled' || positionStatus === 'reconciled' ? 'bg-green-100 text-green-800' : 
-                                              positionStatus === 'Needs Review' || positionStatus === 'needsReview' ? 'bg-yellow-100 text-yellow-800' : 
-                                              'bg-red-100 text-red-800'}`}
-                                        >
-                                          <StatusIcon status={positionStatus} />
-                                          <span className="ml-1">{positionStatus}</span>
-                                        </span>
-                                        
-                                        {/* Additional indicators for partial reconciliation */}
-                                        {position.is_quantity_reconciled === true && position.is_value_reconciled !== true && (
-                                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                                            Qty Only
-                                          </span>
-                                        )}
-                                        {position.is_quantity_reconciled !== true && position.is_value_reconciled === true && (
-                                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
-                                            Value Only
-                                          </span>
-                                        )}
-                                      </div>
-                                    </td>
-                                      <td className="px-4 py-2 whitespace-nowrap text-sm text-right">
-                                      <div className="flex justify-end space-x-2">
-                                        {/* Edit Position Button */}
-                                        <EditPositionButton
-                                          position={position}
-                                          accountId={account.id}
-                                          accountName={account.account_name}
-                                          assetType={position.asset_type} // Add this line to explicitly pass the asset type
-                                          onPositionEdited={() => fetchPositions(account.id)}
-                                        />
-                                        
-                                        {/* Reconcile Dropdown */}
-                                      <div className="flex space-x-1">
-                                        <button
-                                          type="button"
-                                          className="px-1.5 py-1 border border-green-300 text-xs font-medium rounded text-green-700 bg-green-50 hover:bg-green-100 focus:outline-none focus:ring-1 focus:ring-green-400"
-                                          onClick={() => handleReconcilePosition(account.id, position, true, true)}
-                                          title="Reconcile both quantity and value"
-                                        >
-                                          <CheckCircle className="h-3.5 w-3.5" />
-                                        </button>
-                                        <button
-                                          type="button"
-                                          className="px-1.5 py-1 border border-blue-300 text-xs font-medium rounded text-blue-700 bg-blue-50 hover:bg-blue-100 focus:outline-none focus:ring-1 focus:ring-blue-400"
-                                          onClick={() => handleReconcilePosition(account.id, position, true, false)}
-                                          title="Reconcile quantity only"
-                                        >
-                                          <span className="text-xs font-bold">#</span>
-                                        </button>
-                                        <button
-                                          type="button"
-                                          className="px-1.5 py-1 border border-purple-300 text-xs font-medium rounded text-purple-700 bg-purple-50 hover:bg-purple-100 focus:outline-none focus:ring-1 focus:ring-purple-400"
-                                          onClick={() => handleReconcilePosition(account.id, position, false, true)}
-                                          title="Reconcile value only"
-                                        >
-                                          <span className="text-xs font-bold">$</span>
-                                        </button>
-                                      </div>
-                                        
-                                        {/* Delete Position Button */}
-                                        <DeletePositionButton
-                                          position={position}
-                                          accountId={account.id}
-                                          assetType={position.asset_type || "security"} // Add this line to pass the asset type
-                                          onPositionDeleted={() => fetchPositions(account.id)}
-                                        />
-                                      </div>
-                                    </td>
-                                  </tr>
-                                );
-                              })}
-                              
-                              {(!positions[account.id] || positions[account.id].length === 0) && (
-                                <tr>
-                                  <td colSpan="10" className="px-4 py-4 text-center text-sm text-gray-500">
-                                    No positions found for this account.
-                                  </td>
-                                </tr>
-                              )}
-                            </tbody>
-                          </table>
-                        </div>
-                      )}
+                        <span className="text-gray-500 text-sm">All Time</span>
+                      </div>
+                    </motion.div>
+
+                    {/* Performance Indicators */}
+                    <div className="grid grid-cols-3 gap-3">
+                      <motion.div
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.3 }}
+                        className="bg-gray-800/50 rounded-lg p-3"
+                      >
+                        <p className="text-xs text-gray-400 mb-1">Winners</p>
+                        <p className="text-lg font-semibold text-green-400">
+                          {processedData.performanceMetrics.winners}
+                        </p>
+                      </motion.div>
+                      <motion.div
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.35 }}
+                        className="bg-gray-800/50 rounded-lg p-3"
+                      >
+                        <p className="text-xs text-gray-400 mb-1">Losers</p>
+                        <p className="text-lg font-semibold text-red-400">
+                          {processedData.performanceMetrics.losers}
+                        </p>
+                      </motion.div>
+                      <motion.div
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.4 }}
+                        className="bg-gray-800/50 rounded-lg p-3"
+                      >
+                        <p className="text-xs text-gray-400 mb-1">Avg Return</p>
+                        <p className={`text-lg font-semibold ${
+                          processedData.performanceMetrics.avgGainLossPercent >= 0 ? 'text-green-400' : 'text-red-400'
+                        }`}>
+                          {formatPercentage(processedData.performanceMetrics.avgGainLossPercent)}
+                        </p>
+                      </motion.div>
                     </div>
                   </div>
-                )}
+
+                  {/* Income Metrics */}
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.9 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    transition={{ delay: 0.4 }}
+                    className="bg-gray-800/50 backdrop-blur-sm rounded-xl p-4 border border-gray-700"
+                  >
+                    <div className="flex items-center justify-between mb-3">
+                      <span className="text-sm text-gray-400">Annual Income</span>
+                      <TrendingUp className="w-4 h-4 text-green-400" />
+                    </div>
+                    <p className="text-2xl font-bold mb-1">
+                      {showValues ? formatCurrency(processedData.incomeMetrics.totalAnnualIncome) : '••••'}
+                    </p>
+                    <p className="text-sm text-gray-400">
+                      Yield: {formatPercentage(processedData.incomeMetrics.incomeYield)}
+                    </p>
+                    <div className="mt-3 pt-3 border-t border-gray-700">
+                      <p className="text-xs text-gray-500">
+                        {processedData.incomeMetrics.incomeProducingPositions} income positions
+                      </p>
+                    </div>
+                  </motion.div>
+
+                  {/* Concentration Risk */}
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.9 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    transition={{ delay: 0.5 }}
+                    className="bg-gray-800/50 backdrop-blur-sm rounded-xl p-4 border border-gray-700"
+                  >
+                    <div className="flex items-center justify-between mb-3">
+                      <span className="text-sm text-gray-400">Concentration Risk</span>
+                      <Shield className="w-4 h-4 text-yellow-400" />
+                    </div>
+                    <div className="space-y-2">
+                      <div>
+                        <div className="flex justify-between text-xs">
+                          <span>Top 5 Holdings</span>
+                          <span className="font-semibold">
+                            {formatPercentage(processedData.concentrationRisk.top5Concentration)}
+                          </span>
+                        </div>
+                        <div className="w-full h-2 bg-gray-700 rounded-full mt-1">
+                          <motion.div
+                            initial={{ width: 0 }}
+                            animate={{ width: `${Math.min(processedData.concentrationRisk.top5Concentration, 100)}%` }}
+                            transition={{ delay: 0.6, duration: 1 }}
+                            className={`h-full rounded-full ${
+                              processedData.concentrationRisk.top5Concentration > 60 
+                                ? 'bg-red-500' 
+                                : processedData.concentrationRisk.top5Concentration > 40
+                                ? 'bg-yellow-500'
+                                : 'bg-green-500'
+                            }`}
+                          />
+                        </div>
+                      </div>
+                      <div className="text-xs text-gray-500">
+                        HHI: {Math.round(processedData.concentrationRisk.herfindahlIndex)}
+                      </div>
+                    </div>
+                  </motion.div>
+                </div>
+
+                {/* Asset Type Breakdown */}
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.6 }}
+                  className="mt-6 grid grid-cols-2 lg:grid-cols-5 gap-3"
+                >
+                  {Object.entries(processedData.byAssetType).map(([type, data], index) => {
+                    const style = getAssetTypeStyle(type);
+                    return (
+                      <motion.div
+                        key={type}
+                        whileHover={{ scale: 1.05, y: -2 }}
+                        className="bg-gray-800/30 rounded-lg p-3 backdrop-blur-sm cursor-pointer"
+                        onClick={() => setSelectedMetric(type)}
+                      >
+                        <div className="flex items-center gap-2 mb-2">
+                          <div className={`p-1.5 bg-gradient-to-br ${style.color} rounded`}>
+                            {style.icon}
+                          </div>
+                          <span className="text-xs text-gray-400">{style.label}</span>
+                        </div>
+                        <p className="text-lg font-bold">
+                          {showValues ? formatCurrency(data.totalValue) : '••••'}
+                        </p>
+                        <p className="text-xs text-gray-500">
+                          {formatPercentage(data.allocation)} • {data.count} positions
+                        </p>
+                      </motion.div>
+                    );
+                  })}
+                </motion.div>
               </div>
             </div>
-          );
-        })}
-        
-        {accounts.length === 0 && !loading && (
-          <div className="bg-white shadow-sm rounded-lg border border-gray-200 p-6 text-center">
-            <p className="text-gray-500">No accounts found. Add accounts to start tracking your investments.</p>
-          </div>
-        )}
+          </motion.section>
+
+          {/* Main Content Area */}
+          <AnimatePresence mode="wait">
+            {selectedView === 'grid' && (
+              <motion.div
+                key="grid"
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: 20 }}
+                className="space-y-8"
+              >
+                {/* Asset Allocation & Sector Breakdown */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  {/* Asset Allocation Chart */}
+                  <motion.section
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.1 }}
+                  >
+                    <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
+                      <PieChartIcon className="w-5 h-5 text-purple-400" />
+                      Asset Allocation
+                    </h3>
+                    
+                    <div className="bg-gray-900 rounded-xl p-6 border border-gray-800">
+                      <ResponsiveContainer width="100%" height={300}>
+                        <PieChart>
+                          <Pie
+                            data={assetAllocationData}
+                            cx="50%"
+                            cy="50%"
+                            innerRadius={60}
+                            outerRadius={100}
+                            paddingAngle={2}
+                            dataKey="value"
+                          >
+                            {assetAllocationData.map((entry, index) => (
+                              <Cell 
+                                key={`cell-${index}`} 
+                                fill={CHART_COLORS[index % CHART_COLORS.length]}
+                                className="hover:opacity-80 transition-opacity cursor-pointer"
+                              />
+                            ))}
+                          </Pie>
+                          <Tooltip 
+                            contentStyle={{ 
+                              backgroundColor: '#1f2937', 
+                              border: '1px solid #374151',
+                              borderRadius: '8px'
+                            }}
+                            formatter={(value) => formatCurrency(value)}
+                          />
+                        </PieChart>
+                      </ResponsiveContainer>
+                      
+                      {/* Legend */}
+                      <div className="mt-4 grid grid-cols-2 gap-2">
+                        {assetAllocationData.map((entry, index) => (
+                          <div key={entry.name} className="flex items-center gap-2">
+                            <div 
+                              className="w-3 h-3 rounded-full"
+                              style={{ backgroundColor: CHART_COLORS[index % CHART_COLORS.length] }}
+                            />
+                            <span className="text-sm text-gray-400">{entry.name}</span>
+                            <span className="text-sm font-semibold ml-auto">
+                              {formatPercentage(entry.percentage)}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </motion.section>
+
+                  {/* Sector Breakdown */}
+                  <motion.section
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.2 }}
+                  >
+                    <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
+                      <BarChart2 className="w-5 h-5 text-blue-400" />
+                      Sector Exposure
+                    </h3>
+                    
+                    <div className="bg-gray-900 rounded-xl p-6 border border-gray-800">
+                      <ResponsiveContainer width="100%" height={300}>
+                        <BarChart data={sectorData} layout="horizontal">
+                          <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                          <XAxis 
+                            dataKey="name" 
+                            angle={-45}
+                            textAnchor="end"
+                            height={80}
+                            tick={{ fill: '#9CA3AF', fontSize: 12 }}
+                          />
+                          <YAxis 
+                            tick={{ fill: '#9CA3AF' }}
+                            tickFormatter={(value) => formatCurrency(value, true)}
+                          />
+                          <Tooltip 
+                            contentStyle={{ 
+                              backgroundColor: '#1f2937', 
+                              border: '1px solid #374151',
+                              borderRadius: '8px'
+                            }}
+                            formatter={(value) => formatCurrency(value)}
+                          />
+                          <Bar 
+                            dataKey="value" 
+                            fill="#3B82F6"
+                            radius={[4, 4, 0, 0]}
+                          >
+                            {sectorData.map((entry, index) => (
+                              <Cell 
+                                key={`cell-${index}`}
+                                fill={entry.gainLoss >= 0 ? '#10B981' : '#EF4444'}
+                              />
+                            ))}
+                          </Bar>
+                        </BarChart>
+                      </ResponsiveContainer>
+                      
+                      {hoveredSector && (
+                        <motion.div
+                          initial={{ opacity: 0, y: -10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          className="mt-4 p-3 bg-gray-800 rounded-lg"
+                        >
+                          <p className="text-sm font-semibold">{hoveredSector}</p>
+                          <p className="text-xs text-gray-400">Click for details</p>
+                        </motion.div>
+                      )}
+                    </div>
+                  </motion.section>
+                </div>
+
+                {/* Performance & Risk Metrics */}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                  {/* Best Performer */}
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.9 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    transition={{ delay: 0.3 }}
+                    className="bg-gradient-to-br from-green-900/20 to-green-800/20 rounded-xl p-4 border border-green-700/30"
+                  >
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-sm text-gray-400">Best Performer</span>
+                      <TrendingUp className="w-4 h-4 text-green-400" />
+                    </div>
+                    {processedData.performanceMetrics.bestPerformer && (
+                      <>
+                        <p className="font-semibold truncate">
+                          {processedData.performanceMetrics.bestPerformer.name}
+                        </p>
+                        <p className="text-2xl font-bold text-green-400">
+                          +{formatPercentage(processedData.performanceMetrics.bestPerformer.total_gain_loss_pct)}
+                        </p>
+                      </>
+                    )}
+                  </motion.div>
+
+                  {/* Worst Performer */}
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.9 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    transition={{ delay: 0.35 }}
+                    className="bg-gradient-to-br from-red-900/20 to-red-800/20 rounded-xl p-4 border border-red-700/30"
+                  >
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-sm text-gray-400">Worst Performer</span>
+                      <TrendingDown className="w-4 h-4 text-red-400" />
+                    </div>
+                    {processedData.performanceMetrics.worstPerformer && (
+                      <>
+                        <p className="font-semibold truncate">
+                          {processedData.performanceMetrics.worstPerformer.name}
+                        </p>
+                        <p className="text-2xl font-bold text-red-400">
+                          {formatPercentage(processedData.performanceMetrics.worstPerformer.total_gain_loss_pct)}
+                        </p>
+                      </>
+                    )}
+                  </motion.div>
+
+                  {/* Long/Short Term Mix */}
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.9 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    transition={{ delay: 0.4 }}
+                    className="bg-gray-900 rounded-xl p-4 border border-gray-800"
+                  >
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-sm text-gray-400">Tax Efficiency</span>
+                      <Timer className="w-4 h-4 text-blue-400" />
+                    </div>
+                    <p className="text-2xl font-bold text-blue-400">
+                      {formatPercentage(metrics.longTermPercentage)}
+                    </p>
+                    <p className="text-xs text-gray-500">Long-term holdings</p>
+                  </motion.div>
+
+                  {/* Diversification Score */}
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.9 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    transition={{ delay: 0.45 }}
+                    className="bg-gray-900 rounded-xl p-4 border border-gray-800"
+                  >
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-sm text-gray-400">Diversification</span>
+                      <Sparkles className="w-4 h-4 text-purple-400" />
+                    </div>
+                    <p className="text-2xl font-bold text-purple-400">
+                      {processedData.concentrationRisk.diversificationRatio}
+                    </p>
+                    <p className="text-xs text-gray-500">Unique positions</p>
+                  </motion.div>
+                </div>
+
+                {/* Top Income Producers */}
+                {processedData.incomeMetrics.topIncomePositions.length > 0 && (
+                  <motion.section
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.5 }}
+                  >
+                    <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
+                      <DollarSign className="w-5 h-5 text-green-400" />
+                      Top Income Producers
+                    </h3>
+                    
+                    <div className="bg-gray-900 rounded-xl border border-gray-800 overflow-hidden">
+                      <div className="overflow-x-auto">
+                        <table className="w-full">
+                          <thead className="bg-gray-800/50">
+                            <tr>
+                              <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase">Position</th>
+                              <th className="px-4 py-3 text-right text-xs font-medium text-gray-400 uppercase">Annual Income</th>
+                              <th className="px-4 py-3 text-right text-xs font-medium text-gray-400 uppercase">Yield</th>
+                              <th className="px-4 py-3 text-right text-xs font-medium text-gray-400 uppercase">Value</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-gray-800">
+                            {processedData.incomeMetrics.topIncomePositions.map((position, index) => (
+                              <motion.tr
+                                key={position.identifier}
+                                initial={{ opacity: 0, x: -20 }}
+                                animate={{ opacity: 1, x: 0 }}
+                                transition={{ delay: 0.05 * index }}
+                                className="hover:bg-gray-800/30 cursor-pointer"
+                                onClick={() => {
+                                  setSelectedPosition(position);
+                                  setIsDetailModalOpen(true);
+                                }}
+                              >
+                                <td className="px-4 py-3">
+                                  <div>
+                                    <p className="font-medium">{position.name}</p>
+                                    <p className="text-xs text-gray-400">{position.identifier}</p>
+                                  </div>
+                                </td>
+                                <td className="px-4 py-3 text-right font-semibold text-green-400">
+                                  {showValues ? formatCurrency(position.est_annual_income) : '••••'}
+                                </td>
+                                <td className="px-4 py-3 text-right">
+                                  {formatPercentage(position.income_yield || 0)}
+                                </td>
+                                <td className="px-4 py-3 text-right">
+                                  {showValues ? formatCurrency(position.total_value) : '••••'}
+                                </td>
+                              </motion.tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </motion.section>
+                )}
+              </motion.div>
+            )}
+
+            {selectedView === 'table' && (
+              <motion.div
+                key="table"
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -20 }}
+              >
+                <div className="bg-gray-900/50 backdrop-blur-sm rounded-xl border border-gray-800 overflow-hidden">
+                  <UnifiedGroupPositionsTable2 
+                    initialSort="value-high"
+                    showHistoricalColumns={true}
+                  />
+                </div>
+              </motion.div>
+            )}
+
+            {selectedView === 'analytics' && (
+              <motion.div
+                key="analytics"
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.95 }}
+                className="space-y-8"
+              >
+                {/* Advanced Analytics View */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  {/* Holdings Treemap */}
+                  <motion.section
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.1 }}
+                  >
+                    <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
+                      <Layers className="w-5 h-5 text-indigo-400" />
+                      Holdings Heatmap
+                    </h3>
+                    
+                    <div className="bg-gray-900 rounded-xl p-6 border border-gray-800">
+                      <ResponsiveContainer width="100%" height={400}>
+                        <Treemap
+                          data={positions.slice(0, 20).map(pos => ({
+                            name: pos.identifier,
+                            size: pos.total_value,
+                            gain: pos.total_gain_loss_pct
+                          }))}
+                          dataKey="size"
+                          aspectRatio={4/3}
+                          stroke="#374151"
+                          fill="#3B82F6"
+                        >
+                          <Tooltip 
+                            contentStyle={{ 
+                              backgroundColor: '#1f2937', 
+                              border: '1px solid #374151',
+                              borderRadius: '8px'
+                            }}
+                            formatter={(value) => formatCurrency(value)}
+                          />
+                        </Treemap>
+                      </ResponsiveContainer>
+                    </div>
+                  </motion.section>
+
+                  {/* Risk Analysis Radar */}
+                  <motion.section
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.2 }}
+                  >
+                    <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
+                      <Shield className="w-5 h-5 text-yellow-400" />
+                      Risk Profile
+                    </h3>
+                    
+                    <div className="bg-gray-900 rounded-xl p-6 border border-gray-800">
+                      <ResponsiveContainer width="100%" height={400}>
+                        <RadarChart data={[
+                          { metric: 'Concentration', value: 100 - processedData.concentrationRisk.top5Concentration },
+                          { metric: 'Diversification', value: Math.min(processedData.concentrationRisk.diversificationRatio * 2, 100) },
+                          { metric: 'Tax Efficiency', value: metrics.longTermPercentage },
+                          { metric: 'Income Yield', value: Math.min(processedData.incomeMetrics.incomeYield * 10, 100) },
+                          { metric: 'Win Rate', value: (processedData.performanceMetrics.winners / positions.length) * 100 },
+                        ]}>
+                          <PolarGrid stroke="#374151" />
+                          <PolarAngleAxis dataKey="metric" tick={{ fill: '#9CA3AF' }} />
+                          <PolarRadiusAxis angle={90} domain={[0, 100]} />
+                          <Radar name="Portfolio" dataKey="value" stroke="#8B5CF6" fill="#8B5CF6" fillOpacity={0.6} />
+                          <Tooltip />
+                        </RadarChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </motion.section>
+                </div>
+
+                {/* Position Changes */}
+                {metrics.recentChanges.length > 0 && (
+                  <motion.section
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.3 }}
+                  >
+                    <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
+                      <Activity className="w-5 h-5 text-orange-400" />
+                      Recent Position Changes
+                    </h3>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                      {metrics.recentChanges.slice(0, 6).map((position, index) => (
+                        <motion.div
+                          key={position.identifier}
+                          initial={{ opacity: 0, scale: 0.9 }}
+                          animate={{ opacity: 1, scale: 1 }}
+                          transition={{ delay: 0.05 * index }}
+                          className="bg-gray-900 rounded-lg p-4 border border-gray-800"
+                        >
+                          <div className="flex items-start justify-between mb-2">
+                            <div>
+                              <p className="font-semibold">{position.name}</p>
+                              <p className="text-xs text-gray-400">{position.identifier}</p>
+                            </div>
+                            <div className={`px-2 py-1 rounded text-xs font-semibold ${
+                              position.quantity_1d_change > 0 
+                                ? 'bg-green-500/20 text-green-400' 
+                                : 'bg-red-500/20 text-red-400'
+                            }`}>
+                              {position.quantity_1d_change > 0 ? '+' : ''}{formatNumber(position.quantity_1d_change)}
+                            </div>
+                          </div>
+                          <div className="space-y-1 text-sm">
+                            <div className="flex justify-between">
+                              <span className="text-gray-400">1D Change</span>
+                              <span className={position.quantity_1d_change_pct >= 0 ? 'text-green-400' : 'text-red-400'}>
+                                {formatPercentage(position.quantity_1d_change_pct)}
+                              </span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-gray-400">New Quantity</span>
+                              <span>{formatNumber(position.total_quantity)}</span>
+                            </div>
+                          </div>
+                        </motion.div>
+                      ))}
+                    </div>
+                  </motion.section>
+                )}
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* Footer */}
+          <motion.footer
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.8 }}
+            className="mt-12 pt-8 border-t border-gray-800"
+          >
+            <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
+              <div className="flex items-center gap-2 text-sm text-gray-400">
+                <Clock className="w-4 h-4" />
+                <span>
+                  Last updated: {positions[0]?.as_of_date ? 
+                    new Date(positions[0].as_of_date).toLocaleString() : 
+                    'Never'
+                  }
+                </span>
+              </div>
+              <div className="flex gap-4">
+                <button
+                  onClick={() => setShowAdvancedMetrics(!showAdvancedMetrics)}
+                  className="text-sm text-gray-400 hover:text-white transition-colors flex items-center gap-1"
+                >
+                  <Settings className="w-4 h-4" />
+                  Advanced Metrics
+                </button>
+                <button
+                  onClick={() => window.print()}
+                  className="text-sm text-gray-400 hover:text-white transition-colors flex items-center gap-1"
+                >
+                  <Download className="w-4 h-4" />
+                  Export
+                </button>
+              </div>
+            </div>
+          </motion.footer>
+        </div>
       </div>
 
-      {/* Account Reconciliation Dialog */}
-      {reconcileDialogOpen && selectedAccount && (
-        <div className="fixed z-10 inset-0 overflow-y-auto" aria-labelledby="modal-title" role="dialog" aria-modal="true">
-          <div className="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
-            <div className="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" aria-hidden="true" onClick={handleCloseReconcileDialog}></div>
+      {/* Position Detail Modal */}
+      <AnimatePresence>
+        {isDetailModalOpen && selectedPosition && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+            onClick={() => setIsDetailModalOpen(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="bg-gray-900 rounded-xl p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto border border-gray-800"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex justify-between items-start mb-6">
+                <div>
+                  <h2 className="text-2xl font-bold">{selectedPosition.name}</h2>
+                  <p className="text-gray-400">{selectedPosition.identifier}</p>
+                </div>
+                <button
+                  onClick={() => setIsDetailModalOpen(false)}
+                  className="p-2 hover:bg-gray-800 rounded-lg transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
 
-            <span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
-
-            <div className="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
-              <div className="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
-                <div className="sm:flex sm:items-start">
-                  <div className="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left w-full">
-                    <h3 className="text-lg leading-6 font-medium text-gray-900" id="modal-title">
-                      Reconcile {selectedAccount.account_name}
-                    </h3>
-                    <div className="mt-4">
-                      <p className="text-sm text-gray-500 mb-6">
-                        Enter the current balance from your {selectedAccount.institution} statement to reconcile your account.
-                      </p>
-                      
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-center">
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">
-                            Current Value in NestEgg
-                          </label>
-                          <p className="text-xl font-semibold text-gray-900">
-                            {formatCurrency(parseFloat(selectedAccount.total_value) || 0)}
-                          </p>
-                        </div>
-                        
-                        <div>
-                          <label htmlFor="actual-balance" className="block text-sm font-medium text-gray-700 mb-1">
-                            Actual Value from Statement
-                          </label>
-                          <div className="mt-1 relative rounded-md shadow-sm">
-                            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                              <span className="text-gray-500 sm:text-sm">$</span>
-                            </div>
-                            <input
-                              type="text"
-                              name="actual-balance"
-                              id="actual-balance"
-                              className="focus:ring-blue-500 focus:border-blue-500 block w-full pl-7 pr-12 sm:text-sm border-gray-300 rounded-md bg-blue-50"
-                              value={enteredBalance}
-                              onChange={handleBalanceChange}
-                              placeholder="0.00"
-                              autoFocus
-                            />
-                          </div>
-                        </div>
-                      </div>
-                      
-                      {selectedAccount && enteredBalance && (
-                        <div className="mt-6 bg-blue-50 p-4 rounded-md">
-                          <h4 className="text-sm font-medium text-blue-900 mb-2">
-                            Reconciliation Preview
-                          </h4>
-                          
-                          {(() => {
-                            try {
-                              const parsedBalance = parseFloat(enteredBalance);
-                              const accountValue = parseFloat(selectedAccount.total_value) || 0;
-                              const difference = parsedBalance - accountValue;
-                              const percentDifference = accountValue ? (Math.abs(difference) / accountValue) * 100 : 0;
-                              
-                              // Get variance level based on percentage difference
-                              const varLevel = getVarianceLevel(percentDifference);
-                              const isWithinTolerance = percentDifference <= 0.1;
-                              
-                              return (
-                                <>
-                                  <div className="grid grid-cols-3 gap-4 mt-2">
-                                    <div>
-                                      <p className="text-xs text-gray-500">
-                                        Difference
-                                      </p>
-                                      <p className={`text-sm font-medium ${varLevel.color}`}>
-                                        {formatCurrency(difference)}
-                                      </p>
-                                    </div>
-                                    <div>
-                                      <p className="text-xs text-gray-500">
-                                        % Difference
-                                      </p>
-                                      <p className={`text-sm font-medium ${varLevel.color}`}>
-                                        {percentDifference.toFixed(2)}%
-                                      </p>
-                                    </div>
-                                    <div>
-                                      <p className="text-xs text-gray-500">
-                                        Status
-                                      </p>
-                                      <p className={`text-sm font-medium ${varLevel.color}`}>
-                                        {isWithinTolerance ? 'Will reconcile' : 'Review needed'}
-                                      </p>
-                                    </div>
-                                  </div>
-                                  
-                                  <div className="mt-3 px-3 py-2 rounded-md bg-white border border-gray-200">
-                                    <div className="flex items-center">
-                                      <div className={`w-2 h-2 rounded-full ${varLevel.bgColor} mr-2`}></div>
-                                      <p className="text-xs text-gray-600">
-                                        {varLevel.message} {!isWithinTolerance && '• Position-level review may be needed'}
-                                      </p>
-                                    </div>
-                                  </div>
-                                </>
-                              );
-                            } catch (e) {
-                              return (
-                                <p className="text-sm text-red-600">
-                                  Please enter a valid number
-                                </p>
-                              );
-                            }
-                          })()}
-                        </div>
-                      )}
-                    </div>
+              {/* Position details content */}
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="bg-gray-800 rounded-lg p-4">
+                    <p className="text-sm text-gray-400 mb-1">Total Value</p>
+                    <p className="text-2xl font-bold">
+                      {formatCurrency(selectedPosition.total_value)}
+                    </p>
+                  </div>
+                  <div className="bg-gray-800 rounded-lg p-4">
+                    <p className="text-sm text-gray-400 mb-1">Total Return</p>
+                    <p className={`text-2xl font-bold ${
+                      selectedPosition.total_gain_loss >= 0 ? 'text-green-400' : 'text-red-400'
+                    }`}>
+                      {formatPercentage(selectedPosition.total_gain_loss_pct)}
+                    </p>
                   </div>
                 </div>
+
+                {/* Add more position details as needed */}
               </div>
-              <div className="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
-                <button 
-                  type="button" 
-                  className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-blue-600 text-base font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 sm:ml-3 sm:w-auto sm:text-sm"
-                  onClick={handleReconcileAccount}
-                  disabled={!enteredBalance || isNaN(parseFloat(enteredBalance))}
-                >
-                  Update & Reconcile
-                </button>
-                <button 
-                  type="button" 
-                  className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
-                  onClick={handleCloseReconcileDialog}
-                >
-                  Cancel
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Loading Overlay */}
+      <AnimatePresence>
+        {isLoading && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-gray-950/80 backdrop-blur-sm z-50 flex items-center justify-center"
+          >
+            <motion.div
+              animate={{ 
+                rotate: 360
+              }}
+              transition={{ 
+                duration: 2,
+                repeat: Infinity,
+                ease: "linear"
+              }}
+              className="w-16 h-16 border-4 border-purple-500 border-t-transparent rounded-full"
+            />
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <style jsx>{`
+        @keyframes gradient-x {
+          0%, 100% {
+            transform: translateX(0%);
+          }
+          50% {
+            transform: translateX(-100%);
+          }
+        }
+        .animate-gradient-x {
+          background-size: 200% 200%;
+          animation: gradient-x 15s ease infinite;
+        }
+      `}</style>
     </div>
   );
-};
-
-export default AccountReconciliation;
+}
