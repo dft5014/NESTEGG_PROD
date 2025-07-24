@@ -1,780 +1,971 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import Head from 'next/head';
-import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   DollarSign, Briefcase, Building2, Landmark, 
   ArrowUp, CreditCard, PieChart as PieChartIcon,
-  Shield, BarChart2, LineChart, Plus, RefreshCw,
+  Shield, BarChart2, LineChart, RefreshCw,
   TrendingUp, TrendingDown, Zap, Sparkles, ChevronRight,
   Activity, ArrowUpRight, ArrowDownRight, Eye, EyeOff,
   Wallet, PiggyBank, Target, Award, Info, Calendar,
-  Clock, Star, AlertCircle, ChevronUp, ChevronDown
+  Clock, Star, AlertCircle, ChevronUp, ChevronDown,
+  Layers, Filter, Search, Download, Settings,
+  Home, Building, Coins, DiamondIcon, Globe2,
+  Shield as ShieldIcon, BanknoteIcon, Timer,
+  ChartNoAxesCombined, Gem, TrendingUp as TrendIcon
 } from 'lucide-react';
-import KpiCard from '@/components/ui/KpiCard';
-import AccountTable from '@/components/tables/UnifiedAccountTable';
-import UnifiedAccountTable2 from '@/components/tables/UnifiedAccountTable2'; // New DataStore version
-import { fetchWithAuth } from '@/utils/api';
+import UnifiedAccountTable from '@/components/tables/UnifiedAccountTable';
+import UnifiedAccountTable2 from '@/components/tables/UnifiedAccountTable2';
 import { formatCurrency, formatPercentage } from '@/utils/formatters';
-import { fetchAllAccounts } from '@/utils/apimethods/accountMethods';
-import AddAccountButton from '@/components/AddAccountButton';
+import { useDataStore } from '@/store/DataStore';
+import { useAccounts } from '@/store/hooks/useAccounts';
+import { usePortfolioSummary } from '@/store/hooks/usePortfolioSummary';
 
 export default function AccountsPage() {
-  const [accounts, setAccounts] = useState([]);
-  const [portfolioData, setPortfolioData] = useState(null);
-  const [accountsMetrics, setAccountsMetrics] = useState({});
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState(null);
+  // DataStore hooks
+  const { state, actions } = useDataStore();
+  const { accounts, loading: accountsLoading, error: accountsError, refresh: refreshAccounts } = useAccounts();
+  const { 
+    portfolioData, 
+    topPerformers, 
+    institutionAllocation,
+    accountDiversification,
+    riskMetrics,
+    dividendMetrics,
+    concentrationMetrics,
+    loading: summaryLoading, 
+    error: summaryError,
+    refresh: refreshSummary 
+  } = usePortfolioSummary();
+
+  // Local state
   const [showValues, setShowValues] = useState(true);
-  const [hoveredInstitution, setHoveredInstitution] = useState(null);
-  const [hoveredAccountType, setHoveredAccountType] = useState(null);
-  const [hoveredPosition, setHoveredPosition] = useState(null);
-  const [selectedTimeframe, setSelectedTimeframe] = useState('1m');
+  const [selectedTimeframe, setSelectedTimeframe] = useState('ytd');
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [useDataStore, setUseDataStore] = useState(true);
-  
+  const [hoveredInstitution, setHoveredInstitution] = useState(null);
+  const [selectedView, setSelectedView] = useState('overview');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState('all');
+  const [expandedMetrics, setExpandedMetrics] = useState(false);
+  const [animationComplete, setAnimationComplete] = useState(false);
+
   const router = useRouter();
 
-  // Institution Colors
-  const institutionColors = {
-    'Vanguard': 'bg-red-600',
-    'Fidelity': 'bg-green-600',
-    'Charles Schwab': 'bg-blue-600',
-    'Robinhood': 'bg-emerald-500',
-    'TD Ameritrade': 'bg-gray-700',
-    'Chase': 'bg-blue-700',
-    'Bank of America': 'bg-red-700',
-    'Wells Fargo': 'bg-red-600',
-    'E*TRADE': 'bg-purple-600',
-    'Interactive Brokers': 'bg-orange-600',
-    'Coinbase': 'bg-indigo-600',
-    'Merrill Lynch': 'bg-blue-800',
-    'Ally Invest': 'bg-purple-700',
-    'Other': 'bg-gray-600'
-  };
+  // Unified loading state
+  const isLoading = accountsLoading || summaryLoading;
+  const error = accountsError || summaryError;
 
-  // Account Type Icons and Colors
-  const accountTypeConfig = {
-    'Brokerage': { icon: <LineChart className="w-4 h-4" />, color: 'bg-indigo-600' },
-    'Retirement': { icon: <PiggyBank className="w-4 h-4" />, color: 'bg-emerald-600' },
-    'Savings': { icon: <Wallet className="w-4 h-4" />, color: 'bg-blue-600' },
-    'Checking': { icon: <CreditCard className="w-4 h-4" />, color: 'bg-orange-600' },
-    'IRA': { icon: <Shield className="w-4 h-4" />, color: 'bg-purple-600' },
-    'Roth IRA': { icon: <Award className="w-4 h-4" />, color: 'bg-pink-600' },
-    '401k': { icon: <Target className="w-4 h-4" />, color: 'bg-cyan-600' },
-    '401(k)': { icon: <Target className="w-4 h-4" />, color: 'bg-cyan-600' },
-    '529': { icon: <Briefcase className="w-4 h-4" />, color: 'bg-lime-600' },
-    'HSA': { icon: <Activity className="w-4 h-4" />, color: 'bg-red-600' },
-    'Individual': { icon: <Wallet className="w-4 h-4" />, color: 'bg-blue-600' },
-    'Traditional IRA': { icon: <Shield className="w-4 h-4" />, color: 'bg-purple-600' },
-    'Pension': { icon: <Landmark className="w-4 h-4" />, color: 'bg-indigo-700' },
-    'Custodial': { icon: <Shield className="w-4 h-4" />, color: 'bg-teal-600' },
-    'Safe Deposit': { icon: <Shield className="w-4 h-4" />, color: 'bg-gray-700' },
-    'Other': { icon: <Zap className="w-4 h-4" />, color: 'bg-gray-600' }
-  };
-
-  // Load data on component mount
+  // Animation on mount
   useEffect(() => {
-    loadAllData();
+    setTimeout(() => setAnimationComplete(true), 1000);
   }, []);
 
-  // Load portfolio data when timeframe changes
-  useEffect(() => {
-    if (portfolioData) {
-      loadPortfolioData();
-    }
-  }, [selectedTimeframe]);
-
-  // Function to load all data
-  const loadAllData = async () => {
-    setIsLoading(true);
-    setError(null);
-    try {
-      const [fetchedAccounts, portfolioResponse] = await Promise.all([
-        fetchAllAccounts(),
-        fetchWithAuth(`/portfolio/snapshots?timeframe=${selectedTimeframe}&include_cost_basis=true`)
-      ]);
-
-      const portfolioJson = await portfolioResponse.json();
-      
-      setAccounts(fetchedAccounts);
-      setPortfolioData(portfolioJson);
-      
-      const metrics = calculateAccountMetrics(fetchedAccounts, portfolioJson);
-      setAccountsMetrics(metrics);
-    } catch (error) {
-      console.error("Error loading data:", error);
-      setError(error.message || "Failed to load data");
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  // Function to load portfolio data
-  const loadPortfolioData = async () => {
-    try {
-      const response = await fetchWithAuth(`/portfolio/snapshots?timeframe=${selectedTimeframe}&include_cost_basis=true`);
-      const data = await response.json();
-      setPortfolioData(data);
-      
-      if (accounts.length > 0) {
-        const metrics = calculateAccountMetrics(accounts, data);
-        setAccountsMetrics(metrics);
-      }
-    } catch (error) {
-      console.error("Error loading portfolio data:", error);
-    }
-  };
-
-  // Calculate account metrics
-  const calculateAccountMetrics = (accounts, portfolio) => {
-    const metrics = {
-      totalAccounts: accounts.length,
-      totalValue: portfolio?.current_value || 0,
-      totalCostBasis: portfolio?.total_cost_basis || 0,
-      unrealizedGain: portfolio?.unrealized_gain || 0,
-      unrealizedGainPercent: portfolio?.unrealized_gain_percent || 0,
-      annualIncome: portfolio?.annual_income || 0,
-      yieldPercentage: portfolio?.yield_percentage || 0,
-      largestAccount: null,
-      avgAccountValue: 0,
-      totalInstitutions: new Set(),
-      accountTypes: {},
-      institutionBreakdown: [],
-      accountTypeBreakdown: [],
-      periodChanges: portfolio?.period_changes || {},
-      lastUpdated: portfolio?.last_updated || new Date().toISOString(),
-      topPositions: portfolio?.top_positions || [],
-      assetAllocation: portfolio?.asset_allocation || {},
-      sectorAllocation: portfolio?.sector_allocation || {},
-      accountAllocation: portfolio?.account_allocation || []
+  // Process accounts data with DataStore
+  const processedData = useMemo(() => {
+    if (!accounts || accounts.length === 0) return {
+      liquidAccounts: [],
+      illiquidAccounts: [],
+      byInstitution: {},
+      byCategory: {},
+      metrics: {}
     };
-    
-    // Process account allocation
-    if (portfolio?.account_allocation) {
-      const institutionMap = {};
-      portfolio.account_allocation.forEach(account => {
-        const institution = account.institution || 'Other';
-        if (!institutionMap[institution]) {
-          institutionMap[institution] = {
-            name: institution,
-            value: 0,
-            accounts: 0,
-            percentage: 0,
-            color: institutionColors[institution] || institutionColors.Other
-          };
-        }
-        institutionMap[institution].value += account.value;
-        institutionMap[institution].accounts += 1;
-        institutionMap[institution].percentage += account.percentage;
-      });
-      
-      metrics.institutionBreakdown = Object.values(institutionMap)
-        .sort((a, b) => b.value - a.value);
-      
-      const accountTypeMap = {};
-      portfolio.account_allocation.forEach(account => {
-        const accountType = account.account_type || 'Other';
-        if (!accountTypeMap[accountType]) {
-          accountTypeMap[accountType] = {
-            name: accountType,
-            value: 0,
-            accounts: 0,
-            percentage: 0,
-            config: accountTypeConfig[accountType] || accountTypeConfig.Other
-          };
-        }
-        accountTypeMap[accountType].value += account.value;
-        accountTypeMap[accountType].accounts += 1;
-        accountTypeMap[accountType].percentage += account.percentage;
-      });
-      
-      metrics.accountTypeBreakdown = Object.values(accountTypeMap)
-        .sort((a, b) => b.value - a.value);
-      
-      const largestAcc = portfolio.account_allocation.reduce((max, acc) => 
-        acc.value > (max?.value || 0) ? acc : max, null);
-      
-      if (largestAcc) {
-        metrics.largestAccount = {
-          name: largestAcc.account_name,
-          value: largestAcc.value,
-          institution: largestAcc.institution
+
+    const liquid = accounts.filter(acc => acc.category !== 'other_assets');
+    const illiquid = accounts.filter(acc => acc.category === 'other_assets');
+
+    // Group by institution
+    const byInstitution = accounts.reduce((acc, account) => {
+      const inst = account.institution || 'Other';
+      if (!acc[inst]) {
+        acc[inst] = {
+          accounts: [],
+          totalValue: 0,
+          totalGainLoss: 0,
+          totalGainLossPercent: 0,
+          count: 0,
+          performanceMetrics: {}
         };
       }
-    }
-    
-    metrics.totalInstitutionsCount = metrics.institutionBreakdown.length;
-    metrics.avgAccountValue = metrics.totalValue / (accounts.length || 1);
-    
-    accounts.forEach(account => {
-      metrics.totalInstitutions.add(account.institution || 'Other');
-    });
-    
-    return metrics;
-  };
-
-  const handleRefreshAccounts = async () => {
-    setIsRefreshing(true);
-    try {
-      const response = await fetchWithAuth('/accounts/refresh', {
-        method: 'POST'
+      acc[inst].accounts.push(account);
+      acc[inst].totalValue += account.totalValue || 0;
+      acc[inst].totalGainLoss += account.totalGainLoss || 0;
+      acc[inst].count += 1;
+      
+      // Performance metrics by timeframe
+      ['1d', '1w', '1m', 'ytd', '1y'].forEach(period => {
+        const changeKey = `value${period.toUpperCase()}Change`;
+        const pctKey = `value${period.toUpperCase()}ChangePct`;
+        if (!acc[inst].performanceMetrics[period]) {
+          acc[inst].performanceMetrics[period] = {
+            change: 0,
+            percent: 0
+          };
+        }
+        acc[inst].performanceMetrics[period].change += account[changeKey] || 0;
       });
       
-      if (!response.ok) {
-        throw new Error('Failed to refresh accounts');
+      return acc;
+    }, {});
+
+    // Calculate institution percentages
+    Object.values(byInstitution).forEach(inst => {
+      if (inst.totalValue > 0 && inst.totalGainLoss !== 0) {
+        const costBasis = inst.totalValue - inst.totalGainLoss;
+        inst.totalGainLossPercent = costBasis > 0 ? (inst.totalGainLoss / costBasis) * 100 : 0;
       }
       
-      await loadAllData();
-    } catch (error) {
-      console.error("Error refreshing accounts:", error);
-      setError(error.message || "Failed to refresh accounts");
+      // Calculate weighted performance percentages
+      ['1d', '1w', '1m', 'ytd', '1y'].forEach(period => {
+        const change = inst.performanceMetrics[period].change;
+        const previousValue = inst.totalValue - change;
+        inst.performanceMetrics[period].percent = 
+          previousValue > 0 ? (change / previousValue) * 100 : 0;
+      });
+    });
+
+    // Group by category
+    const byCategory = accounts.reduce((acc, account) => {
+      const cat = account.category || 'other';
+      if (!acc[cat]) {
+        acc[cat] = {
+          accounts: [],
+          totalValue: 0,
+          totalGainLoss: 0,
+          count: 0
+        };
+      }
+      acc[cat].accounts.push(account);
+      acc[cat].totalValue += account.totalValue || 0;
+      acc[cat].totalGainLoss += account.totalGainLoss || 0;
+      acc[cat].count += 1;
+      return acc;
+    }, {});
+
+    // Calculate key metrics
+    const totalValue = accounts.reduce((sum, acc) => sum + (acc.totalValue || 0), 0);
+    const liquidValue = liquid.reduce((sum, acc) => sum + (acc.totalValue || 0), 0);
+    const illiquidValue = illiquid.reduce((sum, acc) => sum + (acc.totalValue || 0), 0);
+    const totalGainLoss = accounts.reduce((sum, acc) => sum + (acc.totalGainLoss || 0), 0);
+    const totalCostBasis = totalValue - totalGainLoss;
+
+    const metrics = {
+      totalAccounts: accounts.length,
+      liquidAccounts: liquid.length,
+      illiquidAccounts: illiquid.length,
+      totalValue,
+      liquidValue,
+      illiquidValue,
+      liquidityRatio: totalValue > 0 ? (liquidValue / totalValue) * 100 : 0,
+      totalGainLoss,
+      totalGainLossPercent: totalCostBasis > 0 ? (totalGainLoss / totalCostBasis) * 100 : 0,
+      largestAccount: accounts.reduce((max, acc) => 
+        acc.totalValue > (max?.totalValue || 0) ? acc : max, null),
+      bestPerformer: accounts.reduce((best, acc) => 
+        (acc.totalGainLossPercent || 0) > (best?.totalGainLossPercent || 0) ? acc : best, null),
+      avgAccountValue: accounts.length > 0 ? totalValue / accounts.length : 0,
+      accountsWithGains: accounts.filter(acc => (acc.totalGainLoss || 0) > 0).length,
+      accountsWithLosses: accounts.filter(acc => (acc.totalGainLoss || 0) < 0).length,
+    };
+
+    return {
+      liquidAccounts: liquid,
+      illiquidAccounts: illiquid,
+      byInstitution,
+      byCategory,
+      metrics
+    };
+  }, [accounts]);
+
+  // Handle refresh
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    try {
+      await Promise.all([
+        refreshAccounts(),
+        refreshSummary()
+      ]);
     } finally {
-      setIsRefreshing(false);
+      setTimeout(() => setIsRefreshing(false), 500);
     }
   };
 
-  const handleAccountAdded = async () => {
-    await loadAllData();
-  };
-
-  const getCurrentPeriodChange = () => {
-    const periodMap = {
-      '1d': accountsMetrics.periodChanges?.['1d'],
-      '1w': accountsMetrics.periodChanges?.['1w'],
-      '1m': accountsMetrics.periodChanges?.['1m'],
-      'ytd': accountsMetrics.periodChanges?.['ytd']
+  // Institution colors with gradient support
+  const getInstitutionStyle = (institution) => {
+    const styles = {
+      'Vanguard': { 
+        gradient: 'from-red-600 to-red-800', 
+        glow: 'shadow-red-500/20',
+        icon: <Building2 className="w-4 h-4" />
+      },
+      'Fidelity': { 
+        gradient: 'from-green-600 to-green-800', 
+        glow: 'shadow-green-500/20',
+        icon: <Shield className="w-4 h-4" />
+      },
+      'Charles Schwab': { 
+        gradient: 'from-blue-600 to-blue-800', 
+        glow: 'shadow-blue-500/20',
+        icon: <Landmark className="w-4 h-4" />
+      },
+      'E*TRADE': { 
+        gradient: 'from-purple-600 to-purple-800', 
+        glow: 'shadow-purple-500/20',
+        icon: <Zap className="w-4 h-4" />
+      },
+      'Robinhood': { 
+        gradient: 'from-emerald-600 to-emerald-800', 
+        glow: 'shadow-emerald-500/20',
+        icon: <Activity className="w-4 h-4" />
+      },
+      'TD Ameritrade': { 
+        gradient: 'from-teal-600 to-teal-800', 
+        glow: 'shadow-teal-500/20',
+        icon: <BarChart2 className="w-4 h-4" />
+      },
+      'Interactive Brokers': { 
+        gradient: 'from-indigo-600 to-indigo-800', 
+        glow: 'shadow-indigo-500/20',
+        icon: <Globe2 className="w-4 h-4" />
+      },
+      'Merrill': { 
+        gradient: 'from-cyan-600 to-cyan-800', 
+        glow: 'shadow-cyan-500/20',
+        icon: <Building className="w-4 h-4" />
+      }
     };
-    return periodMap[selectedTimeframe] || accountsMetrics.periodChanges?.['1m'];
+    return styles[institution] || { 
+      gradient: 'from-gray-600 to-gray-800', 
+      glow: 'shadow-gray-500/20',
+      icon: <Building2 className="w-4 h-4" />
+    };
   };
 
-  const currentPeriodChange = getCurrentPeriodChange();
+  // Category icons and styles
+  const getCategoryStyle = (category) => {
+    const styles = {
+      'brokerage': { icon: <Briefcase className="w-4 h-4" />, color: 'text-blue-400' },
+      'retirement': { icon: <PiggyBank className="w-4 h-4" />, color: 'text-purple-400' },
+      'cash': { icon: <Wallet className="w-4 h-4" />, color: 'text-green-400' },
+      'other_assets': { icon: <Gem className="w-4 h-4" />, color: 'text-yellow-400' }
+    };
+    return styles[category] || { icon: <Layers className="w-4 h-4" />, color: 'text-gray-400' };
+  };
+
+  // Performance color with gradient
+  const getPerformanceColor = (value) => {
+    if (value > 5) return 'from-green-400 to-green-600';
+    if (value > 0) return 'from-green-500 to-green-700';
+    if (value < -5) return 'from-red-400 to-red-600';
+    if (value < 0) return 'from-red-500 to-red-700';
+    return 'from-gray-400 to-gray-600';
+  };
+
+  // Timeframe options
+  const timeframes = [
+    { key: '1d', label: '1D', fullLabel: '1 Day' },
+    { key: '1w', label: '1W', fullLabel: '1 Week' },
+    { key: '1m', label: '1M', fullLabel: '1 Month' },
+    { key: 'ytd', label: 'YTD', fullLabel: 'Year to Date' },
+    { key: '1y', label: '1Y', fullLabel: '1 Year' }
+  ];
+
+  if (error) {
+    return (
+      <div className="min-h-screen bg-gray-950 text-white p-8">
+        <div className="max-w-2xl mx-auto">
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-red-900/20 border border-red-500/30 rounded-xl p-6 text-center"
+          >
+            <AlertCircle className="w-12 h-12 text-red-400 mx-auto mb-4" />
+            <h2 className="text-xl font-bold mb-2">Error Loading Data</h2>
+            <p className="text-gray-400 mb-4">{error}</p>
+            <button
+              onClick={handleRefresh}
+              className="px-4 py-2 bg-red-600 hover:bg-red-700 rounded-lg transition-colors"
+            >
+              Try Again
+            </button>
+          </motion.div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-950 text-white">
       <Head>
-        <title>Accounts Overview: NestEgg Portfolio</title>
-        <meta name="description" content="Manage and view all your financial accounts" />
-        <link rel="icon" href="/favicon.ico" />
+        <title>Accounts - NestEgg</title>
       </Head>
 
-      {/* Subtle background gradient */}
-      <div className="fixed inset-0 z-0">
-        <div className="absolute inset-0 bg-gradient-to-br from-gray-900 via-gray-950 to-black opacity-50" />
-      </div>
+      <div className="relative">
+        {/* Animated Background */}
+        <div className="absolute inset-0 overflow-hidden">
+          <div className="absolute -top-40 -right-40 w-80 h-80 bg-blue-500/10 rounded-full blur-3xl animate-pulse" />
+          <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-purple-500/10 rounded-full blur-3xl animate-pulse delay-1000" />
+        </div>
 
-      <div className="relative z-10 container mx-auto px-4 py-6 max-w-7xl">
-        {/* Header */}
-        <motion.header 
-          className="mb-8"
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5 }}
-        >
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-            <div>
-              <h1 className="text-3xl font-bold mb-1">Accounts Overview: NestEgg Portfolio</h1>
-              <p className="text-gray-400 text-sm flex items-center">
-                <Calendar className="w-3 h-3 mr-1" />
-                Last updated: {accountsMetrics.lastUpdated ? new Date(accountsMetrics.lastUpdated).toLocaleString() : 'Never'}
-              </p>
-            </div>
-            <div className="flex items-center gap-3">
-              <motion.button
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-                onClick={() => setShowValues(!showValues)}
-                className="p-2 bg-gray-800 rounded-lg border border-gray-700 hover:bg-gray-700 transition-colors"
-                title={showValues ? "Hide balances" : "Show balances"}
-              >
-                {showValues ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
-              </motion.button>
-              
-              <motion.button
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-                onClick={handleRefreshAccounts}
-                className="flex items-center px-4 py-2 bg-blue-600 rounded-lg font-medium hover:bg-blue-700 transition-colors"
-                disabled={isRefreshing}
-              >
-                <RefreshCw className={`w-4 h-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
-                Refresh
-              </motion.button>
-              
-              <AddAccountButton 
-                onAccountAdded={handleAccountAdded}
-                className="bg-green-600 hover:bg-green-700"
-              />
-            </div>
-          </div>
-        </motion.header>
+        <div className="relative z-10 p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto">
+          {/* Premium Header */}
+          <motion.header
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mb-8"
+          >
+            <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+              <div className="flex items-center gap-4">
+                <motion.div
+                  whileHover={{ rotate: 360 }}
+                  transition={{ duration: 0.7 }}
+                  className="p-3 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl shadow-lg"
+                >
+                  <Home className="w-8 h-8 text-white" />
+                </motion.div>
+                <div>
+                  <h1 className="text-3xl font-bold bg-gradient-to-r from-white to-gray-300 bg-clip-text text-transparent">
+                    Your Financial Dashboard
+                  </h1>
+                  <p className="text-gray-400 text-sm mt-1">
+                    Track and optimize your net worth across all institutions
+                  </p>
+                </div>
+              </div>
 
-        {/* Portfolio Summary */}
-        <motion.section
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1 }}
-          className="mb-8"
-        >
-          <div className="bg-gray-900/50 backdrop-blur-sm rounded-xl p-6 border border-gray-800">
-            <div className="flex flex-col lg:flex-row justify-between items-start gap-6">
-              <div className="flex-1">
-                <div className="flex items-center justify-between mb-3">
-                  <p className="text-gray-400 text-sm">Total Portfolio Value</p>
-                  <div className="flex items-center gap-2">
-                    {['1d', '1w', '1m', 'ytd'].map((period) => (
-                      <button
-                        key={period}
-                        onClick={() => setSelectedTimeframe(period)}
-                        className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${
-                          selectedTimeframe === period
-                            ? 'bg-gray-700 text-white'
-                            : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
-                        }`}
+              <div className="flex items-center gap-3">
+                {/* Timeframe Selector */}
+                <div className="flex bg-gray-900/50 backdrop-blur-sm rounded-lg p-1 border border-gray-800">
+                  {timeframes.map((tf) => (
+                    <button
+                      key={tf.key}
+                      onClick={() => setSelectedTimeframe(tf.key)}
+                      className={`px-3 py-1.5 text-sm font-medium rounded transition-all ${
+                        selectedTimeframe === tf.key
+                          ? 'bg-blue-600 text-white shadow-lg'
+                          : 'text-gray-400 hover:text-white hover:bg-gray-800'
+                      }`}
+                    >
+                      {tf.label}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Action Buttons */}
+                <motion.button
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() => setShowValues(!showValues)}
+                  className="p-2 bg-gray-800 hover:bg-gray-700 rounded-lg transition-colors group"
+                >
+                  {showValues ? 
+                    <Eye className="w-5 h-5 text-gray-400 group-hover:text-white" /> : 
+                    <EyeOff className="w-5 h-5 text-gray-400 group-hover:text-white" />
+                  }
+                </motion.button>
+
+                <motion.button
+                  whileTap={{ scale: 0.95 }}
+                  onClick={handleRefresh}
+                  disabled={isRefreshing}
+                  className="p-2 bg-gray-800 hover:bg-gray-700 rounded-lg transition-colors group disabled:opacity-50"
+                >
+                  <RefreshCw className={`w-5 h-5 text-gray-400 group-hover:text-white ${
+                    isRefreshing ? 'animate-spin' : ''
+                  }`} />
+                </motion.button>
+              </div>
+            </div>
+          </motion.header>
+
+          {/* Portfolio Value Hero Card */}
+          <motion.section
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ delay: 0.1 }}
+            className="mb-8"
+          >
+            <div className="relative bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 rounded-2xl border border-gray-700 overflow-hidden">
+              {/* Animated gradient background */}
+              <div className="absolute inset-0 opacity-20">
+                <div className="absolute inset-0 bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 animate-gradient-x" />
+              </div>
+
+              <div className="relative z-10 p-6 lg:p-8">
+                <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-6">
+                  {/* Total Value Section */}
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-2">
+                      <DollarSign className="w-5 h-5 text-gray-400" />
+                      <h2 className="text-sm font-medium text-gray-400">Total Net Worth</h2>
+                    </div>
+                    
+                    <div className="mb-4">
+                      <motion.div
+                        initial={{ opacity: 0, x: -20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: 0.2 }}
+                        className="text-4xl lg:text-5xl font-bold"
                       >
-                        {period.toUpperCase()}
-                      </button>
-                    ))}
+                        {showValues ? (
+                          <span className="bg-gradient-to-r from-white to-gray-200 bg-clip-text text-transparent">
+                            {formatCurrency(processedData.metrics.totalValue)}
+                          </span>
+                        ) : (
+                          <span className="text-gray-500">••••••••</span>
+                        )}
+                      </motion.div>
+                      
+                      {/* Gain/Loss Display */}
+                      <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        transition={{ delay: 0.3 }}
+                        className="mt-2 flex items-center gap-3"
+                      >
+                        <div className={`flex items-center gap-1 ${
+                          processedData.metrics.totalGainLoss >= 0 ? 'text-green-400' : 'text-red-400'
+                        }`}>
+                          {processedData.metrics.totalGainLoss >= 0 ? 
+                            <ArrowUpRight className="w-5 h-5" /> : 
+                            <ArrowDownRight className="w-5 h-5" />
+                          }
+                          <span className="font-semibold">
+                            {showValues ? formatCurrency(Math.abs(processedData.metrics.totalGainLoss)) : '••••'}
+                          </span>
+                          <span className="text-sm">
+                            ({formatPercentage(processedData.metrics.totalGainLossPercent)})
+                          </span>
+                        </div>
+                        <span className="text-gray-500 text-sm">All Time</span>
+                      </motion.div>
+                    </div>
+
+                    {/* Performance Metrics */}
+                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                      {portfolioData && timeframes.map((tf, index) => {
+                        const changeKey = `value${tf.key.toUpperCase()}Change`;
+                        const pctKey = `value${tf.key.toUpperCase()}ChangePct`;
+                        const change = portfolioData[changeKey] || 0;
+                        const pct = portfolioData[pctKey] || 0;
+                        
+                        return (
+                          <motion.div
+                            key={tf.key}
+                            initial={{ opacity: 0, y: 10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ delay: 0.3 + index * 0.05 }}
+                            className={`p-3 rounded-lg ${
+                              selectedTimeframe === tf.key 
+                                ? 'bg-gray-700/50 ring-2 ring-blue-500' 
+                                : 'bg-gray-800/50'
+                            }`}
+                          >
+                            <p className="text-xs text-gray-400 mb-1">{tf.fullLabel}</p>
+                            <div className={`font-semibold ${
+                              pct >= 0 ? 'text-green-400' : 'text-red-400'
+                            }`}>
+                              {showValues ? formatPercentage(pct) : '••'}
+                            </div>
+                          </motion.div>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Liquidity & Risk Metrics */}
+                  <div className="flex flex-col gap-4">
+                    {/* Liquidity Gauge */}
+                    <motion.div
+                      initial={{ opacity: 0, scale: 0.8 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      transition={{ delay: 0.4 }}
+                      className="bg-gray-800/50 backdrop-blur-sm rounded-xl p-4 border border-gray-700"
+                    >
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-sm text-gray-400">Liquidity Ratio</span>
+                        <span className="text-sm font-semibold text-blue-400">
+                          {formatPercentage(processedData.metrics.liquidityRatio)}
+                        </span>
+                      </div>
+                      <div className="w-48 h-2 bg-gray-700 rounded-full overflow-hidden">
+                        <motion.div
+                          initial={{ width: 0 }}
+                          animate={{ width: `${processedData.metrics.liquidityRatio}%` }}
+                          transition={{ delay: 0.6, duration: 1 }}
+                          className="h-full bg-gradient-to-r from-blue-500 to-cyan-400"
+                        />
+                      </div>
+                      <div className="mt-2 flex justify-between text-xs">
+                        <span className="text-gray-500">
+                          Liquid: {showValues ? formatCurrency(processedData.metrics.liquidValue) : '••••'}
+                        </span>
+                        <span className="text-gray-500">
+                          Illiquid: {showValues ? formatCurrency(processedData.metrics.illiquidValue) : '••••'}
+                        </span>
+                      </div>
+                    </motion.div>
+
+                    {/* Risk Score */}
+                    {riskMetrics && (
+                      <motion.div
+                        initial={{ opacity: 0, scale: 0.8 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        transition={{ delay: 0.5 }}
+                        className="bg-gray-800/50 backdrop-blur-sm rounded-xl p-4 border border-gray-700"
+                      >
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-sm text-gray-400">Risk Score</span>
+                          <ShieldIcon className="w-4 h-4 text-green-400" />
+                        </div>
+                        <div className="text-2xl font-bold text-green-400">
+                          {riskMetrics.overall_risk_score || 'N/A'}
+                        </div>
+                        <p className="text-xs text-gray-500 mt-1">
+                          {riskMetrics.risk_level || 'Calculating...'}
+                        </p>
+                      </motion.div>
+                    )}
                   </div>
                 </div>
-                
-                <motion.h2 
-                  className="text-4xl font-bold mb-3"
-                  initial={{ scale: 0.9 }}
-                  animate={{ scale: 1 }}
-                  transition={{ type: "spring", stiffness: 200 }}
-                >
-                  {showValues ? formatCurrency(accountsMetrics.totalValue) : '••••••'}
-                </motion.h2>
-                
-                <div className="flex flex-wrap items-center gap-4 mb-4">
-                  <motion.div
-                    initial={{ opacity: 0, x: -20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: 0.2 }}
-                    className="flex items-center gap-2"
-                  >
-                    <div className={`flex items-center ${currentPeriodChange?.percent_change > 0 ? 'text-green-500' : 'text-red-500'}`}>
-                      {currentPeriodChange?.percent_change > 0 ? <ArrowUpRight className="w-4 h-4" /> : <ArrowDownRight className="w-4 h-4" />}
-                      <span className="text-lg font-semibold">
-                        {currentPeriodChange ? formatPercentage(currentPeriodChange.percent_change) : '0.00%'}
-                      </span>
-                    </div>
-                    <span className="text-gray-400 text-sm">{selectedTimeframe}</span>
-                  </motion.div>
-                  
-                  <motion.div
-                    initial={{ opacity: 0, x: -20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: 0.3 }}
-                    className="flex items-center gap-2"
-                  >
-                    <span className="text-gray-400 text-sm">Change:</span>
-                    <span className={`text-lg font-semibold ${currentPeriodChange?.value_change > 0 ? 'text-green-500' : 'text-red-500'}`}>
-                      {showValues && currentPeriodChange ? formatCurrency(currentPeriodChange.value_change) : '••••'}
-                    </span>
-                  </motion.div>
-                </div>
-                
+
+                {/* Quick Stats Bar */}
                 <motion.div
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.4 }}
-                  className="grid grid-cols-2 sm:grid-cols-4 gap-4"
+                  transition={{ delay: 0.6 }}
+                  className="mt-6 grid grid-cols-2 lg:grid-cols-5 gap-3"
                 >
-                  <div>
-                    <p className="text-gray-500 text-xs">Cost Basis</p>
-                    <p className="text-base font-semibold">
-                      {showValues ? formatCurrency(accountsMetrics.totalCostBasis) : '••••'}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-gray-500 text-xs">Unrealized Gain</p>
-                    <p className={`text-base font-semibold ${accountsMetrics.unrealizedGain > 0 ? 'text-green-500' : 'text-red-500'}`}>
-                      {showValues ? formatCurrency(accountsMetrics.unrealizedGain) : '••••'}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-gray-500 text-xs">Annual Income</p>
-                    <p className="text-base font-semibold text-blue-400">
-                      {showValues ? formatCurrency(accountsMetrics.annualIncome) : '••••'}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-gray-500 text-xs">Yield</p>
-                    <p className="text-base font-semibold text-purple-400">
-                      {formatPercentage(accountsMetrics.yieldPercentage)}
-                    </p>
-                  </div>
+                  {[
+                    {
+                      icon: <Wallet className="w-4 h-4 text-blue-400" />,
+                      label: "Accounts",
+                      value: processedData.metrics.totalAccounts
+                    },
+                    {
+                      icon: <TrendingUp className="w-4 h-4 text-green-400" />,
+                      label: "Winners",
+                      value: processedData.metrics.accountsWithGains
+                    },
+                    {
+                      icon: <TrendingDown className="w-4 h-4 text-red-400" />,
+                      label: "Losers",
+                      value: processedData.metrics.accountsWithLosses
+                    },
+                    {
+                      icon: <Target className="w-4 h-4 text-yellow-400" />,
+                      label: "Avg Account",
+                      value: showValues ? formatCurrency(processedData.metrics.avgAccountValue) : '••••'
+                    },
+                    {
+                      icon: <Award className="w-4 h-4 text-purple-400" />,
+                      label: "Best Performer",
+                      value: processedData.metrics.bestPerformer ? 
+                        `${formatPercentage(processedData.metrics.bestPerformer.totalGainLossPercent)}` : 
+                        'N/A'
+                    }
+                  ].map((stat, index) => (
+                    <motion.div 
+                      key={stat.label}
+                      className="bg-gray-800/30 rounded-lg p-3 backdrop-blur-sm"
+                      whileHover={{ scale: 1.02, backgroundColor: 'rgba(55, 65, 81, 0.5)' }}
+                      transition={{ type: "spring", stiffness: 300 }}
+                    >
+                      <div className="flex items-center gap-2 mb-1">
+                        {stat.icon}
+                        <p className="text-xs text-gray-400">{stat.label}</p>
+                      </div>
+                      <p className="text-lg font-bold">{stat.value}</p>
+                    </motion.div>
+                  ))}
                 </motion.div>
               </div>
-              
-              <motion.div 
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ delay: 0.5 }}
-                className="grid grid-cols-2 gap-3"
-              >
-                {[
-                  {
-                    icon: <Briefcase className="w-4 h-4 text-blue-400" />,
-                    label: "Accounts",
-                    value: accountsMetrics.totalAccounts
-                  },
-                  {
-                    icon: <Building2 className="w-4 h-4 text-purple-400" />,
-                    label: "Institutions with Balances",
-                    value: accountsMetrics.totalInstitutionsCount
-                  },
-                  {
-                    icon: <TrendingUp className="w-4 h-4 text-green-400" />,
-                    label: "Avg Value",
-                    value: showValues ? formatCurrency(accountsMetrics.avgAccountValue) : '••••'
-                  },
-                  {
-                    icon: <Award className="w-4 h-4 text-orange-400" />,
-                    label: "Largest",
-                    value: showValues ? formatCurrency(accountsMetrics.largestAccount?.value) : '••••'
-                  }
-                ].map((stat, index) => (
-                  <motion.div 
-                    key={stat.label}
-                    className="bg-gray-800 rounded-lg p-3"
-                    whileHover={{ scale: 1.02 }}
-                    transition={{ type: "spring", stiffness: 300 }}
-                  >
-                    <div className="flex items-center gap-2 mb-1">
-                      {stat.icon}
-                      <p className="text-xs text-gray-400">{stat.label}</p>
-                    </div>
-                    <p className="text-xl font-bold">{stat.value}</p>
-                  </motion.div>
-                ))}
-              </motion.div>
             </div>
-          </div>
-        </motion.section>
+          </motion.section>
 
-        {/* Accounts Table */}
-        <motion.section
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
-          className="mb-8"
-        >
-          <h3 className="text-xl font-bold mb-4 flex items-center">
-            <Wallet className="w-5 h-5 mr-2 text-blue-400" />
-            All Accounts
-          </h3>
-          
-          <div className="bg-gray-900/50 backdrop-blur-sm rounded-xl border border-gray-800 overflow-hidden">
-            <AccountTable title="" onAccountsChanged={handleAccountAdded} />
-          </div>
-        </motion.section>
+          {/* Institution Overview */}
+          <motion.section
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2 }}
+            className="mb-8"
+          >
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-xl font-bold flex items-center gap-2">
+                <Building2 className="w-5 h-5 text-blue-400" />
+                By Institution
+              </h3>
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={() => setExpandedMetrics(!expandedMetrics)}
+                className="text-sm text-gray-400 hover:text-white transition-colors"
+              >
+                {expandedMetrics ? 'Show Less' : 'Show More'}
+              </motion.button>
+            </div>
 
-      {/* Divider */}
-      <div className="border-t border-gray-700 my-8"></div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {Object.entries(processedData.byInstitution).map(([institution, data], index) => {
+                const style = getInstitutionStyle(institution);
+                const isHovered = hoveredInstitution === institution;
+                
+                return (
+                  <motion.div
+                    key={institution}
+                    initial={{ opacity: 0, scale: 0.9 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    transition={{ delay: 0.1 * index }}
+                    onHoverStart={() => setHoveredInstitution(institution)}
+                    onHoverEnd={() => setHoveredInstitution(null)}
+                    className="relative"
+                  >
+                    <motion.div
+                      animate={{
+                        scale: isHovered ? 1.02 : 1,
+                        y: isHovered ? -2 : 0
+                      }}
+                      className={`relative bg-gray-900/50 backdrop-blur-sm rounded-xl border border-gray-800 overflow-hidden ${
+                        isHovered ? `shadow-2xl ${style.glow}` : ''
+                      }`}
+                    >
+                      {/* Gradient Header */}
+                      <div className={`h-1 bg-gradient-to-r ${style.gradient}`} />
+                      
+                      <div className="p-5">
+                        <div className="flex items-start justify-between mb-3">
+                          <div className="flex items-center gap-2">
+                            <div className={`p-2 bg-gradient-to-br ${style.gradient} rounded-lg`}>
+                              {style.icon}
+                            </div>
+                            <div>
+                              <h4 className="font-semibold text-white">{institution}</h4>
+                              <p className="text-xs text-gray-400">
+                                {data.count} {data.count === 1 ? 'account' : 'accounts'}
+                              </p>
+                            </div>
+                          </div>
+                          <motion.button
+                            whileHover={{ scale: 1.1 }}
+                            whileTap={{ scale: 0.9 }}
+                            onClick={() => router.push(`/accounts?institution=${encodeURIComponent(institution)}`)}
+                            className="p-1.5 hover:bg-gray-800 rounded-lg transition-colors"
+                          >
+                            <ChevronRight className="w-4 h-4 text-gray-400" />
+                          </motion.button>
+                        </div>
 
-        {/* DataStore Version */}
-        <div>
-          <div className="mb-4 p-4 bg-green-900/20 border border-green-500/30 rounded-lg">
-            <h2 className="text-xl font-semibold text-green-400 mb-1">
-              New: DataStore Implementation
-            </h2>
-            <p className="text-sm text-gray-400">
-              Uses centralized DataStore with automatic caching and refresh
-            </p>
-          </div>
-          <UnifiedAccountTable2 />
-        </div>
+                        {/* Value Display */}
+                        <div className="mb-3">
+                          <p className="text-2xl font-bold">
+                            {showValues ? formatCurrency(data.totalValue) : '••••••'}
+                          </p>
+                          <div className={`flex items-center gap-1 text-sm ${
+                            data.totalGainLoss >= 0 ? 'text-green-400' : 'text-red-400'
+                          }`}>
+                            {data.totalGainLoss >= 0 ? 
+                              <ArrowUpRight className="w-4 h-4" /> : 
+                              <ArrowDownRight className="w-4 h-4" />
+                            }
+                            <span>
+                              {showValues ? formatCurrency(Math.abs(data.totalGainLoss)) : '••••'}
+                              {' '}({formatPercentage(data.totalGainLossPercent)})
+                            </span>
+                          </div>
+                        </div>
 
-        {/* Analytics Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6 mb-8">
-          {/* Top Positions */}
+                        {/* Performance Bar */}
+                        <AnimatePresence>
+                          {(expandedMetrics || isHovered) && (
+                            <motion.div
+                              initial={{ opacity: 0, height: 0 }}
+                              animate={{ opacity: 1, height: 'auto' }}
+                              exit={{ opacity: 0, height: 0 }}
+                              className="space-y-2"
+                            >
+                              <div className="pt-3 border-t border-gray-800">
+                                <p className="text-xs text-gray-400 mb-2">Performance</p>
+                                <div className="grid grid-cols-3 gap-2">
+                                  {['1d', '1m', 'ytd'].map(period => {
+                                    const perf = data.performanceMetrics[period];
+                                    return (
+                                      <div key={period} className="text-center">
+                                        <p className="text-xs text-gray-500 uppercase">{period}</p>
+                                        <p className={`text-sm font-semibold ${
+                                          perf.percent >= 0 ? 'text-green-400' : 'text-red-400'
+                                        }`}>
+                                          {formatPercentage(perf.percent)}
+                                        </p>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
+                      </div>
+                    </motion.div>
+                  </motion.div>
+                );
+              })}
+            </div>
+          </motion.section>
+
+          {/* Account Categories */}
           <motion.section
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.3 }}
-            className="lg:col-span-2 xl:col-span-1"
+            className="mb-8"
           >
-            <h3 className="text-lg font-bold mb-4 flex items-center">
-              <Star className="w-5 h-5 mr-2 text-yellow-400" />
-              Top Positions
+            <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
+              <Layers className="w-5 h-5 text-purple-400" />
+              By Category
             </h3>
-            
-            <div className="bg-gray-900/50 backdrop-blur-sm rounded-xl p-4 border border-gray-800">
-              <div className="space-y-2">
-                {accountsMetrics.topPositions?.slice(0, 5).map((position, index) => (
+
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+              {Object.entries(processedData.byCategory).map(([category, data], index) => {
+                const style = getCategoryStyle(category);
+                
+                return (
                   <motion.div
-                    key={`${position.ticker}-${index}`}
+                    key={category}
                     initial={{ opacity: 0, x: -20 }}
                     animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: 0.4 + index * 0.05 }}
-                    className="flex items-center justify-between p-3 bg-gray-800/50 rounded-lg hover:bg-gray-800 transition-all cursor-pointer"
-                    onMouseEnter={() => setHoveredPosition(position.ticker)}
-                    onMouseLeave={() => setHoveredPosition(null)}
-                    whileHover={{ x: 4 }}
+                    transition={{ delay: 0.05 * index }}
+                    whileHover={{ scale: 1.05 }}
+                    className="bg-gray-900/50 backdrop-blur-sm rounded-xl p-4 border border-gray-800 cursor-pointer"
+                    onClick={() => setSelectedCategory(category)}
                   >
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <h4 className="font-semibold">{position.ticker}</h4>
-                        <span className="text-xs text-gray-500">{position.quantity.toLocaleString()} shares</span>
+                    <div className="flex items-center justify-between mb-2">
+                      <div className={`flex items-center gap-2 ${style.color}`}>
+                        {style.icon}
+                        <span className="text-sm font-medium capitalize">
+                          {category.replace('_', ' ')}
+                        </span>
                       </div>
-                      <p className="text-xs text-gray-400 truncate">{position.name}</p>
+                      <span className="text-xs text-gray-500">
+                        {data.count}
+                      </span>
                     </div>
-                    <div className="text-right ml-4">
-                      <p className="font-semibold">{showValues ? formatCurrency(position.value) : '••••'}</p>
-                      <p className={`text-xs flex items-center justify-end gap-1 ${position.gain_loss_percent > 0 ? 'text-green-500' : 'text-red-500'}`}>
-                        {position.gain_loss_percent > 0 ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
-                        {formatPercentage(position.gain_loss_percent)}
-                      </p>
-                    </div>
+                    <p className="text-lg font-bold mb-1">
+                      {showValues ? formatCurrency(data.totalValue) : '••••'}
+                    </p>
+                    <p className={`text-sm ${
+                      data.totalGainLoss >= 0 ? 'text-green-400' : 'text-red-400'
+                    }`}>
+                      {data.totalGainLoss >= 0 ? '+' : ''}
+                      {showValues ? formatCurrency(data.totalGainLoss) : '••'}
+                    </p>
                   </motion.div>
-                ))}
-              </div>
+                );
+              })}
             </div>
           </motion.section>
 
-          {/* Institution Distribution */}
-          <motion.section
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.3 }}
-          >
-            <h3 className="text-lg font-bold mb-4 flex items-center">
-              <Building2 className="w-5 h-5 mr-2 text-purple-400" />
-              Institution Distribution
-            </h3>
-            
-            <div className="bg-gray-900/50 backdrop-blur-sm rounded-xl p-4 border border-gray-800">
-              <div className="space-y-3">
-                {accountsMetrics.institutionBreakdown?.slice(0, 5).map((institution, index) => (
-                  <motion.div
-                    key={institution.name}
-                    initial={{ opacity: 0, x: 20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: 0.4 + index * 0.05 }}
-                    onMouseEnter={() => setHoveredInstitution(institution.name)}
-                    onMouseLeave={() => setHoveredInstitution(null)}
-                  >
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="text-sm font-medium">{institution.name}</span>
-                      <span className="text-sm text-gray-400">{formatPercentage(institution.percentage)}</span>
-                    </div>
-                    <div className="relative w-full bg-gray-800 rounded-full h-2 overflow-hidden">
-                      <motion.div
-                        className={`absolute top-0 left-0 h-full ${institution.color}`}
-                        initial={{ width: 0 }}
-                        animate={{ width: `${institution.percentage}%` }}
-                        transition={{ delay: 0.5 + index * 0.05, duration: 0.8, ease: "easeOut" }}
-                      />
-                      {hoveredInstitution === institution.name && (
-                        <motion.div
-                          className="absolute top-0 left-0 h-full bg-white/20"
-                          initial={{ width: 0 }}
-                          animate={{ width: `${institution.percentage}%` }}
-                          transition={{ duration: 0.3 }}
-                        />
-                      )}
-                    </div>
-                    <div className="flex items-center justify-between mt-1">
-                      <span className="text-xs text-gray-500">{institution.accounts} accounts</span>
-                      <span className="text-xs text-gray-400">{showValues ? formatCurrency(institution.value) : '••••'}</span>
-                    </div>
-                  </motion.div>
-                ))}
-              </div>
-            </div>
-          </motion.section>
-
-          {/* Account Types */}
+          {/* Account Tables */}
           <motion.section
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.4 }}
           >
-            <h3 className="text-lg font-bold mb-4 flex items-center">
-              <PieChartIcon className="w-5 h-5 mr-2 text-blue-400" />
-              Account Types
-            </h3>
-            
-            <div className="bg-gray-900/50 backdrop-blur-sm rounded-xl p-4 border border-gray-800">
-              <div className="grid grid-cols-2 gap-3">
-                {accountsMetrics.accountTypeBreakdown?.slice(0, 6).map((type, index) => (
-                  <motion.div
-                    key={type.name}
-                    initial={{ opacity: 0, scale: 0.9 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    transition={{ delay: 0.5 + index * 0.05 }}
-                    className="bg-gray-800/50 rounded-lg p-3 hover:bg-gray-800 transition-all cursor-pointer"
-                    onMouseEnter={() => setHoveredAccountType(type.name)}
-                    onMouseLeave={() => setHoveredAccountType(null)}
-                    whileHover={{ scale: 1.02 }}
-                  >
-                    <div className="flex items-center gap-2 mb-2">
-                      <motion.div 
-                        className={`p-1.5 rounded-md ${type.config.color}`}
-                        animate={{ 
-                          rotate: hoveredAccountType === type.name ? 360 : 0 
-                        }}
-                        transition={{ duration: 0.5 }}
-                      >
-                        {type.config.icon}
-                      </motion.div>
-                      <span className="text-xs font-medium truncate">{type.name}</span>
-                    </div>
-                    <p className="text-sm font-bold">{formatPercentage(type.percentage)}</p>
-                    <p className="text-xs text-gray-400">{type.accounts} accounts</p>
-                  </motion.div>
-                ))}
+            <div className="mb-6 flex flex-col sm:flex-row gap-4">
+              {/* Search Bar */}
+              <div className="flex-1 relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+                <input
+                  type="text"
+                  placeholder="Search accounts..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full pl-10 pr-4 py-2 bg-gray-900/50 backdrop-blur-sm border border-gray-800 rounded-lg focus:outline-none focus:border-blue-500 transition-colors"
+                />
+              </div>
+
+              {/* View Toggles */}
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setSelectedView('overview')}
+                  className={`px-4 py-2 rounded-lg font-medium transition-all ${
+                    selectedView === 'overview'
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-gray-800 text-gray-400 hover:text-white'
+                  }`}
+                >
+                  Overview
+                </button>
+                <button
+                  onClick={() => setSelectedView('detailed')}
+                  className={`px-4 py-2 rounded-lg font-medium transition-all ${
+                    selectedView === 'detailed'
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-gray-800 text-gray-400 hover:text-white'
+                  }`}
+                >
+                  Detailed
+                </button>
               </div>
             </div>
-          </motion.section>
-        </div>
 
-        {/* Additional Analytics Row */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-          {/* Asset Allocation */}
-          <motion.section
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.5 }}
-          >
-            <h3 className="text-lg font-bold mb-4 flex items-center">
-              <BarChart2 className="w-5 h-5 mr-2 text-green-400" />
-              Asset Allocation
-            </h3>
-            
-            <div className="bg-gray-900/50 backdrop-blur-sm rounded-xl p-4 border border-gray-800">
-              <div className="space-y-3">
-                {Object.entries(accountsMetrics.assetAllocation || {}).map(([type, data], index) => (
-                  <motion.div 
-                    key={type}
-                    initial={{ opacity: 0, x: -20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: 0.6 + index * 0.05 }}
-                  >
-                    <div className="flex justify-between items-center mb-1">
-                      <span className="text-sm capitalize">{type}</span>
-                      <span className="text-sm text-gray-400">{formatPercentage(data.percentage)}</span>
-                    </div>
-                    <div className="relative w-full bg-gray-800 rounded-full h-1.5 overflow-hidden">
-                      <motion.div
-                        className="absolute top-0 left-0 h-full bg-gradient-to-r from-blue-500 to-purple-500"
-                        initial={{ width: 0 }}
-                        animate={{ width: `${data.percentage}%` }}
-                        transition={{ delay: 0.7 + index * 0.05, duration: 0.8 }}
-                      />
-                    </div>
-                    <p className="text-xs text-gray-500 mt-1">
-                      {showValues ? formatCurrency(data.value) : '••••'}
-                    </p>
-                  </motion.div>
-                ))}
-              </div>
+            {/* Tables */}
+            <div className="space-y-8">
+              {selectedView === 'overview' && (
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  className="bg-gray-900/50 backdrop-blur-sm rounded-xl border border-gray-800 overflow-hidden"
+                >
+                  <UnifiedAccountTable />
+                </motion.div>
+              )}
+
+              {selectedView === 'detailed' && (
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  className="bg-gray-900/50 backdrop-blur-sm rounded-xl border border-gray-800 overflow-hidden"
+                >
+                  <UnifiedAccountTable2 />
+                </motion.div>
+              )}
             </div>
           </motion.section>
 
-          {/* Sector Allocation */}
-          <motion.section
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.5 }}
-          >
-            <h3 className="text-lg font-bold mb-4 flex items-center">
-              <Activity className="w-5 h-5 mr-2 text-orange-400" />
-              Top Sectors
-            </h3>
-            
-            <div className="bg-gray-900/50 backdrop-blur-sm rounded-xl p-4 border border-gray-800">
-              <div className="space-y-3">
-                {Object.entries(accountsMetrics.sectorAllocation || {}).slice(0, 5).map(([sector, data], index) => (
-                  <motion.div 
-                    key={sector}
-                    initial={{ opacity: 0, x: 20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: 0.6 + index * 0.05 }}
-                  >
-                    <div className="flex justify-between items-center mb-1">
-                      <span className="text-sm capitalize">{sector}</span>
-                      <span className="text-sm text-gray-400">{formatPercentage(data.percentage)}</span>
-                    </div>
-                    <div className="relative w-full bg-gray-800 rounded-full h-1.5 overflow-hidden">
-                      <motion.div
-                        className="absolute top-0 left-0 h-full bg-gradient-to-r from-green-500 to-emerald-500"
-                        initial={{ width: 0 }}
-                        animate={{ width: `${data.percentage}%` }}
-                        transition={{ delay: 0.7 + index * 0.05, duration: 0.8 }}
-                      />
-                    </div>
-                    <p className="text-xs text-gray-500 mt-1">
-                      {showValues ? formatCurrency(data.value) : '••••'}
-                    </p>
-                  </motion.div>
-                ))}
-              </div>
-            </div>
-          </motion.section>
-        </div>
-
-        {/* Quick Actions */}
-        <motion.section
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.6 }}
-          className="grid grid-cols-1 sm:grid-cols-2 gap-4"
-        >
-          {[
-            {
-              href: "/portfolio",
-              title: "View Portfolio",
-              description: "Complete financial picture",
-              icon: <PieChartIcon className="w-5 h-5" />,
-              color: "bg-indigo-600 hover:bg-indigo-700"
-            },
-            {
-              href: "/positions",
-              title: "View Positions",
-              description: "Individual investments",
-              icon: <BarChart2 className="w-5 h-5" />,
-              color: "bg-purple-600 hover:bg-purple-700"
-            }
-          ].map((action, index) => (
-            <motion.div
-              key={action.href}
+          {/* Performance Insights */}
+          {topPerformers && topPerformers.length > 0 && (
+            <motion.section
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.7 + index * 0.1 }}
-              whileHover={{ y: -2 }}
+              transition={{ delay: 0.5 }}
+              className="mt-8"
             >
-              <Link href={action.href}>
-                <div className={`relative ${action.color} rounded-xl p-5 cursor-pointer transition-all overflow-hidden group`}>
-                  <div className="relative z-10">
-                    <div className="mb-3">{action.icon}</div>
-                    <h4 className="text-lg font-semibold mb-1">{action.title}</h4>
-                    <p className="text-white/80 text-sm">{action.description}</p>
-                  </div>
-                  
+              <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
+                <TrendIcon className="w-5 h-5 text-green-400" />
+                Top Performers
+              </h3>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {topPerformers.slice(0, 6).map((position, index) => (
                   <motion.div
-                    className="absolute inset-0 bg-white/10"
-                    initial={{ x: "-100%" }}
-                    whileHover={{ x: 0 }}
-                    transition={{ duration: 0.3 }}
-                  />
-                  
-                  <motion.div
-                    className="absolute bottom-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity"
-                    whileHover={{ x: 5 }}
+                    key={position.identifier}
+                    initial={{ opacity: 0, scale: 0.9 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    transition={{ delay: 0.05 * index }}
+                    whileHover={{ y: -2 }}
+                    className="bg-gray-900/50 backdrop-blur-sm rounded-lg p-4 border border-gray-800"
                   >
-                    <ChevronRight className="w-5 h-5" />
+                    <div className="flex items-start justify-between mb-2">
+                      <div>
+                        <h4 className="font-semibold">{position.name}</h4>
+                        <p className="text-xs text-gray-400">{position.identifier}</p>
+                      </div>
+                      <div className={`px-2 py-1 rounded text-xs font-semibold ${
+                        position.gain_loss_percent >= 0 
+                          ? 'bg-green-500/20 text-green-400' 
+                          : 'bg-red-500/20 text-red-400'
+                      }`}>
+                        {formatPercentage(position.gain_loss_percent)}
+                      </div>
+                    </div>
+                    <div className="flex justify-between items-end">
+                      <div>
+                        <p className="text-sm text-gray-400">Value</p>
+                        <p className="font-semibold">
+                          {showValues ? formatCurrency(position.current_value) : '••••'}
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-sm text-gray-400">Gain/Loss</p>
+                        <p className={`font-semibold ${
+                          position.gain_loss >= 0 ? 'text-green-400' : 'text-red-400'
+                        }`}>
+                          {showValues ? formatCurrency(position.gain_loss) : '••'}
+                        </p>
+                      </div>
+                    </div>
                   </motion.div>
-                </div>
-              </Link>
-            </motion.div>
-          ))}
-        </motion.section>
+                ))}
+              </div>
+            </motion.section>
+          )}
+
+          {/* Footer */}
+          <motion.footer
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.8 }}
+            className="mt-12 pt-8 border-t border-gray-800"
+          >
+            <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
+              <div className="flex items-center gap-2 text-sm text-gray-400">
+                <Clock className="w-4 h-4" />
+                <span>
+                  Last updated: {accounts[0]?.lastUpdated ? 
+                    new Date(accounts[0].lastUpdated).toLocaleString() : 
+                    'Never'
+                  }
+                </span>
+              </div>
+              <div className="flex gap-4">
+                <button
+                  onClick={() => router.push('/settings')}
+                  className="text-sm text-gray-400 hover:text-white transition-colors flex items-center gap-1"
+                >
+                  <Settings className="w-4 h-4" />
+                  Settings
+                </button>
+                <button
+                  onClick={() => window.print()}
+                  className="text-sm text-gray-400 hover:text-white transition-colors flex items-center gap-1"
+                >
+                  <Download className="w-4 h-4" />
+                  Export
+                </button>
+              </div>
+            </div>
+          </motion.footer>
+        </div>
       </div>
+
+      {/* Loading Overlay */}
+      <AnimatePresence>
+        {isLoading && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-gray-950/80 backdrop-blur-sm z-50 flex items-center justify-center"
+          >
+            <motion.div
+              animate={{ 
+                scale: [1, 1.2, 1],
+                rotate: [0, 180, 360]
+              }}
+              transition={{ 
+                duration: 2,
+                repeat: Infinity,
+                ease: "easeInOut"
+              }}
+              className="w-16 h-16 border-4 border-blue-500 border-t-transparent rounded-full"
+            />
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <style jsx>{`
+        @keyframes gradient-x {
+          0%, 100% {
+            transform: translateX(0%);
+          }
+          50% {
+            transform: translateX(-100%);
+          }
+        }
+        .animate-gradient-x {
+          background-size: 200% 200%;
+          animation: gradient-x 15s ease infinite;
+        }
+      `}</style>
     </div>
   );
 }
