@@ -232,9 +232,13 @@ const UnifiedGroupPositionsTable2 = ({
   }, [processedPositions]);
 
   // Calculate illiquid assets summary (only other_asset)
-  const illiquidSummary = useMemo(() => {
-    const illiquidPositions = processedPositions.filter(p => p.asset_type === 'other_asset');
-    const totalValue = illiquidPositions.reduce((sum, p) => sum + (p.total_current_value || 0), 0);
+    const illiquidSummary = useMemo(() => {
+    const illiquidPositions = processedPositions.filter(p => 
+        p.asset_type === 'other_asset' || 
+        p.asset_type === 'real_estate' || 
+        p.asset_type === 'vehicle'
+    );
+        const totalValue = illiquidPositions.reduce((sum, p) => sum + (p.total_current_value || 0), 0);
     const totalCost = illiquidPositions.reduce((sum, p) => sum + (p.total_cost_basis || 0), 0);
     const totalGainLoss = illiquidPositions.reduce((sum, p) => sum + (p.total_gain_loss_amt || 0), 0);
     const totalIncome = illiquidPositions.reduce((sum, p) => sum + (p.total_annual_income || 0), 0);
@@ -894,8 +898,9 @@ const UnifiedGroupPositionsTable2 = ({
         <div className="fixed inset-0 z-50 overflow-hidden">
           <div className="absolute inset-0 bg-black bg-opacity-50 transition-opacity" onClick={() => setIsDetailModalOpen(false)} />
           
-          <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-full max-w-5xl max-h-[90vh]">
-            <div className="bg-gray-900 rounded-lg shadow-2xl overflow-hidden flex flex-col h-full">
+          <div className="absolute inset-0 flex items-center justify-center p-4">
+            <div className="w-full max-w-5xl max-h-[85vh] h-full flex flex-col"></div>
+            <div className="bg-gray-900 rounded-lg shadow-2xl flex flex-col h-full overflow-hidden">
               {/* Modal Header */}
               <div className="px-6 py-4 bg-gray-800 border-b border-gray-700 flex-shrink-0">
                 <div className="flex items-start justify-between">
