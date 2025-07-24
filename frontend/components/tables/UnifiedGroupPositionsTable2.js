@@ -96,6 +96,7 @@ const UnifiedGroupPositionsTable2 = ({
   const [holdingTermFilter, setHoldingTermFilter] = useState([]);
   const [showOnlyChanged, setShowOnlyChanged] = useState(false);
   const [accountDetailSort, setAccountDetailSort] = useState({ field: 'value', direction: 'desc' });
+  const [positionDetailSort, setPositionDetailSort] = useState({ field: 'value', direction: 'desc' });
 
   // Get unique asset types
   const assetTypes = useMemo(() => {
@@ -278,10 +279,15 @@ const UnifiedGroupPositionsTable2 = ({
     );
   };
 
-  // Format performance change
+  // Format performance change with proper n.a. handling
   const formatPerformanceChange = (percentChange, valueChange) => {
-    if (percentChange === null || percentChange === undefined || percentChange === 0) {
+    // Check if it's a 100% change which typically means no prior data
+    if (percentChange === 100 || percentChange === null || percentChange === undefined) {
       return <span className="text-gray-500 text-xs">n.a.</span>;
+    }
+    
+    if (percentChange === 0) {
+      return <span className="text-gray-500 text-xs">-</span>;
     }
     
     const isPositive = percentChange > 0;
@@ -402,8 +408,54 @@ const UnifiedGroupPositionsTable2 = ({
     });
   }, [groupedAccountDetails, accountDetailSort]);
 
+  // Sort position details for modal
+  const sortedPositionDetails = useMemo(() => {
+    if (!selectedPosition?.account_details) return [];
+    
+    return [...selectedPosition.account_details].sort((a, b) => {
+      let compareValue = 0;
+      const { field, direction } = positionDetailSort;
+      
+      switch (field) {
+        case 'account':
+          compareValue = (a.account_name || '').localeCompare(b.account_name || '');
+          break;
+        case 'date':
+          compareValue = new Date(a.purchase_date || 0) - new Date(b.purchase_date || 0);
+          break;
+        case 'age':
+          compareValue = (a.position_age_days || 0) - (b.position_age_days || 0);
+          break;
+        case 'quantity':
+          compareValue = (a.quantity || 0) - (b.quantity || 0);
+          break;
+        case 'value':
+          compareValue = (a.value || 0) - (b.value || 0);
+          break;
+        case 'cost':
+          compareValue = (a.cost || 0) - (b.cost || 0);
+          break;
+        case 'gain':
+          compareValue = (a.gain_loss_amt || 0) - (b.gain_loss_amt || 0);
+          break;
+        case 'gain_pct':
+          compareValue = (a.gain_loss_pct || 0) - (b.gain_loss_pct || 0);
+          break;
+        default:
+          compareValue = (a.value || 0) - (b.value || 0);
+      }
+      
+      return direction === 'asc' ? compareValue : -compareValue;
+    });
+  }, [selectedPosition, positionDetailSort]);
+
   // Format performance period data for modal
   const formatPerformancePeriod = (value, pct, label) => {
+    // Check if it's a 100% change which typically means no prior data
+    if (pct === 100 || (pct === null && value !== null && value !== 0)) {
+      return { label, value: 'n.a.', pct: '', color: 'text-gray-500' };
+    }
+    
     const hasValue = value !== null && value !== undefined && value !== 0;
     const hasPct = pct !== null && pct !== undefined && pct !== 0;
     
@@ -591,8 +643,17 @@ const UnifiedGroupPositionsTable2 = ({
                       {getSortIcon('gain_amt')}
                     </button>
                   </th>
-                  <th colSpan="4" className="px-2 py-1.5 text-center text-xs font-medium text-gray-400 uppercase tracking-wider">
-                    Performance
+                  <th className="px-1 py-1.5 text-center text-xs font-medium text-gray-400 uppercase tracking-wider">
+                    1D
+                  </th>
+                  <th className="px-1 py-1.5 text-center text-xs font-medium text-gray-400 uppercase tracking-wider">
+                    1W
+                  </th>
+                  <th className="px-1 py-1.5 text-center text-xs font-medium text-gray-400 uppercase tracking-wider">
+                    1M
+                  </th>
+                  <th className="px-1 py-1.5 text-center text-xs font-medium text-gray-400 uppercase tracking-wider">
+                    YTD
                   </th>
                   <th className="px-2 py-1.5 text-right text-xs font-medium text-gray-400 uppercase tracking-wider">
                     <button onClick={() => handleSort('income')} className="flex items-center space-x-1 hover:text-white ml-auto">
@@ -937,7 +998,7 @@ const UnifiedGroupPositionsTable2 = ({
                 </div>
 
                 {/* Account Summary Table */}
-                <div>
+                <div className="mb-6">
                   <h4 className="text-sm font-medium text-gray-400 mb-3">Account Summary</h4>
                   <div className="bg-gray-800/30 rounded overflow-hidden">
                     <table className="min-w-full divide-y divide-gray-700">
@@ -1066,30 +1127,128 @@ const UnifiedGroupPositionsTable2 = ({
                   </div>
                 </div>
 
-                {/* Historical Data Info */}
-                {selectedPosition.earliest_snapshot_date && (
-                  <div className="mt-6 p-3 bg-gray-800/30 rounded">
-                    <div className="text-xs text-gray-400">Historical Data Available Since</div>
-                    <div className="text-sm">{selectedPosition.earliest_snapshot_date}</div>
-                  </div>
-                )}
-              </div>
-
-              {/* Modal Footer */}
-              <div className="px-6 py-4 bg-gray-800 border-t border-gray-700 flex-shrink-0">
-                <button 
-                  onClick={() => setIsDetailModalOpen(false)}
-                  className="w-full px-4 py-2 bg-blue-600 rounded hover:bg-blue-700 transition-colors text-white font-medium"
-                >
-                  Close
-                </button>
-              </div>
+                {/* Position Details Table */}
+                <div>
+                  <h4 className="text-sm font-medium text-gray-400 mb-3">Position Details</h4>
+                  <div className="bg-gray-800/30 rounded overflow-hidden">
+                    <div className="max-h-64 overflow-y-auto">
+                      <table className="min-w-full divide-y divide-gray-700">
+                        <thead className="bg-gray-900/50 sticky top-0">
+                          <tr>
+                            <th className="px-2 py-2 text-left text-xs font-medium text-gray-400">
+                              <button
+                                onClick={() => setPositionDetailSort({
+                                  field: 'account',
+                                  direction: positionDetailSort.field === 'account' && positionDetailSort.direction === 'desc' ? 'asc' : 'desc'
+                                })}
+                                className="flex items-center space-x-1 hover:text-white"
+                              >
+                                <span>Account</span>
+                                {positionDetailSort.field === 'account' && (
+                                  positionDetailSort.direction === 'desc' ? <ChevronDown className="w-3 h-3" /> : <ChevronUp className="w-3 h-3" />
+                                )}
+                              </button>
+                            </th>
+                            <th className="px-2 py-2 text-left text-xs font-medium text-gray-400">
+                              <button
+                                onClick={() => setPositionDetailSort({
+                                  field: 'date',
+                                  direction: positionDetailSort.field === 'date' && positionDetailSort.direction === 'desc' ? 'asc' : 'desc'
+                                })}
+                                className="flex items-center space-x-1 hover:text-white"
+                              >
+                                <span>Purchase Date</span>
+                                {positionDetailSort.field === 'date' && (
+                                 positionDetailSort.direction === 'desc' ? <ChevronDown className="w-3 h-3" /> : <ChevronUp className="w-3 h-3" />
+                                    )}
+                            </button>
+                        </th>
+                        <th className="px-2 py-2 text-right text-xs font-medium text-gray-400">
+                            <button
+                            onClick={() => setPositionDetailSort({
+                                field: 'gain_pct',
+                                direction: positionDetailSort.field === 'gain_pct' && positionDetailSort.direction === 'desc' ? 'asc' : 'desc'
+                            })}
+                            className="flex items-center space-x-1 hover:text-white ml-auto"
+                            >
+                            <span>%</span>
+                            {positionDetailSort.field === 'gain_pct' && (
+                                positionDetailSort.direction === 'desc' ? <ChevronDown className="w-3 h-3" /> : <ChevronUp className="w-3 h-3" />
+                            )}
+                            </button>
+                        </th>
+                        <th className="px-2 py-2 text-center text-xs font-medium text-gray-400">Term</th>
+                        </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-700">
+                        {sortedPositionDetails.map((detail, idx) => (
+                        <tr key={idx} className="hover:bg-gray-700/30">
+                            <td className="px-2 py-2 text-xs">{detail.account_name || 'Other'}</td>
+                            <td className="px-2 py-2 text-xs">{detail.purchase_date || '-'}</td>
+                            <td className="px-2 py-2 text-xs text-right">{detail.position_age_days || 0}d</td>
+                            <td className="px-2 py-2 text-xs text-right">
+                            {formatNumber(detail.quantity || 0, { maximumFractionDigits: 4 })}
+                            </td>
+                            <td className="px-2 py-2 text-xs text-right">
+                            {formatCurrency(selectedPosition.latest_price_per_unit || 0)}
+                            </td>
+                            <td className="px-2 py-2 text-xs text-right font-medium">
+                            {formatCurrency(detail.value)}
+                            </td>
+                            <td className="px-2 py-2 text-xs text-right text-gray-400">
+                            {formatCurrency(detail.cost / (detail.quantity || 1))}
+                            </td>
+                            <td className="px-2 py-2 text-xs text-right">
+                            <span className={detail.gain_loss_amt >= 0 ? 'text-green-400' : 'text-red-400'}>
+                                {detail.gain_loss_amt >= 0 && '+'}{formatCurrency(detail.gain_loss_amt)}
+                            </span>
+                            </td>
+                            <td className="px-2 py-2 text-xs text-right">
+                            <span className={detail.gain_loss_pct >= 0 ? 'text-green-400' : 'text-red-400'}>
+                                {detail.gain_loss_pct >= 0 && '+'}{formatPercentage(detail.gain_loss_pct)}
+                            </span>
+                            </td>
+                            <td className="px-2 py-2 text-xs text-center">
+                            <span className={`px-1 py-0.5 rounded text-xs ${
+                                detail.holding_term === 'Long Term' 
+                                ? 'bg-green-900/30 text-green-400' 
+                                : 'bg-yellow-900/30 text-yellow-400'
+                            }`}>
+                                {detail.holding_term === 'Long Term' ? 'LT' : 'ST'}
+                            </span>
+                            </td>
+                        </tr>
+                        ))}
+                    </tbody>
+                    </table>
+                </div>
+                </div>
             </div>
-          </div>
+
+            {/* Historical Data Info */}
+            {selectedPosition.earliest_snapshot_date && (
+                <div className="mt-6 p-3 bg-gray-800/30 rounded">
+                <div className="text-xs text-gray-400">Historical Data Available Since</div>
+                <div className="text-sm">{selectedPosition.earliest_snapshot_date}</div>
+                </div>
+            )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="px-6 py-4 bg-gray-800 border-t border-gray-700 flex-shrink-0">
+            <button 
+                onClick={() => setIsDetailModalOpen(false)}
+                className="w-full px-4 py-2 bg-blue-600 rounded hover:bg-blue-700 transition-colors text-white font-medium"
+            >
+                Close
+            </button>
+            </div>
         </div>
-      )}
-    </>
-  );
+        </div>
+    </div>
+    )}
+</>
+);
 };
 
 export default UnifiedGroupPositionsTable2;
