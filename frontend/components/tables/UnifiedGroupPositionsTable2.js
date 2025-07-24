@@ -1060,127 +1060,94 @@ const UnifiedGroupPositionsTable2 = ({
                   <h4 className="text-sm font-medium text-gray-400 mb-3">Account Summary</h4>
                   <div className="bg-gray-800/30 rounded overflow-hidden">
                     <table className="min-w-full divide-y divide-gray-700">
-
-                        <thead className="bg-gray-900/50 sticky top-0">
+                      <thead className="bg-gray-900/50">
                         <tr>
-                            <th className="px-2 py-2 text-left text-xs font-medium text-gray-400">
+                          <th className="px-3 py-2 text-left text-xs font-medium text-gray-400">
                             <button
-                                onClick={() => setPositionDetailSort({
+                              onClick={() => setAccountDetailSort({
                                 field: 'account',
-                                direction: positionDetailSort.field === 'account' && positionDetailSort.direction === 'desc' ? 'asc' : 'desc'
-                                })}
-                                className="flex items-center space-x-1 hover:text-white"
+                                direction: accountDetailSort.field === 'account' && accountDetailSort.direction === 'desc' ? 'asc' : 'desc'
+                              })}
+                              className="flex items-center space-x-1 hover:text-white"
                             >
-                                <span>Account</span>
-                                {positionDetailSort.field === 'account' && (
-                                positionDetailSort.direction === 'desc' ? <ChevronDown className="w-3 h-3" /> : <ChevronUp className="w-3 h-3" />
-                                )}
+                              <span>Account</span>
+                              {accountDetailSort.field === 'account' && (
+                                accountDetailSort.direction === 'desc' ? <ChevronDown className="w-3 h-3" /> : <ChevronUp className="w-3 h-3" />
+                              )}
                             </button>
-                            </th>
-                            <th className="px-2 py-2 text-left text-xs font-medium text-gray-400">
+                          </th>
+                          <th className="px-3 py-2 text-right text-xs font-medium text-gray-400">
                             <button
-                                onClick={() => setPositionDetailSort({
-                                field: 'date',
-                                direction: positionDetailSort.field === 'date' && positionDetailSort.direction === 'desc' ? 'asc' : 'desc'
-                                })}
-                                className="flex items-center space-x-1 hover:text-white"
-                            >
-                                <span>Purchase Date</span>
-                                {positionDetailSort.field === 'date' && (
-                                positionDetailSort.direction === 'desc' ? <ChevronDown className="w-3 h-3" /> : <ChevronUp className="w-3 h-3" />
-                                )}
-                            </button>
-                            </th>
-                            <th className="px-2 py-2 text-right text-xs font-medium text-gray-400">
-                            <button
-                                onClick={() => setPositionDetailSort({
-                                field: 'age',
-                                direction: positionDetailSort.field === 'age' && positionDetailSort.direction === 'desc' ? 'asc' : 'desc'
-                                })}
-                                className="flex items-center space-x-1 hover:text-white ml-auto"
-                            >
-                                <span>Age</span>
-                                {positionDetailSort.field === 'age' && (
-                                positionDetailSort.direction === 'desc' ? <ChevronDown className="w-3 h-3" /> : <ChevronUp className="w-3 h-3" />
-                                )}
-                            </button>
-                            </th>
-                            <th className="px-2 py-2 text-right text-xs font-medium text-gray-400">
-                            <button
-                                onClick={() => setPositionDetailSort({
+                              onClick={() => setAccountDetailSort({
                                 field: 'quantity',
-                                direction: positionDetailSort.field === 'quantity' && positionDetailSort.direction === 'desc' ? 'asc' : 'desc'
-                                })}
-                                className="flex items-center space-x-1 hover:text-white ml-auto"
+                                direction: accountDetailSort.field === 'quantity' && accountDetailSort.direction === 'desc' ? 'asc' : 'desc'
+                              })}
+                              className="flex items-center space-x-1 hover:text-white ml-auto"
                             >
-                                <span>Quantity</span>
-                                {positionDetailSort.field === 'quantity' && (
-                                positionDetailSort.direction === 'desc' ? <ChevronDown className="w-3 h-3" /> : <ChevronUp className="w-3 h-3" />
-                                )}
+                              <span>Shares</span>
+                              {accountDetailSort.field === 'quantity' && (
+                                accountDetailSort.direction === 'desc' ? <ChevronDown className="w-3 h-3" /> : <ChevronUp className="w-3 h-3" />
+                              )}
                             </button>
-                            </th>
-                            <th className="px-2 py-2 text-right text-xs font-medium text-gray-400">
-                            <span className="ml-auto">Current Price</span>
-                            </th>
-                            <th className="px-2 py-2 text-right text-xs font-medium text-gray-400">
+                          </th>
+                          <th className="px-3 py-2 text-right text-xs font-medium text-gray-400">
                             <button
-                                onClick={() => setPositionDetailSort({
+                              onClick={() => setAccountDetailSort({
                                 field: 'value',
-                                direction: positionDetailSort.field === 'value' && positionDetailSort.direction === 'desc' ? 'asc' : 'desc'
-                                })}
-                                className="flex items-center space-x-1 hover:text-white ml-auto"
+                                direction: accountDetailSort.field === 'value' && accountDetailSort.direction === 'desc' ? 'asc' : 'desc'
+                              })}
+                              className="flex items-center space-x-1 hover:text-white ml-auto"
                             >
-                                <span>Value</span>
-                                {positionDetailSort.field === 'value' && (
-                                positionDetailSort.direction === 'desc' ? <ChevronDown className="w-3 h-3" /> : <ChevronUp className="w-3 h-3" />
-                                )}
+                              <span>Market Value</span>
+                              {accountDetailSort.field === 'value' && (
+                                accountDetailSort.direction === 'desc' ? <ChevronDown className="w-3 h-3" /> : <ChevronUp className="w-3 h-3" />
+                              )}
                             </button>
-                            </th>
-                            <th className="px-2 py-2 text-right text-xs font-medium text-gray-400">
+                          </th>
+                          <th className="px-3 py-2 text-right text-xs font-medium text-gray-400">
                             <button
-                                onClick={() => setPositionDetailSort({
+                              onClick={() => setAccountDetailSort({
                                 field: 'cost',
-                                direction: positionDetailSort.field === 'cost' && positionDetailSort.direction === 'desc' ? 'asc' : 'desc'
-                                })}
-                                className="flex items-center space-x-1 hover:text-white ml-auto"
+                                direction: accountDetailSort.field === 'cost' && accountDetailSort.direction === 'desc' ? 'asc' : 'desc'
+                              })}
+                              className="flex items-center space-x-1 hover:text-white ml-auto"
                             >
-                                <span>Avg Cost</span>
-                                {positionDetailSort.field === 'cost' && (
-                                positionDetailSort.direction === 'desc' ? <ChevronDown className="w-3 h-3" /> : <ChevronUp className="w-3 h-3" />
-                                )}
+                              <span>Cost Basis</span>
+                              {accountDetailSort.field === 'cost' && (
+                                accountDetailSort.direction === 'desc' ? <ChevronDown className="w-3 h-3" /> : <ChevronUp className="w-3 h-3" />
+                              )}
                             </button>
-                            </th>
-                            <th className="px-2 py-2 text-right text-xs font-medium text-gray-400">
+                          </th>
+                          <th className="px-3 py-2 text-right text-xs font-medium text-gray-400">
                             <button
-                                onClick={() => setPositionDetailSort({
+                              onClick={() => setAccountDetailSort({
                                 field: 'gain',
-                                direction: positionDetailSort.field === 'gain' && positionDetailSort.direction === 'desc' ? 'asc' : 'desc'
-                                })}
-                                className="flex items-center space-x-1 hover:text-white ml-auto"
+                                direction: accountDetailSort.field === 'gain' && accountDetailSort.direction === 'desc' ? 'asc' : 'desc'
+                              })}
+                              className="flex items-center space-x-1 hover:text-white ml-auto"
                             >
-                                <span>Gain/Loss</span>
-                                {positionDetailSort.field === 'gain' && (
-                                positionDetailSort.direction === 'desc' ? <ChevronDown className="w-3 h-3" /> : <ChevronUp className="w-3 h-3" />
-                                )}
+                              <span>Gain/Loss</span>
+                              {accountDetailSort.field === 'gain' && (
+                                accountDetailSort.direction === 'desc' ? <ChevronDown className="w-3 h-3" /> : <ChevronUp className="w-3 h-3" />
+                              )}
                             </button>
-                            </th>
-                            <th className="px-2 py-2 text-right text-xs font-medium text-gray-400">
+                          </th>
+                          <th className="px-3 py-2 text-right text-xs font-medium text-gray-400">
                             <button
-                                onClick={() => setPositionDetailSort({
+                              onClick={() => setAccountDetailSort({
                                 field: 'gain_pct',
-                                direction: positionDetailSort.field === 'gain_pct' && positionDetailSort.direction === 'desc' ? 'asc' : 'desc'
-                                })}
-                                className="flex items-center space-x-1 hover:text-white ml-auto"
+                                direction: accountDetailSort.field === 'gain_pct' && accountDetailSort.direction === 'desc' ? 'asc' : 'desc'
+                              })}
+                              className="flex items-center space-x-1 hover:text-white ml-auto"
                             >
-                                <span>%</span>
-                                {positionDetailSort.field === 'gain_pct' && (
-                                positionDetailSort.direction === 'desc' ? <ChevronDown className="w-3 h-3" /> : <ChevronUp className="w-3 h-3" />
-                                )}
+                              <span>%</span>
+                              {accountDetailSort.field === 'gain_pct' && (
+                                accountDetailSort.direction === 'desc' ? <ChevronDown className="w-3 h-3" /> : <ChevronUp className="w-3 h-3" />
+                              )}
                             </button>
-                            </th>
-                            <th className="px-2 py-2 text-center text-xs font-medium text-gray-400">Term</th>
+                          </th>
                         </tr>
-                        </thead>
+                      </thead>
                       <tbody className="divide-y divide-gray-700">
                         {sortedAccountDetails.map((account, idx) => (
                           <tr key={idx} className="hover:bg-gray-700/30">
@@ -1224,53 +1191,94 @@ const UnifiedGroupPositionsTable2 = ({
                   <div className="bg-gray-800/30 rounded overflow-hidden">
                     <div className="max-h-64 overflow-y-auto">
                       <table className="min-w-full divide-y divide-gray-700">
-                        <thead className="bg-gray-900/50 sticky top-0">
-                          <tr>
-                            <th className="px-2 py-2 text-left text-xs font-medium text-gray-400">
-                              <button
-                                onClick={() => setPositionDetailSort({
-                                  field: 'account',
-                                  direction: positionDetailSort.field === 'account' && positionDetailSort.direction === 'desc' ? 'asc' : 'desc'
-                                })}
-                                className="flex items-center space-x-1 hover:text-white"
-                              >
-                                <span>Account</span>
-                                {positionDetailSort.field === 'account' && (
-                                  positionDetailSort.direction === 'desc' ? <ChevronDown className="w-3 h-3" /> : <ChevronUp className="w-3 h-3" />
-                                )}
-                              </button>
-                            </th>
-                            <th className="px-2 py-2 text-left text-xs font-medium text-gray-400">
-                              <button
-                                onClick={() => setPositionDetailSort({
-                                  field: 'date',
-                                  direction: positionDetailSort.field === 'date' && positionDetailSort.direction === 'desc' ? 'asc' : 'desc'
-                                })}
-                                className="flex items-center space-x-1 hover:text-white"
-                              >
-                                <span>Purchase Date</span>
-                                {positionDetailSort.field === 'date' && (
-                                 positionDetailSort.direction === 'desc' ? <ChevronDown className="w-3 h-3" /> : <ChevronUp className="w-3 h-3" />
-                                    )}
-                            </button>
-                        </th>
-                        <th className="px-2 py-2 text-right text-xs font-medium text-gray-400">
+                        <thead className="bg-gray-900/50">
+                        <tr>
+                            <th className="px-3 py-2 text-left text-xs font-medium text-gray-400">
                             <button
-                            onClick={() => setPositionDetailSort({
-                                field: 'gain_pct',
-                                direction: positionDetailSort.field === 'gain_pct' && positionDetailSort.direction === 'desc' ? 'asc' : 'desc'
-                            })}
-                            className="flex items-center space-x-1 hover:text-white ml-auto"
+                                onClick={() => setAccountDetailSort({
+                                field: 'account',
+                                direction: accountDetailSort.field === 'account' && accountDetailSort.direction === 'desc' ? 'asc' : 'desc'
+                                })}
+                                className="flex items-center space-x-1 hover:text-white"
                             >
-                            <span>%</span>
-                            {positionDetailSort.field === 'gain_pct' && (
-                                positionDetailSort.direction === 'desc' ? <ChevronDown className="w-3 h-3" /> : <ChevronUp className="w-3 h-3" />
-                            )}
+                                <span>Account</span>
+                                {accountDetailSort.field === 'account' && (
+                                accountDetailSort.direction === 'desc' ? <ChevronDown className="w-3 h-3" /> : <ChevronUp className="w-3 h-3" />
+                                )}
                             </button>
-                        </th>
-                        <th className="px-2 py-2 text-center text-xs font-medium text-gray-400">Term</th>
+                            </th>
+                            <th className="px-3 py-2 text-right text-xs font-medium text-gray-400">
+                            <button
+                                onClick={() => setAccountDetailSort({
+                                field: 'quantity',
+                                direction: accountDetailSort.field === 'quantity' && accountDetailSort.direction === 'desc' ? 'asc' : 'desc'
+                                })}
+                                className="flex items-center space-x-1 hover:text-white ml-auto"
+                            >
+                                <span>Shares</span>
+                                {accountDetailSort.field === 'quantity' && (
+                                accountDetailSort.direction === 'desc' ? <ChevronDown className="w-3 h-3" /> : <ChevronUp className="w-3 h-3" />
+                                )}
+                            </button>
+                            </th>
+                            <th className="px-3 py-2 text-right text-xs font-medium text-gray-400">
+                            <button
+                                onClick={() => setAccountDetailSort({
+                                field: 'value',
+                                direction: accountDetailSort.field === 'value' && accountDetailSort.direction === 'desc' ? 'asc' : 'desc'
+                                })}
+                                className="flex items-center space-x-1 hover:text-white ml-auto"
+                            >
+                                <span>Market Value</span>
+                                {accountDetailSort.field === 'value' && (
+                                accountDetailSort.direction === 'desc' ? <ChevronDown className="w-3 h-3" /> : <ChevronUp className="w-3 h-3" />
+                                )}
+                            </button>
+                            </th>
+                            <th className="px-3 py-2 text-right text-xs font-medium text-gray-400">
+                            <button
+                                onClick={() => setAccountDetailSort({
+                                field: 'cost',
+                                direction: accountDetailSort.field === 'cost' && accountDetailSort.direction === 'desc' ? 'asc' : 'desc'
+                                })}
+                                className="flex items-center space-x-1 hover:text-white ml-auto"
+                            >
+                                <span>Cost Basis</span>
+                                {accountDetailSort.field === 'cost' && (
+                                accountDetailSort.direction === 'desc' ? <ChevronDown className="w-3 h-3" /> : <ChevronUp className="w-3 h-3" />
+                                )}
+                            </button>
+                            </th>
+                            <th className="px-3 py-2 text-right text-xs font-medium text-gray-400">
+                            <button
+                                onClick={() => setAccountDetailSort({
+                                field: 'gain',
+                                direction: accountDetailSort.field === 'gain' && accountDetailSort.direction === 'desc' ? 'asc' : 'desc'
+                                })}
+                                className="flex items-center space-x-1 hover:text-white ml-auto"
+                            >
+                                <span>Gain/Loss</span>
+                                {accountDetailSort.field === 'gain' && (
+                                accountDetailSort.direction === 'desc' ? <ChevronDown className="w-3 h-3" /> : <ChevronUp className="w-3 h-3" />
+                                )}
+                            </button>
+                            </th>
+                            <th className="px-3 py-2 text-right text-xs font-medium text-gray-400">
+                            <button
+                                onClick={() => setAccountDetailSort({
+                                field: 'gain_pct',
+                                direction: accountDetailSort.field === 'gain_pct' && accountDetailSort.direction === 'desc' ? 'asc' : 'desc'
+                                })}
+                                className="flex items-center space-x-1 hover:text-white ml-auto"
+                            >
+                                <span>%</span>
+                                {accountDetailSort.field === 'gain_pct' && (
+                                accountDetailSort.direction === 'desc' ? <ChevronDown className="w-3 h-3" /> : <ChevronUp className="w-3 h-3" />
+                                )}
+                            </button>
+                            </th>
                         </tr>
-                    </thead>
+                        </thead>
                     <tbody className="divide-y divide-gray-700">
                         {sortedPositionDetails.map((detail, idx) => (
                         <tr key={idx} className="hover:bg-gray-700/30">
