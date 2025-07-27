@@ -1058,7 +1058,7 @@ const UnifiedGroupPositionsTable2 = ({
                     ) : hasHistoryData ? (
                         <div className="bg-gray-800/50 p-4 rounded" style={{ height: '250px' }}>
                         <ResponsiveContainer width="100%" height="100%">
-                            <ComposedChart 
+                            <LineChart 
                             data={positionHistory.map((h, index) => ({
                                 ...h,
                                 gainLoss: h.value - h.costBasis,
@@ -1082,15 +1082,7 @@ const UnifiedGroupPositionsTable2 = ({
                             label={{ value: 'Value ($)', angle: -90, position: 'insideLeft', style: { fill: '#9CA3AF', fontSize: 12 } }}
                             domain={['auto', 'auto']}
                             />
-                            <YAxis 
-                            yAxisId="right"
-                            orientation="right"
-                            stroke="#9CA3AF" 
-                            fontSize={10} 
-                            tickFormatter={(value) => `$${(value/1000).toFixed(0)}k`}
-                            label={{ value: 'Gain/Loss ($)', angle: 90, position: 'insideRight', style: { fill: '#9CA3AF', fontSize: 12 } }}
-                            domain={['auto', 'auto']}
-                            />
+
                             <Tooltip 
                                 contentStyle={{ backgroundColor: '#1F2937', border: '1px solid #374151' }}
                                 formatter={(value, name) => {
@@ -1168,17 +1160,8 @@ const UnifiedGroupPositionsTable2 = ({
                                 name="Cost Basis"
                                 dot={false}
                             />
-                            <Bar 
-                            yAxisId="right"
-                            dataKey="gainLoss" 
-                            name="Gain/Loss"
-                            fill={(data) => data.gainLoss >= 0 ? '#10B981' : '#EF4444'}
-                            >
-                            {positionHistory.map((entry, index) => (
-                                <Cell key={`cell-${index}`} fill={entry.gainLoss >= 0 ? '#10B981' : '#EF4444'} />
-                            ))}
-                            </Bar>
-                            </ComposedChart>
+
+                            </LineChart>
                         </ResponsiveContainer>
                         </div>
                     ) : historyError ? (
@@ -1203,7 +1186,77 @@ const UnifiedGroupPositionsTable2 = ({
                     )}
                     </div>
 
-                    {/* Chart 2: Quantity Over Time */}
+                    {/* Chart 2: Gain/Loss Over Time */}
+                        {hasHistoryData && (
+                        <div>
+                            <h4 className="text-sm font-medium text-gray-400 mb-3">Gain/Loss Over Time</h4>
+                            <div className="bg-gray-800/50 p-4 rounded" style={{ height: '200px' }}>
+                            <ResponsiveContainer width="100%" height="100%">
+                                <BarChart 
+                                data={positionHistory.map((h) => ({
+                                    date: h.date,
+                                    gainLoss: h.value - h.costBasis,
+                                    gainLossPct: h.gainLossPct
+                                }))}
+                                margin={{ top: 5, right: 5, left: 5, bottom: 5 }}
+                                >
+                                <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                                <XAxis 
+                                    dataKey="date" 
+                                    stroke="#9CA3AF" 
+                                    fontSize={10}
+                                    tickFormatter={(date) => new Date(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                                />
+                                <YAxis 
+                                    stroke="#9CA3AF" 
+                                    fontSize={10} 
+                                    tickFormatter={(value) => `$${(value/1000).toFixed(0)}k`}
+                                    label={{ value: 'Gain/Loss ($)', angle: -90, position: 'insideLeft', style: { fill: '#9CA3AF', fontSize: 12 } }}
+                                    domain={['auto', 'auto']}
+                                />
+                                <Tooltip 
+                                    contentStyle={{ backgroundColor: '#1F2937', border: '1px solid #374151' }}
+                                    content={({ active, payload, label }) => {
+                                    if (active && payload && payload.length) {
+                                        const data = payload[0].payload;
+                                        return (
+                                        <div className="bg-gray-900 p-3 rounded border border-gray-700">
+                                            <p className="text-sm font-medium mb-2">{new Date(label).toLocaleDateString()}</p>
+                                            <div className="space-y-1 text-xs">
+                                            <div className="flex justify-between space-x-4">
+                                                <span className="text-gray-400">Gain/Loss:</span>
+                                                <span className={`font-medium ${data.gainLoss >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                                {data.gainLoss >= 0 ? '+' : ''}{formatCurrency(data.gainLoss)}
+                                                </span>
+                                            </div>
+                                            <div className="flex justify-between space-x-4">
+                                                <span className="text-gray-400">Percentage:</span>
+                                                <span className={`font-medium ${data.gainLoss >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                                {data.gainLossPct >= 0 ? '+' : ''}{data.gainLossPct.toFixed(2)}%
+                                                </span>
+                                            </div>
+                                            </div>
+                                        </div>
+                                        );
+                                    }
+                                    return null;
+                                    }}
+                                />
+                                <Bar 
+                                    dataKey="gainLoss" 
+                                    name="Gain/Loss"
+                                >
+                                    {positionHistory.map((entry, index) => (
+                                    <Cell key={`cell-${index}`} fill={(entry.value - entry.costBasis) >= 0 ? '#10B981' : '#EF4444'} />
+                                    ))}
+                                </Bar>
+                                </BarChart>
+                            </ResponsiveContainer>
+                            </div>
+                        </div>
+                        )}
+
+                        {/* Chart 3: Quantity Over Time */}
                     {hasHistoryData && (
                     <div>
                         <h4 className="text-sm font-medium text-gray-400 mb-3">Quantity Over Time</h4>
