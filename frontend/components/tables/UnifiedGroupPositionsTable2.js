@@ -1062,6 +1062,7 @@ const UnifiedGroupPositionsTable2 = ({
                             data={positionHistory.map((h, index) => ({
                                 ...h,
                                 gainLoss: h.value - h.costBasis,
+                                gainLossPct: h.gainLossPct * 100,
                                 previousQuantity: index > 0 ? positionHistory[index - 1].quantity : h.quantity,
                                 quantityChange: index > 0 ? h.quantity - positionHistory[index - 1].quantity : 0
                             }))}
