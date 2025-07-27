@@ -1227,6 +1227,238 @@ const UnifiedGroupPositionsTable2 = ({
                 )}
 
 
+                {/* Position Charts */}
+                {selectedPosition && (
+                <div className="space-y-6 mb-6">
+                    {/* Chart 1: Value, Cost Basis, and Gain/Loss */}
+                    <div>
+                    <h4 className="text-sm font-medium text-gray-400 mb-3">Value vs Cost Basis Over Time</h4>
+                    {historyLoading ? (
+                        <div className="bg-gray-800/50 p-4 rounded h-48 flex items-center justify-center">
+                        <Loader className="w-6 h-6 animate-spin text-blue-500" />
+                        </div>
+                    ) : hasHistoryData ? (
+                        <div className="bg-gray-800/50 p-4 rounded" style={{ height: '250px' }}>
+                        <ResponsiveContainer width="100%" height="100%">
+                            <LineChart 
+                            data={positionHistory.map((h, index) => ({
+                                ...h,
+                                gainLoss: h.value - h.costBasis,
+                                previousQuantity: index > 0 ? positionHistory[index - 1].quantity : h.quantity,
+                                quantityChange: index > 0 ? h.quantity - positionHistory[index - 1].quantity : 0
+                            }))}
+                            margin={{ top: 5, right: 5, left: 5, bottom: 5 }}
+                            >
+                            <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                            <XAxis 
+                                dataKey="date" 
+                                stroke="#9CA3AF" 
+                                fontSize={10}
+                                tickFormatter={(date) => new Date(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                            />
+                            <YAxis 
+                                yAxisId="left"
+                                stroke="#9CA3AF" 
+                                fontSize={10} 
+                                tickFormatter={(value) => `$${(value/1000).toFixed(0)}k`}
+                            />
+                            <YAxis 
+                                yAxisId="right"
+                                orientation="right"
+                                stroke="#9CA3AF" 
+                                fontSize={10} 
+                                tickFormatter={(value) => `$${(value/1000).toFixed(0)}k`}
+                            />
+                            <Tooltip 
+                                contentStyle={{ backgroundColor: '#1F2937', border: '1px solid #374151' }}
+                                formatter={(value, name) => {
+                                if (name === 'Gain/Loss') {
+                                    const formatted = formatCurrency(Math.abs(value));
+                                    return value >= 0 ? `+${formatted}` : `-${formatted}`;
+                                }
+                                return formatCurrency(value);
+                                }}
+                                labelFormatter={(date) => new Date(date).toLocaleDateString()}
+                                content={({ active, payload, label }) => {
+                                if (active && payload && payload.length) {
+                                    const data = payload[0].payload;
+                                    return (
+                                    <div className="bg-gray-900 p-3 rounded border border-gray-700">
+                                        <p className="text-sm font-medium mb-2">{new Date(label).toLocaleDateString()}</p>
+                                        <div className="space-y-1 text-xs">
+                                        <div className="flex justify-between space-x-4">
+                                            <span className="text-gray-400">Market Value:</span>
+                                            <span className="font-medium">{formatCurrency(data.value)}</span>
+                                        </div>
+                                        <div className="flex justify-between space-x-4">
+                                            <span className="text-gray-400">Cost Basis:</span>
+                                            <span className="font-medium">{formatCurrency(data.costBasis)}</span>
+                                        </div>
+                                        <div className="flex justify-between space-x-4">
+                                            <span className="text-gray-400">Gain/Loss:</span>
+                                            <span className={`font-medium ${data.gainLoss >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                            {data.gainLoss >= 0 ? '+' : ''}{formatCurrency(data.gainLoss)}
+                                            {' '}({data.gainLossPct >= 0 ? '+' : ''}{data.gainLossPct.toFixed(2)}%)
+                                            </span>
+                                        </div>
+                                        <div className="flex justify-between space-x-4 pt-1 border-t border-gray-700">
+                                            <span className="text-gray-400">Quantity:</span>
+                                            <span className="font-medium">
+                                            {formatNumber(data.quantity, { maximumFractionDigits: 4 })}
+                                            {data.quantityChange !== 0 && (
+                                                <span className={`ml-1 text-xs ${data.quantityChange > 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                                ({data.quantityChange > 0 ? '+' : ''}{formatNumber(data.quantityChange, { maximumFractionDigits: 4 })})
+                                                </span>
+                                            )}
+                                            </span>
+                                        </div>
+                                        <div className="flex justify-between space-x-4">
+                                            <span className="text-gray-400">Price:</span>
+                                            <span className="font-medium">{formatCurrency(data.price)}</span>
+                                        </div>
+                                        </div>
+                                    </div>
+                                    );
+                                }
+                                return null;
+                                }}
+                            />
+                            <Legend 
+                                wrapperStyle={{ fontSize: '12px' }}
+                                iconType="line"
+                            />
+                            <Line 
+                                yAxisId="left"
+                                type="monotone" 
+                                dataKey="value" 
+                                stroke="#10B981" 
+                                strokeWidth={2}
+                                name="Market Value"
+                                dot={false}
+                            />
+                            <Line 
+                                yAxisId="left"
+                                type="monotone" 
+                                dataKey="costBasis" 
+                                stroke="#60A5FA" 
+                                strokeWidth={2}
+                                strokeDasharray="5 5"
+                                name="Cost Basis"
+                                dot={false}
+                            />
+                            <Line 
+                                yAxisId="right"
+                                type="monotone" 
+                                dataKey="gainLoss" 
+                                stroke="#F59E0B" 
+                                strokeWidth={2}
+                                name="Gain/Loss"
+                                dot={false}
+                            />
+                            </LineChart>
+                        </ResponsiveContainer>
+                        </div>
+                    ) : historyError ? (
+                        <div className="bg-gray-800/50 p-4 rounded h-48 flex items-center justify-center">
+                        <div className="text-center">
+                            <p className="text-red-500 text-sm">Error loading history: {historyError}</p>
+                            <button 
+                            onClick={refreshHistory}
+                            className="mt-2 px-3 py-1 text-sm bg-gray-700 rounded hover:bg-gray-600"
+                            >
+                            Retry
+                            </button>
+                        </div>
+                        </div>
+                    ) : (
+                        <div className="bg-gray-800/50 p-4 rounded h-48 flex items-center justify-center">
+                        <div className="text-center">
+                            <Info className="w-6 h-6 text-gray-500 mx-auto mb-2" />
+                            <p className="text-gray-500 text-sm">No historical data available</p>
+                        </div>
+                        </div>
+                    )}
+                    </div>
+
+                    {/* Chart 2: Quantity Over Time */}
+                    {hasHistoryData && (
+                    <div>
+                        <h4 className="text-sm font-medium text-gray-400 mb-3">Quantity Over Time</h4>
+                        <div className="bg-gray-800/50 p-4 rounded" style={{ height: '200px' }}>
+                        <ResponsiveContainer width="100%" height="100%">
+                            <LineChart 
+                            data={positionHistory.map((h, index) => ({
+                                ...h,
+                                quantityChange: index > 0 ? h.quantity - positionHistory[index - 1].quantity : 0
+                            }))}
+                            margin={{ top: 5, right: 5, left: 5, bottom: 5 }}
+                            >
+                            <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                            <XAxis 
+                                dataKey="date" 
+                                stroke="#9CA3AF" 
+                                fontSize={10}
+                                tickFormatter={(date) => new Date(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                            />
+                            <YAxis 
+                                stroke="#9CA3AF" 
+                                fontSize={10} 
+                                tickFormatter={(value) => formatNumber(value, { maximumFractionDigits: 2 })}
+                            />
+                            <Tooltip 
+                                contentStyle={{ backgroundColor: '#1F2937', border: '1px solid #374151' }}
+                                content={({ active, payload, label }) => {
+                                if (active && payload && payload.length) {
+                                    const data = payload[0].payload;
+                                    return (
+                                    <div className="bg-gray-900 p-3 rounded border border-gray-700">
+                                        <p className="text-sm font-medium mb-2">{new Date(label).toLocaleDateString()}</p>
+                                        <div className="space-y-1 text-xs">
+                                        <div className="flex justify-between space-x-4">
+                                            <span className="text-gray-400">Quantity:</span>
+                                            <span className="font-medium">{formatNumber(data.quantity, { maximumFractionDigits: 4 })}</span>
+                                        </div>
+                                        {data.quantityChange !== 0 && (
+                                            <div className="flex justify-between space-x-4">
+                                            <span className="text-gray-400">Change:</span>
+                                            <span className={`font-medium ${data.quantityChange > 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                                {data.quantityChange > 0 ? '+' : ''}{formatNumber(data.quantityChange, { maximumFractionDigits: 4 })}
+                                            </span>
+                                            </div>
+                                        )}
+                                        <div className="flex justify-between space-x-4 pt-1 border-t border-gray-700">
+                                            <span className="text-gray-400">Value:</span>
+                                            <span className="font-medium">{formatCurrency(data.value)}</span>
+                                        </div>
+                                        <div className="flex justify-between space-x-4">
+                                            <span className="text-gray-400">Price:</span>
+                                            <span className="font-medium">{formatCurrency(data.price)}</span>
+                                        </div>
+                                        </div>
+                                    </div>
+                                    );
+                                }
+                                return null;
+                                }}
+                            />
+                            <Line 
+                                type="stepAfter" 
+                                dataKey="quantity" 
+                                stroke="#8B5CF6" 
+                                strokeWidth={2}
+                                name="Quantity"
+                                dot={{ fill: '#8B5CF6', r: 3 }}
+                            />
+                            </LineChart>
+                        </ResponsiveContainer>
+                        </div>
+                    </div>
+                    )}
+                </div>
+                )}
+
+
+
                 {/* Account Summary Table */}
                 <div className="mb-6">
                   <h4 className="text-sm font-medium text-gray-400 mb-3">Account Summary</h4>
