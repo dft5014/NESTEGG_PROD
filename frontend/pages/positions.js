@@ -777,77 +777,19 @@ export default function PositionsPage() {
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-4">
             <h3 className="text-xl font-bold flex items-center">
               <Wallet className="w-5 h-5 mr-2 text-blue-400" />
-              Positions
+              Position Details
             </h3>
-            
-            {/* Filter and Search */}
-            <div className="flex flex-col md:flex-row space-y-3 md:space-y-0 md:space-x-3 mt-3 md:mt-0">
-              {/* Filter Pills */}
-              <div className="flex flex-wrap gap-2">
-                {filterOptions.map(option => (
-                  <button
-                    key={option.id}
-                    onClick={() => setFilterView(option.id)}
-                    className={`flex items-center px-3 py-1 rounded-lg text-sm font-medium transition-colors ${
-                      filterView === option.id 
-                        ? 'bg-blue-600 text-white' 
-                        : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
-                    }`}
-                  >
-                    {option.icon}
-                    <span className="ml-1">{option.label}</span>
-                  </button>
-                ))}
-              </div>
-              
-              {/* Search */}
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
-                <input
-                  type="text"
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  placeholder="Search..."
-                  className="pl-9 pr-3 py-1 bg-gray-800 border border-gray-700 rounded-lg text-sm focus:outline-none focus:border-blue-600 transition-colors"
-                />
-                {searchTerm && (
-                  <button
-                    onClick={() => setSearchTerm('')}
-                    className="absolute right-2 top-1/2 transform -translate-y-1/2"
-                  >
-                    <X className="w-4 h-4 text-gray-400 hover:text-white" />
-                  </button>
-                )}
-              </div>
-            </div>
           </div>
           
-          {/* Filtered count */}
-          {(filterView !== 'all' || searchTerm) && (
-            <div className="mb-3 flex items-center text-sm text-gray-400">
-              <Filter className="w-3 h-3 mr-2" />
-              Showing {filteredPositions.length} of {positions.length} positions
-              <button
-                onClick={() => {
-                  setFilterView('all');
-                  setSearchTerm('');
-                }}
-                className="ml-3 text-blue-400 hover:text-blue-300"
-              >
-                Clear filters
-              </button>
-            </div>
-          )}
-          
-
-        </section>
-
-            {/* NEW DATASTORE TABLE */}
+         {/* NEW DATASTORE TABLE */}
             <UnifiedGroupPositionsTable2 
               initialSort="value-high" 
               title="Consolidated Portfolio (DataStore)" 
               showHistoricalColumns={true} // Show the 1W, 1M columns for comparison
             />
+        </section>
+
+
 
 
         {/* Analytics Section */}

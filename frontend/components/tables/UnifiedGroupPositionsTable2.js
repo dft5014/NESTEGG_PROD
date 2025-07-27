@@ -1196,7 +1196,7 @@ const UnifiedGroupPositionsTable2 = ({
                                 data={positionHistory.map((h) => ({
                                     date: h.date,
                                     gainLoss: h.value - h.costBasis,
-                                    gainLossPct: h.gainLossPct
+                                    gainLossPct: h.gainLossPct * 100
                                 }))}
                                 margin={{ top: 5, right: 5, left: 5, bottom: 5 }}
                                 >
