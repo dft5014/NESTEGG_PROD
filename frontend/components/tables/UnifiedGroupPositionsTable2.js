@@ -1207,6 +1207,37 @@ const UnifiedGroupPositionsTable2 = ({
                                 )}
                             </button>
                             </th>
+
+                            <th className="px-3 py-2 text-right text-xs font-medium text-gray-400">
+                            <button
+                                onClick={() => setAccountDetailSort({
+                                field: 'quantity',
+                                direction: accountDetailSort.field === 'quantity' && accountDetailSort.direction === 'desc' ? 'asc' : 'desc'
+                                })}
+                                className="flex items-center space-x-1 hover:text-white ml-auto"
+                            >
+                                <span>Purchase Date</span>
+                                {accountDetailSort.field === 'quantity' && (
+                                accountDetailSort.direction === 'desc' ? <ChevronDown className="w-3 h-3" /> : <ChevronUp className="w-3 h-3" />
+                                )}
+                            </button>
+                            </th>
+
+                            <th className="px-3 py-2 text-right text-xs font-medium text-gray-400">
+                            <button
+                                onClick={() => setAccountDetailSort({
+                                field: 'quantity',
+                                direction: accountDetailSort.field === 'quantity' && accountDetailSort.direction === 'desc' ? 'asc' : 'desc'
+                                })}
+                                className="flex items-center space-x-1 hover:text-white ml-auto"
+                            >
+                                <span>Position Age</span>
+                                {accountDetailSort.field === 'quantity' && (
+                                accountDetailSort.direction === 'desc' ? <ChevronDown className="w-3 h-3" /> : <ChevronUp className="w-3 h-3" />
+                                )}
+                            </button>
+                            </th>
+
                             <th className="px-3 py-2 text-right text-xs font-medium text-gray-400">
                             <button
                                 onClick={() => setAccountDetailSort({
