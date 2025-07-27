@@ -7588,7 +7588,7 @@ async def get_position_history(
         FROM rept_summary_grouped_positions 
         WHERE user_id = :user_id 
         AND identifier = :identifier
-        AND snapshot_date >= CURRENT_DATE - INTERVAL ':days days'
+        AND snapshot_date >= CURRENT_DATE - INTERVAL :days_interval
         ORDER BY snapshot_date ASC
         """
         
@@ -7597,7 +7597,7 @@ async def get_position_history(
             values={
                 "user_id": user_id,
                 "identifier": identifier,
-                "days": days
+                "days_interval": f"{days} days" 
             }
         )
         
