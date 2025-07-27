@@ -1010,6 +1010,22 @@ const UnifiedGroupPositionsTable2 = ({
                 {console.log('Performance History:', selectedPosition?.performance_history)}
                 {console.log('Performance History Length:', selectedPosition?.performance_history?.length)}
 
+                {/* Comprehensive Debug Log */}
+                {console.log('=== COMPLETE SELECTED POSITION DATA ===')}
+                {console.log('Full object:', JSON.stringify(selectedPosition, null, 2))}
+                {console.log('=== TOP LEVEL FIELDS ===')}
+                {console.log('Field names:', Object.keys(selectedPosition))}
+                {console.log('=== CHECKING FOR HISTORICAL DATA ===')}
+                {console.log('performance_history:', selectedPosition.performance_history)}
+                {console.log('history:', selectedPosition.history)}
+                {console.log('price_history:', selectedPosition.price_history)}
+                {console.log('value_history:', selectedPosition.value_history)}
+                {console.log('account_details:', selectedPosition.account_details)}
+                {console.log('=== SAMPLE ACCOUNT DETAIL ===')}
+                {selectedPosition.account_details && selectedPosition.account_details[0] && 
+                console.log('First account detail:', JSON.stringify(selectedPosition.account_details[0], null, 2))
+                }
+
                 {/* Position Value vs Cost Basis Chart */}
 
                 {/* Position Value vs Cost Basis Chart */}
