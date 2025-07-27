@@ -45,6 +45,13 @@ const initialState = {
     isStale: false,
   },
 
+  positionHistory: {
+    data: {}, // Object keyed by identifier
+    loading: {}, // Loading state per identifier
+    error: {}, // Error state per identifier
+    lastFetched: {}, // Last fetch time per identifier
+  },
+
 };
 
 // Action types
@@ -64,6 +71,11 @@ export const ActionTypes = {
   FETCH_GROUPED_POSITIONS_SUCCESS: 'FETCH_GROUPED_POSITIONS_SUCCESS',
   FETCH_GROUPED_POSITIONS_ERROR: 'FETCH_GROUPED_POSITIONS_ERROR',
   MARK_GROUPED_POSITIONS_STALE: 'MARK_GROUPED_POSITIONS_STALE',
+
+  // Position History
+  FETCH_POSITION_HISTORY_START: 'FETCH_POSITION_HISTORY_START',
+  FETCH_POSITION_HISTORY_SUCCESS: 'FETCH_POSITION_HISTORY_SUCCESS',
+  FETCH_POSITION_HISTORY_ERROR: 'FETCH_POSITION_HISTORY_ERROR',
 
 };
 
@@ -301,6 +313,73 @@ const dataStoreReducer = (state, action) => {
         },
       };
 
+          case ActionTypes.MARK_GROUPED_POSITIONS_STALE:
+      return {
+        ...state,
+        groupedPositions: {
+          ...state.groupedPositions,
+          isStale: true,
+        },
+      };
+
+    // Position History cases
+    case ActionTypes.FETCH_POSITION_HISTORY_START:
+      return {
+        ...state,
+        positionHistory: {
+          ...state.positionHistory,
+          loading: {
+            ...state.positionHistory.loading,
+            [action.payload.identifier]: true,
+          },
+          error: {
+            ...state.positionHistory.error,
+            [action.payload.identifier]: null,
+          },
+        },
+      };
+
+    case ActionTypes.FETCH_POSITION_HISTORY_SUCCESS:
+      return {
+        ...state,
+        positionHistory: {
+          ...state.positionHistory,
+          data: {
+            ...state.positionHistory.data,
+            [action.payload.identifier]: action.payload.history,
+          },
+          loading: {
+            ...state.positionHistory.loading,
+            [action.payload.identifier]: false,
+          },
+          error: {
+            ...state.positionHistory.error,
+            [action.payload.identifier]: null,
+          },
+          lastFetched: {
+            ...state.positionHistory.lastFetched,
+            [action.payload.identifier]: Date.now(),
+          },
+        },
+      };
+
+    case ActionTypes.FETCH_POSITION_HISTORY_ERROR:
+      return {
+        ...state,
+        positionHistory: {
+          ...state.positionHistory,
+          loading: {
+            ...state.positionHistory.loading,
+            [action.payload.identifier]: false,
+          },
+          error: {
+            ...state.positionHistory.error,
+            [action.payload.identifier]: action.payload.error,
+          },
+        },
+      };
+
+
     default:
       return state;
   }
@@ -419,6 +498,56 @@ export const DataStoreProvider = ({ children }) => {
     }
   }, [state.groupedPositions.loading, state.groupedPositions.lastFetched, state.groupedPositions.isStale]);
 
+    // Fetch position history for a specific identifier
+  const fetchPositionHistory = useCallback(async (identifier, days = 90, force = false) => {
+    if (!identifier) return;
+
+    // Check if already loading
+    if (state.positionHistory.loading[identifier] && !force) return;
+
+    // Check if data is fresh (< 5 minutes for history)
+    const fiveMinutesAgo = Date.now() - 300000;
+    if (!force && 
+        state.positionHistory.lastFetched[identifier] && 
+        state.positionHistory.lastFetched[identifier] > fiveMinutesAgo) {
+      return;
+    }
+
+    dispatch({ 
+      type: ActionTypes.FETCH_POSITION_HISTORY_START,
+      payload: { identifier }
+    });
+
+    try {
+      const response = await fetchWithAuth(
+        `/datastore/positions/history/${encodeURIComponent(identifier)}?days=${days}`
+      );
+      
+      if (!response.ok) {
+        throw new Error(`Failed to fetch position history: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      
+      dispatch({
+        type: ActionTypes.FETCH_POSITION_HISTORY_SUCCESS,
+        payload: {
+          identifier,
+          history: data.history || [],
+        }
+      });
+    } catch (error) {
+      console.error('Error fetching position history:', error);
+      dispatch({
+        type: ActionTypes.FETCH_POSITION_HISTORY_ERROR,
+        payload: {
+          identifier,
+          error: error.message,
+        }
+      });
+    }
+  }, [state.positionHistory.loading, state.positionHistory.lastFetched]);
+
   // Refresh all data sources
   const refreshData = useCallback(async (force = true) => {
     await Promise.all([
@@ -471,7 +600,8 @@ export const DataStoreProvider = ({ children }) => {
     actions: {
       fetchPortfolioData,
       fetchAccountsData,
-      fetchGroupedPositionsData,  // NEW
+      fetchGroupedPositionsData, 
+      fetchPositionHistory,
       markDataStale,
       markAccountsStale,
       refreshData,  // CHANGED - now uses the function we created above

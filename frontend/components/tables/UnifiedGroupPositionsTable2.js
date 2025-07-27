@@ -3,6 +3,7 @@ import { BarChart4, Loader, Search, Filter, TrendingUp, TrendingDown, X, Refresh
 import { formatCurrency, formatPercentage, formatNumber, formatDate } from '@/utils/formatters';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { useGroupedPositions } from '@/store/hooks/useGroupedPositions';
+import { usePositionHistory } from '@/store/hooks/usePositionHistory';
 
 // Multi-select dropdown component
 const MultiSelect = ({ options, value, onChange, placeholder }) => {
@@ -88,6 +89,9 @@ const UnifiedGroupPositionsTable2 = ({
     refreshData 
   } = useGroupedPositions();
   
+
+
+
   // Local UI State
   const [selectedPosition, setSelectedPosition] = useState(null);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
@@ -98,6 +102,21 @@ const UnifiedGroupPositionsTable2 = ({
   const [showOnlyChanged, setShowOnlyChanged] = useState(false);
   const [accountDetailSort, setAccountDetailSort] = useState({ field: 'value', direction: 'desc' });
   const [positionDetailSort, setPositionDetailSort] = useState({ field: 'value', direction: 'desc' });
+
+    // Position History Hook
+    const { 
+        history: positionHistory, 
+        loading: historyLoading, 
+        error: historyError,
+        hasData: hasHistoryData,
+        refresh: refreshHistory
+    } = usePositionHistory(
+        selectedPosition?.identifier, 
+        { 
+        enabled: isDetailModalOpen && !!selectedPosition?.identifier,
+        days: 90 
+        }
+    );
 
   // Get unique asset types
   const assetTypes = useMemo(() => {
@@ -1027,7 +1046,84 @@ const UnifiedGroupPositionsTable2 = ({
                 }
 
                 {/* Position Value vs Cost Basis Chart */}
-
+                {/* Position Value vs Cost Basis Chart */}
+                {selectedPosition && (
+                <div className="mb-6">
+                    <h4 className="text-sm font-medium text-gray-400 mb-3">Value vs Cost Basis Over Time</h4>
+                    {historyLoading ? (
+                    <div className="bg-gray-800/50 p-4 rounded h-48 flex items-center justify-center">
+                        <Loader className="w-6 h-6 animate-spin text-blue-500" />
+                    </div>
+                    ) : hasHistoryData ? (
+                    <div className="bg-gray-800/50 p-4 rounded" style={{ height: '200px' }}>
+                        <ResponsiveContainer width="100%" height="100%">
+                        <LineChart 
+                            data={positionHistory}
+                            margin={{ top: 5, right: 5, left: 5, bottom: 5 }}
+                        >
+                            <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                            <XAxis 
+                            dataKey="date" 
+                            stroke="#9CA3AF" 
+                            fontSize={10}
+                            tickFormatter={(date) => new Date(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                            />
+                            <YAxis 
+                            stroke="#9CA3AF" 
+                            fontSize={10} 
+                            tickFormatter={(value) => `$${(value/1000).toFixed(0)}k`}
+                            />
+                            <Tooltip 
+                            contentStyle={{ backgroundColor: '#1F2937', border: '1px solid #374151' }}
+                            formatter={(value) => formatCurrency(value)}
+                            labelFormatter={(date) => new Date(date).toLocaleDateString()}
+                            />
+                            <Legend 
+                            wrapperStyle={{ fontSize: '12px' }}
+                            iconType="line"
+                            />
+                            <Line 
+                            type="monotone" 
+                            dataKey="value" 
+                            stroke="#10B981" 
+                            strokeWidth={2}
+                            name="Market Value"
+                            dot={false}
+                            />
+                            <Line 
+                            type="monotone" 
+                            dataKey="costBasis" 
+                            stroke="#60A5FA" 
+                            strokeWidth={2}
+                            strokeDasharray="5 5"
+                            name="Cost Basis"
+                            dot={false}
+                            />
+                        </LineChart>
+                        </ResponsiveContainer>
+                    </div>
+                    ) : historyError ? (
+                    <div className="bg-gray-800/50 p-4 rounded h-48 flex items-center justify-center">
+                        <div className="text-center">
+                        <p className="text-red-500 text-sm">Error loading history: {historyError}</p>
+                        <button 
+                            onClick={refreshHistory}
+                            className="mt-2 px-3 py-1 text-sm bg-gray-700 rounded hover:bg-gray-600"
+                        >
+                            Retry
+                        </button>
+                        </div>
+                    </div>
+                    ) : (
+                    <div className="bg-gray-800/50 p-4 rounded h-48 flex items-center justify-center">
+                        <div className="text-center">
+                        <Info className="w-6 h-6 text-gray-500 mx-auto mb-2" />
+                        <p className="text-gray-500 text-sm">No historical data available</p>
+                        </div>
+                    </div>
+                    )}
+                </div>
+                )}
                 {/* Position Value vs Cost Basis Chart */}
                 {selectedPosition.performance_history && selectedPosition.performance_history.length > 0 && (
                   <div className="mb-6">

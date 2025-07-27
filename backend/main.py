@@ -7562,6 +7562,70 @@ async def get_datastore_grouped_positions(
             detail=f"Failed to fetch grouped positions: {str(e)}"
         )
 
+@app.get("/datastore/positions/history/{identifier}")
+async def get_position_history(
+    identifier: str,
+    days: Optional[int] = Query(90, description="Number of days of history to fetch"),
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Get historical snapshots for a specific position identifier
+    """
+    try:
+        user_id = current_user["id"]
+        
+        query = """
+        SELECT 
+            snapshot_date,
+            identifier,
+            name,
+            total_quantity,
+            total_current_value,
+            total_cost_basis,
+            total_gain_loss_amt,
+            total_gain_loss_pct,
+            latest_price_per_unit
+        FROM rept_summary_grouped_positions 
+        WHERE user_id = :user_id 
+        AND identifier = :identifier
+        AND snapshot_date >= CURRENT_DATE - INTERVAL ':days days'
+        ORDER BY snapshot_date ASC
+        """
+        
+        results = await database.fetch_all(
+            query=query, 
+            values={
+                "user_id": user_id,
+                "identifier": identifier,
+                "days": days
+            }
+        )
+        
+        history = []
+        for row in results:
+            history.append({
+                "date": row["snapshot_date"].strftime('%Y-%m-%d'),
+                "value": float(row["total_current_value"]),
+                "costBasis": float(row["total_cost_basis"]),
+                "quantity": float(row["total_quantity"]),
+                "price": float(row["latest_price_per_unit"]) if row["latest_price_per_unit"] else None,
+                "gainLoss": float(row["total_gain_loss_amt"]),
+                "gainLossPct": float(row["total_gain_loss_pct"])
+            })
+        
+        return {
+            "identifier": identifier,
+            "history": history,
+            "name": results[0]["name"] if results else None
+        }
+        
+    except Exception as e:
+        logger.error(f"Error fetching position history: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_NTERVAL_ERROR,
+            detail=f"Failed to fetch position history: {str(e)}"
+        )
+
 @app.get("/portfolio/sidebar-stats")
 async def get_sidebar_stats(
     current_user: dict = Depends(get_current_user)
