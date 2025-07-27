@@ -7565,7 +7565,7 @@ async def get_datastore_grouped_positions(
 @app.get("/datastore/positions/history/{identifier}")
 async def get_position_history(
     identifier: str,
-    days: Optional[int] = Query(90, description="Number of days of history to fetch"),
+    days: Optional[int] = Query(30, description="Number of days of history to fetch"),
     current_user: dict = Depends(get_current_user)
 ):
     """
@@ -7574,6 +7574,7 @@ async def get_position_history(
     try:
         user_id = current_user["id"]
         
+        # Simple query - just get last 30 days
         query = """
         SELECT 
             snapshot_date,
@@ -7588,7 +7589,7 @@ async def get_position_history(
         FROM rept_summary_grouped_positions 
         WHERE user_id = :user_id 
         AND identifier = :identifier
-        AND snapshot_date >= CURRENT_DATE - INTERVAL :days_interval
+        AND snapshot_date >= CURRENT_DATE - 30
         ORDER BY snapshot_date ASC
         """
         
@@ -7596,33 +7597,33 @@ async def get_position_history(
             query=query, 
             values={
                 "user_id": user_id,
-                "identifier": identifier,
-                "days_interval": f"{days} days" 
+                "identifier": identifier
             }
         )
         
+        # Simple response
         history = []
         for row in results:
             history.append({
                 "date": row["snapshot_date"].strftime('%Y-%m-%d'),
-                "value": float(row["total_current_value"]),
-                "costBasis": float(row["total_cost_basis"]),
-                "quantity": float(row["total_quantity"]),
-                "price": float(row["latest_price_per_unit"]) if row["latest_price_per_unit"] else None,
-                "gainLoss": float(row["total_gain_loss_amt"]),
-                "gainLossPct": float(row["total_gain_loss_pct"])
+                "value": float(row["total_current_value"] or 0),
+                "costBasis": float(row["total_cost_basis"] or 0),
+                "quantity": float(row["total_quantity"] or 0),
+                "price": float(row["latest_price_per_unit"] or 0),
+                "gainLoss": float(row["total_gain_loss_amt"] or 0),
+                "gainLossPct": float(row["total_gain_loss_pct"] or 0)
             })
         
         return {
             "identifier": identifier,
             "history": history,
-            "name": results[0]["name"] if results else None
+            "count": len(history)
         }
         
     except Exception as e:
         logger.error(f"Error fetching position history: {str(e)}")
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_NTERVAL_ERROR,
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to fetch position history: {str(e)}"
         )
 
