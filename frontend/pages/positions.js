@@ -839,20 +839,9 @@ export default function PositionsPage() {
             </div>
           )}
           
-          <div className="bg-gray-900 rounded-xl border border-gray-800 overflow-hidden">
-            <UnifiedGroupedPositionsTable 
-              title="" 
-              filteredPositions={filteredPositions} 
-              onPositionAdded={handlePositionAdded}
-              filterView={filterView}
-              searchTerm={searchTerm}
-            />
-          </div>
+
         </section>
 
-            {/* ADD SPACING */}
-            <div className="mb-12" /> {/* This creates vertical space between tables */}
-            
             {/* NEW DATASTORE TABLE */}
             <UnifiedGroupPositionsTable2 
               initialSort="value-high" 

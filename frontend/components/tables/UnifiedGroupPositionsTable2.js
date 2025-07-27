@@ -1004,7 +1004,13 @@ const UnifiedGroupPositionsTable2 = ({
                     ))}
                   </div>
                 </div>
+                                
+                {/* Debug log */}
+                {console.log('Selected Position:', selectedPosition)}
+                {console.log('Performance History:', selectedPosition?.performance_history)}
+                {console.log('Performance History Length:', selectedPosition?.performance_history?.length)}
 
+                {/* Position Value vs Cost Basis Chart */}
 
                 {/* Position Value vs Cost Basis Chart */}
                 {selectedPosition.performance_history && selectedPosition.performance_history.length > 0 && (
@@ -1052,6 +1058,60 @@ const UnifiedGroupPositionsTable2 = ({
                       </ResponsiveContainer>
                     </div>
                   </div>
+                )}
+
+                {/* Position Value vs Cost Basis Chart */}
+                {selectedPosition && (
+                <div className="mb-6">
+                    <h4 className="text-sm font-medium text-gray-400 mb-3">Value vs Cost Basis Over Time</h4>
+                    {(selectedPosition.performance_history && selectedPosition.performance_history.length > 0) ? (
+                    <div className="bg-gray-800/50 p-4 rounded" style={{ height: '200px' }}>
+                        <ResponsiveContainer width="100%" height="100%">
+                        <LineChart 
+                            data={selectedPosition.performance_history.map((h, index) => ({
+                            date: h.date ? new Date(h.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : `Day ${index}`,
+                            value: h.value || 0,
+                            costBasis: selectedPosition.total_cost_basis || 0
+                            }))}
+                            margin={{ top: 5, right: 5, left: 5, bottom: 5 }}
+                        >
+                            <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                            <XAxis dataKey="date" stroke="#9CA3AF" fontSize={10} />
+                            <YAxis stroke="#9CA3AF" fontSize={10} tickFormatter={(value) => `$${(value/1000).toFixed(0)}k`} />
+                            <Tooltip 
+                            contentStyle={{ backgroundColor: '#1F2937', border: '1px solid #374151' }}
+                            formatter={(value) => formatCurrency(value)}
+                            />
+                            <Legend 
+                            wrapperStyle={{ fontSize: '12px' }}
+                            iconType="line"
+                            />
+                            <Line 
+                            type="monotone" 
+                            dataKey="value" 
+                            stroke="#10B981" 
+                            strokeWidth={2}
+                            name="Market Value"
+                            dot={false}
+                            />
+                            <Line 
+                            type="monotone" 
+                            dataKey="costBasis" 
+                            stroke="#60A5FA" 
+                            strokeWidth={2}
+                            strokeDasharray="5 5"
+                            name="Cost Basis"
+                            dot={false}
+                            />
+                        </LineChart>
+                        </ResponsiveContainer>
+                    </div>
+                    ) : (
+                    <div className="bg-gray-800/50 p-4 rounded h-32 flex items-center justify-center">
+                        <p className="text-gray-500 text-sm">No historical data available</p>
+                    </div>
+                    )}
+                </div>
                 )}
 
 
@@ -1252,6 +1312,24 @@ const UnifiedGroupPositionsTable2 = ({
                                 )}
                             </button>
                             </th>
+
+                            <th className="px-3 py-2 text-right text-xs font-medium text-gray-400">
+                            <button
+                                onClick={() => setAccountDetailSort({
+                                field: 'quantity',
+                                direction: accountDetailSort.field === 'quantity' && accountDetailSort.direction === 'desc' ? 'asc' : 'desc'
+                                })}
+                                className="flex items-center space-x-1 hover:text-white ml-auto"
+                            >
+                                <span>Price</span>
+                                {accountDetailSort.field === 'quantity' && (
+                                accountDetailSort.direction === 'desc' ? <ChevronDown className="w-3 h-3" /> : <ChevronUp className="w-3 h-3" />
+                                )}
+                            </button>
+                            </th>
+
+
+
                             <th className="px-3 py-2 text-right text-xs font-medium text-gray-400">
                             <button
                                 onClick={() => setAccountDetailSort({
@@ -1266,6 +1344,7 @@ const UnifiedGroupPositionsTable2 = ({
                                 )}
                             </button>
                             </th>
+
                             <th className="px-3 py-2 text-right text-xs font-medium text-gray-400">
                             <button
                                 onClick={() => setAccountDetailSort({
@@ -1274,7 +1353,7 @@ const UnifiedGroupPositionsTable2 = ({
                                 })}
                                 className="flex items-center space-x-1 hover:text-white ml-auto"
                             >
-                                <span>Cost Basis</span>
+                                <span>Cost per Share</span>
                                 {accountDetailSort.field === 'cost' && (
                                 accountDetailSort.direction === 'desc' ? <ChevronDown className="w-3 h-3" /> : <ChevronUp className="w-3 h-3" />
                                 )}
@@ -1308,6 +1387,22 @@ const UnifiedGroupPositionsTable2 = ({
                                 )}
                             </button>
                             </th>
+
+                            <th className="px-3 py-2 text-right text-xs font-medium text-gray-400">
+                            <button
+                                onClick={() => setAccountDetailSort({
+                                field: 'gain_pct',
+                                direction: accountDetailSort.field === 'gain_pct' && accountDetailSort.direction === 'desc' ? 'asc' : 'desc'
+                                })}
+                                className="flex items-center space-x-1 hover:text-white ml-auto"
+                            >
+                                <span>Holding Term</span>
+                                {accountDetailSort.field === 'gain_pct' && (
+                                accountDetailSort.direction === 'desc' ? <ChevronDown className="w-3 h-3" /> : <ChevronUp className="w-3 h-3" />
+                                )}
+                            </button>
+                            </th>
+
                         </tr>
                         </thead>
                     <tbody className="divide-y divide-gray-700">
