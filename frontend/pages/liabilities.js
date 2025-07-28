@@ -2,11 +2,7 @@ import React, { useState } from 'react';
 import Head from 'next/head';
 import { useRouter } from 'next/router';
 import { motion } from 'framer-motion';
-import { 
-  Receipt, TrendingDown, CreditCard, Home, 
-  DollarSign, Percent, AlertCircle, RefreshCw,
-  Plus, Target, Shield, Zap, RefreshCw
-} from 'lucide-react';
+import { Receipt, TrendingDown, CreditCard, Home, DollarSign, Percent, AlertCircle, RefreshCw, Plus, Target, Shield, Zap } from "lucide-react";
 import LiabilityTable from '@/components/tables/LiabilityTable';
 import { useGroupedLiabilities } from '@/store/hooks/useGroupedLiabilities';
 import { formatCurrency, formatPercentage } from '@/utils/formatters';
