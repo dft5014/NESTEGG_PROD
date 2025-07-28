@@ -5,7 +5,7 @@ import { motion } from 'framer-motion';
 import { 
   Receipt, TrendingDown, CreditCard, Home, 
   DollarSign, Percent, AlertCircle, RefreshCw,
-  Plus, Target, Shield, Zap
+  Plus, Target, Shield, Zap, RefreshCw
 } from 'lucide-react';
 import LiabilityTable from '@/components/tables/LiabilityTable';
 import { useGroupedLiabilities } from '@/store/hooks/useGroupedLiabilities';
