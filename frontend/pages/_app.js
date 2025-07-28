@@ -36,7 +36,7 @@ function LayoutWrapper({ children }) {
       if (window.innerWidth < 768) {
         setSidebarCollapsed(true);
       } else {
-        setSidebarCollapsed(false);
+        setSidebarCollapsed(true);
       }
     };
     handleResize();
