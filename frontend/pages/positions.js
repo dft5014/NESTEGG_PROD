@@ -9,7 +9,7 @@ import {
 import { 
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer 
 } from 'recharts';
-import UnifiedGroupPositionsTable2 from '@/components/tables/UnifiedGroupPositionsTable2';
+import UnifiedGroupPositionsTable from '@/components/tables/UnifiedGroupPositionsTable';
 import { formatCurrency, formatPercentage } from '@/utils/formatters';
 
 // DataStore hooks - no API methods!
@@ -416,7 +416,7 @@ export default function PositionsPage() {
 
           {/* Unified Grouped Positions Table */}
           <section>
-            <UnifiedGroupPositionsTable2 
+            <UnifiedGroupPositionsTable 
               initialSort="value-high"
               title="All Positions"
               showHistoricalColumns={false}

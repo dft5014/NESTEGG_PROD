@@ -14,7 +14,6 @@ import {
 } from 'lucide-react';
 import KpiCard from '@/components/ui/KpiCard';
 import AccountTable from '@/components/tables/UnifiedAccountTable';
-import UnifiedAccountTable2 from '@/components/tables/UnifiedAccountTable2';
 import { fetchWithAuth } from '@/utils/api';
 import { formatCurrency, formatPercentage } from '@/utils/formatters';
 import { fetchAllAccounts } from '@/utils/apimethods/accountMethods';
@@ -469,23 +468,6 @@ export default function AccountsPage() {
           
           <div className="bg-gray-900/50 backdrop-blur-sm rounded-xl border border-gray-800 overflow-hidden">
             <AccountTable title="" onAccountsChanged={handleAccountAdded} />
-          </div>
-        </motion.section>
-
-        {/* Accounts Table */}
-        <motion.section
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
-          className="mb-8"
-        >
-          <h3 className="text-xl font-bold mb-4 flex items-center">
-            <Wallet className="w-5 h-5 mr-2 text-blue-400" />
-            All Accounts
-          </h3>
-          
-          <div className="bg-gray-900/50 backdrop-blur-sm rounded-xl border border-gray-800 overflow-hidden">
-            <UnifiedAccountTable2 title="" onAccountsChanged={handleAccountAdded} />
           </div>
         </motion.section>
 
