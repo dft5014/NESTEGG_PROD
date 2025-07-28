@@ -34,7 +34,8 @@ import {
     Calendar,
     DollarSign,
     Percent,
-    Eye
+    Eye,
+    PieChart
 } from 'lucide-react';
 
 // Performance Indicator Component
