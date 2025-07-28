@@ -40,10 +40,10 @@ export default function PositionsPage() {
   } = usePortfolioSummary();
 
   // Get trend data
-  const { trends, getPeriodData = () => ({ data: [] }) } = usePortfolioTrends() || {};
+  const { trends, loading: trendsLoading } = usePortfolioTrends();
 
   // Combine loading states
-  const isLoading = positionsLoading || summaryLoading;
+  const isLoading = positionsLoading || summaryLoading || trendsLoading;
   const isRefreshing = isLoading;
 
   // Calculate position metrics from store data
@@ -58,39 +58,85 @@ export default function PositionsPage() {
     incomeYield: portfolioData?.income?.yieldLiquid || 0
   };
 
-  // Process chart data
+  // Process chart data based on timeframe
   const chartData = useMemo(() => {
-    // Add safety check for getPeriodData function
-    if (!getPeriodData || typeof getPeriodData !== 'function') {
-      return [];
+    if (!trends?.chartData || trends.chartData.length === 0) return [];
+    
+    // Get the appropriate number of data points based on timeframe
+    let dataPoints = [...trends.chartData];
+    const now = new Date();
+    
+    switch (selectedTimeframe) {
+      case '1d':
+        // Last 2 data points for 1 day
+        dataPoints = dataPoints.slice(-2);
+        break;
+      case '1w':
+        // Last 7 days
+        dataPoints = dataPoints.slice(-7);
+        break;
+      case '1m':
+        // Last 30 days
+        dataPoints = dataPoints.slice(-30);
+        break;
+      case 'ytd':
+        // Filter to current year
+        const currentYear = now.getFullYear();
+        dataPoints = dataPoints.filter(point => 
+          new Date(point.date).getFullYear() === currentYear
+        );
+        break;
+      default:
+        // Use all data
+        break;
     }
     
-    const periodData = getPeriodData(selectedTimeframe);
-    if (!periodData || !periodData.data) return [];
-    
-    return periodData.data.map(point => ({
+    return dataPoints.map(point => ({
       date: new Date(point.date).toLocaleDateString('en-US', { 
         month: 'short', 
         day: 'numeric' 
       }),
-      value: point.liquidAssets || point.value || 0
+      value: point.liquidAssets || 0
     }));
-  }, [trends, selectedTimeframe, getPeriodData]);
+  }, [trends, selectedTimeframe]);
 
-  // Calculate change percentage
-  const changePercent = useMemo(() => {
-    if (!chartData || chartData.length < 2) return 0;
-    const firstValue = chartData[0]?.value || 0;
-    const lastValue = chartData[chartData.length - 1]?.value || 0;
-    return firstValue > 0 ? ((lastValue - firstValue) / firstValue) * 100 : 0;
-  }, [chartData]);
-
-  const changeAmount = useMemo(() => {
-    if (!chartData || chartData.length < 2) return 0;
-    const firstValue = chartData[0]?.value || 0;
-    const lastValue = chartData[chartData.length - 1]?.value || 0;
-    return lastValue - firstValue;
-  }, [chartData]);
+  // Calculate change percentage and amount based on timeframe
+  const { changePercent, changeAmount } = useMemo(() => {
+    // Use the pre-calculated changes from portfolioData based on timeframe
+    let percent = 0;
+    let amount = 0;
+    
+    if (portfolioData?.timeRangeChanges) {
+      switch (selectedTimeframe) {
+        case '1d':
+          percent = portfolioData.timeRangeChanges['1d']?.liquidAssetsPercent || 0;
+          amount = portfolioData.timeRangeChanges['1d']?.liquidAssets || 0;
+          break;
+        case '1w':
+          percent = portfolioData.timeRangeChanges['1w']?.liquidAssetsPercent || 0;
+          amount = portfolioData.timeRangeChanges['1w']?.liquidAssets || 0;
+          break;
+        case '1m':
+          percent = portfolioData.timeRangeChanges['1m']?.liquidAssetsPercent || 0;
+          amount = portfolioData.timeRangeChanges['1m']?.liquidAssets || 0;
+          break;
+        case 'ytd':
+          percent = portfolioData.timeRangeChanges['ytd']?.liquidAssetsPercent || 0;
+          amount = portfolioData.timeRangeChanges['ytd']?.liquidAssets || 0;
+          break;
+        default:
+          // Fallback to chart data calculation if needed
+          if (chartData && chartData.length >= 2) {
+            const firstValue = chartData[0]?.value || 0;
+            const lastValue = chartData[chartData.length - 1]?.value || 0;
+            percent = firstValue > 0 ? ((lastValue - firstValue) / firstValue) * 100 : 0;
+            amount = lastValue - firstValue;
+          }
+      }
+    }
+    
+    return { changePercent: percent, changeAmount: amount };
+  }, [portfolioData, selectedTimeframe, chartData]);
 
   // Refresh all data
   const handleRefreshPositions = async () => {
