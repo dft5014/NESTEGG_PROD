@@ -52,6 +52,15 @@ const initialState = {
     lastFetched: {}, // Last fetch time per identifier
   },
 
+  groupedLiabilities: {
+  data: [],
+  summary: null,
+  loading: false,
+  error: null,
+  lastFetched: null,
+  isStale: false,
+},
+
 };
 
 // Action types
@@ -76,6 +85,12 @@ export const ActionTypes = {
   FETCH_POSITION_HISTORY_START: 'FETCH_POSITION_HISTORY_START',
   FETCH_POSITION_HISTORY_SUCCESS: 'FETCH_POSITION_HISTORY_SUCCESS',
   FETCH_POSITION_HISTORY_ERROR: 'FETCH_POSITION_HISTORY_ERROR',
+
+  // Add to ActionTypes
+  FETCH_GROUPED_LIABILITIES_START: 'FETCH_GROUPED_LIABILITIES_START',
+  FETCH_GROUPED_LIABILITIES_SUCCESS: 'FETCH_GROUPED_LIABILITIES_SUCCESS',
+  FETCH_GROUPED_LIABILITIES_ERROR: 'FETCH_GROUPED_LIABILITIES_ERROR',
+  MARK_GROUPED_LIABILITIES_STALE: 'MARK_GROUPED_LIABILITIES_STALE',
 
 };
 
@@ -200,7 +215,7 @@ const dataStoreReducer = (state, action) => {
           loading: false,
           error: null,
           lastFetched: Date.now(),
-          isStale: false,
+          isStale: false,         
         },
       };
 
@@ -380,6 +395,48 @@ const dataStoreReducer = (state, action) => {
       };
 
 
+      case ActionTypes.FETCH_GROUPED_LIABILITIES_START:
+  return {
+    ...state,
+    groupedLiabilities: {
+      ...state.groupedLiabilities,
+      loading: true,
+      error: null,
+    },
+  };
+
+  case ActionTypes.FETCH_GROUPED_LIABILITIES_SUCCESS:
+    return {
+      ...state,
+      groupedLiabilities: {
+        data: action.payload.liabilities || [],
+        summary: action.payload.summary || null,
+        loading: false,
+        error: null,
+        lastFetched: Date.now(),
+        isStale: false,
+      },
+    };
+
+  case ActionTypes.FETCH_GROUPED_LIABILITIES_ERROR:
+    return {
+      ...state,
+      groupedLiabilities: {
+        ...state.groupedLiabilities,
+        loading: false,
+        error: action.payload,
+      },
+    };
+
+  case ActionTypes.MARK_GROUPED_LIABILITIES_STALE:
+    return {
+      ...state,
+      groupedLiabilities: {
+        ...state.groupedLiabilities,
+        isStale: true,
+      },
+    };
+
     default:
       return state;
   }
@@ -548,6 +605,43 @@ export const DataStoreProvider = ({ children }) => {
     }
   }, [state.positionHistory.loading, state.positionHistory.lastFetched]);
 
+  // liabilities fetch
+  const fetchGroupedLiabilitiesData = useCallback(async (force = false) => {
+    if (state.groupedLiabilities.loading && !force) return;
+
+    const oneMinuteAgo = Date.now() - 60000;
+    if (!force && 
+        state.groupedLiabilities.lastFetched && 
+        state.groupedLiabilities.lastFetched > oneMinuteAgo && 
+        !state.groupedLiabilities.isStale) {
+      return;
+    }
+
+    dispatch({ type: ActionTypes.FETCH_GROUPED_LIABILITIES_START });
+
+    try {
+      const response = await fetchWithAuth('/datastore/liabilities/grouped?snapshot_date=latest');
+      if (!response.ok) {
+        throw new Error(`Failed to fetch grouped liabilities: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      
+      dispatch({
+        type: ActionTypes.FETCH_GROUPED_LIABILITIES_SUCCESS,
+        payload: data
+      });
+    } catch (error) {
+      console.error('Error fetching grouped liabilities:', error);
+      dispatch({
+        type: ActionTypes.FETCH_GROUPED_LIABILITIES_ERROR,
+        payload: error.message,
+      });
+    }
+  }, [state.groupedLiabilities.loading, state.groupedLiabilities.lastFetched, state.groupedLiabilities.isStale]);
+
+
+
   // Refresh all data sources
   const refreshData = useCallback(async (force = true) => {
     await Promise.all([
@@ -604,9 +698,11 @@ export const DataStoreProvider = ({ children }) => {
       fetchPositionHistory,
       markDataStale,
       markAccountsStale,
-      refreshData,  // CHANGED - now uses the function we created above
+      refreshData,  
+      fetchGroupedLiabilitiesData,
       refreshAccounts: () => fetchAccountsData(true),
-      refreshGroupedPositions: () => fetchGroupedPositionsData(true),  // NEW
+      refreshGroupedPositions: () => fetchGroupedPositionsData(true),
+      refreshGroupedLiabilities: () => fetchGroupedLiabilitiesData(true),
     },
   };
 

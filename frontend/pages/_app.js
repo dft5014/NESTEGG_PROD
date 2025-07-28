@@ -8,7 +8,11 @@ import { EggMascotProvider, useEggMascot } from "@/context/EggMascotContext";
 import { useRouter } from "next/router";
 import { UpdateCheckProvider } from '@/context/UpdateCheckContext';
 import { DataStoreProvider } from '@/store/DataStore'; 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, createContext, useContext } from 'react';
+
+// Create a context for sidebar state
+const SidebarContext = createContext();
+export const useSidebar = () => useContext(SidebarContext);
 
 // Create a layout wrapper component to handle sidebar state
 function LayoutWrapper({ children }) {
@@ -21,66 +25,64 @@ function LayoutWrapper({ children }) {
 
   useEffect(() => {
     setMounted(true);
-    // Listen for sidebar state changes
-    const handleSidebarToggle = () => {
-      // Get sidebar width from the sidebar element
-      const sidebar = document.querySelector('aside');
-      if (sidebar) {
-        const width = window.getComputedStyle(sidebar).width;
-        setSidebarCollapsed(width === '80px' || width === '5rem');
+  }, []);
+
+  // Handle resize for responsive behavior
+  useEffect(() => {
+    // Only run on client side
+    if (typeof window === 'undefined') return;
+    
+    const handleResize = () => {
+      if (window.innerWidth < 768) {
+        setSidebarCollapsed(true);
+      } else {
+        setSidebarCollapsed(false);
       }
     };
-
-    // Check initial state
-    handleSidebarToggle();
-
-    // Listen for changes
-    const observer = new MutationObserver(handleSidebarToggle);
-    const sidebar = document.querySelector('aside');
-    if (sidebar) {
-      observer.observe(sidebar, { attributes: true, attributeFilter: ['style'] });
-    }
-
-    return () => observer.disconnect();
-  }, [mounted]);
+    handleResize();
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   return (
-    <div className="min-h-screen bg-gray-950">
-      {/* Navigation Components */}
-      {!hideNavigation.includes(router.pathname) && mounted && (
-        <>
-          <Sidebar />
-          {/* Navbar with dynamic left margin */}
-          <div 
-            className={`fixed top-0 right-0 z-40 transition-all duration-300`}
-            style={{ left: sidebarCollapsed ? '80px' : '256px' }}
-          >
-            <Navbar />
-          </div>
-        </>
-      )}
-      
-      {/* Main Content Area with dynamic margins */}
-      <div 
-        className={`
-          min-h-screen transition-all duration-300
-          ${!hideNavigation.includes(router.pathname) && mounted 
-            ? 'pt-24' 
-            : ''
-          }
-        `}
-        style={{
-          marginLeft: !hideNavigation.includes(router.pathname) && mounted 
-            ? (sidebarCollapsed ? '80px' : '256px') 
-            : '0'
-        }}
-      >
-        {children}
+    <SidebarContext.Provider value={{ sidebarCollapsed, setSidebarCollapsed }}>
+      <div className="min-h-screen bg-gray-950">
+        {/* Navigation Components */}
+        {!hideNavigation.includes(router.pathname) && mounted && (
+          <>
+            <Sidebar />
+            {/* Navbar with dynamic left margin */}
+            <div 
+              className={`fixed top-0 right-0 z-40 transition-all duration-300`}
+              style={{ left: sidebarCollapsed ? '80px' : '256px' }}
+            >
+              <Navbar />
+            </div>
+          </>
+        )}
+        
+        {/* Main Content Area with dynamic margins */}
+        <div 
+          className={`
+            min-h-screen transition-all duration-300
+            ${!hideNavigation.includes(router.pathname) && mounted 
+              ? 'pt-24' 
+              : ''
+            }
+          `}
+          style={{
+            paddingLeft: !hideNavigation.includes(router.pathname) && mounted 
+              ? (sidebarCollapsed ? '80px' : '256px') 
+              : '0'
+          }}
+        >
+          {children}
+        </div>
+        
+        {/* Egg Mascot */}
+        {!hideNavigation.includes(router.pathname) && mounted && <EggMascotWithState />}
       </div>
-      
-      {/* Egg Mascot */}
-      {!hideNavigation.includes(router.pathname) && mounted && <EggMascotWithState />}
-    </div>
+    </SidebarContext.Provider>
   );
 }
 

@@ -9,10 +9,12 @@ import { useContext, useState, useEffect, useRef } from 'react';
 import { AuthContext } from '@/context/AuthContext';
 import { useRouter } from 'next/router';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useSidebar } from '@/pages/_app'; // ADD THIS IMPORT
 
 const Sidebar = () => {
   const { logout, user } = useContext(AuthContext);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
+  // CHANGE: Use shared state from context instead of local state
+  const { sidebarCollapsed, setSidebarCollapsed } = useSidebar();
   const [hoveredItem, setHoveredItem] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [showSearch, setShowSearch] = useState(false);
@@ -38,7 +40,7 @@ const Sidebar = () => {
     handleResize();
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
-  }, []);
+  }, [setSidebarCollapsed]); // ADD setSidebarCollapsed to deps
 
   // Focus search when opened
   useEffect(() => {
@@ -115,7 +117,7 @@ const Sidebar = () => {
 
     return (
       <motion.div 
-        className="relative cursor-default" // Remove cursor pointer
+        className="relative cursor-default"
         whileHover={{ scale: 1.05 }}
         whileTap={{ scale: 0.95 }}
       >
@@ -235,7 +237,9 @@ const Sidebar = () => {
 
         {/* Logo - No longer clickable */}
         <div className="p-4 border-b border-gray-800/50">
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3"
+               onMouseEnter={() => setHoveredItem('logo')}
+               onMouseLeave={() => setHoveredItem(null)}>
             <NestEggLogo />
             <AnimatePresence>
               {!sidebarCollapsed && (
@@ -461,7 +465,7 @@ const Sidebar = () => {
         </div>
       </motion.aside>
       
-      {/* This spacer div is REMOVED - we'll handle spacing in _app.js */}
+      {/* REMOVE THIS - No spacer div needed */}
     </>
   );
 };

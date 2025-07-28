@@ -1,430 +1,329 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState } from 'react';
 import Head from 'next/head';
+import { useRouter } from 'next/router';
 import { motion } from 'framer-motion';
 import { 
-  DollarSign, TrendingUp, TrendingDown, Percent,
-  Target, Flame, RefreshCw, Eye, EyeOff,
-  Activity, BarChart3, Layers
+  Receipt, TrendingDown, CreditCard, Home, 
+  DollarSign, Percent, AlertCircle, RefreshCw,
+  Plus, Target, Shield, Zap
 } from 'lucide-react';
-import { 
-  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer 
-} from 'recharts';
-import UnifiedGroupPositionsTable2 from '@/components/tables/UnifiedGroupPositionsTable2';
+import LiabilityTable from '@/components/tables/LiabilityTable';
+import { useGroupedLiabilities } from '@/store/hooks/useGroupedLiabilities';
 import { formatCurrency, formatPercentage } from '@/utils/formatters';
 
-// DataStore hooks - no API methods!
-import { useGroupedPositions } from '@/store/hooks/useGroupedPositions';
-import { usePortfolioSummary } from '@/store/hooks/usePortfolioSummary';
-import { usePortfolioTrends } from '@/store/hooks/usePortfolioTrends';
-
-export default function PositionsPage() {
-  const [showValues, setShowValues] = useState(true);
-  const [selectedTimeframe, setSelectedTimeframe] = useState('1m');
-
-  // Get data from the store - no API calls!
+export default function LiabilitiesPage() {
+  const router = useRouter();
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  
   const { 
-    positions, 
-    summary: groupedSummary, 
-    metrics,
-    loading: positionsLoading, 
-    error: positionsError, 
-    refreshData: refreshPositions 
-  } = useGroupedPositions();
+    liabilities, 
+    summary, 
+    metrics, 
+    loading, 
+    error,
+    refreshData 
+  } = useGroupedLiabilities();
 
-  const { 
-    summary: portfolioData,
-    topPerformersPercent,
-    loading: summaryLoading,
-    error: summaryError,
-    refresh: refreshSummary
-  } = usePortfolioSummary();
-
-  // Get trend data
-  const { trends, loading: trendsLoading } = usePortfolioTrends();
-
-  // Combine loading states
-  const isLoading = positionsLoading || summaryLoading || trendsLoading;
-  const isRefreshing = isLoading;
-
-  // Calculate position metrics from store data
-  const positionMetrics = {
-    totalValue: portfolioData?.liquidAssets || 0,
-    totalGainLoss: portfolioData?.liquidUnrealizedGain || 0,
-    totalGainLossPercent: portfolioData?.liquidUnrealizedGainPercent || 0,
-    largestPosition: positions?.[0] || null,
-    mostProfitablePosition: topPerformersPercent?.[0] || null,
-    positionCount: positions?.length || 0,
-    totalIncome: portfolioData?.income?.annual || 0,
-    incomeYield: portfolioData?.income?.yieldLiquid || 0
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    await refreshData();
+    setIsRefreshing(false);
   };
-
-  // Process chart data based on timeframe
-  const chartData = useMemo(() => {
-    if (!trends?.chartData || trends.chartData.length === 0) return [];
-    
-    // Get the appropriate number of data points based on timeframe
-    let dataPoints = [...trends.chartData];
-    const now = new Date();
-    
-    switch (selectedTimeframe) {
-      case '1d':
-        // Last 2 data points for 1 day
-        dataPoints = dataPoints.slice(-2);
-        break;
-      case '1w':
-        // Last 7 days
-        dataPoints = dataPoints.slice(-7);
-        break;
-      case '1m':
-        // Last 30 days
-        dataPoints = dataPoints.slice(-30);
-        break;
-      case 'ytd':
-        // Filter to current year
-        const currentYear = now.getFullYear();
-        dataPoints = dataPoints.filter(point => 
-          new Date(point.date).getFullYear() === currentYear
-        );
-        break;
-      default:
-        // Use all data
-        break;
-    }
-    
-    return dataPoints.map(point => ({
-      date: new Date(point.date).toLocaleDateString('en-US', { 
-        month: 'short', 
-        day: 'numeric' 
-      }),
-      value: point.liquidAssets || 0
-    }));
-  }, [trends, selectedTimeframe]);
-
-  // Calculate change percentage and amount based on timeframe
-  const { changePercent, changeAmount } = useMemo(() => {
-    // Use the pre-calculated changes from portfolioData based on timeframe
-    let percent = 0;
-    let amount = 0;
-    
-    if (portfolioData?.timeRangeChanges) {
-      switch (selectedTimeframe) {
-        case '1d':
-          percent = portfolioData.timeRangeChanges['1d']?.liquidAssetsPercent || 0;
-          amount = portfolioData.timeRangeChanges['1d']?.liquidAssets || 0;
-          break;
-        case '1w':
-          percent = portfolioData.timeRangeChanges['1w']?.liquidAssetsPercent || 0;
-          amount = portfolioData.timeRangeChanges['1w']?.liquidAssets || 0;
-          break;
-        case '1m':
-          percent = portfolioData.timeRangeChanges['1m']?.liquidAssetsPercent || 0;
-          amount = portfolioData.timeRangeChanges['1m']?.liquidAssets || 0;
-          break;
-        case 'ytd':
-          percent = portfolioData.timeRangeChanges['ytd']?.liquidAssetsPercent || 0;
-          amount = portfolioData.timeRangeChanges['ytd']?.liquidAssets || 0;
-          break;
-        default:
-          // Fallback to chart data calculation if needed
-          if (chartData && chartData.length >= 2) {
-            const firstValue = chartData[0]?.value || 0;
-            const lastValue = chartData[chartData.length - 1]?.value || 0;
-            percent = firstValue > 0 ? ((lastValue - firstValue) / firstValue) * 100 : 0;
-            amount = lastValue - firstValue;
-          }
-      }
-    }
-    
-    return { changePercent: percent, changeAmount: amount };
-  }, [portfolioData, selectedTimeframe, chartData]);
-
-  // Refresh all data
-  const handleRefreshPositions = async () => {
-    try {
-      await Promise.all([
-        refreshPositions(),
-        refreshSummary()
-      ]);
-    } catch (error) {
-      console.error("Error refreshing data:", error);
-    }
-  };
-
-  const timeframeOptions = [
-    { id: '1d', label: '1D' },
-    { id: '1w', label: '1W' },
-    { id: '1m', label: '1M' },
-    { id: 'ytd', label: 'YTD' }
-  ];
 
   return (
-    <>
+    <div className="min-h-screen bg-black text-white">
       <Head>
-        <title>Positions - NestEgg</title>
-        <meta name="description" content="View and manage your investment positions" />
+        <title>NestEgg | Liabilities</title>
+        <meta name="description" content="Debt and liability management" />
+        <link rel="icon" href="/favicon.ico" />
       </Head>
-
-      <div className="min-h-screen bg-gray-950 text-white">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          
-          {/* Clean Header */}
-          <header className="mb-8">
-            <div className="flex items-center justify-between">
-              <div>
-                <h1 className="text-3xl font-bold mb-2">Positions</h1>
-                <p className="text-gray-400">Monitor and manage your investment holdings</p>
-              </div>
-              
-              <div className="flex items-center space-x-3">
-                <motion.button
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
-                  onClick={() => setShowValues(!showValues)}
-                  className="relative p-2 bg-gray-800 rounded-lg hover:bg-gray-700 transition-colors group"
-                  aria-label={showValues ? "Hide values" : "Show values"}
-                >
-                  {showValues ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
-                </motion.button>
-                
-                <motion.button
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
-                  onClick={handleRefreshPositions}
-                  className="flex items-center px-4 py-2 bg-blue-600 rounded-lg font-medium hover:bg-blue-700 transition-colors"
-                  disabled={isRefreshing}
-                >
-                  <RefreshCw className={`w-4 h-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
-                  Refresh
-                </motion.button>
-              </div>
-            </div>
-          </header>
-
-          {/* Portfolio Dashboard Section */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-            {/* Main Chart Section - Takes up 2 columns */}
-            <div className="lg:col-span-2 bg-gray-900 rounded-xl p-6 border border-gray-800">
-              <div className="flex items-center justify-between mb-4">
-                <div>
-                  <p className="text-gray-400 text-sm mb-1">Portfolio Value</p>
-                  <h2 className="text-3xl font-bold">
-                    {showValues ? formatCurrency(positionMetrics.totalValue) : '••••••••'}
-                  </h2>
-                  <div className="flex items-center mt-2">
-                    <span className={`text-sm font-medium ${changePercent >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                      {changePercent >= 0 ? '+' : ''}{changePercent.toFixed(2)}%
-                    </span>
-                    <span className="text-gray-500 text-sm ml-2">
-                      ({selectedTimeframe.toUpperCase()}) Change: {showValues ? formatCurrency(Math.abs(changeAmount)) : '••••'}
-                    </span>
-                  </div>
-                </div>
-                
-                {/* Timeframe Selector */}
-                <div className="flex space-x-1">
-                  {timeframeOptions.map((option) => (
-                    <button
-                      key={option.id}
-                      onClick={() => setSelectedTimeframe(option.id)}
-                      className={`px-3 py-1 rounded text-xs font-medium transition-colors ${
-                        selectedTimeframe === option.id
-                          ? 'bg-blue-600 text-white'
-                          : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
-                      }`}
-                    >
-                      {option.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Chart */}
-              <div style={{ height: '200px' }}>
-                <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={chartData} margin={{ top: 10, right: 0, left: 0, bottom: 0 }}>
-                    <defs>
-                      <linearGradient id="colorValue" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3}/>
-                        <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-                    <XAxis 
-                      dataKey="date" 
-                      stroke="#9ca3af"
-                      fontSize={12}
-                      tickLine={false}
-                    />
-                    <YAxis 
-                      stroke="#9ca3af"
-                      fontSize={12}
-                      tickLine={false}
-                      tickFormatter={(value) => showValues ? `$${(value / 1000).toFixed(0)}k` : ''}
-                    />
-                    <Tooltip 
-                      contentStyle={{ 
-                        backgroundColor: '#1f2937', 
-                        border: '1px solid #374151',
-                        borderRadius: '0.5rem'
-                      }}
-                      labelStyle={{ color: '#9ca3af' }}
-                      formatter={(value) => showValues ? formatCurrency(value) : '••••'}
-                    />
-                    <Area 
-                      type="monotone" 
-                      dataKey="value" 
-                      stroke="#3b82f6" 
-                      fillOpacity={1} 
-                      fill="url(#colorValue)" 
-                      strokeWidth={2}
-                    />
-                  </AreaChart>
-                </ResponsiveContainer>
-              </div>
-            </div>
-
-            {/* KPI Cards Section - Takes up 1 column */}
-            <div className="space-y-4">
-              {/* Total Gain/Loss Card */}
-              <motion.div
-                initial={{ opacity: 0, x: 20 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: 0.1 }}
-                className="bg-gray-900 rounded-xl p-6 border border-gray-800"
-              >
-                <div className="flex items-start justify-between mb-2">
-                  <p className="text-gray-400 text-sm">Total Gain/Loss</p>
-                  <div className={`p-1.5 rounded-lg ${positionMetrics.totalGainLoss >= 0 ? 'bg-green-500/10' : 'bg-red-500/10'}`}>
-                    {positionMetrics.totalGainLoss >= 0 ? 
-                      <TrendingUp className="w-4 h-4 text-green-400" /> : 
-                      <TrendingDown className="w-4 h-4 text-red-400" />
-                    }
-                  </div>
-                </div>
-                <p className={`text-2xl font-bold ${positionMetrics.totalGainLoss >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                  {showValues ? formatCurrency(positionMetrics.totalGainLoss) : '••••••'}
-                </p>
-                <p className="text-xs text-gray-500 mt-1">
-                  {formatPercentage(positionMetrics.totalGainLossPercent / 100)} return
-                </p>
-              </motion.div>
-
-              {/* Income & Yield Card */}
-              <motion.div
-                initial={{ opacity: 0, x: 20 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: 0.2 }}
-                className="bg-gray-900 rounded-xl p-6 border border-gray-800"
-              >
-                <div className="flex items-start justify-between mb-2">
-                  <p className="text-gray-400 text-sm">Income & Yield</p>
-                  <div className="p-1.5 rounded-lg bg-yellow-500/10">
-                    <Activity className="w-4 h-4 text-yellow-400" />
-                  </div>
-                </div>
-                <p className="text-2xl font-bold text-yellow-400">
-                  {showValues ? formatCurrency(positionMetrics.totalIncome) : '••••••'}
-                </p>
-                <p className="text-xs text-gray-500 mt-1">
-                  {formatPercentage(positionMetrics.incomeYield / 100)} yield
-                </p>
-              </motion.div>
-
-              {/* Positions Card */}
-              <motion.div
-                initial={{ opacity: 0, x: 20 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: 0.3 }}
-                className="bg-gray-900 rounded-xl p-6 border border-gray-800"
-              >
-                <div className="flex items-start justify-between mb-2">
-                  <p className="text-gray-400 text-sm">Positions</p>
-                  <div className="p-1.5 rounded-lg bg-blue-500/10">
-                    <Layers className="w-4 h-4 text-blue-400" />
-                  </div>
-                </div>
-                <p className="text-2xl font-bold">
-                  {positionMetrics.positionCount}
-                </p>
-                <p className="text-xs text-gray-500 mt-1">
-                  {positionMetrics.positionCount} visible
-                </p>
-              </motion.div>
-            </div>
-          </div>
-
-          {/* Additional KPI Boxes */}
-          <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-            {[
-              {
-                title: "Total Value",
-                value: positionMetrics.totalValue,
-                icon: <DollarSign className="w-5 h-5" />,
-                color: "text-blue-400",
-                bgColor: "bg-blue-500/10",
-                format: (v) => showValues ? formatCurrency(v) : '••••',
-                subtitle: `${positionMetrics.positionCount} positions`
-              },
-              {
-                title: "Total Gain/Loss",
-                value: positionMetrics.totalGainLoss,
-                icon: positionMetrics.totalGainLoss >= 0 ? <TrendingUp className="w-5 h-5" /> : <TrendingDown className="w-5 h-5" />,
-                color: positionMetrics.totalGainLoss >= 0 ? "text-green-400" : "text-red-400",
-                bgColor: positionMetrics.totalGainLoss >= 0 ? "bg-green-500/10" : "bg-red-500/10",
-                format: (v) => showValues ? formatCurrency(v) : '••••',
-                subtitle: `${formatPercentage(positionMetrics.totalGainLossPercent / 100)} return`
-              },
-              {
-                title: "Largest Position",
-                value: positionMetrics.largestPosition?.total_current_value || 0,
-                icon: <Target className="w-5 h-5" />,
-                color: "text-purple-400",
-                bgColor: "bg-purple-500/10",
-                format: (v) => showValues ? formatCurrency(v) : '••••',
-                subtitle: positionMetrics.largestPosition?.name || 'N/A'
-              },
-              {
-                title: "Best Performer",
-                value: positionMetrics.mostProfitablePosition?.gain_loss_pct || 0,
-                icon: <Flame className="w-5 h-5" />,
-                color: "text-orange-400",
-                bgColor: "bg-orange-500/10",
-                format: (v) => `+${formatPercentage(v / 100)}`,
-                subtitle: positionMetrics.mostProfitablePosition?.name || 'N/A'
-              }
-            ].map((metric, index) => (
-              <motion.div
-                key={metric.title}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.1 + index * 0.05 }}
-                className="bg-gray-900 rounded-lg p-4 border border-gray-800 hover:bg-gray-800 transition-colors"
-              >
-                <div className="flex items-start justify-between mb-2">
-                  <div className={`p-2 rounded-lg ${metric.bgColor}`}>
-                    <div className={metric.color}>{metric.icon}</div>
-                  </div>
-                </div>
-                <h3 className="text-gray-400 text-xs mb-1">{metric.title}</h3>
-                <p className="text-xl font-bold mb-1">{metric.format(metric.value)}</p>
-                {metric.subtitle && (
-                  <p className="text-xs text-gray-500 truncate">{metric.subtitle}</p>
-                )}
-              </motion.div>
-            ))}
-          </section>
-
-          {/* Unified Grouped Positions Table */}
-          <section>
-            <UnifiedGroupPositionsTable2 
-              initialSort="value-high"
-              title="All Positions"
-              showHistoricalColumns={false}
-            />
-          </section>
-          
-        </div>
+      
+      {/* Background */}
+      <div className="fixed inset-0 z-0">
+        <div className="absolute inset-0 bg-gradient-to-br from-gray-900 via-black to-gray-900" />
       </div>
-    </>
-  );
+      
+      <div className="relative z-10 container mx-auto p-4 md:p-6">
+        {/* Header */}
+        <header className="mb-6">
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-center">
+            <div>
+              <h1 className="text-3xl md:text-4xl font-bold mb-2">Liabilities</h1>
+              <p className="text-gray-400 text-sm flex items-center">
+                <Receipt className="w-3 h-3 mr-2" />
+                Track and manage your debts
+              </p>
+            </div>
+            
+            <div className="flex items-center space-x-3 mt-4 md:mt-0">
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={handleRefresh}
+                className="flex items-center px-4 py-2 bg-blue-600 rounded-lg font-medium hover:bg-blue-700 transition-colors"
+                disabled={isRefreshing}
+             >
+               <RefreshCw className={`w-4 h-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
+               Refresh
+             </motion.button>
+             
+             <motion.button
+               whileHover={{ scale: 1.05 }}
+               whileTap={{ scale: 0.95 }}
+               onClick={() => router.push('/liabilities/add')}
+               className="flex items-center px-4 py-2 bg-red-600 rounded-lg font-medium hover:bg-red-700 transition-colors"
+             >
+               <Plus className="w-4 h-4 mr-2" />
+               Add Liability
+             </motion.button>
+           </div>
+         </div>
+       </header>
+
+       {/* Summary Section */}
+       <section className="mb-8">
+         <div className="bg-gray-900 rounded-xl p-6 border border-gray-800">
+           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+             {/* Main metrics */}
+             <div className="lg:col-span-2">
+               <div className="flex items-center justify-between mb-3">
+                 <p className="text-gray-400 text-sm">Total Debt</p>
+                 <div className="flex items-center space-x-2">
+                   <span className="text-xs text-gray-500">
+                     {formatPercentage((summary.total_paid_down / summary.total_original_debt) * 100)} paid off
+                   </span>
+                 </div>
+               </div>
+               
+               <h2 className="text-3xl font-bold mb-2 text-red-400">
+                 {formatCurrency(summary.total_debt)}
+               </h2>
+               
+               <div className="flex items-center space-x-4 text-sm">
+                 <div className="flex items-center">
+                   <TrendingDown className="w-4 h-4 text-green-400 mr-1" />
+                   <span className="text-green-400">
+                     {formatCurrency(summary.total_paid_down)} paid
+                   </span>
+                 </div>
+                 <div className="text-gray-400">
+                   from {formatCurrency(summary.total_original_debt)} original
+                 </div>
+               </div>
+             </div>
+             
+             {/* Side metrics */}
+             <div className="space-y-4">
+               <div className="bg-gray-800/50 p-4 rounded-lg">
+                 <div className="flex items-center justify-between mb-2">
+                   <p className="text-gray-400 text-sm">Interest Cost</p>
+                   <DollarSign className="w-4 h-4 text-yellow-400" />
+                 </div>
+                 <p className="text-xl font-bold">{formatCurrency(summary.total_annual_interest)}</p>
+                 <p className="text-xs text-gray-500">per year</p>
+               </div>
+               
+               {metrics.creditUtilization !== null && (
+                 <div className="bg-gray-800/50 p-4 rounded-lg">
+                   <div className="flex items-center justify-between mb-2">
+                     <p className="text-gray-400 text-sm">Credit Usage</p>
+                     <CreditCard className="w-4 h-4 text-blue-400" />
+                   </div>
+                   <p className={`text-xl font-bold ${
+                     metrics.creditUtilization > 30 ? 'text-red-400' : 'text-green-400'
+                   }`}>
+                     {metrics.creditUtilization.toFixed(1)}%
+                   </p>
+                   <p className="text-xs text-gray-500">
+                     {metrics.creditUtilization > 30 ? 'Above target' : 'Good standing'}
+                   </p>
+                 </div>
+               )}
+             </div>
+           </div>
+         </div>
+       </section>
+
+       {/* Quick Stats */}
+       <section className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+         {[
+           {
+             title: "Average Rate",
+             value: summary.avg_interest_rate,
+             icon: <Percent className="w-5 h-5" />,
+             color: "text-yellow-400",
+             bgColor: "bg-yellow-500/10",
+             format: (v) => `${v?.toFixed(2)}%`,
+             subtitle: "weighted average"
+           },
+           {
+             title: "High Interest Debt",
+             value: metrics.totalHighInterestDebt,
+             icon: <AlertCircle className="w-5 h-5" />,
+             color: "text-red-400",
+             bgColor: "bg-red-500/10",
+             format: formatCurrency,
+             subtitle: ">10% interest rate"
+           },
+           {
+             title: "Highest Rate",
+             value: metrics.highestInterestRate,
+             icon: <Zap className="w-5 h-5" />,
+             color: "text-orange-400",
+             bgColor: "bg-orange-500/10",
+             format: (v) => `${v?.toFixed(2)}%`,
+             subtitle: "priority target"
+           },
+           {
+             title: "Debt Types",
+             value: Object.keys(summary.liability_type_breakdown || {}).length,
+             icon: <Shield className="w-5 h-5" />,
+             color: "text-purple-400",
+             bgColor: "bg-purple-500/10",
+             format: (v) => v,
+             subtitle: `${summary.total_liabilities} total accounts`
+           }
+         ].map((metric, index) => (
+           <motion.div
+             key={metric.title}
+             initial={{ opacity: 0, y: 20 }}
+             animate={{ opacity: 1, y: 0 }}
+             transition={{ delay: 0.1 + index * 0.05 }}
+             className="bg-gray-900 rounded-lg p-4 border border-gray-800 hover:bg-gray-800 transition-colors"
+           >
+             <div className="flex items-start justify-between mb-2">
+               <div className={`p-2 rounded-lg ${metric.bgColor}`}>
+                 <div className={metric.color}>{metric.icon}</div>
+               </div>
+             </div>
+             <h3 className="text-gray-400 text-xs mb-1">{metric.title}</h3>
+             <p className="text-xl font-bold mb-1">{metric.format(metric.value)}</p>
+             {metric.subtitle && (
+               <p className="text-xs text-gray-500 truncate">{metric.subtitle}</p>
+             )}
+           </motion.div>
+         ))}
+       </section>
+
+       {/* Debt Breakdown by Type */}
+       {Object.keys(summary.liability_type_breakdown || {}).length > 0 && (
+         <section className="mb-8">
+           <h3 className="text-lg font-bold mb-4">Debt by Type</h3>
+           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+             {Object.entries(summary.liability_type_breakdown).map(([type, data]) => {
+               const Icon = liabilityIcons[type] || Receipt;
+               const percentage = (data.total_balance / summary.total_debt) * 100;
+               
+               return (
+                 <div key={type} className="bg-gray-900 rounded-lg p-4 border border-gray-800">
+                   <div className="flex items-center justify-between mb-3">
+                     <div className="flex items-center space-x-2">
+                       <Icon className="w-5 h-5 text-gray-400" />
+                       <h4 className="font-medium capitalize">
+                         {type.split('_').join(' ')}
+                       </h4>
+                     </div>
+                     <span className="text-sm text-gray-400">
+                       {data.count} {data.count === 1 ? 'account' : 'accounts'}
+                     </span>
+                   </div>
+                   
+                   <div className="space-y-2">
+                     <div className="flex justify-between items-baseline">
+                       <span className="text-2xl font-bold text-red-400">
+                         {formatCurrency(data.total_balance)}
+                       </span>
+                       <span className="text-sm text-gray-400">
+                         {percentage.toFixed(1)}%
+                       </span>
+                     </div>
+                     
+                     <div className="w-full bg-gray-800 rounded-full h-2">
+                       <div 
+                         className="bg-red-500 h-2 rounded-full"
+                         style={{ width: `${percentage}%` }}
+                       />
+                     </div>
+                     
+                     <div className="flex justify-between text-xs text-gray-400">
+                       <span>Rate: {data.avg_interest_rate?.toFixed(2)}%</span>
+                       <span>Original: {formatCurrency(data.total_original)}</span>
+                     </div>
+                   </div>
+                 </div>
+               );
+             })}
+           </div>
+         </section>
+       )}
+
+       {/* Liabilities Table */}
+       <section className="mb-8">
+         <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-4">
+           <h3 className="text-xl font-bold flex items-center">
+             <Receipt className="w-5 h-5 mr-2" />
+             All Liabilities
+           </h3>
+           <p className="text-sm text-gray-400">
+             Click any row for detailed information
+           </p>
+         </div>
+         
+         <LiabilityTable 
+           showHistoricalColumns={true}
+         />
+       </section>
+
+       {/* Priority Actions */}
+       {(metrics.highestInterestRate > 15 || metrics.creditUtilization > 30) && (
+         <section className="mb-8">
+           <div className="bg-red-900/20 rounded-xl p-6 border border-red-800/50">
+             <h3 className="text-lg font-bold mb-4 flex items-center">
+               <Target className="w-5 h-5 mr-2 text-red-400" />
+               Priority Actions
+             </h3>
+             
+             <div className="space-y-3">
+               {metrics.highestInterestRate > 15 && (
+                 <div className="flex items-start space-x-3">
+                   <AlertCircle className="w-5 h-5 text-red-400 mt-0.5" />
+                   <div>
+                     <p className="font-medium">High Interest Alert</p>
+                     <p className="text-sm text-gray-400">
+                       You have debt with {metrics.highestInterestRate.toFixed(2)}% interest rate. 
+                       Consider prioritizing payment or refinancing options.
+                     </p>
+                   </div>
+                 </div>
+               )}
+               
+               {metrics.creditUtilization > 30 && (
+                 <div className="flex items-start space-x-3">
+                   <CreditCard className="w-5 h-5 text-yellow-400 mt-0.5" />
+                   <div>
+                     <p className="font-medium">Credit Utilization Warning</p>
+                     <p className="text-sm text-gray-400">
+                       Your credit utilization is {metrics.creditUtilization.toFixed(1)}%. 
+                       Aim to keep it below 30% to improve your credit score.
+                     </p>
+                   </div>
+                 </div>
+               )}
+             </div>
+           </div>
+         </section>
+       )}
+     </div>
+   </div>
+ );
 }
+
+// Icon mapping (same as in LiabilityTable)
+const liabilityIcons = {
+ credit_card: CreditCard,
+ mortgage: Home,
+ auto_loan: Receipt,
+ student_loan: Receipt,
+ personal_loan: Receipt,
+ other: Receipt
+};
