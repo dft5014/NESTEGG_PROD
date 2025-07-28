@@ -7636,93 +7636,147 @@ async def get_grouped_liabilities(
     Get grouped liabilities data from the summary view
     """
     try:
-        user_id = current_user.get("user_id")
+        user_id = current_user["id"]  # Note: using "id" not "user_id" based on your example
         
         # Build base query
-        query = """
-            SELECT 
-                user_id,
-                snapshot_date,
-                liability_type,
-                identifier,
-                name,
-                institution,
-                data_source,
-                liability_count,
-                institution_count,
-                total_current_balance,
-                total_original_amount,
-                total_paid_down,
-                weighted_avg_interest_rate,
-                max_interest_rate,
-                min_interest_rate,
-                total_credit_card_balance,
-                total_credit_limit,
-                estimated_annual_interest,
-                liability_details,
-                last_updated,
-                balance_last_updated,
-                debt_allocation_pct,
-                paydown_percentage,
-                credit_utilization_pct,
-                balance_1d_change,
-                balance_1d_change_pct,
-                balance_1w_change,
-                balance_1w_change_pct,
-                balance_1m_change,
-                balance_1m_change_pct,
-                balance_3m_change,
-                balance_3m_change_pct,
-                balance_ytd_change,
-                balance_ytd_change_pct,
-                balance_1y_change,
-                balance_1y_change_pct,
-                balance_max_change,
-                balance_max_change_pct,
-                earliest_snapshot_date
-            FROM rept_summary_grouped_liabilities
-            WHERE user_id = :user_id
+        base_query = """
+        SELECT 
+            user_id,
+            snapshot_date,
+            liability_type,
+            identifier,
+            name,
+            institution,
+            data_source,
+            liability_count,
+            institution_count,
+            total_current_balance,
+            total_original_amount,
+            total_paid_down,
+            weighted_avg_interest_rate,
+            max_interest_rate,
+            min_interest_rate,
+            total_credit_card_balance,
+            total_credit_limit,
+            estimated_annual_interest,
+            liability_details,
+            last_updated,
+            balance_last_updated,
+            debt_allocation_pct,
+            paydown_percentage,
+            credit_utilization_pct,
+            balance_1d_change,
+            balance_1d_change_pct,
+            balance_1w_change,
+            balance_1w_change_pct,
+            balance_1m_change,
+            balance_1m_change_pct,
+            balance_3m_change,
+            balance_3m_change_pct,
+            balance_ytd_change,
+            balance_ytd_change_pct,
+            balance_1y_change,
+            balance_1y_change_pct,
+            balance_max_change,
+            balance_max_change_pct,
+            earliest_snapshot_date
+        FROM rept_summary_grouped_liabilities 
+        WHERE user_id = :user_id
         """
         
         params = {"user_id": user_id}
         
         # Handle snapshot date
-        if snapshot_date == "latest":
-            query += " AND snapshot_date = (SELECT MAX(snapshot_date) FROM rept_summary_grouped_liabilities WHERE user_id = :user_id)"
+        if snapshot_date == "latest" or snapshot_date is None:
+            query = f"""
+            WITH latest_date AS (
+                SELECT MAX(snapshot_date) as max_date 
+                FROM rept_summary_grouped_liabilities 
+                WHERE user_id = :user_id
+            )
+            {base_query} AND snapshot_date = (SELECT max_date FROM latest_date)
+            """
         else:
-            query += " AND snapshot_date = :snapshot_date"
+            query = base_query + " AND snapshot_date = :snapshot_date::date"
             params["snapshot_date"] = snapshot_date
         
         # Add data source filter for latest data
         query += " AND data_source = 'live'"
         
-        # Execute query
-        result = db.execute(text(query), params)
-        liabilities = result.fetchall()
+        # Execute query using database (not db)
+        results = await database.fetch_all(query=query, values=params)
         
-        # Convert to dictionaries
-        liability_dicts = []
-        for row in liabilities:
-            liability_dict = dict(row._mapping)
-            # Parse JSON fields
-            if liability_dict.get('liability_details'):
-                liability_dict['liability_details'] = json.loads(liability_dict['liability_details'])
-            liability_dicts.append(liability_dict)
+        if not results:
+            return {
+                "liabilities": [],
+                "summary": {
+                    "total_liabilities": 0,
+                    "unique_liabilities": 0,
+                    "total_debt": 0,
+                    "total_original_debt": 0,
+                    "total_paid_down": 0,
+                    "avg_interest_rate": 0,
+                    "total_annual_interest": 0,
+                    "liability_type_breakdown": {}
+                }
+            }
+        
+        # Process results
+        liabilities = []
+        
+        for row in results:
+            liability = dict(row)
+            
+            # Format dates
+            date_fields = ['snapshot_date', 'earliest_snapshot_date']
+            for field in date_fields:
+                if liability.get(field):
+                    liability[field] = liability[field].strftime('%Y-%m-%d')
+            
+            # Format timestamps
+            timestamp_fields = ['last_updated', 'balance_last_updated']
+            for field in timestamp_fields:
+                if liability.get(field):
+                    liability[field] = liability[field].isoformat()
+            
+            # Convert Decimal to float for JSON serialization
+            for key, value in liability.items():
+                if isinstance(value, Decimal):
+                    liability[key] = float(value)
+                elif value is None and key.endswith(('_balance', '_amount', '_pct', '_change', '_rate')):
+                    liability[key] = 0.0
+            
+            # Parse liability_details JSONB
+            if isinstance(liability.get('liability_details'), str):
+                try:
+                    liability['liability_details'] = json.loads(liability['liability_details'])
+                except:
+                    liability['liability_details'] = []
+            elif liability.get('liability_details') is None:
+                liability['liability_details'] = []
+            
+            liabilities.append(liability)
         
         # Calculate summary statistics
         summary = {
-            "total_liabilities": len(liability_dicts),
-            "unique_liabilities": len(set(l['identifier'] for l in liability_dicts)),
-            "total_debt": sum(l.get('total_current_balance', 0) for l in liability_dicts),
-            "total_original_debt": sum(l.get('total_original_amount', 0) for l in liability_dicts),
-            "total_paid_down": sum(l.get('total_paid_down', 0) for l in liability_dicts),
-            "avg_interest_rate": sum(l.get('weighted_avg_interest_rate', 0) * l.get('total_current_balance', 0) for l in liability_dicts) / max(sum(l.get('total_current_balance', 0) for l in liability_dicts), 1),
-            "total_annual_interest": sum(l.get('estimated_annual_interest', 0) for l in liability_dicts),
+            "total_liabilities": len(liabilities),
+            "unique_liabilities": len(set(l['identifier'] for l in liabilities)),
+            "total_debt": sum(l.get('total_current_balance', 0) for l in liabilities),
+            "total_original_debt": sum(l.get('total_original_amount', 0) for l in liabilities),
+            "total_paid_down": sum(l.get('total_paid_down', 0) for l in liabilities),
+            "avg_interest_rate": 0,
+            "total_annual_interest": sum(l.get('estimated_annual_interest', 0) for l in liabilities),
             "liability_type_breakdown": {}
         }
         
+        # Calculate weighted average interest rate
+        total_balance = summary['total_debt']
+        if total_balance > 0:
+            weighted_sum = sum(l.get('weighted_avg_interest_rate', 0) * l.get('total_current_balance', 0) for l in liabilities)
+            summary['avg_interest_rate'] = weighted_sum / total_balance
+        
         # Calculate breakdown by liability type
-        for liability in liability_dicts:
+        for liability in liabilities:
             liability_type = liability.get('liability_type', 'unknown')
             if liability_type not in summary['liability_type_breakdown']:
                 summary['liability_type_breakdown'][liability_type] = {
@@ -7737,7 +7791,7 @@ async def get_grouped_liabilities(
             breakdown['total_balance'] += liability.get('total_current_balance', 0)
             breakdown['total_original'] += liability.get('total_original_amount', 0)
             
-            # Calculate weighted average interest rate
+            # Calculate weighted average interest rate for this type
             if breakdown['total_balance'] > 0:
                 current_weight = liability.get('total_current_balance', 0) / breakdown['total_balance']
                 breakdown['avg_interest_rate'] = (
@@ -7746,15 +7800,19 @@ async def get_grouped_liabilities(
                 )
         
         return {
-            "liabilities": liability_dicts,
+            "liabilities": liabilities,
             "summary": summary,
-            "snapshot_date": snapshot_date if snapshot_date != "latest" else (liability_dicts[0]['snapshot_date'] if liability_dicts else None)
+            "snapshot_date": liabilities[0]['snapshot_date'] if liabilities else None
         }
         
     except Exception as e:
         logger.error(f"Error fetching grouped liabilities: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
-
+        import traceback
+        logger.error(traceback.format_exc())
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to fetch grouped liabilities: {str(e)}"
+        )
 
 @app.get("/portfolio/sidebar-stats")
 async def get_sidebar_stats(
