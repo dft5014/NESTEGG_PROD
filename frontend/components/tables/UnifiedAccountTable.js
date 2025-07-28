@@ -55,7 +55,7 @@ const PerformanceIndicator = ({ value, format = 'percentage', size = 'sm', showS
     );
 };
 
-// Account Detail Modal Component
+// Updated Account Detail Modal Component
 const AccountDetailModal = ({ isOpen, onClose, account }) => {
     // State for sorting - must be before any conditional returns
     const [activeTab, setActiveTab] = useState('overview');
