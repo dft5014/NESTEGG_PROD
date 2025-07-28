@@ -700,7 +700,16 @@ const UnifiedAccountTable2 = ({
                                         <td className="px-3 py-2 whitespace-nowrap">
                                             <div className="flex items-center">
                                                 <div className="flex-shrink-0 mr-3">
-                                                    {Logo && <Logo />}
+                                                    {typeof Logo === 'string'
+                                                        ? <img src={Logo} alt={account.institution || ''} className="w-5 h-5 object-contain rounded"/>
+                                                        : Logo
+                                                            ? <Logo />
+                                                            : (account.institution &&
+                                                                <div className="h-5 w-5 rounded bg-gray-600 flex items-center justify-center text-xs font-medium text-gray-300">
+                                                                    {account.institution.charAt(0).toUpperCase()}
+                                                                </div>
+                                                              )
+                                                    }
                                                 </div>
                                                 <div>
                                                     <div className="text-sm font-medium text-white">
