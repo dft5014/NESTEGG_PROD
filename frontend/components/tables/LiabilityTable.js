@@ -3,7 +3,7 @@ import {
   TrendingDown, TrendingUp, ChevronDown, ChevronUp, 
   CreditCard, Home, Car, GraduationCap, Receipt,
   AlertCircle, CheckCircle, Percent, DollarSign,
-  Calendar, Building2, Minus, Plus, X, Search
+  Calendar, Building2, Minus, Plus, X, Search, RefreshCw
 } from 'lucide-react';
 import { formatCurrency, formatPercentage } from '@/utils/formatters';
 import { useGroupedLiabilities } from '@/store/hooks/useGroupedLiabilities';
