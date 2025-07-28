@@ -1,14 +1,13 @@
 // components/Navbar.js
-import { useState, useContext, useEffect, useCallback, memo } from 'react';
+import { useState, useContext, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { QuickStartButton } from '@/components/QuickStartModal';
 import { AuthContext } from '@/context/AuthContext';
 import {
-    User, Settings, LogOut, HelpCircle, ChartLine,
-    PlusCircle, Shield, Clock, Menu, X, LineChart, BarChart4,
-    ChevronLeft, ChevronRight, ChevronDown, Loader2, AlertCircle,
-    Edit3, Trash2, CheckSquare
+    User, Settings, LogOut, HelpCircle, Shield, Clock, 
+    ChevronDown, Loader2, AlertCircle, Activity, TrendingUp,
+    Bell, Search, Moon, Sun, MoreVertical
 } from 'lucide-react';
 import UpdateStatusIndicator from '@/components/UpdateStatusIndicator';
 import AddPositionButton from '@/components/AddPositionButton';
@@ -16,63 +15,38 @@ import AddAccountButton from '@/components/AddAccountButton';
 import { fetchAccounts } from '@/utils/apimethods/accountMethods';
 import { QuickReconciliationButton } from '@/components/modals/QuickReconciliationModal';
 import { QuickEditDeleteButton } from '@/components/modals/QuickEditDeleteModal';
-
-
-// Memoized EggLogo component
-const EggLogo = memo(() => (
-    <div className="relative">
-        <svg
-            width="36"
-            height="36"
-            viewBox="0 0 36 36"
-            xmlns="http://www.w3.org/2000/svg"
-            className="text-blue-400"
-        >
-            <defs>
-                <linearGradient id="eggGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                    <stop offset="0%" stopColor="#60A5FA" />
-                    <stop offset="100%" stopColor="#93C5FD" />
-                </linearGradient>
-            </defs>
-            <path
-                d="M18 2C12 2 6 12 6 22C6 30 11 34 18 34C25 34 30 30 30 22C30 12 24 2 18 2Z"
-                fill="url(#eggGradient)"
-                stroke="currentColor"
-                strokeWidth="1.5"
-            />
-            <circle cx="14" cy="16" r="1.5" fill="#1E3A8A" />
-            <circle cx="22" cy="16" r="1.5" fill="#1E3A8A" />
-            <path d="M15 24C16.5 25.5 19.5 25.5 21 24" stroke="#1E3A8A" strokeWidth="1.5" strokeLinecap="round" />
-        </svg>
-    </div>
-));
-EggLogo.displayName = 'EggLogo';
+import { motion, AnimatePresence } from 'framer-motion';
 
 const Navbar = () => {
     const [isDropdownOpen, setIsDropdownOpen] = useState(false);
-    const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-    const [isQuickActionsOpen, setIsQuickActionsOpen] = useState(true);
-    const [scrolledDown, setScrolledDown] = useState(false);
-    const [isManualAddOpen, setIsManualAddOpen] = useState(false);
-    const [isMobileAddModalOpen, setIsMobileAddModalOpen] = useState(false);
-
-    const { user, logout } = useContext(AuthContext);
-    const router = useRouter();
-
-    // Account Fetching State & Logic
+    const [scrolled, setScrolled] = useState(false);
     const [accounts, setAccounts] = useState([]);
     const [isLoadingAccounts, setIsLoadingAccounts] = useState(false);
     const [accountError, setAccountError] = useState(null);
+    const [searchOpen, setSearchOpen] = useState(false);
+    const [darkMode, setDarkMode] = useState(true);
+    const { logout, user } = useContext(AuthContext);
+    const router = useRouter();
 
+    // Handle scroll
+    useEffect(() => {
+        const handleScroll = () => {
+            setScrolled(window.scrollY > 10);
+        };
+        window.addEventListener('scroll', handleScroll);
+        return () => window.removeEventListener('scroll', handleScroll);
+    }, []);
+
+    // Load accounts
     const loadAccounts = useCallback(async () => {
         setIsLoadingAccounts(true);
         setAccountError(null);
         try {
-            const accountsData = await fetchAccounts();
-            setAccounts(accountsData || []);
+            const response = await fetchAccounts();
+            setAccounts(response.data || []);
         } catch (error) {
-            console.error("Navbar: Error fetching accounts:", error);
-            setAccountError("Failed to load accounts.");
+            console.error("Error loading accounts:", error);
+            setAccountError("Failed to load accounts");
             setAccounts([]);
         } finally {
             setIsLoadingAccounts(false);
@@ -83,57 +57,16 @@ const Navbar = () => {
         loadAccounts();
     }, [loadAccounts]);
 
-    // Handle scroll events for navbar appearance
-    useEffect(() => {
-        const handleScroll = () => {
-            setScrolledDown(window.scrollY > 10);
-        };
-        window.addEventListener('scroll', handleScroll);
-        return () => window.removeEventListener('scroll', handleScroll);
-    }, []);
-
-    // Close dropdowns when clicking outside
+    // Close dropdown when clicking outside
     useEffect(() => {
         const handleClickOutside = (event) => {
-            // Close User Dropdown
-            const userDropdown = event.target.closest('.user-dropdown');
-            if (isDropdownOpen && !userDropdown) {
-                const userDropdownButton = event.target.closest('.user-dropdown-button');
-                if (!userDropdownButton) {
-                    setIsDropdownOpen(false);
-                }
-            }
-            
-            // Close Manual Add Dropdown
-            const manualAddDropdown = event.target.closest('.manual-add-dropdown');
-            if (isManualAddOpen && !manualAddDropdown) {
-                const manualAddButton = event.target.closest('.manual-add-button');
-                if (!manualAddButton) {
-                    setIsManualAddOpen(false);
-                }
+            if (isDropdownOpen && !event.target.closest('.user-dropdown')) {
+                setIsDropdownOpen(false);
             }
         };
         document.addEventListener('mousedown', handleClickOutside);
         return () => document.removeEventListener('mousedown', handleClickOutside);
-    }, [isDropdownOpen, isManualAddOpen]);
-
-    const dropdownItems = [
-        { icon: <User className="w-5 h-5 mr-2" />, label: "Profile", href: "/profile" },
-        { icon: <Shield className="w-5 h-5 mr-2" />, label: "Admin", href: "/admin" },
-        { icon: <Settings className="w-5 h-5 mr-2" />, label: "Settings", href: "/settings" },
-        { icon: <Clock className="w-5 h-5 mr-2" />, label: "Scheduler", href: "/scheduler" },
-        { icon: <HelpCircle className="w-5 h-5 mr-2" />, label: "Help", href: "/help" },
-        {
-            icon: <LogOut className="w-5 h-5 mr-2 text-red-500" />,
-            label: "Logout",
-            action: logout,
-            className: "text-red-500 border-t border-gray-200 mt-2 pt-2"
-        }
-    ];
-
-    const displayName = user?.first_name && user?.last_name 
-        ? `${user.first_name} ${user.last_name}` 
-        : user?.email || '';
+    }, [isDropdownOpen]);
 
     const getInitials = useCallback(() => {
         if (user?.first_name && user?.last_name) {
@@ -141,270 +74,295 @@ const Navbar = () => {
         } else if (user?.email) {
             return user.email[0].toUpperCase();
         }
-        return '';
+        return 'U';
     }, [user]);
 
-    // Placeholder functions
-    const placeholderFetchPositions = () => {
-        console.warn('Navbar: fetchPositions function is not implemented or passed down.');
-    };
-
-    // Quick Edit/Delete button handler
-    const handleQuickEdit = () => {
-        console.log('Quick Edit/Delete clicked');
-        router.push('/edit');
-    };
-
-    // Reconciliation button handler
-    const handleReconciliation = () => {
-        router.push('/AccountReconciliation');
-    };
+    const displayName = user?.first_name && user?.last_name 
+        ? `${user.first_name} ${user.last_name}` 
+        : user?.email || 'User';
 
     return (
-        <div className="sticky top-0 z-40">
-            {/* Main Navbar */}
-            <nav className={`${scrolledDown ? 'bg-gray-900/95 shadow-lg' : 'bg-gradient-to-r from-gray-900 to-blue-900'} transition-all duration-300`}>
-                <div className="container mx-auto px-4">
-                    <div className="h-16 flex justify-between items-center">
-                        {/* Logo and App Name */}
-                        <div className="flex items-center">
-                            <Link href="/" className="flex items-center">
-                                <div className={`mr-3 ${scrolledDown ? '' : 'animate-pulse'}`}>
-                                    <EggLogo />
-                                </div>
-                                <div className="flex flex-col">
-                                    <span className="text-xl font-bold text-white">NestEgg</span>
-                                    <span className="text-xs text-blue-300">Plan Your Future</span>
-                                </div>
-                            </Link>
-                        </div>
-
-                        {/* Center: Quick Actions and Toggle */}
-                        <div className="hidden md:flex items-center space-x-4">
-                            <div className="flex items-center">
-                                {isQuickActionsOpen && (
-                                    <div className="flex space-x-4 items-center">
-                                        {/* Quick Start Button */}
-                                        <QuickStartButton className="mr-2" />
-                                        
-                                        <QuickEditDeleteButton className="mr-2" />
-
-                                        <QuickReconciliationButton className="mr-2" />                                        
-
-                                        
-                                        {/* Manual Add Dropdown */}
-                                        <div className="relative manual-add-dropdown">
-                                            <button
-                                                onClick={() => setIsManualAddOpen(!isManualAddOpen)}
-                                                className="flex items-center text-white py-1 px-4 hover:bg-blue-800/30 rounded-lg transition-colors group manual-add-button"
-                                            >
-                                                <PlusCircle className="w-5 h-5 mr-2 text-white group-hover:text-blue-300" />
-                                                <span className="text-sm text-gray-200 group-hover:text-white">Manual Add</span>
-                                                <ChevronDown className="w-4 h-4 ml-1 text-gray-400" />
-                                            </button>
-                                            
-                                            {isManualAddOpen && (
-                                                <div className="absolute top-full mt-2 w-48 bg-gray-900 border border-gray-700 rounded-lg shadow-xl z-20 overflow-hidden">
-                                                    <div className="py-1">
-                                                        <AddAccountButton
-                                                            onAccountAdded={loadAccounts}
-                                                            className="flex items-center w-full px-4 py-3 hover:bg-blue-800/30 transition-colors text-white hover:text-blue-300"
-                                                            onClick={() => setIsManualAddOpen(false)}
-                                                        />
-                                                        <AddPositionButton
-                                                            onPositionAdded={placeholderFetchPositions}
-                                                            className="flex items-center w-full px-4 py-3 hover:bg-blue-800/30 transition-colors text-white hover:text-blue-300"
-                                                            onClick={() => setIsManualAddOpen(false)}
-                                                        />
-                                                    </div>
-                                                </div>
-                                            )}
-                                        </div>
-                                    </div>
-                                )}
-                                <button
-                                    onClick={() => setIsQuickActionsOpen(!isQuickActionsOpen)}
-                                    className="text-white p-2 hover:bg-blue-800/30 rounded-lg transition-colors ml-2"
-                                >
-                                    {isQuickActionsOpen ? <ChevronLeft className="w-5 h-5" /> : <ChevronRight className="w-5 h-5" />}
-                                </button>
-                            </div>
-                        </div>
-
-                        {/* Right: Market Update Status and Profile */}
-                        <div className="hidden md:flex items-center space-x-4">
-                            {/* Market Update Status */}
-                            <div className="bg-green-800/80 px-4 py-1.5 rounded-full flex items-center text-green-100">
-                                <UpdateStatusIndicator />
-                                <span className="ml-2 text-sm">Prices up to date</span>
-                            </div>
-
-                            {/* User Dropdown */}
-                            <div className="relative user-dropdown">
-                                <button
-                                    onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-                                    className="flex items-center space-x-2 hover:bg-blue-800/30 p-2 rounded-lg transition-colors text-white user-dropdown-button"
-                                    aria-expanded={isDropdownOpen}
-                                    aria-haspopup="true"
-                                >
-                                    <div className="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center text-white">
-                                        {getInitials()}
-                                    </div>
-                                    <span className="text-sm font-medium">{displayName}</span>
-                                    {isLoadingAccounts && <Loader2 className="w-5 h-5 text-blue-300 animate-spin ml-2" />}
-                                    {accountError && <AlertCircle className="w-5 h-5 text-red-400 ml-2" title={accountError} />}
-                                </button>
-                                {isDropdownOpen && (
-                                    <div className="absolute right-0 mt-2 w-60 bg-white rounded-lg shadow-xl z-20 overflow-hidden">
-                                        <div className="bg-gradient-to-r from-blue-600 to-blue-700 p-4">
-                                            <p className="font-medium text-lg text-white">{displayName}</p>
-                                            <p className="text-sm text-blue-100 truncate">{user?.email || ''}</p>
-                                        </div>
-                                        <div className="py-1">
-                                            {dropdownItems.map((item, index) => (
-                                                item.action ? (
-                                                    <button
-                                                        key={index}
-                                                        onClick={() => { item.action(); setIsDropdownOpen(false); }}
-                                                        className={`flex w-full items-center px-4 py-3 hover:bg-gray-100 transition-colors text-left text-gray-800 ${item.className || ''}`}
-                                                    >
-                                                        {item.icon}
-                                                        {item.label}
-                                                    </button>
-                                                ) : (
-                                                    <Link
-                                                        key={index}
-                                                        href={item.href}
-                                                        onClick={() => setIsDropdownOpen(false)}
-                                                        className={`flex items-center px-4 py-3 hover:bg-gray-100 transition-colors text-gray-800 ${item.className || ''}`}
-                                                    >
-                                                        {item.icon}
-                                                        {item.label}
-                                                    </Link>
-                                                )
-                                            ))}
-                                        </div>
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-
-                        {/* Mobile Menu Button */}
-                        <button
-                            className="md:hidden text-white focus:outline-none"
-                            onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-                            aria-label="Toggle menu"
-                        >
-                            {isMobileMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
-                        </button>
-                    </div>
+        <motion.nav
+            initial={{ y: -100 }}
+            animate={{ y: 0 }}
+            className={`fixed top-0 left-0 right-0 z-40 transition-all duration-300 ${
+                scrolled 
+                    ? 'bg-gray-900/95 backdrop-blur-md shadow-lg' 
+                    : 'bg-gradient-to-r from-gray-900 via-gray-850 to-blue-900'
+            }`}
+        >
+            <div className="h-16 px-4 flex items-center justify-between">
+                {/* Left side - Quick Actions (Always visible) */}
+                <div className="flex items-center gap-2 ml-16">
+                    <motion.div
+                        initial={{ opacity: 0, x: -20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: 0.1 }}
+                    >
+                        <QuickStartButton />
+                    </motion.div>
+                    <motion.div
+                        initial={{ opacity: 0, x: -20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: 0.2 }}
+                    >
+                        <QuickEditDeleteButton />
+                    </motion.div>
+                    <motion.div
+                        initial={{ opacity: 0, x: -20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: 0.3 }}
+                    >
+                        <QuickReconciliationButton />
+                    </motion.div>
+                    
+                    {/* Manual Add Dropdown */}
+                    <motion.div
+                        initial={{ opacity: 0, x: -20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: 0.4 }}
+                        className="relative"
+                    >
+                        <AddPositionButton accounts={accounts} fetchPositions={() => {}} />
+                    </motion.div>
+                    
+                    <motion.div
+                        initial={{ opacity: 0, x: -20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: 0.5 }}
+                    >
+                        <AddAccountButton fetchAccounts={loadAccounts} />
+                    </motion.div>
                 </div>
-            </nav>
 
-            {/* Mobile Menu */}
-            {isMobileMenuOpen && (
-                <div className="md:hidden bg-gray-900 text-white">
-                    <div className="p-4 space-y-3">
-                        <div className="flex items-center justify-between border-b border-gray-800 pb-3">
-                            <div className="flex items-center">
-                                <div className="w-12 h-12 rounded-full bg-blue-600 flex items-center justify-center text-white mr-3">
+                {/* Right side - User Menu */}
+                <div className="flex items-center gap-4">
+                    {/* Search */}
+                    <motion.button
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
+                        onClick={() => setSearchOpen(!searchOpen)}
+                        className="p-2 rounded-lg hover:bg-gray-800/50 text-gray-300 hover:text-white transition-all"
+                    >
+                        <Search className="w-5 h-5" />
+                    </motion.button>
+
+                    {/* Notifications */}
+                    <motion.button
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
+                        className="relative p-2 rounded-lg hover:bg-gray-800/50 text-gray-300 hover:text-white transition-all"
+                    >
+                        <Bell className="w-5 h-5" />
+                        <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full animate-pulse" />
+                    </motion.button>
+
+                    {/* Dark Mode Toggle */}
+                    <motion.button
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
+                        onClick={() => setDarkMode(!darkMode)}
+                        className="p-2 rounded-lg hover:bg-gray-800/50 text-gray-300 hover:text-white transition-all"
+                    >
+                        <AnimatePresence mode="wait">
+                            {darkMode ? (
+                                <motion.div
+                                    key="moon"
+                                    initial={{ rotate: -90, opacity: 0 }}
+                                    animate={{ rotate: 0, opacity: 1 }}
+                                    exit={{ rotate: 90, opacity: 0 }}
+                                >
+                                    <Moon className="w-5 h-5" />
+                                </motion.div>
+                            ) : (
+                                <motion.div
+                                    key="sun"
+                                    initial={{ rotate: 90, opacity: 0 }}
+                                    animate={{ rotate: 0, opacity: 1 }}
+                                    exit={{ rotate: -90, opacity: 0 }}
+                                >
+                                    <Sun className="w-5 h-5" />
+                                </motion.div>
+                            )}
+                        </AnimatePresence>
+                    </motion.button>
+
+                    {/* User Dropdown */}
+                    <div className="relative user-dropdown">
+                        <motion.button
+                            whileHover={{ scale: 1.02 }}
+                            whileTap={{ scale: 0.98 }}
+                            onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+                            className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-gray-800/50 
+                                     transition-all border border-transparent hover:border-gray-700"
+                        >
+                            <div className="relative">
+                                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 
+                                              flex items-center justify-center text-white font-semibold shadow-lg">
                                     {getInitials()}
                                 </div>
-                                <div>
-                                    <div className="font-medium">{displayName}</div>
-                                    <div className="text-xs text-gray-400">{user?.email || ''}</div>
-                                </div>
+                                {/* Status indicator */}
+                                <div className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 rounded-full 
+                                              border-2 border-gray-900 animate-pulse" />
                             </div>
-                            {isLoadingAccounts && <Loader2 className="w-5 h-5 text-blue-300 animate-spin" />}
-                            {accountError && <AlertCircle className="w-5 h-5 text-red-400" title={accountError} />}
-                        </div>
-                        <div className="space-y-2 py-2">
-                            {dropdownItems.map((item, index) => (
-                                item.action ? (
-                                    <button
-                                        key={index}
-                                        onClick={() => {
-                                            setIsMobileMenuOpen(false);
-                                            item.action();
-                                        }}
-                                        className={`flex w-full items-center p-3 hover:bg-gray-800 rounded-lg transition-colors ${item.className || ''}`}
-                                    >
-                                        {item.icon}
-                                        {item.label}
-                                    </button>
-                                ) : (
-                                    <Link
-                                        key={index}
-                                        href={item.href}
-                                        className={`flex items-center p-3 hover:bg-gray-800 rounded-lg transition-colors ${item.className || ''}`}
-                                        onClick={() => setIsMobileMenuOpen(false)}
-                                    >
-                                        {item.icon}
-                                        {item.label}
-                                    </Link>
-                                )
-                            ))}
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {/* Mobile Quick Actions Bar (Fixed) */}
-            <div className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-blue-900 border-t border-blue-800 shadow-lg">
-                <div className="grid grid-cols-4 text-center">
-                    {/* Quick Start */}
-                    <QuickStartButton 
-                        className="flex flex-col items-center justify-center py-3 text-white group w-full hover:bg-blue-800 transition-colors"
-                        mobileView={true}
-                    />
-                    <QuickEditDeleteButton className="mr-2" />
-
-                    <QuickReconciliationButton className="mr-2" />                                        
-
-                    {/* Manual Add - opens modal */}
-                    <button
-                        onClick={() => setIsMobileAddModalOpen(true)}
-                        className="flex flex-col items-center justify-center py-3 text-white group w-full hover:bg-blue-800 transition-colors"
-                    >
-                        <PlusCircle className="h-6 w-6 mb-1 text-white group-hover:text-blue-300" />
-                        <span className="text-xs text-gray-200 group-hover:text-white">Add</span>
-                    </button>
-                </div>
-            </div>
-
-            {/* Mobile Add Modal */}
-            {isMobileAddModalOpen && (
-                <div className="md:hidden fixed inset-0 z-50 bg-black bg-opacity-50 flex items-end">
-                    <div className="bg-gray-900 w-full rounded-t-2xl p-6 pb-8">
-                        <div className="flex justify-between items-center mb-4">
-                            <h3 className="text-lg font-semibold text-white">Add New</h3>
-                            <button
-                                onClick={() => setIsMobileAddModalOpen(false)}
-                                className="text-gray-400 hover:text-white"
+                            <div className="hidden md:block text-left">
+                                <p className="text-sm font-medium text-white">{displayName}</p>
+                                <p className="text-xs text-gray-400">Premium Member</p>
+                            </div>
+                            <motion.div
+                                animate={{ rotate: isDropdownOpen ? 180 : 0 }}
+                                transition={{ duration: 0.2 }}
                             >
-                                <X className="h-6 w-6" />
-                            </button>
-                        </div>
-                        <div className="space-y-3">
-                            <AddAccountButton
-                                onAccountAdded={() => {
-                                    loadAccounts();
-                                    setIsMobileAddModalOpen(false);
-                                }}
-                                className="flex items-center w-full px-4 py-3 bg-blue-800/30 hover:bg-blue-800/50 rounded-lg transition-colors text-white"
-                            />
-                            <AddPositionButton
-                                onPositionAdded={() => {
-                                    placeholderFetchPositions();
-                                    setIsMobileAddModalOpen(false);
-                                }}
-                                className="flex items-center w-full px-4 py-3 bg-blue-800/30 hover:bg-blue-800/50 rounded-lg transition-colors text-white"
-                            />
-                        </div>
+                                <ChevronDown className="w-4 h-4 text-gray-400" />
+                            </motion.div>
+                        </motion.button>
+
+                        <AnimatePresence>
+                            {isDropdownOpen && (
+                                <motion.div
+                                    initial={{ opacity: 0, y: -10 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    exit={{ opacity: 0, y: -10 }}
+                                    className="absolute right-0 mt-2 w-72 bg-gray-800 rounded-xl shadow-2xl 
+                                             border border-gray-700 overflow-hidden"
+                                >
+                                    {/* User info header */}
+                                    <div className="bg-gradient-to-r from-blue-600 to-purple-600 p-4">
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-12 h-12 rounded-full bg-white/20 backdrop-blur 
+                                                          flex items-center justify-center text-white font-bold text-lg">
+                                                {getInitials()}
+                                            </div>
+                                            <div className="flex-1">
+                                                <p className="font-semibold text-white">{displayName}</p>
+                                                <p className="text-sm text-blue-100 truncate">{user?.email}</p>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Market Data Status */}
+                                    <div className="p-4 border-b border-gray-700">
+                                        <div className="flex items-center justify-between">
+                                            <div className="flex items-center gap-2">
+                                                <Activity className="w-4 h-4 text-green-400" />
+                                                <span className="text-sm text-gray-300">Market Data</span>
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                                <UpdateStatusIndicator />
+                                                <span className="text-xs text-green-400">Live</span>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Menu items */}
+                                    <div className="py-2">
+                                        <Link href="/profile">
+                                            <motion.div
+                                                whileHover={{ x: 4 }}
+                                                className="flex items-center gap-3 px-4 py-3 hover:bg-gray-700/50 
+                                                         transition-all text-gray-300 hover:text-white"
+                                            >
+                                                <User className="w-5 h-5" />
+                                                <span>Profile</span>
+                                            </motion.div>
+                                        </Link>
+                                        
+                                        <Link href="/admin">
+                                            <motion.div
+                                                whileHover={{ x: 4 }}
+                                                className="flex items-center gap-3 px-4 py-3 hover:bg-gray-700/50 
+                                                         transition-all text-gray-300 hover:text-white"
+                                            >
+                                                <Shield className="w-5 h-5" />
+                                                <span>Admin Panel</span>
+                                            </motion.div>
+                                        </Link>
+                                        
+                                        <Link href="/settings">
+                                            <motion.div
+                                                whileHover={{ x: 4 }}
+                                                className="flex items-center gap-3 px-4 py-3 hover:bg-gray-700/50 
+                                                         transition-all text-gray-300 hover:text-white"
+                                            >
+                                                <Settings className="w-5 h-5" />
+                                                <span>Settings</span>
+                                            </motion.div>
+                                        </Link>
+                                        
+                                        <Link href="/scheduler">
+                                            <motion.div
+                                                whileHover={{ x: 4 }}
+                                                className="flex items-center gap-3 px-4 py-3 hover:bg-gray-700/50 
+                                                         transition-all text-gray-300 hover:text-white"
+                                            >
+                                                <Clock className="w-5 h-5" />
+                                                <span>Scheduler</span>
+                                            </motion.div>
+                                        </Link>
+                                        
+                                        <Link href="/help">
+                                            <motion.div
+                                                whileHover={{ x: 4 }}
+                                                className="flex items-center gap-3 px-4 py-3 hover:bg-gray-700/50 
+                                                         transition-all text-gray-300 hover:text-white"
+                                            >
+                                                <HelpCircle className="w-5 h-5" />
+                                                <span>Help & Support</span>
+                                            </motion.div>
+                                        </Link>
+                                        
+                                        <div className="border-t border-gray-700 mt-2 pt-2">
+                                            <motion.button
+                                                whileHover={{ x: 4 }}
+                                                onClick={() => {
+                                                    setIsDropdownOpen(false);
+                                                    logout();
+                                                }}
+                                                className="w-full flex items-center gap-3 px-4 py-3 hover:bg-red-500/10 
+                                                         transition-all text-red-400 hover:text-red-300"
+                                            >
+                                                <LogOut className="w-5 h-5" />
+                                                <span>Logout</span>
+                                            </motion.button>
+                                        </div>
+                                    </div>
+                                </motion.div>
+                            )}
+                        </AnimatePresence>
                     </div>
                 </div>
-            )}
-        </div>
+
+                {/* Search overlay */}
+                <AnimatePresence>
+                    {searchOpen && (
+                        <motion.div
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            className="absolute inset-0 bg-gray-900/95 backdrop-blur-md flex items-center px-4"
+                        >
+                            <div className="flex-1 max-w-2xl mx-auto">
+                                <input
+                                    type="text"
+                                    placeholder="Search accounts, positions, or features..."
+                                    className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg 
+                                             text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
+                                    autoFocus
+                                />
+                            </div>
+                            <motion.button
+                                whileHover={{ scale: 1.1 }}
+                                whileTap={{ scale: 0.9 }}
+                                onClick={() => setSearchOpen(false)}
+                                className="ml-4 p-2 rounded-lg hover:bg-gray-800 text-gray-400 hover:text-white"
+                            >
+                                <span className="text-sm">ESC</span>
+                            </motion.button>
+                        </motion.div>
+                    )}
+                </AnimatePresence>
+            </div>
+        </motion.nav>
     );
 };
 
