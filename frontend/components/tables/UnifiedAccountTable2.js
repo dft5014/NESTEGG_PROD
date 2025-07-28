@@ -169,7 +169,7 @@ const AccountDetailModal = ({ isOpen, onClose, account }) => {
                         <div className="flex justify-between items-center">
                             <span className="text-gray-600">Total Gain/Loss</span>
                             <span className={`font-medium ${account.totalGainLoss >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                                {formatCurrency(account.totalGainLoss || 0)} ({formatPercentage(account.totalGainLossPercent || 0)})
+                                {formatCurrency(account.totalGainLoss || 0)} ({account.totalGainLossPercent ? (account.totalGainLossPercent >= 0 ? '+' : '') + account.totalGainLossPercent.toFixed(2) + '%' : '0.00%'})
                             </span>
                         </div>
                     </div>
@@ -550,7 +550,7 @@ const UnifiedAccountTable2 = ({
                         {data.totalGainLoss >= 0 ? '+' : ''}{formatCurrency(data.totalGainLoss)}
                     </div>
                     <div className={`text-xs ${data.totalGainLoss === 0 ? 'text-gray-400' : data.totalGainLoss >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                        ({data.totalGainLoss >= 0 ? '+' : ''}{formatPercentage(data.totalGainLossPercent)})
+                                                        ({data.totalGainLoss >= 0 ? '+' : ''}{data.totalGainLossPercent ? data.totalGainLossPercent.toFixed(2) : '0.00'}%)
                     </div>
                 </div>
             </td>
@@ -787,7 +787,7 @@ const UnifiedAccountTable2 = ({
                                                         {account.totalGainLoss >= 0 ? '+' : ''}{formatCurrency(account.totalGainLoss || 0)}
                                                     </div>
                                                     <div className={`text-xs ${account.totalGainLoss >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                                                        ({account.totalGainLossPercent >= 0 ? '+' : ''}{formatPercentage(account.totalGainLossPercent || 0)})
+                                                        ({account.totalGainLossPercent >= 0 ? '+' : ''}{account.totalGainLossPercent ? account.totalGainLossPercent.toFixed(2) : '0.00'}%)
                                                     </div>
                                                 </div>
                                             </td>
