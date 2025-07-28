@@ -58,40 +58,40 @@ const Sidebar = () => {
       href: "/portfolio", 
       label: "Dashboard", 
       icon: <LayoutGrid className="w-5 h-5" />,
-      description: "Portfolio overview & metrics"
+      description: "View your portfolio overview and key metrics"
     },
     { 
       href: "/command-center", 
       label: "Command Center", 
       icon: <BarChart3 className="w-5 h-5" />,
       isPremium: true,
-      description: "Advanced analytics & insights"
+      description: "Advanced analytics, insights, and reporting tools"
     },
     // NestEgg Management items (no group header)
     { 
       href: "/accounts", 
       label: "Accounts", 
       icon: <Wallet className="w-5 h-5" />,
-      description: "Manage investment accounts"
+      description: "Manage your investment and savings accounts"
     },
     { 
       href: "/positions", 
       label: "Positions", 
       icon: <Coins className="w-5 h-5" />,
-      description: "Track holdings & allocations"
+      description: "Track your holdings, stocks, and investments"
     },
     { 
       href: "/liabilities", 
       label: "Liabilities", 
       icon: <CreditCard className="w-5 h-5" />,
-      description: "Monitor debts & obligations"
+      description: "Monitor your debts, loans, and obligations"
     },
     { 
       href: "/planning", 
       label: "Planning", 
       icon: <Target className="w-5 h-5" />,
       isPremium: true,
-      description: "Financial planning tools"
+      description: "Financial planning and retirement tools"
     }
   ];
 
@@ -115,7 +115,7 @@ const Sidebar = () => {
 
     return (
       <motion.div 
-        className="relative"
+        className="relative cursor-default" // Remove cursor pointer
         whileHover={{ scale: 1.05 }}
         whileTap={{ scale: 0.95 }}
       >
@@ -211,7 +211,7 @@ const Sidebar = () => {
             onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
             onMouseEnter={() => setHoveredItem('menu-toggle')}
             onMouseLeave={() => setHoveredItem(null)}
-            className="w-full p-2 rounded-lg hover:bg-gray-800 transition-colors flex items-center justify-center"
+            className="w-full p-2 rounded-lg hover:bg-gray-800 transition-colors flex items-center justify-center relative"
           >
             {sidebarCollapsed ? (
               <Menu className="w-5 h-5 text-gray-300" />
@@ -233,9 +233,9 @@ const Sidebar = () => {
           </motion.button>
         </div>
 
-        {/* Logo */}
+        {/* Logo - No longer clickable */}
         <div className="p-4 border-b border-gray-800/50">
-          <Link href="/" className="flex items-center gap-3">
+          <div className="flex items-center gap-3">
             <NestEggLogo />
             <AnimatePresence>
               {!sidebarCollapsed && (
@@ -252,7 +252,20 @@ const Sidebar = () => {
                 </motion.div>
               )}
             </AnimatePresence>
-          </Link>
+            
+            {/* Tooltip for collapsed logo */}
+            {sidebarCollapsed && hoveredItem === 'logo' && (
+              <motion.div
+                initial={{ opacity: 0, x: -10 }}
+                animate={{ opacity: 1, x: 0 }}
+                className="absolute left-20 ml-2 px-3 py-2 bg-gray-800 rounded-lg shadow-xl 
+                         border border-gray-700 whitespace-nowrap z-50"
+              >
+                <p className="text-sm font-medium">NestEgg</p>
+                <p className="text-xs text-gray-400">Plan Your Future</p>
+              </motion.div>
+            )}
+          </div>
         </div>
 
         {/* Search bar - only when expanded */}
@@ -352,15 +365,15 @@ const Sidebar = () => {
                       </motion.span>
                     )}
 
-                    {/* Tooltip for collapsed state */}
+                    {/* Enhanced tooltip for collapsed state with full description */}
                     {sidebarCollapsed && hoveredItem === `item-${index}` && (
                       <motion.div
                         initial={{ opacity: 0, x: -10 }}
                         animate={{ opacity: 1, x: 0 }}
                         className="absolute left-20 ml-2 px-3 py-2 bg-gray-800 rounded-lg shadow-xl 
-                                 border border-gray-700 whitespace-nowrap z-50"
+                                 border border-gray-700 whitespace-nowrap z-50 max-w-xs"
                       >
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 mb-1">
                           <span className="text-sm font-medium">{item.label}</span>
                           {item.isPremium && (
                             <span className="px-2 py-0.5 text-xs rounded-full bg-gradient-to-r 
@@ -369,7 +382,7 @@ const Sidebar = () => {
                             </span>
                           )}
                         </div>
-                        <p className="text-xs text-gray-400 mt-1">{item.description}</p>
+                        <p className="text-xs text-gray-400">{item.description}</p>
                       </motion.div>
                     )}
                   </motion.div>
@@ -392,7 +405,7 @@ const Sidebar = () => {
                 className={`
                   flex items-center gap-3 p-3 rounded-lg mb-1
                   hover:bg-gray-800/50 text-gray-300 hover:text-white
-                  transition-all duration-200 group
+                  transition-all duration-200 group relative
                   ${sidebarCollapsed ? 'justify-center' : ''}
                 `}
               >
@@ -408,7 +421,7 @@ const Sidebar = () => {
                              border border-gray-700 whitespace-nowrap z-50"
                   >
                     <p className="text-sm font-medium">Settings</p>
-                    <p className="text-xs text-gray-400 mt-1">Manage preferences</p>
+                    <p className="text-xs text-gray-400 mt-1">Manage your preferences</p>
                   </motion.div>
                 )}
               </motion.div>
@@ -448,8 +461,7 @@ const Sidebar = () => {
         </div>
       </motion.aside>
       
-      {/* Spacer for content - this makes the page content adjust to sidebar width */}
-      <div className={`transition-all duration-300 ${sidebarCollapsed ? 'ml-20' : 'ml-64'}`} />
+      {/* This spacer div is REMOVED - we'll handle spacing in _app.js */}
     </>
   );
 };

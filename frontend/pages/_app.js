@@ -10,48 +10,89 @@ import { UpdateCheckProvider } from '@/context/UpdateCheckContext';
 import { DataStoreProvider } from '@/store/DataStore'; 
 import { useState, useEffect } from 'react';
 
-export default function App({ Component, pageProps }) {
+// Create a layout wrapper component to handle sidebar state
+function LayoutWrapper({ children }) {
   const router = useRouter();
   const [mounted, setMounted] = useState(false);
-  const [sidebarWidth, setSidebarWidth] = useState(80); // Track sidebar width
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
   
   const noAuthRequired = ["/", "/login", "/signup"];
   const hideNavigation = ["/", "/login", "/signup"];
 
   useEffect(() => {
     setMounted(true);
-  }, []);
+    // Listen for sidebar state changes
+    const handleSidebarToggle = () => {
+      // Get sidebar width from the sidebar element
+      const sidebar = document.querySelector('aside');
+      if (sidebar) {
+        const width = window.getComputedStyle(sidebar).width;
+        setSidebarCollapsed(width === '80px' || width === '5rem');
+      }
+    };
 
+    // Check initial state
+    handleSidebarToggle();
+
+    // Listen for changes
+    const observer = new MutationObserver(handleSidebarToggle);
+    const sidebar = document.querySelector('aside');
+    if (sidebar) {
+      observer.observe(sidebar, { attributes: true, attributeFilter: ['style'] });
+    }
+
+    return () => observer.disconnect();
+  }, [mounted]);
+
+  return (
+    <div className="min-h-screen bg-gray-950">
+      {/* Navigation Components */}
+      {!hideNavigation.includes(router.pathname) && mounted && (
+        <>
+          <Sidebar />
+          {/* Navbar with dynamic left margin */}
+          <div 
+            className={`fixed top-0 right-0 z-40 transition-all duration-300`}
+            style={{ left: sidebarCollapsed ? '80px' : '256px' }}
+          >
+            <Navbar />
+          </div>
+        </>
+      )}
+      
+      {/* Main Content Area with dynamic margins */}
+      <div 
+        className={`
+          min-h-screen transition-all duration-300
+          ${!hideNavigation.includes(router.pathname) && mounted 
+            ? 'pt-24' 
+            : ''
+          }
+        `}
+        style={{
+          marginLeft: !hideNavigation.includes(router.pathname) && mounted 
+            ? (sidebarCollapsed ? '80px' : '256px') 
+            : '0'
+        }}
+      >
+        {children}
+      </div>
+      
+      {/* Egg Mascot */}
+      {!hideNavigation.includes(router.pathname) && mounted && <EggMascotWithState />}
+    </div>
+  );
+}
+
+export default function App({ Component, pageProps }) {
   return (
     <AuthProvider>
       <UpdateCheckProvider>
         <DataStoreProvider> 
           <EggMascotProvider>
-            <div className="min-h-screen bg-gray-950">
-              {/* Navigation Components */}
-              {!hideNavigation.includes(router.pathname) && mounted && (
-                <>
-                  <Sidebar />
-                  {/* Navbar with dynamic margin */}
-                  <div className={`fixed top-0 right-0 left-20 z-40 transition-all duration-300`}>
-                    <Navbar />
-                  </div>
-                </>
-              )}
-              
-              {/* Main Content Area with dynamic margins */}
-              <div className={`
-                ${!hideNavigation.includes(router.pathname) && mounted 
-                  ? 'pt-24 pl-20 transition-all duration-300' 
-                  : ''
-                }
-              `}>
-                <Component {...pageProps} />
-              </div>
-              
-              {/* Egg Mascot */}
-              {!hideNavigation.includes(router.pathname) && mounted && <EggMascotWithState />}
-            </div>
+            <LayoutWrapper>
+              <Component {...pageProps} />
+            </LayoutWrapper>
           </EggMascotProvider>
         </DataStoreProvider> 
       </UpdateCheckProvider>
