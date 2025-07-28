@@ -91,12 +91,7 @@ const AccountDetailModal = ({ isOpen, onClose, account }) => {
         <FixedModal
             isOpen={isOpen}
             onClose={onClose}
-            title={
-                <div className="flex items-center space-x-3">
-                    <Briefcase className="w-5 h-5 text-blue-500" />
-                    <span>{account.name || account.account_name || 'Account Details'}</span>
-                </div>
-            }
+            title={account.name || account.account_name || 'Account Details'}
             size="max-w-3xl"
         >
             <div className="space-y-6">
