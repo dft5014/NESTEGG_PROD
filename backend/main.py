@@ -7630,8 +7630,7 @@ async def get_position_history(
 @app.get("/datastore/liabilities/grouped")
 async def get_grouped_liabilities(
     snapshot_date: str = Query("latest", description="Snapshot date (YYYY-MM-DD) or 'latest'"),
-    current_user: dict = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    current_user: dict = Depends(get_current_user)
 ):
     """
     Get grouped liabilities data from the summary view
