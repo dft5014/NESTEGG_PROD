@@ -56,399 +56,399 @@ const PerformanceIndicator = ({ value, format = 'percentage', size = 'sm', showS
 };
 
 // Account Detail Modal Component
-// Updated Account Detail Modal Component
-    const AccountDetailModal = ({ isOpen, onClose, account }) => {
-        // State for sorting
-        const [activeTab, setActiveTab] = useState('overview');
-        const [positionSort, setPositionSort] = useState({ field: 'value', direction: 'desc' });
+const AccountDetailModal = ({ isOpen, onClose, account }) => {
+    // State for sorting - must be before any conditional returns
+    const [activeTab, setActiveTab] = useState('overview');
+    const [positionSort, setPositionSort] = useState({ field: 'value', direction: 'desc' });
+    
+    // Sort positions based on current sort settings - must be before conditional returns
+    const sortedPositions = useMemo(() => {
+        if (!account?.positions) return [];
         
-        if (!isOpen || !account) return null;
-
-        // Calculate summary statistics
-        const accountStats = {
-            totalPositions: account.positions?.length || 0,
-            totalSecurities: account.positions?.filter(p => p.asset_type === 'security').length || 0,
-            totalCash: account.cashBalance || 0,
-            liquidValue: account.totalValue || 0,
-            totalCostBasis: account.totalCostBasis || 0,
-            totalGainLoss: account.totalGainLoss || 0,
-            totalGainLossPct: account.totalGainLossPercent || 0
-        };
-
-        // Sort positions based on current sort settings
-        const sortedPositions = useMemo(() => {
-            if (!account.positions) return [];
-            
-            const sorted = [...account.positions].sort((a, b) => {
-                let comparison = 0;
-                switch (positionSort.field) {
-                    case 'symbol':
-                        comparison = (a.symbol || '').localeCompare(b.symbol || '');
-                        break;
-                    case 'quantity':
-                        comparison = (a.quantity || 0) - (b.quantity || 0);
-                        break;
-                    case 'price':
-                        comparison = (a.currentPrice || 0) - (b.currentPrice || 0);
-                        break;
-                    case 'value':
-                        comparison = (a.currentValue || 0) - (b.currentValue || 0);
-                        break;
-                    case 'gain':
-                        comparison = (a.gainLoss || 0) - (b.gainLoss || 0);
-                        break;
-                    case 'gainPct':
-                        comparison = (a.gainLossPercent || 0) - (b.gainLossPercent || 0);
-                        break;
-                    default:
-                        comparison = (a.currentValue || 0) - (b.currentValue || 0);
-                }
-                
-                return positionSort.direction === 'asc' ? comparison : -comparison;
-            });
-            
-            return sorted;
-        }, [account.positions, positionSort]);
-
-        // Get institution logo
-        const InstitutionLogo = () => {
-            const institution = popularBrokerages.find(
-                b => b.name.toLowerCase() === (account.institution || '').toLowerCase()
-            );
-            
-            if (institution && institution.logo) {
-                const LogoComponent = institution.logo;
-                return <LogoComponent className="w-5 h-5" />;
+        const sorted = [...account.positions].sort((a, b) => {
+            let comparison = 0;
+            switch (positionSort.field) {
+                case 'symbol':
+                    comparison = (a.symbol || '').localeCompare(b.symbol || '');
+                    break;
+                case 'quantity':
+                    comparison = (a.quantity || 0) - (b.quantity || 0);
+                    break;
+                case 'price':
+                    comparison = (a.currentPrice || 0) - (b.currentPrice || 0);
+                    break;
+                case 'value':
+                    comparison = (a.currentValue || 0) - (b.currentValue || 0);
+                    break;
+                case 'gain':
+                    comparison = (a.gainLoss || 0) - (b.gainLoss || 0);
+                    break;
+                case 'gainPct':
+                    comparison = (a.gainLossPercent || 0) - (b.gainLossPercent || 0);
+                    break;
+                default:
+                    comparison = (a.currentValue || 0) - (b.currentValue || 0);
             }
             
-            return <Briefcase className="w-5 h-5 text-blue-400" />;
-        };
+            return positionSort.direction === 'asc' ? comparison : -comparison;
+        });
+        
+        return sorted;
+    }, [account?.positions, positionSort]);
+    
+    // Early returns after ALL hooks
+    if (!isOpen || !account) return null;
 
-        return (
-            <div className="fixed inset-0 z-50 overflow-hidden">
-                <div className="absolute inset-0 bg-black bg-opacity-50 transition-opacity" onClick={onClose} />
-                
-                <div className="absolute inset-0 flex items-center justify-center p-4">
-                    <div 
-                        className="w-full max-w-5xl max-h-[85vh] bg-gray-900 rounded-lg shadow-2xl flex flex-col overflow-hidden"
-                        onClick={(e) => e.stopPropagation()}
-                    >
-                        {/* Modal Header */}
-                        <div className="px-6 py-4 bg-gray-800 border-b border-gray-700 flex-shrink-0">
-                            <div className="flex items-start justify-between">
-                                <div className="flex items-center space-x-3">
-                                    <div className="p-2 bg-gray-700 rounded-lg">
-                                        <InstitutionLogo />
+    // Calculate summary statistics (not a hook, so safe after conditional return)
+    const accountStats = {
+        totalPositions: account.positions?.length || 0,
+        totalSecurities: account.positions?.filter(p => p.asset_type === 'security').length || 0,
+        totalCash: account.cashBalance || 0,
+        liquidValue: account.totalValue || 0,
+        totalCostBasis: account.totalCostBasis || 0,
+        totalGainLoss: account.totalGainLoss || 0,
+        totalGainLossPct: account.totalGainLossPercent || 0
+    };
+
+    // Get institution logo (not a hook, so safe after conditional return)
+    const InstitutionLogo = () => {
+        const institution = popularBrokerages.find(
+            b => b.name.toLowerCase() === (account.institution || '').toLowerCase()
+        );
+        
+        if (institution && institution.logo) {
+            const LogoComponent = institution.logo;
+            return <LogoComponent className="w-5 h-5" />;
+        }
+        
+        return <Briefcase className="w-5 h-5 text-blue-400" />;
+    };
+
+    return (
+        <div className="fixed inset-0 z-50 overflow-hidden">
+            <div className="absolute inset-0 bg-black bg-opacity-50 transition-opacity" onClick={onClose} />
+            
+            <div className="absolute inset-0 flex items-center justify-center p-4">
+                <div 
+                    className="w-full max-w-5xl max-h-[85vh] bg-gray-900 rounded-lg shadow-2xl flex flex-col overflow-hidden"
+                    onClick={(e) => e.stopPropagation()}
+                >
+                    {/* Modal Header */}
+                    <div className="px-6 py-4 bg-gray-800 border-b border-gray-700 flex-shrink-0">
+                        <div className="flex items-start justify-between">
+                            <div className="flex items-center space-x-3">
+                                <div className="p-2 bg-gray-700 rounded-lg">
+                                    <InstitutionLogo />
+                                </div>
+                                <div>
+                                    <h3 className="text-lg font-semibold text-white">
+                                        {account.name || account.account_name}
+                                    </h3>
+                                    <p className="text-sm text-gray-400">{account.institution}</p>
+                                    <div className="flex items-center space-x-3 mt-1">
+                                        <span className="text-xs px-2 py-1 bg-blue-900/30 text-blue-400 rounded">
+                                            {account.type || account.account_type}
+                                        </span>
+                                        <span className="text-xs text-gray-500">
+                                            {accountStats.totalPositions} positions
+                                        </span>
+                                        <span className="text-xs text-gray-500">
+                                            Last updated: {formatDate(account.updatedAt)}
+                                        </span>
                                     </div>
-                                    <div>
-                                        <h3 className="text-lg font-semibold text-white">
-                                            {account.name || account.account_name}
-                                        </h3>
-                                        <p className="text-sm text-gray-400">{account.institution}</p>
-                                        <div className="flex items-center space-x-3 mt-1">
-                                            <span className="text-xs px-2 py-1 bg-blue-900/30 text-blue-400 rounded">
-                                                {account.type || account.account_type}
-                                            </span>
-                                            <span className="text-xs text-gray-500">
-                                                {accountStats.totalPositions} positions
-                                            </span>
-                                            <span className="text-xs text-gray-500">
-                                                Last updated: {formatDate(account.updatedAt)}
-                                            </span>
+                                </div>
+                            </div>
+                            <button 
+                                onClick={onClose}
+                                className="text-gray-400 hover:text-white transition-colors"
+                            >
+                                <X className="w-5 h-5" />
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* Tab Navigation */}
+                    <div className="px-6 pt-4 bg-gray-800/50 border-b border-gray-700">
+                        <div className="flex space-x-6">
+                            <button
+                                onClick={() => setActiveTab('overview')}
+                                className={`pb-2 text-sm font-medium transition-colors border-b-2 ${
+                                    activeTab === 'overview'
+                                        ? 'text-blue-400 border-blue-400'
+                                        : 'text-gray-400 border-transparent hover:text-white'
+                                }`}
+                            >
+                                Overview
+                            </button>
+                            <button
+                                onClick={() => setActiveTab('positions')}
+                                className={`pb-2 text-sm font-medium transition-colors border-b-2 ${
+                                    activeTab === 'positions'
+                                        ? 'text-blue-400 border-blue-400'
+                                        : 'text-gray-400 border-transparent hover:text-white'
+                                }`}
+                            >
+                                Positions ({accountStats.totalPositions})
+                            </button>
+                            <button
+                                onClick={() => setActiveTab('performance')}
+                                className={`pb-2 text-sm font-medium transition-colors border-b-2 ${
+                                    activeTab === 'performance'
+                                        ? 'text-blue-400 border-blue-400'
+                                        : 'text-gray-400 border-transparent hover:text-white'
+                                }`}
+                            >
+                                Performance
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* Modal Body - Scrollable */}
+                    <div className="flex-1 overflow-y-auto p-6 max-h-[calc(85vh-12rem)]">
+                        {activeTab === 'overview' && (
+                            <div className="space-y-6">
+                                {/* Key Metrics */}
+                                <div className="grid grid-cols-3 gap-4">
+                                    <div className="bg-gray-800/50 p-4 rounded">
+                                        <div className="text-xs text-gray-400">Total Value</div>
+                                        <div className="text-xl font-semibold text-white">
+                                            {formatCurrency(account.totalValue || 0)}
+                                        </div>
+                                        <div className="text-xs text-gray-500 mt-1">
+                                            {formatPercentage((account.totalValue / (account.portfolioValue || 1)) * 100)} of portfolio
+                                        </div>
+                                    </div>
+                                    <div className="bg-gray-800/50 p-4 rounded">
+                                        <div className="text-xs text-gray-400">Total Gain/Loss</div>
+                                        <div className={`text-xl font-semibold ${
+                                            accountStats.totalGainLoss >= 0 ? 'text-green-400' : 'text-red-400'
+                                        }`}>
+                                            {accountStats.totalGainLoss >= 0 ? '+' : ''}{formatCurrency(accountStats.totalGainLoss)}
+                                        </div>
+                                        <div className={`text-xs mt-1 ${
+                                            accountStats.totalGainLossPct >= 0 ? 'text-green-400' : 'text-red-400'
+                                        }`}>
+                                            {accountStats.totalGainLossPct >= 0 ? '+' : ''}{formatPercentage(accountStats.totalGainLossPct)}
+                                        </div>
+                                    </div>
+                                    <div className="bg-gray-800/50 p-4 rounded">
+                                        <div className="text-xs text-gray-400">Cash Balance</div>
+                                        <div className="text-xl font-semibold text-white">
+                                            {formatCurrency(account.cashBalance || 0)}
+                                        </div>
+                                        <div className="text-xs text-gray-500 mt-1">
+                                            {formatPercentage((account.cashBalance / (account.totalValue || 1)) * 100)} of account
                                         </div>
                                     </div>
                                 </div>
-                                <button 
-                                    onClick={onClose}
-                                    className="text-gray-400 hover:text-white transition-colors"
-                                >
-                                    <X className="w-5 h-5" />
-                                </button>
-                            </div>
-                        </div>
 
-                        {/* Tab Navigation */}
-                        <div className="px-6 pt-4 bg-gray-800/50 border-b border-gray-700">
-                            <div className="flex space-x-6">
-                                <button
-                                    onClick={() => setActiveTab('overview')}
-                                    className={`pb-2 text-sm font-medium transition-colors border-b-2 ${
-                                        activeTab === 'overview'
-                                            ? 'text-blue-400 border-blue-400'
-                                            : 'text-gray-400 border-transparent hover:text-white'
-                                    }`}
-                                >
-                                    Overview
-                                </button>
-                                <button
-                                    onClick={() => setActiveTab('positions')}
-                                    className={`pb-2 text-sm font-medium transition-colors border-b-2 ${
-                                        activeTab === 'positions'
-                                            ? 'text-blue-400 border-blue-400'
-                                            : 'text-gray-400 border-transparent hover:text-white'
-                                    }`}
-                                >
-                                    Positions ({accountStats.totalPositions})
-                                </button>
-                                <button
-                                    onClick={() => setActiveTab('performance')}
-                                    className={`pb-2 text-sm font-medium transition-colors border-b-2 ${
-                                        activeTab === 'performance'
-                                            ? 'text-blue-400 border-blue-400'
-                                            : 'text-gray-400 border-transparent hover:text-white'
-                                    }`}
-                                >
-                                    Performance
-                                </button>
-                            </div>
-                        </div>
-
-                        {/* Modal Body - Scrollable */}
-                        <div className="flex-1 overflow-y-auto p-6 max-h-[calc(85vh-12rem)]">
-                            {activeTab === 'overview' && (
-                                <div className="space-y-6">
-                                    {/* Key Metrics */}
-                                    <div className="grid grid-cols-3 gap-4">
-                                        <div className="bg-gray-800/50 p-4 rounded">
-                                            <div className="text-xs text-gray-400">Total Value</div>
-                                            <div className="text-xl font-semibold text-white">
-                                                {formatCurrency(account.totalValue || 0)}
+                                {/* Asset Allocation */}
+                                <div className="bg-gray-800/50 p-4 rounded">
+                                    <h4 className="text-sm font-semibold mb-3 flex items-center text-gray-300">
+                                        <PieChart className="w-4 h-4 mr-2 text-blue-400" />
+                                        Asset Allocation
+                                    </h4>
+                                    <div className="space-y-3">
+                                        {account.assetAllocation?.map((allocation, idx) => (
+                                            <div key={idx} className="flex items-center justify-between">
+                                                <div className="flex items-center space-x-2">
+                                                    <div className={`w-3 h-3 rounded-full ${
+                                                        allocation.type === 'stocks' ? 'bg-blue-500' :
+                                                        allocation.type === 'bonds' ? 'bg-green-500' :
+                                                        allocation.type === 'cash' ? 'bg-yellow-500' :
+                                                        'bg-gray-500'
+                                                    }`} />
+                                                    <span className="text-sm text-gray-300">{allocation.type}</span>
+                                                </div>
+                                                <div className="flex items-center space-x-2">
+                                                    <span className="text-sm font-medium text-white">
+                                                        {formatCurrency(allocation.value)}
+                                                    </span>
+                                                    <span className="text-xs text-gray-400">
+                                                        ({formatPercentage(allocation.percentage)})
+                                                    </span>
+                                                </div>
                                             </div>
-                                            <div className="text-xs text-gray-500 mt-1">
-                                                {formatPercentage((account.totalValue / (account.portfolioValue || 1)) * 100)} of portfolio
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {activeTab === 'positions' && (
+                            <div className="bg-gray-800/30 rounded overflow-hidden">
+                                <div className="overflow-x-auto">
+                                    <table className="w-full">
+                                        <thead className="bg-gray-800/50">
+                                            <tr>
+                                                <th className="px-3 py-2 text-left text-xs font-medium text-gray-400">
+                                                    <button
+                                                        onClick={() => setPositionSort({
+                                                            field: 'symbol',
+                                                            direction: positionSort.field === 'symbol' && positionSort.direction === 'desc' ? 'asc' : 'desc'
+                                                        })}
+                                                        className="flex items-center space-x-1 hover:text-white"
+                                                    >
+                                                        <span>Symbol</span>
+                                                        {positionSort.field === 'symbol' && (
+                                                            positionSort.direction === 'desc' ? <ChevronDown className="w-3 h-3" /> : <ChevronUp className="w-3 h-3" />
+                                                        )}
+                                                    </button>
+                                                </th>
+                                                <th className="px-3 py-2 text-right text-xs font-medium text-gray-400">
+                                                    <button
+                                                        onClick={() => setPositionSort({
+                                                            field: 'quantity',
+                                                            direction: positionSort.field === 'quantity' && positionSort.direction === 'desc' ? 'asc' : 'desc'
+                                                        })}
+                                                        className="flex items-center space-x-1 hover:text-white ml-auto"
+                                                    >
+                                                        <span>Quantity</span>
+                                                        {positionSort.field === 'quantity' && (
+                                                            positionSort.direction === 'desc' ? <ChevronDown className="w-3 h-3" /> : <ChevronUp className="w-3 h-3" />
+                                                        )}
+                                                    </button>
+                                                </th>
+                                                <th className="px-3 py-2 text-right text-xs font-medium text-gray-400">Price</th>
+                                                <th className="px-3 py-2 text-right text-xs font-medium text-gray-400">
+                                                    <button
+                                                        onClick={() => setPositionSort({
+                                                            field: 'value',
+                                                            direction: positionSort.field === 'value' && positionSort.direction === 'desc' ? 'asc' : 'desc'
+                                                        })}
+                                                        className="flex items-center space-x-1 hover:text-white ml-auto"
+                                                    >
+                                                        <span>Value</span>
+                                                        {positionSort.field === 'value' && (
+                                                            positionSort.direction === 'desc' ? <ChevronDown className="w-3 h-3" /> : <ChevronUp className="w-3 h-3" />
+                                                        )}
+                                                    </button>
+                                                </th>
+                                                <th className="px-3 py-2 text-right text-xs font-medium text-gray-400">Cost Basis</th>
+                                                <th className="px-3 py-2 text-right text-xs font-medium text-gray-400">
+                                                    <button
+                                                        onClick={() => setPositionSort({
+                                                            field: 'gain',
+                                                            direction: positionSort.field === 'gain' && positionSort.direction === 'desc' ? 'asc' : 'desc'
+                                                        })}
+                                                        className="flex items-center space-x-1 hover:text-white ml-auto"
+                                                    >
+                                                        <span>Gain/Loss</span>
+                                                        {positionSort.field === 'gain' && (
+                                                            positionSort.direction === 'desc' ? <ChevronDown className="w-3 h-3" /> : <ChevronUp className="w-3 h-3" />
+                                                        )}
+                                                    </button>
+                                                </th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-gray-700">
+                                            {sortedPositions.map((position, idx) => (
+                                                <tr key={idx} className="hover:bg-gray-700/30">
+                                                    <td className="px-3 py-2 text-sm">
+                                                        <div>
+                                                            <div className="font-medium text-white">{position.symbol}</div>
+                                                            <div className="text-xs text-gray-400">{position.name}</div>
+                                                        </div>
+                                                    </td>
+                                                    <td className="px-3 py-2 text-sm text-right text-gray-300">
+                                                        {formatNumber(position.quantity || 0, { maximumFractionDigits: 4 })}
+                                                    </td>
+                                                    <td className="px-3 py-2 text-sm text-right text-gray-300">
+                                                        {formatCurrency(position.currentPrice || 0)}
+                                                    </td>
+                                                    <td className="px-3 py-2 text-sm text-right font-medium text-white">
+                                                        {formatCurrency(position.currentValue || 0)}
+                                                    </td>
+                                                    <td className="px-3 py-2 text-sm text-right text-gray-400">
+                                                        {formatCurrency(position.costBasis || 0)}
+                                                    </td>
+                                                    <td className="px-3 py-2 text-sm text-right">
+                                                        <div className={`${position.gainLoss >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                                            <div>{position.gainLoss >= 0 ? '+' : ''}{formatCurrency(position.gainLoss || 0)}</div>
+                                                            <div className="text-xs">
+                                                                {position.gainLossPercent >= 0 ? '+' : ''}{formatPercentage(position.gainLossPercent || 0)}
+                                                            </div>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        )}
+
+                        {activeTab === 'performance' && (
+                            <div className="space-y-6">
+                                {/* Performance Grid */}
+                                <div className="grid grid-cols-4 gap-4">
+                                    {[
+                                        { label: '1D', value: account.value1dChangePct || 0, change: account.value1dChange || 0 },
+                                        { label: '1W', value: account.value1wChangePct || 0, change: account.value1wChange || 0 },
+                                        { label: '1M', value: account.value1mChangePct || 0, change: account.value1mChange || 0 },
+                                        { label: 'YTD', value: account.valueYtdChangePct || 0, change: account.valueYtdChange || 0 }
+                                    ].map((period) => (
+                                        <div key={period.label} className="bg-gray-800/50 p-4 rounded text-center">
+                                            <div className="text-xs text-gray-400 mb-1">{period.label}</div>
+                                            <div className={`text-lg font-semibold ${
+                                                period.value >= 0 ? 'text-green-400' : 'text-red-400'
+                                            }`}>
+                                                {period.value >= 0 ? '+' : ''}{period.value.toFixed(2)}%
+                                            </div>
+                                            <div className={`text-xs mt-1 ${
+                                                period.change >= 0 ? 'text-green-400' : 'text-red-400'
+                                            }`}>
+                                                {period.change >= 0 ? '+' : ''}{formatCurrency(period.change)}
                                             </div>
                                         </div>
-                                        <div className="bg-gray-800/50 p-4 rounded">
-                                            <div className="text-xs text-gray-400">Total Gain/Loss</div>
-                                            <div className={`text-xl font-semibold ${
+                                    ))}
+                                </div>
+
+                                {/* Additional Performance Metrics */}
+                                <div className="bg-gray-800/50 p-4 rounded">
+                                    <h4 className="text-sm font-semibold mb-3 text-gray-300">Performance Metrics</h4>
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div>
+                                            <span className="text-xs text-gray-400">Total Return</span>
+                                            <div className={`font-medium ${
                                                 accountStats.totalGainLoss >= 0 ? 'text-green-400' : 'text-red-400'
                                             }`}>
                                                 {accountStats.totalGainLoss >= 0 ? '+' : ''}{formatCurrency(accountStats.totalGainLoss)}
                                             </div>
-                                            <div className={`text-xs mt-1 ${
+                                        </div>
+                                        <div>
+                                            <span className="text-xs text-gray-400">Return %</span>
+                                            <div className={`font-medium ${
                                                 accountStats.totalGainLossPct >= 0 ? 'text-green-400' : 'text-red-400'
                                             }`}>
                                                 {accountStats.totalGainLossPct >= 0 ? '+' : ''}{formatPercentage(accountStats.totalGainLossPct)}
                                             </div>
                                         </div>
-                                        <div className="bg-gray-800/50 p-4 rounded">
-                                            <div className="text-xs text-gray-400">Cash Balance</div>
-                                            <div className="text-xl font-semibold text-white">
-                                                {formatCurrency(account.cashBalance || 0)}
-                                            </div>
-                                            <div className="text-xs text-gray-500 mt-1">
-                                                {formatPercentage((account.cashBalance / (account.totalValue || 1)) * 100)} of account
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    {/* Asset Allocation */}
-                                    <div className="bg-gray-800/50 p-4 rounded">
-                                        <h4 className="text-sm font-semibold mb-3 flex items-center text-gray-300">
-                                            <PieChart className="w-4 h-4 mr-2 text-blue-400" />
-                                            Asset Allocation
-                                        </h4>
-                                        <div className="space-y-3">
-                                            {account.assetAllocation?.map((allocation, idx) => (
-                                                <div key={idx} className="flex items-center justify-between">
-                                                    <div className="flex items-center space-x-2">
-                                                        <div className={`w-3 h-3 rounded-full ${
-                                                            allocation.type === 'stocks' ? 'bg-blue-500' :
-                                                            allocation.type === 'bonds' ? 'bg-green-500' :
-                                                            allocation.type === 'cash' ? 'bg-yellow-500' :
-                                                            'bg-gray-500'
-                                                        }`} />
-                                                        <span className="text-sm text-gray-300">{allocation.type}</span>
-                                                    </div>
-                                                    <div className="flex items-center space-x-2">
-                                                        <span className="text-sm font-medium text-white">
-                                                            {formatCurrency(allocation.value)}
-                                                        </span>
-                                                        <span className="text-xs text-gray-400">
-                                                            ({formatPercentage(allocation.percentage)})
-                                                        </span>
-                                                    </div>
-                                                </div>
-                                            ))}
-                                        </div>
                                     </div>
                                 </div>
-                            )}
-
-                            {activeTab === 'positions' && (
-                                <div className="bg-gray-800/30 rounded overflow-hidden">
-                                    <div className="overflow-x-auto">
-                                        <table className="w-full">
-                                            <thead className="bg-gray-800/50">
-                                                <tr>
-                                                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-400">
-                                                        <button
-                                                            onClick={() => setPositionSort({
-                                                                field: 'symbol',
-                                                                direction: positionSort.field === 'symbol' && positionSort.direction === 'desc' ? 'asc' : 'desc'
-                                                            })}
-                                                            className="flex items-center space-x-1 hover:text-white"
-                                                        >
-                                                            <span>Symbol</span>
-                                                            {positionSort.field === 'symbol' && (
-                                                                positionSort.direction === 'desc' ? <ChevronDown className="w-3 h-3" /> : <ChevronUp className="w-3 h-3" />
-                                                            )}
-                                                        </button>
-                                                    </th>
-                                                    <th className="px-3 py-2 text-right text-xs font-medium text-gray-400">
-                                                        <button
-                                                            onClick={() => setPositionSort({
-                                                                field: 'quantity',
-                                                                direction: positionSort.field === 'quantity' && positionSort.direction === 'desc' ? 'asc' : 'desc'
-                                                            })}
-                                                            className="flex items-center space-x-1 hover:text-white ml-auto"
-                                                        >
-                                                            <span>Quantity</span>
-                                                            {positionSort.field === 'quantity' && (
-                                                                positionSort.direction === 'desc' ? <ChevronDown className="w-3 h-3" /> : <ChevronUp className="w-3 h-3" />
-                                                            )}
-                                                        </button>
-                                                    </th>
-                                                    <th className="px-3 py-2 text-right text-xs font-medium text-gray-400">Price</th>
-                                                    <th className="px-3 py-2 text-right text-xs font-medium text-gray-400">
-                                                        <button
-                                                            onClick={() => setPositionSort({
-                                                                field: 'value',
-                                                                direction: positionSort.field === 'value' && positionSort.direction === 'desc' ? 'asc' : 'desc'
-                                                            })}
-                                                            className="flex items-center space-x-1 hover:text-white ml-auto"
-                                                        >
-                                                            <span>Value</span>
-                                                            {positionSort.field === 'value' && (
-                                                                positionSort.direction === 'desc' ? <ChevronDown className="w-3 h-3" /> : <ChevronUp className="w-3 h-3" />
-                                                            )}
-                                                        </button>
-                                                    </th>
-                                                    <th className="px-3 py-2 text-right text-xs font-medium text-gray-400">Cost Basis</th>
-                                                    <th className="px-3 py-2 text-right text-xs font-medium text-gray-400">
-                                                        <button
-                                                            onClick={() => setPositionSort({
-                                                                field: 'gain',
-                                                                direction: positionSort.field === 'gain' && positionSort.direction === 'desc' ? 'asc' : 'desc'
-                                                            })}
-                                                            className="flex items-center space-x-1 hover:text-white ml-auto"
-                                                        >
-                                                            <span>Gain/Loss</span>
-                                                            {positionSort.field === 'gain' && (
-                                                                positionSort.direction === 'desc' ? <ChevronDown className="w-3 h-3" /> : <ChevronUp className="w-3 h-3" />
-                                                            )}
-                                                        </button>
-                                                    </th>
-                                                </tr>
-                                            </thead>
-                                            <tbody className="divide-y divide-gray-700">
-                                                {sortedPositions.map((position, idx) => (
-                                                    <tr key={idx} className="hover:bg-gray-700/30">
-                                                        <td className="px-3 py-2 text-sm">
-                                                            <div>
-                                                                <div className="font-medium text-white">{position.symbol}</div>
-                                                                <div className="text-xs text-gray-400">{position.name}</div>
-                                                            </div>
-                                                        </td>
-                                                        <td className="px-3 py-2 text-sm text-right text-gray-300">
-                                                            {formatNumber(position.quantity || 0, { maximumFractionDigits: 4 })}
-                                                        </td>
-                                                        <td className="px-3 py-2 text-sm text-right text-gray-300">
-                                                            {formatCurrency(position.currentPrice || 0)}
-                                                        </td>
-                                                        <td className="px-3 py-2 text-sm text-right font-medium text-white">
-                                                            {formatCurrency(position.currentValue || 0)}
-                                                        </td>
-                                                        <td className="px-3 py-2 text-sm text-right text-gray-400">
-                                                            {formatCurrency(position.costBasis || 0)}
-                                                        </td>
-                                                        <td className="px-3 py-2 text-sm text-right">
-                                                            <div className={`${position.gainLoss >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                                                                <div>{position.gainLoss >= 0 ? '+' : ''}{formatCurrency(position.gainLoss || 0)}</div>
-                                                                <div className="text-xs">
-                                                                    {position.gainLossPercent >= 0 ? '+' : ''}{formatPercentage(position.gainLossPercent || 0)}
-                                                                </div>
-                                                            </div>
-                                                        </td>
-                                                    </tr>
-                                                ))}
-                                            </tbody>
-                                        </table>
-                                    </div>
-                                </div>
-                            )}
-
-                            {activeTab === 'performance' && (
-                                <div className="space-y-6">
-                                    {/* Performance Grid */}
-                                    <div className="grid grid-cols-4 gap-4">
-                                        {[
-                                            { label: '1D', value: account.value1dChangePct || 0, change: account.value1dChange || 0 },
-                                            { label: '1W', value: account.value1wChangePct || 0, change: account.value1wChange || 0 },
-                                            { label: '1M', value: account.value1mChangePct || 0, change: account.value1mChange || 0 },
-                                            { label: 'YTD', value: account.valueYtdChangePct || 0, change: account.valueYtdChange || 0 }
-                                        ].map((period) => (
-                                            <div key={period.label} className="bg-gray-800/50 p-4 rounded text-center">
-                                                <div className="text-xs text-gray-400 mb-1">{period.label}</div>
-                                                <div className={`text-lg font-semibold ${
-                                                    period.value >= 0 ? 'text-green-400' : 'text-red-400'
-                                                }`}>
-                                                    {period.value >= 0 ? '+' : ''}{period.value.toFixed(2)}%
-                                                </div>
-                                                <div className={`text-xs mt-1 ${
-                                                    period.change >= 0 ? 'text-green-400' : 'text-red-400'
-                                                }`}>
-                                                    {period.change >= 0 ? '+' : ''}{formatCurrency(period.change)}
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
-
-                                    {/* Additional Performance Metrics */}
-                                    <div className="bg-gray-800/50 p-4 rounded">
-                                        <h4 className="text-sm font-semibold mb-3 text-gray-300">Performance Metrics</h4>
-                                        <div className="grid grid-cols-2 gap-4">
-                                            <div>
-                                                <span className="text-xs text-gray-400">Total Return</span>
-                                                <div className={`font-medium ${
-                                                    accountStats.totalGainLoss >= 0 ? 'text-green-400' : 'text-red-400'
-                                                }`}>
-                                                    {accountStats.totalGainLoss >= 0 ? '+' : ''}{formatCurrency(accountStats.totalGainLoss)}
-                                                </div>
-                                            </div>
-                                            <div>
-                                                <span className="text-xs text-gray-400">Return %</span>
-                                                <div className={`font-medium ${
-                                                    accountStats.totalGainLossPct >= 0 ? 'text-green-400' : 'text-red-400'
-                                                }`}>
-                                                    {accountStats.totalGainLossPct >= 0 ? '+' : ''}{formatPercentage(accountStats.totalGainLossPct)}
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-
-                        {/* Modal Footer */}
-                        <div className="px-6 py-4 bg-gray-800 border-t border-gray-700 flex-shrink-0">
-                            <div className="flex justify-between items-center">
-                                <div className="text-xs text-gray-400">
-                                    Account ID: {account.id}
-                                </div>
-                                <button 
-                                    onClick={onClose}
-                                    className="px-4 py-2 bg-blue-600 rounded hover:bg-blue-700 transition-colors text-white font-medium"
-                                >
-                                    Close
-                                </button>
                             </div>
+                        )}
+                    </div>
+
+                    {/* Modal Footer */}
+                    <div className="px-6 py-4 bg-gray-800 border-t border-gray-700 flex-shrink-0">
+                        <div className="flex justify-between items-center">
+                            <div className="text-xs text-gray-400">
+                                Account ID: {account.id}
+                            </div>
+                            <button 
+                                onClick={onClose}
+                                className="px-4 py-2 bg-blue-600 rounded hover:bg-blue-700 transition-colors text-white font-medium"
+                            >
+                                Close
+                            </button>
                         </div>
                     </div>
                 </div>
             </div>
-        );
-    };
+        </div>
+    );
+};
 
 // Multi-select dropdown component
 const MultiSelectDropdown = ({ options, selected, onChange, placeholder, defaultSelected = [] }) => {
