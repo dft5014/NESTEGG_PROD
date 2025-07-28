@@ -13,6 +13,7 @@ import { useState, useEffect } from 'react';
 export default function App({ Component, pageProps }) {
   const router = useRouter();
   const [mounted, setMounted] = useState(false);
+  const [sidebarWidth, setSidebarWidth] = useState(80); // Track sidebar width
   
   const noAuthRequired = ["/", "/login", "/signup"];
   const hideNavigation = ["/", "/login", "/signup"];
@@ -26,21 +27,26 @@ export default function App({ Component, pageProps }) {
       <UpdateCheckProvider>
         <DataStoreProvider> 
           <EggMascotProvider>
-            <div className="flex flex-col min-h-screen bg-gray-950">
-              {/* Navigation Components - Sidebar overlays Navbar */}
+            <div className="min-h-screen bg-gray-950">
+              {/* Navigation Components */}
               {!hideNavigation.includes(router.pathname) && mounted && (
                 <>
                   <Sidebar />
-                  <Navbar />
+                  {/* Navbar with dynamic margin */}
+                  <div className={`fixed top-0 right-0 left-20 z-40 transition-all duration-300`}>
+                    <Navbar />
+                  </div>
                 </>
               )}
               
-              {/* Main Content Area */}
-              <div className={`flex-1 ${!hideNavigation.includes(router.pathname) && mounted ? 'mt-24' : ''}`}>
-                {/* mt-24 accounts for navbar (64px) + ticker (32px) = 96px ≈ 24 tailwind units */}
-                <div className="min-h-full">
-                  <Component {...pageProps} />
-                </div>
+              {/* Main Content Area with dynamic margins */}
+              <div className={`
+                ${!hideNavigation.includes(router.pathname) && mounted 
+                  ? 'pt-24 pl-20 transition-all duration-300' 
+                  : ''
+                }
+              `}>
+                <Component {...pageProps} />
               </div>
               
               {/* Egg Mascot */}
