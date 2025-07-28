@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import Head from 'next/head';
 import { useRouter } from 'next/router';
 import { motion } from 'framer-motion';
-import { Receipt, TrendingDown, CreditCard, Home, DollarSign, Percent, AlertCircle, RefreshCw, Plus, Target, Shield, Zap } from "lucide-react";
+import { Receipt, TrendingDown, CreditCard, Home, DollarSign, Percent, AlertCircle, RefreshCw, RotateCw, Plus, Target, Shield, Zap } from "lucide-react";
 import LiabilityTable from '@/components/tables/LiabilityTable';
 import { useGroupedLiabilities } from '@/store/hooks/useGroupedLiabilities';
 import { formatCurrency, formatPercentage } from '@/utils/formatters';
@@ -59,7 +59,7 @@ export default function LiabilitiesPage() {
                 className="flex items-center px-4 py-2 bg-blue-600 rounded-lg font-medium hover:bg-blue-700 transition-colors"
                 disabled={isRefreshing}
              >
-               <RefreshCw className={`w-4 h-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
+               <RotateCW className={`w-4 h-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
                Refresh
              </motion.button>
              
