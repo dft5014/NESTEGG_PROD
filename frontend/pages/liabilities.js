@@ -59,7 +59,7 @@ export default function LiabilitiesPage() {
                 className="flex items-center px-4 py-2 bg-blue-600 rounded-lg font-medium hover:bg-blue-700 transition-colors"
                 disabled={isRefreshing}
              >
-               <RotateCW className={`w-4 h-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
+               <RotateCw className={`w-4 h-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
                Refresh
              </motion.button>
              
