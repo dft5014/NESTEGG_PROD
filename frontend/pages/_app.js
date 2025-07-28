@@ -1,3 +1,4 @@
+// pages/_app.js
 import "@/styles/globals.css";
 import Sidebar from "@/components/sidebar";
 import Navbar from "@/components/navbar";
@@ -25,14 +26,24 @@ export default function App({ Component, pageProps }) {
       <UpdateCheckProvider>
         <DataStoreProvider> 
           <EggMascotProvider>
-            <div className="flex flex-col min-h-screen">
-              {!hideNavigation.includes(router.pathname) && mounted && <Navbar />}
-              <div className="flex flex-1">
-                {!hideNavigation.includes(router.pathname) && mounted && <Sidebar />}
-                <div className="flex-1 p-6 overflow-auto">
+            <div className="flex flex-col min-h-screen bg-gray-950">
+              {/* Navigation Components - Sidebar overlays Navbar */}
+              {!hideNavigation.includes(router.pathname) && mounted && (
+                <>
+                  <Sidebar />
+                  <Navbar />
+                </>
+              )}
+              
+              {/* Main Content Area */}
+              <div className={`flex-1 ${!hideNavigation.includes(router.pathname) && mounted ? 'mt-24' : ''}`}>
+                {/* mt-24 accounts for navbar (64px) + ticker (32px) = 96px ≈ 24 tailwind units */}
+                <div className="min-h-full">
                   <Component {...pageProps} />
                 </div>
               </div>
+              
+              {/* Egg Mascot */}
               {!hideNavigation.includes(router.pathname) && mounted && <EggMascotWithState />}
             </div>
           </EggMascotProvider>

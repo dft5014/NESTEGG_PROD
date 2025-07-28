@@ -6,8 +6,8 @@ import { QuickStartButton } from '@/components/QuickStartModal';
 import { AuthContext } from '@/context/AuthContext';
 import {
     User, Settings, LogOut, HelpCircle, Shield, Clock, 
-    ChevronDown, Loader2, AlertCircle, Activity, TrendingUp,
-    Bell, Search, Moon, Sun, MoreVertical
+    ChevronDown, Loader2, AlertCircle, Activity, Plus,
+    TrendingUp, TrendingDown
 } from 'lucide-react';
 import UpdateStatusIndicator from '@/components/UpdateStatusIndicator';
 import AddPositionButton from '@/components/AddPositionButton';
@@ -17,14 +17,62 @@ import { QuickReconciliationButton } from '@/components/modals/QuickReconciliati
 import { QuickEditDeleteButton } from '@/components/modals/QuickEditDeleteModal';
 import { motion, AnimatePresence } from 'framer-motion';
 
+// Stock ticker component
+const StockTicker = () => {
+  const [tickerPosition, setTickerPosition] = useState(0);
+  
+  // Mock data - replace with real data
+  const stocks = [
+    { symbol: 'AAPL', price: 182.52, change: 2.34, changePercent: 1.30, isUp: true },
+    { symbol: 'GOOGL', price: 142.18, change: -1.23, changePercent: -0.86, isUp: false },
+    { symbol: 'MSFT', price: 378.91, change: 4.56, changePercent: 1.22, isUp: true },
+    { symbol: 'AMZN', price: 156.33, change: 3.21, changePercent: 2.10, isUp: true },
+    { symbol: 'TSLA', price: 238.45, change: -5.67, changePercent: -2.32, isUp: false },
+    { symbol: 'META', price: 456.78, change: 8.90, changePercent: 1.99, isUp: true },
+    { symbol: 'NVDA', price: 678.90, change: 12.34, changePercent: 1.85, isUp: true },
+    { symbol: 'BTC', price: 64230.50, change: 1234.56, changePercent: 1.96, isUp: true },
+  ];
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setTickerPosition((prev) => prev - 1);
+    }, 30);
+    return () => clearInterval(interval);
+  }, []);
+
+  const tickerContent = [...stocks, ...stocks, ...stocks]; // Triple for smooth loop
+
+  return (
+    <div className="relative h-8 bg-gray-950 border-t border-gray-800 overflow-hidden">
+      <div 
+        className="absolute flex items-center h-full whitespace-nowrap"
+        style={{ transform: `translateX(${tickerPosition}px)` }}
+      >
+        {tickerContent.map((stock, index) => (
+          <div key={index} className="inline-flex items-center px-6">
+            <span className="font-semibold text-gray-300 mr-2">{stock.symbol}</span>
+            <span className="text-gray-400 mr-3">${stock.price.toFixed(2)}</span>
+            <span className={`flex items-center ${stock.isUp ? 'text-green-400' : 'text-red-400'}`}>
+              {stock.isUp ? <TrendingUp className="w-3 h-3 mr-1" /> : <TrendingDown className="w-3 h-3 mr-1" />}
+              {stock.isUp ? '+' : ''}{stock.change.toFixed(2)} ({stock.changePercent.toFixed(2)}%)
+            </span>
+          </div>
+        ))}
+      </div>
+      {/* Gradient overlays for smooth edges */}
+      <div className="absolute left-0 top-0 h-full w-20 bg-gradient-to-r from-gray-950 to-transparent pointer-events-none" />
+      <div className="absolute right-0 top-0 h-full w-20 bg-gradient-to-l from-gray-950 to-transparent pointer-events-none" />
+    </div>
+  );
+};
+
 const Navbar = () => {
     const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+    const [isManualAddOpen, setIsManualAddOpen] = useState(false);
     const [scrolled, setScrolled] = useState(false);
     const [accounts, setAccounts] = useState([]);
     const [isLoadingAccounts, setIsLoadingAccounts] = useState(false);
     const [accountError, setAccountError] = useState(null);
-    const [searchOpen, setSearchOpen] = useState(false);
-    const [darkMode, setDarkMode] = useState(true);
     const { logout, user } = useContext(AuthContext);
     const router = useRouter();
 
@@ -57,16 +105,19 @@ const Navbar = () => {
         loadAccounts();
     }, [loadAccounts]);
 
-    // Close dropdown when clicking outside
+    // Close dropdowns when clicking outside
     useEffect(() => {
         const handleClickOutside = (event) => {
             if (isDropdownOpen && !event.target.closest('.user-dropdown')) {
                 setIsDropdownOpen(false);
             }
+            if (isManualAddOpen && !event.target.closest('.manual-add-dropdown')) {
+                setIsManualAddOpen(false);
+            }
         };
         document.addEventListener('mousedown', handleClickOutside);
         return () => document.removeEventListener('mousedown', handleClickOutside);
-    }, [isDropdownOpen]);
+    }, [isDropdownOpen, isManualAddOpen]);
 
     const getInitials = useCallback(() => {
         if (user?.first_name && user?.last_name) {
@@ -82,112 +133,92 @@ const Navbar = () => {
         : user?.email || 'User';
 
     return (
-        <motion.nav
-            initial={{ y: -100 }}
-            animate={{ y: 0 }}
-            className={`fixed top-0 left-0 right-0 z-40 transition-all duration-300 ${
-                scrolled 
-                    ? 'bg-gray-900/95 backdrop-blur-md shadow-lg' 
-                    : 'bg-gradient-to-r from-gray-900 via-gray-850 to-blue-900'
-            }`}
-        >
-            <div className="h-16 px-4 flex items-center justify-between">
-                {/* Left side - Quick Actions (Always visible) */}
-                <div className="flex items-center gap-2 ml-16">
-                    <motion.div
-                        initial={{ opacity: 0, x: -20 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        transition={{ delay: 0.1 }}
-                    >
-                        <QuickStartButton />
-                    </motion.div>
-                    <motion.div
-                        initial={{ opacity: 0, x: -20 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        transition={{ delay: 0.2 }}
-                    >
-                        <QuickEditDeleteButton />
-                    </motion.div>
-                    <motion.div
-                        initial={{ opacity: 0, x: -20 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        transition={{ delay: 0.3 }}
-                    >
-                        <QuickReconciliationButton />
-                    </motion.div>
-                    
-                    {/* Manual Add Dropdown */}
-                    <motion.div
-                        initial={{ opacity: 0, x: -20 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        transition={{ delay: 0.4 }}
-                        className="relative"
-                    >
-                        <AddPositionButton accounts={accounts} fetchPositions={() => {}} />
-                    </motion.div>
-                    
-                    <motion.div
-                        initial={{ opacity: 0, x: -20 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        transition={{ delay: 0.5 }}
-                    >
-                        <AddAccountButton fetchAccounts={loadAccounts} />
-                    </motion.div>
-                </div>
-
-                {/* Right side - User Menu */}
-                <div className="flex items-center gap-4">
-                    {/* Search */}
-                    <motion.button
-                        whileHover={{ scale: 1.05 }}
-                        whileTap={{ scale: 0.95 }}
-                        onClick={() => setSearchOpen(!searchOpen)}
-                        className="p-2 rounded-lg hover:bg-gray-800/50 text-gray-300 hover:text-white transition-all"
-                    >
-                        <Search className="w-5 h-5" />
-                    </motion.button>
-
-                    {/* Notifications */}
-                    <motion.button
-                        whileHover={{ scale: 1.05 }}
-                        whileTap={{ scale: 0.95 }}
-                        className="relative p-2 rounded-lg hover:bg-gray-800/50 text-gray-300 hover:text-white transition-all"
-                    >
-                        <Bell className="w-5 h-5" />
-                        <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full animate-pulse" />
-                    </motion.button>
-
-                    {/* Dark Mode Toggle */}
-                    <motion.button
-                        whileHover={{ scale: 1.05 }}
-                        whileTap={{ scale: 0.95 }}
-                        onClick={() => setDarkMode(!darkMode)}
-                        className="p-2 rounded-lg hover:bg-gray-800/50 text-gray-300 hover:text-white transition-all"
-                    >
-                        <AnimatePresence mode="wait">
-                            {darkMode ? (
-                                <motion.div
-                                    key="moon"
-                                    initial={{ rotate: -90, opacity: 0 }}
-                                    animate={{ rotate: 0, opacity: 1 }}
-                                    exit={{ rotate: 90, opacity: 0 }}
+        <div className="fixed top-0 left-0 right-0 z-40">
+            <motion.nav
+                initial={{ y: -100 }}
+                animate={{ y: 0 }}
+                className={`transition-all duration-300 ${
+                    scrolled 
+                        ? 'bg-gray-900/95 backdrop-blur-md shadow-lg' 
+                        : 'bg-gradient-to-r from-gray-900 via-gray-850 to-blue-900'
+                }`}
+            >
+                <div className="h-16 px-4 flex items-center justify-between">
+                    {/* Center-aligned Quick Actions */}
+                    <div className="flex-1 flex justify-center">
+                        <div className="flex items-center gap-2 ml-20"> {/* ml-20 to account for expanded sidebar */}
+                            <motion.div
+                                initial={{ opacity: 0, y: -10 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                transition={{ delay: 0.1 }}
+                            >
+                                <QuickStartButton />
+                            </motion.div>
+                            <motion.div
+                                initial={{ opacity: 0, y: -10 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                transition={{ delay: 0.2 }}
+                            >
+                                <QuickEditDeleteButton />
+                            </motion.div>
+                            <motion.div
+                                initial={{ opacity: 0, y: -10 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                transition={{ delay: 0.3 }}
+                            >
+                                <QuickReconciliationButton />
+                            </motion.div>
+                            
+                            {/* Manual Add Dropdown */}
+                            <motion.div
+                                initial={{ opacity: 0, y: -10 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                transition={{ delay: 0.4 }}
+                                className="relative manual-add-dropdown"
+                            >
+                                <motion.button
+                                    whileHover={{ scale: 1.05 }}
+                                    whileTap={{ scale: 0.95 }}
+                                    onClick={() => setIsManualAddOpen(!isManualAddOpen)}
+                                    className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 
+                                             text-white rounded-lg transition-all shadow-lg hover:shadow-xl"
                                 >
-                                    <Moon className="w-5 h-5" />
-                                </motion.div>
-                            ) : (
-                                <motion.div
-                                    key="sun"
-                                    initial={{ rotate: 90, opacity: 0 }}
-                                    animate={{ rotate: 0, opacity: 1 }}
-                                    exit={{ rotate: -90, opacity: 0 }}
-                                >
-                                    <Sun className="w-5 h-5" />
-                                </motion.div>
-                            )}
-                        </AnimatePresence>
-                    </motion.button>
+                                    <Plus className="w-4 h-4" />
+                                    <span className="text-sm font-medium">Add New</span>
+                                    <motion.div
+                                        animate={{ rotate: isManualAddOpen ? 180 : 0 }}
+                                        transition={{ duration: 0.2 }}
+                                    >
+                                        <ChevronDown className="w-4 h-4" />
+                                    </motion.div>
+                                </motion.button>
 
-                    {/* User Dropdown */}
+                                <AnimatePresence>
+                                    {isManualAddOpen && (
+                                        <motion.div
+                                            initial={{ opacity: 0, y: -10 }}
+                                            animate={{ opacity: 1, y: 0 }}
+                                            exit={{ opacity: 0, y: -10 }}
+                                            className="absolute top-full mt-2 w-48 bg-gray-800 rounded-lg shadow-xl 
+                                                     border border-gray-700 overflow-hidden z-50"
+                                        >
+                                            <AddAccountButton 
+                                                fetchAccounts={loadAccounts} 
+                                                className="w-full text-left px-4 py-3 hover:bg-gray-700 transition-colors"
+                                            />
+                                            <AddPositionButton 
+                                                accounts={accounts} 
+                                                fetchPositions={() => {}}
+                                                className="w-full text-left px-4 py-3 hover:bg-gray-700 transition-colors"
+                                            />
+                                        </motion.div>
+                                    )}
+                                </AnimatePresence>
+                            </motion.div>
+                        </div>
+                    </div>
+
+                    {/* Right side - User Menu */}
                     <div className="relative user-dropdown">
                         <motion.button
                             whileHover={{ scale: 1.02 }}
@@ -201,9 +232,8 @@ const Navbar = () => {
                                               flex items-center justify-center text-white font-semibold shadow-lg">
                                     {getInitials()}
                                 </div>
-                                {/* Status indicator */}
                                 <div className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 rounded-full 
-                                              border-2 border-gray-900 animate-pulse" />
+                                              border-2 border-gray-900" />
                             </div>
                             <div className="hidden md:block text-left">
                                 <p className="text-sm font-medium text-white">{displayName}</p>
@@ -331,38 +361,11 @@ const Navbar = () => {
                         </AnimatePresence>
                     </div>
                 </div>
-
-                {/* Search overlay */}
-                <AnimatePresence>
-                    {searchOpen && (
-                        <motion.div
-                            initial={{ opacity: 0 }}
-                            animate={{ opacity: 1 }}
-                            exit={{ opacity: 0 }}
-                            className="absolute inset-0 bg-gray-900/95 backdrop-blur-md flex items-center px-4"
-                        >
-                            <div className="flex-1 max-w-2xl mx-auto">
-                                <input
-                                    type="text"
-                                    placeholder="Search accounts, positions, or features..."
-                                    className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg 
-                                             text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
-                                    autoFocus
-                                />
-                            </div>
-                            <motion.button
-                                whileHover={{ scale: 1.1 }}
-                                whileTap={{ scale: 0.9 }}
-                                onClick={() => setSearchOpen(false)}
-                                className="ml-4 p-2 rounded-lg hover:bg-gray-800 text-gray-400 hover:text-white"
-                            >
-                                <span className="text-sm">ESC</span>
-                            </motion.button>
-                        </motion.div>
-                    )}
-                </AnimatePresence>
-            </div>
-        </motion.nav>
+            </motion.nav>
+            
+            {/* Stock ticker */}
+            <StockTicker />
+        </div>
     );
 };
 

@@ -40,7 +40,7 @@ export default function PositionsPage() {
   } = usePortfolioSummary();
 
   // Get trend data
-  const { trends, getPeriodData } = usePortfolioTrends();
+  const { trends, getPeriodData = () => ({ data: [] }) } = usePortfolioTrends() || {};
 
   // Combine loading states
   const isLoading = positionsLoading || summaryLoading;
@@ -60,6 +60,11 @@ export default function PositionsPage() {
 
   // Process chart data
   const chartData = useMemo(() => {
+    // Add safety check for getPeriodData function
+    if (!getPeriodData || typeof getPeriodData !== 'function') {
+      return [];
+    }
+    
     const periodData = getPeriodData(selectedTimeframe);
     if (!periodData || !periodData.data) return [];
     
