@@ -72,7 +72,7 @@ const MultiSelect = ({ options, value, onChange, placeholder }) => {
   );
 };
 
-const UnifiedGroupPositionsTable2 = ({ 
+const UnifiedGroupPositionsTable = ({ 
   initialSort = "value-high", 
   title = "Consolidated Portfolio",
   showHistoricalColumns = false 
@@ -1668,4 +1668,4 @@ const UnifiedGroupPositionsTable2 = ({
 );
 };
 
-export default UnifiedGroupPositionsTable2;
+export default UnifiedGroupPositionsTable;

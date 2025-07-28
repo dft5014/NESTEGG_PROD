@@ -1,4 +1,4 @@
-// frontend/components/tables/UnifiedAccountTable2.js
+// frontend/components/tables/UnifiedAccountTable.js
 import React, { useState, useEffect, useMemo } from 'react';
 import ReactDOM from 'react-dom';
 
@@ -348,13 +348,13 @@ const isLiquidAsset = (account) => {
     return true;
 };
 
-// --- Main UnifiedAccountTable2 Component ---
-const UnifiedAccountTable2 = ({
+// --- Main UnifiedAccountTable Component ---
+const UnifiedAccountTable = ({
     initialSort = "value-high",
     title = "Your Accounts",
     onDataChanged = () => {}
 }) => {
-    console.log("UnifiedAccountTable2: Rendering start");
+    console.log("UnifiedAccountTable: Rendering start");
 
     // Use the store hook to get data
     const { 
@@ -865,4 +865,4 @@ const UnifiedAccountTable2 = ({
     );
 };
 
-export default UnifiedAccountTable2;
+export default UnifiedAccountTable;

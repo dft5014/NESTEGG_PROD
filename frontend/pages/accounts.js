@@ -13,7 +13,7 @@ import {
   Clock, Star, AlertCircle, ChevronUp, ChevronDown
 } from 'lucide-react';
 import KpiCard from '@/components/ui/KpiCard';
-import AccountTable from '@/components/tables/UnifiedAccountTable';
+import UnifiedAccountTable from '@/components/tables/UnifiedAccountTable';
 import { fetchWithAuth } from '@/utils/api';
 import { formatCurrency, formatPercentage } from '@/utils/formatters';
 import { fetchAllAccounts } from '@/utils/apimethods/accountMethods';
@@ -467,7 +467,7 @@ export default function AccountsPage() {
           </h3>
           
           <div className="bg-gray-900/50 backdrop-blur-sm rounded-xl border border-gray-800 overflow-hidden">
-            <AccountTable title="" onAccountsChanged={handleAccountAdded} />
+            <UnifiedAccountTable title="" onAccountsChanged={handleAccountAdded} />
           </div>
         </motion.section>
 
