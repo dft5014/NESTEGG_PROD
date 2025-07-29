@@ -1,16 +1,22 @@
 // frontend/components/tables/UnifiedAccountTable.js
 import React, { useState, useEffect, useMemo } from 'react';
 import ReactDOM from 'react-dom';
-
 // Store hooks
 import { useAccounts } from '@/store/hooks/useAccounts';
-
 // Utils
-import { formatCurrency, formatDate, formatPercentage } from '@/utils/formatters';
 import { popularBrokerages } from '@/utils/constants';
-
+import { formatCurrency, formatDate, formatPercentage, formatNumber } from '@/utils/formatters';
 // Modal Components
 import FixedModal from '@/components/modals/FixedModal';
+import { 
+    LineChart, 
+    Line, 
+    XAxis, 
+    YAxis, 
+    CartesianGrid, 
+    Tooltip, 
+    ResponsiveContainer 
+} from 'recharts';
 
 // Icons
 import { 
@@ -22,7 +28,6 @@ import {
     ChevronUp, 
     ChevronDown, 
     BarChart3, 
-    LineChart, 
     Activity,
     Info,
     ArrowUpRight,
@@ -700,31 +705,38 @@ const UnifiedAccountTable = ({
     const [sortField, setSortField] = useState(initialSort.split('-')[0]);
     const [sortDirection, setSortDirection] = useState(initialSort.includes('-low') ? 'asc' : 'desc');
     const [searchQuery, setSearchQuery] = useState("");
-    const [assetTypeFilter, setAssetTypeFilter] = useState([]);
+    const [categoryFilter, setCategoryFilter] = useState([]);
+    const [typeFilter, setTypeFilter] = useState([]);
+    const [institutionFilter, setInstitutionFilter] = useState([]);
 
     // Ensure accounts is always an array
     const safeAccounts = useMemo(() => {
         return Array.isArray(accounts) ? accounts : [];
     }, [accounts]);
 
-    // Asset type options for filter
-    const assetTypeOptions = useMemo(() => {
-        const options = [
-            { value: 'security', label: 'Securities' },
-            { value: 'crypto', label: 'Crypto' },
-            { value: 'cash', label: 'Cash' },
-            { value: 'metal', label: 'Metals' },
-            { value: 'real_estate', label: 'Real Estate' },
-            { value: 'vehicle', label: 'Vehicles' },
-            { value: 'other_asset', label: 'Other Assets' }
-        ];
-        return options;
-    }, []);
-
-    // Default to liquid assets only
-    const defaultLiquidTypes = useMemo(() => {
-        return ['security', 'crypto', 'cash', 'metal'];
-    }, []);
+    
+    // Filter options for categories, types, and institutions
+    const filterOptions = useMemo(() => {
+        // Get unique values from accounts
+        const categories = [...new Set(safeAccounts.map(a => a.category).filter(Boolean))];
+        const types = [...new Set(safeAccounts.map(a => a.type).filter(Boolean))];
+        const institutions = [...new Set(safeAccounts.map(a => a.institution).filter(Boolean))];
+        
+        return {
+            categories: categories.sort().map(cat => ({ 
+                value: cat, 
+                label: cat.charAt(0).toUpperCase() + cat.slice(1).replace('_', ' ') 
+            })),
+            types: types.sort().map(type => ({ 
+                value: type, 
+                label: type.charAt(0).toUpperCase() + type.slice(1).replace('_', ' ') 
+            })),
+            institutions: institutions.sort().map(inst => ({ 
+                value: inst, 
+                label: inst 
+            }))
+        };
+    }, [safeAccounts]);
 
     // Separate liquid and illiquid accounts
     const { liquidAccounts, illiquidAccounts } = useMemo(() => {
@@ -798,26 +810,30 @@ const UnifiedAccountTable = ({
     const filteredAndSortedAccounts = useMemo(() => {
         // Apply filters
         let filtered = safeAccounts.filter(account => {
+            // Search filter - check multiple fields
             const matchesSearch = searchQuery === '' || 
                 (account.name && account.name.toLowerCase().includes(searchQuery.toLowerCase())) ||
                 (account.institution && account.institution.toLowerCase().includes(searchQuery.toLowerCase())) ||
-                (account.type && account.type.toLowerCase().includes(searchQuery.toLowerCase()));
+                (account.type && account.type.toLowerCase().includes(searchQuery.toLowerCase())) ||
+                (account.category && account.category.toLowerCase().includes(searchQuery.toLowerCase()));
             
-            const matchesAssetType = assetTypeFilter.length === 0 || 
-                assetTypeFilter.some(filter => {
-                    // Check various asset type fields
-                    if (filter === 'security' && account.securityValue > 0) return true;
-                    if (filter === 'crypto' && account.cryptoValue > 0) return true;
-                    if (filter === 'cash' && account.cashValue > 0) return true;
-                    if (filter === 'metal' && account.metalValue > 0) return true;
-                    if (filter === 'other_asset' && account.otherAssetsValue > 0) return true;
-                    return false;
-                });
+            // Category filter - only exclude if filter is active AND account doesn't match
+            const matchesCategory = categoryFilter.length === 0 || 
+                categoryFilter.includes(account.category);
             
-            return matchesSearch && matchesAssetType;
+            // Type filter - only exclude if filter is active AND account doesn't match
+            const matchesType = typeFilter.length === 0 || 
+                typeFilter.includes(account.type);
+            
+            // Institution filter - only exclude if filter is active AND account doesn't match
+            const matchesInstitution = institutionFilter.length === 0 || 
+                institutionFilter.includes(account.institution);
+            
+            // Account must match ALL active filters
+            return matchesSearch && matchesCategory && matchesType && matchesInstitution;
         });
         
-        // Apply sorting
+        // Apply sorting (same as before)
         const sorted = [...filtered].sort((a, b) => {
             let comparison = 0;
             
@@ -836,13 +852,25 @@ const UnifiedAccountTable = ({
         });
         
         return sorted;
-    }, [safeAccounts, sortField, sortDirection, searchQuery, assetTypeFilter]);
-
+    }, [safeAccounts, sortField, sortDirection, searchQuery, categoryFilter, typeFilter, institutionFilter]);
     // Handle row click
     const handleRowClick = (account) => {
         setSelectedAccount(account);
         setIsDetailModalOpen(true);
     };
+
+    // Clear all filters function
+    const clearAllFilters = () => {
+        setCategoryFilter([]);
+        setTypeFilter([]);
+        setInstitutionFilter([]);
+        setSearchQuery("");
+    };
+
+    // Check if any filters are active
+    const hasActiveFilters = categoryFilter.length > 0 || typeFilter.length > 0 || 
+                            institutionFilter.length > 0 || searchQuery.length > 0;
+
 
     // Summary Row Component
     const SummaryRow = ({ label, data, bgColor = "bg-blue-900/30", borderColor = "border-blue-700" }) => (
@@ -922,14 +950,46 @@ const UnifiedAccountTable = ({
                                 />
                             </div>
                             
-                            {/* Filter by Type */}
-                            <MultiSelectDropdown
-                                options={assetTypeOptions}
-                                selected={assetTypeFilter}
-                                onChange={setAssetTypeFilter}
-                                placeholder="Filter by Type"
-                                defaultSelected={defaultLiquidTypes}
-                            />
+                            {/* Category Filter */}
+                            {filterOptions.categories.length > 0 && (
+                                <MultiSelectDropdown
+                                    options={filterOptions.categories}
+                                    selected={categoryFilter}
+                                    onChange={setCategoryFilter}
+                                    placeholder="Category"
+                                />
+                            )}
+                            
+                            {/* Type Filter */}
+                            {filterOptions.types.length > 0 && (
+                                <MultiSelectDropdown
+                                    options={filterOptions.types}
+                                    selected={typeFilter}
+                                    onChange={setTypeFilter}
+                                    placeholder="Type"
+                                />
+                            )}
+                            
+                            {/* Institution Filter */}
+                            {filterOptions.institutions.length > 0 && (
+                                <MultiSelectDropdown
+                                    options={filterOptions.institutions}
+                                    selected={institutionFilter}
+                                    onChange={setInstitutionFilter}
+                                    placeholder="Institution"
+                                />
+                            )}
+                            
+                            {/* Clear Filters Button - only show when filters are active */}
+                            {hasActiveFilters && (
+                                <button
+                                    onClick={clearAllFilters}
+                                    className="px-3 py-1.5 bg-gray-700 text-gray-300 rounded-lg hover:bg-gray-600 transition-colors text-sm flex items-center gap-1"
+                                >
+                                    <X className="w-3 h-3" />
+                                    Clear
+                                </button>
+                            )}
                             
                             {/* Refresh */}
                             <button
