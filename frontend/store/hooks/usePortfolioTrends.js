@@ -27,6 +27,9 @@ export const usePortfolioTrends = () => {
       unrealizedGain: point.unrealized_gain,
       unrealizedGainPercent: point.unrealized_gain_percent,
       netCashPosition: point.net_cash_position || null,
+      altLiquidNetWorth: point.alt_liquid_net_worth || 0,
+      altRetirementAssets: point.alt_retirement_assets || 0,
+      altIlliquidNetWorth: point.alt_illiquid_net_worth || 0,
     }));
 
     return {

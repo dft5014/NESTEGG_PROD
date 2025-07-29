@@ -231,6 +231,23 @@ export const usePortfolioSummary = () => {
         avgLiquidPositionSize: parseFloat(portfolioSummary.data.avg_liquid_position_size) || 0,
         avgSecurityPositionSize: parseFloat(portfolioSummary.data.avg_security_position_size) || 0,
       },
+
+      // Alternative Net Worth Values
+      altLiquidNetWorth: parseFloat(portfolioSummary.data.alt_liquid_net_worth) || 0,
+      altRetirementAssets: parseFloat(portfolioSummary.data.alt_retirement_assets) || 0,
+      altIlliquidNetWorth: parseFloat(portfolioSummary.data.alt_illiquid_net_worth) || 0,
+
+      // YTD Changes for Alternative Net Worth Components
+      altLiquidNetWorthYTDChange: parseFloat(portfolioSummary.data.alt_liquid_net_worth_ytd_change) || 0,
+      altLiquidNetWorthYTDChangePercent: parseFloat(portfolioSummary.data.alt_liquid_net_worth_ytd_change_pct) || 0,
+      altRetirementAssetsYTDChange: parseFloat(portfolioSummary.data.alt_retirement_assets_ytd_change) || 0,
+      altRetirementAssetsYTDChangePercent: parseFloat(portfolioSummary.data.alt_retirement_assets_ytd_change_pct) || 0,
+      altIlliquidNetWorthYTDChange: parseFloat(portfolioSummary.data.alt_illiquid_net_worth_ytd_change) || 0,
+      altIlliquidNetWorthYTDChangePercent: parseFloat(portfolioSummary.data.alt_illiquid_net_worth_ytd_change_pct) || 0,
+
+      // Total Liabilities YTD Changes
+      totalLiabilitiesYTDChange: parseFloat(portfolioSummary.data.total_liabilities_ytd_change) || 0,
+      totalLiabilitiesYTDChangePercent: parseFloat(portfolioSummary.data.total_liabilities_ytd_change_pct) || 0,
       
       // Metadata
       timestamp: portfolioSummary.data.as_of_timestamp,

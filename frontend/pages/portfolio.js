@@ -122,7 +122,10 @@ export default function Dashboard() {
       totalAssets: day.totalAssets,
       totalLiabilities: day.totalLiabilities,
       costBasis: summary?.totalCostBasis || 0,
-      liquidAssets: day.liquidAssets
+      liquidAssets: day.liquidAssets,
+      altLiquidNetWorth: day.altLiquidNetWorth || 0,
+      altRetirementAssets: day.altRetirementAssets || 0,
+      altIlliquidNetWorth: day.altIlliquidNetWorth || 0
     }));
   }, [trends?.chartData, summary]);
   
@@ -436,6 +439,45 @@ export default function Dashboard() {
     return null;
   };
 
+  // Net Worth Components Tooltip
+  const NetWorthComponentsTooltip = ({ active, payload, label }) => {
+    if (active && payload && payload.length) {
+      return (
+        <motion.div 
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="bg-gray-800 dark:bg-gray-800 p-4 shadow-lg rounded-lg border border-gray-700 dark:border-gray-700"
+        >
+          <p className="text-white font-medium mb-2">{label}</p>
+          <div className="space-y-2">
+            {payload.map((entry, index) => {
+              const labelMap = {
+                altLiquidNetWorth: 'Liquid Net Worth',
+                altRetirementAssets: 'Retirement Assets',
+                altIlliquidNetWorth: 'Illiquid Net Worth'
+              };
+              return (
+                <div key={index} className="flex justify-between items-center">
+                  <div className="flex items-center">
+                    <div 
+                      className="w-3 h-3 rounded-full mr-2" 
+                      style={{ backgroundColor: entry.color }}
+                    />
+                    <span className="text-gray-300 text-sm">{labelMap[entry.dataKey]}:</span>
+                  </div>
+                  <span className="text-white font-medium ml-4">
+                    {formatCurrency(entry.value)}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </motion.div>
+      );
+    }
+    return null;
+  };
+
   // Asset class card component
   const AssetClassCard = ({ type, data, icon, colorClass }) => {
     // Get performance data for different periods
@@ -691,6 +733,117 @@ export default function Dashboard() {
               </div>
             </motion.div>
             
+                      {/* New KPI Row - Net Worth Components */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mt-4">
+                  {/* Liquid Net Worth KPI */}
+                  <motion.div 
+                    whileHover={{ scale: 1.02 }}
+                    className="bg-gray-800/70 backdrop-blur-sm rounded-xl p-4 border border-gray-700 hover:border-gray-600 transition-all duration-300"
+                  >
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center">
+                        <div className="bg-blue-500/20 p-2 rounded-lg mr-3">
+                          <Droplet className="h-5 w-5 text-blue-400" />
+                        </div>
+                        <h4 className="text-sm font-medium text-gray-300">Liquid Net Worth</h4>
+                      </div>
+                    </div>
+                    <p className="text-2xl font-bold text-white">
+                      {formatCurrency(summary.altLiquidNetWorth)}
+                    </p>
+                    <div className="flex items-center mt-2 text-sm">
+                      <span className={`flex items-center ${summary.altLiquidNetWorthYTDChange >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                        {summary.altLiquidNetWorthYTDChange >= 0 ? <ArrowUp className="h-4 w-4 mr-1" /> : <ArrowDown className="h-4 w-4 mr-1" />}
+                        {formatCurrency(Math.abs(summary.altLiquidNetWorthYTDChange))}
+                        <span className="ml-1">({formatPercentage(summary.altLiquidNetWorthYTDChangePercent * 100)})</span>
+                      </span>
+                      <span className="text-gray-500 ml-2">YTD</span>
+                    </div>
+                  </motion.div>
+
+                  {/* Retirement Assets KPI */}
+                  <motion.div 
+                    whileHover={{ scale: 1.02 }}
+                    className="bg-gray-800/70 backdrop-blur-sm rounded-xl p-4 border border-gray-700 hover:border-gray-600 transition-all duration-300"
+                  >
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center">
+                        <div className="bg-green-500/20 p-2 rounded-lg mr-3">
+                          <Shield className="h-5 w-5 text-green-400" />
+                        </div>
+                        <h4 className="text-sm font-medium text-gray-300">Retirement Assets</h4>
+                      </div>
+                    </div>
+                    <p className="text-2xl font-bold text-white">
+                      {formatCurrency(summary.altRetirementAssets)}
+                    </p>
+                    <div className="flex items-center mt-2 text-sm">
+                      <span className={`flex items-center ${summary.altRetirementAssetsYTDChange >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                        {summary.altRetirementAssetsYTDChange >= 0 ? <ArrowUp className="h-4 w-4 mr-1" /> : <ArrowDown className="h-4 w-4 mr-1" />}
+                        {formatCurrency(Math.abs(summary.altRetirementAssetsYTDChange))}
+                        <span className="ml-1">({formatPercentage(summary.altRetirementAssetsYTDChangePercent * 100)})</span>
+                      </span>
+                      <span className="text-gray-500 ml-2">YTD</span>
+                    </div>
+                  </motion.div>
+
+                  {/* Illiquid Net Worth KPI */}
+                  <motion.div 
+                    whileHover={{ scale: 1.02 }}
+                    className="bg-gray-800/70 backdrop-blur-sm rounded-xl p-4 border border-gray-700 hover:border-gray-600 transition-all duration-300"
+                  >
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center">
+                        <div className="bg-purple-500/20 p-2 rounded-lg mr-3">
+                          <Home className="h-5 w-5 text-purple-400" />
+                        </div>
+                        <h4 className="text-sm font-medium text-gray-300">Illiquid Net Worth</h4>
+                      </div>
+                    </div>
+                    <p className="text-2xl font-bold text-white">
+                      {formatCurrency(summary.altIlliquidNetWorth)}
+                    </p>
+                    <div className="flex items-center mt-2 text-sm">
+                      <span className={`flex items-center ${summary.altIlliquidNetWorthYTDChange >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                        {summary.altIlliquidNetWorthYTDChange >= 0 ? <ArrowUp className="h-4 w-4 mr-1" /> : <ArrowDown className="h-4 w-4 mr-1" />}
+                        {formatCurrency(Math.abs(summary.altIlliquidNetWorthYTDChange))}
+                        <span className="ml-1">({formatPercentage(summary.altIlliquidNetWorthYTDChangePercent * 100)})</span>
+                      </span>
+                      <span className="text-gray-500 ml-2">YTD</span>
+                    </div>
+                  </motion.div>
+
+                  {/* Total Liabilities KPI */}
+                  <motion.div 
+                    whileHover={{ scale: 1.02 }}
+                    className="bg-gray-800/70 backdrop-blur-sm rounded-xl p-4 border border-gray-700 hover:border-gray-600 transition-all duration-300"
+                  >
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center">
+                        <div className="bg-red-500/20 p-2 rounded-lg mr-3">
+                          <CreditCard className="h-5 w-5 text-red-400" />
+                        </div>
+                        <h4 className="text-sm font-medium text-gray-300">Total Liabilities</h4>
+                      </div>
+                    </div>
+                    <p className="text-2xl font-bold text-white">
+                      -{formatCurrency(summary.totalLiabilities)}
+                    </p>
+                    <div className="flex items-center mt-2 text-sm">
+                      <span className={`flex items-center ${summary.totalLiabilitiesYTDChange <= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                        {summary.totalLiabilitiesYTDChange <= 0 ? <ArrowDown className="h-4 w-4 mr-1" /> : <ArrowUp className="h-4 w-4 mr-1" />}
+                        {formatCurrency(Math.abs(summary.totalLiabilitiesYTDChange))}
+                        <span className="ml-1">({formatPercentage(Math.abs(summary.totalLiabilitiesYTDChangePercent * 100))})</span>
+                      </span>
+                      <span className="text-gray-500 ml-2">YTD</span>
+                    </div>
+                  </motion.div>
+                </div>
+
+
+
+
+
             {/* Time period performance metrics */}
             <motion.div 
               initial={{ opacity: 0, y: 20 }}
@@ -797,6 +950,113 @@ export default function Dashboard() {
               </div>
             </motion.div>
             
+            {/* Alternative Net Worth Components Chart */}
+            <motion.div 
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, delay: 0.3 }}
+              className="bg-gray-800 dark:bg-gray-900 rounded-xl shadow-md p-5"
+            >
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold text-white">Net Worth Components</h3>
+                <div className="flex items-center space-x-2">
+                  <div className="flex items-center space-x-4 text-xs">
+                    <div className="flex items-center space-x-1">
+                      <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
+                      <span className="text-gray-400">Liquid Net Worth</span>
+                    </div>
+                    <div className="flex items-center space-x-1">
+                      <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+                      <span className="text-gray-400">Retirement Assets</span>
+                    </div>
+                    <div className="flex items-center space-x-1">
+                      <div className="w-3 h-3 bg-purple-500 rounded-full"></div>
+                      <span className="text-gray-400">Illiquid Net Worth</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="h-80">
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={chartData}>
+                    <defs>
+                      <linearGradient id="colorLiquid" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.8}/>
+                        <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
+                      </linearGradient>
+                      <linearGradient id="colorRetirement" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#10b981" stopOpacity={0.8}/>
+                        <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
+                      </linearGradient>
+                      <linearGradient id="colorIlliquid" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.8}/>
+                        <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0}/>
+                      </linearGradient>
+                    </defs>
+                    <XAxis 
+                      dataKey="date" 
+                      tick={{ fill: '#6b7280' }} 
+                      axisLine={{ stroke: '#374151' }}
+                      tickLine={false}
+                      dy={10}
+                    />
+                    <YAxis 
+                      tick={{ fill: '#6b7280' }}
+                      axisLine={false}
+                      tickLine={false}
+                      tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`}
+                      dx={-10}
+                    />
+                    <Tooltip content={<NetWorthComponentsTooltip />} />
+                    <CartesianGrid vertical={false} stroke="#374151" strokeDasharray="3 3" />
+                    <Line 
+                      type="monotone" 
+                      dataKey="altLiquidNetWorth" 
+                      stroke="#3b82f6" 
+                      strokeWidth={2}
+                      dot={false}
+                      activeDot={{ r: 6, strokeWidth: 0, fill: '#3b82f6' }}
+                    />
+                    <Line 
+                      type="monotone" 
+                      dataKey="altRetirementAssets" 
+                      stroke="#10b981" 
+                      strokeWidth={2}
+                      dot={false}
+                      activeDot={{ r: 6, strokeWidth: 0, fill: '#10b981' }}
+                    />
+                    <Line 
+                      type="monotone" 
+                      dataKey="altIlliquidNetWorth" 
+                      stroke="#8b5cf6" 
+                      strokeWidth={2}
+                      dot={false}
+                      activeDot={{ r: 6, strokeWidth: 0, fill: '#8b5cf6' }}
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+              
+              {/* Summary metrics below chart */}
+              <div className="mt-4 grid grid-cols-3 gap-4">
+                <div className="text-center">
+                  <p className="text-xs text-gray-400">Liquid Net Worth</p>
+                  <p className="text-lg font-semibold text-white">{formatCurrency(summary.altLiquidNetWorth)}</p>
+                </div>
+                <div className="text-center">
+                  <p className="text-xs text-gray-400">Retirement Assets</p>
+                  <p className="text-lg font-semibold text-white">{formatCurrency(summary.altRetirementAssets)}</p>
+                </div>
+                <div className="text-center">
+                  <p className="text-xs text-gray-400">Illiquid Net Worth</p>
+                  <p className="text-lg font-semibold text-white">{formatCurrency(summary.altIlliquidNetWorth)}</p>
+                </div>
+              </div>
+            </motion.div>
+
+
+
             {/* Asset Value Chart - NEW */}
             <motion.div 
               initial={{ opacity: 0, y: 20 }}
