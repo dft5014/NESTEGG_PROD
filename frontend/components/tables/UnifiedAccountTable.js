@@ -56,6 +56,7 @@ const PerformanceIndicator = ({ value, format = 'percentage', size = 'sm', showS
 };
 
 // Updated Account Detail Modal Component
+// Updated Account Detail Modal Component
 const AccountDetailModal = ({ isOpen, onClose, account }) => {
     // State for sorting - must be before any conditional returns
     const [activeTab, setActiveTab] = useState('overview');
@@ -117,8 +118,7 @@ const AccountDetailModal = ({ isOpen, onClose, account }) => {
         );
         
         if (institution && institution.logo) {
-            const LogoComponent = institution.logo;
-            return <LogoComponent className="w-5 h-5" />;
+            return <img src={institution.logo} alt={institution.name} className="w-5 h-5 object-contain" />;
         }
         
         return <Briefcase className="w-5 h-5 text-blue-400" />;
