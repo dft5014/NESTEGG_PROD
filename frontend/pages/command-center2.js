@@ -1841,3 +1841,10 @@ export default function PortfolioCommandCenter() {
     </div>
   );
 }
+
+// Disable static generation for this page
+export const getServerSideProps = async () => {
+  return {
+    props: {}, // Will be passed to the page component as props
+  };
+};
