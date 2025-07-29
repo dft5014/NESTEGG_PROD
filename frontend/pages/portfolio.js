@@ -486,7 +486,7 @@ export default function Dashboard() {
         '1W': data.weekly?.percent_change || 0,
         '1M': data.monthly?.percent_change || 0,
         'YTD': data.ytd?.percent_change || 0,
-        '1Y': data.yearly?.percent_change || 0,
+        
       };
 
     return (
@@ -554,53 +554,24 @@ export default function Dashboard() {
             </div>
           </div>
 
-          {/* Performance Timeline - Right Side */}
+          {/* New Horizontal Performance Section */}
           {type !== 'liability' && (
-            <div className="ml-4 flex-col space-y-1.5 min-w-[80px] hidden sm:flex">
-              <div className="text-xs font-medium text-gray-500 mb-1 text-right">Performance</div>
-              {Object.entries(performanceData).map(([period, value]) => (
-                <motion.div 
-                  key={period}
-                  initial={{ opacity: 0, x: 10 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: 0.1 }}
-                  className="flex items-center justify-between space-x-2"
-                >
-                  <span className="text-xs text-gray-500">{period}</span>
-                  <motion.span 
-                    className={`text-xs font-medium px-1.5 py-0.5 rounded ${
-                      value > 0 
-                        ? 'bg-green-500/20 text-green-400' 
-                        : value < 0 
-                        ? 'bg-red-500/20 text-red-400' 
-                        : 'bg-gray-600/20 text-gray-400'
-                    }`}
-                    whileHover={{ scale: 1.1 }}
-                  >
-                    {value > 0 ? '+' : ''}{value.toFixed(1)}%
-                  </motion.span>
-                </motion.div>
-              ))}
-            </div>
-          )}
-
-          {/* Mobile Performance - Show below main content */}
-          {type !== 'liability' && (
-            <div className="mt-3 pt-3 border-t border-gray-700 flex sm:hidden">
-              <div className="flex flex-wrap gap-2 w-full">
+            <div className="mt-4 pt-3 border-t border-gray-700">
+              <div className="grid grid-cols-4 gap-2 text-center">
                 {Object.entries(performanceData).map(([period, value]) => (
-                  <div key={period} className="flex items-center space-x-1">
-                    <span className="text-xs text-gray-500">{period}:</span>
-                    <span className={`text-xs font-medium ${
-                      value > 0 ? 'text-green-400' : value < 0 ? 'text-red-400' : 'text-gray-400'
+                  <div key={period}>
+                    <p className="text-xs text-gray-500 mb-1">{period}</p>
+                    <p className={`text-sm font-medium ${
+                      value >= 0 ? 'text-green-400' : 'text-red-400'
                     }`}>
-                      {value > 0 ? '+' : ''}{value.toFixed(1)}%
-                    </span>
+                      {value >= 0 ? '+' : ''}{value.toFixed(1)}%
+                    </p>
                   </div>
                 ))}
               </div>
             </div>
           )}
+          
         </div>
       </motion.div>
     );
