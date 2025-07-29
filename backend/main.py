@@ -7239,7 +7239,10 @@ async def get_datastore_summary(
                 liquid_assets,
                 total_unrealized_gain,
                 total_unrealized_gain_percent,
-                net_cash_basis_metrics
+                net_cash_basis_metrics,
+                alt_liquid_net_worth,
+                alt_retirement_assets,
+                alt_illiquid_net_worth
             FROM rept_net_worth_trend_summary 
             WHERE user_id = :user_id 
             AND snapshot_date >= CURRENT_DATE - INTERVAL '30 days'
@@ -7257,7 +7260,10 @@ async def get_datastore_summary(
                     "liquid_assets": float(row['liquid_assets']),
                     "unrealized_gain": float(row['total_unrealized_gain']),
                     "unrealized_gain_percent": float(row['total_unrealized_gain_percent']),
-                    "net_cash_basis_metrics": row['net_cash_basis_metrics']
+                    "net_cash_basis_metrics": row['net_cash_basis_metrics'],
+                    "alt_liquid_net_worth": float(row['alt_liquid_net_worth']) if row['alt_liquid_net_worth'] else 0,
+                    "alt_retirement_assets": float(row['alt_retirement_assets']) if row['alt_retirement_assets'] else 0,
+                    "alt_illiquid_net_worth": float(row['alt_illiquid_net_worth']) if row['alt_illiquid_net_worth'] else 0
                 }
                 for row in history_results
             ]
