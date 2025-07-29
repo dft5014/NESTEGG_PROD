@@ -1018,7 +1018,7 @@ const UnifiedAccountTable = ({
                         </div>
                         <h3 className="text-xl font-medium mb-2">No accounts found</h3>
                         <p className="text-gray-400 max-w-md mx-auto">
-                            {searchQuery || assetTypeFilter.length > 0 ? 
+                            {hasActiveFilters ?   
                                 "No accounts match your search criteria." : 
                                 "Add your first account to start tracking your portfolio."}
                         </p>
