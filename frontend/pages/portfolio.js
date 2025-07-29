@@ -554,25 +554,39 @@ export default function Dashboard() {
             </div>
           </div>
 
-          {/* New Horizontal Performance Section */}
+
+
+        </div>
+
+                  {/* New Horizontal Performance Section */}
           {type !== 'liability' && (
             <div className="mt-4 pt-3 border-t border-gray-700">
-              <div className="grid grid-cols-4 gap-2 text-center">
+              <div className="grid grid-cols-4 gap-2">
                 {Object.entries(performanceData).map(([period, value]) => (
-                  <div key={period}>
+                  <motion.div 
+                    key={period}
+                    whileHover={{ scale: 1.05 }}
+                    className="text-center"
+                  >
                     <p className="text-xs text-gray-500 mb-1">{period}</p>
-                    <p className={`text-sm font-medium ${
-                      value >= 0 ? 'text-green-400' : 'text-red-400'
-                    }`}>
-                      {value >= 0 ? '+' : ''}{value.toFixed(1)}%
-                    </p>
-                  </div>
+                    <motion.div
+                      whileHover={{ scale: 1.1 }}
+                      className={`text-xs font-medium px-1.5 py-0.5 rounded ${
+                        value > 0 
+                          ? 'bg-green-500/20 text-green-400' 
+                          : value < 0 
+                          ? 'bg-red-500/20 text-red-400' 
+                          : 'bg-gray-600/20 text-gray-400'
+                      }`}
+                    >
+                      {value > 0 ? '+' : ''}{value.toFixed(1)}%
+                    </motion.div>
+                  </motion.div>
                 ))}
               </div>
             </div>
           )}
           
-        </div>
       </motion.div>
     );
   };
@@ -898,7 +912,14 @@ export default function Dashboard() {
                       tick={{ fill: '#6b7280' }}
                       axisLine={false}
                       tickLine={false}
-                      tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`}
+                      tickFormatter={(value) => {
+                            if (value >= 1000000) {
+                              return `$${(value / 1000000).toFixed(1)}M`;
+                            } else if (value >= 1000) {
+                              return `$${(value / 1000).toFixed(0)}k`;
+                            }
+                            return `$${value.toLocaleString()}`;
+                          }}
                       dx={-10}
                     />
                     <Tooltip content={<CustomTooltip />} />
@@ -976,7 +997,14 @@ export default function Dashboard() {
                       tick={{ fill: '#6b7280' }}
                       axisLine={false}
                       tickLine={false}
-                      tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`}
+                      tickFormatter={(value) => {
+                          if (value >= 1000000) {
+                            return `$${(value / 1000000).toFixed(1)}M`;
+                          } else if (value >= 1000) {
+                            return `$${(value / 1000).toFixed(0)}k`;
+                          }
+                          return `$${value.toLocaleString()}`;
+                        }}
                       dx={-10}
                     />
                     <Tooltip content={<NetWorthComponentsTooltip />} />
@@ -1080,7 +1108,14 @@ export default function Dashboard() {
                       tick={{ fill: '#6b7280' }}
                       axisLine={false}
                       tickLine={false}
-                      tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`}
+                      tickFormatter={(value) => {
+                          if (value >= 1000000) {
+                            return `$${(value / 1000000).toFixed(1)}M`;
+                          } else if (value >= 1000) {
+                            return `$${(value / 1000).toFixed(0)}k`;
+                          }
+                          return `$${value.toLocaleString()}`;
+                        }}
                       dx={-10}
                     />
                     <Tooltip content={<AssetTooltip />} />
@@ -1312,7 +1347,14 @@ export default function Dashboard() {
                       <YAxis 
                         stroke="#9ca3af"
                         tick={{ fill: '#9ca3af', fontSize: 12 }}
-                        tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`}
+                        tickFormatter={(value) => {
+                            if (value >= 1000000) {
+                              return `$${(value / 1000000).toFixed(1)}M`;
+                            } else if (value >= 1000) {
+                              return `$${(value / 1000).toFixed(0)}k`;
+                            }
+                            return `$${value.toLocaleString()}`;
+                          }}
                       />
                       <Tooltip 
                         contentStyle={{ 
