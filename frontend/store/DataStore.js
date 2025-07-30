@@ -844,6 +844,7 @@ export const DataStoreProvider = ({ children }) => {
       markAccountsStale,
       refreshData,  
       fetchGroupedLiabilitiesData,
+      fetchSnapshotsData,
       refreshAccounts: () => fetchAccountsData(true),
       refreshGroupedPositions: () => fetchGroupedPositionsData(true),
       refreshGroupedLiabilities: () => fetchGroupedLiabilitiesData(true),
