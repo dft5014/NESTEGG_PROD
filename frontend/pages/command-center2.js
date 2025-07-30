@@ -12,7 +12,7 @@ import {
 } from 'recharts';
 
 // Import DataStore hooks
-import { useSnapshot } from '@/store/hooks/useSnapshot';
+import { useSnapshots } from '@/store/hooks/useSnapshots';
 import { usePortfolioSummary } from '@/store/hooks/usePortfolioSummary';
 import { useGroupedPositions } from '@/store/hooks/useGroupedPositions';
 import { useAccounts } from '@/store/hooks/useAccounts';
@@ -213,7 +213,7 @@ export default function PortfolioCommandCenter() {
     loading: snapshotLoading, 
     error: snapshotError,
     refresh: refreshSnapshots 
-  } = useSnapshot();
+  } = useSnapshots();
   
   const { 
     summary: portfolioSummary,
