@@ -1,3 +1,7 @@
+// store/hooks/useSnapshots.js
+import { useContext, useEffect } from 'react';
+import { DataStoreContext } from '../DataStore';
+
 export const useSnapshots = () => {
   const context = useContext(DataStoreContext);
   if (!context) {
