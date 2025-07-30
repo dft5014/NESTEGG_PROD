@@ -102,6 +102,42 @@ const colors = {
   }
 };
 
+// Animated number component
+const AnimatedNumber = ({ value, format = 'currency', duration = 1000, decimals = 0 }) => {
+  const [displayValue, setDisplayValue] = useState(0);
+  const previousValue = useRef(0);
+
+  useEffect(() => {
+    const startValue = previousValue.current;
+    const endValue = value || 0;
+    const startTime = Date.now();
+
+    const animate = () => {
+      const now = Date.now();
+      const progress = Math.min((now - startTime) / duration, 1);
+      const easeOutQuart = 1 - Math.pow(1 - progress, 4);
+      const currentValue = startValue + (endValue - startValue) * easeOutQuart;
+      
+      setDisplayValue(currentValue);
+      
+      if (progress < 1) {
+        requestAnimationFrame(animate);
+      } else {
+        previousValue.current = endValue;
+      }
+    };
+
+    animate();
+  }, [value, duration]);
+
+  if (format === 'currency') {
+    return <>{formatCurrency(displayValue, true, decimals)}</>;
+  } else if (format === 'percentage') {
+    return <>{formatPercentage(displayValue)}</>;
+  }
+  return <>{displayValue.toFixed(decimals)}</>;
+};
+
 // Overview Stats Card Component
 const OverviewCard = ({ data }) => {
   const stats = [
@@ -136,6 +172,36 @@ const OverviewCard = ({ data }) => {
   );
 };
 
+// Performance Metrics Card
+const PerformanceMetricsCard = ({ data }) => {
+  const metrics = [
+    { label: 'Sharpe Ratio', value: data.sharpeRatio },
+    { label: 'Volatility', value: data.volatility },
+    { label: 'Max Drawdown', value: data.maxDrawdown },
+    { label: 'Beta', value: data.beta }
+  ];
+
+  return (
+    <motion.div
+      variants={itemVariants}
+      whileHover="hover"
+      className="bg-gradient-to-br from-gray-800 to-gray-900 rounded-xl p-6 shadow-xl"
+    >
+      <h3 className="text-xl font-bold text-white mb-4">Risk Metrics</h3>
+      <div className="grid grid-cols-2 gap-4">
+        {metrics.map((metric, index) => (
+          <div key={index}>
+            <p className="text-gray-400 text-sm">{metric.label}</p>
+            <p className="text-2xl font-bold text-white">
+              {metric.value ? metric.value.toFixed(2) : '-'}
+            </p>
+          </div>
+        ))}
+      </div>
+    </motion.div>
+  );
+};
+
 // Main Portfolio Command Center Component
 export default function PortfolioCommandCenter() {
   const router = useRouter();
@@ -153,6 +219,8 @@ export default function PortfolioCommandCenter() {
     summary: portfolioSummary,
     topPositions,
     assetPerformance,
+    sectorAllocation,
+    riskMetrics,
     loading: summaryLoading,
     error: summaryError,
     refresh: refreshSummary
@@ -160,6 +228,7 @@ export default function PortfolioCommandCenter() {
   
   const {
     positions: groupedPositions,
+    summary: positionsSummary,
     loading: positionsLoading,
     error: positionsError,
     refresh: refreshPositions
@@ -167,6 +236,7 @@ export default function PortfolioCommandCenter() {
   
   const {
     accounts,
+    summary: accountsSummary,
     loading: accountsLoading,
     error: accountsError,
     refresh: refreshAccounts
@@ -683,6 +753,10 @@ export default function PortfolioCommandCenter() {
             >
               <OverviewCard data={overviewData} />
               
+              {riskMetrics && (
+                <PerformanceMetricsCard data={riskMetrics} />
+              )}
+              
               {/* Asset Allocation Chart */}
               <motion.div
                 variants={itemVariants}
@@ -711,6 +785,26 @@ export default function PortfolioCommandCenter() {
                   </ResponsiveContainer>
                 )}
               </motion.div>
+
+              {/* Sector Allocation */}
+              {sectorAllocation && sectorAllocation.length > 0 && (
+                <motion.div
+                  variants={itemVariants}
+                  whileHover="hover"
+                  className="bg-gradient-to-br from-gray-800 to-gray-900 rounded-xl p-6 shadow-xl"
+                >
+                  <h3 className="text-xl font-bold text-white mb-4">Sector Allocation</h3>
+                  <ResponsiveContainer width="100%" height={300}>
+                    <BarChart data={sectorAllocation.slice(0, 8)}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                      <XAxis dataKey="sector" stroke="#9CA3AF" angle={-45} textAnchor="end" height={80} />
+                      <YAxis stroke="#9CA3AF" tickFormatter={(value) => formatCurrency(value, true)} />
+                      <Tooltip formatter={(value) => formatCurrency(value)} />
+                      <Bar dataKey="value" fill="#6366f1" />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </motion.div>
+              )}
 
               {/* Period Performance */}
               <motion.div
@@ -861,6 +955,60 @@ export default function PortfolioCommandCenter() {
                   </ComposedChart>
                 </ResponsiveContainer>
               </motion.div>
+
+              {/* Performance Metrics Over Time */}
+              <motion.div
+                variants={itemVariants}
+                whileHover="hover"
+                className="bg-gradient-to-br from-gray-800 to-gray-900 rounded-xl p-6 shadow-xl"
+              >
+                <h3 className="text-xl font-bold text-white mb-4">Unrealized Gains Over Time</h3>
+                <ResponsiveContainer width="100%" height={300}>
+                  <LineChart data={timeSeriesData.totals}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                    <XAxis 
+                      dataKey="date" 
+                      stroke="#9CA3AF"
+                      tickFormatter={(date) => formatDate(date)}
+                    />
+                    <YAxis 
+                      yAxisId="left"
+                      stroke="#9CA3AF"
+                      tickFormatter={(value) => formatCurrency(value, true)}
+                    />
+                    <YAxis 
+                      yAxisId="right"
+                      orientation="right"
+                      stroke="#9CA3AF"
+                      tickFormatter={(value) => `${value}%`}
+                    />
+                    <Tooltip
+                      contentStyle={{ backgroundColor: '#1F2937', border: 'none' }}
+                      labelFormatter={(date) => formatDate(date, 'long')}
+                      formatter={(value, name) => [
+                        name === 'unrealizedGainPercent' ? `${value.toFixed(2)}%` : formatCurrency(value),
+                        name === 'unrealizedGain' ? 'Gain/Loss' : 'Gain/Loss %'
+                      ]}
+                    />
+                    <Line 
+                      yAxisId="left"
+                      type="monotone" 
+                      dataKey="unrealizedGain" 
+                      stroke="#10b981" 
+                      strokeWidth={2}
+                      dot={false}
+                    />
+                    <Line 
+                      yAxisId="right"
+                      type="monotone" 
+                      dataKey="unrealizedGainPercent" 
+                      stroke="#8b5cf6" 
+                      strokeWidth={2}
+                      dot={false}
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
+              </motion.div>
             </motion.div>
           )}
 
@@ -888,7 +1036,52 @@ export default function PortfolioCommandCenter() {
                   onChange={(e) => setCompareOptions(prev => ({ ...prev, date2: e.target.value }))}
                   className="bg-gray-700 text-white rounded px-3 py-2"
                 />
+                <button
+                  onClick={() => setFilters(prev => ({ ...prev, groupBy: filters.groupBy === 'asset' ? 'sector' : 'asset' }))}
+                  className="ml-auto bg-gray-700 hover:bg-gray-600 text-white px-4 py-2 rounded"
+                >
+                  Group by: {filters.groupBy === 'asset' ? 'Asset Type' : 'Sector'}
+                </button>
               </div>
+
+              {/* Summary Stats */}
+              {groupedComparisonData.length > 0 && (
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                  <div className="bg-gray-800 rounded-lg p-4">
+                    <p className="text-gray-400 text-sm">Total Value Start</p>
+                    <p className="text-2xl font-bold text-white">
+                      {formatCurrency(groupedComparisonData.reduce((sum, g) => sum + g.value1, 0))}
+                    </p>
+                  </div>
+                  <div className="bg-gray-800 rounded-lg p-4">
+                    <p className="text-gray-400 text-sm">Total Value End</p>
+                    <p className="text-2xl font-bold text-white">
+                      {formatCurrency(groupedComparisonData.reduce((sum, g) => sum + g.value2, 0))}
+                    </p>
+                  </div>
+                  <div className="bg-gray-800 rounded-lg p-4">
+                    <p className="text-gray-400 text-sm">Total Change</p>
+                    <p className={`text-2xl font-bold ${
+                      groupedComparisonData.reduce((sum, g) => sum + g.valueDelta, 0) >= 0 ? 'text-green-400' : 'text-red-400'
+                    }`}>
+                      {formatCurrency(groupedComparisonData.reduce((sum, g) => sum + g.valueDelta, 0))}
+                    </p>
+                  </div>
+                  <div className="bg-gray-800 rounded-lg p-4">
+                    <p className="text-gray-400 text-sm">Change %</p>
+                    <p className={`text-2xl font-bold ${
+                      ((groupedComparisonData.reduce((sum, g) => sum + g.valueDelta, 0) / 
+                        groupedComparisonData.reduce((sum, g) => sum + g.value1, 0)) * 100) >= 0 
+                        ? 'text-green-400' : 'text-red-400'
+                    }`}>
+                      {formatPercentage(
+                        (groupedComparisonData.reduce((sum, g) => sum + g.valueDelta, 0) / 
+                         groupedComparisonData.reduce((sum, g) => sum + g.value1, 0)) * 100
+                      )}
+                    </p>
+                  </div>
+                </div>
+              )}
 
               {/* Comparison Results */}
               {groupedComparisonData.map((group) => (
@@ -919,13 +1112,30 @@ export default function PortfolioCommandCenter() {
                           <div className="flex-1">
                             <p className="font-semibold text-white">{position.identifier}</p>
                             <p className="text-sm text-gray-400">{position.name}</p>
+                            {position.accountChanged && (
+                              <p className="text-xs text-yellow-400">
+                                Account: {position.previousAccountName} → {position.account_name}
+                              </p>
+                            )}
+                            {position.isNew && (
+                              <span className="text-xs bg-green-500/20 text-green-400 px-2 py-1 rounded">NEW</span>
+                            )}
+                            {position.isSold && (
+                              <span className="text-xs bg-red-500/20 text-red-400 px-2 py-1 rounded">SOLD</span>
+                            )}
                           </div>
                           <div className="flex items-center gap-4">
-                            <span className="text-gray-400">{formatCurrency(position.value1)}</span>
+                            <div className="text-right">
+                              <p className="text-sm text-gray-400">{formatCurrency(position.value1)}</p>
+                              <p className="text-xs text-gray-500">{position.quantity1} @ {formatCurrency(position.price1)}</p>
+                            </div>
                             <svg className="w-4 h-4 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
                             </svg>
-                            <span className="text-white">{formatCurrency(position.value2)}</span>
+                            <div className="text-right">
+                              <p className="text-sm text-white">{formatCurrency(position.value2)}</p>
+                              <p className="text-xs text-gray-500">{position.quantity2} @ {formatCurrency(position.price2)}</p>
+                            </div>
                             <span className={`ml-2 ${position.valueDelta >= 0 ? 'text-green-400' : 'text-red-400'}`}>
                               {formatPercentage(position.valueChangePercent)}
                             </span>
@@ -979,6 +1189,29 @@ export default function PortfolioCommandCenter() {
                 </div>
               ) : (
                 <div className="space-y-4">
+                  {/* Summary Cards */}
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                    <div className="bg-blue-900/20 border border-blue-700 rounded-lg p-4">
+                      <p className="text-blue-400 text-sm">Positions Only in Current</p>
+                      <p className="text-2xl font-bold text-white">
+                        {reconciliationData.filter(item => item.status === 'unified_only').length}
+                      </p>
+                    </div>
+                    <div className="bg-orange-900/20 border border-orange-700 rounded-lg p-4">
+                      <p className="text-orange-400 text-sm">Positions Only in Snapshot</p>
+                      <p className="text-2xl font-bold text-white">
+                        {reconciliationData.filter(item => item.status === 'snapshot_only').length}
+                      </p>
+                    </div>
+                    <div className="bg-yellow-900/20 border border-yellow-700 rounded-lg p-4">
+                      <p className="text-yellow-400 text-sm">Value Mismatches</p>
+                      <p className="text-2xl font-bold text-white">
+                        {reconciliationData.filter(item => item.status === 'matched' && Math.abs(item.valueDelta) > 0.01).length}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Reconciliation Items */}
                   {reconciliationData.map((item) => (
                     <motion.div
                       key={item.key}
@@ -991,7 +1224,18 @@ export default function PortfolioCommandCenter() {
                     >
                       <div className="flex items-center justify-between">
                         <div>
-                          <p className="font-bold text-white text-lg">{item.identifier}</p>
+                          <div className="flex items-center gap-3">
+                            <p className="font-bold text-white text-lg">{item.identifier}</p>
+                            {item.status === 'unified_only' && (
+                              <span className="text-xs bg-blue-500/20 text-blue-400 px-2 py-1 rounded">CURRENT ONLY</span>
+                            )}
+                            {item.status === 'snapshot_only' && (
+                              <span className="text-xs bg-orange-500/20 text-orange-400 px-2 py-1 rounded">SNAPSHOT ONLY</span>
+                            )}
+                            {item.status === 'matched' && Math.abs(item.valueDelta) > 0.01 && (
+                              <span className="text-xs bg-yellow-500/20 text-yellow-400 px-2 py-1 rounded">MISMATCH</span>
+                            )}
+                          </div>
                           <p className="text-gray-400">{item.name}</p>
                           <p className="text-sm text-gray-500 mt-1">{item.account_name}</p>
                         </div>
@@ -999,12 +1243,18 @@ export default function PortfolioCommandCenter() {
                           <div className="mb-2">
                             <p className="text-sm text-gray-400">Current</p>
                             <p className="text-white font-bold">{formatCurrency(item.unifiedValue)}</p>
+                            <p className="text-xs text-gray-500">
+                              {item.unifiedQuantity} @ {formatCurrency(item.unifiedPrice)}
+                            </p>
                           </div>
                           <div>
                             <p className="text-sm text-gray-400">Snapshot</p>
                             <p className="text-white font-bold">{formatCurrency(item.snapshotValue)}</p>
+                            <p className="text-xs text-gray-500">
+                              {item.snapshotQuantity} @ {formatCurrency(item.snapshotPrice)}
+                            </p>
                           </div>
-                          <div className="mt-2">
+                          <div className="mt-2 pt-2 border-t border-gray-700">
                             <p className={`font-bold ${item.valueDelta >= 0 ? 'text-green-400' : 'text-red-400'}`}>
                               {formatCurrency(item.valueDelta)} ({formatPercentage(item.valueChangePercent)})
                             </p>
@@ -1064,50 +1314,125 @@ export default function PortfolioCommandCenter() {
                     </label>
                   ))}
                 </div>
-              </div>
-
-              {/* Account Filter */}
-              <div className="mb-6">
-                <label className="block text-gray-400 mb-2">Accounts</label>
-                <div className="space-y-2">
-                  {accounts.map((account) => (
-                    <label key={account.id} className="flex items-center">
-                      <input
-                        type="checkbox"
-                        checked={filters.selectedAccounts.has(account.id.toString())}
-                        onChange={(e) => {
-                          const newAccounts = new Set(filters.selectedAccounts);
-                          if (e.target.checked) {
-                            newAccounts.add(account.id.toString());
-                          } else {
-                            newAccounts.delete(account.id.toString());
-                          }
-                          setFilters(prev => ({ ...prev, selectedAccounts: newAccounts }));
-                        }}
-                        className="mr-2"
-                      />
-                      <span className="text-white">{account.name}</span>
-                    </label>
-                  ))}
                 </div>
-              </div>
 
-              {/* Group By */}
-              <div className="mb-6">
-                <label className="block text-gray-400 mb-2">Group By</label>
-                <select
-                  value={filters.groupBy}
-                  onChange={(e) => setFilters(prev => ({ ...prev, groupBy: e.target.value }))}
-                  className="w-full bg-gray-800 text-white rounded px-3 py-2"
-                >
-                  <option value="asset">Asset Type</option>
-                  <option value="sector">Sector</option>
-                </select>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </motion.div>
-    </>
-  );
+             {/* Account Filter */}
+             <div className="mb-6">
+               <label className="block text-gray-400 mb-2">Accounts</label>
+               <div className="space-y-2 max-h-60 overflow-y-auto">
+                 {accounts.map((account) => (
+                   <label key={account.id} className="flex items-center">
+                     <input
+                       type="checkbox"
+                       checked={filters.selectedAccounts.has(account.id.toString())}
+                       onChange={(e) => {
+                         const newAccounts = new Set(filters.selectedAccounts);
+                         if (e.target.checked) {
+                           newAccounts.add(account.id.toString());
+                         } else {
+                           newAccounts.delete(account.id.toString());
+                         }
+                         setFilters(prev => ({ ...prev, selectedAccounts: newAccounts }));
+                       }}
+                       className="mr-2"
+                     />
+                     <span className="text-white text-sm">{account.name}</span>
+                   </label>
+                 ))}
+               </div>
+             </div>
+
+             {/* Group By */}
+             <div className="mb-6">
+               <label className="block text-gray-400 mb-2">Group By</label>
+               <select
+                 value={filters.groupBy}
+                 onChange={(e) => setFilters(prev => ({ ...prev, groupBy: e.target.value }))}
+                 className="w-full bg-gray-800 text-white rounded px-3 py-2"
+               >
+                 <option value="asset">Asset Type</option>
+                 <option value="sector">Sector</option>
+               </select>
+             </div>
+
+             {/* Search */}
+             <div className="mb-6">
+               <label className="block text-gray-400 mb-2">Search</label>
+               <input
+                 type="text"
+                 value={filters.searchTerm}
+                 onChange={(e) => setFilters(prev => ({ ...prev, searchTerm: e.target.value }))}
+                 placeholder="Search positions..."
+                 className="w-full bg-gray-800 text-white rounded px-3 py-2"
+               />
+             </div>
+
+             {/* Reset Filters */}
+             <button
+               onClick={() => {
+                 setFilters({
+                   dateRange: '30d',
+                   selectedAccounts: new Set(accounts.map(acc => acc.id.toString())),
+                   selectedAssetTypes: new Set(['security', 'crypto', 'cash', 'metal', 'realestate']),
+                   groupBy: 'asset',
+                   searchTerm: ''
+                 });
+               }}
+               className="w-full bg-gray-700 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded"
+             >
+               Reset Filters
+             </button>
+           </motion.div>
+         )}
+       </AnimatePresence>
+
+       {/* Keyboard Shortcuts Modal */}
+       <AnimatePresence>
+         {false && ( // Set to true to show keyboard shortcuts
+           <motion.div
+             initial={{ opacity: 0 }}
+             animate={{ opacity: 1 }}
+             exit={{ opacity: 0 }}
+             className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+           >
+             <motion.div
+               initial={{ scale: 0.9 }}
+               animate={{ scale: 1 }}
+               exit={{ scale: 0.9 }}
+               className="bg-gray-800 rounded-lg p-6 max-w-md"
+             >
+               <h3 className="text-xl font-bold text-white mb-4">Keyboard Shortcuts</h3>
+               <div className="space-y-2">
+                 <div className="flex justify-between">
+                   <span className="text-gray-400">Toggle Filters</span>
+                   <kbd className="bg-gray-700 px-2 py-1 rounded text-sm">Ctrl/⌘ + K</kbd>
+                 </div>
+                 <div className="flex justify-between">
+                   <span className="text-gray-400">Refresh Data</span>
+                   <kbd className="bg-gray-700 px-2 py-1 rounded text-sm">Ctrl/⌘ + R</kbd>
+                 </div>
+                 <div className="flex justify-between">
+                   <span className="text-gray-400">Overview</span>
+                   <kbd className="bg-gray-700 px-2 py-1 rounded text-sm">Ctrl/⌘ + 1</kbd>
+                 </div>
+                 <div className="flex justify-between">
+                   <span className="text-gray-400">Trends</span>
+                   <kbd className="bg-gray-700 px-2 py-1 rounded text-sm">Ctrl/⌘ + 2</kbd>
+                 </div>
+                 <div className="flex justify-between">
+                   <span className="text-gray-400">Comparison</span>
+                   <kbd className="bg-gray-700 px-2 py-1 rounded text-sm">Ctrl/⌘ + 3</kbd>
+                 </div>
+                 <div className="flex justify-between">
+                   <span className="text-gray-400">Reconciliation</span>
+                   <kbd className="bg-gray-700 px-2 py-1 rounded text-sm">Ctrl/⌘ + 4</kbd>
+                 </div>
+               </div>
+             </motion.div>
+           </motion.div>
+         )}
+       </AnimatePresence>
+     </motion.div>
+   </>
+ );
 }
