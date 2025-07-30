@@ -1,14 +1,11 @@
 // store/hooks/useSnapshots.js
-import { useContext, useEffect } from 'react';
-import { DataStoreContext } from '../DataStore';
+import { useEffect } from 'react';
+import { useDataStore } from '../DataStore';
 
 export const useSnapshots = () => {
-  const context = useContext(DataStoreContext);
-  if (!context) {
-    throw new Error('useSnapshots must be used within a DataStoreProvider');
-  }
-
-  const { snapshots, fetchSnapshotsData } = context;
+  const { state, actions } = useDataStore();
+  const { snapshots } = state;
+  const { fetchSnapshotsData } = actions;
 
   // Fetch on mount if not already loaded
   useEffect(() => {
