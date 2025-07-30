@@ -7277,6 +7277,84 @@ async def get_datastore_summary(
             detail=f"Failed to fetch datastore summary: {str(e)}"
         )
 
+@app.get("/datastore/positions/detail")
+async def get_position_details(
+    snapshot_date: str = Query("latest", description="Snapshot date or 'latest'"),
+    days: Optional[int] = Query(None, description="If provided, get multiple days of data"),
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Get raw position details from rept_all_items_net_worth_live_history
+    """
+    try:
+        user_id = current_user["id"]
+        
+        # Build query based on parameters
+        if days:
+            # Get multiple days of positions
+            query = """
+            SELECT * FROM rept_all_items_net_worth_live_history
+            WHERE user_id = :user_id
+            AND snapshot_date >= CURRENT_DATE - INTERVAL ':days days'
+            AND item_category = 'asset'
+            ORDER BY snapshot_date DESC, identifier
+            """
+            values = {"user_id": user_id, "days": days}
+        elif snapshot_date == "latest":
+            # Get latest snapshot positions
+            query = """
+            WITH latest_date AS (
+                SELECT MAX(snapshot_date) as max_date 
+                FROM rept_all_items_net_worth_live_history 
+                WHERE user_id = :user_id
+            )
+            SELECT * FROM rept_all_items_net_worth_live_history
+            WHERE user_id = :user_id
+            AND snapshot_date = (SELECT max_date FROM latest_date)
+            AND item_category = 'asset'
+            ORDER BY identifier
+            """
+            values = {"user_id": user_id}
+        else:
+            # Get specific date positions
+            query = """
+            SELECT * FROM rept_all_items_net_worth_live_history
+            WHERE user_id = :user_id
+            AND snapshot_date = :snapshot_date::date
+            AND item_category = 'asset'
+            ORDER BY identifier
+            """
+            values = {"user_id": user_id, "snapshot_date": snapshot_date}
+        
+        results = await database.fetch_all(query=query, values=values)
+        
+        # Return raw data with minimal transformation
+        positions = []
+        for row in results:
+            position = dict(row)
+            # Only format dates for JSON serialization
+            if position.get('snapshot_date'):
+                position['snapshot_date'] = position['snapshot_date'].strftime('%Y-%m-%d')
+            if position.get('purchase_date'):
+                position['purchase_date'] = position['purchase_date'].strftime('%Y-%m-%d')
+            # Convert Decimal to float
+            for key, value in position.items():
+                if isinstance(value, Decimal):
+                    position[key] = float(value)
+            positions.append(position)
+        
+        return {
+            "positions": positions,
+            "count": len(positions)
+        }
+        
+    except Exception as e:
+        logger.error(f"Error fetching position details: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to fetch position details: {str(e)}"
+        )
+
 # Add to main.py
 @app.get("/datastore/accounts/summary")
 async def get_datastore_accounts_summary(

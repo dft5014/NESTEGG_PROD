@@ -59,7 +59,18 @@ const initialState = {
   error: null,
   lastFetched: null,
   isStale: false,
-},
+  },
+
+  snapshots: {
+    data: null,
+    byDate: {},
+    dates: [],
+    assetTypes: [],
+    loading: false,
+    error: null,
+    lastFetched: null,
+    isStale: false
+  }
 
 };
 
@@ -91,6 +102,10 @@ export const ActionTypes = {
   FETCH_GROUPED_LIABILITIES_SUCCESS: 'FETCH_GROUPED_LIABILITIES_SUCCESS',
   FETCH_GROUPED_LIABILITIES_ERROR: 'FETCH_GROUPED_LIABILITIES_ERROR',
   MARK_GROUPED_LIABILITIES_STALE: 'MARK_GROUPED_LIABILITIES_STALE',
+
+  FETCH_SNAPSHOTS_START: 'FETCH_SNAPSHOTS_START',
+  FETCH_SNAPSHOTS_SUCCESS: 'FETCH_SNAPSHOTS_SUCCESS',
+  FETCH_SNAPSHOTS_ERROR: 'FETCH_SNAPSHOTS_ERROR',
 
 };
 
@@ -437,6 +452,39 @@ const dataStoreReducer = (state, action) => {
       },
     };
 
+
+    case ActionTypes.FETCH_SNAPSHOTS_START:
+      return {
+        ...state,
+        snapshots: { ...state.snapshots, loading: true, error: null }
+      };
+      
+    case ActionTypes.FETCH_SNAPSHOTS_SUCCESS:
+      return {
+        ...state,
+        snapshots: {
+          ...state.snapshots,
+          data: action.payload.data,
+          byDate: action.payload.byDate,
+          dates: action.payload.dates,
+          assetTypes: action.payload.assetTypes,
+          loading: false,
+          error: null,
+          lastFetched: Date.now(),
+          isStale: false
+        }
+      };
+      
+    case ActionTypes.FETCH_SNAPSHOTS_ERROR:
+      return {
+        ...state,
+        snapshots: {
+          ...state.snapshots,
+          loading: false,
+          error: action.payload
+        }
+      };
+
     default:
       return state;
   }
@@ -520,6 +568,102 @@ export const DataStoreProvider = ({ children }) => {
       });
     }
   }, [state.accounts.loading, state.accounts.lastFetched, state.accounts.isStale]);
+
+  const fetchSnapshotsData = useCallback(async (days = 90, force = false) => {
+    if (state.snapshots.loading && !force) return;
+
+    const oneMinuteAgo = Date.now() - 60000;
+    if (!force && 
+        state.snapshots.lastFetched && 
+        state.snapshots.lastFetched > oneMinuteAgo && 
+        !state.snapshots.isStale) {
+      return;
+    }
+
+    dispatch({ type: ActionTypes.FETCH_SNAPSHOTS_START });
+
+    try {
+      // Fetch summary data and position details in parallel
+      const [summaryResponse, positionsResponse] = await Promise.all([
+        fetchWithAuth('/portfolio/net_worth_summary/datastore?include_history=true'),
+        fetchWithAuth(`/datastore/positions/detail?days=${days}`)
+      ]);
+
+      if (!summaryResponse.ok || !positionsResponse.ok) {
+        throw new Error('Failed to fetch snapshot data');
+      }
+
+      const summaryData = await summaryResponse.json();
+      const positionsData = await positionsResponse.json();
+
+      // Group positions by date
+      const positionsByDate = {};
+      const assetTypes = new Set();
+      
+      positionsData.positions.forEach(pos => {
+        const date = pos.snapshot_date;
+        if (!positionsByDate[date]) {
+          positionsByDate[date] = {};
+        }
+        
+        // Track asset types
+        assetTypes.add(pos.item_type);
+        
+        // Key by unified_id
+        const key = pos.unified_id || `${pos.item_type}|${pos.identifier}|${pos.inv_account_id}`;
+        positionsByDate[date][key] = pos;
+      });
+
+      // Build snapshots combining summary and position data
+      const snapshots_by_date = {};
+      const dates = [];
+      
+      summaryData.history.forEach(dayData => {
+        const date = dayData.date;
+        dates.push(date);
+        
+        snapshots_by_date[date] = {
+          snapshot_date: date,
+          total_value: dayData.total_assets || dayData.net_worth,
+          total_cost_basis: dayData.net_cash_basis_metrics?.total_cost_basis || 0,
+          total_gain_loss: dayData.unrealized_gain || 0,
+          position_count: Object.keys(positionsByDate[date] || {}).length,
+          positions: positionsByDate[date] || {}
+        };
+      });
+
+      // Also include latest summary data
+      const latestDate = summaryData.summary.snapshot_date;
+      if (!snapshots_by_date[latestDate] && positionsByDate[latestDate]) {
+        snapshots_by_date[latestDate] = {
+          snapshot_date: latestDate,
+          total_value: summaryData.summary.total_assets,
+          total_cost_basis: summaryData.summary.net_cash_basis_metrics?.total_cost_basis || 0,
+          total_gain_loss: summaryData.summary.total_unrealized_gain || 0,
+          position_count: Object.keys(positionsByDate[latestDate] || {}).length,
+          positions: positionsByDate[latestDate] || {}
+        };
+        dates.push(latestDate);
+      }
+
+      dispatch({
+        type: ActionTypes.FETCH_SNAPSHOTS_SUCCESS,
+        payload: {
+          data: Object.values(snapshots_by_date),
+          byDate: snapshots_by_date,
+          dates: dates.sort(),
+          assetTypes: Array.from(assetTypes)
+        }
+      });
+    } catch (error) {
+      console.error('Error fetching snapshots:', error);
+      dispatch({
+        type: ActionTypes.FETCH_SNAPSHOTS_ERROR,
+        payload: error.message
+      });
+    }
+  }, [state.snapshots.loading, state.snapshots.lastFetched, state.snapshots.isStale]);
+
 
   const fetchGroupedPositionsData = useCallback(async (force = false) => {
     if (state.groupedPositions.loading && !force) return;
