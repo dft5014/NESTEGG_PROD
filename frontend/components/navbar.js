@@ -18,6 +18,7 @@ import { QuickEditDeleteButton } from '@/components/modals/QuickEditDeleteModal'
 import { motion, AnimatePresence } from 'framer-motion';
 import { useGroupedPositions } from '@/store/hooks/useGroupedPositions';
 import { usePortfolioSummary } from '@/store/hooks/usePortfolioSummary';
+import { formatCurrency, formatPercentage } from '@/utils/formatters';
 
 // Stock ticker component
 const StockTicker = () => {
@@ -136,23 +137,23 @@ const StockTicker = () => {
                   
                   <span className="text-gray-400">${stock.price?.toFixed(2) || 'N/A'}</span>
 
-                  <span className="text-gray-400">${stock.value?.toFixed(2) || 'N/A'}</span>
+                  <span className="text-gray-400">{formatCurrency(stock.value) ? || 'N/A'}</span>
                   
                   {/* 1D Change */}
                   <div className="flex items-center gap-2">
                     <span className="text-xs text-gray-600">1D:</span>
                     <span className={`flex items-center text-sm ${stock.value ? 'text-green-400' : 'text-red-400'}`}>
                       {stock.value ? <TrendingUp className="w-3 h-3 mr-1" /> : <TrendingDown className="w-3 h-3 mr-1" />}
-                      {stock.dayChangePercent !== 0 ? `${stock.isUp1d ? '+' : ''}${stock.dayChangePercent.toFixed(2)}%` : '0.00%'}
+                      {stock.dayChangePercent !== 0 ? `${stock.isUp1d ? '+' : ''}${stock.dayChangePercent.toFixed(1)}%` : '0.0%'}
                     </span>
                   </div>
 
                   {/* 1W Change */}
                   <div className="flex items-center gap-2">
-                    <span className="text-xs text-gray-600">1D:</span>
+                    <span className="text-xs text-gray-600">1W:</span>
                     <span className={`flex items-center text-sm ${stock.isUp1w ? 'text-green-400' : 'text-red-400'}`}>
                       {stock.isUp1w ? <TrendingUp className="w-3 h-3 mr-1" /> : <TrendingDown className="w-3 h-3 mr-1" />}
-                      {stock.weekChangePercent !== 0 ? `${stock.isUp1w ? '+' : ''}${stock.weekChangePercent.toFixed(2)}%` : '0.00%'}
+                      {stock.weekChangePercent !== 0 ? `${stock.isUp1w ? '+' : ''}${stock.weekChangePercent.toFixed(1)}%` : '0.0%'}
                     </span>
                   </div>
                   
@@ -160,7 +161,7 @@ const StockTicker = () => {
                   <div className="flex items-center gap-2">
                     <span className="text-xs text-gray-600">YTD:</span>
                     <span className={`flex items-center text-sm ${stock.ytdChangePercent >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                      {stock.ytdChangePercent !== 0 ? `${stock.ytdChangePercent >= 0 ? '+' : ''}${stock.ytdChangePercent.toFixed(2)}%` : '0.00%'}
+                      {stock.ytdChangePercent !== 0 ? `${stock.ytdChangePercent >= 0 ? '+' : ''}${stock.ytdChangePercent.toFixed(1)}%` : '0.0%'}
                     </span>
                   </div>
                   
@@ -168,7 +169,7 @@ const StockTicker = () => {
                   <div className="flex items-center gap-2">
                     <span className="text-xs text-gray-600">Total:</span>
                     <span className={`flex items-center text-sm font-medium ${stock.isUpTotal ? 'text-green-400' : 'text-red-400'}`}>
-                      {stock.totalGainLossPercent !== 0 ? `${stock.isUpTotal ? '+' : ''}${stock.totalGainLossPercent.toFixed(2)}%` : '0.00%'}
+                      {stock.totalGainLossPercent !== 0 ? `${stock.isUpTotal ? '+' : ''}${stock.totalGainLossPercent.toFixed(1)}%` : '0.0%'}
                     </span>
                   </div>
                 </div>
