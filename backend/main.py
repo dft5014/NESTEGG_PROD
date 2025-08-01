@@ -7291,15 +7291,18 @@ async def get_position_details(
         
         # Build query based on parameters
         if days:
+            # Calculate the start date in Python
+            start_date = datetime.now().date() - timedelta(days=days)
+            
             # Get multiple days of positions
             query = """
             SELECT * FROM rept_all_items_net_worth_live_history
             WHERE user_id = :user_id
-            AND snapshot_date >= CURRENT_DATE - (:days::integer * INTERVAL '1 day')
+            AND snapshot_date >= :start_date
             AND item_category = 'asset'
             ORDER BY snapshot_date DESC, identifier
             """
-            values = {"user_id": user_id, "days": days}
+            values = {"user_id": user_id, "start_date": start_date}
         elif snapshot_date == "latest":
             # Get latest snapshot positions
             query = """
