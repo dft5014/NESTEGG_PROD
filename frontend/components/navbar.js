@@ -18,7 +18,7 @@ import { QuickEditDeleteButton } from '@/components/modals/QuickEditDeleteModal'
 import { motion, AnimatePresence } from 'framer-motion';
 import { useGroupedPositions } from '@/store/hooks/useGroupedPositions';
 import { usePortfolioSummary } from '@/store/hooks/usePortfolioSummary';
-import { formatCurrency, formatPercentage } from '@/utils/formatters';
+
 
 // Stock ticker component
 const StockTicker = () => {
@@ -137,7 +137,7 @@ const StockTicker = () => {
                   
                   <span className="text-gray-400">${stock.price?.toFixed(2) || 'N/A'}</span>
 
-                  <span className="text-gray-400">{formatCurrency(stock.value) ? || 'N/A'}</span>
+                  <span className="text-gray-400">{formatCurrency(stock?.value) ?? 'N/A'}</span>
                   
                   {/* 1D Change */}
                   <div className="flex items-center gap-2">
