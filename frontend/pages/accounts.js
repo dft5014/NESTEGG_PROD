@@ -390,6 +390,15 @@ export default function AccountsPage() {
           </div>
         </div>
 
+
+        {/* Accounts Table */}
+        <UnifiedAccountTable 
+          title="All Accounts"
+          initialSort="value-high"
+          onDataChanged={handleRefresh}
+        />
+
+
         {/* Institution & Account Type Breakdown */}
         {accounts.length > 0 && (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
@@ -507,12 +516,6 @@ export default function AccountsPage() {
           </div>
         )}
 
-        {/* Accounts Table */}
-        <UnifiedAccountTable 
-          title="All Accounts"
-          initialSort="value-high"
-          onDataChanged={handleRefresh}
-        />
       </div>
     </div>
   );

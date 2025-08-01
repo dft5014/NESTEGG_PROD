@@ -313,7 +313,18 @@ export default function PositionsPage() {
             ))}
           </section>
 
-          {/* Asset Performance by Type */}
+
+
+          {/* Unified Grouped Positions Table */}
+          <section>
+            <UnifiedGroupPositionsTable 
+              initialSort="value-high"
+              title="All Positions"
+              showHistoricalColumns={false}
+            />
+          </section>
+
+                    {/* Asset Performance by Type */}
           {assetPerformance && Object.keys(assetPerformance).length > 0 && (
             <section className="mb-8">
               <div className="bg-gray-800/70 backdrop-blur-sm rounded-xl p-6">
@@ -367,8 +378,8 @@ export default function PositionsPage() {
                 {topPerformersPercent?.slice(0, 5).map((position, index) => (
                   <div key={index} className="flex justify-between items-center">
                     <div className="flex-1">
-                      <p className="text-sm font-medium">{position.name || position.identifier}</p>
-                      <p className="text-xs text-gray-400">{position.sector || 'N/A'}</p>
+                      <p className="text-sm font-medium">{position.name || 'N/A'}</p>
+                      <p className="text-xs text-gray-400">{position.identifier || 'N/A'}</p>
                     </div>
                     <div className="text-right">
                       <p className="text-sm font-semibold text-green-400">
@@ -408,15 +419,6 @@ export default function PositionsPage() {
                 )) || <p className="text-gray-400 text-sm">No data available</p>}
               </div>
             </div>
-          </section>
-
-          {/* Unified Grouped Positions Table */}
-          <section>
-            <UnifiedGroupPositionsTable 
-              initialSort="value-high"
-              title="All Positions"
-              showHistoricalColumns={false}
-            />
           </section>
         </div>
       </div>

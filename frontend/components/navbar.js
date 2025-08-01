@@ -170,7 +170,7 @@ const StockTicker = () => {
                   
                   {/* Total Gain/Loss */}
                   <div className="flex items-center gap-2">
-                    <span className="text-xs text-gray-600">Total:</span>
+                    <span className="text-xs text-gray-600">Gain / Loss:</span>
                     <span className={`flex items-center text-sm font-medium ${stock.isUpTotal ? 'text-green-400' : 'text-red-400'}`}>
                       {stock.totalGainLossPercent !== 0 ? `${stock.isUpTotal ? '+' : ''}${stock.totalGainLossPercent.toFixed(1)}%` : '0.0%'}
                     </span>
