@@ -1,5 +1,5 @@
 // components/Navbar.js
-import { useState, useContext, useEffect, useCallback } from 'react';
+import { useState, useContext, useEffect, useCallback, useMemo } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { QuickStartButton } from '@/components/QuickStartModal';
