@@ -1175,10 +1175,21 @@ const UnifiedAccountTable = ({
                                             {/* Performance columns */}
                                             <td className="px-2 py-2 whitespace-nowrap text-right">
                                                 <div className="group relative">
-                                                    <div className={`text-xs ${account.value1dChangePct >= 0 ? 'text-green-500' : 'text-red-500'} cursor-help`}>
-                                                        {account.value1dChangePct !== undefined ? (
-                                                            <>{account.value1dChangePct >= 0 ? '+' : ''}{account.value1dChangePct.toFixed(1)}%</>
-                                                        ) : '-'}
+                                                    <div className={`text-xs ${
+                                                            account.value1dChangePct === null || account.value1dChangePct === undefined 
+                                                                ? 'text-gray-400'                    // null/undefined = gray
+                                                                : account.value1dChangePct === 0 
+                                                                    ? 'text-gray-400'                // 0% = gray (not green)
+                                                                    : account.value1dChangePct > 0 
+                                                                        ? 'text-green-500'           // positive = green
+                                                                        : 'text-red-500'             // negative = red
+                                                        } cursor-help`}>
+                                                        {account.value1dChangePct === null || account.value1dChangePct === undefined ? (
+                                                            <>n.a.</>    // Shows "n.a." instead of "-"
+                                                        ) : (
+                                                            <>{account.value1dChangePct >= 0 && account.value1dChangePct !== 0 ? '+' : ''}{account.value1dChangePct.toFixed(1)}%</>
+                                                            // Plus sign only shows for positive non-zero values
+                                                        )}
                                                     </div>
                                                     {account.value1dChange !== undefined && (
                                                         <div className="absolute bottom-full mb-1 hidden group-hover:block z-10 bg-gray-900 text-white text-xs rounded p-1 whitespace-nowrap">
@@ -1189,10 +1200,21 @@ const UnifiedAccountTable = ({
                                             </td>
                                             <td className="px-2 py-2 whitespace-nowrap text-right">
                                                 <div className="group relative">
-                                                    <div className={`text-xs ${account.value1wChangePct >= 0 ? 'text-green-500' : 'text-red-500'} cursor-help`}>
-                                                        {account.value1wChangePct !== undefined ? (
-                                                            <>{account.value1wChangePct >= 0 ? '+' : ''}{account.value1wChangePct.toFixed(1)}%</>
-                                                        ) : '-'}
+                                                    <div className={`text-xs ${
+                                                            account.value1wChangePct === null || account.value1wChangePct === undefined 
+                                                                ? 'text-gray-400'                    // null/undefined = gray
+                                                                : account.value1wChangePct === 0 
+                                                                    ? 'text-gray-400'                // 0% = gray (not green)
+                                                                    : account.value1wChangePct > 0 
+                                                                        ? 'text-green-500'           // positive = green
+                                                                        : 'text-red-500'             // negative = red
+                                                        } cursor-help`}>
+                                                            {account.value1wChangePct === null || account.value1wChangePct === undefined ? (
+                                                                <>n.a.</>    // Shows "n.a." instead of "-"
+                                                            ) : (
+                                                                <>{account.value1wChangePct >= 0 && account.value1wChangePct !== 0 ? '+' : ''}{account.value1wChangePct.toFixed(1)}%</>
+                                                                // Plus sign only shows for positive non-zero values
+                                                            )}
                                                     </div>
                                                     {account.value1wChange !== undefined && (
                                                         <div className="absolute bottom-full mb-1 hidden group-hover:block z-10 bg-gray-900 text-white text-xs rounded p-1 whitespace-nowrap">
@@ -1203,10 +1225,21 @@ const UnifiedAccountTable = ({
                                             </td>
                                             <td className="px-2 py-2 whitespace-nowrap text-right">
                                                 <div className="group relative">
-                                                    <div className={`text-xs ${account.value1mChangePct >= 0 ? 'text-green-500' : 'text-red-500'} cursor-help`}>
-                                                        {account.value1mChangePct !== undefined ? (
-                                                            <>{account.value1mChangePct >= 0 ? '+' : ''}{account.value1mChangePct.toFixed(1)}%</>
-                                                        ) : '-'}
+                                                    <div className={`text-xs ${
+                                                                account.value1mChangePct === null || account.value1mChangePct === undefined 
+                                                                    ? 'text-gray-400'                    // null/undefined = gray
+                                                                    : account.value1mChangePct === 0 
+                                                                        ? 'text-gray-400'                // 0% = gray (not green)
+                                                                        : account.value1mChangePct > 0 
+                                                                            ? 'text-green-500'           // positive = green
+                                                                            : 'text-red-500'             // negative = red
+                                                            } cursor-help`}>
+                                                        {account.value1mChangePct === null || account.value1mChangePct === undefined ? (
+                                                            <>n.a.</>    // Shows "n.a." instead of "-"
+                                                        ) : (
+                                                            <>{account.value1mChangePct >= 0 && account.value1mChangePct !== 0 ? '+' : ''}{account.value1mChangePct.toFixed(1)}%</>
+                                                            // Plus sign only shows for positive non-zero values
+                                                        )}
                                                     </div>
                                                     {account.value1mChange !== undefined && (
                                                         <div className="absolute bottom-full mb-1 hidden group-hover:block z-10 bg-gray-900 text-white text-xs rounded p-1 whitespace-nowrap">
@@ -1217,10 +1250,21 @@ const UnifiedAccountTable = ({
                                             </td>
                                             <td className="px-2 py-2 whitespace-nowrap text-right">
                                                 <div className="group relative">
-                                                    <div className={`text-xs ${account.valueYtdChangePct >= 0 ? 'text-green-500' : 'text-red-500'} cursor-help`}>
-                                                        {account.valueYtdChangePct !== undefined ? (
-                                                            <>{account.valueYtdChangePct >= 0 ? '+' : ''}{account.valueYtdChangePct.toFixed(1)}%</>
-                                                        ) : '-'}
+                                                    <div className={`text-xs ${
+                                                            account.valueYtdChangePct === null || account.valueYtdChangePct === undefined 
+                                                                ? 'text-gray-400'                    // null/undefined = gray
+                                                                : account.valueYtdChangePct === 0 
+                                                                    ? 'text-gray-400'                // 0% = gray (not green)
+                                                                    : account.valueYtdChangePct > 0 
+                                                                        ? 'text-green-500'           // positive = green
+                                                                        : 'text-red-500'             // negative = red
+                                                        } cursor-help`}>
+                                                    {account.valueYtdChangePct === null || account.valueYtdChangePct === undefined ? (
+                                                        <>n.a.</>    // Shows "n.a." instead of "-"
+                                                    ) : (
+                                                        <>{account.valueYtdChangePct >= 0 && account.valueYtdChangePct !== 0 ? '+' : ''}{account.valueYtdChangePct.toFixed(1)}%</>
+                                                        // Plus sign only shows for positive non-zero values
+                                                    )}
                                                     </div>
                                                     {account.valueYtdChange !== undefined && (
                                                         <div className="absolute bottom-full mb-1 hidden group-hover:block z-10 bg-gray-900 text-white text-xs rounded p-1 whitespace-nowrap">
