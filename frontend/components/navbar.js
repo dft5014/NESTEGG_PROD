@@ -20,10 +20,6 @@ import { useGroupedPositions } from '@/store/hooks/useGroupedPositions';
 import { usePortfolioSummary } from '@/store/hooks/usePortfolioSummary';
 
 // Stock ticker component
-// Updated StockTicker component to show real user data
-import { useGroupedPositions } from '@/store/hooks/useGroupedPositions';
-import { usePortfolioSummary } from '@/store/hooks/usePortfolioSummary';
-
 const StockTicker = () => {
   const [tickerPosition, setTickerPosition] = useState(0);
   
