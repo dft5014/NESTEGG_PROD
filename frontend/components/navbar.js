@@ -136,7 +136,7 @@ const StockTicker = () => {
                     )}
                   </div>
                   
-                  <span className="text-gray-400">${stock.price?.toFixed(2) || 'N/A'}</span>
+                  <span className="text-gray-400">${formatCurrency(stock?.price) ?? 'N/A'}</span>
 
                   <span className="text-gray-400">{formatCurrency(stock?.value) ?? 'N/A'}</span>
                   
