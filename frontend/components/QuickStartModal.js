@@ -56,7 +56,7 @@ import {
 import { fetchWithAuth } from '@/utils/api';
 import { popularBrokerages } from '@/utils/constants';
 import ReactDOM from 'react-dom';
-import { fetchAllAccounts } from '@/utils/apimethods/accountMethods';
+import { useAccounts } from '@/store/hooks/useAccounts';
 import { AddQuickPositionModal } from '@/components/modals/AddQuickPositionModal';
 import { AddLiabilitiesModal } from '@/components/modals/AddLiabilitiesModal';
 
@@ -403,8 +403,6 @@ const QuickStartModal = ({ isOpen, onClose }) => {
     const fileInputRef = useRef(null);
     const newRowRef = useRef(null);
     const [openDropdownId, setOpenDropdownId] = useState(null);
-    const [existingAccounts, setExistingAccounts] = useState([]);
-    const [isLoadingAccounts, setIsLoadingAccounts] = useState(false);
     const [showAccountsDropdown, setShowAccountsDropdown] = useState(false);
     const [importedAccounts, setImportedAccounts] = useState([]);
     const [importedPositions, setImportedPositions] = useState(0);
@@ -413,31 +411,16 @@ const QuickStartModal = ({ isOpen, onClose }) => {
     const [importedLiabilitiesData, setImportedLiabilitiesData] = useState([]);
     const { actions } = useDataStore();
     const { refreshData } = actions;
+    const { 
+        accounts: existingAccounts, 
+        loading: isLoadingAccounts,
+        error: accountsError,
+        refresh: refreshAccounts 
+    } = useAccounts();
 
 
 
-    // Fetch existing accounts
-    useEffect(() => {
-        if (activeTab === 'overview' && isOpen) {
-            fetchExistingAccounts();
-        }
-    }, [activeTab, isOpen]);
 
-    const fetchExistingAccounts = async () => {
-        setIsLoadingAccounts(true);
-        try {
-            const data = await fetchAllAccounts();
-            // Ensure data is always an array
-            setExistingAccounts(Array.isArray(data) ? data : []);
-        } catch (error) {
-            console.error('Error fetching accounts:', error);
-            setExistingAccounts([]);
-        } finally {
-            setIsLoadingAccounts(false);
-        }
-    };
-
-    // And update the accountsByCategory useMemo to be more defensive:
     const accountsByCategory = useMemo(() => {
         const grouped = {};
         // Ensure existingAccounts is an array before processing
@@ -445,6 +428,8 @@ const QuickStartModal = ({ isOpen, onClose }) => {
         
         ACCOUNT_CATEGORIES.forEach(cat => {
             grouped[cat.id] = accounts.filter(acc => 
+                // Check both possible field names from DataStore
+                acc?.category?.toLowerCase() === cat.id.toLowerCase() ||
                 acc?.account_category?.toLowerCase() === cat.id.toLowerCase()
             );
         });
@@ -578,7 +563,7 @@ const QuickStartModal = ({ isOpen, onClose }) => {
             }
             
             setImportedAccounts(successfulAccounts);
-            await fetchExistingAccounts(); // Refresh the accounts list
+            await refreshAccounts();
             await refreshData();
             setActiveTab('success');
             
