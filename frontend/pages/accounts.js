@@ -10,7 +10,7 @@ import {
   TrendingUp, TrendingDown, Zap, Sparkles, ChevronRight,
   Activity, ArrowUpRight, ArrowDownRight, Eye, EyeOff,
   Wallet, PiggyBank, Target, Award, Info, Calendar,
-  Clock, Star, AlertCircle, ChevronUp, ChevronDown
+  Clock, Star, AlertCircle, ChevronUp, ChevronDown, Layers
 } from 'lucide-react';
 import KpiCard from '@/components/ui/KpiCard';
 import UnifiedAccountTable from '@/components/tables/UnifiedAccountTable';
