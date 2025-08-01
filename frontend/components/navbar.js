@@ -18,6 +18,7 @@ import { QuickEditDeleteButton } from '@/components/modals/QuickEditDeleteModal'
 import { motion, AnimatePresence } from 'framer-motion';
 import { useGroupedPositions } from '@/store/hooks/useGroupedPositions';
 import { usePortfolioSummary } from '@/store/hooks/usePortfolioSummary';
+import { formatCurrency, formatPercentage } from '@/utils/formatters';
 
 
 // Stock ticker component
