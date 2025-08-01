@@ -15,7 +15,7 @@ import {
 import KpiCard from '@/components/ui/KpiCard';
 import UnifiedAccountTable from '@/components/tables/UnifiedAccountTable';
 import { formatCurrency, formatPercentage } from '@/utils/formatters';
-import AddAccountButton from '@/components/AddAccountButton';
+
 
 // Import DataStore hooks - NO API METHODS!
 import { useAccounts } from '@/store/hooks/useAccounts';
@@ -167,7 +167,6 @@ export default function AccountsPage() {
                 <RefreshCw className={`w-5 h-5 ${isRefreshing ? 'animate-spin' : ''}`} />
               </motion.button>
               
-              <AddAccountButton />
             </div>
           </div>
         </div>
