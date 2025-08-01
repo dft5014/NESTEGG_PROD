@@ -7295,7 +7295,7 @@ async def get_position_details(
             query = """
             SELECT * FROM rept_all_items_net_worth_live_history
             WHERE user_id = :user_id
-            AND snapshot_date >= CURRENT_DATE - INTERVAL ':days days'
+            AND snapshot_date >= CURRENT_DATE - (:days::integer * INTERVAL '1 day')
             AND item_category = 'asset'
             ORDER BY snapshot_date DESC, identifier
             """
