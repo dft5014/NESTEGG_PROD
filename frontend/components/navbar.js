@@ -16,13 +16,31 @@ import { fetchAccounts } from '@/utils/apimethods/accountMethods';
 import { QuickReconciliationButton } from '@/components/modals/QuickReconciliationModal';
 import { QuickEditDeleteButton } from '@/components/modals/QuickEditDeleteModal';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useGroupedPositions } from '@/store/hooks/useGroupedPositions';
+import { usePortfolioSummary } from '@/store/hooks/usePortfolioSummary';
 
 // Stock ticker component
+// Updated StockTicker component to show real user data
+import { useGroupedPositions } from '@/store/hooks/useGroupedPositions';
+import { usePortfolioSummary } from '@/store/hooks/usePortfolioSummary';
+
 const StockTicker = () => {
   const [tickerPosition, setTickerPosition] = useState(0);
   
-  // Mock data - replace with real data
-  const stocks = [
+  // Get real data from DataStore
+  const { 
+    positions, 
+    loading: positionsLoading,
+    error: positionsError 
+  } = useGroupedPositions();
+  
+  const { 
+    summary: portfolioSummary,
+    loading: summaryLoading 
+  } = usePortfolioSummary();
+
+  // Sample market data for when user has no positions
+  const sampleStocks = [
     { symbol: 'AAPL', price: 182.52, change: 2.34, changePercent: 1.30, isUp: true },
     { symbol: 'GOOGL', price: 142.18, change: -1.23, changePercent: -0.86, isUp: false },
     { symbol: 'MSFT', price: 378.91, change: 4.56, changePercent: 1.22, isUp: true },
@@ -33,35 +51,153 @@ const StockTicker = () => {
     { symbol: 'BTC', price: 64230.50, change: 1234.56, changePercent: 1.96, isUp: true },
   ];
 
+  // Process user positions for ticker display
+  const userStocks = useMemo(() => {
+    if (!positions || positions.length === 0) return [];
+    
+    // Filter to only securities and crypto, sorted by value
+    return positions
+      .filter(pos => pos.asset_type === 'security' || pos.asset_type === 'crypto' || pos.asset_type === 'metal')
+      .sort((a, b) => b.total_current_value - a.total_current_value)
+      .slice(0, 10) // Top 10 positions
+      .map(pos => ({
+        symbol: pos.identifier,
+        name: pos.name,
+        value: pos.total_current_value,
+        price: pos.latest_price_per_unit,
+        dayChange: pos.value_1d_change || 0,
+        dayChangePercent: pos.value_1d_change_pct || 0,
+        ytdChange: pos.value_ytd_change || 0,
+        ytdChangePercent: pos.value_ytd_change_pct || 0,
+        totalGainLoss: pos.total_gain_loss_amt || 0,
+        totalGainLossPercent: pos.total_gain_loss_pct || 0,
+        isUp1d: (pos.value_1d_change_pct || 0) >= 0,
+        isUpTotal: (pos.total_gain_loss_pct || 0) >= 0
+      }));
+  }, [positions]);
+
+  // Determine what to show
+  const hasPositions = userStocks.length > 0;
+  const isLoading = positionsLoading || summaryLoading;
+  
+  // Animation effect
   useEffect(() => {
     const interval = setInterval(() => {
-      setTickerPosition((prev) => prev - 1);
+      setTickerPosition((prev) => {
+        // Reset position when it gets too far
+        if (prev <= -2000) return 0;
+        return prev - 1;
+      });
     }, 30);
     return () => clearInterval(interval);
   }, []);
 
-  const tickerContent = [...stocks, ...stocks, ...stocks]; // Triple for smooth loop
+  // Triple content for smooth scrolling
+  const tickerContent = hasPositions 
+    ? [...userStocks, ...userStocks, ...userStocks]
+    : [...sampleStocks, ...sampleStocks, ...sampleStocks];
 
   return (
     <div className="relative h-8 bg-gray-950 border-t border-gray-800 overflow-hidden">
-      <div 
-        className="absolute flex items-center h-full whitespace-nowrap"
-        style={{ transform: `translateX(${tickerPosition}px)` }}
-      >
-        {tickerContent.map((stock, index) => (
-          <div key={index} className="inline-flex items-center px-6">
-            <span className="font-semibold text-gray-300 mr-2">{stock.symbol}</span>
-            <span className="text-gray-400 mr-3">${stock.price.toFixed(2)}</span>
-            <span className={`flex items-center ${stock.isUp ? 'text-green-400' : 'text-red-400'}`}>
-              {stock.isUp ? <TrendingUp className="w-3 h-3 mr-1" /> : <TrendingDown className="w-3 h-3 mr-1" />}
-              {stock.isUp ? '+' : ''}{stock.change.toFixed(2)} ({stock.changePercent.toFixed(2)}%)
-            </span>
+      {/* Show loading state */}
+      {isLoading && (
+        <div className="absolute inset-0 flex items-center justify-center bg-gray-950 z-10">
+          <div className="text-gray-400 text-sm">Loading portfolio data...</div>
+        </div>
+      )}
+
+      {/* Show message when no positions */}
+      {!isLoading && !hasPositions && (
+        <div className="absolute inset-0 flex items-center justify-between px-6 bg-gray-950 z-10">
+          <div className="flex items-center gap-4">
+            <span className="text-gray-400 text-sm">Add positions to track your portfolio performance</span>
+            <span className="text-gray-600 text-xs">|</span>
+            <span className="text-gray-500 text-xs uppercase tracking-wide">Sample Market Data</span>
           </div>
-        ))}
-      </div>
+        </div>
+      )}
+
+      {/* Scrolling ticker content */}
+      {!isLoading && (hasPositions || (!hasPositions && tickerPosition < -800)) && (
+        <div 
+          className="absolute flex items-center h-full whitespace-nowrap"
+          style={{ transform: `translateX(${tickerPosition}px)` }}
+        >
+          {hasPositions ? (
+            // User's actual positions
+            tickerContent.map((stock, index) => (
+              <div key={`${stock.symbol}-${index}`} className="inline-flex items-center px-6 border-r border-gray-800">
+                <div className="flex items-center gap-3">
+                  <div>
+                    <span className="font-semibold text-gray-300">{stock.symbol}</span>
+                    {stock.name && (
+                      <span className="text-xs text-gray-500 ml-1">({stock.name.slice(0, 15)}...)</span>
+                    )}
+                  </div>
+                  
+                  <span className="text-gray-400">${stock.price?.toFixed(2) || 'N/A'}</span>
+                  
+                  {/* 1D Change */}
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-gray-600">1D:</span>
+                    <span className={`flex items-center text-sm ${stock.isUp1d ? 'text-green-400' : 'text-red-400'}`}>
+                      {stock.isUp1d ? <TrendingUp className="w-3 h-3 mr-1" /> : <TrendingDown className="w-3 h-3 mr-1" />}
+                      {stock.dayChangePercent !== 0 ? `${stock.isUp1d ? '+' : ''}${stock.dayChangePercent.toFixed(2)}%` : '0.00%'}
+                    </span>
+                  </div>
+                  
+                  {/* YTD Change */}
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-gray-600">YTD:</span>
+                    <span className={`flex items-center text-sm ${stock.ytdChangePercent >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                      {stock.ytdChangePercent !== 0 ? `${stock.ytdChangePercent >= 0 ? '+' : ''}${stock.ytdChangePercent.toFixed(2)}%` : '0.00%'}
+                    </span>
+                  </div>
+                  
+                  {/* Total Gain/Loss */}
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-gray-600">Total:</span>
+                    <span className={`flex items-center text-sm font-medium ${stock.isUpTotal ? 'text-green-400' : 'text-red-400'}`}>
+                      {stock.totalGainLossPercent !== 0 ? `${stock.isUpTotal ? '+' : ''}${stock.totalGainLossPercent.toFixed(2)}%` : '0.00%'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            ))
+          ) : (
+            // Sample market data
+            tickerContent.map((stock, index) => (
+              <div key={`sample-${stock.symbol}-${index}`} className="inline-flex items-center px-6">
+                <span className="font-semibold text-gray-300 mr-2">{stock.symbol}</span>
+                <span className="text-gray-400 mr-3">${stock.price.toFixed(2)}</span>
+                <span className={`flex items-center ${stock.isUp ? 'text-green-400' : 'text-red-400'}`}>
+                  {stock.isUp ? <TrendingUp className="w-3 h-3 mr-1" /> : <TrendingDown className="w-3 h-3 mr-1" />}
+                  {stock.isUp ? '+' : ''}{stock.change.toFixed(2)} ({stock.changePercent.toFixed(2)}%)
+                </span>
+              </div>
+            ))
+          )}
+        </div>
+      )}
+
+      {/* Portfolio summary (shown when user has positions) */}
+      {!isLoading && hasPositions && portfolioSummary && (
+        <div className="absolute right-4 top-0 h-full flex items-center bg-gray-950 pl-4 z-20">
+          <div className="flex items-center gap-4 text-sm">
+            <div className="flex items-center gap-2 px-3 py-1 bg-gray-800 rounded">
+              <span className="text-gray-400">Portfolio:</span>
+              <span className={`font-medium ${portfolioSummary.periodChanges?.['1d']?.netWorthPercent >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                {portfolioSummary.periodChanges?.['1d']?.netWorthPercent >= 0 ? '+' : ''}
+                {portfolioSummary.periodChanges?.['1d']?.netWorthPercent?.toFixed(2) || '0.00'}% Today
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
+      
       {/* Gradient overlays for smooth edges */}
       <div className="absolute left-0 top-0 h-full w-20 bg-gradient-to-r from-gray-950 to-transparent pointer-events-none" />
-      <div className="absolute right-0 top-0 h-full w-20 bg-gradient-to-l from-gray-950 to-transparent pointer-events-none" />
+      <div className="absolute right-0 top-0 h-full w-32 bg-gradient-to-l from-gray-950 to-transparent pointer-events-none" />
     </div>
   );
 };
