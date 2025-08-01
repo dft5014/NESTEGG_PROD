@@ -840,8 +840,12 @@ const QuickStartModal = ({ isOpen, onClose }) => {
                                                     <div className="space-y-1">
                                                         {categoryAccounts.map(account => (
                                                             <div key={account.id} className="flex items-center justify-between text-xs text-gray-600 pl-6">
-                                                                <span className="truncate">{account.name}</span>
-                                                                <span className="text-gray-400">{account.institution}</span>
+                                                            <span className="truncate">
+                                                                {account.name || account.account_name || 'Unnamed Account'}
+                                                            </span>
+                                                            <span className="text-gray-400">
+                                                                {account.institution || 'Unknown'}
+                                                            </span>
                                                             </div>
                                                         ))}
                                                     </div>
