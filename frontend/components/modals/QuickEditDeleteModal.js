@@ -31,7 +31,6 @@ import {
   Building2, Award, Banknote, CreditCard, Landmark,
   FilterX, SlidersHorizontal, ToggleLeft, ToggleRight
 } from 'lucide-react';
-import { useAccounts } from '@/store/hooks/useAccounts';
 
 
 // Asset type configuration - Updated to include otherAssets
@@ -108,12 +107,6 @@ const ASSET_TYPES = {
   }
 };
 
-const { 
-    accounts: dataStoreAccounts, 
-    loading: accountsLoading,
-    error: accountsError,
-    refresh: refreshAccounts 
-} = useAccounts();
 
 // Liability type configuration
 const LIABILITY_TYPES = {
@@ -145,6 +138,36 @@ const GROUPING_OPTIONS = [
   { id: 'asset_type', name: 'By Asset Type', icon: BarChart2 },
   { id: 'category', name: 'By Category', icon: PieChart }
 ];
+
+const getDataStoreAccounts = () => {
+    if (typeof window === 'undefined') return [];
+    
+    try {
+        // Direct access to DataStore state
+        const storeModule = require('@/store/DataStore');
+        if (storeModule.DataStore && storeModule.DataStore.getState) {
+            const state = storeModule.DataStore.getState();
+            return state.accounts?.data || [];
+        }
+        return [];
+    } catch (error) {
+        console.error('Error accessing DataStore:', error);
+        return [];
+    }
+};
+
+const refreshDataStoreAccounts = async () => {
+    if (typeof window === 'undefined') return;
+    
+    try {
+        const { refreshAccounts } = await import('@/store/hooks/useAccounts');
+        if (refreshAccounts) {
+            await refreshAccounts();
+        }
+    } catch (error) {
+        console.error('Error refreshing accounts:', error);
+    }
+};
 
 // Enhanced dropdown component
 const EnhancedDropdown = ({ 
@@ -1481,8 +1504,11 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
         } else if (isOpen && currentView === 'positions') {
             loadPositions();
             // Load accounts from DataStore if not already loaded
-            if (accounts.length === 0 && dataStoreAccounts.length > 0) {
-                setAccounts(dataStoreAccounts);
+            if (accounts.length === 0) {
+                const accountsData = getDataStoreAccounts();
+                if (accountsData.length > 0) {
+                    setAccounts(accountsData);
+                }
             }
         } else if (isOpen && currentView === 'liabilities') {
             loadLiabilities();
@@ -1495,19 +1521,12 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
         };
     }, [isOpen, currentView, dataStoreAccounts]);
 
-    // Sync with DataStore when accounts change
+    // Reload accounts when returning from edit
     useEffect(() => {
-        if (dataStoreAccounts && dataStoreAccounts.length > 0) {
-            // Only update if we don't have local edits in progress
-            if (!editingItem) {
-                setAccounts(dataStoreAccounts);
-                // Re-apply filters if any are active
-                if (currentView === 'accounts') {
-                    setFilteredAccounts(dataStoreAccounts);
-                }
-            }
+        if (!editingItem && currentView === 'accounts') {
+            loadAccounts();
         }
-    }, [dataStoreAccounts, editingItem, currentView]);
+    }, [editingItem, currentView]);
 
     // Reset state when modal closes
     useEffect(() => {
@@ -1532,7 +1551,7 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
 
     const loadAccounts = () => {
         // Use DataStore accounts directly
-        const accountsData = dataStoreAccounts || [];
+        const accountsData = getDataStoreAccounts();
         setAccounts(accountsData);
         setFilteredAccounts(accountsData);
     };
@@ -1906,7 +1925,9 @@ const handleEditAccount = (account) => {
           setEditingType(null);
           
           // Refresh DataStore to get the updated data
-          await refreshAccounts();
+          await refreshDataStoreAccounts();
+          // Reload accounts after refresh
+          loadAccounts();
           
           showMessage('success', 'Account updated successfully');
       } catch (error) {

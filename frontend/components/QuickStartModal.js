@@ -56,7 +56,6 @@ import {
 import { fetchWithAuth } from '@/utils/api';
 import { popularBrokerages } from '@/utils/constants';
 import ReactDOM from 'react-dom';
-import { useAccounts } from '@/store/hooks/useAccounts';
 import { AddQuickPositionModal } from '@/components/modals/AddQuickPositionModal';
 import { AddLiabilitiesModal } from '@/components/modals/AddLiabilitiesModal';
 
