@@ -63,12 +63,15 @@ const StockTicker = () => {
         price: pos.latest_price_per_unit,
         dayChange: pos.value_1d_change || 0,
         dayChangePercent: pos.value_1d_change_pct || 0,
+        weekChange: pos.value_1w_change || 0,
+        weekChangePercent: pos.value_1w_change_pct || 0,
         ytdChange: pos.value_ytd_change || 0,
         ytdChangePercent: pos.value_ytd_change_pct || 0,
         totalGainLoss: pos.total_gain_loss_amt || 0,
-        totalGainLossPercent: pos.total_gain_loss_pct || 0,
+        totalGainLossPercent: (pos.total_gain_loss_pct * 100) || 0,
         isUp1d: (pos.value_1d_change_pct || 0) >= 0,
-        isUpTotal: (pos.total_gain_loss_pct || 0) >= 0
+        isUpTotal: (pos.total_gain_loss_pct || 0) >= 0,
+        isUp1w: (pos.value_1w_change_pct || 0) >= 0
       }));
   }, [positions]);
 
@@ -132,13 +135,24 @@ const StockTicker = () => {
                   </div>
                   
                   <span className="text-gray-400">${stock.price?.toFixed(2) || 'N/A'}</span>
+
+                  <span className="text-gray-400">${stock.value?.toFixed(2) || 'N/A'}</span>
                   
                   {/* 1D Change */}
                   <div className="flex items-center gap-2">
                     <span className="text-xs text-gray-600">1D:</span>
-                    <span className={`flex items-center text-sm ${stock.isUp1d ? 'text-green-400' : 'text-red-400'}`}>
-                      {stock.isUp1d ? <TrendingUp className="w-3 h-3 mr-1" /> : <TrendingDown className="w-3 h-3 mr-1" />}
+                    <span className={`flex items-center text-sm ${stock.value ? 'text-green-400' : 'text-red-400'}`}>
+                      {stock.value ? <TrendingUp className="w-3 h-3 mr-1" /> : <TrendingDown className="w-3 h-3 mr-1" />}
                       {stock.dayChangePercent !== 0 ? `${stock.isUp1d ? '+' : ''}${stock.dayChangePercent.toFixed(2)}%` : '0.00%'}
+                    </span>
+                  </div>
+
+                  {/* 1W Change */}
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-gray-600">1D:</span>
+                    <span className={`flex items-center text-sm ${stock.isUp1w ? 'text-green-400' : 'text-red-400'}`}>
+                      {stock.isUp1w ? <TrendingUp className="w-3 h-3 mr-1" /> : <TrendingDown className="w-3 h-3 mr-1" />}
+                      {stock.weekChangePercent !== 0 ? `${stock.isUp1w ? '+' : ''}${stock.weekChangePercent.toFixed(2)}%` : '0.00%'}
                     </span>
                   </div>
                   
