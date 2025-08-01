@@ -149,3 +149,33 @@ export const formatSharePrice = (value) => {
     maximumFractionDigits: 2,
   }).format(Number(value));
 };
+
+/**
+ * Format a stock price with 2 decimal places and thousand separators
+ * @param {number} value - The price value to format
+ * @returns {string} - Formatted price string (e.g., "$1,234.56")
+ */
+export const formatStockPrice = (value) => {
+  if (value === null || value === undefined || isNaN(value)) return '$0.00';
+  
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(value);
+};
+
+/**
+ * Format a stock price without currency symbol
+ * @param {number} value - The price value to format
+ * @returns {string} - Formatted price string (e.g., "1,234.56")
+ */
+export const formatStockPriceNoCurrency = (value) => {
+  if (value === null || value === undefined || isNaN(value)) return '0.00';
+  
+  return new Intl.NumberFormat('en-US', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(value);
+};
