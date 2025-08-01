@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import FixedModal from './FixedModal';
+import { useDataStore } from '@/store/DataStore';
+import { useAccounts } from '@/store/hooks/useAccounts';
 import { fetchAllAccounts } from '@/utils/apimethods/accountMethods';
 import { 
   addSecurityPosition, 
@@ -80,6 +82,15 @@ const AnimatedNumber = ({ value, prefix = '', suffix = '', decimals = 0, duratio
     </span>
   );
 };
+
+  const { 
+    accounts, 
+    loading: isLoadingAccounts, 
+    error: accountsError,
+    accountSummary,
+    refresh: refreshAccounts 
+  } = useAccounts();
+
 
 // Progress indicator component
 const ProgressIndicator = ({ current, total, className = '' }) => {
