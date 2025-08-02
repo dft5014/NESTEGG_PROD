@@ -1,6 +1,10 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import FixedModal from './FixedModal';
-import { updateAccount, deleteAccount } from '@/utils/apimethods/accountMethods';
+import { 
+  fetchAllAccounts,
+  updateAccount,
+  deleteAccount 
+} from '@/utils/apimethods/accountMethods';
 import {
   fetchUnifiedPositions,
   updatePosition,
@@ -31,7 +35,6 @@ import {
   Building2, Award, Banknote, CreditCard, Landmark,
   FilterX, SlidersHorizontal, ToggleLeft, ToggleRight
 } from 'lucide-react';
-
 
 // Asset type configuration - Updated to include otherAssets
 const ASSET_TYPES = {
@@ -107,7 +110,6 @@ const ASSET_TYPES = {
   }
 };
 
-
 // Liability type configuration
 const LIABILITY_TYPES = {
   credit_card: { label: 'Credit Card', icon: CreditCard },
@@ -138,36 +140,6 @@ const GROUPING_OPTIONS = [
   { id: 'asset_type', name: 'By Asset Type', icon: BarChart2 },
   { id: 'category', name: 'By Category', icon: PieChart }
 ];
-
-const getDataStoreAccounts = () => {
-    if (typeof window === 'undefined') return [];
-    
-    try {
-        // Direct access to DataStore state
-        const storeModule = require('@/store/DataStore');
-        if (storeModule.DataStore && storeModule.DataStore.getState) {
-            const state = storeModule.DataStore.getState();
-            return state.accounts?.data || [];
-        }
-        return [];
-    } catch (error) {
-        console.error('Error accessing DataStore:', error);
-        return [];
-    }
-};
-
-const refreshDataStoreAccounts = async () => {
-    if (typeof window === 'undefined') return;
-    
-    try {
-        const { refreshAccounts } = await import('@/store/hooks/useAccounts');
-        if (refreshAccounts) {
-            await refreshAccounts();
-        }
-    } catch (error) {
-        console.error('Error refreshing accounts:', error);
-    }
-};
 
 // Enhanced dropdown component
 const EnhancedDropdown = ({ 
@@ -602,10 +574,10 @@ const AssetTypeDistribution = ({ assetCounts, totalCount }) => {
 // Edit Account Form Component (enhanced)
 const EditAccountForm = ({ account, onSave, onCancel }) => {
   const [formData, setFormData] = useState({
-    account_name: account.name || '',
+    account_name: account.account_name || '',
     institution: account.institution || '',
     type: account.type || '',
-    account_category: account.category || '',
+    account_category: account.account_category || '',
     balance: account.total_value || account.balance || 0
   });
   const [errors, setErrors] = useState({});
@@ -1499,34 +1471,23 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
 
     // Load data on mount or view change
     useEffect(() => {
-        if (isOpen && currentView === 'accounts') {
-            loadAccounts();
-        } else if (isOpen && currentView === 'positions') {
-            loadPositions();
-            // Load accounts from DataStore if not already loaded
-            if (accounts.length === 0) {
-                const accountsData = getDataStoreAccounts();
-                if (accountsData.length > 0) {
-                    setAccounts(accountsData);
-                }
-            }
-        } else if (isOpen && currentView === 'liabilities') {
-            loadLiabilities();
+      if (isOpen && currentView === 'accounts') {
+        loadAccounts();
+      } else if (isOpen && currentView === 'positions') {
+        loadPositions();
+        if (accounts.length === 0) {
+          loadAccounts();
         }
-        
-        return () => {
-            if (messageTimeoutRef.current) {
-                clearTimeout(messageTimeoutRef.current);
-            }
-        };
-    }, [isOpen, currentView, dataStoreAccounts]);
-
-    // Reload accounts when returning from edit
-    useEffect(() => {
-        if (!editingItem && currentView === 'accounts') {
-            loadAccounts();
+      } else if (isOpen && currentView === 'liabilities') {
+        loadLiabilities();
+      }
+      
+      return () => {
+        if (messageTimeoutRef.current) {
+          clearTimeout(messageTimeoutRef.current);
         }
-    }, [editingItem, currentView]);
+      };
+    }, [isOpen, currentView]);
 
     // Reset state when modal closes
     useEffect(() => {
@@ -1549,11 +1510,18 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
       }
     }, [isOpen]);
 
-    const loadAccounts = () => {
-        // Use DataStore accounts directly
-        const accountsData = getDataStoreAccounts();
-        setAccounts(accountsData);
-        setFilteredAccounts(accountsData);
+    const loadAccounts = async () => {
+      setLoading(true);
+      try {
+        const data = await fetchAllAccounts();
+        setAccounts(data);
+        setFilteredAccounts(data);
+      } catch (error) {
+        console.error('Error loading accounts:', error);
+        showMessage('error', 'Failed to load accounts');
+      } finally {
+        setLoading(false);
+      }
     };
 
     const loadPositions = async () => {
@@ -1680,7 +1648,7 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
         }, {});
       } else if (groupBy === 'category') {
         return filteredAccounts.reduce((acc, account) => {
-          const category = ACCOUNT_CATEGORIES.find(c => c.id === account.category);
+          const category = ACCOUNT_CATEGORIES.find(c => c.id === account.account_category);
           const key = category ? category.name : 'Uncategorized';
           if (!acc[key]) acc[key] = [];
           acc[key].push(account);
@@ -1753,7 +1721,7 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
       if (searchQuery) {
         const query = searchQuery.toLowerCase();
         filtered = filtered.filter(account => 
-          account.name?.toLowerCase().includes(query) ||
+          account.account_name?.toLowerCase().includes(query) ||
           account.institution?.toLowerCase().includes(query) ||
           account.type?.toLowerCase().includes(query)
         );
@@ -1890,53 +1858,31 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
       setFilteredLiabilities(filtered);
     }, [liabilities, searchQuery, selectedLiabilityTypes, sortConfig]);
 
-// Handle account editing
-const handleEditAccount = (account) => {
-    // Normalize the account object to ensure consistent field names
-    const normalizedAccount = {
-        ...account,
-        // Ensure we have the expected field names for the edit form
-        name: account.name || account.account_name,
-        category: account.category || account.account_category,
-        // Keep other fields as-is
-        institution: account.institution,
-        type: account.type,
-        id: account.id
+    // Handle account editing
+    const handleEditAccount = (account) => {
+      setEditingItem(account);
+      setEditingType('account');
     };
-    
-    setEditingItem(normalizedAccount);
-    setEditingType('account');
-};
 
-  const handleSaveAccount = async (updatedAccount) => {
+    const handleSaveAccount = async (updatedAccount) => {
       try {
-          setIsSubmitting(true);
-          
-          // Update the account in the backend
-          await updateAccount(updatedAccount.id, {
-              account_name: updatedAccount.name || updatedAccount.account_name,
-              institution: updatedAccount.institution,
-              type: updatedAccount.type,
-              account_category: updatedAccount.category || updatedAccount.account_category
-          });
-          
-          // Clear editing state
-          setEditingItem(null);
-          setEditingType(null);
-          
-          // Refresh DataStore to get the updated data
-          await refreshDataStoreAccounts();
-          // Reload accounts after refresh
-          loadAccounts();
-          
-          showMessage('success', 'Account updated successfully');
+        setIsSubmitting(true);
+        await updateAccount(updatedAccount.id, updatedAccount);
+        
+        setAccounts(prev => prev.map(acc => 
+          acc.id === updatedAccount.id ? updatedAccount : acc
+        ));
+        
+        setEditingItem(null);
+        setEditingType(null);
+        showMessage('success', 'Account updated successfully');
       } catch (error) {
-          console.error('Error updating account:', error);
-          showMessage('error', 'Failed to update account');
+        console.error('Error updating account:', error);
+        showMessage('error', 'Failed to update account');
       } finally {
-          setIsSubmitting(false);
+        setIsSubmitting(false);
       }
-  };
+    };
 
     // Handle position editing
     const handleEditPosition = (position) => {
@@ -2333,7 +2279,7 @@ const handleEditAccount = (account) => {
 
     // Render account row
     const renderAccountRow = (account, index) => {
-      const category = ACCOUNT_CATEGORIES.find(c => c.id === account.category);
+      const category = ACCOUNT_CATEGORIES.find(c => c.id === account.account_category);
       const Icon = category?.icon || Building;
       const balance = account.total_value || account.balance || 0;
       
@@ -2368,7 +2314,7 @@ const handleEditAccount = (account) => {
                 <Icon className={`w-4 h-4 text-${category?.color || 'gray'}-600`} />
               </div>
               <div>
-                <div className="font-medium text-gray-900">{account.name}</div>
+                <div className="font-medium text-gray-900">{account.account_name}</div>
                 <div className="text-sm text-gray-500">{category?.name}</div>
               </div>
             </div>
