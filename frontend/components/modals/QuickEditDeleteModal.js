@@ -1572,7 +1572,7 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
     };
 
         // Compute loading state based on current view
-    const isloading = useMemo(() => {
+    const loading = useMemo(() => {
       if (currentView === 'accounts') return accountsLoading;
       if (currentView === 'positions') return positionsLoading;
       if (currentView === 'liabilities') return liabilitiesLoading;
@@ -3038,7 +3038,7 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
                       className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
                       title="Refresh"
                     >
-                      <RefreshCw className={`w-4 h-4 ${isloading ? 'animate-spin' : ''}`} />
+                      <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
                     </button>
                   </div>
                 </div>
@@ -3208,7 +3208,7 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
 
               {/* Main content area */}
               <div className="flex-1 overflow-y-auto p-6">
-                {isloading ? (
+                {loading ? (
                   <div className="flex items-center justify-center h-64">
                     <Loader2 className="w-8 h-8 text-gray-400 animate-spin" />
                   </div>
