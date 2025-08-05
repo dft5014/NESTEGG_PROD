@@ -1506,26 +1506,29 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
       if (dataStorePositions && Array.isArray(dataStorePositions)) {
         // Map grouped positions to the expected format
         const unifiedPositions = dataStorePositions.map(pos => ({
-          id: pos.id,
-          account_id: pos.account_id,
-          identifier: pos.identifier,
-          name: pos.name,
-          asset_type: pos.asset_type,
-          quantity: pos.total_quantity,
-          current_value: pos.total_current_value,
-          cost_basis: pos.total_cost_basis,
-          total_cost_basis: pos.total_cost_basis,
-          gain_loss: pos.total_gain_loss,
-          gain_loss_percent: pos.total_gain_loss_pct,
-          gain_loss_amt: pos.total_gain_loss,
-          gain_loss_pct: pos.total_gain_loss_pct,
-          account_name: pos.account_name || 'Unknown Account',
-          purchase_date: pos.purchase_date,
-          current_price_per_unit: pos.current_price_per_unit,
-          cost_per_unit: pos.cost_per_unit,
-          sector: pos.sector,
-          industry: pos.industry,
-          notes: pos.notes || ''
+            id: pos.id,
+            account_id: pos.account_id,
+            identifier: pos.identifier,
+            name: pos.name,
+            asset_type: pos.asset_type,
+            quantity: pos.total_quantity,
+            current_value: pos.total_current_value,
+            cost_basis: pos.total_cost_basis,
+            total_cost_basis: pos.total_cost_basis,
+            gain_loss: pos.total_gain_loss,
+            gain_loss_percent: pos.total_gain_loss_pct,
+            gain_loss_amt: pos.total_gain_loss,
+            gain_loss_pct: pos.total_gain_loss_pct,
+            account_name: pos.account_name || 'Unknown Account',
+            purchase_date: pos.purchase_date,
+            current_price_per_unit: pos.current_price_per_unit,
+            cost_per_unit: pos.cost_per_unit,
+            sector: pos.sector,
+            industry: pos.industry,
+            notes: pos.notes || '',
+            // Add institution info from account
+            institution: pos.institution || '',
+            account_type: pos.account_type || ''
         }));
         
         setPositions(unifiedPositions);
@@ -1734,8 +1737,8 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
         return { 'All Positions': filteredPositions };
       } else if (groupBy === 'institution') {
         return filteredPositions.reduce((acc, position) => {
-          const account = accounts.find(a => a.id === position.account_id);
-          const key = account?.institution || 'Uncategorized';
+          // Use institution from position data first, fall back to looking up from accounts
+          const key = position.institution || accounts.find(a => a.id === position.account_id)?.institution || 'Uncategorized';
           if (!acc[key]) acc[key] = [];
           acc[key].push(position);
           return acc;
@@ -1749,8 +1752,9 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
         }, {});
       } else if (groupBy === 'account_institution') {
         return filteredPositions.reduce((acc, position) => {
-          const account = accounts.find(a => a.id === position.account_id);
-          const key = `${position.account_name || 'Unknown'} (${account?.institution || 'Unknown'})`;
+          // Use institution from position data first
+          const institution = position.institution || accounts.find(a => a.id === position.account_id)?.institution || 'Unknown';
+          const key = `${position.account_name || 'Unknown'} (${institution})`;
           if (!acc[key]) acc[key] = [];
           acc[key].push(position);
           return acc;
@@ -2265,8 +2269,6 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
     // Render selection screen
     const renderSelectionScreen = () => (
       <div className="space-y-8">
-        {/* Dashboard */}
-        {renderDashboard()}
         
         <div className="p-8">
           <div className="text-center mb-8">
@@ -2342,6 +2344,9 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
             </div>
           </div>
         </div>
+
+      {/* Dashboard */}
+        {renderDashboard()}
       </div>
     );
 
