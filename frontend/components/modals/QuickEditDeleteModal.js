@@ -18,6 +18,9 @@ import {
   searchFXAssets
 } from '@/utils/apimethods/positionMethods';
 import { formatCurrency, formatPercentage } from '@/utils/formatters';
+import { useAccounts } from '@/store/hooks/useAccounts';
+import { useGroupedPositions } from '@/store/hooks/useGroupedPositions';
+import { useGroupedLiabilities } from '@/store/hooks/useGroupedLiabilities';
 import debounce from 'lodash.debounce';
 import {
   Edit3, Trash2, Search, Filter, X, Check, AlertCircle, 
@@ -141,6 +144,7 @@ const GROUPING_OPTIONS = [
   { id: 'category', name: 'By Category', icon: PieChart }
 ];
 
+
 // Enhanced dropdown component
 const EnhancedDropdown = ({ 
   title, 
@@ -153,6 +157,13 @@ const EnhancedDropdown = ({
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef(null);
   
+
+  useEffect(() => {
+    if (isOpen && dataStoreAccounts.length === 0) {
+      refreshAccounts();
+    }
+  }, [isOpen]);
+
   useEffect(() => {
     const handleClickOutside = (e) => {
       if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
@@ -574,10 +585,10 @@ const AssetTypeDistribution = ({ assetCounts, totalCount }) => {
 // Edit Account Form Component (enhanced)
 const EditAccountForm = ({ account, onSave, onCancel }) => {
   const [formData, setFormData] = useState({
-    account_name: account.account_name || '',
+    account_name: account.name || '',
     institution: account.institution || '',
     type: account.type || '',
-    account_category: account.account_category || '',
+    account_category: account.category || '',
     balance: account.total_value || account.balance || 0
   });
   const [errors, setErrors] = useState({});
@@ -1435,7 +1446,30 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
 
 // Main QuickEditDeleteModal component - Enhanced with all improvements
   const QuickEditDeleteModal = ({ isOpen, onClose }) => {
+        // data store hooks
+    const { 
+      accounts: dataStoreAccounts, 
+      loading: accountsLoading, 
+      error: accountsError,
+      refresh: refreshAccounts 
+    } = useAccounts();
+
+    const { 
+      positions: dataStorePositions, 
+      loading: positionsLoading, 
+      error: positionsError,
+      refreshData: refreshPositions 
+    } = useGroupedPositions();
+
+    const { 
+      liabilities: dataStoreLiabilities, 
+      loading: liabilitiesLoading, 
+      error: liabilitiesError,
+      refreshData: refreshLiabilities 
+    } = useGroupedLiabilities();
+
     // Core state management
+
     const [currentView, setCurrentView] = useState('selection'); // 'selection', 'accounts', 'positions', 'liabilities'
     const [accounts, setAccounts] = useState([]);
     const [positions, setPositions] = useState([]);
@@ -1469,25 +1503,40 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
     // Refs
     const messageTimeoutRef = useRef(null);
 
+
+    // Compute loading state based on current view
+    const isloading = useMemo(() => {
+      if (currentView === 'accounts') return accountsLoading;
+      if (currentView === 'positions') return positionsLoading;
+      if (currentView === 'liabilities') return liabilitiesLoading;
+      return false;
+    }, [currentView, accountsLoading, positionsLoading, liabilitiesLoading]);
+
     // Load data on mount or view change
     useEffect(() => {
       if (isOpen && currentView === 'accounts') {
         loadAccounts();
       } else if (isOpen && currentView === 'positions') {
         loadPositions();
-        if (accounts.length === 0) {
-          loadAccounts();
-        }
       } else if (isOpen && currentView === 'liabilities') {
         loadLiabilities();
       }
-      
-      return () => {
-        if (messageTimeoutRef.current) {
-          clearTimeout(messageTimeoutRef.current);
-        }
-      };
-    }, [isOpen, currentView]);
+    }, [isOpen, currentView, loadAccounts, loadPositions, loadLiabilities]);
+
+    // Handle errors
+    useEffect(() => {
+      if (accountsError) {
+        showMessage('error', 'Failed to load accounts from data store');
+      }
+      if (positionsError) {
+        showMessage('error', 'Failed to load positions from data store');
+      }
+      if (liabilitiesError) {
+        showMessage('error', 'Failed to load liabilities from data store');
+      }
+    }, [accountsError, positionsError, liabilitiesError]);
+
+
 
     // Reset state when modal closes
     useEffect(() => {
@@ -1510,48 +1559,65 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
       }
     }, [isOpen]);
 
-    const loadAccounts = async () => {
-      setLoading(true);
-      try {
-        const data = await fetchAllAccounts();
-        setAccounts(data);
-        setFilteredAccounts(data);
-      } catch (error) {
-        console.error('Error loading accounts:', error);
-        showMessage('error', 'Failed to load accounts');
-      } finally {
-        setLoading(false);
+    const loadAccounts = useCallback(() => {
+      // Update local state from data store
+      if (dataStoreAccounts && Array.isArray(dataStoreAccounts)) {
+        setAccounts(dataStoreAccounts);
+        setFilteredAccounts(dataStoreAccounts);
       }
-    };
+    }, [dataStoreAccounts]);
 
-    const loadPositions = async () => {
-      setLoading(true);
-      try {
-        const data = await fetchUnifiedPositions();
-        setPositions(data);
-        setFilteredPositions(data);
-      } catch (error) {
-        console.error('Error loading positions:', error);
-        showMessage('error', 'Failed to load positions');
-      } finally {
-        setLoading(false);
-      }
-    };
 
-    const loadLiabilities = async () => {
-      setLoading(true);
-      try {
-        const data = await fetchLiabilities();
-        // Fix: Ensure we're working with the liabilities array
-        setLiabilities(data.liabilities || []);
-        setFilteredLiabilities(data.liabilities || []);
-      } catch (error) {
-        console.error('Error loading liabilities:', error);
-        showMessage('error', 'Failed to load liabilities');
-      } finally {
-        setLoading(false);
+    const loadPositions = useCallback(() => {
+      if (dataStorePositions && Array.isArray(dataStorePositions)) {
+        // Map grouped positions to the expected format
+        const unifiedPositions = dataStorePositions.map(pos => ({
+          id: pos.id,
+          account_id: pos.account_id,
+          identifier: pos.identifier,
+          name: pos.name,
+          asset_type: pos.asset_type,
+          quantity: pos.total_quantity,
+          current_value: pos.total_current_value,
+          cost_basis: pos.total_cost_basis,
+          total_cost_basis: pos.total_cost_basis,
+          gain_loss: pos.total_gain_loss,
+          gain_loss_percent: pos.total_gain_loss_pct,
+          gain_loss_amt: pos.total_gain_loss,
+          gain_loss_pct: pos.total_gain_loss_pct,
+          account_name: pos.account_name || 'Unknown Account',
+          purchase_date: pos.purchase_date,
+          current_price_per_unit: pos.current_price_per_unit,
+          cost_per_unit: pos.cost_per_unit,
+          sector: pos.sector,
+          industry: pos.industry,
+          notes: pos.notes || ''
+        }));
+        
+        setPositions(unifiedPositions);
+        setFilteredPositions(unifiedPositions);
       }
-    };
+    }, [dataStorePositions]);
+
+    const loadLiabilities = useCallback(() => {
+      if (dataStoreLiabilities && Array.isArray(dataStoreLiabilities)) {
+        // Map grouped liabilities to expected format
+        const unifiedLiabilities = dataStoreLiabilities.map(liability => ({
+          id: liability.id,
+          name: liability.name,
+          liability_type: liability.liability_type,
+          current_balance: liability.total_current_balance,
+          original_amount: liability.total_original_balance,
+          interest_rate: liability.weighted_avg_interest_rate,
+          minimum_payment: liability.total_minimum_payment,
+          due_date: liability.due_date,
+          notes: liability.notes || ''
+        }));
+        
+        setLiabilities(unifiedLiabilities);
+        setFilteredLiabilities(unifiedLiabilities);
+      }
+    }, [dataStoreLiabilities]);
 
     // Calculate account totals from positions
     const accountsWithTotals = useMemo(() => {
@@ -1648,7 +1714,7 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
         }, {});
       } else if (groupBy === 'category') {
         return filteredAccounts.reduce((acc, account) => {
-          const category = ACCOUNT_CATEGORIES.find(c => c.id === account.account_category);
+          const category = ACCOUNT_CATEGORIES.find(c => c.id === account.category);
           const key = category ? category.name : 'Uncategorized';
           if (!acc[key]) acc[key] = [];
           acc[key].push(account);
@@ -1721,7 +1787,7 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
       if (searchQuery) {
         const query = searchQuery.toLowerCase();
         filtered = filtered.filter(account => 
-          account.account_name?.toLowerCase().includes(query) ||
+          account.name?.toLowerCase().includes(query) ||
           account.institution?.toLowerCase().includes(query) ||
           account.type?.toLowerCase().includes(query)
         );
@@ -1864,25 +1930,24 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
       setEditingType('account');
     };
 
-    const handleSaveAccount = async (updatedAccount) => {
-      try {
-        setIsSubmitting(true);
-        await updateAccount(updatedAccount.id, updatedAccount);
-        
-        setAccounts(prev => prev.map(acc => 
-          acc.id === updatedAccount.id ? updatedAccount : acc
-        ));
-        
-        setEditingItem(null);
-        setEditingType(null);
-        showMessage('success', 'Account updated successfully');
-      } catch (error) {
-        console.error('Error updating account:', error);
-        showMessage('error', 'Failed to update account');
-      } finally {
-        setIsSubmitting(false);
-      }
-    };
+  const handleSaveAccount = async (updatedAccount) => {
+    try {
+      setIsSubmitting(true);
+      await updateAccount(updatedAccount.id, updatedAccount);
+      
+      // Refresh data from store
+      await refreshAccounts();
+      
+      setEditingItem(null);
+      setEditingType(null);
+      showMessage('success', 'Account updated successfully');
+    } catch (error) {
+      console.error('Error updating account:', error);
+      showMessage('error', 'Failed to update account');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
     // Handle position editing
     const handleEditPosition = (position) => {
@@ -1909,9 +1974,8 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
           await updatePosition(updatedPosition.id, updatedPosition, updatedPosition.asset_type);
         }
         
-        setPositions(prev => prev.map(pos => 
-          pos.id === updatedPosition.id ? updatedPosition : pos
-        ));
+        // Refresh data from store
+        await refreshPositions();
         
         setEditingItem(null);
         setEditingType(null);
@@ -1924,6 +1988,7 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
       }
     };
 
+
     // Handle liability editing
     const handleEditLiability = (liability) => {
       setEditingItem(liability);
@@ -1935,9 +2000,8 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
         setIsSubmitting(true);
         await updateLiability(updatedLiability.id, updatedLiability);
         
-        setLiabilities(prev => prev.map(l => 
-          l.id === updatedLiability.id ? updatedLiability : l
-        ));
+        // Refresh data from store
+        await refreshLiabilities();
         
         setEditingItem(null);
         setEditingType(null);
@@ -1998,13 +2062,13 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
 
         // Update local state
         if (currentView === 'accounts') {
-          setAccounts(prev => prev.filter(acc => !selectedIds.includes(acc.id)));
+          await refreshAccounts();
           accountSelection.clearSelection();
         } else if (currentView === 'positions') {
-          setPositions(prev => prev.filter(pos => !selectedIds.includes(pos.id)));
+          await refreshPositions();
           positionSelection.clearSelection();
         } else {
-          setLiabilities(prev => prev.filter(l => !selectedIds.includes(l.id)));
+          await refreshLiabilities();
           liabilitySelection.clearSelection();
         }
 
@@ -2279,7 +2343,7 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
 
     // Render account row
     const renderAccountRow = (account, index) => {
-      const category = ACCOUNT_CATEGORIES.find(c => c.id === account.account_category);
+      const category = ACCOUNT_CATEGORIES.find(c => c.id === account.category);
       const Icon = category?.icon || Building;
       const balance = account.total_value || account.balance || 0;
       
@@ -2314,7 +2378,7 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
                 <Icon className={`w-4 h-4 text-${category?.color || 'gray'}-600`} />
               </div>
               <div>
-                <div className="font-medium text-gray-900">{account.account_name}</div>
+                <div className="font-medium text-gray-900">{account.name}</div>
                 <div className="text-sm text-gray-500">{category?.name}</div>
               </div>
             </div>
@@ -2963,14 +3027,14 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
 
                     <button
                       onClick={
-                        currentView === 'accounts' ? loadAccounts : 
-                        currentView === 'positions' ? loadPositions :
-                        loadLiabilities
+                        currentView === 'accounts' ? refreshAccounts : 
+                        currentView === 'positions' ? refreshPositions :
+                        refreshLiabilities
                       }
                       className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
                       title="Refresh"
                     >
-                      <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+                      <RefreshCw className={`w-4 h-4 ${isloading ? 'animate-spin' : ''}`} />
                     </button>
                   </div>
                 </div>
@@ -3140,7 +3204,7 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
 
               {/* Main content area */}
               <div className="flex-1 overflow-y-auto p-6">
-                {loading ? (
+                {isloading ? (
                   <div className="flex items-center justify-center h-64">
                     <Loader2 className="w-8 h-8 text-gray-400 animate-spin" />
                   </div>
