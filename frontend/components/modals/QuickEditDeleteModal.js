@@ -585,7 +585,7 @@ const EditAccountForm = ({ account, onSave, onCancel }) => {
     institution: account.institution || '',
     type: account.type || '',
     account_category: account.category || '',
-    balance: account.current_value || account.balance || 0
+    balance: account.total_value || account.balance || 0
   });
   const [errors, setErrors] = useState({});
   const [isSaving, setIsSaving] = useState(false);
@@ -1450,6 +1450,16 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
       refresh: refreshAccounts 
     } = useAccounts();
 
+    // Debug: Log the first account to see field names
+    useEffect(() => {
+      if (dataStoreAccounts && dataStoreAccounts.length > 0) {
+        console.log('Account fields from data store:', {
+          firstAccount: dataStoreAccounts[0],
+          fieldNames: Object.keys(dataStoreAccounts[0])
+        });
+      }
+    }, [dataStoreAccounts]);
+
     const { 
       positions: dataStorePositions, 
       loading: positionsLoading, 
@@ -1497,10 +1507,6 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
 
     // Refs
     const messageTimeoutRef = useRef(null);
-
-
-
-
 
     const loadPositions = useCallback(() => {
       if (dataStorePositions && Array.isArray(dataStorePositions)) {
@@ -1555,8 +1561,6 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
         setFilteredLiabilities(unifiedLiabilities);
       }
     }, [dataStoreLiabilities]);
-
-
 
 
     // Message display
@@ -1614,8 +1618,6 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
       }
     }, [accountsError, positionsError, liabilitiesError]);
 
-
-
     // Reset state when modal closes
     useEffect(() => {
       if (!isOpen) {
@@ -1640,23 +1642,7 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
 
 
     // Calculate account totals from positions
-    const accountsWithTotals = useMemo(() => {
-      if (accounts.length === 0) return accounts;
-      
-      const accountTotals = {};
-      positions.forEach(position => {
-        const accountId = position.account_id;
-        // Fix: Ensure we're using proper number conversion for values
-        const positionValue = parseFloat(position.current_value || 0);
-        accountTotals[accountId] = (accountTotals[accountId] || 0) + positionValue;
-      });
-      
-      return accounts.map(account => ({
-        ...account,
-        // Ensure we store the balance properly 
-        total_value: accountTotals[account.id] || account.balance || 0
-      }));
-    }, [accounts, positions]);
+    const accountsWithTotals = accounts
 
 
 
@@ -2354,7 +2340,7 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
     const renderAccountRow = (account, index) => {
       const category = ACCOUNT_CATEGORIES.find(c => c.id === account.category);
       const Icon = category?.icon || Building;
-      const balance = account.current_value || account.balance || 0;
+      const balance = account.total_value || account.balance || 0;
       
       return (
         <tr 
