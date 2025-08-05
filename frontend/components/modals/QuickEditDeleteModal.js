@@ -1523,6 +1523,21 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
       }
     }, [isOpen, currentView, loadAccounts, loadPositions, loadLiabilities]);
 
+    // Message display
+    const showMessage = (type, text, duration = 5000) => {
+      setMessage({ type, text });
+      
+      if (messageTimeoutRef.current) {
+        clearTimeout(messageTimeoutRef.current);
+      }
+      
+      if (duration > 0) {
+        messageTimeoutRef.current = setTimeout(() => {
+          setMessage({ type: '', text: '' });
+        }, duration);
+      }
+    };
+
     // Handle errors
     useEffect(() => {
       if (accountsError) {
@@ -1638,20 +1653,7 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
       }));
     }, [accounts, positions]);
 
-    // Message display
-    const showMessage = (type, text, duration = 5000) => {
-      setMessage({ type, text });
-      
-      if (messageTimeoutRef.current) {
-        clearTimeout(messageTimeoutRef.current);
-      }
-      
-      if (duration > 0) {
-        messageTimeoutRef.current = setTimeout(() => {
-          setMessage({ type: '', text: '' });
-        }, duration);
-      }
-    };
+
 
     // Get unique values for filters
     const uniqueInstitutions = useMemo(() => {
