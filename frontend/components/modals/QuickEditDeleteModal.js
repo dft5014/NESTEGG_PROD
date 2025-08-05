@@ -585,7 +585,7 @@ const EditAccountForm = ({ account, onSave, onCancel }) => {
     institution: account.institution || '',
     type: account.type || '',
     account_category: account.category || '',
-    balance: account.total_value || account.balance || 0
+    balance: account.current_value || account.balance || 0
   });
   const [errors, setErrors] = useState({});
   const [isSaving, setIsSaving] = useState(false);
@@ -2354,7 +2354,7 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
     const renderAccountRow = (account, index) => {
       const category = ACCOUNT_CATEGORIES.find(c => c.id === account.category);
       const Icon = category?.icon || Building;
-      const balance = account.total_value || account.balance || 0;
+      const balance = account.current_value || account.balance || 0;
       
       return (
         <tr 
