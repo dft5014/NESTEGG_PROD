@@ -585,7 +585,7 @@ const EditAccountForm = ({ account, onSave, onCancel }) => {
     institution: account.institution || '',
     type: account.type || '',
     account_category: account.category || '',
-    balance: account.total_value || account.balance || 0
+    balance: account.totalValue || 0  // Use totalValue from the transformed data
   });
   const [errors, setErrors] = useState({});
   const [isSaving, setIsSaving] = useState(false);
@@ -1476,8 +1476,8 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
 
     // Core state management
 
-    const [currentView, setCurrentView] = useState('selection'); // 'selection', 'accounts', 'positions', 'liabilities'
-    const [accounts, setAccounts] = useState([]);
+    const [currentView, setCurrentView] = useState('selection');
+    const [accounts, setAccounts] = useState(dataStoreAccounts || []);
     const [positions, setPositions] = useState([]);
     const [liabilities, setLiabilities] = useState([]);
     const [filteredAccounts, setFilteredAccounts] = useState([]);
