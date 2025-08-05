@@ -136,12 +136,10 @@ const StockTicker = () => {
                     )}
                   </div>
                   
-                  <span className="text-xs text-gray-600">Price:</span>
                   <span className="text-gray-400">
                     {stock.price !== null && stock.price !== undefined ? formatStockPrice(stock.price) : 'N/A'}
                   </span>
-                  
-                  <span className="text-xs text-gray-600">Value:</span>
+
                   <span className="text-gray-400">{formatCurrency(stock?.value) ?? 'N/A'}</span>
                   
                   {/* 1D Change */}
