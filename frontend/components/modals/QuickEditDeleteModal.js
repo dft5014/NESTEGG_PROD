@@ -1801,13 +1801,9 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
 
       if (sortConfig.key) {
         filtered.sort((a, b) => {
-          let aVal = a[sortConfig.key];
-          let bVal = b[sortConfig.key];
-          
-          if (sortConfig.key === 'balance') {
-            aVal = a.total_value || a.balance || 0;
-            bVal = b.total_value || b.balance || 0;
-          }
+          // Handle special cases for field mapping
+          let aVal = sortConfig.key === 'account_name' ? a.name : a[sortConfig.key];
+          let bVal = sortConfig.key === 'account_name' ? b.name : b[sortConfig.key];
           
           if (typeof aVal === 'number' && typeof bVal === 'number') {
             return sortConfig.direction === 'asc' ? aVal - bVal : bVal - aVal;
@@ -2729,15 +2725,22 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
                             </button>
                           </th>
                           <th className="px-4 py-3 text-left">
-                            <span className="text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                            <button
+                              onClick={() => setSortConfig({
+                                key: 'type',
+                                direction: sortConfig.key === 'type' && sortConfig.direction === 'asc' ? 'desc' : 'asc'
+                              })}
+                              className="flex items-center text-xs font-semibold text-gray-600 uppercase tracking-wider hover:text-gray-900"
+                            >
                               Type
-                            </span>
+                              <ArrowUpDown className="w-3 h-3 ml-1" />
+                            </button>
                           </th>
                           <th className="px-4 py-3 text-right">
                             <button
                               onClick={() => setSortConfig({
-                                key: 'balance',
-                                direction: sortConfig.key === 'balance' && sortConfig.direction === 'asc' ? 'desc' : 'asc'
+                                key: 'totalValue',
+                                direction: sortConfig.key === 'totalValue' && sortConfig.direction === 'asc' ? 'desc' : 'asc'
                               })}
                               className="flex items-center justify-end text-xs font-semibold text-gray-600 uppercase tracking-wider hover:text-gray-900"
                             >
