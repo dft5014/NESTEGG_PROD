@@ -158,11 +158,7 @@ const EnhancedDropdown = ({
   const dropdownRef = useRef(null);
   
 
-  useEffect(() => {
-    if (isOpen && dataStoreAccounts.length === 0) {
-      refreshAccounts();
-    }
-  }, [isOpen]);
+
 
   useEffect(() => {
     const handleClickOutside = (e) => {
@@ -1477,7 +1473,6 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
     const [filteredAccounts, setFilteredAccounts] = useState([]);
     const [filteredPositions, setFilteredPositions] = useState([]);
     const [filteredLiabilities, setFilteredLiabilities] = useState([]);
-    const [loading, setLoading] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
     const [selectedAssetTypes, setSelectedAssetTypes] = useState(new Set());
     const [selectedLiabilityTypes, setSelectedLiabilityTypes] = useState(new Set());
@@ -1504,83 +1499,7 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
     const messageTimeoutRef = useRef(null);
 
 
-    // Compute loading state based on current view
-    const isloading = useMemo(() => {
-      if (currentView === 'accounts') return accountsLoading;
-      if (currentView === 'positions') return positionsLoading;
-      if (currentView === 'liabilities') return liabilitiesLoading;
-      return false;
-    }, [currentView, accountsLoading, positionsLoading, liabilitiesLoading]);
 
-    // Load data on mount or view change
-    useEffect(() => {
-      if (isOpen && currentView === 'accounts') {
-        loadAccounts();
-      } else if (isOpen && currentView === 'positions') {
-        loadPositions();
-      } else if (isOpen && currentView === 'liabilities') {
-        loadLiabilities();
-      }
-    }, [isOpen, currentView, loadAccounts, loadPositions, loadLiabilities]);
-
-    // Message display
-    const showMessage = (type, text, duration = 5000) => {
-      setMessage({ type, text });
-      
-      if (messageTimeoutRef.current) {
-        clearTimeout(messageTimeoutRef.current);
-      }
-      
-      if (duration > 0) {
-        messageTimeoutRef.current = setTimeout(() => {
-          setMessage({ type: '', text: '' });
-        }, duration);
-      }
-    };
-
-    // Handle errors
-    useEffect(() => {
-      if (accountsError) {
-        showMessage('error', 'Failed to load accounts from data store');
-      }
-      if (positionsError) {
-        showMessage('error', 'Failed to load positions from data store');
-      }
-      if (liabilitiesError) {
-        showMessage('error', 'Failed to load liabilities from data store');
-      }
-    }, [accountsError, positionsError, liabilitiesError]);
-
-
-
-    // Reset state when modal closes
-    useEffect(() => {
-      if (!isOpen) {
-        setTimeout(() => {
-          setCurrentView('selection');
-          setEditingItem(null);
-          setEditingType(null);
-          setSearchQuery('');
-          accountSelection.clearSelection();
-          positionSelection.clearSelection();
-          liabilitySelection.clearSelection();
-          setSelectedAssetTypes(new Set());
-          setSelectedLiabilityTypes(new Set());
-          setSelectedAccountFilter(new Set());
-          setSelectedInstitutionFilter(new Set());
-          setSelectedCategories(new Set());
-          setSelectedAccountTypes(new Set());
-        }, 300);
-      }
-    }, [isOpen]);
-
-    const loadAccounts = useCallback(() => {
-      // Update local state from data store
-      if (dataStoreAccounts && Array.isArray(dataStoreAccounts)) {
-        setAccounts(dataStoreAccounts);
-        setFilteredAccounts(dataStoreAccounts);
-      }
-    }, [dataStoreAccounts]);
 
 
     const loadPositions = useCallback(() => {
@@ -1633,6 +1552,89 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
         setFilteredLiabilities(unifiedLiabilities);
       }
     }, [dataStoreLiabilities]);
+
+
+
+
+    // Message display
+    const showMessage = (type, text, duration = 5000) => {
+      setMessage({ type, text });
+      
+      if (messageTimeoutRef.current) {
+        clearTimeout(messageTimeoutRef.current);
+      }
+      
+      if (duration > 0) {
+        messageTimeoutRef.current = setTimeout(() => {
+          setMessage({ type: '', text: '' });
+        }, duration);
+      }
+    };
+
+        // Compute loading state based on current view
+    const isloading = useMemo(() => {
+      if (currentView === 'accounts') return accountsLoading;
+      if (currentView === 'positions') return positionsLoading;
+      if (currentView === 'liabilities') return liabilitiesLoading;
+      return false;
+    }, [currentView, accountsLoading, positionsLoading, liabilitiesLoading]);
+
+    const loadAccounts = useCallback(() => {
+      // Update local state from data store
+      if (dataStoreAccounts && Array.isArray(dataStoreAccounts)) {
+        setAccounts(dataStoreAccounts);
+        setFilteredAccounts(dataStoreAccounts);
+      }
+    }, [dataStoreAccounts]);
+
+    // Load data on mount or view change
+    useEffect(() => {
+      if (isOpen && currentView === 'accounts') {
+        loadAccounts();
+      } else if (isOpen && currentView === 'positions') {
+        loadPositions();
+      } else if (isOpen && currentView === 'liabilities') {
+        loadLiabilities();
+      }
+    }, [isOpen, currentView, loadAccounts, loadPositions, loadLiabilities]);
+
+    // Handle errors
+    useEffect(() => {
+      if (accountsError) {
+        showMessage('error', 'Failed to load accounts from data store');
+      }
+      if (positionsError) {
+        showMessage('error', 'Failed to load positions from data store');
+      }
+      if (liabilitiesError) {
+        showMessage('error', 'Failed to load liabilities from data store');
+      }
+    }, [accountsError, positionsError, liabilitiesError]);
+
+
+
+    // Reset state when modal closes
+    useEffect(() => {
+      if (!isOpen) {
+        setTimeout(() => {
+          setCurrentView('selection');
+          setEditingItem(null);
+          setEditingType(null);
+          setSearchQuery('');
+          accountSelection.clearSelection();
+          positionSelection.clearSelection();
+          liabilitySelection.clearSelection();
+          setSelectedAssetTypes(new Set());
+          setSelectedLiabilityTypes(new Set());
+          setSelectedAccountFilter(new Set());
+          setSelectedInstitutionFilter(new Set());
+          setSelectedCategories(new Set());
+          setSelectedAccountTypes(new Set());
+        }, 300);
+      }
+    }, [isOpen]);
+
+
 
     // Calculate account totals from positions
     const accountsWithTotals = useMemo(() => {
