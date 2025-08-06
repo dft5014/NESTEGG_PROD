@@ -1836,16 +1836,17 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
         );
       }
 
+      // Changed to positive filtering - show ONLY selected items
       if (selectedCategories.size > 0) {
-        filtered = filtered.filter(acc => !selectedCategories.has(acc.category));  // Use 'category' from DataStore
+        filtered = filtered.filter(acc => selectedCategories.has(acc.category));
       }
 
       if (selectedInstitutionFilter.size > 0) {
-        filtered = filtered.filter(acc => !selectedInstitutionFilter.has(acc.institution));
+        filtered = filtered.filter(acc => selectedInstitutionFilter.has(acc.institution));
       }
 
       if (selectedAccountTypes.size > 0) {
-        filtered = filtered.filter(acc => !selectedAccountTypes.has(acc.type));
+        filtered = filtered.filter(acc => selectedAccountTypes.has(acc.type));
       }
 
       if (sortConfig.key) {
