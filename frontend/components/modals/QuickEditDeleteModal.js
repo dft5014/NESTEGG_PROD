@@ -2946,32 +2946,42 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
                 </table>
               </div>
               
-              {/* Group summary */}
-                <div className="bg-gray-50 px-6 py-2 border-t border-gray-200 text-xs text-gray-500">
-                  {currentView === 'accounts' ? (
-                    <div className="flex justify-between items-center">
-                      <span>{filteredAccounts.length} account{filteredAccounts.length !== 1 ? 's' : ''}</span>
-                      <span className="font-medium text-gray-700">
-                        Total: {showValues ? formatCurrency(
-                          filteredAccounts.reduce((sum, acc) => sum + (acc.totalValue || 0), 0)
-                        ) : '••••'}
-                      </span>
-                    </div>
-                  ) : currentView === 'positions' ? (
-                  <div className="flex justify-end space-x-4">
-                    <span>
-                      Value: {showValues ? formatCurrency(items.reduce((sum, pos) => sum + parseFloat(pos.current_value || 0), 0)) : '••••'}
+              {/* Group summary - Calculate total for this specific group */}
+              <div className="bg-gray-50 px-6 py-2 border-t border-gray-200 text-xs text-gray-500">
+                {currentView === 'accounts' ? (
+                  <div className="flex justify-between items-center">
+                    <span>{items.length} account{items.length !== 1 ? 's' : ''}</span>
+                    <span className="font-medium text-gray-700">
+                      {groupBy === 'none' ? 'Total' : 'Subtotal'}: {showValues ? formatCurrency(
+                        items.reduce((sum, acc) => sum + (acc.totalValue || 0), 0)
+                      ) : '••••'}
                     </span>
-                    <span>
-                      Cost: {showValues ? formatCurrency(items.reduce((sum, pos) => sum + parseFloat(pos.total_cost_basis || 0), 0)) : '••••'}
+                  </div>
+                ) : currentView === 'positions' ? (
+                  <div className="flex justify-between items-center">
+                    <span>{items.length} position{items.length !== 1 ? 's' : ''}</span>
+                    <span className="font-medium text-gray-700">
+                      {groupBy === 'none' ? 'Total' : 'Subtotal'}: {showValues ? formatCurrency(
+                        items.reduce((sum, pos) => sum + (pos.current_value || 0), 0)
+                      ) : '••••'}
                     </span>
                   </div>
                 ) : (
-                  <div className="flex justify-end">
-                    Total: {showValues ? `-${formatCurrency(items.reduce((sum, l) => sum + parseFloat(l.current_balance || 0), 0))}` : '••••'}
+                  <div className="flex justify-between items-center">
+                    <span>{items.length} liabilit{items.length !== 1 ? 'ies' : 'y'}</span>
+                    <span className="font-medium text-gray-700">
+                      {groupBy === 'none' ? 'Total' : 'Subtotal'}: {showValues ? formatCurrency(
+                        items.reduce((sum, liab) => sum + (liab.current_balance || 0), 0)
+                      ) : '••••'}
+                    </span>
                   </div>
                 )}
               </div>
+
+
+
+
+              
             </div>
           ))}
         </div>
@@ -3297,6 +3307,31 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
                   </div>
                 ) : (
                   renderGroupedTable()
+                )}
+
+                {/* Grand Total when grouping */}
+                {!loading && !editingItem && groupBy !== 'none' && (
+                  <div className="bg-white border-t-2 border-gray-300 px-6 py-3">
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm font-semibold text-gray-700">
+                        Grand Total ({currentView === 'accounts' 
+                          ? `${filteredAccounts.length} account${filteredAccounts.length !== 1 ? 's' : ''}`
+                          : currentView === 'positions'
+                          ? `${filteredPositions.length} position${filteredPositions.length !== 1 ? 's' : ''}`
+                          : `${filteredLiabilities.length} liabilit${filteredLiabilities.length !== 1 ? 'ies' : 'y'}`
+                        })
+                      </span>
+                      <span className="text-sm font-bold text-gray-900">
+                        {showValues ? formatCurrency(
+                          currentView === 'accounts' 
+                            ? filteredAccounts.reduce((sum, acc) => sum + (acc.totalValue || 0), 0)
+                            : currentView === 'positions'
+                            ? filteredPositions.reduce((sum, pos) => sum + (pos.current_value || 0), 0)
+                            : filteredLiabilities.reduce((sum, liab) => sum + (liab.current_balance || 0), 0)
+                        ) : '••••'}
+                      </span>
+                    </div>
+                  </div>
                 )}
 
                 {/* Empty states */}
