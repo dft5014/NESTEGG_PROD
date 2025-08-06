@@ -1575,15 +1575,15 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
             gain_loss_amt: pos.gainLoss,
             gain_loss_pct: pos.gainLossPercent,
             account_name: pos.accountName || 'Unknown Account',
+            institution: pos.institution,
             purchase_date: pos.purchaseDate,
             current_price: pos.currentPrice,
             current_price_per_unit: pos.currentPrice,
-            cost_per_unit: pos.costBasis / (pos.quantity || 1),
+            cost_per_unit: pos.costPerUnit || (pos.costBasis / (pos.quantity || 1)),
             sector: pos.sector,
             industry: pos.industry,
-            notes: pos.notes || '',
+            holding_term: pos.holdingTerm,
             // Add institution info from account
-            institution: pos.institution || '',
             account_type: pos.account_type || ''
         }));
         

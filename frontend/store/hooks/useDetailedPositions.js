@@ -20,42 +20,48 @@ export const useDetailedPositions = () => {
   }, [detailedPositions.isStale, detailedPositions.loading]);
 
   // Process positions data
-  const processedPositions = useMemo(() => {
+    const processedPositions = useMemo(() => {
     if (!detailedPositions.data) return [];
 
     return detailedPositions.data.map(position => ({
-      // Core identifiers
-      id: position.id,
-      accountId: position.account_id,
-      identifier: position.identifier,
-      name: position.name || position.identifier,
-      assetType: position.asset_type,
-      
-      // Values
-      quantity: position.quantity,
-      currentPrice: position.current_price,
-      currentValue: position.current_value,
-      costBasis: position.cost_basis,
-      gainLoss: position.gain_loss,
-      gainLossPercent: position.gain_loss_pct,
-      
-      // Dates
-      purchaseDate: position.purchase_date,
-      snapshotDate: position.snapshot_date,
-      
-      // Account info
-      accountName: position.account_name,
-      institution: position.institution,
-      
-      // Additional fields
-      currency: position.currency,
-      sector: position.sector,
-      industry: position.industry,
-      
-      // Raw data for other fields
-      ...position
+        // Core identifiers - use correct field names from the view
+        id: position.unified_id || position.history_id,
+        accountId: position.inv_account_id,
+        identifier: position.identifier,
+        name: position.name || position.identifier,
+        assetType: position.item_type,  // Use item_type not asset_type
+        
+        // Values - map from inv_ prefixed fields
+        quantity: parseFloat(position.inv_quantity || 0),
+        currentPrice: parseFloat(position.inv_price_per_unit || 0),
+        currentValue: parseFloat(position.current_value || 0),
+        costBasis: parseFloat(position.cost || 0),
+        gainLoss: parseFloat(position.gain_loss_amt || 0),
+        gainLossPercent: parseFloat(position.gain_loss_pct || 0),
+        
+        // Dates
+        purchaseDate: position.purchase_date,
+        snapshotDate: position.snapshot_date,
+        
+        // Account info - use inv_ prefixed fields
+        accountName: position.inv_account_name,
+        institution: position.institution,
+        accountType: position.inv_account_type,
+        accountCategory: position.inv_account_category,
+        
+        // Additional fields from inv_ prefix
+        sector: position.inv_sector,
+        industry: position.inv_industry,
+        holdingTerm: position.inv_holding_term,
+        dividendRate: position.inv_dividend_rate,
+        dividendYield: position.inv_dividend_yield,
+        income: position.inv_income,
+        costPerUnit: parseFloat(position.inv_cost_per_unit || 0),
+        
+        // Keep raw data for other fields
+        ...position
     }));
-  }, [detailedPositions.data]);
+    }, [detailedPositions.data]);
 
   return {
     positions: processedPositions,
