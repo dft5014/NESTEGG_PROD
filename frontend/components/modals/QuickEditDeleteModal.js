@@ -580,13 +580,42 @@ const AssetTypeDistribution = ({ assetCounts, totalCount }) => {
 
 // Edit Account Form Component (enhanced)
 const EditAccountForm = ({ account, onSave, onCancel }) => {
+  // Import account types from constants
+  const ACCOUNT_TYPES_BY_CATEGORY = {
+    "brokerage": ["Individual", "Joint", "Custodial", "Trust", "Other Brokerage"],
+    "retirement": ["Traditional IRA", "Roth IRA", "401(k)", "Roth 401(k)", "SEP IRA", "SIMPLE IRA", "403(b)", "Pension", "HSA", "Other Retirement"],
+    "cash": ["Checking", "Savings", "High Yield Savings", "Money Market", "Certificate of Deposit (CD)", "Other Cash"],
+    "cryptocurrency": ["Exchange Account", "Hardware Wallet", "Software Wallet", "Cold Storage", "Other Crypto"],
+    "metals": ["Home Storage", "Safe Deposit Box", "Third-Party Vault", "Allocated Storage", "Unallocated Storage", "Other Metals"],
+    "real_estate": ["Primary Residence", "Vacation Home", "Rental Property", "Commercial Property", "Land", "REIT", "Other Real Estate"]
+  };
+
   const [formData, setFormData] = useState({
     account_name: account.name || '',
     institution: account.institution || '',
     type: account.type || '',
     account_category: account.category || '',
-    balance: account.totalValue || 0  // Use totalValue from the DataStore transformed data
+    balance: account.totalValue || 0
   });
+  
+  // Auto-set category based on account type
+  const getCategoryFromType = (accountType) => {
+    for (const [category, types] of Object.entries(ACCOUNT_TYPES_BY_CATEGORY)) {
+      if (types.includes(accountType)) {
+        return category;
+      }
+    }
+    return '';
+  };
+  
+  // Get available types based on selected category
+  const availableTypes = formData.account_category 
+    ? ACCOUNT_TYPES_BY_CATEGORY[formData.account_category] || []
+    : Object.values(ACCOUNT_TYPES_BY_CATEGORY).flat();
+
+
+
+  
   const [errors, setErrors] = useState({});
   const [isSaving, setIsSaving] = useState(false);
   const [originalData] = useState({...formData}); // For tracking changes
@@ -708,10 +737,17 @@ const EditAccountForm = ({ account, onSave, onCancel }) => {
           <label className="block text-sm font-medium text-gray-700 mb-1">
             Account Type
           </label>
-          <input
-            type="text"
+          <select
             value={formData.type}
-            onChange={(e) => handleFieldChange('type', e.target.value)}
+            onChange={(e) => {
+              const newType = e.target.value;
+              handleFieldChange('type', newType);
+              // Auto-set category based on type
+              const newCategory = getCategoryFromType(newType);
+              if (newCategory && newCategory !== formData.account_category) {
+                handleFieldChange('account_category', newCategory);
+              }
+            }}
             className={`
               w-full px-3 py-2 border rounded-lg text-sm
               ${errors.type 
@@ -722,8 +758,15 @@ const EditAccountForm = ({ account, onSave, onCancel }) => {
               }
               transition-colors
             `}
-            placeholder="401k, IRA, Taxable, etc."
-          />
+          >
+            <option value="">Select a type...</option>
+            {availableTypes.map(type => (
+              <option key={type} value={type}>
+                {type}
+              </option>
+            ))}
+          </select>
+
           {errors.type && (
             <p className="mt-1 text-xs text-red-600">{errors.type}</p>
           )}
@@ -738,7 +781,13 @@ const EditAccountForm = ({ account, onSave, onCancel }) => {
           </label>
           <select
             value={formData.account_category}
-            onChange={(e) => handleFieldChange('account_category', e.target.value)}
+            onChange={(e) => {
+              handleFieldChange('account_category', e.target.value);
+              // Clear type if it doesn't match new category
+              if (formData.type && !ACCOUNT_TYPES_BY_CATEGORY[e.target.value]?.includes(formData.type)) {
+                handleFieldChange('type', '');
+              }
+            }}
             className={`
               w-full px-3 py-2 border rounded-lg text-sm
               ${errors.account_category 
@@ -1663,7 +1712,7 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
         value: cat.id,
         label: cat.name,
         icon: cat.icon,
-        count: accounts.filter(acc => acc.account_category === cat.id).length
+        count: accounts.filter(acc => acc.category === cat.id).length
       }));
     }, [accounts]);
 
@@ -1788,7 +1837,7 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
       }
 
       if (selectedCategories.size > 0) {
-        filtered = filtered.filter(acc => !selectedCategories.has(acc.account_category));
+        filtered = filtered.filter(acc => !selectedCategories.has(acc.category));  // Use 'category' from DataStore
       }
 
       if (selectedInstitutionFilter.size > 0) {
@@ -2249,30 +2298,32 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
     );
 
     // Render selection screen
-    const renderSelectionScreen = () => (
-      <div className="space-y-8">
-        
-        <div className="p-8">
-          <div className="text-center mb-8">
-            <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-purple-500 to-pink-600 rounded-2xl mb-4 animate-pulse">
-              <Edit3 className="w-8 h-8 text-white" />
+      const renderSelectionScreen = () => (
+        <div className="space-y-4">
+          
+          <div className="p-4">
+            <div className="text-center mb-4">
+              <div className="inline-flex items-center space-x-2 mb-2">
+                <div className="inline-flex items-center justify-center w-10 h-10 bg-gradient-to-br from-purple-500 to-pink-600 rounded-xl">
+                  <Edit3 className="w-5 h-5 text-white" />
+                </div>
+                <h2 className="text-xl font-bold text-gray-900">Edit & Delete Manager</h2>
+              </div>
+              <p className="text-sm text-gray-600">Choose what you'd like to manage</p>
             </div>
-            <h2 className="text-2xl font-bold text-gray-900 mb-2">Edit & Delete Manager</h2>
-            <p className="text-gray-600">Choose what you'd like to manage</p>
-          </div>
 
-          <div className="grid md:grid-cols-3 gap-6 max-w-4xl mx-auto">
+            <div className="grid md:grid-cols-3 gap-4 max-w-3xl mx-auto">
             {/* Accounts Card */}
             <div 
               onClick={() => setCurrentView('accounts')}
-              className="group cursor-pointer bg-gradient-to-br from-blue-50 to-indigo-100 rounded-2xl p-8 border-2 border-transparent hover:border-blue-300 hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1"
+              className="group cursor-pointer bg-gradient-to-br from-blue-50 to-indigo-100 rounded-xl p-6 border-2 border-transparent hover:border-blue-300 hover:shadow-lg transition-all duration-200"
             >
               <div className="flex flex-col items-center text-center">
-                <div className="p-4 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl text-white mb-4 group-hover:scale-110 transition-transform">
-                  <Wallet className="w-10 h-10" />
+                <div className="p-3 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl text-white mb-3 group-hover:scale-110 transition-transform">
+                  <Wallet className="w-8 h-8" />
                 </div>
-                <h3 className="text-xl font-bold text-gray-900 mb-2">Manage Accounts</h3>
-                <p className="text-gray-600 mb-4">Edit account details or delete accounts</p>
+                <h3 className="text-lg font-bold text-gray-900 mb-1">Manage Accounts</h3>
+                <p className="text-xs text-gray-600 mb-3">Edit account details or delete accounts</p>
                 <div className="flex items-center text-sm text-blue-600 group-hover:text-blue-700">
                   <span>Manage Accounts</span>
                   <ChevronRight className="w-4 h-4 ml-1 group-hover:translate-x-1 transition-transform" />
@@ -2896,12 +2947,17 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
               </div>
               
               {/* Group summary */}
-              <div className="bg-gray-50 px-6 py-2 border-t border-gray-200 text-xs text-gray-500">
-                {currentView === 'accounts' ? (
-                  <div className="flex justify-end">
-                    Total: {showValues ? formatCurrency(items.reduce((sum, acc) => sum + (acc.total_value || acc.balance || 0), 0)) : '••••'}
-                  </div>
-                ) : currentView === 'positions' ? (
+                <div className="bg-gray-50 px-6 py-2 border-t border-gray-200 text-xs text-gray-500">
+                  {currentView === 'accounts' ? (
+                    <div className="flex justify-between items-center">
+                      <span>{filteredAccounts.length} account{filteredAccounts.length !== 1 ? 's' : ''}</span>
+                      <span className="font-medium text-gray-700">
+                        Total: {showValues ? formatCurrency(
+                          filteredAccounts.reduce((sum, acc) => sum + (acc.totalValue || 0), 0)
+                        ) : '••••'}
+                      </span>
+                    </div>
+                  ) : currentView === 'positions' ? (
                   <div className="flex justify-end space-x-4">
                     <span>
                       Value: {showValues ? formatCurrency(items.reduce((sum, pos) => sum + parseFloat(pos.current_value || 0), 0)) : '••••'}
