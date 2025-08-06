@@ -45,6 +45,14 @@ const initialState = {
     isStale: false,
   },
 
+  detailedPositions: {
+    data: [],
+    loading: false,
+    error: null,
+    lastFetched: null,
+    isStale: false,
+},
+
   positionHistory: {
     data: {}, // Object keyed by identifier
     loading: {}, // Loading state per identifier
@@ -102,6 +110,11 @@ export const ActionTypes = {
   FETCH_GROUPED_LIABILITIES_SUCCESS: 'FETCH_GROUPED_LIABILITIES_SUCCESS',
   FETCH_GROUPED_LIABILITIES_ERROR: 'FETCH_GROUPED_LIABILITIES_ERROR',
   MARK_GROUPED_LIABILITIES_STALE: 'MARK_GROUPED_LIABILITIES_STALE',
+
+  FETCH_DETAILED_POSITIONS_START: 'FETCH_DETAILED_POSITIONS_START',
+  FETCH_DETAILED_POSITIONS_SUCCESS: 'FETCH_DETAILED_POSITIONS_SUCCESS',
+  FETCH_DETAILED_POSITIONS_ERROR: 'FETCH_DETAILED_POSITIONS_ERROR',
+  MARK_DETAILED_POSITIONS_STALE: 'MARK_DETAILED_POSITIONS_STALE',
 
   FETCH_SNAPSHOTS_START: 'FETCH_SNAPSHOTS_START',
   FETCH_SNAPSHOTS_SUCCESS: 'FETCH_SNAPSHOTS_SUCCESS',
@@ -351,6 +364,51 @@ const dataStoreReducer = (state, action) => {
           isStale: true,
         },
       };
+
+
+          // Detailed positions cases
+    case ActionTypes.FETCH_DETAILED_POSITIONS_START:
+      return {
+        ...state,
+        detailedPositions: {
+          ...state.detailedPositions,
+          loading: true,
+          error: null
+        }
+      };
+
+    case ActionTypes.FETCH_DETAILED_POSITIONS_SUCCESS:
+      return {
+        ...state,
+        detailedPositions: {
+          ...state.detailedPositions,
+          data: action.payload.positions || [],
+          loading: false,
+          error: null,
+          lastFetched: Date.now(),
+          isStale: false
+        }
+      };
+
+    case ActionTypes.FETCH_DETAILED_POSITIONS_ERROR:
+      return {
+        ...state,
+        detailedPositions: {
+          ...state.detailedPositions,
+          loading: false,
+          error: action.payload
+        }
+      };
+
+    case ActionTypes.MARK_DETAILED_POSITIONS_STALE:
+      return {
+        ...state,
+        detailedPositions: {
+          ...state.detailedPositions,
+          isStale: true
+        }
+      };
+
 
     // Position History cases
     case ActionTypes.FETCH_POSITION_HISTORY_START:
@@ -664,6 +722,38 @@ export const DataStoreProvider = ({ children }) => {
     }
   }, [state.snapshots.loading, state.snapshots.lastFetched, state.snapshots.isStale]);
 
+  // Fetch detailed positions (individual, not grouped)
+  const fetchDetailedPositionsData = useCallback(async (force = false) => {
+    // Skip if already loading or recently fetched (unless forced)
+    if (!force && (state.detailedPositions.loading || 
+        (state.detailedPositions.lastFetched && 
+        Date.now() - state.detailedPositions.lastFetched < 60000))) {
+      return;
+    }
+
+    dispatch({ type: ActionTypes.FETCH_DETAILED_POSITIONS_START });
+
+    try {
+      const response = await fetchWithAuth('/datastore/positions/detail?snapshot_date=latest');
+      
+      if (response.ok) {
+        const data = await response.json();
+        dispatch({ 
+          type: ActionTypes.FETCH_DETAILED_POSITIONS_SUCCESS, 
+          payload: data 
+        });
+      } else {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+    } catch (error) {
+      console.error('Error fetching detailed positions:', error);
+      dispatch({ 
+        type: ActionTypes.FETCH_DETAILED_POSITIONS_ERROR, 
+        payload: error.message 
+      });
+    }
+  }, [state.detailedPositions.loading, state.detailedPositions.lastFetched]);
+
 
   const fetchGroupedPositionsData = useCallback(async (force = false) => {
     if (state.groupedPositions.loading && !force) return;
@@ -844,6 +934,7 @@ export const DataStoreProvider = ({ children }) => {
       markAccountsStale,
       refreshData,  
       fetchGroupedLiabilitiesData,
+      fetchDetailedPositionsData,
       fetchSnapshotsData,
       refreshAccounts: () => fetchAccountsData(true),
       refreshGroupedPositions: () => fetchGroupedPositionsData(true),

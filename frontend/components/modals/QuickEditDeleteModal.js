@@ -19,7 +19,7 @@ import {
 } from '@/utils/apimethods/positionMethods';
 import { formatCurrency, formatPercentage } from '@/utils/formatters';
 import { useAccounts } from '@/store/hooks/useAccounts';
-import { useGroupedPositions } from '@/store/hooks/useGroupedPositions';
+import { useDetailedPositions } from '@/store/hooks/useDetailedPositions';
 import { useGroupedLiabilities } from '@/store/hooks/useGroupedLiabilities';
 import debounce from 'lodash.debounce';
 import {
@@ -1513,8 +1513,8 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
       positions: dataStorePositions, 
       loading: positionsLoading, 
       error: positionsError,
-      refreshData: refreshPositions 
-    } = useGroupedPositions();
+      refresh: refreshPositions 
+    } = useDetailedPositions();
 
     const { 
       liabilities: dataStoreLiabilities, 
@@ -1559,25 +1559,26 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
 
     const loadPositions = useCallback(() => {
       if (dataStorePositions && Array.isArray(dataStorePositions)) {
-        // Map grouped positions to the expected format
+        // Map detailed positions to the expected format
         const unifiedPositions = dataStorePositions.map(pos => ({
             id: pos.id,
-            account_id: pos.account_id,
+            account_id: pos.accountId,
             identifier: pos.identifier,
             name: pos.name,
-            asset_type: pos.asset_type,
-            quantity: pos.total_quantity,
-            current_value: pos.total_current_value,
-            cost_basis: pos.total_cost_basis,
-            total_cost_basis: pos.total_cost_basis,
-            gain_loss: pos.total_gain_loss,
-            gain_loss_percent: pos.total_gain_loss_pct,
-            gain_loss_amt: pos.total_gain_loss,
-            gain_loss_pct: pos.total_gain_loss_pct,
-            account_name: pos.account_name || 'Unknown Account',
-            purchase_date: pos.purchase_date,
-            current_price_per_unit: pos.current_price_per_unit,
-            cost_per_unit: pos.cost_per_unit,
+            asset_type: pos.assetType,
+            quantity: pos.quantity,
+            current_value: pos.currentValue,
+            cost_basis: pos.costBasis,
+            total_cost_basis: pos.costBasis,
+            gain_loss: pos.gainLoss,
+            gain_loss_percent: pos.gainLossPercent,
+            gain_loss_amt: pos.gainLoss,
+            gain_loss_pct: pos.gainLossPercent,
+            account_name: pos.accountName || 'Unknown Account',
+            purchase_date: pos.purchaseDate,
+            current_price: pos.currentPrice,
+            current_price_per_unit: pos.currentPrice,
+            cost_per_unit: pos.costBasis / (pos.quantity || 1),
             sector: pos.sector,
             industry: pos.industry,
             notes: pos.notes || '',

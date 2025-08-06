@@ -4,3 +4,4 @@ export { usePortfolioTrends } from './usePortfolioTrends';
 export { useDataMutations } from './useDataMutations';
 export { useAccounts } from './useAccounts'; 
 export { useSnapshots } from './useSnapshots'; 
+export { useDetailedPositions } from './useDetailedPositions';
