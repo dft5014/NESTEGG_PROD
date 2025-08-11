@@ -1969,16 +1969,19 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
       }
 
       // Positive filtering - show ONLY selected items
-        if (selectedAssetTypes.size > 0) {
-          filtered = filtered.filter(pos => {
-            // Handle type mapping for other_asset
-            let assetType = pos.asset_type || pos.item_type;
-            if (assetType === 'other_asset') {
-              assetType = 'otherAssets';
-            }
-            return selectedAssetTypes.has(assetType);
-          });
-        }
+      if (selectedAssetTypes.size > 0) {
+        filtered = filtered.filter(pos => {
+          // Handle type mapping for other_asset only
+          let assetType = pos.asset_type || pos.item_type;
+          
+          // Only map other_asset and its variations to otherAssets
+          if (assetType === 'other_asset' || assetType === 'other_assets') {
+            assetType = 'otherAssets';
+          }
+          
+          return selectedAssetTypes.has(assetType);
+        });
+      }
 
         if (selectedAccountFilter.size > 0) {
           filtered = filtered.filter(pos => selectedAccountFilter.has(pos.account_id));
@@ -3315,7 +3318,14 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
                     {/* Asset type filters */}
                     <div className="flex items-center space-x-2">
                       {Object.entries(ASSET_TYPES).map(([key, config]) => {
-                        const count = positions.filter(p => p.asset_type === key).length;
+                        const count = positions.filter(p => {
+                          let assetType = p.asset_type || p.item_type;
+                          // Only map other_asset variations
+                          if (assetType === 'other_asset' || assetType === 'other_assets') {
+                            assetType = 'otherAssets';
+                          }
+                          return assetType === key;
+                        }).length;
                         const isSelected = selectedAssetTypes.has(key);
                         
                         return (
