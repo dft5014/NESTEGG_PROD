@@ -19,7 +19,13 @@ import { useGroupedLiabilities } from '../../store/hooks/useGroupedLiabilities';
 import { useGroupedPositions } from '../../store/hooks/useGroupedPositions';
 import { fetchWithAuth } from '../../utils/api';
 import { formatCurrency, formatNumber, formatPercentage } from '../../utils/formatters';
-import { updatePosition } from '../../utils/apimethods/positionMethods';
+import { 
+  updatePosition,
+  updateCashPosition,
+  updateSecurityPosition,
+  updateCryptoPosition,
+  updateMetalPosition
+} from '../../utils/apimethods/positionMethods';
 import FixedModal from './FixedModal';
 
 // Asset type configurations with better visual identity
@@ -173,30 +179,15 @@ const formatTimeAgo = (date) => {
 
 // Animated counter component
 const AnimatedNumber = ({ value, format = 'currency' }) => {
-  const [displayValue, setDisplayValue] = useState(0);
+  const [displayValue, setDisplayValue] = useState(value || 0);
   
   useEffect(() => {
-    const duration = 1000;
-    const steps = 20;
-    const stepValue = value / steps;
-    let current = 0;
-    
-    const timer = setInterval(() => {
-      current += stepValue;
-      if (current >= value) {
-        setDisplayValue(value);
-        clearInterval(timer);
-      } else {
-        setDisplayValue(current);
-      }
-    }, duration / steps);
-    
-    return () => clearInterval(timer);
+    setDisplayValue(value || 0);
   }, [value]);
   
-  if (format === 'currency') return formatCurrency(displayValue);
-  if (format === 'percent') return formatPercentage(displayValue);
-  return formatNumber(displayValue);
+  if (format === 'currency') return <span>{formatCurrency(displayValue)}</span>;
+  if (format === 'percent') return <span>{formatPercentage(displayValue)}</span>;
+  return <span>{formatNumber(displayValue)}</span>;
 };
 
 const QuickReconciliationModal2 = ({ isOpen, onClose }) => {
@@ -1284,8 +1275,7 @@ const QuickReconciliationModal2 = ({ isOpen, onClose }) => {
             </svg>
             <div className="absolute inset-0 flex items-center justify-center">
               <div className="text-center">
-                <AnimatedNumber value={reconciliationHealth} format="number" />
-                <span className="text-5xl font-bold">%</span>
+                  <span className="text-5xl font-bold">{reconciliationHealth}%</span>
                 <p className="text-sm text-blue-100 mt-1">Health Score</p>
               </div>
             </div>
