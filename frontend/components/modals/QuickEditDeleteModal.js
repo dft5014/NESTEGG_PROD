@@ -131,8 +131,7 @@ const ACCOUNT_CATEGORIES = [
   { id: "retirement", name: "Retirement", icon: Building, color: 'indigo' },
   { id: "cash", name: "Cash / Banking", icon: DollarSign, color: 'green' },
   { id: "cryptocurrency", name: "Cryptocurrency", icon: Hash, color: 'orange' },
-  { id: "metals", name: "Metals Storage", icon: Shield, color: 'yellow' },
-  { id: "other_assets", name: "Other Assets", icon: Package, color: 'purple' }
+  { id: "metals", name: "Metals Storage", icon: Shield, color: 'yellow' }
 ];
 
 // Grouping options for data views
@@ -287,15 +286,10 @@ const FilterDropdown = ({
   
   const handleToggleOption = (value) => {
     const newSet = new Set(selected);
-    if (selectedCount === 0) {
-      options.forEach(opt => newSet.add(opt.value));
+    if (newSet.has(value)) {
       newSet.delete(value);
     } else {
-      if (newSet.has(value)) {
-        newSet.delete(value);
-      } else {
-        newSet.add(value);
-      }
+      newSet.add(value);
     }
     onChange(newSet);
   };
@@ -350,16 +344,16 @@ const FilterDropdown = ({
             </div>
             <div className="text-xs text-gray-500 flex items-center">
               <Activity className="w-3 h-3 mr-1" />
-              {isAllSelected 
-                ? `Showing all ${options.length} ${title.toLowerCase()}` 
-                : `${options.length - selectedCount} of ${options.length} selected`
-              }
+                {isAllSelected 
+                  ? `Showing all ${options.length} ${title.toLowerCase()}` 
+                  : `${selectedCount} of ${options.length} selected`
+                }
             </div>
           </div>
           
           <div className="max-h-64 overflow-y-auto p-2">
             {options.map(option => {
-              const isSelected = selectedCount === 0 || !selected.has(option.value);
+              const isSelected = selected.has(option.value);
               const OptionIcon = option.icon;
               const color = colorConfig?.[option.value] || 'gray';
               
@@ -1848,6 +1842,7 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
         filtered = filtered.filter(acc => {
           const matches = selectedCategories.has(acc.category);
           console.log('Category filter:', acc.name, acc.category, 'matches:', matches);
+          console.log('Selected categories Set:', Array.from(selectedCategories));
           return matches;
         });
       }
