@@ -1843,19 +1843,30 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
         );
       }
 
-      // Changed to positive filtering - show ONLY selected items
+      // Positive filtering - show ONLY selected items when filters are active
       if (selectedCategories.size > 0) {
-        filtered = filtered.filter(acc => selectedCategories.has(acc.category));
+        filtered = filtered.filter(acc => {
+          const matches = selectedCategories.has(acc.category);
+          console.log('Category filter:', acc.name, acc.category, 'matches:', matches);
+          return matches;
+        });
       }
 
       if (selectedInstitutionFilter.size > 0) {
-        filtered = filtered.filter(acc => selectedInstitutionFilter.has(acc.institution));
+        filtered = filtered.filter(acc => {
+          const matches = selectedInstitutionFilter.has(acc.institution);
+          console.log('Institution filter:', acc.name, acc.institution, 'matches:', matches);
+          return matches;
+        });
       }
 
       if (selectedAccountTypes.size > 0) {
-        filtered = filtered.filter(acc => selectedAccountTypes.has(acc.type));
+        filtered = filtered.filter(acc => {
+          const matches = selectedAccountTypes.has(acc.type);
+          console.log('Type filter:', acc.name, acc.type, 'matches:', matches);
+          return matches;
+        });
       }
-
       if (sortConfig.key) {
         filtered.sort((a, b) => {
           // Handle special cases for field mapping
@@ -1878,6 +1889,7 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
       setFilteredAccounts(filtered);
     }, [accountsWithTotals, searchQuery, selectedCategories, selectedInstitutionFilter, selectedAccountTypes, sortConfig]);
 
+
     // Filter positions
     useEffect(() => {
       let filtered = [...positions];
@@ -1898,41 +1910,77 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
         });
       }
 
-      if (selectedAssetTypes.size > 0) {
-        filtered = filtered.filter(pos => selectedAssetTypes.has(pos.asset_type));
-      }
+      // Positive filtering - show ONLY selected items
+        if (selectedAssetTypes.size > 0) {
+          filtered = filtered.filter(pos => {
+            // Handle type mapping for other_asset
+            let assetType = pos.asset_type || pos.item_type;
+            if (assetType === 'other_asset') {
+              assetType = 'otherAssets';
+            }
+            return selectedAssetTypes.has(assetType);
+          });
+        }
 
-      if (selectedAccountFilter.size > 0) {
-        filtered = filtered.filter(pos => selectedAccountFilter.has(pos.account_id));
-      }
+        if (selectedAccountFilter.size > 0) {
+          filtered = filtered.filter(pos => selectedAccountFilter.has(pos.account_id));
+        }
 
-      if (selectedInstitutionFilter.size > 0) {
-        filtered = filtered.filter(pos => {
-          const account = accounts.find(acc => acc.id === pos.account_id);
-          return account && !selectedInstitutionFilter.has(account.institution);
-        });
-      }
+        if (selectedInstitutionFilter.size > 0) {
+          filtered = filtered.filter(pos => {
+            const account = accounts.find(acc => acc.id === pos.account_id);
+            return account && selectedInstitutionFilter.has(account.institution);  // Removed the !
+          });
+        }
 
-      if (sortConfig.key) {
-        filtered.sort((a, b) => {
-          let aVal = a[sortConfig.key];
-          let bVal = b[sortConfig.key];
-          
-          if (typeof aVal === 'number' && typeof bVal === 'number') {
-            return sortConfig.direction === 'asc' ? aVal - bVal : bVal - aVal;
-          }
-          
-          aVal = String(aVal || '').toLowerCase();
-          bVal = String(bVal || '').toLowerCase();
-          
-          if (aVal < bVal) return sortConfig.direction === 'asc' ? -1 : 1;
-          if (aVal > bVal) return sortConfig.direction === 'asc' ? 1 : -1;
-          return 0;
-        });
-      }
+        // Add the sorting logic here with proper field mapping
+        if (sortConfig.key) {
+          filtered.sort((a, b) => {
+            // Map sort keys to actual field names
+            let aVal, bVal;
+            
+            switch(sortConfig.key) {
+              case 'identifier':
+                aVal = a.identifier || a.name || '';
+                bVal = b.identifier || b.name || '';
+                break;
+              case 'account_name':
+                aVal = a.account_name || '';
+                bVal = b.account_name || '';
+                break;
+              case 'quantity':
+                aVal = parseFloat(a.quantity || 0);
+                bVal = parseFloat(b.quantity || 0);
+                break;
+              case 'current_value':
+                aVal = parseFloat(a.current_value || 0);
+                bVal = parseFloat(b.current_value || 0);
+                break;
+              case 'gain_loss':
+                aVal = parseFloat(a.gain_loss_amt || a.gain_loss || 0);
+                bVal = parseFloat(b.gain_loss_amt || b.gain_loss || 0);
+                break;
+              default:
+                aVal = a[sortConfig.key];
+                bVal = b[sortConfig.key];
+            }
+            
+            if (typeof aVal === 'number' && typeof bVal === 'number') {
+              return sortConfig.direction === 'asc' ? aVal - bVal : bVal - aVal;
+            }
+            
+            aVal = String(aVal || '').toLowerCase();
+            bVal = String(bVal || '').toLowerCase();
+            
+            if (aVal < bVal) return sortConfig.direction === 'asc' ? -1 : 1;
+            if (aVal > bVal) return sortConfig.direction === 'asc' ? 1 : -1;
+            return 0;
+          });
+        }
 
-      setFilteredPositions(filtered);
-    }, [positions, searchQuery, selectedAssetTypes, selectedAccountFilter, selectedInstitutionFilter, accounts, sortConfig]);
+        setFilteredPositions(filtered);
+      }, [positions, searchQuery, selectedAssetTypes, selectedAccountFilter, selectedInstitutionFilter, accounts, sortConfig]);
+
 
     // Filter liabilities
     useEffect(() => {
@@ -1947,7 +1995,7 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
       }
 
       if (selectedLiabilityTypes.size > 0) {
-        filtered = filtered.filter(l => !selectedLiabilityTypes.has(l.liability_type));
+        filtered = filtered.filter(l => selectedLiabilityTypes.has(l.liability_type));  // Removed the !
       }
 
       if (sortConfig.key) {
@@ -2508,15 +2556,30 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
     // Render position row
     const renderPositionRow = (position, index) => {
       // Map item_type to asset_type if needed
+
       const assetType = position.asset_type || position.item_type;
-      
-      // Handle other_asset type mapping
-      const mappedType = assetType === 'other_asset' ? 'otherAssets' : assetType;
-      
+
+      // Handle various type mappings for consistency
+      let mappedType = assetType;
+      if (assetType === 'other_asset' || assetType === 'other_assets' || assetType === 'otherAsset') {
+        mappedType = 'otherAssets';
+      } else if (assetType === 'real_estate' || assetType === 'vehicle' || assetType === 'collectible') {
+        mappedType = 'otherAssets';  // Map all these to otherAssets
+      }
+
       const config = ASSET_TYPES[mappedType];
       if (!config) {
         console.warn('Unknown asset type:', assetType, 'for position:', position);
-        return null;
+        // Create a fallback config instead of returning null
+        const fallbackConfig = {
+          name: 'Other',
+          icon: Package,
+          color: {
+            lightBg: 'bg-gray-50',
+            text: 'text-gray-700'
+          }
+        };
+        return renderPositionRowWithConfig(position, index, fallbackConfig);
       }
 
       const Icon = config.icon;
