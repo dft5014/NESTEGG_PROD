@@ -261,7 +261,29 @@ const FilterDropdown = ({
   colorConfig = null 
 }) => {
   const [isOpen, setIsOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
   const dropdownRef = useRef(null);
+  const searchInputRef = useRef(null);
+  
+  // Filter options based on search
+  const filteredOptions = useMemo(() => {
+    if (!searchQuery) return options;
+    const query = searchQuery.toLowerCase();
+    return options.filter(opt => 
+      opt.label?.toLowerCase().includes(query) ||
+      opt.institution?.toLowerCase().includes(query) ||
+      opt.categoryName?.toLowerCase().includes(query)
+    );
+  }, [options, searchQuery]);
+  
+  // Focus search input when dropdown opens
+  useEffect(() => {
+    if (isOpen && searchInputRef.current) {
+      setTimeout(() => searchInputRef.current?.focus(), 50);
+    } else {
+      setSearchQuery(''); // Clear search when closing
+    }
+  }, [isOpen]);
   
   useEffect(() => {
     const handleClickOutside = (e) => {
@@ -321,7 +343,7 @@ const FilterDropdown = ({
       
       {isOpen && (
         <div className="absolute z-50 right-0 mt-2 w-80 bg-white border border-gray-200 rounded-xl shadow-2xl animate-in slide-in-from-top-2 duration-200 overflow-hidden">
-          <div className="p-4 border-b border-gray-100 bg-gradient-to-r from-gray-50 to-white">
+          <div className="p-3 border-b border-gray-100 bg-gradient-to-r from-gray-50 to-white">
             <div className="flex items-center justify-between mb-2">
               <div className="flex items-center space-x-2">
                 <Icon className="w-5 h-5 text-gray-700" />
@@ -351,8 +373,23 @@ const FilterDropdown = ({
             </div>
           </div>
           
+              {/* Search bar */}
+          <div className="p-2 border-b border-gray-100">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+              <input
+                ref={searchInputRef}
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder={`Search ${title.toLowerCase()}...`}
+                className="w-full pl-9 pr-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+            </div>
+          </div>
+
           <div className="max-h-64 overflow-y-auto p-2">
-            {options.map(option => {
+            {filteredOptions.map(option => {
               const isSelected = selected.has(option.value);
               const OptionIcon = option.icon;
               const color = colorConfig?.[option.value] || 'gray';
@@ -362,7 +399,7 @@ const FilterDropdown = ({
                   key={option.value}
                   onClick={() => handleToggleOption(option.value)}
                   className={`
-                    w-full px-3 py-2.5 flex items-center justify-between rounded-lg
+                    w-full px-2 py-1.5 flex items-start rounded-lg
                     transition-all duration-200 text-sm group
                     ${isSelected 
                       ? `bg-${color}-50 hover:bg-${color}-100 border border-${color}-200` 
@@ -370,9 +407,9 @@ const FilterDropdown = ({
                     }
                   `}
                 >
-                  <div className="flex items-center flex-1 mr-2">
+                  <div className="flex items-start flex-1 mr-2">
                     <div className={`
-                      w-5 h-5 rounded-md border-2 mr-3 flex items-center justify-center
+                      w-4 h-4 rounded border-2 mr-2 flex items-center justify-center mt-0.5 flex-shrink-0
                       transition-all duration-200 group-hover:scale-110
                       ${isSelected 
                         ? `bg-${color}-600 border-${color}-600 shadow-sm` 
@@ -382,26 +419,33 @@ const FilterDropdown = ({
                       {isSelected && <Check className="w-3 h-3 text-white" />}
                     </div>
 
-                      <div className="flex items-center flex-1">
-                        {OptionIcon && (
-                          <OptionIcon className={`w-4 h-4 mr-2 ${isSelected ? `text-${color}-600` : 'text-gray-400'}`} />
-                        )}
-                        <span className={`font-medium ${isSelected ? 'text-gray-900' : 'text-gray-600'} mr-2`}>
+                    <div className="flex items-center flex-1">
+                      {OptionIcon && (
+                        <OptionIcon className={`w-4 h-4 mr-2 ${isSelected ? `text-${color}-600` : 'text-gray-400'}`} />
+                      )}
+                      <div className="flex flex-col">
+                        <span className={`font-medium ${isSelected ? 'text-gray-900' : 'text-gray-600'}`}>
                           {option.label}
                         </span>
-                        <div className="flex items-center space-x-1.5">
-                          {option.institution && (
-                            <span className="px-1.5 py-0.5 bg-gray-100 text-gray-600 text-[10px] font-medium rounded">
-                              {option.institution}
-                            </span>
-                          )}
-                          {option.categoryName && (
-                            <span className={`px-1.5 py-0.5 bg-${option.categoryColor}-100 text-${option.categoryColor}-700 text-[10px] font-medium rounded`}>
-                              {option.categoryName}
-                            </span>
-                          )}
-                        </div>
+                        {(option.institution || option.categoryName) && (
+                          <div className="flex items-center space-x-2 mt-0.5">
+                            {option.institution && (
+                              <span className="text-[10px] text-gray-500 font-medium">
+                                {option.institution}
+                              </span>
+                            )}
+                            {option.institution && option.categoryName && (
+                              <span className="text-[10px] text-gray-400">•</span>
+                            )}
+                            {option.categoryName && (
+                              <span className={`text-[10px] font-medium text-${option.categoryColor || 'gray'}-600`}>
+                                {option.categoryName}
+                              </span>
+                            )}
+                          </div>
+                        )}
                       </div>
+                    </div>
 
 
                   </div>
@@ -1560,7 +1604,7 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
     const [message, setMessage] = useState({ type: '', text: '' });
     
     // New state for grouping
-    const [groupBy, setGroupBy] = useState('institution'); // Default grouping by institution
+    const [groupBy, setGroupBy] = useState('assetType'); // Default grouping by institution
     
     // Selection hooks
     const accountSelection = useSelectionState();
@@ -1790,9 +1834,7 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
     }, [filteredAccounts, groupBy]);
 
     const groupedPositions = useMemo(() => {
-      if (groupBy === 'none') {
-        return { 'All Positions': filteredPositions };
-      } else if (groupBy === 'institution') {
+        if (groupBy === 'account') {
         return filteredPositions.reduce((acc, position) => {
           // Use institution from position data first, fall back to looking up from accounts
           const key = position.institution || accounts.find(a => a.id === position.account_id)?.institution || 'Uncategorized';
@@ -2794,11 +2836,10 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
         ];
       } else if (currentView === 'positions') {
         return [
-          { id: 'none', name: 'No Grouping', icon: List },
+          { id: 'asset_type', name: 'By Asset Type', icon: BarChart2 },
           { id: 'account', name: 'By Account', icon: Wallet },
           { id: 'institution', name: 'By Institution', icon: Building2 },
-          { id: 'account_institution', name: 'By Account & Institution', icon: Grid3x3 },
-          { id: 'asset_type', name: 'By Asset Type', icon: BarChart2 }
+          { id: 'account_institution', name: 'By Account & Institution', icon: Grid3x3 }
         ];
       } else if (currentView === 'liabilities') {
         return [
