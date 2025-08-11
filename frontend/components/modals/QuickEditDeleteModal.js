@@ -277,11 +277,11 @@ const FilterDropdown = ({
   const isAllSelected = selectedCount === 0 || selectedCount === options.length;
   
   const handleSelectAll = () => {
-    onChange(new Set());
-  };
-  
-  const handleSelectNone = () => {
     onChange(new Set(options.map(opt => opt.value)));
+  };
+
+  const handleSelectNone = () => {
+    onChange(new Set());
   };
   
   const handleToggleOption = (value) => {
@@ -381,14 +381,36 @@ const FilterDropdown = ({
                     `}>
                       {isSelected && <Check className="w-3 h-3 text-white" />}
                     </div>
-                    <div className="flex items-center flex-1">
-                      {OptionIcon && (
-                        <OptionIcon className={`w-4 h-4 mr-2 ${isSelected ? `text-${color}-600` : 'text-gray-400'}`} />
-                      )}
-                      <span className={`font-medium ${isSelected ? 'text-gray-900' : 'text-gray-600'}`}>
-                        {option.label}
-                      </span>
-                    </div>
+
+                      <div className="flex items-center flex-1">
+                        {OptionIcon && (
+                          <OptionIcon className={`w-4 h-4 mr-2 ${isSelected ? `text-${color}-600` : 'text-gray-400'}`} />
+                        )}
+                        <div className="flex flex-col">
+                          <span className={`font-medium ${isSelected ? 'text-gray-900' : 'text-gray-600'}`}>
+                            {option.label}
+                          </span>
+                          {(option.institution || option.categoryName) && (
+                            <div className="flex items-center space-x-2 mt-0.5">
+                              {option.institution && (
+                                <span className="text-[10px] text-gray-500 font-medium">
+                                  {option.institution}
+                                </span>
+                              )}
+                              {option.institution && option.categoryName && (
+                                <span className="text-[10px] text-gray-400">•</span>
+                              )}
+                              {option.categoryName && (
+                                <span className={`text-[10px] font-medium text-${option.categoryColor || 'gray'}-600`}>
+                                  {option.categoryName}
+                                </span>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+
                   </div>
                   {showCounts && option.count !== undefined && (
                     <span className={`
@@ -1727,12 +1749,18 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
     }, [uniqueInstitutions, accounts]);
 
     const accountFilterOptions = useMemo(() => {
-      return accounts.map(acc => ({
-        value: acc.id,
-        label: acc.name || acc.account_name || acc.inv_account_name || `Account ${acc.id}`,  // Check all possible fields
-        icon: Wallet,
-        count: positions.filter(pos => pos.account_id === acc.id).length
-      }));
+      return accounts.map(acc => {
+        const category = ACCOUNT_CATEGORIES.find(cat => cat.id === acc.category);
+        return {
+          value: acc.id,
+          label: acc.name || acc.account_name || acc.inv_account_name || `Account ${acc.id}`,
+          icon: category?.icon || Wallet,
+          institution: acc.institution,
+          categoryName: category?.name,
+          categoryColor: category?.color || 'gray',
+          count: positions.filter(pos => pos.account_id === acc.id).length
+        };
+      });
     }, [accounts, positions]);
 
     const liabilityTypeFilterOptions = useMemo(() => {
