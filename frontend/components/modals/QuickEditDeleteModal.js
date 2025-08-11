@@ -952,17 +952,17 @@ const EditPositionForm = ({ position, assetType, onSave, onCancel, accounts }) =
           ...baseData,
           symbol: pos.identifier || '',
           quantity: pos.quantity || '',
-          purchase_price: pos.cost_per_unit || '',
-          current_price: pos.current_price_per_unit || ''
+          purchase_price: pos.cost_per_unit || (pos.cost_basis / (pos.quantity || 1)) || '',
+          current_price: pos.current_price || pos.current_price_per_unit || ''
         };
-      
+
       case 'metal':
         return {
           ...baseData,
           metal_type: pos.identifier || pos.name || '',
           quantity: pos.quantity || '',
-          purchase_price: pos.cost_per_unit || '',
-          current_price_per_unit: pos.current_price_per_unit || ''
+          purchase_price: pos.cost_per_unit || (pos.cost_basis / (pos.quantity || 1)) || '',
+          current_price_per_unit: pos.current_price || pos.current_price_per_unit || ''
         };
       
       case 'otherAssets':
@@ -979,11 +979,11 @@ const EditPositionForm = ({ position, assetType, onSave, onCancel, accounts }) =
         return {
           ...baseData,
           currency: pos.identifier || 'USD',
-          amount: pos.quantity || pos.current_value || '',
+          amount: pos.current_value || pos.quantity || '',  // Prioritize current_value for cash
           account_type: pos.account_type || '',
           interest_rate: pos.interest_rate || 0
         };
-      
+            
       default:
         return baseData;
     }
@@ -1070,13 +1070,15 @@ const EditPositionForm = ({ position, assetType, onSave, onCancel, accounts }) =
           updatedData.quantity = parseFloat(formData.quantity) || 0;
           updatedData.cost_per_unit = parseFloat(formData.purchase_price) || 0;
           updatedData.total_cost_basis = updatedData.quantity * updatedData.cost_per_unit;
+          updatedData.current_price = parseFloat(formData.current_price) || 0;
           updatedData.purchase_date = formData.purchase_date;
           break;
-        
+
         case 'metal':
           updatedData.quantity = parseFloat(formData.quantity) || 0;
           updatedData.cost_per_unit = parseFloat(formData.purchase_price) || 0;
           updatedData.total_cost_basis = updatedData.quantity * updatedData.cost_per_unit;
+          updatedData.current_price_per_unit = parseFloat(formData.current_price_per_unit) || 0;
           updatedData.purchase_date = formData.purchase_date;
           break;
         
@@ -1091,8 +1093,8 @@ const EditPositionForm = ({ position, assetType, onSave, onCancel, accounts }) =
           break;
         
         case 'cash':
-          updatedData.quantity = parseFloat(formData.amount) || 0;
           updatedData.current_value = parseFloat(formData.amount) || 0;
+          updatedData.quantity = 1;  // Cash always has quantity of 1
           updatedData.interest_rate = parseFloat(formData.interest_rate) || 0;
           break;
       }
@@ -1160,11 +1162,29 @@ const EditPositionForm = ({ position, assetType, onSave, onCancel, accounts }) =
             );
           }
           
-          return (
-            <div key={field} className={field === 'notes' ? 'md:col-span-2' : ''}>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                {field.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')}
-                {!isEditable && <span className="text-xs text-gray-500 ml-2">(Read-only)</span>}
+      const getFieldLabel = (field, assetType) => {
+        const fieldLabels = {
+          shares: 'Shares',
+          cost_basis: 'Cost Basis (per share)',
+          purchase_date: 'Purchase Date',
+          quantity: assetType === 'crypto' ? 'Quantity (coins)' : 'Quantity',
+          purchase_price: 'Purchase Price (per unit)',
+          asset_name: 'Asset Name',
+          asset_type: 'Asset Type',
+          cost: 'Total Cost',
+          current_value: 'Current Value',
+          notes: 'Notes',
+          amount: 'Cash Amount',
+          interest_rate: 'Interest Rate (%)'
+        };
+        return fieldLabels[field] || field.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+      };
+
+      return (
+        <div key={field} className={field === 'notes' ? 'md:col-span-2' : ''}>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            {getFieldLabel(field, assetType)}
+            {!isEditable && <span className="text-xs text-gray-500 ml-2">(Read-only)</span>}
               </label>
               <input
                 type={field.includes('price') || field.includes('value') || field.includes('cost') || field === 'shares' || field === 'quantity' || field === 'amount' ? 'number' : 
@@ -2136,19 +2156,54 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
             notes: updatedPosition.notes || ''
           };
           await updateOtherAsset(positionId, otherAssetData);
-        } else {
-          // Prepare the position data for update
-        const updateData = {
-          shares: parseFloat(updatedPosition.quantity),
-          price: parseFloat(updatedPosition.current_price || updatedPosition.current_price_per_unit),
-          cost_basis: parseFloat(updatedPosition.cost_per_unit || (updatedPosition.cost_basis / updatedPosition.quantity)),  // Per share!
-          purchase_date: updatedPosition.purchase_date
-        };
-
-        console.log('Sending update data (cost_basis is per share):', updateData);
-          
-          await updatePosition(positionId, updateData, updatedPosition.asset_type);
-        }
+          } else {
+            // Prepare the position data for update based on asset type
+            let updateData = {};
+            
+            switch(updatedPosition.asset_type) {
+              case 'security':
+                updateData = {
+                  shares: parseFloat(updatedPosition.quantity),
+                  price: parseFloat(updatedPosition.current_price || updatedPosition.current_price_per_unit),
+                  cost_basis: parseFloat(updatedPosition.cost_per_unit || (updatedPosition.cost_basis / updatedPosition.quantity)),
+                  purchase_date: updatedPosition.purchase_date
+                };
+                break;
+                
+              case 'crypto':
+                updateData = {
+                  quantity: parseFloat(updatedPosition.quantity),
+                  purchase_price: parseFloat(updatedPosition.cost_per_unit || (updatedPosition.cost_basis / updatedPosition.quantity)),
+                  current_price: parseFloat(updatedPosition.current_price || updatedPosition.current_price_per_unit),
+                  purchase_date: updatedPosition.purchase_date
+                };
+                break;
+                
+              case 'metal':
+                updateData = {
+                  quantity: parseFloat(updatedPosition.quantity),
+                  purchase_price: parseFloat(updatedPosition.cost_per_unit || (updatedPosition.cost_basis / updatedPosition.quantity)),
+                  current_price_per_unit: parseFloat(updatedPosition.current_price || updatedPosition.current_price_per_unit),
+                  purchase_date: updatedPosition.purchase_date
+                };
+                break;
+                
+              case 'cash':
+                updateData = {
+                  amount: parseFloat(updatedPosition.quantity || updatedPosition.current_value),
+                  interest_rate: parseFloat(updatedPosition.interest_rate || 0)
+                };
+                break;
+                
+              default:
+                console.error('Unknown asset type:', updatedPosition.asset_type);
+                throw new Error(`Unsupported asset type: ${updatedPosition.asset_type}`);
+            }
+            
+            console.log(`Sending ${updatedPosition.asset_type} update data:`, updateData);
+            
+            await updatePosition(positionId, updateData, updatedPosition.asset_type);
+          }
         
         // Refresh all affected data in DataStore
         await Promise.all([
