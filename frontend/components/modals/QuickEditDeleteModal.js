@@ -1688,15 +1688,17 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
 
     const loadLiabilities = useCallback(() => {
       if (dataStoreLiabilities && Array.isArray(dataStoreLiabilities)) {
-        // Map grouped liabilities to expected format
+        // Map liabilities - now they have individual IDs
         const unifiedLiabilities = dataStoreLiabilities.map(liability => ({
-          id: liability.id,
+          id: liability.liability_id || liability.item_id,  // Use liability_id from the view
           name: liability.name,
           liability_type: liability.liability_type,
           current_balance: liability.total_current_balance,
-          original_amount: liability.total_original_balance,
+          original_amount: liability.total_original_amount || liability.total_original_amount,
           interest_rate: liability.weighted_avg_interest_rate,
-          minimum_payment: liability.total_minimum_payment,
+          credit_limit: liability.total_credit_limit,
+          institution_name: liability.institution,
+          minimum_payment: liability.minimum_payment,
           due_date: liability.due_date,
           notes: liability.notes || ''
         }));
