@@ -943,8 +943,6 @@ const EditPositionForm = ({ position, assetType, onSave, onCancel, accounts }) =
     assetType = 'otherAssets';
   }
   
-  const config = ASSET_TYPES[assetType];
-  
   const mapPositionData = (pos) => {
     const baseData = {
       ...pos,
