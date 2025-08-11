@@ -419,14 +419,14 @@ const FilterDropdown = ({
                       {isSelected && <Check className="w-3 h-3 text-white" />}
                     </div>
 
-                    <div className="flex items-center flex-1">
-                      {OptionIcon && (
-                        <OptionIcon className={`w-4 h-4 mr-2 ${isSelected ? `text-${color}-600` : 'text-gray-400'}`} />
-                      )}
-                      <div className="flex flex-col">
-                        <span className={`font-medium ${isSelected ? 'text-gray-900' : 'text-gray-600'}`}>
+                      <div className="flex items-start flex-1">
+                        {OptionIcon && (
+                          <OptionIcon className={`w-4 h-4 mr-2 mt-0.5 flex-shrink-0 ${isSelected ? `text-${color}-600` : 'text-gray-400'}`} />
+                        )}
+                        <div className="flex flex-col items-start flex-1">
+                          <span className={`font-medium text-left ${isSelected ? 'text-gray-900' : 'text-gray-600'}`}>
                           {option.label}
-                        </span>
+                      </span>
                         {(option.institution || option.categoryName) && (
                           <div className="flex items-center space-x-2 mt-0.5">
                             {option.institution && (
@@ -1834,7 +1834,7 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
     }, [filteredAccounts, groupBy]);
 
     const groupedPositions = useMemo(() => {
-        if (groupBy === 'account') {
+        if (groupBy === 'institution') {
         return filteredPositions.reduce((acc, position) => {
           // Use institution from position data first, fall back to looking up from accounts
           const key = position.institution || accounts.find(a => a.id === position.account_id)?.institution || 'Uncategorized';
@@ -1858,10 +1858,15 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
           acc[key].push(position);
           return acc;
         }, {});
-      } else if (groupBy === 'asset_type') {
+      } else if (groupBy === 'assetType') {  // Match the actual value used
         return filteredPositions.reduce((acc, position) => {
-          const assetType = ASSET_TYPES[position.asset_type];
-          const key = assetType ? assetType.name : 'Other';
+          // Map asset types correctly
+          let assetType = position.asset_type || position.item_type;
+          if (assetType === 'other_asset' || assetType === 'other_assets') {
+            assetType = 'otherAssets';
+          }
+          const assetTypeConfig = ASSET_TYPES[assetType];
+          const key = assetTypeConfig ? assetTypeConfig.name : 'Other';
           if (!acc[key]) acc[key] = [];
           acc[key].push(position);
           return acc;
