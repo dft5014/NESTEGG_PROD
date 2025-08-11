@@ -1708,7 +1708,6 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
       }
     }, [dataStoreLiabilities]);
 
-
     // Message display
     const showMessage = (type, text, duration = 5000) => {
       setMessage({ type, text });
