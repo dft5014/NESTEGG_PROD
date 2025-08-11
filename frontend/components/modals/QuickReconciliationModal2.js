@@ -1,1841 +1,761 @@
-import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
-  Target, X, Eye, EyeOff, RefreshCw, ChevronRight, TrendingUp, TrendingDown,
-  CheckCircle2, AlertCircle, Clock, Zap, Shield, Award, Sparkles,
-  CreditCard, Wallet, Building2, PiggyBank, Home, Car, GraduationCap,
-  ChevronDown, Check, Plus, Minus, Edit2, Save, XCircle, Info,
-  ArrowUpRight, ArrowDownRight, Activity, BarChart3, DollarSign,
-  Smartphone, Lock, Unlock, Calendar, Hash, Percent, FileText,
-  ChevronUp, AlertTriangle, TrendingFlat, Banknote, Coins, Receipt,
-  Gem, Briefcase, Building, CheckSquare, Droplets, CheckCheck,
-  ChevronLeft, Trophy, Landmark, Copy, ExternalLink, Calculator,
-  Loader2, ArrowRight, ChevronsRight, MoreVertical, Filter
+  Target, X, Eye, EyeOff, RefreshCw, Zap, CheckCircle2,
+  Plus, Minus, Edit2, Check, Loader2, ChevronDown,
+  AlertCircle, Building2, Wallet, CreditCard, Home,
+  FileText, TrendingUp, Coins, Activity, Trophy,
+  ArrowRight, Clock, Sparkles
 } from 'lucide-react';
-import { useDataStore } from '../../store/DataStore';
 import { useAccounts } from '../../store/hooks/useAccounts';
 import { useDetailedPositions } from '../../store/hooks/useDetailedPositions';
-import { useGroupedLiabilities } from '../../store/hooks/useGroupedLiabilities';
-import { useGroupedPositions } from '../../store/hooks/useGroupedPositions';
+import { useDataStore } from '../../store/DataStore';
 import { fetchWithAuth } from '../../utils/api';
-import { formatCurrency, formatNumber, formatPercentage } from '../../utils/formatters';
-import { 
-  updatePosition,
-  updateCashPosition,
-  updateSecurityPosition,
-  updateCryptoPosition,
-  updateMetalPosition
-} from '../../utils/apimethods/positionMethods';
+import { formatCurrency, formatPercentage } from '../../utils/formatters';
 import FixedModal from './FixedModal';
 
-// Asset type configurations with better visual identity
+// Asset configurations
 const ASSET_CONFIGS = {
   cash: { 
-    icon: Banknote, 
-    color: 'emerald', 
-    gradient: 'from-emerald-500 to-green-500',
-    bgColor: 'bg-emerald-50',
-    borderColor: 'border-emerald-200',
-    textColor: 'text-emerald-700',
-    quickEdit: true,
-    label: 'Cash & Savings'
-  },
-  credit_card: { 
-    icon: CreditCard, 
-    color: 'red', 
-    gradient: 'from-red-500 to-rose-500',
-    bgColor: 'bg-red-50',
-    borderColor: 'border-red-200',
-    textColor: 'text-red-700',
-    quickEdit: true,
-    label: 'Credit Cards'
-  },
-  mortgage: { 
-    icon: Home, 
-    color: 'purple', 
-    gradient: 'from-purple-500 to-indigo-500',
-    bgColor: 'bg-purple-50',
-    borderColor: 'border-purple-200',
-    textColor: 'text-purple-700',
-    quickEdit: true,
-    label: 'Mortgages'
-  },
-  loan: { 
-    icon: FileText, 
-    color: 'orange', 
-    gradient: 'from-orange-500 to-amber-500',
-    bgColor: 'bg-orange-50',
-    borderColor: 'border-orange-200',
-    textColor: 'text-orange-700',
-    quickEdit: true,
-    label: 'Loans'
-  },
-  security: { 
-    icon: TrendingUp, 
-    color: 'blue', 
-    gradient: 'from-blue-500 to-cyan-500',
-    bgColor: 'bg-blue-50',
-    borderColor: 'border-blue-200',
-    textColor: 'text-blue-700',
-    quickEdit: false,
-    label: 'Securities'
-  },
-  crypto: { 
-    icon: Coins, 
-    color: 'yellow', 
-    gradient: 'from-yellow-500 to-orange-500',
-    bgColor: 'bg-yellow-50',
-    borderColor: 'border-yellow-200',
-    textColor: 'text-yellow-700',
-    quickEdit: false,
-    label: 'Crypto'
-  },
-  metal: { 
-    icon: Gem, 
-    color: 'gray', 
-    gradient: 'from-gray-500 to-slate-500',
-    bgColor: 'bg-gray-50',
-    borderColor: 'border-gray-200',
-    textColor: 'text-gray-700',
-    quickEdit: false,
-    label: 'Metals'
-  },
-  realestate: { 
-    icon: Building2, 
-    color: 'indigo', 
-    gradient: 'from-indigo-500 to-purple-500',
-    bgColor: 'bg-indigo-50',
-    borderColor: 'border-indigo-200',
-    textColor: 'text-indigo-700',
-    quickEdit: true,
-    label: 'Real Estate'
-  },
-  other_assets: { 
-    icon: MoreVertical, 
-    color: 'teal', 
-    gradient: 'from-teal-500 to-cyan-500',
-    bgColor: 'bg-teal-50',
-    borderColor: 'border-teal-200',
-    textColor: 'text-teal-700',
-    quickEdit: true,
-    label: 'Other Assets'
-  }
-};
-
-// Liquid position types for quick reconciliation
-const LIQUID_POSITION_TYPES = ['cash', 'credit_card', 'loan', 'mortgage'];
-
-// Variance status helper with visual indicators
-const getVarianceStatus = (variancePercent) => {
-  const absVariance = Math.abs(variancePercent);
-  if (absVariance <= 0.5) return { 
-    color: 'green', 
-    icon: CheckCircle2, 
-    label: 'Perfect Match',
+    icon: Wallet, 
+    color: 'green',
     bgColor: 'bg-green-50',
     borderColor: 'border-green-300',
     textColor: 'text-green-700'
-  };
-  if (absVariance <= 2) return { 
-    color: 'blue', 
-    icon: CheckCircle2, 
-    label: 'Close Match',
-    bgColor: 'bg-blue-50',
-    borderColor: 'border-blue-300',
-    textColor: 'text-blue-700'
-  };
-  if (absVariance <= 5) return { 
-    color: 'yellow', 
-    icon: AlertCircle, 
-    label: 'Minor Variance',
-    bgColor: 'bg-yellow-50',
-    borderColor: 'border-yellow-300',
-    textColor: 'text-yellow-700'
-  };
-  return { 
-    color: 'red', 
-    icon: AlertTriangle, 
-    label: 'Needs Review',
+  },
+  credit_card: { 
+    icon: CreditCard, 
+    color: 'red',
     bgColor: 'bg-red-50',
     borderColor: 'border-red-300',
     textColor: 'text-red-700'
-  };
-};
-
-// Format time ago helper
-const formatTimeAgo = (date) => {
-  if (!date) return 'Never';
-  const now = new Date();
-  const then = new Date(date);
-  const days = Math.floor((now - then) / (1000 * 60 * 60 * 24));
-  
-  if (days === 0) return 'Today';
-  if (days === 1) return 'Yesterday';
-  if (days < 7) return `${days} days ago`;
-  if (days < 30) return `${Math.floor(days / 7)} weeks ago`;
-  if (days < 90) return `${Math.floor(days / 30)} months ago`;
-  return `${Math.floor(days / 365)} years ago`;
-};
-
-// Animated counter component
-const AnimatedNumber = ({ value, format = 'currency' }) => {
-  const [displayValue, setDisplayValue] = useState(value || 0);
-  
-  useEffect(() => {
-    setDisplayValue(value || 0);
-  }, [value]);
-  
-  if (format === 'currency') return <span>{formatCurrency(displayValue)}</span>;
-  if (format === 'percent') return <span>{formatPercentage(displayValue)}</span>;
-  return <span>{formatNumber(displayValue)}</span>;
+  },
+  mortgage: { 
+    icon: Home, 
+    color: 'purple',
+    bgColor: 'bg-purple-50',
+    borderColor: 'border-purple-300',
+    textColor: 'text-purple-700'
+  },
+  loan: { 
+    icon: FileText, 
+    color: 'orange',
+    bgColor: 'bg-orange-50',
+    borderColor: 'border-orange-300',
+    textColor: 'text-orange-700'
+  },
+  security: { 
+    icon: TrendingUp, 
+    color: 'blue',
+    bgColor: 'bg-blue-50',
+    borderColor: 'border-blue-300',
+    textColor: 'text-blue-700'
+  },
+  crypto: { 
+    icon: Coins, 
+    color: 'yellow',
+    bgColor: 'bg-yellow-50',
+    borderColor: 'border-yellow-300',
+    textColor: 'text-yellow-700'
+  }
 };
 
 const QuickReconciliationModal2 = ({ isOpen, onClose }) => {
-  // DataStore hooks - using the proper hooks like QuickEditDelete does
+  // DataStore hooks
   const { 
-    accounts: dataStoreAccounts, 
-    loading: accountsLoading, 
-    error: accountsError,
+    accounts: dataStoreAccounts = [], 
+    loading: accountsLoading,
     refresh: refreshAccounts 
   } = useAccounts();
   
   const { 
-    positions: dataStorePositions, 
-    loading: positionsLoading, 
-    error: positionsError,
+    positions: dataStorePositions = [], 
+    loading: positionsLoading,
     refresh: refreshPositions 
   } = useDetailedPositions();
   
-  const { 
-    liabilities: dataStoreLiabilities, 
-    loading: liabilitiesLoading, 
-    error: liabilitiesError,
-    refreshData: refreshLiabilities 
-  } = useGroupedLiabilities();
-  
-  const { 
-    positions: groupedPositions,
-    loading: groupedLoading,
-    refresh: refreshGrouped
-  } = useGroupedPositions();
-  
-  // Get DataStore actions for additional operations
   const { actions } = useDataStore();
   
-  // Core state management
+  // Core state
   const [activeView, setActiveView] = useState('dashboard');
-  const [selectedAccount, setSelectedAccount] = useState(null);
-  const [expandedAccounts, setExpandedAccounts] = useState(new Set());
-  const [reconciliationData, setReconciliationData] = useState({});
-  const [variances, setVariances] = useState({});
-  const [editingPosition, setEditingPosition] = useState(null);
-  const [editValues, setEditValues] = useState({});
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const [showValues, setShowValues] = useState(true);
-  const [expandedSections, setExpandedSections] = useState(new Set(['quick']));
-  const [quickEditMode, setQuickEditMode] = useState({});
-  const [bulkEditMode, setBulkEditMode] = useState(false);
-  const [selectedPositions, setSelectedPositions] = useState(new Set());
-  
-  // UI state
+  const [reconciliationData, setReconciliationData] = useState({});
+  const [editingPosition, setEditingPosition] = useState(null);
+  const [editValue, setEditValue] = useState('');
+  const [expandedAccounts, setExpandedAccounts] = useState(new Set());
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [message, setMessage] = useState(null);
-  const [confetti, setConfetti] = useState(false);
-  const [animateValues, setAnimateValues] = useState({});
-  const [loadingStates, setLoadingStates] = useState({});
+  const [showSuccess, setShowSuccess] = useState(false);
   
-  // Filter state
-  const [searchQuery, setSearchQuery] = useState('');
-  const [selectedInstitution, setSelectedInstitution] = useState('all');
-  const [selectedAssetType, setSelectedAssetType] = useState('all');
+  // Refs for history
+  const historyRef = useRef([]);
   
-  // Refs
-  const messageTimeoutRef = useRef(null);
-  const reconciliationHistoryRef = useRef([]);
-  
-  // Load reconciliation history from localStorage on mount
+  // Load history on mount
   useEffect(() => {
     if (isOpen) {
-      const history = localStorage.getItem('nestegg_reconciliation_v2');
-      if (history) {
-        reconciliationHistoryRef.current = JSON.parse(history);
+      const saved = localStorage.getItem('nestegg_recon_v2');
+      if (saved) {
+        try {
+          historyRef.current = JSON.parse(saved);
+        } catch (e) {
+          console.error('Failed to parse history:', e);
+        }
       }
-      
-      // Refresh all data when modal opens
       refreshAccounts();
       refreshPositions();
-      refreshLiabilities();
-      refreshGrouped();
     }
   }, [isOpen]);
   
-  // Process positions from DataStore - properly mapping fields like QuickEditDelete
+  // Process positions safely
   const processedPositions = useMemo(() => {
     if (!dataStorePositions || !Array.isArray(dataStorePositions)) return [];
     
     return dataStorePositions.map(pos => ({
       id: pos.itemId || pos.id,
-      unified_id: pos.unifiedId || pos.id,
       item_id: pos.itemId,
       account_id: pos.accountId,
-      identifier: pos.identifier,
-      name: pos.name,
-      asset_type: pos.assetType,
-      quantity: pos.quantity,
-      current_value: pos.currentValue,
-      cost_basis: pos.costBasis,
-      gain_loss: pos.gainLoss,
-      gain_loss_percent: pos.gainLossPercent,
+      name: pos.name || pos.identifier || 'Unknown',
+      asset_type: pos.assetType || 'unknown',
+      current_value: pos.currentValue || 0,
+      quantity: pos.quantity || 0,
+      cost_basis: pos.costBasis || 0,
       account_name: pos.accountName || 'Unknown Account',
-      institution: pos.institution,
-      purchase_date: pos.purchaseDate,
-      current_price: pos.currentPrice,
-      // Additional fields for display
-      sector: pos.sector,
-      industry: pos.industry,
-      dividend_yield: pos.dividendYield,
-      last_updated: pos.snapshotDate
+      institution: pos.institution || 'Unknown'
     }));
   }, [dataStorePositions]);
   
-  // Get liquid positions for quick reconciliation
+  // Get liquid positions
   const liquidPositions = useMemo(() => {
     return processedPositions.filter(pos => 
-      LIQUID_POSITION_TYPES.includes(pos.asset_type)
+      ['cash', 'credit_card', 'loan', 'mortgage'].includes(pos.asset_type)
     );
   }, [processedPositions]);
   
-  // Get investment positions
-  const investmentPositions = useMemo(() => {
-    return processedPositions.filter(pos => 
-      ['security', 'crypto', 'metal'].includes(pos.asset_type)
-    );
-  }, [processedPositions]);
-  
-  // Process accounts with reconciliation status
+  // Process accounts with positions
   const processedAccounts = useMemo(() => {
     if (!dataStoreAccounts || !Array.isArray(dataStoreAccounts)) return [];
     
     return dataStoreAccounts.map(account => {
-      const lastRec = reconciliationHistoryRef.current.find(r => 
-        r.accounts?.includes(account.id)
-      );
-      
-      // Get positions for this account
       const accountPositions = processedPositions.filter(p => 
         p.account_id === account.id
+      );
+      
+      const lastRec = historyRef.current.find(h => 
+        h.accounts && h.accounts.includes(account.id)
       );
       
       return {
         ...account,
         positions: accountPositions,
         position_count: accountPositions.length,
-        lastReconciled: lastRec?.date,
-        daysSinceReconciliation: lastRec ? 
-          Math.floor((Date.now() - new Date(lastRec.date)) / (1000 * 60 * 60 * 24)) : null,
         needsReconciliation: !lastRec || 
-          Math.floor((Date.now() - new Date(lastRec.date)) / (1000 * 60 * 60 * 24)) > 14
+          (Date.now() - new Date(lastRec.date)) > 14 * 24 * 60 * 60 * 1000
       };
     });
   }, [dataStoreAccounts, processedPositions]);
   
-  // Get unique institutions for filtering
-  const uniqueInstitutions = useMemo(() => {
-    const institutions = [...new Set(processedAccounts.map(a => a.institution).filter(Boolean))];
-    return institutions.sort();
+  // Calculate health score
+  const healthScore = useMemo(() => {
+    const total = processedAccounts.length;
+    if (total === 0) return 100;
+    
+    const upToDate = processedAccounts.filter(a => !a.needsReconciliation).length;
+    return Math.round((upToDate / total) * 100);
   }, [processedAccounts]);
   
-  // Calculate reconciliation health score
-  const reconciliationHealth = useMemo(() => {
-    const totalAccounts = processedAccounts.length;
-    if (totalAccounts === 0) return 100;
-    
-    const reconciledAccounts = processedAccounts.filter(a => 
-      a.daysSinceReconciliation !== null && a.daysSinceReconciliation <= 14
-    ).length;
-    
-    const liquidUpToDate = liquidPositions.filter(p => {
-      const data = reconciliationData[`pos_${p.item_id}`];
-      return data && (Date.now() - new Date(data.timestamp)) < 14 * 24 * 60 * 60 * 1000;
-    }).length;
-    
-    const accountScore = (reconciledAccounts / totalAccounts) * 50;
-    const liquidScore = liquidPositions.length > 0 ? 
-      (liquidUpToDate / liquidPositions.length) * 50 : 50;
-    
-    return Math.round(accountScore + liquidScore);
-  }, [processedAccounts, liquidPositions, reconciliationData]);
-  
-  // Show message helper
-  const showMessage = (type, text, duration = 3000) => {
-    setMessage({ type, text });
-    if (messageTimeoutRef.current) clearTimeout(messageTimeoutRef.current);
-    messageTimeoutRef.current = setTimeout(() => setMessage(null), duration);
-  };
-  
-  // Toggle section expansion
-  const toggleSection = (section) => {
-    const newExpanded = new Set(expandedSections);
-    if (newExpanded.has(section)) {
-      newExpanded.delete(section);
-    } else {
-      newExpanded.add(section);
-    }
-    setExpandedSections(newExpanded);
-  };
-  
-  // Toggle account expansion
-  const toggleAccountExpansion = (accountId) => {
-    const newExpanded = new Set(expandedAccounts);
-    if (newExpanded.has(accountId)) {
-      newExpanded.delete(accountId);
-    } else {
-      newExpanded.add(accountId);
-    }
-    setExpandedAccounts(newExpanded);
-  };
-  
-  // Handle quick update for positions
-  const handleQuickUpdate = (positionId, newValue) => {
+  // Handle position update
+  const handleUpdatePosition = (positionId, newValue) => {
     setReconciliationData(prev => ({
       ...prev,
       [`pos_${positionId}`]: {
         value: newValue,
-        timestamp: new Date().toISOString(),
-        originalValue: processedPositions.find(p => p.item_id === positionId)?.current_value
-      }
-    }));
-    
-    // Animate the value change
-    setAnimateValues(prev => ({ ...prev, [positionId]: true }));
-    setTimeout(() => {
-      setAnimateValues(prev => ({ ...prev, [positionId]: false }));
-    }, 500);
-  };
-  
-  // Handle position edit with proper data structure
-  const handleEditPosition = (position) => {
-    setEditingPosition(position.item_id);
-    setEditValues({
-      quantity: position.quantity,
-      value: reconciliationData[`pos_${position.item_id}`]?.value ?? position.current_value,
-      cost_basis: position.cost_basis
-    });
-  };
-  
-  // Save position edit
-  const handleSavePosition = async (positionId) => {
-    const position = processedPositions.find(p => p.item_id === positionId);
-    if (!position) return;
-    
-    try {
-      setLoadingStates(prev => ({ ...prev, [`save_${positionId}`]: true }));
-      
-      // Update in reconciliation data first
-      handleQuickUpdate(positionId, parseFloat(editValues.value) || 0);
-      
-      // Clear edit mode
-      setEditingPosition(null);
-      setEditValues({});
-      
-      showMessage('success', `Updated ${position.name}`);
-    } catch (error) {
-      console.error('Error saving position:', error);
-      showMessage('error', 'Failed to update position');
-    } finally {
-      setLoadingStates(prev => ({ ...prev, [`save_${positionId}`]: false }));
-    }
-  };
-  
-  // Handle account reconciliation
-  const handleAccountReconciliation = (accountId, statementBalance) => {
-    const account = processedAccounts.find(a => a.id === accountId);
-    if (!account) return;
-    
-    const variance = statementBalance - account.totalValue;
-    const variancePercent = account.totalValue !== 0 ? 
-      (variance / account.totalValue) * 100 : 0;
-    
-    setVariances(prev => ({
-      ...prev,
-      [accountId]: {
-        appBalance: account.totalValue,
-        actualBalance: statementBalance,
-        variance,
-        variancePercent,
-        status: getVarianceStatus(variancePercent)
-      }
-    }));
-    
-    setReconciliationData(prev => ({
-      ...prev,
-      [`account_${accountId}`]: {
-        statementBalance,
         timestamp: new Date().toISOString()
       }
     }));
   };
   
-  // Submit reconciliation to backend
-  const submitReconciliation = async () => {
+  // Handle edit save
+  const handleSaveEdit = (positionId) => {
+    const value = parseFloat(editValue);
+    if (!isNaN(value)) {
+      handleUpdatePosition(positionId, value);
+    }
+    setEditingPosition(null);
+    setEditValue('');
+  };
+  
+  // Submit reconciliation
+  const handleSubmit = async () => {
     setIsSubmitting(true);
     
     try {
-      const updates = [];
-      const reconciliations = [];
+      // Process updates
+      const updates = Object.entries(reconciliationData).filter(([key]) => 
+        key.startsWith('pos_')
+      );
       
-      // Process position updates using positionMethods
-      for (const [key, data] of Object.entries(reconciliationData)) {
-        if (key.startsWith('pos_')) {
-          const positionId = parseInt(key.replace('pos_', ''));
-          const position = processedPositions.find(p => p.item_id === positionId);
+      // Update positions via API
+      for (const [key, data] of updates) {
+        const posId = parseInt(key.replace('pos_', ''));
+        const position = processedPositions.find(p => p.item_id === posId);
+        
+        if (position) {
+          // Send update based on asset type
+          const endpoint = position.asset_type === 'cash' ? '/cash' : 
+                          position.asset_type === 'credit_card' ? '/liabilities' :
+                          '/positions';
           
-          if (position) {
-            // Prepare update data based on asset type
-            let updateData = {};
-            
-            switch (position.asset_type) {
-              case 'cash':
-                updateData = {
-                  amount: parseFloat(data.value),
-                  interest_rate: 0
-                };
-                break;
-                
-              case 'credit_card':
-              case 'loan':
-              case 'mortgage':
-                updateData = {
-                  current_balance: parseFloat(data.value)
-                };
-                break;
-                
-              case 'security':
-                updateData = {
-                  quantity: position.quantity,
-                  cost_basis: position.cost_basis
-                };
-                break;
-                
-              case 'crypto':
-                updateData = {
-                  quantity: position.quantity,
-                  cost_basis: position.cost_basis
-                };
-                break;
-                
-              case 'metal':
-                updateData = {
-                  quantity: position.quantity,
-                  purchase_price: position.cost_basis / position.quantity
-                };
-                break;
-                
-              default:
-                updateData = {
-                  current_value: parseFloat(data.value)
-                };
-            }
-            
-            updates.push({
-              id: positionId,
-              data: updateData,
-              type: position.asset_type
-            });
-          }
-        } else if (key.startsWith('account_')) {
-          const accountId = parseInt(key.replace('account_', ''));
-          const account = processedAccounts.find(a => a.id === accountId);
-          
-          if (account) {
-            // Post to reconciliation table
-            const response = await fetchWithAuth('/api/reconciliation/account', {
-              method: 'POST',
-              body: JSON.stringify({
-                account_id: accountId,
-                app_balance: account.totalValue,
-                actual_balance: data.statementBalance
-              })
-            });
-            
-            if (response.ok) {
-              reconciliations.push(accountId);
-            }
-          }
+          await fetchWithAuth(`${endpoint}/${posId}`, {
+            method: 'PUT',
+            body: JSON.stringify({
+              current_value: data.value,
+              amount: data.value
+            })
+          });
         }
       }
       
-      // Execute all position updates
-      for (const update of updates) {
-        await updatePosition(update.id, update.data, update.type);
-      }
-      
       // Save to history
-      const historyEntry = {
+      const newHistory = {
         date: new Date().toISOString(),
-        accounts: reconciliations,
         positions: updates.length,
-        totalValue: processedAccounts.reduce((sum, a) => sum + a.totalValue, 0),
-        health: reconciliationHealth
+        accounts: processedAccounts.filter(a => 
+          a.positions.some(p => reconciliationData[`pos_${p.item_id}`])
+        ).map(a => a.id)
       };
       
-      reconciliationHistoryRef.current.unshift(historyEntry);
-      if (reconciliationHistoryRef.current.length > 30) {
-        reconciliationHistoryRef.current.pop();
-      }
-      localStorage.setItem('nestegg_reconciliation_v2', JSON.stringify(reconciliationHistoryRef.current));
+      historyRef.current.unshift(newHistory);
+      if (historyRef.current.length > 30) historyRef.current.pop();
+      localStorage.setItem('nestegg_recon_v2', JSON.stringify(historyRef.current));
       
       // Show success
-      setConfetti(true);
-      showMessage('success', '✨ Reconciliation complete! Your NestEgg is perfectly balanced.');
-      setTimeout(() => setConfetti(false), 5000);
+      setShowSuccess(true);
+      setTimeout(() => setShowSuccess(false), 3000);
       
-      // Refresh all data
+      // Refresh data
       await Promise.all([
         refreshAccounts(),
         refreshPositions(),
-        refreshLiabilities(),
-        refreshGrouped(),
         actions.fetchPortfolioData(true)
       ]);
       
-      // Reset state
-      setTimeout(() => {
-        setReconciliationData({});
-        setVariances({});
-        setSelectedPositions(new Set());
-        setActiveView('dashboard');
-      }, 2000);
+      // Reset
+      setReconciliationData({});
+      setActiveView('dashboard');
       
     } catch (error) {
-      console.error('Reconciliation error:', error);
-      showMessage('error', 'Failed to complete reconciliation. Please try again.');
+      console.error('Submit error:', error);
+      setMessage({ type: 'error', text: 'Failed to submit reconciliation' });
+      setTimeout(() => setMessage(null), 3000);
     } finally {
       setIsSubmitting(false);
     }
   };
   
-  // Bulk update helper
-  const handleBulkUpdate = (percentage) => {
-    const selected = Array.from(selectedPositions);
-    selected.forEach(posId => {
-      const position = processedPositions.find(p => p.item_id === posId);
-      if (position) {
-        const newValue = position.current_value * (1 + percentage / 100);
-        handleQuickUpdate(posId, newValue);
-      }
-    });
-    showMessage('success', `Updated ${selected.length} positions`);
-    setSelectedPositions(new Set());
-    setBulkEditMode(false);
-  };
-  
-  // Render quick update section with all features
-  const renderQuickUpdateSection = () => (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden"
-    >
-      {/* Section Header */}
-      <button
-        onClick={() => toggleSection('quick')}
-        className="w-full px-6 py-4 flex items-center justify-between hover:bg-gray-50 transition-colors"
-      >
-        <div className="flex items-center space-x-3">
-          <div className="p-2 bg-gradient-to-br from-blue-500 to-cyan-500 rounded-lg">
-            <Zap className="w-5 h-5 text-white" />
-          </div>
-          <div className="text-left">
-            <h3 className="font-semibold text-gray-900">Quick Updates</h3>
-            <p className="text-sm text-gray-500">
-              {liquidPositions.length} liquid positions • {
-                Object.keys(reconciliationData).filter(k => k.startsWith('pos_')).length
-              } pending updates
-            </p>
-          </div>
-        </div>
-        <ChevronDown 
-          className={`w-5 h-5 text-gray-400 transition-transform ${
-            expandedSections.has('quick') ? 'rotate-180' : ''
-          }`}
-        />
-      </button>
-      
-      {/* Section Content */}
-      <AnimatePresence>
-        {expandedSections.has('quick') && (
-          <motion.div
-            initial={{ height: 0 }}
-            animate={{ height: 'auto' }}
-            exit={{ height: 0 }}
-            transition={{ duration: 0.2 }}
-            className="border-t border-gray-100"
-          >
-            {/* Bulk Actions Bar */}
-            {bulkEditMode && selectedPositions.size > 0 && (
-              <div className="px-6 py-3 bg-blue-50 border-b border-blue-200 flex items-center justify-between">
-                <span className="text-sm font-medium text-blue-700">
-                  {selectedPositions.size} positions selected
-                </span>
-                <div className="flex items-center space-x-2">
-                  <button
-                    onClick={() => handleBulkUpdate(-5)}
-                    className="px-3 py-1 bg-red-100 text-red-700 rounded-lg text-sm hover:bg-red-200"
-                  >
-                    -5%
-                  </button>
-                  <button
-                    onClick={() => handleBulkUpdate(0)}
-                    className="px-3 py-1 bg-gray-100 text-gray-700 rounded-lg text-sm hover:bg-gray-200"
-                  >
-                    Reset
-                  </button>
-                  <button
-                    onClick={() => handleBulkUpdate(5)}
-                    className="px-3 py-1 bg-green-100 text-green-700 rounded-lg text-sm hover:bg-green-200"
-                  >
-                    +5%
-                  </button>
-                  <button
-                    onClick={() => {
-                      setSelectedPositions(new Set());
-                      setBulkEditMode(false);
-                    }}
-                    className="ml-2 px-3 py-1 bg-gray-600 text-white rounded-lg text-sm hover:bg-gray-700"
-                  >
-                    Cancel
-                  </button>
-                </div>
-              </div>
-            )}
-            
-            {/* Controls */}
-            <div className="px-6 py-3 bg-gray-50 border-b border-gray-200 flex items-center justify-between">
-              <div className="flex items-center space-x-3">
-                <button
-                  onClick={() => setBulkEditMode(!bulkEditMode)}
-                  className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-                    bulkEditMode 
-                      ? 'bg-blue-600 text-white' 
-                      : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                  }`}
-                >
-                  {bulkEditMode ? 'Exit Bulk Edit' : 'Bulk Edit'}
-                </button>
-                
-                {!bulkEditMode && (
-                  <select
-                    value={selectedAssetType}
-                    onChange={(e) => setSelectedAssetType(e.target.value)}
-                    className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm"
-                  >
-                    <option value="all">All Types</option>
-                    <option value="cash">Cash</option>
-                    <option value="credit_card">Credit Cards</option>
-                    <option value="loan">Loans</option>
-                    <option value="mortgage">Mortgages</option>
-                  </select>
-                )}
-              </div>
-              
-              <div className="text-sm text-gray-500">
-                {liquidPositions.filter(p => 
-                  selectedAssetType === 'all' || p.asset_type === selectedAssetType
-                ).length} items
-              </div>
-            </div>
-            
-            {/* Positions List */}
-            <div className="p-6 space-y-3 max-h-96 overflow-y-auto">
-              {liquidPositions.length > 0 ? (
-                liquidPositions
-                  .filter(p => selectedAssetType === 'all' || p.asset_type === selectedAssetType)
-                  .map(position => {
-                    const AssetIcon = ASSET_CONFIGS[position.asset_type]?.icon || Wallet;
-                    const config = ASSET_CONFIGS[position.asset_type] || ASSET_CONFIGS.cash;
-                    const hasUpdate = reconciliationData[`pos_${position.item_id}`];
-                    const isAnimating = animateValues[position.item_id];
-                    const isEditing = editingPosition === position.item_id;
-                    const isSelected = selectedPositions.has(position.item_id);
-                    
-                    return (
-                      <motion.div
-                        key={position.item_id}
-                        layout
-                        whileHover={{ scale: 1.01 }}
-                        className={`
-                          p-4 rounded-lg border-2 transition-all cursor-pointer
-                          ${hasUpdate ? `${config.bgColor} ${config.borderColor}` : 'border-gray-200 bg-white'}
-                          ${isAnimating ? 'ring-2 ring-blue-400 ring-opacity-50' : ''}
-                          ${isSelected ? 'ring-2 ring-blue-500' : ''}
-                        `}
-                        onClick={() => {
-                          if (bulkEditMode) {
-                            const newSelected = new Set(selectedPositions);
-                            if (newSelected.has(position.item_id)) {
-                              newSelected.delete(position.item_id);
-                            } else {
-                              newSelected.add(position.item_id);
-                            }
-                            setSelectedPositions(newSelected);
-                          }
-                        }}
-                      >
-                        <div className="flex items-center justify-between">
-                          {/* Checkbox for bulk edit */}
-                          {bulkEditMode && (
-                            <input
-                              type="checkbox"
-                              checked={isSelected}
-                              onChange={() => {}}
-                              className="mr-3 w-4 h-4 text-blue-600 rounded"
-                              onClick={(e) => e.stopPropagation()}
-                            />
-                          )}
-                          
-                          <div className="flex items-center space-x-3 flex-1">
-                            <div className={`p-2 bg-gradient-to-br ${config.gradient} rounded-lg`}>
-                              <AssetIcon className="w-5 h-5 text-white" />
-                            </div>
-                            <div className="flex-1">
-                              <h4 className="font-medium text-gray-900">{position.name}</h4>
-                              <p className="text-sm text-gray-500">
-                                {position.account_name} • {position.institution}
-                              </p>
-                            </div>
-                          </div>
-                          
-                          <div className="flex items-center space-x-3">
-                            {/* Current Value Display */}
-                            <div className="text-right mr-4">
-                              <p className="text-xs text-gray-500">Current</p>
-                              <p className="font-semibold text-gray-900">
-                                {showValues ? formatCurrency(position.current_value) : '••••'}
-                              </p>
-                              {hasUpdate && (
-                                <p className={`text-xs ${config.textColor} font-medium`}>
-                                  New: {formatCurrency(hasUpdate.value)}
-                                </p>
-                              )}
-                            </div>
-                            
-                            {/* Edit Controls */}
-                            {!bulkEditMode && (
-                              isEditing ? (
-                                <div className="flex items-center space-x-2">
-                                  <input
-                                    type="number"
-                                    value={editValues.value}
-                                    onChange={(e) => setEditValues({ ...editValues, value: e.target.value })}
-                                    className="w-32 px-3 py-1.5 border border-blue-300 rounded-lg text-center font-medium focus:ring-2 focus:ring-blue-500"
-                                    step="0.01"
-                                    autoFocus
-                                    onClick={(e) => e.stopPropagation()}
-                                  />
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      handleSavePosition(position.item_id);
-                                    }}
-                                    className="p-1.5 bg-green-500 hover:bg-green-600 rounded-lg transition-colors"
-                                    disabled={loadingStates[`save_${position.item_id}`]}
-                                  >
-                                    {loadingStates[`save_${position.item_id}`] ? (
-                                      <Loader2 className="w-4 h-4 text-white animate-spin" />
-                                    ) : (
-                                      <Check className="w-4 h-4 text-white" />
-                                    )}
-                                  </button>
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      setEditingPosition(null);
-                                      setEditValues({});
-                                    }}
-                                    className="p-1.5 bg-gray-400 hover:bg-gray-500 rounded-lg transition-colors"
-                                  >
-                                    <X className="w-4 h-4 text-white" />
-                                  </button>
-                                </div>
-                              ) : (
-                                <div className="flex items-center space-x-2">
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      const newValue = (hasUpdate?.value ?? position.current_value) - 100;
-                                      handleQuickUpdate(position.item_id, newValue);
-                                    }}
-                                    className="p-1.5 bg-red-100 hover:bg-red-200 rounded-lg transition-colors"
-                                  >
-                                    <Minus className="w-4 h-4 text-red-600" />
-                                  </button>
-                                  
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      handleEditPosition(position);
-                                    }}
-                                    className="px-3 py-1.5 bg-blue-100 hover:bg-blue-200 rounded-lg transition-colors flex items-center"
-                                  >
-                                    <Edit2 className="w-4 h-4 text-blue-600" />
-                                  </button>
-                                  
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      const newValue = (hasUpdate?.value ?? position.current_value) + 100;
-                                      handleQuickUpdate(position.item_id, newValue);
-                                    }}
-                                    className="p-1.5 bg-green-100 hover:bg-green-200 rounded-lg transition-colors"
-                                  >
-                                    <Plus className="w-4 h-4 text-green-600" />
-                                  </button>
-                                  
-                                  {hasUpdate && (
-                                    <motion.div
-                                      initial={{ scale: 0 }}
-                                      animate={{ scale: 1 }}
-                                      className="ml-2"
-                                    >
-                                      <CheckCircle2 className="w-5 h-5 text-green-500" />
-                                    </motion.div>
-                                  )}
-                                </div>
-                              )
-                            )}
-                          </div>
-                        </div>
-                        
-                        {/* Change Summary */}
-                        {hasUpdate && !isEditing && (
-                          <motion.div
-                            initial={{ opacity: 0, height: 0 }}
-                            animate={{ opacity: 1, height: 'auto' }}
-                            className={`mt-3 pt-3 border-t ${config.borderColor}`}
-                          >
-                            <div className="flex items-center justify-between text-sm">
-                              <span className={`font-medium ${
-                                hasUpdate.value - position.current_value >= 0 
-                                  ? 'text-green-700' 
-                                  : 'text-red-700'
-                              }`}>
-                                Change: {formatCurrency(hasUpdate.value - position.current_value)} ({
-                                  formatPercentage((hasUpdate.value - position.current_value) / position.current_value * 100)
-                                })
-                              </span>
-                              <span className="text-gray-500">
-                                Updated {formatTimeAgo(hasUpdate.timestamp)}
-                              </span>
-                            </div>
-                          </motion.div>
-                        )}
-                      </motion.div>
-                    );
-                  })
-              ) : (
-                <div className="text-center py-12 text-gray-500">
-                  <Wallet className="w-16 h-16 mx-auto mb-4 text-gray-300" />
-                  <p className="text-lg font-medium">No liquid positions found</p>
-                  <p className="text-sm mt-2">Add cash, credit cards, or loans to get started</p>
-                  <button className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
-                    Add Position
-                  </button>
-                </div>
-              )}
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </motion.div>
-  );
-  
-  // Render account reconciliation with full position details
-  const renderAccountSection = () => (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: 0.1 }}
-      className="space-y-4"
-    >
-      {/* Filter Bar */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-3">
-            <select
-              value={selectedInstitution}
-              onChange={(e) => setSelectedInstitution(e.target.value)}
-              className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
-            >
-              <option value="all">All Institutions</option>
-              {uniqueInstitutions.map(inst => (
-                <option key={inst} value={inst}>{inst}</option>
-              ))}
-            </select>
-            
-            <input
-              type="text"
-              placeholder="Search accounts..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="px-3 py-2 border border-gray-300 rounded-lg text-sm w-64"
-            />
-          </div>
-          
-          <div className="text-sm text-gray-500">
-            {processedAccounts.filter(a => 
-              (selectedInstitution === 'all' || a.institution === selectedInstitution) &&
-              (!searchQuery || a.name.toLowerCase().includes(searchQuery.toLowerCase()))
-            ).length} accounts
-          </div>
-        </div>
-      </div>
-      
-      {/* Accounts by Institution */}
-      {Object.entries(
-        processedAccounts
-          .filter(a => 
-            (selectedInstitution === 'all' || a.institution === selectedInstitution) &&
-            (!searchQuery || a.name.toLowerCase().includes(searchQuery.toLowerCase()))
-          )
-          .reduce((groups, account) => {
-            const institution = account.institution || 'Other';
-            if (!groups[institution]) groups[institution] = [];
-            groups[institution].push(account);
-            return groups;
-          }, {})
-      ).map(([institution, accounts]) => (
-        <motion.div
-          key={institution}
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden"
-        >
-          {/* Institution Header */}
-          <div className="px-6 py-4 bg-gradient-to-r from-gray-50 to-gray-100 border-b border-gray-200">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-3">
-                <Building2 className="w-5 h-5 text-gray-600" />
-                <h3 className="font-semibold text-gray-900">{institution}</h3>
-                <span className="px-2 py-1 bg-gray-200 text-gray-700 rounded-full text-xs">
-                  {accounts.length} accounts
-                </span>
-              </div>
-              <div className="text-sm text-gray-600">
-                Total: {showValues ? formatCurrency(
-                  accounts.reduce((sum, a) => sum + a.totalValue, 0)
-                ) : '••••'}
-              </div>
-            </div>
-          </div>
-          
-          {/* Accounts List */}
-          <div className="divide-y divide-gray-200">
-            {accounts.map(account => {
-              const variance = variances[account.id];
-              const hasReconciliation = reconciliationData[`account_${account.id}`];
-              const isExpanded = expandedAccounts.has(account.id);
-              const accountPositions = account.positions || [];
-              
-              return (
-                <div key={account.id}>
-                  {/* Account Row */}
-                  <div className={`p-4 ${
-                    hasReconciliation 
-                      ? 'bg-green-50' 
-                      : account.needsReconciliation 
-                        ? 'bg-amber-50' 
-                        : 'bg-white'
-                  }`}>
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center space-x-3">
-                        <button
-                          onClick={() => toggleAccountExpansion(account.id)}
-                          className="p-1 hover:bg-gray-100 rounded-lg transition-colors"
-                        >
-                          <ChevronDown className={`w-5 h-5 text-gray-500 transition-transform ${
-                            isExpanded ? 'rotate-180' : ''
-                          }`} />
-                        </button>
-                        
-                        <div>
-                          <h4 className="font-medium text-gray-900">{account.name}</h4>
-                          <p className="text-sm text-gray-500">
-                            {account.type} • {account.position_count} positions • 
-                            Last: {formatTimeAgo(account.lastReconciled)}
-                          </p>
-                        </div>
-                      </div>
-                      
-                      <div className="flex items-center space-x-4">
-                        <div className="text-right">
-                          <p className="text-sm text-gray-500">App Balance</p>
-                          <p className="font-semibold text-gray-900">
-                            {showValues ? formatCurrency(account.totalValue) : '••••'}
-                          </p>
-                        </div>
-                        
-                        <div className="flex items-center space-x-2">
-                          <input
-                            type="number"
-                            placeholder="Statement balance"
-                            value={reconciliationData[`account_${account.id}`]?.statementBalance ?? ''}
-                            onChange={(e) => {
-                              const value = parseFloat(e.target.value);
-                              if (!isNaN(value)) {
-                                handleAccountReconciliation(account.id, value);
-                              }
-                            }}
-                            className="w-40 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                            step="0.01"
-                          />
-                          
-                          {variance && (
-                            <div className={`px-3 py-2 rounded-lg ${variance.status.bgColor} ${variance.status.borderColor} border`}>
-                              <div className="flex items-center space-x-2">
-                                <variance.status.icon className={`w-4 h-4 ${variance.status.textColor}`} />
-                                <div>
-                                  <p className={`text-xs font-medium ${variance.status.textColor}`}>
-                                    {variance.status.label}
-                                  </p>
-                                  <p className={`text-xs ${variance.status.textColor}`}>
-                                    {formatCurrency(variance.variance)} ({formatPercentage(variance.variancePercent)})
-                                  </p>
-                                </div>
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                  
-                  {/* Expanded Positions */}
-                  <AnimatePresence>
-                    {isExpanded && (
-                      <motion.div
-                        initial={{ height: 0 }}
-                        animate={{ height: 'auto' }}
-                        exit={{ height: 0 }}
-                        className="bg-gray-50 border-t border-gray-200 overflow-hidden"
-                      >
-                        <div className="p-4">
-                          <h5 className="font-medium text-gray-700 mb-3">Positions in this account</h5>
-                          
-                          {accountPositions.length > 0 ? (
-                            <div className="space-y-2">
-                              {accountPositions.map(position => {
-                                const AssetIcon = ASSET_CONFIGS[position.asset_type]?.icon || Wallet;
-                                const config = ASSET_CONFIGS[position.asset_type] || {};
-                                const hasUpdate = reconciliationData[`pos_${position.item_id}`];
-                                const isEditingPos = editingPosition === position.item_id;
-                                
-                                return (
-                                  <div
-                                    key={position.item_id}
-                                    className={`p-3 bg-white rounded-lg border ${
-                                      hasUpdate ? config.borderColor : 'border-gray-200'
-                                    }`}
-                                  >
-                                    <div className="flex items-center justify-between">
-                                      <div className="flex items-center space-x-3">
-                                        <AssetIcon className={`w-4 h-4 ${config.textColor || 'text-gray-600'}`} />
-                                        <div>
-                                          <p className="font-medium text-sm text-gray-900">{position.name}</p>
-                                          <p className="text-xs text-gray-500">
-                                            {position.quantity} units • {position.asset_type}
-                                          </p>
-                                        </div>
-                                      </div>
-                                      
-                                      <div className="flex items-center space-x-2">
-                                        <div className="text-right">
-                                          <p className="text-xs text-gray-500">Value</p>
-                                          <p className="font-medium text-sm">
-                                            {formatCurrency(hasUpdate?.value || position.current_value)}
-                                          </p>
-                                        </div>
-                                        
-                                        {isEditingPos ? (
-                                          <div className="flex items-center space-x-1">
-                                            <input
-                                              type="number"
-                                              value={editValues.value}
-                                              onChange={(e) => setEditValues({ ...editValues, value: e.target.value })}
-                                              className="w-24 px-2 py-1 text-sm border border-blue-300 rounded"
-                                              step="0.01"
-                                              autoFocus
-                                            />
-                                            <button
-                                              onClick={() => handleSavePosition(position.item_id)}
-                                              className="p-1 bg-green-500 hover:bg-green-600 rounded text-white"
-                                            >
-                                              <Check className="w-3 h-3" />
-                                            </button>
-                                            <button
-                                              onClick={() => {
-                                                setEditingPosition(null);
-                                                setEditValues({});
-                                              }}
-                                              className="p-1 bg-gray-400 hover:bg-gray-500 rounded text-white"
-                                            >
-                                              <X className="w-3 h-3" />
-                                            </button>
-                                          </div>
-                                        ) : (
-                                          <>
-                                            <button
-                                              onClick={() => handleEditPosition(position)}
-                                              className="p-1 hover:bg-gray-100 rounded transition-colors"
-                                            >
-                                              <Edit2 className="w-4 h-4 text-gray-500" />
-                                            </button>
-                                            
-                                            {hasUpdate && (
-                                              <CheckCircle2 className="w-4 h-4 text-green-500" />
-                                            )}
-                                          </>
-                                        )}
-                                      </div>
-                                    </div>
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          ) : (
-                            <p className="text-sm text-gray-500 text-center py-4">
-                              No positions in this account
-                            </p>
-                          )}
-                        </div>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-                </div>
-              );
-            })}
-          </div>
-        </motion.div>
-      ))}
-    </motion.div>
-  );
-  
-  // Render dashboard with comprehensive stats
+  // Render dashboard
   const renderDashboard = () => (
     <div className="space-y-6">
       {/* Health Score Card */}
       <motion.div
-        initial={{ opacity: 0, scale: 0.95 }}
-        animate={{ opacity: 1, scale: 1 }}
-        className="bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 rounded-2xl p-8 text-white shadow-2xl"
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="bg-gradient-to-r from-blue-500 to-purple-600 rounded-xl p-8 text-white shadow-xl"
       >
         <div className="flex items-center justify-between">
           <div>
             <h2 className="text-3xl font-bold mb-2">Reconciliation Health</h2>
-            <p className="text-blue-100 text-lg">
-              Your NestEgg accuracy score
-            </p>
+            <p className="text-blue-100">Your portfolio accuracy score</p>
             
-            <div className="mt-6 grid grid-cols-2 gap-4">
-              <div className="bg-white/10 backdrop-blur rounded-lg p-3">
-                <p className="text-blue-100 text-sm">Accounts Up-to-date</p>
-                <p className="text-2xl font-bold">
-                  {processedAccounts.filter(a => !a.needsReconciliation).length}/{processedAccounts.length}
-                </p>
+            <div className="mt-4 grid grid-cols-3 gap-4">
+              <div className="bg-white/20 backdrop-blur rounded-lg p-3">
+                <p className="text-sm opacity-90">Accounts</p>
+                <p className="text-2xl font-bold">{processedAccounts.length}</p>
               </div>
-              <div className="bg-white/10 backdrop-blur rounded-lg p-3">
-                <p className="text-blue-100 text-sm">Pending Updates</p>
-                <p className="text-2xl font-bold">
-                  {Object.keys(reconciliationData).length}
-                </p>
+              <div className="bg-white/20 backdrop-blur rounded-lg p-3">
+                <p className="text-sm opacity-90">Positions</p>
+                <p className="text-2xl font-bold">{processedPositions.length}</p>
+              </div>
+              <div className="bg-white/20 backdrop-blur rounded-lg p-3">
+                <p className="text-sm opacity-90">Pending</p>
+                <p className="text-2xl font-bold">{Object.keys(reconciliationData).length}</p>
               </div>
             </div>
           </div>
           
-          <div className="relative">
-            <svg className="w-40 h-40 transform -rotate-90">
-              <circle
-                cx="80"
-                cy="80"
-                r="70"
-                stroke="rgba(255,255,255,0.2)"
-                strokeWidth="12"
-                fill="none"
-              />
-              <circle
-                cx="80"
-                cy="80"
-                r="70"
-                stroke="white"
-                strokeWidth="12"
-                fill="none"
-                strokeDasharray={`${(reconciliationHealth / 100) * 440} 440`}
-                strokeLinecap="round"
-                className="transition-all duration-1000"
-              />
-            </svg>
-            <div className="absolute inset-0 flex items-center justify-center">
-              <div className="text-center">
-                  <span className="text-5xl font-bold">{reconciliationHealth}%</span>
-                <p className="text-sm text-blue-100 mt-1">Health Score</p>
-              </div>
-            </div>
+          <div className="text-center">
+            <div className="text-6xl font-bold">{healthScore}%</div>
+            <p className="text-sm mt-2 opacity-90">Health Score</p>
           </div>
         </div>
       </motion.div>
       
-      {/* Quick Action Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      {/* Quick Actions */}
+      <div className="grid grid-cols-2 gap-4">
         <motion.button
           whileHover={{ scale: 1.02 }}
           whileTap={{ scale: 0.98 }}
-          onClick={() => {
-            setActiveView('quick');
-            setExpandedSections(new Set(['quick']));
-          }}
-          className="p-6 bg-white rounded-xl border-2 border-gray-200 hover:border-blue-300 hover:shadow-xl transition-all text-left group"
+          onClick={() => setActiveView('quick')}
+          className="p-6 bg-white rounded-xl border-2 border-gray-200 hover:border-blue-400 hover:shadow-lg transition-all"
         >
-          <div className="flex items-center justify-between mb-4">
-            <div className="p-3 bg-gradient-to-br from-blue-500 to-cyan-500 rounded-lg group-hover:scale-110 transition-transform">
-              <Zap className="w-8 h-8 text-white" />
-            </div>
-            <ArrowRight className="w-5 h-5 text-gray-400 group-hover:text-blue-500 group-hover:translate-x-1 transition-all" />
-          </div>
-          <h3 className="font-bold text-gray-900 text-lg mb-1">Quick Updates</h3>
-          <p className="text-sm text-gray-500 mb-3">Update cash & credit cards</p>
-          <div className="flex items-center justify-between">
-            <span className="text-2xl font-bold text-blue-600">
-              {liquidPositions.length}
-            </span>
-            <span className="text-xs text-gray-500">positions</span>
-          </div>
+          <Zap className="w-8 h-8 text-blue-500 mb-3" />
+          <h3 className="font-bold text-gray-900 mb-1">Quick Updates</h3>
+          <p className="text-sm text-gray-500">Cash & credit positions</p>
+          <p className="text-2xl font-bold text-blue-600 mt-2">{liquidPositions.length}</p>
         </motion.button>
         
         <motion.button
           whileHover={{ scale: 1.02 }}
           whileTap={{ scale: 0.98 }}
-          onClick={() => {
-            setActiveView('accounts');
-            setExpandedSections(new Set(['accounts']));
-          }}
-          className="p-6 bg-white rounded-xl border-2 border-gray-200 hover:border-green-300 hover:shadow-xl transition-all text-left group"
+          onClick={() => setActiveView('accounts')}
+          className="p-6 bg-white rounded-xl border-2 border-gray-200 hover:border-green-400 hover:shadow-lg transition-all"
         >
-          <div className="flex items-center justify-between mb-4">
-            <div className="p-3 bg-gradient-to-br from-green-500 to-emerald-500 rounded-lg group-hover:scale-110 transition-transform">
-              <CheckCircle2 className="w-8 h-8 text-white" />
-            </div>
-            <ArrowRight className="w-5 h-5 text-gray-400 group-hover:text-green-500 group-hover:translate-x-1 transition-all" />
-          </div>
-          <h3 className="font-bold text-gray-900 text-lg mb-1">Full Reconciliation</h3>
-          <p className="text-sm text-gray-500 mb-3">Verify all accounts</p>
-          <div className="flex items-center justify-between">
-            <span className="text-2xl font-bold text-green-600">
-              {processedAccounts.filter(a => a.needsReconciliation).length}
-            </span>
-            <span className="text-xs text-gray-500">need attention</span>
-          </div>
-        </motion.button>
-        
-        <motion.button
-          whileHover={{ scale: 1.02 }}
-          whileTap={{ scale: 0.98 }}
-          onClick={() => {
-            setActiveView('accounts');
-            setSelectedInstitution(uniqueInstitutions[0] || 'all');
-          }}
-          className="p-6 bg-white rounded-xl border-2 border-gray-200 hover:border-purple-300 hover:shadow-xl transition-all text-left group"
-        >
-          <div className="flex items-center justify-between mb-4">
-            <div className="p-3 bg-gradient-to-br from-purple-500 to-indigo-500 rounded-lg group-hover:scale-110 transition-transform">
-              <Building2 className="w-8 h-8 text-white" />
-            </div>
-            <ArrowRight className="w-5 h-5 text-gray-400 group-hover:text-purple-500 group-hover:translate-x-1 transition-all" />
-          </div>
-          <h3 className="font-bold text-gray-900 text-lg mb-1">By Institution</h3>
-          <p className="text-sm text-gray-500 mb-3">Review by bank</p>
-          <div className="flex items-center justify-between">
-            <span className="text-2xl font-bold text-purple-600">
-              {uniqueInstitutions.length}
-            </span>
-            <span className="text-xs text-gray-500">institutions</span>
-          </div>
+          <CheckCircle2 className="w-8 h-8 text-green-500 mb-3" />
+          <h3 className="font-bold text-gray-900 mb-1">Full Reconciliation</h3>
+          <p className="text-sm text-gray-500">All accounts & positions</p>
+          <p className="text-2xl font-bold text-green-600 mt-2">
+            {processedAccounts.filter(a => a.needsReconciliation).length}
+          </p>
         </motion.button>
       </div>
       
-      {/* Recent Activity & Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* Recent Activity */}
+      {/* Recent History */}
+      {historyRef.current.length > 0 && (
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
           transition={{ delay: 0.2 }}
-          className="bg-white rounded-xl shadow-sm border border-gray-200 p-6"
+          className="bg-white rounded-xl p-6 shadow-sm border border-gray-200"
         >
           <h3 className="font-semibold text-gray-900 mb-4 flex items-center">
-            <Clock className="w-5 h-5 mr-2 text-gray-600" />
+            <Clock className="w-5 h-5 mr-2" />
             Recent Activity
           </h3>
-          
-          {reconciliationHistoryRef.current.length > 0 ? (
-            <div className="space-y-3">
-              {reconciliationHistoryRef.current.slice(0, 5).map((rec, index) => (
-                <div key={index} className="flex items-center justify-between py-2 border-b border-gray-100 last:border-0">
-                  <div>
-                    <p className="font-medium text-gray-900">
-                      {rec.accounts?.length || 0} accounts, {rec.positions || 0} positions
-                    </p>
-                    <p className="text-sm text-gray-500">{formatTimeAgo(rec.date)}</p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-sm font-medium text-gray-900">
-                      {rec.health}% accuracy
-                    </p>
-                  </div>
+          <div className="space-y-2">
+            {historyRef.current.slice(0, 3).map((item, i) => (
+              <div key={i} className="flex items-center justify-between py-2 border-b border-gray-100 last:border-0">
+                <div>
+                  <p className="font-medium text-gray-900">
+                    {item.positions} positions updated
+                  </p>
+                  <p className="text-sm text-gray-500">
+                    {new Date(item.date).toLocaleDateString()}
+                  </p>
                 </div>
-              ))}
-            </div>
-          ) : (
-            <p className="text-center text-gray-500 py-8">No reconciliation history yet</p>
-          )}
-        </motion.div>
-        
-        {/* Portfolio Stats */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3 }}
-          className="bg-white rounded-xl shadow-sm border border-gray-200 p-6"
-        >
-          <h3 className="font-semibold text-gray-900 mb-4 flex items-center">
-            <Activity className="w-5 h-5 mr-2 text-gray-600" />
-            Portfolio Breakdown
-          </h3>
-          
-          <div className="space-y-4">
-            <div>
-              <div className="flex items-center justify-between mb-1">
-                <span className="text-sm text-gray-600">Securities</span>
-                <span className="text-sm font-medium text-gray-900">
-                  {investmentPositions.filter(p => p.asset_type === 'security').length} positions
-                </span>
+                <CheckCircle2 className="w-5 h-5 text-green-500" />
               </div>
-              <div className="w-full bg-gray-200 rounded-full h-2">
-                <div 
-                  className="bg-blue-500 h-2 rounded-full transition-all duration-500"
-                  style={{ width: `${(investmentPositions.filter(p => p.asset_type === 'security').length / processedPositions.length * 100) || 0}%` }}
-                />
-              </div>
-            </div>
-            
-            <div>
-              <div className="flex items-center justify-between mb-1">
-                <span className="text-sm text-gray-600">Crypto</span>
-                <span className="text-sm font-medium text-gray-900">
-                  {investmentPositions.filter(p => p.asset_type === 'crypto').length} positions
-                </span>
-              </div>
-              <div className="w-full bg-gray-200 rounded-full h-2">
-                <div 
-                  className="bg-yellow-500 h-2 rounded-full transition-all duration-500"
-                  style={{ width: `${(investmentPositions.filter(p => p.asset_type === 'crypto').length / processedPositions.length * 100) || 0}%` }}
-                />
-              </div>
-            </div>
-            
-            <div>
-              <div className="flex items-center justify-between mb-1">
-                <span className="text-sm text-gray-600">Cash & Credit</span>
-                <span className="text-sm font-medium text-gray-900">
-                  {liquidPositions.length} positions
-                </span>
-              </div>
-              <div className="w-full bg-gray-200 rounded-full h-2">
-                <div 
-                  className="bg-green-500 h-2 rounded-full transition-all duration-500"
-                  style={{ width: `${(liquidPositions.length / processedPositions.length * 100) || 0}%` }}
-                />
-              </div>
-            </div>
-            
-            <div>
-              <div className="flex items-center justify-between mb-1">
-                <span className="text-sm text-gray-600">Other Assets</span>
-                <span className="text-sm font-medium text-gray-900">
-                  {processedPositions.filter(p => !['security', 'crypto', 'cash', 'credit_card', 'loan', 'mortgage', 'metal'].includes(p.asset_type)).length} positions
-                </span>
-              </div>
-              <div className="w-full bg-gray-200 rounded-full h-2">
-                <div 
-                  className="bg-purple-500 h-2 rounded-full transition-all duration-500"
-                  style={{ width: `${(processedPositions.filter(p => !['security', 'crypto', 'cash', 'credit_card', 'loan', 'mortgage', 'metal'].includes(p.asset_type)).length / processedPositions.length * 100) || 0}%` }}
-                />
-              </div>
-            </div>
+            ))}
           </div>
         </motion.div>
-      </div>
+      )}
     </div>
   );
   
-  // Main render
+  // Render quick updates
+  const renderQuickUpdates = () => (
+    <div className="space-y-4">
+      <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-200">
+        <h3 className="font-semibold text-gray-900 mb-4">Quick Position Updates</h3>
+        
+        {liquidPositions.length > 0 ? (
+          <div className="space-y-3 max-h-96 overflow-y-auto">
+            {liquidPositions.map(position => {
+              const config = ASSET_CONFIGS[position.asset_type] || ASSET_CONFIGS.cash;
+              const Icon = config.icon;
+              const hasUpdate = reconciliationData[`pos_${position.item_id}`];
+              const isEditing = editingPosition === position.item_id;
+              
+              return (
+                <motion.div
+                  key={position.item_id}
+                  layout
+                  className={`p-4 rounded-lg border-2 ${
+                    hasUpdate ? `${config.bgColor} ${config.borderColor}` : 'border-gray-200'
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-3">
+                      <Icon className={`w-5 h-5 ${config.textColor}`} />
+                      <div>
+                        <p className="font-medium text-gray-900">{position.name}</p>
+                        <p className="text-sm text-gray-500">
+                          {position.account_name} • {position.institution}
+                        </p>
+                      </div>
+                    </div>
+                    
+                    <div className="flex items-center space-x-2">
+                      <div className="text-right mr-3">
+                        <p className="text-xs text-gray-500">Current</p>
+                        <p className="font-semibold">
+                          {showValues ? formatCurrency(position.current_value) : '••••'}
+                        </p>
+                        {hasUpdate && (
+                          <p className={`text-xs ${config.textColor}`}>
+                            New: {formatCurrency(hasUpdate.value)}
+                          </p>
+                        )}
+                      </div>
+                      
+                      {isEditing ? (
+                        <>
+                          <input
+                            type="number"
+                            value={editValue}
+                            onChange={(e) => setEditValue(e.target.value)}
+                            className="w-28 px-2 py-1 border rounded text-sm"
+                            autoFocus
+                          />
+                          <button
+                            onClick={() => handleSaveEdit(position.item_id)}
+                            className="p-1 bg-green-500 text-white rounded hover:bg-green-600"
+                          >
+                            <Check className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => {
+                              setEditingPosition(null);
+                              setEditValue('');
+                            }}
+                            className="p-1 bg-gray-400 text-white rounded hover:bg-gray-500"
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <button
+                            onClick={() => {
+                              const newVal = (hasUpdate?.value || position.current_value) - 100;
+                              handleUpdatePosition(position.item_id, newVal);
+                            }}
+                            className="p-1.5 bg-red-100 text-red-600 rounded hover:bg-red-200"
+                          >
+                            <Minus className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => {
+                              setEditingPosition(position.item_id);
+                              setEditValue(hasUpdate?.value || position.current_value);
+                            }}
+                            className="p-1.5 bg-blue-100 text-blue-600 rounded hover:bg-blue-200"
+                          >
+                            <Edit2 className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => {
+                              const newVal = (hasUpdate?.value || position.current_value) + 100;
+                              handleUpdatePosition(position.item_id, newVal);
+                            }}
+                            className="p-1.5 bg-green-100 text-green-600 rounded hover:bg-green-200"
+                          >
+                            <Plus className="w-4 h-4" />
+                          </button>
+                          {hasUpdate && (
+                            <CheckCircle2 className="w-5 h-5 text-green-500 ml-2" />
+                          )}
+                        </>
+                      )}
+                    </div>
+                  </div>
+                </motion.div>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="text-center py-8 text-gray-500">
+            <Wallet className="w-12 h-12 mx-auto mb-3 text-gray-300" />
+            <p>No liquid positions found</p>
+          </div>
+        )}
+      </div>
+      
+      {/* Submit Button */}
+      {Object.keys(reconciliationData).length > 0 && (
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="bg-white rounded-xl p-6 shadow-sm border border-gray-200"
+        >
+          <div className="flex items-center justify-between">
+            <div>
+              <h4 className="font-semibold text-gray-900">Ready to Submit</h4>
+              <p className="text-sm text-gray-500 mt-1">
+                {Object.keys(reconciliationData).length} updates pending
+              </p>
+            </div>
+            <button
+              onClick={handleSubmit}
+              disabled={isSubmitting}
+              className="px-6 py-3 bg-gradient-to-r from-green-600 to-emerald-600 text-white font-semibold rounded-lg hover:from-green-700 hover:to-emerald-700 disabled:opacity-50 flex items-center"
+            >
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                  Submitting...
+                </>
+              ) : (
+                <>
+                  <CheckCircle2 className="w-5 h-5 mr-2" />
+                  Complete Reconciliation
+                </>
+              )}
+            </button>
+          </div>
+        </motion.div>
+      )}
+    </div>
+  );
+  
+  // Render accounts view
+  const renderAccounts = () => (
+    <div className="space-y-4">
+      {processedAccounts.map(account => {
+        const isExpanded = expandedAccounts.has(account.id);
+        const accountPositions = account.positions || [];
+        
+        return (
+          <div key={account.id} className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+            <button
+              onClick={() => {
+                const newExpanded = new Set(expandedAccounts);
+                if (isExpanded) {
+                  newExpanded.delete(account.id);
+                } else {
+                  newExpanded.add(account.id);
+                }
+                setExpandedAccounts(newExpanded);
+              }}
+              className="w-full p-4 flex items-center justify-between hover:bg-gray-50 transition-colors"
+            >
+              <div className="flex items-center space-x-3">
+                <Building2 className="w-5 h-5 text-gray-600" />
+                <div className="text-left">
+                  <h4 className="font-semibold text-gray-900">{account.name}</h4>
+                  <p className="text-sm text-gray-500">
+                    {account.institution} • {accountPositions.length} positions
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center space-x-3">
+                <div className="text-right">
+                  <p className="text-sm text-gray-500">Total Value</p>
+                  <p className="font-semibold">
+                    {showValues ? formatCurrency(account.totalValue) : '••••'}
+                  </p>
+                </div>
+                <ChevronDown className={`w-5 h-5 text-gray-400 transition-transform ${
+                  isExpanded ? 'rotate-180' : ''
+                }`} />
+              </div>
+            </button>
+            
+            {/* Expanded Positions */}
+            <AnimatePresence>
+              {isExpanded && accountPositions.length > 0 && (
+                <motion.div
+                  initial={{ height: 0 }}
+                  animate={{ height: 'auto' }}
+                  exit={{ height: 0 }}
+                  className="border-t border-gray-200"
+                >
+                  <div className="p-4 bg-gray-50">
+                    <div className="space-y-2">
+                      {accountPositions.map(position => {
+                        const config = ASSET_CONFIGS[position.asset_type] || {};
+                        const Icon = config.icon || Wallet;
+                        const hasUpdate = reconciliationData[`pos_${position.item_id}`];
+                        
+                        return (
+                          <div
+                            key={position.item_id}
+                            className="flex items-center justify-between p-3 bg-white rounded-lg"
+                          >
+                            <div className="flex items-center space-x-2">
+                              <Icon className={`w-4 h-4 ${config.textColor || 'text-gray-600'}`} />
+                              <div>
+                                <p className="font-medium text-sm">{position.name}</p>
+                                <p className="text-xs text-gray-500">{position.asset_type}</p>
+                              </div>
+                            </div>
+                            <div className="flex items-center space-x-2">
+                              <p className="text-sm font-medium">
+                                {formatCurrency(hasUpdate?.value || position.current_value)}
+                              </p>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setEditingPosition(position.item_id);
+                                  setEditValue(hasUpdate?.value || position.current_value);
+                                }}
+                                className="p-1 hover:bg-gray-100 rounded"
+                              >
+                                <Edit2 className="w-3 h-3 text-gray-500" />
+                              </button>
+                              {hasUpdate && (
+                                <CheckCircle2 className="w-4 h-4 text-green-500" />
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+        );
+      })}
+    </div>
+  );
+  
   return (
     <FixedModal
       isOpen={isOpen}
       onClose={onClose}
       title=""
-      size="max-w-7xl"
+      size="max-w-6xl"
       showHeader={false}
     >
-      <div className="min-h-[90vh] bg-gradient-to-br from-gray-50 via-white to-blue-50 rounded-xl overflow-hidden">
-        {/* Enhanced Header */}
-        <div className="bg-white border-b border-gray-200 px-6 py-4 shadow-sm">
+      <div className="min-h-[85vh] bg-gradient-to-br from-gray-50 to-white rounded-xl overflow-hidden">
+        {/* Header */}
+        <div className="bg-white border-b border-gray-200 px-6 py-4">
           <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-4">
-              <div className="p-2.5 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl shadow-lg">
-                <Target className="w-7 h-7 text-white" />
+            <div className="flex items-center space-x-3">
+              <div className="p-2 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg">
+                <Target className="w-6 h-6 text-white" />
               </div>
               <div>
-                <h1 className="text-2xl font-bold text-gray-900">Smart Reconciliation</h1>
-                <p className="text-sm text-gray-500">Keep your NestEgg perfectly balanced</p>
+                <h1 className="text-xl font-bold text-gray-900">Smart Reconciliation</h1>
+                <p className="text-sm text-gray-500">Keep your portfolio accurate</p>
               </div>
             </div>
             
             <div className="flex items-center space-x-3">
-              {/* View Toggle Pills */}
-              <div className="flex items-center bg-gray-100 rounded-xl p-1">
+              {/* View Toggle */}
+              <div className="flex bg-gray-100 rounded-lg p-1">
                 <button
                   onClick={() => setActiveView('dashboard')}
-                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                  className={`px-3 py-1.5 rounded text-sm font-medium transition-all ${
                     activeView === 'dashboard' 
                       ? 'bg-white text-gray-900 shadow-sm' 
-                      : 'text-gray-500 hover:text-gray-700'
+                      : 'text-gray-500'
                   }`}
                 >
-                  <div className="flex items-center space-x-2">
-                    <Activity className="w-4 h-4" />
-                    <span>Dashboard</span>
-                  </div>
+                  Dashboard
                 </button>
                 <button
-                  onClick={() => {
-                    setActiveView('quick');
-                    setExpandedSections(new Set(['quick']));
-                  }}
-                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                  onClick={() => setActiveView('quick')}
+                  className={`px-3 py-1.5 rounded text-sm font-medium transition-all ${
                     activeView === 'quick' 
                       ? 'bg-white text-gray-900 shadow-sm' 
-                      : 'text-gray-500 hover:text-gray-700'
+                      : 'text-gray-500'
                   }`}
                 >
-                  <div className="flex items-center space-x-2">
-                    <Zap className="w-4 h-4" />
-                    <span>Quick</span>
-                    {liquidPositions.length > 0 && (
-                      <span className="px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded-full text-xs font-medium">
-                        {liquidPositions.length}
-                      </span>
-                    )}
-                  </div>
+                  Quick
                 </button>
                 <button
-                  onClick={() => {
-                    setActiveView('accounts');
-                    setExpandedSections(new Set(['accounts']));
-                  }}
-                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                  onClick={() => setActiveView('accounts')}
+                  className={`px-3 py-1.5 rounded text-sm font-medium transition-all ${
                     activeView === 'accounts' 
                       ? 'bg-white text-gray-900 shadow-sm' 
-                      : 'text-gray-500 hover:text-gray-700'
+                      : 'text-gray-500'
                   }`}
                 >
-                  <div className="flex items-center space-x-2">
-                    <CheckCircle2 className="w-4 h-4" />
-                    <span>Accounts</span>
-                    {processedAccounts.filter(a => a.needsReconciliation).length > 0 && (
-                      <span className="px-1.5 py-0.5 bg-amber-100 text-amber-700 rounded-full text-xs font-medium">
-                        {processedAccounts.filter(a => a.needsReconciliation).length}
-                      </span>
-                    )}
-                  </div>
+                  Accounts
                 </button>
               </div>
               
-              {/* Action Buttons */}
-              <div className="flex items-center space-x-2">
-                <button
-                  onClick={() => setShowValues(!showValues)}
-                  className={`p-2 rounded-lg transition-all ${
-                    showValues ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-600'
-                  }`}
-                  title={showValues ? 'Hide values' : 'Show values'}
-                >
-                  {showValues ? <Eye className="w-5 h-5" /> : <EyeOff className="w-5 h-5" />}
-                </button>
-                
-                <button
-                  onClick={() => {
-                    refreshAccounts();
-                    refreshPositions();
-                    refreshLiabilities();
-                    refreshGrouped();
-                  }}
-                  className="p-2 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
-                  disabled={accountsLoading || positionsLoading}
-                >
-                  <RefreshCw className={`w-5 h-5 text-gray-600 ${
-                    accountsLoading || positionsLoading ? 'animate-spin' : ''
-                  }`} />
-                </button>
-                
-                <button
-                  onClick={onClose}
-                  className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-                >
-                  <X className="w-5 h-5 text-gray-500" />
-                </button>
-              </div>
+              <button
+                onClick={() => setShowValues(!showValues)}
+                className={`p-2 rounded-lg ${
+                  showValues ? 'bg-blue-100 text-blue-600' : 'bg-gray-100 text-gray-600'
+                }`}
+              >
+                {showValues ? <Eye className="w-5 h-5" /> : <EyeOff className="w-5 h-5" />}
+              </button>
+              
+              <button
+                onClick={() => {
+                  refreshAccounts();
+                  refreshPositions();
+                }}
+                disabled={accountsLoading || positionsLoading}
+                className="p-2 bg-gray-100 rounded-lg hover:bg-gray-200"
+              >
+                <RefreshCw className={`w-5 h-5 text-gray-600 ${
+                  accountsLoading || positionsLoading ? 'animate-spin' : ''
+                }`} />
+              </button>
+              
+              <button
+                onClick={onClose}
+                className="p-2 hover:bg-gray-100 rounded-lg"
+              >
+                <X className="w-5 h-5 text-gray-500" />
+              </button>
             </div>
           </div>
         </div>
         
-        {/* Loading State */}
-        {(accountsLoading || positionsLoading) && (
-          <div className="absolute inset-0 bg-white/50 backdrop-blur-sm z-50 flex items-center justify-center">
-            <div className="bg-white rounded-xl shadow-xl p-6 flex items-center space-x-4">
-              <Loader2 className="w-8 h-8 text-blue-600 animate-spin" />
-              <div>
-                <p className="font-semibold text-gray-900">Loading your portfolio...</p>
-                <p className="text-sm text-gray-500">This won't take long</p>
+        {/* Content */}
+        <div className="p-6 overflow-y-auto" style={{ maxHeight: 'calc(85vh - 80px)' }}>
+          {accountsLoading || positionsLoading ? (
+            <div className="flex items-center justify-center py-12">
+              <div className="text-center">
+                <Loader2 className="w-8 h-8 text-blue-600 animate-spin mx-auto mb-3" />
+                <p className="text-gray-500">Loading your portfolio...</p>
               </div>
             </div>
-          </div>
-        )}
-        
-        {/* Main Content Area */}
-        <div className="p-6 overflow-y-auto" style={{ maxHeight: 'calc(90vh - 80px)' }}>
-          {activeView === 'dashboard' && renderDashboard()}
-          
-          {activeView === 'quick' && (
-            <div className="space-y-6">
-              {renderQuickUpdateSection()}
-              
-              {/* Pending Changes Summary */}
-              {Object.keys(reconciliationData).length > 0 && (
-                <motion.div
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="bg-white rounded-xl shadow-sm border border-gray-200 p-6"
-                >
-                  <div className="flex items-center justify-between mb-6">
-                    <div>
-                      <h3 className="font-semibold text-gray-900 text-lg">Ready to Submit</h3>
-                      <p className="text-sm text-gray-500 mt-1">
-                        Review your changes before submitting
-                      </p>
-                    </div>
-                    
-                    <div className="flex items-center space-x-3">
-                      <span className="px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-sm font-medium">
-                        {Object.keys(reconciliationData).filter(k => k.startsWith('pos_')).length} position updates
-                      </span>
-                      <span className="px-3 py-1 bg-green-100 text-green-700 rounded-full text-sm font-medium">
-                        {Object.keys(reconciliationData).filter(k => k.startsWith('account_')).length} account reconciliations
-                      </span>
-                    </div>
-                  </div>
-                  
-                  {/* Changes List */}
-                  <div className="space-y-2 mb-6 max-h-48 overflow-y-auto">
-                    {Object.entries(reconciliationData).map(([key, data]) => {
-                      if (key.startsWith('pos_')) {
-                        const posId = parseInt(key.replace('pos_', ''));
-                        const position = processedPositions.find(p => p.item_id === posId);
-                        if (!position) return null;
-                        
-                        return (
-                          <div key={key} className="flex items-center justify-between py-2 px-3 bg-gray-50 rounded-lg">
-                            <div className="flex items-center space-x-3">
-                              <Edit2 className="w-4 h-4 text-blue-500" />
-                              <span className="text-sm font-medium text-gray-900">{position.name}</span>
-                            </div>
-                            <div className="flex items-center space-x-4">
-                              <span className="text-sm text-gray-500">
-                                {formatCurrency(position.current_value)} → {formatCurrency(data.value)}
-                              </span>
-                              <button
-                                onClick={() => {
-                                  const newData = { ...reconciliationData };
-                                  delete newData[key];
-                                  setReconciliationData(newData);
-                                }}
-                                className="p-1 hover:bg-gray-200 rounded transition-colors"
-                              >
-                                <X className="w-3 h-3 text-gray-400" />
-                              </button>
-                            </div>
-                          </div>
-                        );
-                      }
-                      return null;
-                    })}
-                  </div>
-                  
-                  {/* Action Buttons */}
-                  <div className="flex items-center justify-between">
-                    <button
-                      onClick={() => {
-                        setReconciliationData({});
-                        setVariances({});
-                      }}
-                      className="px-4 py-2 text-gray-600 hover:text-gray-900 font-medium transition-colors"
-                    >
-                      Clear All
-                    </button>
-                    
-                    <button
-                      onClick={submitReconciliation}
-                      disabled={isSubmitting}
-                      className="px-6 py-3 bg-gradient-to-r from-green-600 to-emerald-600 text-white font-semibold rounded-xl hover:from-green-700 hover:to-emerald-700 transition-all disabled:opacity-50 flex items-center shadow-lg"
-                    >
-                      {isSubmitting ? (
-                        <>
-                          <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                          Submitting...
-                        </>
-                      ) : (
-                        <>
-                          <CheckCircle2 className="w-5 h-5 mr-2" />
-                          Complete Reconciliation
-                        </>
-                      )}
-                    </button>
-                  </div>
-                </motion.div>
-              )}
-            </div>
-          )}
-          
-          {activeView === 'accounts' && (
-            <div className="space-y-6">
-              {renderAccountSection()}
-              
-              {/* Submit Button for Account View */}
-              {(Object.keys(variances).length > 0 || Object.keys(reconciliationData).length > 0) && (
-                <motion.div
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="bg-white rounded-xl shadow-sm border border-gray-200 p-6"
-                >
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h3 className="font-semibold text-gray-900">Ready to Submit</h3>
-                      <p className="text-sm text-gray-500">
-                        {Object.keys(variances).length} accounts verified • {
-                          Object.keys(reconciliationData).filter(k => k.startsWith('pos_')).length
-                        } positions updated
-                      </p>
-                    </div>
-                    
-                    <div className="flex items-center space-x-3">
-                      <button
-                        onClick={() => {
-                          setVariances({});
-                          setReconciliationData({});
-                        }}
-                        className="px-4 py-2 text-gray-600 hover:text-gray-900 font-medium"
-                      >
-                        Clear All
-                      </button>
-                      
-                      <button
-                        onClick={submitReconciliation}
-                        disabled={isSubmitting}
-                        className="px-6 py-3 bg-gradient-to-r from-green-600 to-emerald-600 text-white font-semibold rounded-xl hover:from-green-700 hover:to-emerald-700 transition-all disabled:opacity-50 flex items-center shadow-lg"
-                      >
-                        {isSubmitting ? (
-                          <>
-                            <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                            Submitting...
-                          </>
-                        ) : (
-                          <>
-                            <CheckCircle2 className="w-5 h-5 mr-2" />
-                            Complete Reconciliation
-                          </>
-                        )}
-                      </button>
-                    </div>
-                  </div>
-                </motion.div>
-              )}
-            </div>
+          ) : (
+            <>
+              {activeView === 'dashboard' && renderDashboard()}
+              {activeView === 'quick' && renderQuickUpdates()}
+              {activeView === 'accounts' && renderAccounts()}
+            </>
           )}
         </div>
         
-        {/* Messages */}
+        {/* Success Animation */}
         <AnimatePresence>
-          {message && (
+          {showSuccess && (
             <motion.div
-              initial={{ opacity: 0, y: -20, scale: 0.95 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: -20, scale: 0.95 }}
-              className={`fixed top-4 right-4 px-6 py-4 rounded-xl shadow-2xl z-50 flex items-center space-x-3 ${
-                message.type === 'success' ? 'bg-gradient-to-r from-green-500 to-emerald-500 text-white' :
-                message.type === 'error' ? 'bg-gradient-to-r from-red-500 to-rose-500 text-white' :
-                'bg-gradient-to-r from-blue-500 to-indigo-500 text-white'
-              }`}
+              initial={{ opacity: 0, scale: 0.8 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.8 }}
+              className="fixed inset-0 flex items-center justify-center pointer-events-none z-50"
             >
-              {message.type === 'success' ? <CheckCircle2 className="w-6 h-6" /> :
-               message.type === 'error' ? <AlertCircle className="w-6 h-6" /> :
-               <Info className="w-6 h-6" />}
-              <span className="font-medium">{message.text}</span>
+              <div className="bg-white rounded-xl shadow-2xl p-8 pointer-events-auto">
+                <Trophy className="w-16 h-16 text-yellow-500 mx-auto mb-4" />
+                <h2 className="text-2xl font-bold text-gray-900 text-center">Success!</h2>
+                <p className="text-gray-600 text-center mt-2">Reconciliation complete</p>
+              </div>
             </motion.div>
           )}
         </AnimatePresence>
         
-        {/* Confetti Celebration */}
-        {confetti && (
-          <div className="fixed inset-0 pointer-events-none z-50">
+        {/* Error Message */}
+        <AnimatePresence>
+          {message && message.type === 'error' && (
             <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="absolute inset-0 flex items-center justify-center"
+              initial={{ opacity: 0, y: -20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              className="fixed top-4 right-4 bg-red-500 text-white px-4 py-3 rounded-lg shadow-lg z-50"
             >
-              <div className="text-center">
-                <motion.div
-                  animate={{ 
-                    scale: [1, 1.2, 1],
-                    rotate: [0, 10, -10, 0]
-                  }}
-                  transition={{ duration: 0.5, repeat: 3 }}
-                >
-                  <Trophy className="w-32 h-32 text-yellow-400 mx-auto mb-4" />
-                </motion.div>
-                <motion.h2 
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="text-4xl font-bold text-gray-900 mb-2"
-                >
-                  Perfect Balance! 🎉
-                </motion.h2>
-                <motion.p
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.2 }}
-                  className="text-xl text-gray-600"
-                >
-                  Your NestEgg is perfectly reconciled
-                </motion.p>
+              <div className="flex items-center">
+                <AlertCircle className="w-5 h-5 mr-2" />
+                {message.text}
               </div>
             </motion.div>
-          </div>
-        )}
+          )}
+        </AnimatePresence>
       </div>
     </FixedModal>
   );
 };
 
-// Export button component for navbar integration
+// Export button for navbar
 export const QuickReconciliationButton2 = ({ className = '' }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
@@ -1848,24 +768,17 @@ export const QuickReconciliationButton2 = ({ className = '' }) => {
         onMouseLeave={() => setIsHovered(false)}
         className={`group relative flex items-center text-white py-2 px-5 transition-all duration-300 transform hover:scale-105 ${className}`}
       >
-        <div className="absolute inset-0 bg-gradient-to-r from-blue-600 to-purple-600 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-300 shadow-lg"></div>
+        <div className="absolute inset-0 bg-gradient-to-r from-blue-600 to-purple-600 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-300 shadow-lg" />
         <div className="relative flex items-center">
-          <Target className={`
-            w-5 h-5 mr-2 transition-all duration-300
-            ${isHovered ? 'text-white rotate-12' : 'text-blue-400'}
-          `} />
+          <Target className={`w-5 h-5 mr-2 transition-all duration-300 ${
+            isHovered ? 'text-white rotate-12' : 'text-blue-400'
+          }`} />
           <span className="text-sm text-gray-200 group-hover:text-white font-medium">
             Smart Reconcile
           </span>
           {isHovered && (
             <Sparkles className="w-4 h-4 ml-2 text-yellow-300 animate-pulse" />
           )}
-        </div>
-        <div className="absolute -top-1 -right-1">
-          <span className="flex h-3 w-3">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-purple-400 opacity-75"></span>
-            <span className="relative inline-flex rounded-full h-3 w-3 bg-purple-500"></span>
-          </span>
         </div>
       </button>
       
