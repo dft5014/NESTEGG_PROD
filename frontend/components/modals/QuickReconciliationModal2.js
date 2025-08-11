@@ -10,7 +10,7 @@ import {
 } from 'lucide-react';
 import { useDataStore } from '../../store/DataStore';
 import { fetchWithAuth } from '../../utils/api';
-import { formatCurrency, formatNumber, formatPercent } from '../../utils/formatters';
+import { formatCurrency, formatNumber, formatPercentage } from '../../utils/formatters';
 import FixedModal from './FixedModal';
 
 // Asset type configurations
@@ -643,7 +643,7 @@ const QuickReconciliationModal2 = ({ isOpen, onClose }) => {
                                 <div className="flex items-center space-x-4">
                                   <span className={`font-medium text-${variance.status.color}-700`}>
                                     Variance: {formatCurrency(variance.variance)} 
-                                    ({formatPercent(variance.variancePercent / 100)})
+                                    ({formatPercentage(variance.variancePercent)})
                                   </span>
                                   <span className={`px-2 py-0.5 bg-${variance.status.color}-100 text-${variance.status.color}-700 rounded-full text-xs`}>
                                     {variance.status.label}

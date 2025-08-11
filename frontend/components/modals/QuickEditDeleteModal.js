@@ -1688,21 +1688,28 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
 
     const loadLiabilities = useCallback(() => {
       if (dataStoreLiabilities && Array.isArray(dataStoreLiabilities)) {
-        // Map liabilities - now they have individual IDs
-        const unifiedLiabilities = dataStoreLiabilities.map(liability => ({
-          id: liability.liability_id || liability.item_id,  // Use liability_id from the view
-          name: liability.name,
-          liability_type: liability.liability_type,
-          current_balance: liability.total_current_balance,
-          original_amount: liability.total_original_amount || liability.total_original_amount,
-          interest_rate: liability.weighted_avg_interest_rate,
-          credit_limit: liability.total_credit_limit,
-          institution_name: liability.institution,
-          minimum_payment: liability.minimum_payment,
-          due_date: liability.due_date,
-          notes: liability.notes || ''
-        }));
+        console.log('Loading liabilities from dataStore:', dataStoreLiabilities);
         
+        // Map individual liabilities with proper ID field
+        const unifiedLiabilities = dataStoreLiabilities.map(liability => {
+          console.log('Processing liability:', liability);
+          
+          return {
+            id: liability.liability_id || liability.item_id || liability.id,  // Try all possible ID fields
+            name: liability.name,
+            liability_type: liability.liability_type,
+            current_balance: liability.total_current_balance || liability.current_balance,
+            original_amount: liability.total_original_amount || liability.original_amount,
+            interest_rate: liability.weighted_avg_interest_rate || liability.interest_rate,
+            credit_limit: liability.total_credit_limit || liability.credit_limit,
+            institution_name: liability.institution || liability.institution_name,
+            minimum_payment: liability.minimum_payment,
+            due_date: liability.due_date,
+            notes: liability.notes || ''
+          };
+        });
+        
+        console.log('Unified liabilities:', unifiedLiabilities);
         setLiabilities(unifiedLiabilities);
         setFilteredLiabilities(unifiedLiabilities);
       }
