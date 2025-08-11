@@ -386,26 +386,19 @@ const FilterDropdown = ({
                         {OptionIcon && (
                           <OptionIcon className={`w-4 h-4 mr-2 ${isSelected ? `text-${color}-600` : 'text-gray-400'}`} />
                         )}
-                        <div className="flex flex-col">
-                          <span className={`font-medium ${isSelected ? 'text-gray-900' : 'text-gray-600'}`}>
-                            {option.label}
-                          </span>
-                          {(option.institution || option.categoryName) && (
-                            <div className="flex items-center space-x-2 mt-0.5">
-                              {option.institution && (
-                                <span className="text-[10px] text-gray-500 font-medium">
-                                  {option.institution}
-                                </span>
-                              )}
-                              {option.institution && option.categoryName && (
-                                <span className="text-[10px] text-gray-400">•</span>
-                              )}
-                              {option.categoryName && (
-                                <span className={`text-[10px] font-medium text-${option.categoryColor || 'gray'}-600`}>
-                                  {option.categoryName}
-                                </span>
-                              )}
-                            </div>
+                        <span className={`font-medium ${isSelected ? 'text-gray-900' : 'text-gray-600'} mr-2`}>
+                          {option.label}
+                        </span>
+                        <div className="flex items-center space-x-1.5">
+                          {option.institution && (
+                            <span className="px-1.5 py-0.5 bg-gray-100 text-gray-600 text-[10px] font-medium rounded">
+                              {option.institution}
+                            </span>
+                          )}
+                          {option.categoryName && (
+                            <span className={`px-1.5 py-0.5 bg-${option.categoryColor}-100 text-${option.categoryColor}-700 text-[10px] font-medium rounded`}>
+                              {option.categoryName}
+                            </span>
                           )}
                         </div>
                       </div>
