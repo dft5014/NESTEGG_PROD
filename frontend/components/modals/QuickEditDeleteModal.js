@@ -930,6 +930,21 @@ const EditAccountForm = ({ account, onSave, onCancel }) => {
 
 // Edit position form component - Enhanced with better cost basis support
 const EditPositionForm = ({ position, assetType, onSave, onCancel, accounts }) => {
+  // Only normalize if it's one of the "other" asset variations
+  if (assetType === 'other_asset' || 
+      assetType === 'other_assets' || 
+      assetType === 'real_estate' || 
+      assetType === 'vehicle' || 
+      assetType === 'collectible' || 
+      assetType === 'jewelry' || 
+      assetType === 'art' || 
+      assetType === 'equipment' || 
+      assetType === 'other') {
+    assetType = 'otherAssets';
+  }
+  
+  const config = ASSET_TYPES[assetType];
+  
   const mapPositionData = (pos) => {
     const baseData = {
       ...pos,
