@@ -1624,7 +1624,7 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
     const [message, setMessage] = useState({ type: '', text: '' });
     
     // New state for grouping
-    const [groupBy, setGroupBy] = useState('assetType'); // Default grouping by institution
+    const [groupBy, setGroupBy] = useState('asset_type');
     
     // Selection hooks
     const accountSelection = useSelectionState();
@@ -1878,7 +1878,7 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
           acc[key].push(position);
           return acc;
         }, {});
-      } else if (groupBy === 'assetType') {  // Match the actual value used
+      } else if (groupBy === 'asset_type') {  // Match the actual value used
         return filteredPositions.reduce((acc, position) => {
           // Map asset types correctly
           let assetType = position.asset_type || position.item_type;
