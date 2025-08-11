@@ -6,17 +6,18 @@ import {
   CreditCard, Wallet, Building2, PiggyBank, Home, Car, GraduationCap,
   ChevronDown, Check, Plus, Minus, Edit2, Save, XCircle, Info,
   ArrowUpRight, ArrowDownRight, Activity, BarChart3, DollarSign,
-  Smartphone, Lock, Unlock, Calendar, Hash, Percent, FileText
+  Smartphone, Lock, Unlock, Calendar, Hash, Percent, FileText,
+  ChevronUp, AlertTriangle, TrendingFlat, Banknote, Coins
 } from 'lucide-react';
 import { useDataStore } from '../../store/DataStore';
 import { fetchWithAuth } from '../../utils/api';
 import { formatCurrency, formatNumber, formatPercentage } from '../../utils/formatters';
 import FixedModal from './FixedModal';
 
-// Asset type configurations
+// Asset type configurations with better icons
 const ASSET_CONFIGS = {
   cash: { 
-    icon: Wallet, 
+    icon: Banknote, 
     color: 'green', 
     gradient: 'from-green-500 to-emerald-500',
     quickEdit: true,
@@ -51,7 +52,7 @@ const ASSET_CONFIGS = {
     label: 'Securities'
   },
   crypto: { 
-    icon: Zap, 
+    icon: Coins, 
     color: 'yellow', 
     gradient: 'from-yellow-500 to-orange-500',
     quickEdit: false,
@@ -78,7 +79,7 @@ const CATEGORY_CONFIGS = {
   brokerage: { icon: BarChart3, color: 'blue', label: 'Investment' },
   retirement: { icon: PiggyBank, color: 'purple', label: 'Retirement' },
   banking: { icon: Building2, color: 'green', label: 'Banking' },
-  crypto: { icon: Zap, color: 'yellow', label: 'Crypto' },
+  crypto: { icon: Coins, color: 'yellow', label: 'Crypto' },
   credit: { icon: CreditCard, color: 'red', label: 'Credit' },
   mortgage: { icon: Home, color: 'indigo', label: 'Mortgage' },
   loan: { icon: FileText, color: 'orange', label: 'Loan' }
@@ -89,7 +90,7 @@ const getVarianceStatus = (variance, threshold = 0.01) => {
   const absVariance = Math.abs(variance);
   if (absVariance <= threshold) return { color: 'green', icon: CheckCircle2, label: 'Matched' };
   if (absVariance <= threshold * 5) return { color: 'yellow', icon: AlertCircle, label: 'Minor' };
-  return { color: 'red', icon: AlertCircle, label: 'Review' };
+  return { color: 'red', icon: AlertTriangle, label: 'Review' };
 };
 
 // Format time ago
@@ -111,7 +112,7 @@ const QuickReconciliationModal2 = ({ isOpen, onClose }) => {
   const { state, actions } = useDataStore();
   
   // Core state
-  const [activeView, setActiveView] = useState('dashboard'); // dashboard, quick, accounts, review
+  const [activeView, setActiveView] = useState('dashboard'); // dashboard, quick, accounts, positions
   const [selectedAccount, setSelectedAccount] = useState(null);
   const [selectedPositions, setSelectedPositions] = useState(new Set());
   const [reconciliationData, setReconciliationData] = useState({});
@@ -119,6 +120,8 @@ const QuickReconciliationModal2 = ({ isOpen, onClose }) => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showValues, setShowValues] = useState(true);
   const [expandedSections, setExpandedSections] = useState(new Set(['quick']));
+  const [editingPosition, setEditingPosition] = useState(null);
+  const [editValues, setEditValues] = useState({});
   
   // UI state
   const [message, setMessage] = useState(null);
@@ -133,8 +136,10 @@ const QuickReconciliationModal2 = ({ isOpen, onClose }) => {
   useEffect(() => {
     if (isOpen) {
       loadReconciliationData();
+      // Fetch all necessary data
       actions.fetchAccountsData();
       actions.fetchDetailedPositionsData();
+      actions.fetchGroupedPositionsData();
       actions.fetchGroupedLiabilitiesData();
     }
   }, [isOpen]);
@@ -186,23 +191,31 @@ const QuickReconciliationModal2 = ({ isOpen, onClose }) => {
     });
   }, [state.accounts.data]);
   
+  // Get all positions from detailed positions
+  const allPositions = useMemo(() => {
+    if (!state.detailedPositions?.data) return [];
+    return state.detailedPositions.data;
+  }, [state.detailedPositions?.data]);
+  
   // Get liquid positions (cash, credit cards, loans)
   const liquidPositions = useMemo(() => {
-    if (!state.detailedPositions?.data) return [];
-    
-    return state.detailedPositions.data.filter(pos => 
+    return allPositions.filter(pos => 
       ['cash', 'credit_card', 'loan', 'mortgage'].includes(pos.assetType)
     );
-  }, [state.detailedPositions?.data]);
+  }, [allPositions]);
   
   // Get investment positions
   const investmentPositions = useMemo(() => {
-    if (!state.detailedPositions?.data) return [];
-    
-    return state.detailedPositions.data.filter(pos => 
+    return allPositions.filter(pos => 
       ['security', 'crypto', 'metal'].includes(pos.assetType)
     );
-  }, [state.detailedPositions?.data]);
+  }, [allPositions]);
+  
+  // Get positions for selected account
+  const accountPositions = useMemo(() => {
+    if (!selectedAccount || !allPositions) return [];
+    return allPositions.filter(pos => pos.accountId === selectedAccount.account_id);
+  }, [selectedAccount, allPositions]);
   
   // Calculate reconciliation health score
   const reconciliationHealth = useMemo(() => {
@@ -242,6 +255,25 @@ const QuickReconciliationModal2 = ({ isOpen, onClose }) => {
     setTimeout(() => {
       setAnimateValues(prev => ({ ...prev, [positionId]: false }));
     }, 500);
+  };
+  
+  // Handle position edit
+  const handleEditPosition = (position) => {
+    setEditingPosition(position.itemId || position.id);
+    setEditValues({
+      quantity: position.quantity,
+      value: position.currentValue
+    });
+  };
+  
+  // Save position edit
+  const handleSavePosition = (positionId) => {
+    const position = allPositions.find(p => (p.itemId || p.id) === positionId);
+    if (!position) return;
+    
+    handleQuickUpdate(positionId, parseFloat(editValues.value) || 0);
+    setEditingPosition(null);
+    setEditValues({});
   };
   
   // Handle account reconciliation
@@ -302,7 +334,7 @@ const QuickReconciliationModal2 = ({ isOpen, onClose }) => {
           }
         } else if (key.startsWith('pos_')) {
           const positionId = parseInt(key.replace('pos_', ''));
-          const position = state.detailedPositions.data.find(p => p.itemId === positionId);
+          const position = allPositions.find(p => (p.itemId || p.id) === positionId);
           
           if (position) {
             const response = await fetchWithAuth('/api/reconciliation/position', {
@@ -354,7 +386,7 @@ const QuickReconciliationModal2 = ({ isOpen, onClose }) => {
     }
   };
   
-  // Render quick update section
+  // Render quick update section with all liquid positions
   const renderQuickUpdateSection = () => (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -399,108 +431,137 @@ const QuickReconciliationModal2 = ({ isOpen, onClose }) => {
             transition={{ duration: 0.2 }}
             className="border-t border-gray-100"
           >
-            <div className="p-6 space-y-4">
-              {liquidPositions.map(position => {
-                const AssetIcon = ASSET_CONFIGS[position.assetType]?.icon || Wallet;
-                const config = ASSET_CONFIGS[position.assetType];
-                const hasUpdate = reconciliationData[`pos_${position.itemId}`];
-                const isAnimating = animateValues[position.itemId];
-                
-                return (
-                  <motion.div
-                    key={position.itemId}
-                    layout
-                    className={`p-4 rounded-lg border-2 transition-all ${
-                      hasUpdate ? 'border-green-300 bg-green-50' : 'border-gray-200 bg-white'
-                    } ${isAnimating ? 'scale-[1.02]' : ''}`}
-                  >
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center space-x-3">
-                        <div className={`p-2 bg-gradient-to-br ${config.gradient} rounded-lg`}>
-                          <AssetIcon className="w-5 h-5 text-white" />
+            <div className="p-6 space-y-4 max-h-96 overflow-y-auto">
+              {liquidPositions.length > 0 ? (
+                liquidPositions.map(position => {
+                  const AssetIcon = ASSET_CONFIGS[position.assetType]?.icon || Wallet;
+                  const config = ASSET_CONFIGS[position.assetType] || ASSET_CONFIGS.cash;
+                  const hasUpdate = reconciliationData[`pos_${position.itemId || position.id}`];
+                  const isAnimating = animateValues[position.itemId || position.id];
+                  const isEditing = editingPosition === (position.itemId || position.id);
+                  
+                  return (
+                    <motion.div
+                      key={position.itemId || position.id}
+                      layout
+                      className={`p-4 rounded-lg border-2 transition-all ${
+                        hasUpdate ? 'border-green-300 bg-green-50' : 'border-gray-200 bg-white'
+                      } ${isAnimating ? 'scale-[1.02]' : ''}`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center space-x-3 flex-1">
+                          <div className={`p-2 bg-gradient-to-br ${config.gradient} rounded-lg`}>
+                            <AssetIcon className="w-5 h-5 text-white" />
+                          </div>
+                          <div className="flex-1">
+                            <h4 className="font-medium text-gray-900">{position.name}</h4>
+                            <p className="text-sm text-gray-500">
+                              {position.accountName} • {position.institution}
+                            </p>
+                          </div>
                         </div>
-                        <div>
-                          <h4 className="font-medium text-gray-900">{position.name}</h4>
-                          <p className="text-sm text-gray-500">
-                            {position.accountName} • {position.institution}
-                          </p>
+                        
+                        <div className="flex items-center space-x-4">
+                          <div className="text-right">
+                            <p className="text-sm text-gray-500">Current</p>
+                            <p className="font-semibold text-gray-900">
+                              {showValues ? formatCurrency(position.currentValue) : '••••'}
+                            </p>
+                          </div>
+                          
+                          {isEditing ? (
+                            <div className="flex items-center space-x-2">
+                              <input
+                                type="number"
+                                value={editValues.value}
+                                onChange={(e) => setEditValues({ ...editValues, value: e.target.value })}
+                                className="w-32 px-3 py-1.5 border border-blue-300 rounded-lg text-center font-medium focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                step="0.01"
+                                autoFocus
+                              />
+                              <button
+                                onClick={() => handleSavePosition(position.itemId || position.id)}
+                                className="p-1.5 bg-green-500 hover:bg-green-600 rounded-lg transition-colors"
+                              >
+                                <Check className="w-4 h-4 text-white" />
+                              </button>
+                              <button
+                                onClick={() => {
+                                  setEditingPosition(null);
+                                  setEditValues({});
+                                }}
+                                className="p-1.5 bg-gray-400 hover:bg-gray-500 rounded-lg transition-colors"
+                              >
+                                <X className="w-4 h-4 text-white" />
+                              </button>
+                            </div>
+                          ) : (
+                            <div className="flex items-center space-x-2">
+                              <button
+                                onClick={() => {
+                                  const newValue = (reconciliationData[`pos_${position.itemId || position.id}`]?.value ?? position.currentValue) - 100;
+                                  handleQuickUpdate(position.itemId || position.id, newValue);
+                                }}
+                                className="p-1.5 bg-red-100 hover:bg-red-200 rounded-lg transition-colors"
+                              >
+                                <Minus className="w-4 h-4 text-red-600" />
+                              </button>
+                              
+                              <button
+                                onClick={() => handleEditPosition(position)}
+                                className="px-3 py-1.5 bg-blue-100 hover:bg-blue-200 rounded-lg transition-colors flex items-center"
+                              >
+                                <Edit2 className="w-4 h-4 text-blue-600" />
+                              </button>
+                              
+                              <button
+                                onClick={() => {
+                                  const newValue = (reconciliationData[`pos_${position.itemId || position.id}`]?.value ?? position.currentValue) + 100;
+                                  handleQuickUpdate(position.itemId || position.id, newValue);
+                                }}
+                                className="p-1.5 bg-green-100 hover:bg-green-200 rounded-lg transition-colors"
+                              >
+                                <Plus className="w-4 h-4 text-green-600" />
+                              </button>
+                            </div>
+                          )}
+                          
+                          {hasUpdate && !isEditing && (
+                            <motion.div
+                              initial={{ scale: 0 }}
+                              animate={{ scale: 1 }}
+                              className="p-1.5 bg-green-500 rounded-full"
+                            >
+                              <Check className="w-3 h-3 text-white" />
+                            </motion.div>
+                          )}
                         </div>
                       </div>
                       
-                      <div className="flex items-center space-x-4">
-                        <div className="text-right">
-                          <p className="text-sm text-gray-500">Current</p>
-                          <p className="font-semibold text-gray-900">
-                            {showValues ? formatCurrency(position.currentValue) : '••••'}
-                          </p>
-                        </div>
-                        
-                        <div className="flex items-center space-x-2">
-                          <button
-                            onClick={() => {
-                              const newValue = position.currentValue - 100;
-                              handleQuickUpdate(position.itemId, newValue);
-                            }}
-                            className="p-1.5 bg-red-100 hover:bg-red-200 rounded-lg transition-colors"
-                          >
-                            <Minus className="w-4 h-4 text-red-600" />
-                          </button>
-                          
-                          <input
-                            type="number"
-                            value={reconciliationData[`pos_${position.itemId}`]?.value ?? position.currentValue}
-                            onChange={(e) => handleQuickUpdate(position.itemId, parseFloat(e.target.value) || 0)}
-                            className="w-32 px-3 py-1.5 border border-gray-300 rounded-lg text-center font-medium focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                            step="0.01"
-                          />
-                          
-                          <button
-                            onClick={() => {
-                              const newValue = (reconciliationData[`pos_${position.itemId}`]?.value ?? position.currentValue) + 100;
-                              handleQuickUpdate(position.itemId, newValue);
-                            }}
-                            className="p-1.5 bg-green-100 hover:bg-green-200 rounded-lg transition-colors"
-                          >
-                            <Plus className="w-4 h-4 text-green-600" />
-                          </button>
-                        </div>
-                        
-                        {hasUpdate && (
-                          <motion.div
-                            initial={{ scale: 0 }}
-                            animate={{ scale: 1 }}
-                            className="p-1.5 bg-green-500 rounded-full"
-                          >
-                            <Check className="w-3 h-3 text-white" />
-                          </motion.div>
-                        )}
-                      </div>
-                    </div>
-                    
-                    {hasUpdate && (
-                      <motion.div
-                        initial={{ opacity: 0, height: 0 }}
-                        animate={{ opacity: 1, height: 'auto' }}
-                        className="mt-3 pt-3 border-t border-green-200"
-                      >
-                        <div className="flex items-center justify-between text-sm">
-                          <span className="text-green-700">
-                            Change: {formatCurrency(hasUpdate.value - position.currentValue)}
-                          </span>
-                          <span className="text-gray-500">
-                            Updated {formatTimeAgo(hasUpdate.timestamp)}
-                          </span>
-                        </div>
-                      </motion.div>
-                    )}
-                  </motion.div>
-                );
-              })}
-              
-              {liquidPositions.length === 0 && (
+                      {hasUpdate && (
+                        <motion.div
+                          initial={{ opacity: 0, height: 0 }}
+                          animate={{ opacity: 1, height: 'auto' }}
+                          className="mt-3 pt-3 border-t border-green-200"
+                        >
+                          <div className="flex items-center justify-between text-sm">
+                            <span className={`font-medium ${hasUpdate.value - position.currentValue >= 0 ? 'text-green-700' : 'text-red-700'}`}>
+                              Change: {formatCurrency(hasUpdate.value - position.currentValue)}
+                            </span>
+                            <span className="text-gray-500">
+                              New: {formatCurrency(hasUpdate.value)}
+                            </span>
+                          </div>
+                        </motion.div>
+                      )}
+                    </motion.div>
+                  );
+                })
+              ) : (
                 <div className="text-center py-8 text-gray-500">
                   <Wallet className="w-12 h-12 mx-auto mb-3 text-gray-300" />
-                  <p>No liquid positions to update</p>
+                  <p>No liquid positions found</p>
+                  <p className="text-sm mt-2">Add cash or credit card positions to get started</p>
                 </div>
               )}
             </div>
@@ -510,7 +571,7 @@ const QuickReconciliationModal2 = ({ isOpen, onClose }) => {
     </motion.div>
   );
   
-  // Render account reconciliation section
+  // Render account reconciliation section with position details
   const renderAccountSection = () => (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -529,7 +590,7 @@ const QuickReconciliationModal2 = ({ isOpen, onClose }) => {
           </div>
           <div className="text-left">
             <h3 className="font-semibold text-gray-900">Account Reconciliation</h3>
-            <p className="text-sm text-gray-500">Verify account balances</p>
+            <p className="text-sm text-gray-500">Verify account balances & review positions</p>
           </div>
         </div>
         <div className="flex items-center space-x-3">
@@ -578,93 +639,190 @@ const QuickReconciliationModal2 = ({ isOpen, onClose }) => {
                       const CategoryIcon = category.icon;
                       const variance = variances[account.account_id];
                       const hasReconciliation = reconciliationData[`account_${account.account_id}`];
+                      const isExpanded = selectedAccount?.account_id === account.account_id;
                       
                       return (
-                        <div
-                          key={account.account_id}
-                          className={`p-4 rounded-lg border-2 transition-all ${
-                            hasReconciliation ? 'border-green-300 bg-green-50' : 
-                            account.needsReconciliation ? 'border-amber-200 bg-amber-50' : 
-                            'border-gray-200 bg-white'
-                          }`}
-                        >
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center space-x-3">
-                              <div className={`p-2 rounded-lg bg-${category.color}-100`}>
-                                <CategoryIcon className={`w-5 h-5 text-${category.color}-600`} />
+                        <div key={account.account_id}>
+                          <div
+                            className={`p-4 rounded-lg border-2 transition-all ${
+                              hasReconciliation ? 'border-green-300 bg-green-50' : 
+                              account.needsReconciliation ? 'border-amber-200 bg-amber-50' : 
+                              'border-gray-200 bg-white'
+                            }`}
+                          >
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center space-x-3">
+                                <div className={`p-2 rounded-lg bg-${category.color}-100`}>
+                                  <CategoryIcon className={`w-5 h-5 text-${category.color}-600`} />
+                                </div>
+                                <div>
+                                  <h5 className="font-medium text-gray-900">{account.account_name}</h5>
+                                  <p className="text-sm text-gray-500">
+                                    {account.account_type} • Last: {formatTimeAgo(account.lastReconciled)}
+                                  </p>
+                                </div>
                               </div>
-                              <div>
-                                <h5 className="font-medium text-gray-900">{account.account_name}</h5>
-                                <p className="text-sm text-gray-500">
-                                  {account.account_type} • Last: {formatTimeAgo(account.lastReconciled)}
-                                </p>
+                              
+                              <div className="flex items-center space-x-4">
+                                <div className="text-right">
+                                  <p className="text-sm text-gray-500">App Balance</p>
+                                  <p className="font-semibold text-gray-900">
+                                    {showValues ? formatCurrency(account.total_value) : '••••'}
+                                  </p>
+                                </div>
+                                
+                                <div className="flex items-center space-x-2">
+                                  <input
+                                    type="number"
+                                    placeholder="Statement balance"
+                                    value={reconciliationData[`account_${account.account_id}`]?.statementBalance ?? ''}
+                                    onChange={(e) => {
+                                      const value = parseFloat(e.target.value);
+                                      if (!isNaN(value)) {
+                                        handleAccountReconciliation(account.account_id, value);
+                                      }
+                                    }}
+                                    className="w-40 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                    step="0.01"
+                                  />
+                                  
+                                  {variance && (
+                                    <div className={`p-2 rounded-lg bg-${variance.status.color}-100`}>
+                                      <variance.status.icon className={`w-5 h-5 text-${variance.status.color}-600`} />
+                                    </div>
+                                  )}
+                                  
+                                  <button
+                                    onClick={() => setSelectedAccount(isExpanded ? null : account)}
+                                    className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                                  >
+                                    <ChevronDown className={`w-5 h-5 text-gray-500 transition-transform ${
+                                      isExpanded ? 'rotate-180' : ''
+                                    }`} />
+                                  </button>
+                                </div>
                               </div>
                             </div>
                             
-                            <div className="flex items-center space-x-4">
-                              <div className="text-right">
-                                <p className="text-sm text-gray-500">App Balance</p>
-                                <p className="font-semibold text-gray-900">
-                                  {showValues ? formatCurrency(account.total_value) : '••••'}
-                                </p>
-                              </div>
-                              
-                              <div className="flex items-center space-x-2">
-                                <input
-                                  type="number"
-                                  placeholder="Statement balance"
-                                  value={reconciliationData[`account_${account.account_id}`]?.statementBalance ?? ''}
-                                  onChange={(e) => {
-                                    const value = parseFloat(e.target.value);
-                                    if (!isNaN(value)) {
-                                      handleAccountReconciliation(account.account_id, value);
-                                    }
-                                  }}
-                                  className="w-40 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                                  step="0.01"
-                                />
-                                
-                                {variance && (
-                                  <div className={`p-2 rounded-lg bg-${variance.status.color}-100`}>
-                                    <variance.status.icon className={`w-5 h-5 text-${variance.status.color}-600`} />
+                            {variance && (
+                              <motion.div
+                                initial={{ opacity: 0, height: 0 }}
+                                animate={{ opacity: 1, height: 'auto' }}
+                                className="mt-3 pt-3 border-t border-gray-200"
+                              >
+                                <div className="flex items-center justify-between text-sm">
+                                  <div className="flex items-center space-x-4">
+                                    <span className={`font-medium text-${variance.status.color}-700`}>
+                                      Variance: {formatCurrency(variance.variance)} 
+                                      ({formatPercentage(variance.variancePercent)})
+                                    </span>
+                                    <span className={`px-2 py-0.5 bg-${variance.status.color}-100 text-${variance.status.color}-700 rounded-full text-xs`}>
+                                      {variance.status.label}
+                                    </span>
                                   </div>
-                                )}
-                              </div>
-                            </div>
+                                </div>
+                              </motion.div>
+                            )}
                           </div>
                           
-                          {variance && (
-                            <motion.div
-                              initial={{ opacity: 0, height: 0 }}
-                              animate={{ opacity: 1, height: 'auto' }}
-                              className="mt-3 pt-3 border-t border-gray-200"
-                            >
-                              <div className="flex items-center justify-between text-sm">
-                                <div className="flex items-center space-x-4">
-                                  <span className={`font-medium text-${variance.status.color}-700`}>
-                                    Variance: {formatCurrency(variance.variance)} 
-                                    ({formatPercentage(variance.variancePercent)})
-                                  </span>
-                                  <span className={`px-2 py-0.5 bg-${variance.status.color}-100 text-${variance.status.color}-700 rounded-full text-xs`}>
-                                    {variance.status.label}
-                                  </span>
+                          {/* Account Positions Dropdown */}
+                          <AnimatePresence>
+                            {isExpanded && (
+                              <motion.div
+                                initial={{ opacity: 0, height: 0 }}
+                                animate={{ opacity: 1, height: 'auto' }}
+                                exit={{ opacity: 0, height: 0 }}
+                                className="mt-2 ml-12"
+                              >
+                                <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                                  <h6 className="font-medium text-gray-700 mb-3">Positions in this account</h6>
+                                  
+                                  {accountPositions.length > 0 ? (
+                                    <div className="space-y-2">
+                                      {accountPositions.map(position => {
+                                        const AssetIcon = ASSET_CONFIGS[position.assetType]?.icon || Wallet;
+                                        const config = ASSET_CONFIGS[position.assetType] || {};
+                                        const hasUpdate = reconciliationData[`pos_${position.itemId || position.id}`];
+                                        
+                                        return (
+                                          <div
+                                            key={position.itemId || position.id}
+                                            className={`p-3 bg-white rounded-lg border ${
+                                              hasUpdate ? 'border-green-300' : 'border-gray-200'
+                                            }`}
+                                          >
+                                            <div className="flex items-center justify-between">
+                                              <div className="flex items-center space-x-2">
+                                                <AssetIcon className={`w-4 h-4 text-${config.color}-600`} />
+                                                <div>
+                                                  <p className="font-medium text-sm text-gray-900">{position.name}</p>
+                                                  <p className="text-xs text-gray-500">
+                                                    {position.quantity} units • {position.assetType}
+                                                  </p>
+                                                </div>
+                                              </div>
+                                              
+                                              <div className="flex items-center space-x-2">
+                                                <div className="text-right">
+                                                  <p className="text-xs text-gray-500">Value</p>
+                                                  <p className="font-medium text-sm">
+                                                    {formatCurrency(hasUpdate?.value || position.currentValue)}
+                                                  </p>
+                                                </div>
+                                                
+                                                <button
+                                                  onClick={() => handleEditPosition(position)}
+                                                  className="p-1 hover:bg-gray-100 rounded transition-colors"
+                                                >
+                                                  <Edit2 className="w-4 h-4 text-gray-500" />
+                                                </button>
+                                                
+                                                {hasUpdate && (
+                                                  <Check className="w-4 h-4 text-green-500" />
+                                                )}
+                                              </div>
+                                            </div>
+                                            
+                                            {editingPosition === (position.itemId || position.id) && (
+                                              <div className="mt-2 pt-2 border-t border-gray-200 flex items-center space-x-2">
+                                                <input
+                                                  type="number"
+                                                  value={editValues.value}
+                                                  onChange={(e) => setEditValues({ ...editValues, value: e.target.value })}
+                                                  className="flex-1 px-2 py-1 text-sm border border-blue-300 rounded focus:ring-1 focus:ring-blue-500"
+                                                  placeholder="New value"
+                                                  step="0.01"
+                                                />
+                                                <button
+                                                  onClick={() => handleSavePosition(position.itemId || position.id)}
+                                                  className="p-1 bg-green-500 hover:bg-green-600 rounded text-white"
+                                                >
+                                                  <Check className="w-3 h-3" />
+                                                </button>
+                                                <button
+                                                  onClick={() => {
+                                                    setEditingPosition(null);
+                                                    setEditValues({});
+                                                  }}
+                                                  className="p-1 bg-gray-400 hover:bg-gray-500 rounded text-white"
+                                                >
+                                                  <X className="w-3 h-3" />
+                                                </button>
+                                              </div>
+                                            )}
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                  ) : (
+                                    <p className="text-sm text-gray-500 text-center py-4">
+                                      No positions found in this account
+                                    </p>
+                                  )}
                                 </div>
-                                
-                                {Math.abs(variance.variancePercent) > 1 && (
-                                  <button
-                                    onClick={() => {
-                                      setSelectedAccount(account);
-                                      setActiveView('review');
-                                    }}
-                                    className="text-blue-600 hover:text-blue-700 font-medium flex items-center"
-                                  >
-                                    Review positions
-                                    <ChevronRight className="w-4 h-4 ml-1" />
-                                  </button>
-                                )}
-                              </div>
-                            </motion.div>
-                          )}
+                              </motion.div>
+                            )}
+                          </AnimatePresence>
                         </div>
                       );
                     })}
@@ -725,9 +883,9 @@ const QuickReconciliationModal2 = ({ isOpen, onClose }) => {
         </div>
         
         {/* Quick stats */}
-        <div className="grid grid-cols-3 gap-4 mt-6">
+        <div className="grid grid-cols-4 gap-4 mt-6">
           <div className="bg-white/10 backdrop-blur rounded-lg p-3">
-            <p className="text-blue-100 text-sm">Accounts</p>
+            <p className="text-blue-100 text-sm">Total Accounts</p>
             <p className="text-xl font-bold">{processedAccounts.length}</p>
           </div>
           <div className="bg-white/10 backdrop-blur rounded-lg p-3">
@@ -735,6 +893,10 @@ const QuickReconciliationModal2 = ({ isOpen, onClose }) => {
             <p className="text-xl font-bold">
               {processedAccounts.filter(a => a.needsReconciliation).length}
             </p>
+          </div>
+          <div className="bg-white/10 backdrop-blur rounded-lg p-3">
+            <p className="text-blue-100 text-sm">Liquid Positions</p>
+            <p className="text-xl font-bold">{liquidPositions.length}</p>
           </div>
           <div className="bg-white/10 backdrop-blur rounded-lg p-3">
             <p className="text-blue-100 text-sm">Last Update</p>
@@ -763,6 +925,9 @@ const QuickReconciliationModal2 = ({ isOpen, onClose }) => {
           </div>
           <h3 className="font-semibold text-gray-900 mb-1">Quick Updates</h3>
           <p className="text-sm text-gray-500">Update cash & credit cards</p>
+          {liquidPositions.length > 0 && (
+            <p className="text-xs text-blue-600 mt-2">{liquidPositions.length} positions ready</p>
+          )}
         </motion.button>
         
         <motion.button
@@ -780,42 +945,43 @@ const QuickReconciliationModal2 = ({ isOpen, onClose }) => {
           </div>
           <h3 className="font-semibold text-gray-900 mb-1">Full Reconciliation</h3>
           <p className="text-sm text-gray-500">Verify all account balances</p>
+          {processedAccounts.filter(a => a.needsReconciliation).length > 0 && (
+            <p className="text-xs text-amber-600 mt-2">
+              {processedAccounts.filter(a => a.needsReconciliation).length} need attention
+            </p>
+          )}
         </motion.button>
       </div>
       
-      {/* Recent Activity */}
-      {reconciliationHistoryRef.current.length > 0 && (
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
-          className="bg-white rounded-xl shadow-sm border border-gray-200 p-6"
-        >
-          <h3 className="font-semibold text-gray-900 mb-4 flex items-center">
-            <Clock className="w-5 h-5 mr-2" />
-            Recent Activity
-          </h3>
-          
-          <div className="space-y-3">
-            {reconciliationHistoryRef.current.slice(0, 3).map((rec, index) => (
-              <div key={index} className="flex items-center justify-between py-2 border-b border-gray-100 last:border-0">
-                <div>
-                  <p className="font-medium text-gray-900">
-                    {rec.accounts?.length || 0} accounts reconciled
-                  </p>
-                  <p className="text-sm text-gray-500">{formatTimeAgo(rec.date)}</p>
-                </div>
-                <div className="text-right">
-                  <p className="font-medium text-gray-900">
-                    {showValues ? formatCurrency(rec.totalValue) : '••••'}
-                  </p>
-                  <p className="text-sm text-gray-500">{rec.positions || 0} positions</p>
-                </div>
-              </div>
-            ))}
+      {/* Summary Stats */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.2 }}
+        className="bg-white rounded-xl shadow-sm border border-gray-200 p-6"
+      >
+        <h3 className="font-semibold text-gray-900 mb-4 flex items-center">
+          <Activity className="w-5 h-5 mr-2" />
+          Portfolio Overview
+        </h3>
+        
+        <div className="grid grid-cols-3 gap-6">
+          <div>
+            <p className="text-sm text-gray-500 mb-1">Total Positions</p>
+            <p className="text-2xl font-bold text-gray-900">{allPositions.length}</p>
           </div>
-        </motion.div>
-      )}
+          <div>
+            <p className="text-sm text-gray-500 mb-1">Investment Positions</p>
+            <p className="text-2xl font-bold text-gray-900">{investmentPositions.length}</p>
+          </div>
+          <div>
+            <p className="text-sm text-gray-500 mb-1">Pending Updates</p>
+            <p className="text-2xl font-bold text-blue-600">
+              {Object.keys(reconciliationData).length}
+            </p>
+          </div>
+        </div>
+      </motion.div>
     </div>
   );
   
@@ -825,7 +991,7 @@ const QuickReconciliationModal2 = ({ isOpen, onClose }) => {
       isOpen={isOpen}
       onClose={onClose}
       title=""
-      size="max-w-5xl"
+      size="max-w-6xl"
       showHeader={false}
     >
       <div className="min-h-[85vh] bg-gradient-to-br from-gray-50 to-blue-50 rounded-xl overflow-hidden">
@@ -856,7 +1022,10 @@ const QuickReconciliationModal2 = ({ isOpen, onClose }) => {
                   Dashboard
                 </button>
                 <button
-                  onClick={() => setActiveView('quick')}
+                  onClick={() => {
+                    setActiveView('quick');
+                    setExpandedSections(new Set(['quick']));
+                  }}
                   className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all ${
                     activeView === 'quick' 
                       ? 'bg-white text-gray-900 shadow-sm' 
@@ -866,7 +1035,10 @@ const QuickReconciliationModal2 = ({ isOpen, onClose }) => {
                   Quick
                 </button>
                 <button
-                  onClick={() => setActiveView('accounts')}
+                  onClick={() => {
+                    setActiveView('accounts');
+                    setExpandedSections(new Set(['accounts']));
+                  }}
                   className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all ${
                     activeView === 'accounts' 
                       ? 'bg-white text-gray-900 shadow-sm' 
@@ -889,12 +1061,16 @@ const QuickReconciliationModal2 = ({ isOpen, onClose }) => {
               
               {/* Refresh */}
               <button
-                onClick={() => actions.refreshData()}
+                onClick={() => {
+                  actions.fetchAccountsData(true);
+                  actions.fetchDetailedPositionsData(true);
+                  actions.fetchGroupedPositionsData(true);
+                }}
                 className="p-2 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
                 disabled={state.accounts.loading || state.detailedPositions.loading}
               >
                 <RefreshCw className={`w-5 h-5 text-gray-600 ${
-                  state.accounts.loading ? 'animate-spin' : ''
+                  state.accounts.loading || state.detailedPositions.loading ? 'animate-spin' : ''
                 }`} />
               </button>
               
@@ -925,11 +1101,13 @@ const QuickReconciliationModal2 = ({ isOpen, onClose }) => {
                   className="bg-white rounded-xl shadow-sm border border-gray-200 p-6"
                 >
                   <h3 className="font-semibold text-gray-900 mb-4">Pending Changes</h3>
-                  <div className="space-y-2">
-                    <p className="text-sm text-gray-600">
+                  <div className="space-y-2 mb-4">
+                    <p className="text-sm text-gray-600 flex items-center">
+                      <Edit2 className="w-4 h-4 mr-2 text-blue-500" />
                       {Object.keys(reconciliationData).filter(k => k.startsWith('pos_')).length} positions updated
                     </p>
-                    <p className="text-sm text-gray-600">
+                    <p className="text-sm text-gray-600 flex items-center">
+                      <CheckCircle2 className="w-4 h-4 mr-2 text-green-500" />
                       {Object.keys(reconciliationData).filter(k => k.startsWith('account_')).length} accounts reconciled
                     </p>
                   </div>
@@ -937,9 +1115,19 @@ const QuickReconciliationModal2 = ({ isOpen, onClose }) => {
                   <button
                     onClick={submitReconciliation}
                     disabled={isSubmitting}
-                    className="mt-4 w-full px-4 py-2 bg-gradient-to-r from-green-600 to-emerald-600 text-white font-medium rounded-lg hover:from-green-700 hover:to-emerald-700 transition-all disabled:opacity-50"
+                    className="w-full px-4 py-2 bg-gradient-to-r from-green-600 to-emerald-600 text-white font-medium rounded-lg hover:from-green-700 hover:to-emerald-700 transition-all disabled:opacity-50 flex items-center justify-center"
                   >
-                    {isSubmitting ? 'Submitting...' : 'Complete Reconciliation'}
+                    {isSubmitting ? (
+                      <>
+                        <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                        Submitting...
+                      </>
+                    ) : (
+                      <>
+                        <CheckCircle2 className="w-4 h-4 mr-2" />
+                        Complete Reconciliation
+                      </>
+                    )}
                   </button>
                 </motion.div>
               )}
@@ -951,17 +1139,17 @@ const QuickReconciliationModal2 = ({ isOpen, onClose }) => {
               {renderAccountSection()}
               
               {/* Action buttons */}
-              {Object.keys(variances).length > 0 && (
+              {(Object.keys(variances).length > 0 || Object.keys(reconciliationData).length > 0) && (
                 <motion.div
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   className="bg-white rounded-xl shadow-sm border border-gray-200 p-6"
                 >
-                  <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center justify-between">
                     <div>
                       <h3 className="font-semibold text-gray-900">Ready to Submit</h3>
                       <p className="text-sm text-gray-500">
-                        {Object.keys(variances).length} accounts verified
+                        {Object.keys(variances).length} accounts • {Object.keys(reconciliationData).filter(k => k.startsWith('pos_')).length} positions
                       </p>
                     </div>
                     

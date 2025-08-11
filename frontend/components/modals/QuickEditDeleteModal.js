@@ -1690,18 +1690,24 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
       if (dataStoreLiabilities && Array.isArray(dataStoreLiabilities)) {
         console.log('Loading liabilities from dataStore:', dataStoreLiabilities);
         
-        // Map individual liabilities with proper ID field
+        // Map individual liabilities with proper ID field from liability_details
         const unifiedLiabilities = dataStoreLiabilities.map(liability => {
-          console.log('Processing liability:', liability);
+          // Extract the liability_id from the liability_details JSON object
+          const liabilityDetails = liability.liability_details || {};
+          const liabilityId = liabilityDetails.liability_id || liabilityDetails.item_id;
+          
+          if (!liabilityId) {
+            console.warn('No ID found for liability:', liability.name, 'Details:', liabilityDetails);
+          }
           
           return {
-            id: liability.liability_id || liability.item_id || liability.id,  // Try all possible ID fields
+            id: liabilityId,  // Get ID from the details object
             name: liability.name,
             liability_type: liability.liability_type,
             current_balance: liability.total_current_balance || liability.current_balance,
             original_amount: liability.total_original_amount || liability.original_amount,
             interest_rate: liability.weighted_avg_interest_rate || liability.interest_rate,
-            credit_limit: liability.total_credit_limit || liability.credit_limit,
+            credit_limit: liability.total_credit_limit || liabilityDetails.credit_limit,
             institution_name: liability.institution || liability.institution_name,
             minimum_payment: liability.minimum_payment,
             due_date: liability.due_date,
@@ -1709,7 +1715,7 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
           };
         });
         
-        console.log('Unified liabilities:', unifiedLiabilities);
+        console.log('Unified liabilities with IDs:', unifiedLiabilities);
         setLiabilities(unifiedLiabilities);
         setFilteredLiabilities(unifiedLiabilities);
       }
