@@ -1093,8 +1093,10 @@ const EditPositionForm = ({ position, assetType, onSave, onCancel, accounts }) =
           break;
         
         case 'cash':
+          // For cash, we store the amount as both current_value and in a cash-specific field
           updatedData.current_value = parseFloat(formData.amount) || 0;
-          updatedData.quantity = 1;  // Cash always has quantity of 1
+          updatedData.cash_amount = parseFloat(formData.amount) || 0;  // Store explicitly
+          updatedData.quantity = 1;  // Keep quantity as 1 for consistency
           updatedData.interest_rate = parseFloat(formData.interest_rate) || 0;
           break;
       }
@@ -2174,26 +2176,26 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
                 updateData = {
                   quantity: parseFloat(updatedPosition.quantity),
                   purchase_price: parseFloat(updatedPosition.cost_per_unit || (updatedPosition.cost_basis / updatedPosition.quantity)),
-                  current_price: parseFloat(updatedPosition.current_price || updatedPosition.current_price_per_unit),
+                  // Don't send current_price - it's not stored in the database
                   purchase_date: updatedPosition.purchase_date
                 };
                 break;
                 
-              case 'metal':
-                updateData = {
-                  quantity: parseFloat(updatedPosition.quantity),
-                  purchase_price: parseFloat(updatedPosition.cost_per_unit || (updatedPosition.cost_basis / updatedPosition.quantity)),
-                  current_price_per_unit: parseFloat(updatedPosition.current_price || updatedPosition.current_price_per_unit),
-                  purchase_date: updatedPosition.purchase_date
-                };
-                break;
+                case 'metal':
+                  updateData = {
+                    quantity: parseFloat(updatedPosition.quantity),
+                    purchase_price: parseFloat(updatedPosition.cost_per_unit || (updatedPosition.cost_basis / updatedPosition.quantity)),
+                    // Don't send current_price_per_unit - it's not in the model
+                    purchase_date: updatedPosition.purchase_date
+                  };
+                  break;
                 
-              case 'cash':
-                updateData = {
-                  amount: parseFloat(updatedPosition.quantity || updatedPosition.current_value),
-                  interest_rate: parseFloat(updatedPosition.interest_rate || 0)
-                };
-                break;
+                case 'cash':
+                  updateData = {
+                    amount: parseFloat(updatedPosition.cash_amount || updatedPosition.current_value || updatedPosition.quantity),
+                    interest_rate: parseFloat(updatedPosition.interest_rate || 0)
+                  };
+                  break;
                 
               default:
                 console.error('Unknown asset type:', updatedPosition.asset_type);
