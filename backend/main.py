@@ -5845,7 +5845,7 @@ async def get_liabilities(current_user: dict = Depends(get_current_user)):
 
 # Get a specific liability
 @app.get("/liabilities/{liability_id}")
-async def get_liability(liability_id: str, current_user: dict = Depends(get_current_user)):
+async def get_liability(liability_id: int, current_user: dict = Depends(get_current_user)):
     try:
         query = liabilities.select().where(
             (liabilities.c.id == liability_id) & 
@@ -5925,7 +5925,7 @@ async def add_liability(
 # Update a liability
 @app.put("/liabilities/{liability_id}")
 async def update_liability(
-    liability_id: str, 
+    liability_id: int, 
     liability: LiabilityUpdate, 
     current_user: dict = Depends(get_current_user)
 ):
@@ -6066,7 +6066,7 @@ async def update_liability_balance(
 # Delete a liability (soft delete)
 @app.delete("/liabilities/{liability_id}")
 async def delete_liability(
-    liability_id: str, 
+    liability_id: int, 
     current_user: dict = Depends(get_current_user)
 ):
     try:

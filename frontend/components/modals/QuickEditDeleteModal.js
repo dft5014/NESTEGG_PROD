@@ -2192,7 +2192,7 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
           assetType = 'otherAssets';
         }
         
-        // Special handling for otherAssets
+       // Special handling for otherAssets
         if (assetType === 'otherAssets') {
           const otherAssetData = {
             asset_name: updatedPosition.identifier || updatedPosition.name,
@@ -2202,7 +2202,8 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
             purchase_date: updatedPosition.purchase_date,
             notes: updatedPosition.notes || ''
           };
-          await updateOtherAsset(positionId, otherAssetData);
+          // Convert positionId to integer for other assets
+          await updateOtherAsset(parseInt(positionId), otherAssetData);
           } else {
             // Prepare the position data for update based on asset type
             let updateData = {};
