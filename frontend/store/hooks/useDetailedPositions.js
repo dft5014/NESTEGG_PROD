@@ -23,9 +23,11 @@ export const useDetailedPositions = () => {
     const processedPositions = useMemo(() => {
     if (!detailedPositions.data) return [];
 
-    return detailedPositions.data.map(position => ({
-        // Core identifiers - use correct field names from the view
+      return detailedPositions.data.map(position => ({
+        // Core identifiers - keep both unified_id and actual item_id
         id: position.unified_id || position.history_id,
+        itemId: position.item_id || position.position_id,  // The actual position ID for updates
+        unifiedId: position.unified_id,  // Keep for reference
         accountId: position.inv_account_id,
         identifier: position.identifier,
         name: position.name || position.identifier,

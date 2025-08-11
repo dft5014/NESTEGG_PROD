@@ -18,6 +18,7 @@ import {
   searchFXAssets
 } from '@/utils/apimethods/positionMethods';
 import { formatCurrency, formatPercentage } from '@/utils/formatters';
+import { useDataStore } from '@/store/DataStore';
 import { useAccounts } from '@/store/hooks/useAccounts';
 import { useDetailedPositions } from '@/store/hooks/useDetailedPositions';
 import { useGroupedLiabilities } from '@/store/hooks/useGroupedLiabilities';
@@ -1499,6 +1500,9 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
       refresh: refreshAccounts 
     } = useAccounts();
 
+    // Get additional actions from DataStore for refreshing related data
+    const { actions } = useDataStore();
+
     // Debug: Log the first account to see field names
     useEffect(() => {
       if (dataStoreAccounts && dataStoreAccounts.length > 0) {
@@ -1561,7 +1565,9 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
       if (dataStorePositions && Array.isArray(dataStorePositions)) {
         // Map detailed positions to the expected format
         const unifiedPositions = dataStorePositions.map(pos => ({
-            id: pos.id,
+            id: pos.itemId || pos.id,  // Use the actual item_id for operations
+            unified_id: pos.unifiedId || pos.id,  // Keep unified_id for reference
+            item_id: pos.itemId,  // Store the actual position ID
             account_id: pos.accountId,
             identifier: pos.identifier,
             name: pos.name,
@@ -2000,6 +2006,11 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
       try {
         setIsSubmitting(true);
         
+        // Use the item_id directly - it's already available
+        const positionId = updatedPosition.item_id;
+        
+        console.log('Updating position with item_id:', positionId);
+        
         // Special handling for otherAssets
         if (updatedPosition.asset_type === 'otherAssets') {
           const otherAssetData = {
@@ -2010,14 +2021,27 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
             purchase_date: updatedPosition.purchase_date,
             notes: updatedPosition.notes || ''
           };
-          await updateOtherAsset(updatedPosition.id, otherAssetData);
+          await updateOtherAsset(positionId, otherAssetData);
         } else {
-          await updatePosition(updatedPosition.id, updatedPosition, updatedPosition.asset_type);
+          // Prepare the position data for update
+          const updateData = {
+            shares: updatedPosition.quantity,
+            price: updatedPosition.current_price,
+            cost_basis: updatedPosition.cost_basis || updatedPosition.total_cost_basis,
+            purchase_date: updatedPosition.purchase_date
+          };
+          
+          await updatePosition(positionId, updateData, updatedPosition.asset_type);
         }
         
-        // Refresh data from store
-        await refreshPositions();
-        
+        // Refresh all affected data in DataStore
+        await Promise.all([
+          refreshPositions(),  // Refresh detailed positions
+          actions.fetchGroupedPositionsData(true),  // Refresh grouped positions
+          actions.fetchPortfolioData(true),  // Refresh portfolio summary
+          refreshAccounts()  // Refresh accounts since balances may have changed
+        ]);
+
         setEditingItem(null);
         setEditingType(null);
         showMessage('success', 'Position updated successfully');
@@ -2086,10 +2110,12 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
               await deleteAccount(id);
             } else if (currentView === 'positions') {
               const position = positions.find(p => p.id === id);
+              const positionId = position?.item_id;
+              
               if (position?.asset_type === 'otherAssets') {
-                await deleteOtherAsset(id);
+                await deleteOtherAsset(positionId);
               } else {
-                await deletePosition(id, position?.asset_type);
+                await deletePosition(positionId, position?.asset_type);
               }
             } else {
               await deleteLiability(id);
@@ -2103,13 +2129,24 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
 
         // Update local state
         if (currentView === 'accounts') {
-          await refreshAccounts();
+          await Promise.all([
+            refreshAccounts(),
+            actions.fetchPortfolioData(true)  // Portfolio summary affected by account changes
+          ]);
           accountSelection.clearSelection();
         } else if (currentView === 'positions') {
-          await refreshPositions();
+          await Promise.all([
+            refreshPositions(),  // Refresh detailed positions
+            actions.fetchGroupedPositionsData(true),  // Refresh grouped positions
+            actions.fetchPortfolioData(true),  // Refresh portfolio summary
+            refreshAccounts()  // Refresh accounts since balances changed
+          ]);
           positionSelection.clearSelection();
         } else {
-          await refreshLiabilities();
+          await Promise.all([
+            refreshLiabilities(),
+            actions.fetchPortfolioData(true)  // Portfolio summary affected by liability changes
+          ]);
           liabilitySelection.clearSelection();
         }
 
