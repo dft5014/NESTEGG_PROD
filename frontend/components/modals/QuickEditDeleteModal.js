@@ -2178,8 +2178,22 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
         
         console.log('Updating position with item_id:', positionId);
         
+        // Normalize asset type for other assets
+        let assetType = updatedPosition.asset_type;
+        if (assetType === 'other_asset' || 
+            assetType === 'other_assets' || 
+            assetType === 'real_estate' || 
+            assetType === 'vehicle' || 
+            assetType === 'collectible' || 
+            assetType === 'jewelry' || 
+            assetType === 'art' || 
+            assetType === 'equipment' || 
+            assetType === 'other') {
+          assetType = 'otherAssets';
+        }
+        
         // Special handling for otherAssets
-        if (updatedPosition.asset_type === 'otherAssets') {
+        if (assetType === 'otherAssets') {
           const otherAssetData = {
             asset_name: updatedPosition.identifier || updatedPosition.name,
             asset_type: updatedPosition.asset_type,
