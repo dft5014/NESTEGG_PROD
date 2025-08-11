@@ -3,6 +3,16 @@ import { fetchWithAuth } from '@/utils/api';
 
 // Initial state with full data structure
 const initialState = {
+  reconciliation: {
+    history: [],
+    pending: {},
+    variances: {},
+    lastReconciled: {},
+    loading: false,
+    submitting: false,
+    error: null,
+    lastFetched: null
+  },
   portfolioSummary: {
     // Core metrics
     data: null,
@@ -119,6 +129,16 @@ export const ActionTypes = {
   FETCH_SNAPSHOTS_START: 'FETCH_SNAPSHOTS_START',
   FETCH_SNAPSHOTS_SUCCESS: 'FETCH_SNAPSHOTS_SUCCESS',
   FETCH_SNAPSHOTS_ERROR: 'FETCH_SNAPSHOTS_ERROR',
+
+  // Reconciliation actions
+  FETCH_RECONCILIATION_HISTORY_START: 'FETCH_RECONCILIATION_HISTORY_START',
+  FETCH_RECONCILIATION_HISTORY_SUCCESS: 'FETCH_RECONCILIATION_HISTORY_SUCCESS',
+  FETCH_RECONCILIATION_HISTORY_ERROR: 'FETCH_RECONCILIATION_HISTORY_ERROR',
+  SUBMIT_RECONCILIATION_START: 'SUBMIT_RECONCILIATION_START',
+  SUBMIT_RECONCILIATION_SUCCESS: 'SUBMIT_RECONCILIATION_SUCCESS',
+  SUBMIT_RECONCILIATION_ERROR: 'SUBMIT_RECONCILIATION_ERROR',
+  UPDATE_RECONCILIATION_DATA: 'UPDATE_RECONCILIATION_DATA',
+  CLEAR_RECONCILIATION_DATA: 'CLEAR_RECONCILIATION_DATA',
 
 };
 
@@ -540,6 +560,92 @@ const dataStoreReducer = (state, action) => {
           ...state.snapshots,
           loading: false,
           error: action.payload
+        }
+      };
+
+    // Reconciliation cases
+    case ActionTypes.FETCH_RECONCILIATION_HISTORY_START:
+      return {
+        ...state,
+        reconciliation: {
+          ...state.reconciliation,
+          loading: true,
+          error: null
+        }
+      };
+
+    case ActionTypes.FETCH_RECONCILIATION_HISTORY_SUCCESS:
+      return {
+        ...state,
+        reconciliation: {
+          ...state.reconciliation,
+          history: action.payload.history || [],
+          lastReconciled: action.payload.lastReconciled || {},
+          loading: false,
+          error: null,
+          lastFetched: Date.now()
+        }
+      };
+
+    case ActionTypes.FETCH_RECONCILIATION_HISTORY_ERROR:
+      return {
+        ...state,
+        reconciliation: {
+          ...state.reconciliation,
+          loading: false,
+          error: action.payload
+        }
+      };
+
+    case ActionTypes.UPDATE_RECONCILIATION_DATA:
+      return {
+        ...state,
+        reconciliation: {
+          ...state.reconciliation,
+          pending: action.payload.pending || state.reconciliation.pending,
+          variances: action.payload.variances || state.reconciliation.variances
+        }
+      };
+
+    case ActionTypes.SUBMIT_RECONCILIATION_START:
+      return {
+        ...state,
+        reconciliation: {
+          ...state.reconciliation,
+          submitting: true,
+          error: null
+        }
+      };
+
+    case ActionTypes.SUBMIT_RECONCILIATION_SUCCESS:
+      return {
+        ...state,
+        reconciliation: {
+          ...state.reconciliation,
+          pending: {},
+          variances: {},
+          submitting: false,
+          error: null
+        }
+      };
+
+    case ActionTypes.SUBMIT_RECONCILIATION_ERROR:
+      return {
+        ...state,
+        reconciliation: {
+          ...state.reconciliation,
+          submitting: false,
+          error: action.payload
+        }
+      };
+
+    case ActionTypes.CLEAR_RECONCILIATION_DATA:
+      return {
+        ...state,
+        reconciliation: {
+          ...state.reconciliation,
+          pending: {},
+          variances: {}
         }
       };
 
