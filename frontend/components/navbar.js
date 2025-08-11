@@ -14,6 +14,7 @@ import AddPositionButton from '@/components/AddPositionButton';
 import AddAccountButton from '@/components/AddAccountButton';
 import { fetchAccounts } from '@/utils/apimethods/accountMethods';
 import { QuickReconciliationButton } from '@/components/modals/QuickReconciliationModal';
+import { QuickReconciliationButton2 } from '@/components/modals/QuickReconciliationModal2';
 import { QuickEditDeleteButton } from '@/components/modals/QuickEditDeleteModal';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useGroupedPositions } from '@/store/hooks/useGroupedPositions';
@@ -317,6 +318,14 @@ const Navbar = () => {
                                 transition={{ delay: 0.3 }}
                             >
                                 <QuickReconciliationButton />
+                            </motion.div>
+
+                            <motion.div
+                                initial={{ opacity: 0, y: -10 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                transition={{ delay: 0.3 }}
+                            >
+                                <QuickReconciliationButton2 />
                             </motion.div>
                             
                             {/* Manual Add Dropdown */}

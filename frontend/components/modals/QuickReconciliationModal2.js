@@ -1037,4 +1037,46 @@ const QuickReconciliationModal2 = ({ isOpen, onClose }) => {
   );
 };
 
+// Export button component for navbar integration
+export const QuickReconciliationButton2 = ({ className = '' }) => {
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isHovered, setIsHovered] = useState(false);
+  
+  return (
+    <>
+      <button
+        onClick={() => setIsModalOpen(true)}
+        onMouseEnter={() => setIsHovered(true)}
+        onMouseLeave={() => setIsHovered(false)}
+        className={`group relative flex items-center text-white py-2 px-5 transition-all duration-300 transform hover:scale-105 ${className}`}
+      >
+        <div className="absolute inset-0 bg-gradient-to-r from-blue-600 to-purple-600 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-300 shadow-lg"></div>
+        <div className="relative flex items-center">
+          <Target className={`
+            w-5 h-5 mr-2 transition-all duration-300
+            ${isHovered ? 'text-white rotate-12' : 'text-blue-400'}
+          `} />
+          <span className="text-sm text-gray-200 group-hover:text-white font-medium">
+            Smart Reconcile
+          </span>
+          {isHovered && (
+            <Sparkles className="w-4 h-4 ml-2 text-yellow-300 animate-pulse" />
+          )}
+        </div>
+        <div className="absolute -top-1 -right-1">
+          <span className="flex h-3 w-3">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-purple-400 opacity-75"></span>
+            <span className="relative inline-flex rounded-full h-3 w-3 bg-purple-500"></span>
+          </span>
+        </div>
+      </button>
+      
+      <QuickReconciliationModal2 
+        isOpen={isModalOpen} 
+        onClose={() => setIsModalOpen(false)} 
+      />
+    </>
+  );
+};
+
 export default QuickReconciliationModal2;
