@@ -132,7 +132,7 @@ const ACCOUNT_CATEGORIES = [
   { id: "cash", name: "Cash / Banking", icon: DollarSign, color: 'green' },
   { id: "cryptocurrency", name: "Cryptocurrency", icon: Hash, color: 'orange' },
   { id: "metals", name: "Metals Storage", icon: Shield, color: 'yellow' },
-  { id: "real_estate", name: "Real Estate", icon: Home, color: 'emerald' }
+  { id: "other_assets", name: "Other Assets", icon: Package, color: 'purple' }
 ];
 
 // Grouping options for data views
@@ -1735,7 +1735,7 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
     const accountFilterOptions = useMemo(() => {
       return accounts.map(acc => ({
         value: acc.id,
-        label: acc.account_name,
+        label: acc.name || acc.account_name || acc.inv_account_name || `Account ${acc.id}`,  // Check all possible fields
         icon: Wallet,
         count: positions.filter(pos => pos.account_id === acc.id).length
       }));
@@ -1899,11 +1899,11 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
       }
 
       if (selectedAssetTypes.size > 0) {
-        filtered = filtered.filter(pos => !selectedAssetTypes.has(pos.asset_type));
+        filtered = filtered.filter(pos => selectedAssetTypes.has(pos.asset_type));
       }
 
       if (selectedAccountFilter.size > 0) {
-        filtered = filtered.filter(pos => !selectedAccountFilter.has(pos.account_id));
+        filtered = filtered.filter(pos => selectedAccountFilter.has(pos.account_id));
       }
 
       if (selectedInstitutionFilter.size > 0) {
@@ -2024,12 +2024,14 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
           await updateOtherAsset(positionId, otherAssetData);
         } else {
           // Prepare the position data for update
-          const updateData = {
-            shares: updatedPosition.quantity,
-            price: updatedPosition.current_price,
-            cost_basis: updatedPosition.cost_basis || updatedPosition.total_cost_basis,
-            purchase_date: updatedPosition.purchase_date
-          };
+        const updateData = {
+          shares: parseFloat(updatedPosition.quantity),
+          price: parseFloat(updatedPosition.current_price || updatedPosition.current_price_per_unit),
+          cost_basis: parseFloat(updatedPosition.cost_per_unit || (updatedPosition.cost_basis / updatedPosition.quantity)),  // Per share!
+          purchase_date: updatedPosition.purchase_date
+        };
+
+        console.log('Sending update data (cost_basis is per share):', updateData);
           
           await updatePosition(positionId, updateData, updatedPosition.asset_type);
         }
@@ -2505,8 +2507,17 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
 
     // Render position row
     const renderPositionRow = (position, index) => {
-      const config = ASSET_TYPES[position.asset_type];
-      if (!config) return null;
+      // Map item_type to asset_type if needed
+      const assetType = position.asset_type || position.item_type;
+      
+      // Handle other_asset type mapping
+      const mappedType = assetType === 'other_asset' ? 'otherAssets' : assetType;
+      
+      const config = ASSET_TYPES[mappedType];
+      if (!config) {
+        console.warn('Unknown asset type:', assetType, 'for position:', position);
+        return null;
+      }
 
       const Icon = config.icon;
       const value = parseFloat(position.current_value || 0);
