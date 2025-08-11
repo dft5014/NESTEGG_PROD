@@ -1880,13 +1880,24 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
           acc[key].push(position);
           return acc;
         }, {});
-      } else if (groupBy === 'asset_type') {  // Match the actual value used
+      } else if (groupBy === 'asset_type') {  // Match the groupingOptions id
         return filteredPositions.reduce((acc, position) => {
           // Map asset types correctly
           let assetType = position.asset_type || position.item_type;
-          if (assetType === 'other_asset' || assetType === 'other_assets') {
+          
+          // Map all "other" asset variations to otherAssets
+          if (assetType === 'other_asset' || 
+              assetType === 'other_assets' || 
+              assetType === 'real_estate' || 
+              assetType === 'vehicle' || 
+              assetType === 'collectible' || 
+              assetType === 'jewelry' || 
+              assetType === 'art' || 
+              assetType === 'equipment' || 
+              assetType === 'other') {
             assetType = 'otherAssets';
           }
+          
           const assetTypeConfig = ASSET_TYPES[assetType];
           const key = assetTypeConfig ? assetTypeConfig.name : 'Other';
           if (!acc[key]) acc[key] = [];
@@ -1998,11 +2009,18 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
       // Positive filtering - show ONLY selected items
       if (selectedAssetTypes.size > 0) {
         filtered = filtered.filter(pos => {
-          // Handle type mapping for other_asset only
           let assetType = pos.asset_type || pos.item_type;
           
-          // Only map other_asset and its variations to otherAssets
-          if (assetType === 'other_asset' || assetType === 'other_assets') {
+          // Map all "other" asset variations to otherAssets
+          if (assetType === 'other_asset' || 
+              assetType === 'other_assets' || 
+              assetType === 'real_estate' || 
+              assetType === 'vehicle' || 
+              assetType === 'collectible' || 
+              assetType === 'jewelry' || 
+              assetType === 'art' || 
+              assetType === 'equipment' || 
+              assetType === 'other') {
             assetType = 'otherAssets';
           }
           
@@ -2182,7 +2200,7 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
                 break;
                 
                 case 'metal':
-                  updateData = {
+                  updateData = {c
                     quantity: parseFloat(updatedPosition.quantity),
                     purchase_price: parseFloat(updatedPosition.cost_per_unit || (updatedPosition.cost_basis / updatedPosition.quantity)),
                     // Don't send current_price_per_unit - it's not in the model
@@ -3382,10 +3400,20 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
                       {Object.entries(ASSET_TYPES).map(([key, config]) => {
                         const count = positions.filter(p => {
                           let assetType = p.asset_type || p.item_type;
-                          // Only map other_asset variations
-                          if (assetType === 'other_asset' || assetType === 'other_assets') {
+                          
+                          // Map all "other" asset variations to otherAssets
+                          if (assetType === 'other_asset' || 
+                              assetType === 'other_assets' || 
+                              assetType === 'real_estate' || 
+                              assetType === 'vehicle' || 
+                              assetType === 'collectible' || 
+                              assetType === 'jewelry' || 
+                              assetType === 'art' || 
+                              assetType === 'equipment' || 
+                              assetType === 'other') {
                             assetType = 'otherAssets';
                           }
+                          
                           return assetType === key;
                         }).length;
                         const isSelected = selectedAssetTypes.has(key);
