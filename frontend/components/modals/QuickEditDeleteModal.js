@@ -2200,7 +2200,7 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
                 break;
                 
                 case 'metal':
-                  updateData = {c
+                  updateData = {
                     quantity: parseFloat(updatedPosition.quantity),
                     purchase_price: parseFloat(updatedPosition.cost_per_unit || (updatedPosition.cost_basis / updatedPosition.quantity)),
                     // Don't send current_price_per_unit - it's not in the model
