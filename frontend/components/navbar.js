@@ -14,7 +14,6 @@ import AddPositionButton from '@/components/AddPositionButton';
 import AddAccountButton from '@/components/AddAccountButton';
 import { fetchAccounts } from '@/utils/apimethods/accountMethods';
 import { QuickReconciliationButton } from '@/components/modals/QuickReconciliationModal';
-import { QuickReconciliationButton2 } from '@/components/modals/QuickReconciliationModal2';
 import { QuickReconciliationButton3 } from '@/components/modals/QuickReconciliationModal3';
 import { QuickEditDeleteButton } from '@/components/modals/QuickEditDeleteModal';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -321,13 +320,6 @@ const Navbar = () => {
                                 <QuickReconciliationButton />
                             </motion.div>
 
-                            <motion.div
-                                initial={{ opacity: 0, y: -10 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                transition={{ delay: 0.35 }}
-                            >
-                                <QuickReconciliationButton2 />
-                            </motion.div>
 
                             <motion.div
                                 initial={{ opacity: 0, y: -10 }}

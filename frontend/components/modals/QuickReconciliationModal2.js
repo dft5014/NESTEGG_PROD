@@ -26,7 +26,7 @@ import { useGroupedLiabilities } from '@/store/hooks/useGroupedLiabilities';
 import { useGroupedPositions } from '@/store/hooks/useGroupedPositions';
 
 // Utils
-import { formatCurrency, formatPercentage } from '@/utils/formatters';
+import { formatCurrency as formatCurrencyUtil, formatPercentage } from '@/utils/formatters';
 import { fetchWithAuth } from '@/utils/api';
 
 
@@ -37,6 +37,7 @@ import QuickUpdatePanel from '@/components/QuickUpdatePanel';
 // ============================================================================
 // EMBEDDED COMPONENTS
 // ============================================================================
+const formatCurrency = formatCurrencyUtil;
 
 // AccountValidator Component
 const AccountValidator = ({ 
@@ -344,20 +345,28 @@ const PositionDrilldown = ({
   );
 };
 
-// ReconciliationStats Component
-const ReconciliationStats = ({ stats, compact = false }) => {
+const ReconciliationStats = ({ stats = {}, compact = false }) => {
+  // Ensure stats has default values
+  const safeStats = {
+    totalAccounts: 0,
+    reconciledAccounts: 0,
+    accountsReconciledPercent: 0,
+    healthScore: 0,
+    ...stats
+  };
+  
   if (compact) {
     return (
       <div className="flex items-center space-x-4 text-sm">
         <div className="flex items-center space-x-1">
           <div className={`w-2 h-2 rounded-full ${
-            stats.healthScore > 80 ? 'bg-green-500' : 
-            stats.healthScore > 60 ? 'bg-yellow-500' : 'bg-red-500'
+            safeStats.healthScore > 80 ? 'bg-green-500' : 
+            safeStats.healthScore > 60 ? 'bg-yellow-500' : 'bg-red-500'
           }`} />
-          <span className="text-gray-400">Health: {stats.healthScore}%</span>
+          <span className="text-gray-400">Health: {safeStats.healthScore}%</span>
         </div>
         <div className="text-gray-400">
-          {stats.reconciledAccounts}/{stats.totalAccounts} reconciled
+          {safeStats.reconciledAccounts}/{safeStats.totalAccounts} reconciled
         </div>
       </div>
     );
