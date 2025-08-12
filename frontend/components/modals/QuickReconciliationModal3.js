@@ -1351,8 +1351,10 @@ const QuickReconciliationModal3 = ({ isOpen, onClose }) => {
 };
 
 // ============= NAVBAR BUTTON COMPONENT =============
+
+
 // Export button component with enhanced styling
-export const QuickReconciliationButton3 = ({ className = '' }) => {
+export const QuickReconciliationButton3 = ({ className = '', ...otherProps }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
   
@@ -1363,6 +1365,7 @@ export const QuickReconciliationButton3 = ({ className = '' }) => {
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
         className={`group relative flex items-center text-white py-2 px-5 transition-all duration-300 transform hover:scale-105 ${className}`}
+        {...otherProps}
       >
         <div className="absolute inset-0 bg-gradient-to-r from-green-600 to-teal-600 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-300 shadow-lg"></div>
         <div className="relative flex items-center">
@@ -1379,10 +1382,12 @@ export const QuickReconciliationButton3 = ({ className = '' }) => {
         </div>
       </button>
       
-      <QuickReconciliationModal3 
-        isOpen={isModalOpen} 
-        onClose={() => setIsModalOpen(false)} 
-      />
+      {isModalOpen && (
+        <QuickReconciliationModal3 
+          isOpen={isModalOpen} 
+          onClose={() => setIsModalOpen(false)} 
+        />
+      )}
     </>
   );
 };

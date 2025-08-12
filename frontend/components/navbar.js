@@ -321,13 +321,13 @@ const Navbar = () => {
                                 <QuickReconciliationButton />
                             </motion.div>
 
-                            <QuickReconciliationButton2 
-                              variant="primary"  // or "secondary"
-                              size="md"          // or "sm"
-                              showHealthScore={true}
-                              className="any-additional-classes"
-                            />
-
+                            <motion.div
+                                initial={{ opacity: 0, y: -10 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                transition={{ delay: 0.35 }}
+                            >
+                                <QuickReconciliationButton2 />
+                            </motion.div>
 
                             <motion.div
                                 initial={{ opacity: 0, y: -10 }}

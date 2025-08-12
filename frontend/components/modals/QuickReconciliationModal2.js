@@ -851,7 +851,13 @@ const QuickReconciliationModal2 = ({ isOpen, onClose }) => {
 // ============================================================================
 
 // Export button component with enhanced styling
-export const QuickReconciliationButton2 = ({ className = '' }) => {
+export const QuickReconciliationButton2 = ({ 
+  className = '', 
+  variant = 'primary',
+  size = 'md',
+  showHealthScore = false,
+  ...otherProps 
+}) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
   
@@ -862,6 +868,7 @@ export const QuickReconciliationButton2 = ({ className = '' }) => {
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
         className={`group relative flex items-center text-white py-2 px-5 transition-all duration-300 transform hover:scale-105 ${className}`}
+        {...otherProps}
       >
         <div className="absolute inset-0 bg-gradient-to-r from-purple-600 to-indigo-600 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-300 shadow-lg"></div>
         <div className="relative flex items-center">
@@ -878,10 +885,12 @@ export const QuickReconciliationButton2 = ({ className = '' }) => {
         </div>
       </button>
       
-      <QuickReconciliationModal2 
-        isOpen={isModalOpen} 
-        onClose={() => setIsModalOpen(false)} 
-      />
+      {isModalOpen && (
+        <QuickReconciliationModal2 
+          isOpen={isModalOpen} 
+          onClose={() => setIsModalOpen(false)} 
+        />
+      )}
     </>
   );
 };
