@@ -1,2353 +1,1379 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import FixedModal from './FixedModal';
-import { fetchWithAuth } from '@/utils/api';
-import { updateAccount } from '@/utils/apimethods/accountMethods';
-import { updatePosition, deletePosition } from '@/utils/apimethods/positionMethods';
-import { formatCurrency, formatPercentage } from '@/utils/formatters';
-import debounce from 'lodash.debounce';
-
-// DataStore hooks
-import { useDataStore } from '@/store/DataStore';
-import { useAccounts } from '@/store/hooks/useAccounts';
-import { useDetailedPositions } from '@/store/hooks/useDetailedPositions';
-import {
-  CheckCircle, AlertCircle, Info, Clock, X, Check, ChevronRight,
-  TrendingUp, TrendingDown, RefreshCw, Loader2, Search, Filter,
-  Building, Shield, Zap, Activity, Eye, EyeOff, Edit3, Trash2,
-  ArrowRight, ArrowLeft, Sparkles, Target, Award, Calendar,
-  DollarSign, Hash, Calculator, ChevronDown, ChevronUp,
-  FileText, Download, Upload, BarChart3, PieChart, Save,
-  AlertTriangle, CheckSquare, Square, MinusSquare, Plus,
-  Minus, Equal, ArrowUpRight, ArrowDownRight, Briefcase,
-  Home, Gem, Coins, CreditCard, GitBranch, Layers, Database,
-  Star, StarHalf, Bell, BellOff, Repeat, RotateCcw, Send,
-  Droplets, PlayCircle, Timer, Trophy, Flame, PartyPopper,
-  ChevronsRight, Wallet, PiggyBank, Landmark, Receipt,
-  TabletSmartphone, Mic, Keyboard, MousePointer, Gauge,
-  Banknote, TrendingUp as TrendUp, CircleDollarSign,
-  Percent, FileCheck, CheckCheck, ArrowUpDown, Maximize2,
-  LineChart, BarChart, Package, Inbox, Users, Settings,
-  HelpCircle, MessageSquare, Heart, Share2, Copy, ExternalLink
+import { 
+  X, ChevronRight, ChevronDown, Edit3, Trash2, Save, AlertCircle, 
+  CheckCircle2, DollarSign, TrendingUp, TrendingDown, Activity,
+  Building, CreditCard, Layers, Search, Filter, Settings,
+  PlayCircle, Target, CheckSquare, Star, Award, Zap, RefreshCw,
+  Plus, Minus, Eye, EyeOff, ArrowUpRight, ArrowDownRight,
+  Calculator, History, Upload, Download, Info, HelpCircle,
+  AlertTriangle, Check, Loader2, Sparkles, BarChart3, Package
 } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { useDataStore } from '@/store/DataStore';
+import { useAccounts } from '@/hooks/useAccounts';
+import { useDetailedPositions } from '@/hooks/useDetailedPositions';
+import { useGroupedLiabilities } from '@/hooks/useGroupedLiabilities';
+import { updatePosition, deletePosition } from '@/utils/api/positions';
+import { updateAccount, deleteAccount } from '@/utils/api/accounts';
+import { updateLiability, deleteLiability } from '@/utils/api/liabilities';
+import { submitReconciliation } from '@/utils/api/reconciliation';
+import { formatCurrency, formatPercent } from '@/utils/formatting';
+import Confetti from 'react-confetti';
 
-// Asset type colors and configs
-const ASSET_CONFIGS = {
-  security: { icon: BarChart3, color: 'blue', label: 'Securities' },
-  crypto: { icon: Coins, color: 'orange', label: 'Crypto' },
-  metal: { icon: Gem, color: 'yellow', label: 'Metals' },
-  realestate: { icon: Home, color: 'green', label: 'Real Estate' },
-  cash: { icon: DollarSign, color: 'purple', label: 'Cash' }
+// Constants for asset types and reconciliation
+const ASSET_TYPE_CONFIG = {
+  stocks: { color: 'blue', icon: TrendingUp, label: 'Stocks' },
+  bonds: { color: 'green', icon: Shield, label: 'Bonds' },
+  etfs: { color: 'purple', icon: Layers, label: 'ETFs' },
+  mutual_funds: { color: 'indigo', icon: Package, label: 'Mutual Funds' },
+  cash: { color: 'gray', icon: DollarSign, label: 'Cash' },
+  crypto: { color: 'orange', icon: Zap, label: 'Crypto' },
+  real_estate: { color: 'brown', icon: Building, label: 'Real Estate' },
+  credit_card: { color: 'red', icon: CreditCard, label: 'Credit Cards' },
+  loan: { color: 'pink', icon: FileText, label: 'Loans' },
+  mortgage: { color: 'purple', icon: Home, label: 'Mortgages' },
+  other: { color: 'gray', icon: Package, label: 'Other' }
 };
 
-// Account category configs
-const CATEGORY_CONFIGS = {
-  brokerage: { icon: Briefcase, color: 'blue', label: 'Brokerage' },
-  retirement: { icon: Building, color: 'indigo', label: 'Retirement' },
-  cash: { icon: DollarSign, color: 'green', label: 'Cash/Banking' },
-  cryptocurrency: { icon: Hash, color: 'orange', label: 'Cryptocurrency' },
-  metals: { icon: Shield, color: 'yellow', label: 'Metals Storage' },
-  real_estate: { icon: Home, color: 'emerald', label: 'Real Estate' }
+const RECONCILIATION_STAGES = {
+  welcome: 'welcome',
+  quickEdit: 'quickEdit',
+  bulkUpdate: 'bulkUpdate',
+  reconcile: 'reconcile',
+  review: 'review',
+  complete: 'complete'
 };
 
-// Liquid position types
-const LIQUID_POSITION_TYPES = ['cash', 'checking', 'savings', 'credit_card', 'loan', 'liability'];
+// LocalStorage helper functions
+const STORAGE_KEYS = {
+  reconciliationData: 'nestegg_reconciliation_data',
+  reconciliationHistory: 'nestegg_reconciliation_history',
+  pendingUpdates: 'nestegg_pending_updates',
+  streak: 'nestegg_reconciliation_streak',
+  achievements: 'nestegg_achievements'
+};
 
-// Enhanced animated progress ring with gradient
-const ProgressRing = ({ percentage, size = 60, strokeWidth = 4, color = 'blue', showAnimation = true }) => {
-  const radius = (size - strokeWidth) / 2;
-  const circumference = radius * 2 * Math.PI;
-  const offset = circumference - (percentage / 100) * circumference;
-  const [animatedOffset, setAnimatedOffset] = useState(circumference);
+const loadFromStorage = (key, defaultValue = null) => {
+  try {
+    const item = localStorage.getItem(key);
+    return item ? JSON.parse(item) : defaultValue;
+  } catch (error) {
+    console.error(`Error loading ${key} from localStorage:`, error);
+    return defaultValue;
+  }
+};
+
+const saveToStorage = (key, value) => {
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+  } catch (error) {
+    console.error(`Error saving ${key} to localStorage:`, error);
+  }
+};
+
+// Main Component
+const QuickReconciliationModal = ({ isOpen, onClose }) => {
+  // DataStore hooks
+  const { 
+    accounts = [], 
+    loading: accountsLoading,
+    refresh: refreshAccounts 
+  } = useAccounts();
   
+  const { 
+    positions = [], 
+    loading: positionsLoading,
+    refresh: refreshPositions 
+  } = useDetailedPositions();
+  
+  const { 
+    liabilities = [], 
+    loading: liabilitiesLoading,
+    refreshData: refreshLiabilities 
+  } = useGroupedLiabilities();
+
+  // Core state
+  const [currentStage, setCurrentStage] = useState(RECONCILIATION_STAGES.welcome);
+  const [reconciliationData, setReconciliationData] = useState({});
+  const [pendingUpdates, setPendingUpdates] = useState({});
+  const [selectedItems, setSelectedItems] = useState(new Set());
+  const [editingItem, setEditingItem] = useState(null);
+  const [editValues, setEditValues] = useState({});
+  
+  // UI state
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filterType, setFilterType] = useState('all');
+  const [groupBy, setGroupBy] = useState('account');
+  const [expandedGroups, setExpandedGroups] = useState(new Set());
+  const [showValues, setShowValues] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [message, setMessage] = useState(null);
+  const [showConfetti, setShowConfetti] = useState(false);
+  
+  // Refs
+  const messageTimeoutRef = useRef(null);
+  const reconciliationHistoryRef = useRef([]);
+
+  // Initialize from localStorage on mount
   useEffect(() => {
-    if (showAnimation) {
-      const timer = setTimeout(() => setAnimatedOffset(offset), 100);
-      return () => clearTimeout(timer);
-    } else {
-      setAnimatedOffset(offset);
-    }
-  }, [offset, showAnimation]);
-  
-  return (
-    <svg width={size} height={size} className="transform -rotate-90">
-      <defs>
-        <linearGradient id={`gradient-${color}`} x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" className={`text-${color}-400`} stopColor="currentColor" />
-          <stop offset="100%" className={`text-${color}-600`} stopColor="currentColor" />
-        </linearGradient>
-      </defs>
-      <circle
-        cx={size / 2}
-        cy={size / 2}
-        r={radius}
-        stroke="currentColor"
-        strokeWidth={strokeWidth}
-        fill="none"
-        className="text-gray-200"
-      />
-      <circle
-        cx={size / 2}
-        cy={size / 2}
-        r={radius}
-        stroke={`url(#gradient-${color})`}
-        strokeWidth={strokeWidth}
-        fill="none"
-        strokeDasharray={circumference}
-        strokeDashoffset={animatedOffset}
-        className="transition-all duration-1000 ease-out"
-        strokeLinecap="round"
-      />
-    </svg>
-  );
-};
-
-// Enhanced status indicator with animation
-const StatusIndicator = ({ status, showPulse = true, size = 'medium' }) => {
-  const configs = {
-    reconciled: { color: 'green', icon: CheckCircle, label: 'Reconciled' },
-    warning: { color: 'yellow', icon: AlertTriangle, label: 'Needs Review' },
-    error: { color: 'red', icon: AlertCircle, label: 'Out of Sync' },
-    pending: { color: 'gray', icon: Clock, label: 'Not Reconciled' }
-  };
-  
-  const config = configs[status] || configs.pending;
-  const Icon = config.icon;
-  const sizeClass = size === 'small' ? 'w-4 h-4' : size === 'large' ? 'w-6 h-6' : 'w-5 h-5';
-  
-  return (
-    <div className="relative inline-flex items-center group">
-      {showPulse && status !== 'reconciled' && (
-        <span className={`absolute inset-0 rounded-full bg-${config.color}-400 animate-ping opacity-75`} />
-      )}
-      <Icon className={`relative ${sizeClass} text-${config.color}-600 transition-transform group-hover:scale-110`} />
-      <div className="absolute hidden group-hover:block bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-gray-900 text-white text-xs rounded whitespace-nowrap z-10">
-        {config.label}
-        <div className="absolute top-full left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-900" />
-      </div>
-    </div>
-  );
-};
-
-// Enhanced animated value with color transitions
-const AnimatedValue = ({ value, format = 'currency', className = '', duration = 800, showChange = false, previousValue = null }) => {
-  const [displayValue, setDisplayValue] = useState(0);
-  const [isAnimating, setIsAnimating] = useState(false);
-  const [trend, setTrend] = useState(null);
-  
-  useEffect(() => {
-    setIsAnimating(true);
-    const startTime = Date.now();
-    const startValue = displayValue;
-    const endValue = value || 0;
-    
-    if (previousValue !== null) {
-      setTrend(endValue > previousValue ? 'up' : endValue < previousValue ? 'down' : 'same');
-    }
-    
-    const animate = () => {
+    if (isOpen) {
+      const savedData = loadFromStorage(STORAGE_KEYS.reconciliationData, {});
+      const savedPending = loadFromStorage(STORAGE_KEYS.pendingUpdates, {});
+      const savedHistory = loadFromStorage(STORAGE_KEYS.reconciliationHistory, []);
+      
+      setReconciliationData(savedData);
+      setPendingUpdates(savedPending);
+      reconciliationHistoryRef.current = savedHistory;
+      
+      // Clear any stale data older than 24 hours
       const now = Date.now();
-      const progress = Math.min((now - startTime) / duration, 1);
-      const easeOut = 1 - Math.pow(1 - progress, 3);
-      const current = startValue + (endValue - startValue) * easeOut;
+      const cleanedData = Object.entries(savedData).reduce((acc, [key, value]) => {
+        if (value.timestamp && now - new Date(value.timestamp).getTime() < 86400000) {
+          acc[key] = value;
+        }
+        return acc;
+      }, {});
       
-      setDisplayValue(current);
-      
-      if (progress < 1) {
-        requestAnimationFrame(animate);
-      } else {
-        setIsAnimating(false);
+      if (Object.keys(cleanedData).length !== Object.keys(savedData).length) {
+        setReconciliationData(cleanedData);
+        saveToStorage(STORAGE_KEYS.reconciliationData, cleanedData);
       }
-    };
-    
-    requestAnimationFrame(animate);
-  }, [value]);
-  
-  const formatted = format === 'currency' 
-    ? formatCurrency(displayValue)
-    : format === 'percentage'
-      ? `${displayValue.toFixed(1)}%`
-      : format === 'number'
-        ? displayValue.toFixed(0).toLocaleString()
-        : displayValue.toLocaleString();
-  
-  return (
-    <span className={`
-      ${className} 
-      ${isAnimating ? 'text-blue-600' : ''} 
-      ${showChange && trend === 'up' ? 'text-green-600' : ''}
-      ${showChange && trend === 'down' ? 'text-red-600' : ''}
-      transition-colors duration-300 inline-flex items-center
-    `}>
-      {formatted}
-      {showChange && trend && (
-        <span className="ml-1">
-          {trend === 'up' ? <TrendingUp className="w-4 h-4" /> : 
-           trend === 'down' ? <TrendingDown className="w-4 h-4" /> : null}
-        </span>
-      )}
-    </span>
-  );
-};
+    }
+  }, [isOpen]);
 
-// Enhanced liquid position card with better UX
-const LiquidPositionCard = ({ 
-  position, 
-  institution, 
-  value, 
-  onChange, 
-  onComplete,
-  isActive,
-  suggestion,
-  lastUpdated,
-  isUpdated,
-  difference
-}) => {
-  const [localValue, setLocalValue] = useState(value || '');
-  const [isFocused, setIsFocused] = useState(false);
-  const [hasChanged, setHasChanged] = useState(false);
-  const [showSuccess, setShowSuccess] = useState(false);
-  const inputRef = useRef(null);
-  
+  // Save to localStorage whenever data changes
   useEffect(() => {
-    if (isActive && inputRef.current) {
-      inputRef.current.focus();
-      inputRef.current.select();
+    if (reconciliationData && Object.keys(reconciliationData).length > 0) {
+      saveToStorage(STORAGE_KEYS.reconciliationData, reconciliationData);
     }
-  }, [isActive]);
-  
+  }, [reconciliationData]);
+
   useEffect(() => {
-    if (isUpdated && hasChanged) {
-      setShowSuccess(true);
-      setTimeout(() => setShowSuccess(false), 2000);
+    if (pendingUpdates && Object.keys(pendingUpdates).length > 0) {
+      saveToStorage(STORAGE_KEYS.pendingUpdates, pendingUpdates);
     }
-  }, [isUpdated, hasChanged]);
-  
-  const handleChange = (e) => {
-    const newValue = e.target.value.replace(/[^0-9.-]/g, '');
-    setLocalValue(newValue);
-    setHasChanged(true);
-    onChange(position.id, newValue);
-  };
-  
-  const handleKeyDown = (e) => {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      onComplete();
-    }
-  };
-  
-  const getPositionIcon = () => {
-    switch (position.position_type || position.type) {
-      case 'checking': return Wallet;
-      case 'savings': return PiggyBank;
-      case 'credit_card': return CreditCard;
-      case 'loan': return Receipt;
-      default: return DollarSign;
-    }
-  };
-  
-  const Icon = getPositionIcon();
-  const isLiability = position.position_type === 'credit_card' || position.position_type === 'loan' || position.type === 'liability';
-  
-  // Calculate days since last update
-  const daysSinceUpdate = lastUpdated 
-    ? Math.floor((Date.now() - new Date(lastUpdated).getTime()) / (1000 * 60 * 60 * 24))
-    : null;
-  
-  return (
-    <div className={`
-      relative rounded-xl border-2 transition-all duration-300 transform
-      ${isActive ? 'border-blue-500 shadow-2xl scale-[1.02] bg-blue-50' : 'border-gray-200 bg-white hover:shadow-lg hover:scale-[1.01]'}
-      ${hasChanged && !isActive ? 'bg-amber-50 border-amber-300' : ''}
-      ${showSuccess ? 'bg-green-50 border-green-400' : ''}
-    `}>
-      {/* Success overlay */}
-      {showSuccess && (
-        <div className="absolute inset-0 bg-green-500/10 rounded-xl flex items-center justify-center z-10 animate-in fade-in duration-300">
-          <div className="bg-white rounded-full p-3 shadow-lg">
-            <Check className="w-8 h-8 text-green-600 animate-in zoom-in duration-300" />
-          </div>
-        </div>
-      )}
+  }, [pendingUpdates]);
+
+  // Process and group data
+  const processedData = useMemo(() => {
+    const allItems = [
+      ...positions.map(p => ({
+        ...p,
+        itemType: 'position',
+        id: p.itemId || p.id,
+        value: p.currentValue,
+        account: accounts.find(a => a.id === p.accountId)
+      })),
+      ...liabilities.map(l => ({
+        ...l,
+        itemType: 'liability',
+        id: l.id,
+        value: l.currentBalance,
+        asset_type: l.type || 'loan'
+      }))
+    ];
+
+    // Apply search filter
+    const filtered = allItems.filter(item => {
+      const searchLower = searchQuery.toLowerCase();
+      return (
+        item.name?.toLowerCase().includes(searchLower) ||
+        item.identifier?.toLowerCase().includes(searchLower) ||
+        item.account?.account_name?.toLowerCase().includes(searchLower)
+      );
+    });
+
+    // Apply type filter
+    const typeFiltered = filterType === 'all' 
+      ? filtered 
+      : filtered.filter(item => item.asset_type === filterType);
+
+    // Group data
+    const grouped = {};
+    typeFiltered.forEach(item => {
+      const groupKey = groupBy === 'account' 
+        ? item.account?.account_name || 'Unassigned'
+        : groupBy === 'type'
+        ? ASSET_TYPE_CONFIG[item.asset_type]?.label || 'Other'
+        : 'All Items';
+
+      if (!grouped[groupKey]) {
+        grouped[groupKey] = {
+          items: [],
+          totalValue: 0,
+          totalPending: 0,
+          account: groupBy === 'account' ? item.account : null
+        };
+      }
+
+      grouped[groupKey].items.push(item);
+      grouped[groupKey].totalValue += item.value || 0;
       
-      <div className="p-6">
-        <div className="flex items-start justify-between mb-4">
-          <div className="flex items-center space-x-3">
-            <div className={`
-              p-3 rounded-xl transition-all duration-300 transform
-              ${isLiability ? 'bg-red-100' : 'bg-green-100'}
-              ${isActive ? 'scale-110 rotate-3' : ''}
-            `}>
-              <Icon className={`w-6 h-6 ${isLiability ? 'text-red-600' : 'text-green-600'}`} />
-            </div>
-            <div>
-              <h4 className="font-semibold text-gray-900 text-lg">{position.name || position.position_name}</h4>
-              <p className="text-sm text-gray-500">{institution}</p>
-              {daysSinceUpdate !== null && (
-                <div className="flex items-center mt-1 text-xs text-gray-400">
-                  <Clock className="w-3 h-3 mr-1" />
-                  <span>
-                    Last updated: {daysSinceUpdate === 0 ? 'Today' : 
-                                  daysSinceUpdate === 1 ? 'Yesterday' : 
-                                  `${daysSinceUpdate} days ago`}
+      const pendingValue = reconciliationData[`${item.itemType}_${item.id}`]?.value;
+      if (pendingValue !== undefined) {
+        grouped[groupKey].totalPending += pendingValue - (item.value || 0);
+      }
+    });
+
+    return grouped;
+  }, [positions, liabilities, accounts, searchQuery, filterType, groupBy, reconciliationData]);
+
+  // Show message helper
+  const showMessage = useCallback((type, text, duration = 5000) => {
+    setMessage({ type, text });
+    
+    if (messageTimeoutRef.current) {
+      clearTimeout(messageTimeoutRef.current);
+    }
+    
+    if (duration > 0) {
+      messageTimeoutRef.current = setTimeout(() => {
+        setMessage(null);
+      }, duration);
+    }
+  }, []);
+
+  // Hierarchical update handler
+  const handleHierarchicalUpdate = useCallback((item, newValue) => {
+    const key = `${item.itemType}_${item.id}`;
+    
+    setReconciliationData(prev => ({
+      ...prev,
+      [key]: {
+        value: newValue,
+        originalValue: item.value,
+        timestamp: new Date().toISOString(),
+        itemType: item.itemType,
+        name: item.name,
+        accountId: item.accountId
+      }
+    }));
+
+    // If updating a group, update all children
+    if (selectedItems.size > 1 && selectedItems.has(item.id)) {
+      const percentChange = ((newValue - item.value) / item.value) * 100;
+      
+      selectedItems.forEach(itemId => {
+        if (itemId !== item.id) {
+          const selectedItem = Object.values(processedData)
+            .flatMap(group => group.items)
+            .find(i => i.id === itemId);
+          
+          if (selectedItem) {
+            const childNewValue = selectedItem.value * (1 + percentChange / 100);
+            const childKey = `${selectedItem.itemType}_${selectedItem.id}`;
+            
+            setReconciliationData(prev => ({
+              ...prev,
+              [childKey]: {
+                value: childNewValue,
+                originalValue: selectedItem.value,
+                timestamp: new Date().toISOString(),
+                itemType: selectedItem.itemType,
+                name: selectedItem.name,
+                accountId: selectedItem.accountId
+              }
+            }));
+          }
+        }
+      });
+      
+      showMessage('success', `Updated ${selectedItems.size} items`);
+      setSelectedItems(new Set());
+    }
+  }, [selectedItems, processedData, showMessage]);
+
+  // Quick edit handlers
+  const handleEditItem = useCallback((item) => {
+    setEditingItem(item);
+    setEditValues({
+      value: reconciliationData[`${item.itemType}_${item.id}`]?.value || item.value,
+      quantity: item.quantity,
+      cost_basis: item.costBasis
+    });
+  }, [reconciliationData]);
+
+  const handleSaveEdit = useCallback(async () => {
+    if (!editingItem) return;
+
+    const newValue = parseFloat(editValues.value);
+    if (isNaN(newValue)) {
+      showMessage('error', 'Invalid value');
+      return;
+    }
+
+    handleHierarchicalUpdate(editingItem, newValue);
+    setEditingItem(null);
+    setEditValues({});
+    showMessage('success', 'Item updated');
+  }, [editingItem, editValues, handleHierarchicalUpdate, showMessage]);
+
+  // Delete handler
+  const handleDeleteItem = useCallback(async (item) => {
+    try {
+      if (item.itemType === 'position') {
+        await deletePosition(item.id);
+        await refreshPositions();
+      } else if (item.itemType === 'liability') {
+        await deleteLiability(item.id);
+        await refreshLiabilities();
+      }
+      
+      // Remove from reconciliation data
+      const key = `${item.itemType}_${item.id}`;
+      setReconciliationData(prev => {
+        const newData = { ...prev };
+        delete newData[key];
+        return newData;
+      });
+      
+      showMessage('success', `${item.name} deleted successfully`);
+    } catch (error) {
+      console.error('Error deleting item:', error);
+      showMessage('error', 'Failed to delete item');
+    }
+  }, [refreshPositions, refreshLiabilities, showMessage]);
+
+  // Bulk update handlers
+  const handleBulkPercentageUpdate = useCallback((percentage) => {
+    const itemsToUpdate = selectedItems.size > 0 
+      ? Array.from(selectedItems)
+      : Object.values(processedData).flatMap(group => group.items.map(i => i.id));
+
+    itemsToUpdate.forEach(itemId => {
+      const item = Object.values(processedData)
+        .flatMap(group => group.items)
+        .find(i => i.id === itemId);
+      
+      if (item) {
+        const newValue = item.value * (1 + percentage / 100);
+        handleHierarchicalUpdate(item, newValue);
+      }
+    });
+
+    showMessage('success', `Applied ${percentage}% update to ${itemsToUpdate.length} items`);
+    setSelectedItems(new Set());
+  }, [selectedItems, processedData, handleHierarchicalUpdate, showMessage]);
+
+  // Submit reconciliation
+  const handleSubmitReconciliation = useCallback(async () => {
+    setIsSubmitting(true);
+    
+    try {
+      const updates = [];
+      
+      // Process all pending updates
+      for (const [key, data] of Object.entries(reconciliationData)) {
+        const [itemType, itemId] = key.split('_');
+        
+        if (itemType === 'position') {
+          const position = positions.find(p => (p.itemId || p.id) === parseInt(itemId));
+          if (position) {
+            await updatePosition(itemId, {
+              ...position,
+              current_value: data.value
+            }, position.assetType);
+            updates.push({ type: 'position', id: itemId, value: data.value });
+          }
+        } else if (itemType === 'liability') {
+          const liability = liabilities.find(l => l.id === parseInt(itemId));
+          if (liability) {
+            await updateLiability(itemId, {
+              ...liability,
+              current_balance: data.value
+            });
+            updates.push({ type: 'liability', id: itemId, value: data.value });
+          }
+        }
+      }
+
+      // Save to history
+      const historyEntry = {
+        date: new Date().toISOString(),
+        updates: updates.length,
+        totalValue: Object.values(reconciliationData).reduce((sum, item) => sum + (item.value || 0), 0),
+        items: updates
+      };
+      
+      const history = [historyEntry, ...reconciliationHistoryRef.current].slice(0, 30);
+      reconciliationHistoryRef.current = history;
+      saveToStorage(STORAGE_KEYS.reconciliationHistory, history);
+
+      // Clear reconciliation data
+      setReconciliationData({});
+      setPendingUpdates({});
+      saveToStorage(STORAGE_KEYS.reconciliationData, {});
+      saveToStorage(STORAGE_KEYS.pendingUpdates, {});
+
+      // Refresh data
+      await Promise.all([
+        refreshAccounts(),
+        refreshPositions(),
+        refreshLiabilities()
+      ]);
+
+      setShowConfetti(true);
+      showMessage('success', `Successfully updated ${updates.length} items!`);
+      
+      setTimeout(() => {
+        setShowConfetti(false);
+        setCurrentStage(RECONCILIATION_STAGES.complete);
+      }, 3000);
+      
+    } catch (error) {
+      console.error('Error submitting reconciliation:', error);
+      showMessage('error', 'Failed to submit reconciliation');
+    } finally {
+      setIsSubmitting(false);
+    }
+  }, [reconciliationData, positions, liabilities, refreshAccounts, refreshPositions, refreshLiabilities, showMessage]);
+
+  // Render stage content
+  const renderStageContent = () => {
+    switch (currentStage) {
+      case RECONCILIATION_STAGES.welcome:
+        return <WelcomeStage onSelectWorkflow={setCurrentStage} stats={getStats()} />;
+      
+      case RECONCILIATION_STAGES.quickEdit:
+        return (
+          <QuickEditStage 
+            processedData={processedData}
+            reconciliationData={reconciliationData}
+            expandedGroups={expandedGroups}
+            setExpandedGroups={setExpandedGroups}
+            selectedItems={selectedItems}
+            setSelectedItems={setSelectedItems}
+            editingItem={editingItem}
+            editValues={editValues}
+            showValues={showValues}
+            onEdit={handleEditItem}
+            onSaveEdit={handleSaveEdit}
+            onDelete={handleDeleteItem}
+            onUpdateValue={handleHierarchicalUpdate}
+            onBulkUpdate={handleBulkPercentageUpdate}
+            onCancelEdit={() => { setEditingItem(null); setEditValues({}); }}
+          />
+        );
+      
+      case RECONCILIATION_STAGES.bulkUpdate:
+        return (
+          <BulkUpdateStage
+            processedData={processedData}
+            reconciliationData={reconciliationData}
+            onBulkUpdate={handleBulkPercentageUpdate}
+            onBack={() => setCurrentStage(RECONCILIATION_STAGES.quickEdit)}
+          />
+        );
+      
+      case RECONCILIATION_STAGES.review:
+        return (
+          <ReviewStage
+            reconciliationData={reconciliationData}
+            processedData={processedData}
+            onSubmit={handleSubmitReconciliation}
+            onBack={() => setCurrentStage(RECONCILIATION_STAGES.quickEdit)}
+            isSubmitting={isSubmitting}
+          />
+        );
+      
+      case RECONCILIATION_STAGES.complete:
+        return (
+          <CompleteStage
+            history={reconciliationHistoryRef.current}
+            onClose={onClose}
+            onNewReconciliation={() => {
+              setCurrentStage(RECONCILIATION_STAGES.welcome);
+              setReconciliationData({});
+            }}
+          />
+        );
+      
+      default:
+        return null;
+    }
+  };
+
+  // Get stats helper
+  const getStats = () => {
+    const totalItems = positions.length + liabilities.length;
+    const pendingCount = Object.keys(reconciliationData).length;
+    const totalValue = [...positions, ...liabilities].reduce((sum, item) => 
+      sum + (item.currentValue || item.current_balance || 0), 0
+    );
+    
+    return {
+      totalItems,
+      pendingCount,
+      totalValue,
+      accountCount: accounts.length,
+      lastReconciliation: reconciliationHistoryRef.current[0]?.date
+    };
+  };
+
+  // Main render
+  return (
+    <AnimatePresence>
+      {isOpen && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+          onClick={(e) => e.target === e.currentTarget && onClose()}
+        >
+          <motion.div
+            initial={{ scale: 0.95, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            exit={{ scale: 0.95, opacity: 0 }}
+            className="bg-white rounded-2xl shadow-2xl w-full max-w-6xl max-h-[90vh] overflow-hidden"
+          >
+            {/* Header */}
+            <div className="bg-gradient-to-r from-blue-600 to-purple-600 px-6 py-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-3">
+                  <Target className="w-6 h-6 text-white" />
+                  <h2 className="text-xl font-bold text-white">Smart Reconciliation</h2>
+                  {currentStage !== RECONCILIATION_STAGES.welcome && (
+                    <span className="px-3 py-1 bg-white/20 rounded-full text-sm text-white">
+                      {currentStage.charAt(0).toUpperCase() + currentStage.slice(1)}
+                    </span>
+                  )}
+                </div>
+                
+                <div className="flex items-center space-x-4">
+                  {Object.keys(reconciliationData).length > 0 && (
+                    <div className="flex items-center space-x-2 px-3 py-1 bg-white/20 rounded-full">
+                      <Activity className="w-4 h-4 text-white" />
+                      <span className="text-sm font-medium text-white">
+                        {Object.keys(reconciliationData).length} pending
+                      </span>
+                    </div>
+                  )}
+                  
+                  <button
+                    onClick={() => setShowValues(!showValues)}
+                    className="p-2 hover:bg-white/20 rounded-lg transition-colors"
+                  >
+                    {showValues ? 
+                      <Eye className="w-5 h-5 text-white" /> : 
+                      <EyeOff className="w-5 h-5 text-white" />
+                    }
+                  </button>
+                  
+                  <button
+                    onClick={onClose}
+                    className="p-2 hover:bg-white/20 rounded-lg transition-colors"
+                  >
+                    <X className="w-5 h-5 text-white" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Navigation breadcrumbs */}
+              {currentStage !== RECONCILIATION_STAGES.welcome && (
+                <div className="flex items-center space-x-2 mt-3 text-white/80 text-sm">
+                  <button
+                    onClick={() => setCurrentStage(RECONCILIATION_STAGES.welcome)}
+                    className="hover:text-white transition-colors"
+                  >
+                    Home
+                  </button>
+                  <ChevronRight className="w-4 h-4" />
+                  <span className="text-white">
+                    {currentStage.charAt(0).toUpperCase() + currentStage.slice(1)}
                   </span>
                 </div>
               )}
             </div>
-          </div>
-          {hasChanged && (
-            <div className="flex items-center space-x-2">
-              {difference !== 0 && (
-                <span className={`
-                  text-sm font-medium px-2 py-1 rounded-full
-                  ${difference > 0 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}
-                `}>
-                  {difference > 0 ? '+' : ''}{formatCurrency(difference)}
-                </span>
-              )}
-              <Check className="w-5 h-5 text-green-500 animate-in zoom-in duration-300" />
+
+            {/* Search and filters bar */}
+            {(currentStage === RECONCILIATION_STAGES.quickEdit || 
+              currentStage === RECONCILIATION_STAGES.bulkUpdate) && (
+              <div className="px-6 py-3 border-b bg-gray-50">
+                <div className="flex items-center space-x-4">
+                  <div className="flex-1 relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                    <input
+                      type="text"
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      placeholder="Search positions, accounts, or liabilities..."
+                      className="w-full pl-10 pr-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    />
+                  </div>
+                  
+                  <select
+                    value={filterType}
+                    onChange={(e) => setFilterType(e.target.value)}
+                    className="px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="all">All Types</option>
+                    {Object.entries(ASSET_TYPE_CONFIG).map(([key, config]) => (
+                      <option key={key} value={key}>{config.label}</option>
+                    ))}
+                  </select>
+                  
+                  <select
+                    value={groupBy}
+                    onChange={(e) => setGroupBy(e.target.value)}
+                    className="px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="account">Group by Account</option>
+                    <option value="type">Group by Type</option>
+                    <option value="none">No Grouping</option>
+                  </select>
+                </div>
+              </div>
+            )}
+
+            {/* Content */}
+            <div className="p-6 overflow-y-auto" style={{ maxHeight: 'calc(90vh - 200px)' }}>
+              {renderStageContent()}
             </div>
+
+            {/* Footer actions */}
+            {currentStage !== RECONCILIATION_STAGES.welcome && 
+             currentStage !== RECONCILIATION_STAGES.complete && (
+              <div className="px-6 py-4 border-t bg-gray-50">
+                <div className="flex items-center justify-between">
+                  <button
+                    onClick={() => {
+                      if (currentStage === RECONCILIATION_STAGES.quickEdit) {
+                        setCurrentStage(RECONCILIATION_STAGES.welcome);
+                      } else if (currentStage === RECONCILIATION_STAGES.review) {
+                        setCurrentStage(RECONCILIATION_STAGES.quickEdit);
+                      } else {
+                        setCurrentStage(RECONCILIATION_STAGES.quickEdit);
+                      }
+                    }}
+                    className="px-4 py-2 text-gray-600 hover:text-gray-900 font-medium"
+                  >
+                    Back
+                  </button>
+                  
+                  <div className="flex items-center space-x-3">
+                    {Object.keys(reconciliationData).length > 0 && (
+                      <>
+                        <button
+                          onClick={() => {
+                            setReconciliationData({});
+                            saveToStorage(STORAGE_KEYS.reconciliationData, {});
+                            showMessage('info', 'Cleared all pending updates');
+                          }}
+                          className="px-4 py-2 text-red-600 hover:text-red-700 font-medium"
+                        >
+                          Clear All
+                        </button>
+                        
+                        <button
+                          onClick={() => setCurrentStage(RECONCILIATION_STAGES.review)}
+                          className="px-6 py-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white font-medium rounded-lg hover:from-blue-700 hover:to-purple-700 transition-all shadow-lg flex items-center space-x-2"
+                        >
+                          <span>Review Changes</span>
+                          <ChevronRight className="w-4 h-4" />
+                        </button>
+                      </>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+          </motion.div>
+
+          {/* Message toast */}
+          <AnimatePresence>
+            {message && (
+              <motion.div
+                initial={{ opacity: 0, y: 50 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: 50 }}
+                className={`fixed bottom-4 right-4 px-4 py-3 rounded-lg shadow-lg flex items-center space-x-2 ${
+                  message.type === 'success' ? 'bg-green-500 text-white' :
+                  message.type === 'error' ? 'bg-red-500 text-white' :
+                  'bg-blue-500 text-white'
+                }`}
+              >
+                {message.type === 'success' && <CheckCircle2 className="w-5 h-5" />}
+                {message.type === 'error' && <AlertCircle className="w-5 h-5" />}
+                {message.type === 'info' && <Info className="w-5 h-5" />}
+                <span>{message.text}</span>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* Confetti */}
+          {showConfetti && (
+            <Confetti
+              width={window.innerWidth}
+              height={window.innerHeight}
+              recycle={false}
+              numberOfPieces={200}
+              gravity={0.1}
+            />
           )}
-        </div>
-        
-        <div className="grid grid-cols-2 gap-4 mb-4">
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-gray-700">
-              Current NestEgg Balance
-            </label>
-            <div className="text-xl font-bold text-gray-900">
-              {isLiability ? '-' : ''}{formatCurrency(Math.abs(position.current_value || 0))}
-            </div>
-          </div>
-          
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-gray-700">
-              Balance to Update
-            </label>
-            <div className="relative">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">
-                {isLiability ? '-$' : '$'}
-              </span>
-              <input
-                ref={inputRef}
-                type="text"
-                value={localValue}
-                onChange={handleChange}
-                onKeyDown={handleKeyDown}
-                onFocus={() => setIsFocused(true)}
-                onBlur={() => setIsFocused(false)}
-                placeholder={Math.abs(position.current_value || 0).toFixed(2)}
-                className={`
-                  w-full pl-8 pr-4 py-3 text-xl font-bold rounded-lg
-                  transition-all duration-200 outline-none
-                  ${isFocused 
-                    ? 'border-2 border-blue-500 ring-4 ring-blue-100' 
-                    : 'border-2 border-gray-300 hover:border-gray-400'
-                  }
-                  ${hasChanged && localValue !== String(position.current_value) 
-                    ? 'bg-amber-50' 
-                    : 'bg-white'
-                  }
-                `}
-              />
-            </div>
-          </div>
-        </div>
-        
-        {difference !== 0 && hasChanged && (
-          <div className={`
-            p-3 rounded-lg flex items-center justify-between
-            ${difference > 0 ? 'bg-green-50 border border-green-200' : 'bg-red-50 border border-red-200'}
-          `}>
-            <span className="text-sm font-medium text-gray-700">Difference:</span>
-            <span className={`font-bold ${difference > 0 ? 'text-green-700' : 'text-red-700'}`}>
-              {difference > 0 ? '+' : ''}{formatCurrency(difference)}
-            </span>
-          </div>
-        )}
-        
-        {suggestion && (
-          <div className="flex items-center space-x-2 text-sm text-gray-500 mt-3 p-2 bg-blue-50 rounded-lg">
-            <Sparkles className="w-4 h-4 text-blue-500 animate-pulse" />
-            <span>{suggestion}</span>
-          </div>
-        )}
-      </div>
-    </div>
+        </motion.div>
+      )}
+    </AnimatePresence>
   );
 };
 
-// Enhanced institution selector with visual feedback
-const InstitutionSelector = ({ institutions, selectedInstitution, onSelect, completedInstitutions }) => {
+// Stage Components
+const WelcomeStage = ({ onSelectWorkflow, stats }) => (
+  <div className="space-y-6">
+    <div className="text-center">
+      <h3 className="text-2xl font-bold text-gray-900 mb-2">Welcome to Smart Reconciliation</h3>
+      <p className="text-gray-600">Choose your workflow to keep your portfolio accurate</p>
+    </div>
+
+    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <motion.button
+        whileHover={{ scale: 1.02 }}
+        whileTap={{ scale: 0.98 }}
+        onClick={() => onSelectWorkflow(RECONCILIATION_STAGES.quickEdit)}
+        className="p-6 bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl border-2 border-blue-200 hover:border-blue-400 transition-all"
+      >
+        <Edit3 className="w-8 h-8 text-blue-600 mb-3" />
+        <h4 className="font-semibold text-gray-900 mb-1">Quick Edit</h4>
+        <p className="text-sm text-gray-600">Edit individual items and values</p>
+      </motion.button>
+
+      <motion.button
+        whileHover={{ scale: 1.02 }}
+        whileTap={{ scale: 0.98 }}
+        onClick={() => onSelectWorkflow(RECONCILIATION_STAGES.bulkUpdate)}
+        className="p-6 bg-gradient-to-br from-purple-50 to-purple-100 rounded-xl border-2 border-purple-200 hover:border-purple-400 transition-all"
+      >
+        <Calculator className="w-8 h-8 text-purple-600 mb-3" />
+        <h4 className="font-semibold text-gray-900 mb-1">Bulk Update</h4>
+        <p className="text-sm text-gray-600">Apply percentage changes to multiple items</p>
+      </motion.button>
+
+      <motion.button
+        whileHover={{ scale: 1.02 }}
+        whileTap={{ scale: 0.98 }}
+        onClick={() => onSelectWorkflow(RECONCILIATION_STAGES.quickEdit)}
+        className="p-6 bg-gradient-to-br from-green-50 to-green-100 rounded-xl border-2 border-green-200 hover:border-green-400 transition-all"
+      >
+        <PlayCircle className="w-8 h-8 text-green-600 mb-3" />
+        <h4 className="font-semibold text-gray-900 mb-1">Full Workflow</h4>
+        <p className="text-sm text-gray-600">Complete reconciliation process</p>
+      </motion.button>
+    </div>
+
+    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pt-4 border-t">
+      <div className="text-center">
+        <p className="text-2xl font-bold text-gray-900">{stats.totalItems}</p>
+        <p className="text-sm text-gray-600">Total Items</p>
+      </div>
+      <div className="text-center">
+        <p className="text-2xl font-bold text-blue-600">{stats.pendingCount}</p>
+        <p className="text-sm text-gray-600">Pending Updates</p>
+      </div>
+      <div className="text-center">
+        <p className="text-2xl font-bold text-gray-900">{formatCurrency(stats.totalValue)}</p>
+        <p className="text-sm text-gray-600">Total Value</p>
+      </div>
+      <div className="text-center">
+        <p className="text-2xl font-bold text-gray-900">{stats.accountCount}</p>
+        <p className="text-sm text-gray-600">Accounts</p>
+      </div>
+    </div>
+  </div>
+);
+
+const QuickEditStage = ({ 
+  processedData, 
+  reconciliationData, 
+  expandedGroups,
+  setExpandedGroups,
+  selectedItems,
+  setSelectedItems,
+  editingItem,
+  editValues,
+  showValues,
+  onEdit,
+  onSaveEdit,
+  onDelete,
+  onUpdateValue,
+  onBulkUpdate,
+  onCancelEdit
+}) => {
+  const toggleGroup = (groupKey) => {
+    const newExpanded = new Set(expandedGroups);
+    if (newExpanded.has(groupKey)) {
+      newExpanded.delete(groupKey);
+    } else {
+      newExpanded.add(groupKey);
+    }
+    setExpandedGroups(newExpanded);
+  };
+
+  const toggleItemSelection = (itemId) => {
+    const newSelected = new Set(selectedItems);
+    if (newSelected.has(itemId)) {
+      newSelected.delete(itemId);
+    } else {
+      newSelected.add(itemId);
+    }
+    setSelectedItems(newSelected);
+  };
+
   return (
-    <div className="flex flex-wrap gap-3 mb-6">
-      {institutions.map(({ institution, positions, totalValue }) => {
-        const isSelected = selectedInstitution === institution;
-        const isCompleted = completedInstitutions.includes(institution);
-        const updatedCount = positions.filter(p => p.hasUpdate).length;
-        
+    <div className="space-y-4">
+      {/* Bulk actions bar */}
+      {selectedItems.size > 0 && (
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 flex items-center justify-between">
+          <span className="text-sm font-medium text-blue-900">
+            {selectedItems.size} items selected
+          </span>
+          <div className="flex items-center space-x-2">
+            <button
+              onClick={() => onBulkUpdate(5)}
+              className="px-3 py-1 bg-green-100 text-green-700 rounded hover:bg-green-200"
+            >
+              +5%
+            </button>
+            <button
+              onClick={() => onBulkUpdate(-5)}
+              className="px-3 py-1 bg-red-100 text-red-700 rounded hover:bg-red-200"
+            >
+              -5%
+            </button>
+            <button
+              onClick={() => setSelectedItems(new Set())}
+              className="px-3 py-1 bg-gray-100 text-gray-700 rounded hover:bg-gray-200"
+            >
+              Clear
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Groups */}
+      {Object.entries(processedData).map(([groupKey, group]) => {
+        const isExpanded = expandedGroups.has(groupKey);
+        const hasPendingUpdates = group.items.some(item => 
+          reconciliationData[`${item.itemType}_${item.id}`]
+        );
+
         return (
-          <button
-            key={institution}
-            onClick={() => onSelect(institution)}
-            className={`
-              relative group px-6 py-4 rounded-xl border-2 transition-all duration-300 transform
-              ${isSelected 
-                ? 'border-blue-500 bg-blue-50 shadow-lg scale-[1.02]' 
-                : isCompleted
-                  ? 'border-green-400 bg-green-50 hover:scale-[1.01]'
-                  : 'border-gray-200 bg-white hover:border-gray-300 hover:shadow-md hover:scale-[1.01]'
-              }
-            `}
-          >
-            {isCompleted && (
-              <div className="absolute -top-2 -right-2 bg-green-500 rounded-full p-1">
-                <Check className="w-4 h-4 text-white" />
+          <div key={groupKey} className="bg-white rounded-lg border shadow-sm">
+            {/* Group header */}
+            <div
+              className="px-4 py-3 flex items-center justify-between cursor-pointer hover:bg-gray-50"
+              onClick={() => toggleGroup(groupKey)}
+            >
+              <div className="flex items-center space-x-3">
+                {isExpanded ? 
+                  <ChevronDown className="w-5 h-5 text-gray-400" /> : 
+                  <ChevronRight className="w-5 h-5 text-gray-400" />
+                }
+                <h4 className="font-semibold text-gray-900">{groupKey}</h4>
+                <span className="text-sm text-gray-500">
+                  ({group.items.length} items)
+                </span>
+                {hasPendingUpdates && (
+                  <span className="px-2 py-0.5 bg-blue-100 text-blue-700 text-xs rounded-full">
+                    Has updates
+                  </span>
+                )}
               </div>
-            )}
-            
-            <div className="flex items-center space-x-3">
-              <Landmark className={`
-                w-5 h-5 transition-colors
-                ${isSelected ? 'text-blue-600' : isCompleted ? 'text-green-600' : 'text-gray-400'}
-              `} />
-              <div className="text-left">
-                <h4 className={`
-                  font-semibold transition-colors
-                  ${isSelected ? 'text-blue-900' : 'text-gray-900'}
-                `}>
-                  {institution}
-                </h4>
-                <div className="flex items-center space-x-3 text-sm mt-1">
-                  <span className="text-gray-500">{positions.length} positions</span>
-                  {updatedCount > 0 && (
-                    <span className="text-amber-600 font-medium">
-                      {updatedCount} updated
-                    </span>
-                  )}
-                </div>
+              <div className="flex items-center space-x-4">
+                <span className="text-sm text-gray-600">
+                  Total: {showValues ? formatCurrency(group.totalValue) : '•••••'}
+                </span>
+                {group.totalPending !== 0 && (
+                  <span className={`text-sm font-medium ${
+                    group.totalPending > 0 ? 'text-green-600' : 'text-red-600'
+                  }`}>
+                    {group.totalPending > 0 ? '+' : ''}{formatCurrency(group.totalPending)}
+                  </span>
+                )}
               </div>
             </div>
-            
-            <div className="mt-3 pt-3 border-t border-gray-100">
-              <div className="text-sm text-gray-500">Total Value</div>
-              <div className="font-semibold text-gray-900">{formatCurrency(totalValue)}</div>
-            </div>
-            
-            {/* Progress bar */}
-            <div className="absolute bottom-0 left-0 right-0 h-1 bg-gray-200 rounded-b-xl overflow-hidden">
-              <div 
-                className={`
-                  h-full transition-all duration-500
-                  ${isCompleted ? 'bg-green-500' : 'bg-blue-500'}
-                `}
-                style={{ width: `${(updatedCount / positions.length) * 100}%` }}
-              />
-            </div>
-          </button>
+
+            {/* Group items */}
+            <AnimatePresence>
+              {isExpanded && (
+                <motion.div
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: 'auto', opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  className="border-t"
+                >
+                  {group.items.map(item => {
+                    const key = `${item.itemType}_${item.id}`;
+                    const pendingData = reconciliationData[key];
+                    const isSelected = selectedItems.has(item.id);
+                    const isEditing = editingItem?.id === item.id;
+
+                    return (
+                      <div
+                        key={item.id}
+                        className={`px-4 py-3 border-b last:border-b-0 ${
+                          isSelected ? 'bg-blue-50' : 'hover:bg-gray-50'
+                        } ${pendingData ? 'bg-yellow-50' : ''}`}
+                      >
+                        {isEditing ? (
+                          // Edit mode
+                          <div className="flex items-center space-x-3">
+                            <input
+                              type="number"
+                              value={editValues.value}
+                              onChange={(e) => setEditValues(prev => ({ ...prev, value: e.target.value }))}
+                              className="flex-1 px-3 py-1 border rounded focus:ring-2 focus:ring-blue-500"
+                              autoFocus
+                            />
+                            <button
+                              onClick={onSaveEdit}
+                              className="p-1.5 bg-green-100 text-green-600 rounded hover:bg-green-200"
+                            >
+                              <Save className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={onCancelEdit}
+                              className="p-1.5 bg-gray-100 text-gray-600 rounded hover:bg-gray-200"
+                            >
+                              <X className="w-4 h-4" />
+                            </button>
+                          </div>
+                        ) : (
+                          // View mode
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center space-x-3">
+                              <input
+                                type="checkbox"
+                                checked={isSelected}
+                                onChange={() => toggleItemSelection(item.id)}
+                                className="rounded border-gray-300"
+                              />
+                              <div>
+                                <p className="font-medium text-gray-900">{item.name}</p>
+                                <p className="text-sm text-gray-500">
+                                  {item.identifier} • {ASSET_TYPE_CONFIG[item.asset_type]?.label}
+                                </p>
+                              </div>
+                            </div>
+                            
+                            <div className="flex items-center space-x-3">
+                              <div className="text-right">
+                                <p className="font-medium text-gray-900">
+                                  {showValues ? formatCurrency(pendingData?.value || item.value) : '•••••'}
+                                </p>
+                                {pendingData && (
+                                  <p className={`text-sm ${
+                                    pendingData.value > item.value ? 'text-green-600' : 'text-red-600'
+                                  }`}>
+                                    {pendingData.value > item.value ? '+' : ''}
+                                    {formatCurrency(pendingData.value - item.value)}
+                                  </p>
+                                )}
+                              </div>
+                              
+                              <div className="flex items-center space-x-1">
+                                <button
+                                  onClick={() => onUpdateValue(item, item.value * 0.95)}
+                                  className="p-1 text-red-600 hover:bg-red-100 rounded"
+                                >
+                                  <Minus className="w-4 h-4" />
+                                </button>
+                                <button
+                                  onClick={() => onEdit(item)}
+                                  className="p-1 text-blue-600 hover:bg-blue-100 rounded"
+                                >
+                                  <Edit3 className="w-4 h-4" />
+                                </button>
+                                <button
+                                  onClick={() => onUpdateValue(item, item.value * 1.05)}
+                                  className="p-1 text-green-600 hover:bg-green-100 rounded"
+                                >
+                                  <Plus className="w-4 h-4" />
+                                </button>
+                                <button
+                                  onClick={() => onDelete(item)}
+                                  className="p-1 text-red-600 hover:bg-red-100 rounded"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
         );
       })}
     </div>
   );
 };
 
-// Update summary dashboard
-const UpdateSummaryDashboard = ({ pendingUpdates, originalValues }) => {
-  const stats = useMemo(() => {
-    const updates = Object.entries(pendingUpdates);
-    const totalChanges = updates.length;
-    let totalIncrease = 0;
-    let totalDecrease = 0;
-    let netChange = 0;
-    
-    updates.forEach(([posId, newValue]) => {
-      const original = originalValues[posId] || 0;
-      const diff = parseFloat(newValue) - original;
-      netChange += diff;
-      if (diff > 0) totalIncrease += diff;
-      else totalDecrease += Math.abs(diff);
-    });
-    
-    return { totalChanges, totalIncrease, totalDecrease, netChange };
-  }, [pendingUpdates, originalValues]);
-  
-  if (stats.totalChanges === 0) return null;
-  
+const BulkUpdateStage = ({ processedData, reconciliationData, onBulkUpdate, onBack }) => {
+  const [updatePercentage, setUpdatePercentage] = useState(0);
+  const [selectedGroups, setSelectedGroups] = useState(new Set());
+
+  const affectedItems = useMemo(() => {
+    if (selectedGroups.size === 0) {
+      return Object.values(processedData).flatMap(group => group.items);
+    }
+    return Array.from(selectedGroups).flatMap(groupKey => 
+      processedData[groupKey]?.items || []
+    );
+  }, [selectedGroups, processedData]);
+
+  const previewValue = useMemo(() => {
+    const currentTotal = affectedItems.reduce((sum, item) => sum + (item.value || 0), 0);
+    const newTotal = currentTotal * (1 + updatePercentage / 100);
+    return { currentTotal, newTotal, difference: newTotal - currentTotal };
+  }, [affectedItems, updatePercentage]);
+
   return (
-    <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-2xl p-6 border border-blue-200 shadow-lg">
-      <div className="flex items-center justify-between mb-4">
-        <h3 className="text-lg font-semibold text-gray-900 flex items-center">
-          <FileCheck className="w-5 h-5 mr-2 text-blue-600" />
-          Pending Updates Summary
-        </h3>
-        <div className="flex items-center space-x-2">
-          <span className="text-2xl font-bold text-blue-600">{stats.totalChanges}</span>
-          <span className="text-sm text-gray-600">changes</span>
+    <div className="space-y-6">
+      <div>
+        <h3 className="text-lg font-semibold text-gray-900 mb-2">Bulk Update</h3>
+        <p className="text-gray-600">Apply a percentage change to multiple items at once</p>
+      </div>
+
+      {/* Percentage slider */}
+      <div className="bg-gray-50 rounded-lg p-6">
+        <label className="block text-sm font-medium text-gray-700 mb-4">
+          Update Percentage: {updatePercentage > 0 ? '+' : ''}{updatePercentage}%
+        </label>
+        <input
+          type="range"
+          min="-50"
+          max="50"
+          value={updatePercentage}
+          onChange={(e) => setUpdatePercentage(Number(e.target.value))}
+          className="w-full"
+        />
+        <div className="flex justify-between text-xs text-gray-500 mt-2">
+          <span>-50%</span>
+          <span>0%</span>
+          <span>+50%</span>
         </div>
       </div>
-      
-      <div className="grid grid-cols-3 gap-4">
-        <div className="bg-white rounded-lg p-4 text-center">
-          <ArrowUpRight className="w-6 h-6 text-green-600 mx-auto mb-2" />
-          <div className="text-sm text-gray-600">Total Increase</div>
-          <div className="text-xl font-bold text-green-600">
-            +{formatCurrency(stats.totalIncrease)}
-          </div>
+
+      {/* Group selection */}
+      <div>
+        <h4 className="font-medium text-gray-900 mb-3">Select Groups to Update</h4>
+        <div className="space-y-2">
+          {Object.entries(processedData).map(([groupKey, group]) => (
+            <label
+              key={groupKey}
+              className="flex items-center p-3 border rounded-lg hover:bg-gray-50 cursor-pointer"
+            >
+              <input
+                type="checkbox"
+                checked={selectedGroups.has(groupKey)}
+                onChange={(e) => {
+                  const newSelected = new Set(selectedGroups);
+                  if (e.target.checked) {
+                    newSelected.add(groupKey);
+                  } else {
+                    newSelected.delete(groupKey);
+                  }
+                  setSelectedGroups(newSelected);
+                }}
+                className="mr-3"
+              />
+              <div className="flex-1">
+                <p className="font-medium text-gray-900">{groupKey}</p>
+                <p className="text-sm text-gray-500">{group.items.length} items</p>
+              </div>
+              <span className="text-sm text-gray-600">
+                {formatCurrency(group.totalValue)}
+              </span>
+            </label>
+          ))}
         </div>
-        
-        <div className="bg-white rounded-lg p-4 text-center">
-          <ArrowDownRight className="w-6 h-6 text-red-600 mx-auto mb-2" />
-          <div className="text-sm text-gray-600">Total Decrease</div>
-          <div className="text-xl font-bold text-red-600">
-            -{formatCurrency(stats.totalDecrease)}
+      </div>
+
+      {/* Preview */}
+      <div className="bg-blue-50 rounded-lg p-4">
+        <h4 className="font-medium text-blue-900 mb-2">Preview</h4>
+        <div className="space-y-1 text-sm">
+          <div className="flex justify-between">
+            <span className="text-gray-600">Affected Items:</span>
+            <span className="font-medium">{affectedItems.length}</span>
           </div>
-        </div>
-        
-        <div className="bg-white rounded-lg p-4 text-center">
-          <TrendingUp className="w-6 h-6 text-blue-600 mx-auto mb-2" />
-          <div className="text-sm text-gray-600">Net Change</div>
-          <div className={`text-xl font-bold ${stats.netChange >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-            {stats.netChange >= 0 ? '+' : ''}{formatCurrency(stats.netChange)}
+          <div className="flex justify-between">
+            <span className="text-gray-600">Current Total:</span>
+            <span className="font-medium">{formatCurrency(previewValue.currentTotal)}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-gray-600">New Total:</span>
+            <span className="font-medium">{formatCurrency(previewValue.newTotal)}</span>
+          </div>
+          <div className="flex justify-between pt-2 border-t">
+            <span className="text-gray-600">Change:</span>
+            <span className={`font-medium ${
+              previewValue.difference > 0 ? 'text-green-600' : 'text-red-600'
+            }`}>
+              {previewValue.difference > 0 ? '+' : ''}{formatCurrency(previewValue.difference)}
+            </span>
           </div>
         </div>
       </div>
-      
-      <div className="mt-4 p-3 bg-amber-100 rounded-lg flex items-start space-x-2">
-        <Info className="w-4 h-4 text-amber-600 mt-0.5 flex-shrink-0" />
-        <p className="text-sm text-amber-700">
-          These changes will be applied when you complete the reconciliation process.
-        </p>
+
+      {/* Actions */}
+      <div className="flex justify-between">
+        <button
+          onClick={onBack}
+          className="px-4 py-2 text-gray-600 hover:text-gray-900 font-medium"
+        >
+          Cancel
+        </button>
+        <button
+          onClick={() => {
+            onBulkUpdate(updatePercentage);
+            onBack();
+          }}
+          disabled={updatePercentage === 0 || affectedItems.length === 0}
+          className="px-6 py-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white font-medium rounded-lg hover:from-blue-700 hover:to-purple-700 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          Apply Update to {affectedItems.length} Items
+        </button>
       </div>
     </div>
   );
 };
 
-// Enhanced reconciliation summary dashboard
-const ReconciliationSummaryDashboard = ({ 
-  stats, 
-  reconciliationResults,
-  onClose,
-  onStartNewReconciliation
-}) => {
-  const [showConfetti, setShowConfetti] = useState(true);
-  
-  useEffect(() => {
-    const timer = setTimeout(() => setShowConfetti(false), 5000);
-    return () => clearTimeout(timer);
-  }, []);
-  
+const ReviewStage = ({ reconciliationData, processedData, onSubmit, onBack, isSubmitting }) => {
+  const groupedChanges = useMemo(() => {
+    const changes = {};
+    
+    Object.entries(reconciliationData).forEach(([key, data]) => {
+      const accountId = data.accountId || 'Unassigned';
+      if (!changes[accountId]) {
+        changes[accountId] = [];
+      }
+      changes[accountId].push({
+        key,
+        ...data
+      });
+    });
+    
+    return changes;
+  }, [reconciliationData]);
+
+  const totals = useMemo(() => {
+    let originalTotal = 0;
+    let newTotal = 0;
+    let itemCount = 0;
+    
+    Object.values(reconciliationData).forEach(data => {
+      originalTotal += data.originalValue || 0;
+      newTotal += data.value || 0;
+      itemCount++;
+    });
+    
+    return {
+      originalTotal,
+      newTotal,
+      difference: newTotal - originalTotal,
+      percentChange: originalTotal !== 0 ? ((newTotal - originalTotal) / originalTotal) * 100 : 0,
+      itemCount
+    };
+  }, [reconciliationData]);
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 p-8">
-      {showConfetti && <Confetti show={true} />}
-      
-      <div className="max-w-6xl mx-auto">
-        {/* Success Header */}
-        <div className="text-center mb-8 animate-in slide-in-from-top duration-500">
-          <div className="inline-flex items-center justify-center w-24 h-24 bg-gradient-to-br from-green-400 to-emerald-500 rounded-full mb-6 shadow-2xl">
-            <Trophy className="w-12 h-12 text-white animate-bounce" />
+    <div className="space-y-6">
+      <div>
+        <h3 className="text-lg font-semibold text-gray-900 mb-2">Review Changes</h3>
+        <p className="text-gray-600">Confirm your updates before submitting</p>
+      </div>
+
+      {/* Summary card */}
+      <div className="bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg p-6">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div>
+            <p className="text-sm text-gray-600">Items Updated</p>
+            <p className="text-2xl font-bold text-gray-900">{totals.itemCount}</p>
           </div>
-          
-          <h1 className="text-4xl font-bold text-gray-900 mb-4">
-            Reconciliation Complete! 🎉
-          </h1>
-          
-          <p className="text-xl text-gray-600 max-w-2xl mx-auto">
-            Great job! Your accounts are now up-to-date and reconciled.
-          </p>
-        </div>
-        
-        {/* Summary Stats Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-          <div className="bg-white rounded-2xl p-6 shadow-lg border border-gray-100 animate-in slide-in-from-bottom duration-500 delay-100">
-            <div className="flex items-center justify-between mb-4">
-              <CheckCircle className="w-8 h-8 text-green-500" />
-              <span className="text-3xl font-bold text-gray-900">{stats.accountsReconciled}</span>
-            </div>
-            <h3 className="font-semibold text-gray-700">Accounts Reconciled</h3>
-            <p className="text-sm text-gray-500 mt-1">Successfully updated</p>
+          <div>
+            <p className="text-sm text-gray-600">Original Total</p>
+            <p className="text-2xl font-bold text-gray-900">{formatCurrency(totals.originalTotal)}</p>
           </div>
-          
-          <div className="bg-white rounded-2xl p-6 shadow-lg border border-gray-100 animate-in slide-in-from-bottom duration-500 delay-200">
-            <div className="flex items-center justify-between mb-4">
-              <Droplets className="w-8 h-8 text-blue-500" />
-              <span className="text-3xl font-bold text-gray-900">{stats.liquidPositionsUpdated}</span>
-            </div>
-            <h3 className="font-semibold text-gray-700">Liquid Positions</h3>
-            <p className="text-sm text-gray-500 mt-1">Updated balances</p>
+          <div>
+            <p className="text-sm text-gray-600">New Total</p>
+            <p className="text-2xl font-bold text-gray-900">{formatCurrency(totals.newTotal)}</p>
           </div>
-          
-          <div className="bg-white rounded-2xl p-6 shadow-lg border border-gray-100 animate-in slide-in-from-bottom duration-500 delay-300">
-            <div className="flex items-center justify-between mb-4">
-              <CircleDollarSign className="w-8 h-8 text-indigo-500" />
-              <AnimatedValue 
-                value={stats.totalValueReconciled} 
-                format="currency" 
-                className="text-2xl font-bold text-gray-900"
-              />
-            </div>
-            <h3 className="font-semibold text-gray-700">Total Value</h3>
-            <p className="text-sm text-gray-500 mt-1">Portfolio reconciled</p>
-          </div>
-          
-          <div className="bg-white rounded-2xl p-6 shadow-lg border border-gray-100 animate-in slide-in-from-bottom duration-500 delay-400">
-            <div className="flex items-center justify-between mb-4">
-              <Percent className="w-8 h-8 text-purple-500" />
-              <div className="relative">
-                <ProgressRing percentage={stats.accuracy} size={60} color="purple" />
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <span className="text-sm font-bold">{stats.accuracy}%</span>
-                </div>
-              </div>
-            </div>
-            <h3 className="font-semibold text-gray-700">Accuracy Score</h3>
-            <p className="text-sm text-gray-500 mt-1">Reconciliation health</p>
+          <div>
+            <p className="text-sm text-gray-600">Net Change</p>
+            <p className={`text-2xl font-bold ${
+              totals.difference > 0 ? 'text-green-600' : 'text-red-600'
+            }`}>
+              {totals.difference > 0 ? '+' : ''}{formatCurrency(totals.difference)}
+              <span className="text-sm ml-1">({formatPercent(totals.percentChange)})</span>
+            </p>
           </div>
         </div>
-        
-        {/* Detailed Results */}
-        {reconciliationResults && reconciliationResults.length > 0 && (
-          <div className="bg-white rounded-2xl p-6 shadow-lg border border-gray-100 mb-8 animate-in slide-in-from-bottom duration-500 delay-500">
-            <h2 className="text-xl font-semibold text-gray-900 mb-4 flex items-center">
-              <FileText className="w-6 h-6 mr-2 text-gray-600" />
-              Reconciliation Details
-            </h2>
-            
-            <div className="space-y-3">
-              {reconciliationResults.map((result, idx) => (
-                <div key={idx} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-                  <div className="flex items-center space-x-3">
-                    <CheckCheck className="w-5 h-5 text-green-500" />
+      </div>
+
+      {/* Changes list */}
+      <div className="space-y-4">
+        {Object.entries(groupedChanges).map(([accountId, changes]) => (
+          <div key={accountId} className="bg-white rounded-lg border">
+            <div className="px-4 py-3 border-b bg-gray-50">
+              <h4 className="font-medium text-gray-900">{accountId}</h4>
+              <p className="text-sm text-gray-500">{changes.length} changes</p>
+            </div>
+            <div className="divide-y">
+              {changes.map(change => (
+                <div key={change.key} className="px-4 py-3">
+                  <div className="flex items-center justify-between">
                     <div>
-                      <p className="font-medium text-gray-900">{result.accountName}</p>
-                      <p className="text-sm text-gray-500">{result.institution}</p>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <p className="font-semibold text-gray-900">{formatCurrency(result.finalBalance)}</p>
-                    {result.change !== 0 && (
-                      <p className={`text-sm ${result.change > 0 ? 'text-green-600' : 'text-red-600'}`}>
-                        {result.change > 0 ? '+' : ''}{formatCurrency(result.change)}
+                      <p className="font-medium text-gray-900">{change.name}</p>
+                      <p className="text-sm text-gray-500">
+                        Updated {new Date(change.timestamp).toLocaleString()}
                       </p>
-                    )}
+                    </div>
+                    <div className="text-right">
+                      <p className="text-sm text-gray-500 line-through">
+                        {formatCurrency(change.originalValue)}
+                      </p>
+                      <p className="font-medium text-gray-900">
+                        {formatCurrency(change.value)}
+                      </p>
+                      <p className={`text-sm ${
+                        change.value > change.originalValue ? 'text-green-600' : 'text-red-600'
+                      }`}>
+                        {change.value > change.originalValue ? '+' : ''}
+                        {formatCurrency(change.value - change.originalValue)}
+                      </p>
+                    </div>
                   </div>
                 </div>
               ))}
             </div>
           </div>
-        )}
-        
-        {/* Next Steps */}
-        <div className="bg-gradient-to-r from-blue-600 to-indigo-600 rounded-2xl p-8 text-white shadow-xl animate-in slide-in-from-bottom duration-500 delay-600">
-          <h2 className="text-2xl font-bold mb-4">What's Next?</h2>
-          
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-            <div className="flex items-start space-x-3">
-              <div className="p-2 bg-white/20 rounded-lg">
-                <Calendar className="w-6 h-6" />
-              </div>
-              <div>
-                <h3 className="font-semibold mb-1">Schedule Regular Updates</h3>
-                <p className="text-sm text-blue-100">We recommend reconciling weekly for best results</p>
-              </div>
-            </div>
-            
-            <div className="flex items-start space-x-3">
-              <div className="p-2 bg-white/20 rounded-lg">
-                <LineChart className="w-6 h-6" />
-              </div>
-              <div>
-                <h3 className="font-semibold mb-1">Track Your Progress</h3>
-                <p className="text-sm text-blue-100">Monitor your portfolio performance over time</p>
-              </div>
-            </div>
-            
-            <div className="flex items-start space-x-3">
-              <div className="p-2 bg-white/20 rounded-lg">
-                <Bell className="w-6 h-6" />
-              </div>
-              <div>
-                <h3 className="font-semibold mb-1">Set Up Alerts</h3>
-                <p className="text-sm text-blue-100">Get notified when accounts need attention</p>
-              </div>
-            </div>
-          </div>
-          
-          <div className="flex justify-center space-x-4">
-            <button
-              onClick={onClose}
-              className="px-6 py-3 bg-white text-blue-600 font-semibold rounded-lg hover:bg-gray-100 transition-all transform hover:scale-105"
-            >
-              Back to Dashboard
-            </button>
-            <button
-              onClick={onStartNewReconciliation}
-              className="px-6 py-3 bg-blue-700 text-white font-semibold rounded-lg hover:bg-blue-800 transition-all transform hover:scale-105"
-            >
-              Start New Reconciliation
-            </button>
-          </div>
-        </div>
-        
-        {/* Share Achievement */}
-        <div className="text-center mt-8 animate-in fade-in duration-500 delay-700">
-          <p className="text-gray-600 mb-3">Share your achievement!</p>
-          <div className="flex justify-center space-x-3">
-            <button className="p-3 bg-white rounded-full shadow-md hover:shadow-lg transition-all transform hover:scale-110">
-              <Share2 className="w-5 h-5 text-gray-600" />
-            </button>
-            <button className="p-3 bg-white rounded-full shadow-md hover:shadow-lg transition-all transform hover:scale-110">
-              <Copy className="w-5 h-5 text-gray-600" />
-            </button>
-            <button className="p-3 bg-white rounded-full shadow-md hover:shadow-lg transition-all transform hover:scale-110">
-              <Download className="w-5 h-5 text-gray-600" />
-            </button>
-          </div>
-        </div>
+        ))}
       </div>
-    </div>
-  );
-};
 
-// Enhanced confetti component
-const Confetti = ({ show }) => {
-  const [particles, setParticles] = useState([]);
-  
-  useEffect(() => {
-    if (show) {
-      const colors = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899', '#14B8A6'];
-      const shapes = ['square', 'circle'];
-      const newParticles = Array.from({ length: 100 }, (_, i) => ({
-        id: i,
-        x: Math.random() * 100,
-        y: -10,
-        vx: (Math.random() - 0.5) * 3,
-        vy: Math.random() * 5 + 3,
-        color: colors[Math.floor(Math.random() * colors.length)],
-        size: Math.random() * 8 + 4,
-        rotation: Math.random() * 360,
-        rotationSpeed: (Math.random() - 0.5) * 10,
-        shape: shapes[Math.floor(Math.random() * shapes.length)]
-      }));
-      setParticles(newParticles);
-      
-      const timer = setTimeout(() => setParticles([]), 5000);
-      return () => clearTimeout(timer);
-    }
-  }, [show]);
-  
-  if (!show || particles.length === 0) return null;
-  
-  return (
-    <div className="fixed inset-0 pointer-events-none z-50">
-      {particles.map(particle => (
-        <div
-          key={particle.id}
-          className="absolute animate-fall"
-          style={{
-            left: `${particle.x}%`,
-            top: `${particle.y}%`,
-            '--vx': particle.vx,
-            '--vy': particle.vy,
-            '--rotation-speed': particle.rotationSpeed,
-            animation: 'confetti-fall 5s ease-out forwards'
-          }}
-        >
-          <div
-            className={particle.shape === 'circle' ? 'rounded-full' : 'rounded-sm'}
-            style={{
-              width: `${particle.size}px`,
-              height: `${particle.size}px`,
-              backgroundColor: particle.color,
-              transform: `rotate(${particle.rotation}deg)`,
-              animation: 'confetti-spin 5s linear infinite'
-            }}
-          />
-        </div>
-      ))}
-      <style jsx>{`
-        @keyframes confetti-fall {
-          to {
-            transform: translate(calc(var(--vx) * 200px), calc(100vh + 100px));
-          }
-        }
-        @keyframes confetti-spin {
-          to {
-            transform: rotate(calc(360deg * var(--rotation-speed)));
-          }
-        }
-      `}</style>
-    </div>
-  );
-};
-
-// Enhanced liquid positions screen
-const LiquidPositionsScreen = ({ 
-  positions, 
-  onComplete, 
-  onBack,
-  onUpdatePosition
-}) => {
-  const [selectedInstitution, setSelectedInstitution] = useState(null);
-  const [currentPositionIndex, setCurrentPositionIndex] = useState(0);
-  const [updatedPositions, setUpdatedPositions] = useState({});
-  const [completedInstitutions, setCompletedInstitutions] = useState([]);
-  const [showCelebration, setShowCelebration] = useState(false);
-  const [originalValues, setOriginalValues] = useState({});
-  
-  // Initialize original values
-  useEffect(() => {
-    const values = {};
-    positions.forEach(pos => {
-      values[pos.id] = pos.current_value || 0;
-    });
-    setOriginalValues(values);
-  }, [positions]);
-  
-  // Group positions by institution with enriched data
-  const groupedPositions = useMemo(() => {
-    const groups = {};
-    positions.forEach(pos => {
-      const institution = pos.institution || pos.account_institution || 'Other';
-      if (!groups[institution]) {
-        groups[institution] = [];
-      }
-      groups[institution].push({
-        ...pos,
-        hasUpdate: updatedPositions[pos.id] !== undefined
-      });
-    });
-    
-    // Convert to array with metadata
-    return Object.entries(groups).map(([institution, positions]) => ({
-      institution,
-      positions,
-      totalValue: positions.reduce((sum, p) => sum + Math.abs(p.current_value || 0), 0),
-      updatedCount: positions.filter(p => updatedPositions[p.id] !== undefined).length
-    })).sort((a, b) => b.totalValue - a.totalValue);
-  }, [positions, updatedPositions]);
-  
-  // Auto-select first institution
-  useEffect(() => {
-    if (groupedPositions.length > 0 && !selectedInstitution) {
-      setSelectedInstitution(groupedPositions[0].institution);
-    }
-  }, [groupedPositions, selectedInstitution]);
-  
-  // Get current institution's positions
-  const currentInstitutionData = groupedPositions.find(g => g.institution === selectedInstitution);
-  const currentPositions = currentInstitutionData?.positions || [];
-  const currentPosition = currentPositions[currentPositionIndex];
-  
-  // Calculate progress
-  const totalProgress = ((Object.keys(updatedPositions).length / positions.length) * 100) || 0;
-  const institutionProgress = currentInstitutionData 
-    ? ((currentInstitutionData.updatedCount / currentInstitutionData.positions.length) * 100)
-    : 0;
-  
-  const handlePositionUpdate = (positionId, value) => {
-    setUpdatedPositions(prev => ({
-      ...prev,
-      [positionId]: value
-    }));
-  };
-  
-  const handleNext = () => {
-    if (currentPositionIndex < currentPositions.length - 1) {
-      setCurrentPositionIndex(currentPositionIndex + 1);
-    } else {
-      // Mark institution as completed
-      setCompletedInstitutions(prev => [...prev, selectedInstitution]);
-      
-      // Find next incomplete institution
-      const nextInstitution = groupedPositions.find(g => 
-        g.institution !== selectedInstitution && !completedInstitutions.includes(g.institution)
-      );
-      
-      if (nextInstitution) {
-        setSelectedInstitution(nextInstitution.institution);
-        setCurrentPositionIndex(0);
-      } else {
-        // All done!
-        setShowCelebration(true);
-        setTimeout(() => {
-          onComplete(updatedPositions);
-        }, 2000);
-      }
-    }
-  };
-  
-  const handlePrevious = () => {
-    if (currentPositionIndex > 0) {
-      setCurrentPositionIndex(currentPositionIndex - 1);
-    }
-  };
-  
-  const handleInstitutionSelect = (institution) => {
-    setSelectedInstitution(institution);
-    const institutionData = groupedPositions.find(g => g.institution === institution);
-    // Find first unupdated position or start at beginning
-    const firstUnupdatedIndex = institutionData.positions.findIndex(p => !updatedPositions[p.id]);
-    setCurrentPositionIndex(firstUnupdatedIndex >= 0 ? firstUnupdatedIndex : 0);
-  };
-  
-  const calculateDifference = (positionId, newValue) => {
-    const original = originalValues[positionId] || 0;
-    return parseFloat(newValue || 0) - original;
-  };
-  
-  return (
-    <div className="space-y-6">
-      {/* Header with back button */}
-      <div>
+      {/* Actions */}
+      <div className="flex justify-between pt-4 border-t">
         <button
           onClick={onBack}
-          className="flex items-center text-gray-600 hover:text-gray-900 mb-4 transition-colors group"
+          disabled={isSubmitting}
+          className="px-4 py-2 text-gray-600 hover:text-gray-900 font-medium disabled:opacity-50"
         >
-          <ArrowLeft className="w-4 h-4 mr-2 transition-transform group-hover:-translate-x-1" />
-          Back to overview
+          Back to Edit
         </button>
-        
-        <div className="flex items-center justify-between mb-6">
-          <div>
-            <h2 className="text-3xl font-bold text-gray-900">Update Liquid Positions</h2>
-            <p className="text-gray-600 mt-1">Keep your cash and credit balances accurate</p>
-          </div>
-          
-          <div className="flex items-center space-x-4">
-            <div className="text-right">
-              <div className="text-sm text-gray-500">Overall Progress</div>
-              <div className="text-2xl font-bold text-gray-900">
-                {Object.keys(updatedPositions).length} / {positions.length}
-              </div>
-            </div>
-            <ProgressRing percentage={totalProgress} size={80} color="blue" />
-          </div>
-        </div>
-        
-        {/* Overall progress bar */}
-        <div className="relative h-3 bg-gray-200 rounded-full overflow-hidden shadow-inner">
-          <div 
-            className="absolute left-0 top-0 h-full bg-gradient-to-r from-blue-500 to-cyan-500 transition-all duration-500 ease-out shadow-md"
-            style={{ width: `${totalProgress}%` }}
-          />
-        </div>
+        <button
+          onClick={onSubmit}
+          disabled={isSubmitting}
+          className="px-6 py-3 bg-gradient-to-r from-green-600 to-emerald-600 text-white font-semibold rounded-lg hover:from-green-700 hover:to-emerald-700 disabled:opacity-50 flex items-center space-x-2"
+        >
+          {isSubmitting ? (
+            <>
+              <Loader2 className="w-5 h-5 animate-spin" />
+              <span>Submitting...</span>
+            </>
+          ) : (
+            <>
+              <CheckCircle2 className="w-5 h-5" />
+              <span>Submit {totals.itemCount} Updates</span>
+            </>
+          )}
+        </button>
       </div>
-      
-      {/* Institution selector */}
-      <InstitutionSelector
-        institutions={groupedPositions}
-        selectedInstitution={selectedInstitution}
-        onSelect={handleInstitutionSelect}
-        completedInstitutions={completedInstitutions}
-      />
-      
-      {/* Update summary dashboard */}
-      <UpdateSummaryDashboard
-        pendingUpdates={updatedPositions}
-        originalValues={originalValues}
-      />
-      
-      {/* Current institution progress */}
-      {currentInstitutionData && (
-        <div className="bg-gradient-to-r from-gray-50 to-gray-100 rounded-xl p-4 border border-gray-200">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-3">
-              <Landmark className="w-6 h-6 text-gray-600" />
-              <div>
-                <h3 className="font-semibold text-gray-900">{selectedInstitution}</h3>
-                <p className="text-sm text-gray-600">
-                  Position {currentPositionIndex + 1} of {currentPositions.length}
-                </p>
-              </div>
-            </div>
-            <div className="flex items-center space-x-4">
-              <div className="text-right">
-                <div className="text-sm text-gray-500">Institution Progress</div>
-                <div className="text-lg font-bold text-gray-900">
-                  {currentInstitutionData.updatedCount} / {currentInstitutionData.positions.length}
-                </div>
-              </div>
-              <ProgressRing percentage={institutionProgress} size={60} color="green" />
-            </div>
-          </div>
-          
-          {/* Institution progress bar */}
-          <div className="mt-3 h-2 bg-gray-200 rounded-full overflow-hidden">
-            <div 
-              className="h-full bg-gradient-to-r from-green-500 to-emerald-500 transition-all duration-500"
-              style={{ width: `${institutionProgress}%` }}
-            />
-          </div>
-        </div>
-      )}
-      
-      {/* Current position card */}
-      {currentPosition && (
-        <div className="max-w-2xl mx-auto">
-          <LiquidPositionCard
-            position={currentPosition}
-            institution={currentPosition.institution || currentPosition.account_institution}
-            value={updatedPositions[currentPosition.id] || currentPosition.current_value}
-            onChange={handlePositionUpdate}
-            onComplete={handleNext}
-            isActive={true}
-            suggestion={`Tip: Check for pending transactions`}
-            lastUpdated={originalValues[currentPosition.id]?.lastUpdated}
-            isUpdated={!!updatedPositions[currentPosition.id]}
-            difference={calculateDifference(currentPosition.id, updatedPositions[currentPosition.id])}
-          />
-          
-          {/* Navigation controls */}
-          <div className="flex items-center justify-between mt-6">
-            <button
-              onClick={handlePrevious}
-              disabled={currentPositionIndex === 0 && completedInstitutions.length === 0}
-              className={`
-                px-6 py-3 font-medium rounded-lg transition-all transform hover:scale-105
-                ${currentPositionIndex === 0 && completedInstitutions.length === 0
-                  ? 'text-gray-400 bg-gray-100 cursor-not-allowed'
-                  : 'text-gray-700 bg-white border-2 border-gray-300 hover:bg-gray-50 hover:border-gray-400 shadow-md'
-                }
-              `}
-            >
-              <ArrowLeft className="w-4 h-4 inline mr-2" />
-              Previous
-            </button>
-            
-            <button
-              onClick={() => handleNext()}
-              className="text-gray-500 hover:text-gray-700 text-sm font-medium transition-colors"
-            >
-              Skip this one
-            </button>
-            
-            <button
-              onClick={handleNext}
-              className="px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-medium rounded-lg hover:from-blue-700 hover:to-indigo-700 transition-all transform hover:scale-105 shadow-lg flex items-center"
-            >
-              {currentPositionIndex === currentPositions.length - 1 && 
-               groupedPositions.filter(g => !completedInstitutions.includes(g.institution)).length === 1
-                ? 'Complete All' 
-                : 'Next'}
-              <ChevronRight className="w-4 h-4 ml-2" />
-            </button>
-          </div>
-          
-          {/* Position indicators */}
-          <div className="flex justify-center mt-6 space-x-2">
-            {currentPositions.map((_, idx) => (
-              <div
-                key={idx}
-                className={`
-                  h-2 rounded-full transition-all duration-300
-                  ${idx === currentPositionIndex 
-                    ? 'w-8 bg-blue-600' 
-                    : updatedPositions[currentPositions[idx].id]
-                      ? 'w-2 bg-green-500'
-                      : 'w-2 bg-gray-300'
-                  }
-                `}
-              />
-            ))}
-          </div>
-        </div>
-      )}
-      
-      {/* Celebration */}
-      <ProgressCelebration 
-        show={showCelebration}
-        message="All liquid positions updated! Moving to reconciliation..."
-      />
-      <Confetti show={showCelebration} />
     </div>
   );
 };
 
-// Enhanced account reconciliation screen
-const AccountReconciliationScreen = ({ 
-  accounts, 
-  onComplete, 
-  onBack,
-  reconciliationData,
-  onUpdateReconciliationData,
-  showValues
-}) => {
-  const [groupedAccounts, setGroupedAccounts] = useState([]);
-  const [selectedInstitution, setSelectedInstitution] = useState(null);
-  const [selectedAccount, setSelectedAccount] = useState(null);
-  const [positions, setPositions] = useState({});
-  const [loading, setLoading] = useState(false);
-  const [pendingChanges, setPendingChanges] = useState([]);
-  const [editingPosition, setEditingPosition] = useState(null);
-  
-  // Group accounts by institution
-  useEffect(() => {
-    const groups = {};
-    accounts.forEach(account => {
-      const institution = account.institution || 'Other';
-      if (!groups[institution]) {
-        groups[institution] = [];
-      }
-      groups[institution].push(account);
-    });
+const CompleteStage = ({ history, onClose, onNewReconciliation }) => (
+  <div className="text-center space-y-6 py-8">
+    <div className="inline-flex items-center justify-center w-20 h-20 bg-green-100 rounded-full">
+      <CheckCircle2 className="w-10 h-10 text-green-600" />
+    </div>
     
-    const grouped = Object.entries(groups).map(([institution, accounts]) => ({
-      institution,
-      accounts,
-      totalValue: accounts.reduce((sum, a) => sum + (parseFloat(a.total_value) || 0), 0),
-      needsReconciliation: accounts.filter(a => 
-        a.reconciliationStatus !== 'reconciled'
-      ).length
-    })).sort((a, b) => b.totalValue - a.totalValue);
-    
-    setGroupedAccounts(grouped);
-    if (grouped.length > 0) {
-      setSelectedInstitution(grouped[0].institution);
-    }
-  }, [accounts]);
-  
-  // Load positions for account
-  const loadPositions = async (accountId) => {
-    try {
-      const response = await fetchWithAuth(`/positions/unified?account_id=${accountId}`);
-      if (!response.ok) throw new Error('Failed to fetch positions');
-      
-      const data = await response.json();
-      setPositions(prev => ({
-        ...prev,
-        [accountId]: data.positions || []
-      }));
-    } catch (error) {
-      console.error('Error loading positions:', error);
-    }
-  };
-  
-  // Select account
-  const selectAccount = async (account) => {
-    setSelectedAccount(account);
-    if (!positions[account.id]) {
-      await loadPositions(account.id);
-    }
-  };
-  
-  // Handle balance input
-  const handleBalanceInput = (accountId, value) => {
-    onUpdateReconciliationData({
-      ...reconciliationData,
-      [accountId]: {
-        ...reconciliationData[accountId],
-        statementBalance: value,
-        timestamp: new Date().toISOString()
-      }
-    });
-  };
-  
-  // Calculate difference
-  const calculateDifference = (account) => {
-    const statementBalance = parseFloat(reconciliationData[account.id]?.statementBalance || 0);
-    const nesteggBalance = parseFloat(account.totalValue || account.total_value || 0);
-    const difference = statementBalance - nesteggBalance;
-    const percentage = nesteggBalance !== 0 ? (difference / nesteggBalance) * 100 : 0;
-    
-    return {
-      statementBalance,
-      nesteggBalance,
-      difference,
-      percentage,
-      isReconciled: Math.abs(difference) < 0.01,
-      needsReview: Math.abs(percentage) > 0.1
-    };
-  };
-  
-  // Quick reconcile
-  const quickReconcile = async (account) => {
-    const updatedData = {
-      ...reconciliationData,
-      [account.id]: {
-        ...reconciliationData[account.id],
-        lastReconciled: new Date().toISOString(),
-        statementBalance: account.totalValue || account.total_value || 0
-      }
-    };
-    onUpdateReconciliationData(updatedData);
-    
-    // Update account status
-    account.reconciliationStatus = 'reconciled';
-    account.daysSinceReconciliation = 0;
-  };
-  
-  // Get current institution's accounts
-  const currentInstitution = groupedAccounts.find(g => g.institution === selectedInstitution);
-  const currentAccounts = currentInstitution?.accounts || [];
-  
-  return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div>
-        <button
-          onClick={onBack}
-          className="flex items-center text-gray-600 hover:text-gray-900 mb-4 transition-colors group"
-        >
-          <ArrowLeft className="w-4 h-4 mr-2 transition-transform group-hover:-translate-x-1" />
-          Back to workflow selection
-        </button>
-        
-        <div className="flex items-center justify-between mb-6">
-          <div>
-            <h2 className="text-3xl font-bold text-gray-900">Reconcile Accounts</h2>
-            <p className="text-gray-600 mt-1">Verify and update your account balances</p>
-          </div>
-          
-          <div className="flex items-center space-x-4">
-            <div className="text-right">
-              <div className="text-sm text-gray-500">Accounts to Reconcile</div>
-              <div className="text-2xl font-bold text-gray-900">
-                {accounts.filter(a => a.reconciliationStatus !== 'reconciled').length}
-              </div>
+    <div>
+      <h3 className="text-2xl font-bold text-gray-900 mb-2">Reconciliation Complete!</h3>
+      <p className="text-gray-600">Your portfolio has been successfully updated</p>
+    </div>
+
+    <div className="flex justify-center space-x-4">
+      <button
+        onClick={onNewReconciliation}
+        className="px-6 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700"
+      >
+        Start New Reconciliation
+      </button>
+      <button
+        onClick={onClose}
+        className="px-6 py-2 bg-gray-200 text-gray-700 font-medium rounded-lg hover:bg-gray-300"
+      >
+        Close
+      </button>
+    </div>
+
+    {history.length > 0 && (
+      <div className="pt-6 border-t">
+        <h4 className="font-medium text-gray-900 mb-3">Recent History</h4>
+        <div className="space-y-2 max-w-md mx-auto">
+          {history.slice(0, 3).map((entry, index) => (
+            <div key={index} className="flex items-center justify-between text-sm">
+              <span className="text-gray-600">
+                {new Date(entry.date).toLocaleDateString()}
+              </span>
+              <span className="font-medium text-gray-900">
+                {entry.updates} updates
+              </span>
             </div>
-            <ProgressRing 
-              percentage={
-                accounts.length > 0 
-                  ? (accounts.filter(a => a.reconciliationStatus === 'reconciled').length / accounts.length) * 100
-                  : 0
-              } 
-              size={80} 
-              color="green" 
-            />
-          </div>
-        </div>
-      </div>
-      
-      {/* Institution tabs */}
-      <div className="border-b border-gray-200">
-        <div className="flex space-x-1 overflow-x-auto">
-          {groupedAccounts.map(({ institution, accounts, needsReconciliation }) => (
-            <button
-              key={institution}
-              onClick={() => setSelectedInstitution(institution)}
-              className={`
-                px-6 py-3 font-medium text-sm whitespace-nowrap transition-all
-                ${selectedInstitution === institution
-                  ? 'text-blue-600 border-b-2 border-blue-600 bg-blue-50'
-                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
-                }
-              `}
-            >
-              <div className="flex items-center space-x-2">
-                <Landmark className="w-4 h-4" />
-                <span>{institution}</span>
-                {needsReconciliation > 0 && (
-                  <span className="ml-2 px-2 py-0.5 bg-amber-100 text-amber-700 rounded-full text-xs font-medium">
-                    {needsReconciliation}
-                  </span>
-                )}
-              </div>
-            </button>
           ))}
         </div>
       </div>
-      
-      {/* Accounts grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Account list */}
-        <div className="space-y-4">
-          <h3 className="font-semibold text-gray-900">Select Account to Reconcile</h3>
-          
-          {currentAccounts.map(account => {
-            const isSelected = selectedAccount?.id === account.id;
-            const category = CATEGORY_CONFIGS[account.account_category] || CATEGORY_CONFIGS.brokerage;
-            const CategoryIcon = category.icon;
-            const diff = calculateDifference(account);
-            
-            return (
-              <button
-                key={account.id}
-                onClick={() => selectAccount(account)}
-                className={`
-                  w-full text-left p-4 rounded-xl border-2 transition-all transform
-                  ${isSelected
-                    ? 'border-blue-500 bg-blue-50 shadow-lg scale-[1.01]'
-                    : account.reconciliationStatus === 'reconciled'
-                      ? 'border-green-200 bg-green-50 hover:border-green-300'
-                      : 'border-gray-200 bg-white hover:border-gray-300 hover:shadow-md'
-                  }
-                `}
-              >
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-3">
-                    <div className={`p-2 rounded-lg bg-${category.color}-100`}>
-                      <CategoryIcon className={`w-5 h-5 text-${category.color}-600`} />
-                    </div>
-                    <div>
+    )}
+  </div>
+);
 
-                      <h4 className="font-semibold text-gray-900">{account.accountName || account.account_name}</h4>
-                      <p className="text-sm text-gray-500">{account.accountType || account.type}</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center space-x-3">
-                    <div className="text-right">
-                      <p className="font-semibold text-gray-900">
-                        {showValues ? formatCurrency(account.totalValue || account.total_value || 0) : '••••••'}
-                      </p>
-                      <p className="text-xs text-gray-500">{account.positionsCount || account.total_positions || 0} positions</p>
+// Export button component for navbar
+export const QuickReconciliationButton = ({ className = '', mobileView = false }) => {
+  const [isModalOpen, setIsModalOpen] = useState(false);
 
-
-
-                    </div>
-                    <StatusIndicator status={account.reconciliationStatus} showPulse={false} />
-                  </div>
-                </div>
-                
-                {account.reconciliationStatus === 'reconciled' && (
-                  <div className="mt-3 pt-3 border-t border-green-200">
-                    <p className="text-xs text-green-700 flex items-center">
-                      <CheckCircle className="w-3 h-3 mr-1" />
-                      Reconciled {account.daysSinceReconciliation === 0 ? 'today' : `${account.daysSinceReconciliation} days ago`}
-                    </p>
-                  </div>
-                )}
-              </button>
-            );
-          })}
-        </div>
+  if (mobileView) {
+    return (
+      <>
+        <button
+          onClick={() => setIsModalOpen(true)}
+          className={className}
+        >
+          <Target className="h-6 w-6 mb-1 text-white group-hover:text-blue-300" />
+          <span className="text-xs text-gray-200 group-hover:text-white">Reconcile</span>
+        </button>
         
-        {/* Reconciliation panel */}
-        <div>
-          {selectedAccount ? (
-            <div className="bg-white rounded-xl border-2 border-gray-200 p-6 sticky top-6">
-              <h3 className="font-semibold text-gray-900 mb-4">Reconcile Account</h3>
-              
-              {/* Balance comparison */}
-              <div className="space-y-4 mb-6">
-                <div>
-                  <label className="text-sm font-medium text-gray-700">NestEgg Balance</label>
-                  <div className="text-2xl font-bold text-gray-900 mt-1">
-                    {showValues ? formatCurrency(selectedAccount.total_value) : '••••••'}
-                  </div>
-                </div>
-                
-                <div>
-                  <label className="text-sm font-medium text-gray-700">Statement Balance</label>
-                  <div className="relative mt-1">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-lg">$</span>
-                    <input
-                      type="text"
-                      value={reconciliationData[selectedAccount.id]?.statementBalance || ''}
-                      onChange={(e) => handleBalanceInput(selectedAccount.id, e.target.value)}
-                      placeholder="0.00"
-                      className="w-full pl-8 pr-4 py-3 text-2xl font-bold border-2 border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-blue-50"
-                    />
-                  </div>
-                </div>
-                
-                {reconciliationData[selectedAccount.id]?.statementBalance && (
-                  <div>
-                    <label className="text-sm font-medium text-gray-700">Difference</label>
-                    <div className={`
-                      text-2xl font-bold mt-1
-                      ${calculateDifference(selectedAccount).isReconciled ? 'text-green-600' : 'text-amber-600'}
-                    `}>
-                      {formatCurrency(calculateDifference(selectedAccount).difference)}
-                    </div>
-                  </div>
-                )}
-              </div>
-              
-              {/* Reconciliation status */}
-              {reconciliationData[selectedAccount.id]?.statementBalance && (
-                <div className={`
-                  p-4 rounded-lg mb-6
-                  ${calculateDifference(selectedAccount).isReconciled
-                    ? 'bg-green-50 border border-green-200'
-                    : 'bg-amber-50 border border-amber-200'
-                  }
-                `}>
-                  <div className="flex items-center">
-                    {calculateDifference(selectedAccount).isReconciled ? (
-                      <>
-                      <CheckCircle className="w-5 h-5 text-green-600 mr-3" />
-                       <div className="flex-1">
-                         <p className="font-medium text-green-900">Balances Match!</p>
-                         <p className="text-sm text-green-700">Ready to mark as reconciled</p>
-                       </div>
-                     </>
-                   ) : (
-                     <>
-                       <AlertCircle className="w-5 h-5 text-amber-600 mr-3" />
-                       <div className="flex-1">
-                         <p className="font-medium text-amber-900">Balances Don't Match</p>
-                         <p className="text-sm text-amber-700">
-                           Difference of {formatCurrency(Math.abs(calculateDifference(selectedAccount).difference))}
-                         </p>
-                       </div>
-                     </>
-                   )}
-                 </div>
-               </div>
-             )}
-             
-             {/* Quick actions */}
-             <div className="flex space-x-3">
-               <button
-                 onClick={() => quickReconcile(selectedAccount)}
-                 className="flex-1 px-4 py-3 bg-green-600 text-white font-medium rounded-lg hover:bg-green-700 transition-all transform hover:scale-105 shadow-md"
-               >
-                 <CheckCircle className="w-4 h-4 inline mr-2" />
-                 Quick Reconcile
-               </button>
-               
-               <button
-                 onClick={() => {
-                   setSelectedAccount(null);
-                   setPendingChanges([]);
-                 }}
-                 className="px-4 py-3 bg-gray-100 text-gray-700 font-medium rounded-lg hover:bg-gray-200 transition-all"
-               >
-                 Cancel
-               </button>
-             </div>
-           </div>
-         ) : (
-           <div className="bg-gray-50 rounded-xl border-2 border-dashed border-gray-300 p-12 text-center">
-             <Receipt className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-             <p className="text-gray-500">Select an account to begin reconciliation</p>
-           </div>
-         )}
-       </div>
-     </div>
-     
-     {/* Complete reconciliation button */}
-     <div className="flex justify-end mt-8">
-       <button
-         onClick={onComplete}
-         className="px-8 py-4 bg-gradient-to-r from-green-600 to-emerald-600 text-white font-semibold text-lg rounded-xl hover:from-green-700 hover:to-emerald-700 transition-all transform hover:scale-105 shadow-xl flex items-center"
-       >
-         <CheckCheck className="w-6 h-6 mr-3" />
-         Complete Reconciliation
-       </button>
-     </div>
-   </div>
- );
-};
+        <QuickReconciliationModal 
+          isOpen={isModalOpen} 
+          onClose={() => setIsModalOpen(false)} 
+        />
+      </>
+    );
+  }
 
-// Enhanced welcome screen
-const WelcomeScreen = ({ 
- stats, 
- onSelectPath, 
- reconciliationHealth,
- lastReconciliation,
- streak
-}) => {
- const [hoveredPath, setHoveredPath] = useState(null);
- const [showHealthDetails, setShowHealthDetails] = useState(false);
- 
- const paths = [
-   {
-     id: 'liquid',
-     icon: Droplets,
-     title: 'Update Liquid Positions',
-     subtitle: 'Cash, credit cards & loans',
-     stats: `${stats.liquidPositions} positions need updates`,
-     time: '2-3 minutes',
-     color: 'blue',
-     gradient: 'from-blue-500 to-cyan-500',
-     benefits: ['Daily accuracy', 'Track spending', 'Monitor debt']
-   },
-   {
-     id: 'reconcile',
-     icon: CheckSquare,
-     title: 'Reconcile Accounts',
-     subtitle: 'Verify account balances',
-     stats: `${stats.needsReconciliation} accounts need attention`,
-     time: '3-5 minutes',
-     color: 'green',
-     gradient: 'from-green-500 to-emerald-500',
-     benefits: ['Catch discrepancies', 'Verify holdings', 'Peace of mind']
-   },
-   {
-     id: 'full',
-     icon: PlayCircle,
-     title: 'Full Workflow',
-     subtitle: 'Complete reconciliation process',
-     stats: 'Recommended for best results',
-     time: '5-8 minutes',
-     color: 'purple',
-     gradient: 'from-purple-500 to-pink-500',
-     featured: true,
-     benefits: ['Complete accuracy', 'Save time', 'Best practice']
-   }
- ];
- 
- return (
-   <div className="space-y-8 animate-in fade-in duration-500">
-     {/* Header */}
-     <div className="text-center space-y-4">
-       <div className="inline-flex items-center justify-center w-24 h-24 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full mb-4 shadow-2xl animate-in zoom-in duration-700">
-         <Target className="w-12 h-12 text-white" />
-       </div>
-       
-       <h1 className="text-4xl font-bold text-gray-900 animate-in slide-in-from-bottom duration-700 delay-100">
-         Welcome to Smart Reconciliation
-       </h1>
-       
-       <p className="text-xl text-gray-600 max-w-3xl mx-auto animate-in slide-in-from-bottom duration-700 delay-200">
-         Keep your NestEgg portfolio accurate with our intelligent reconciliation workflow. 
-         We've made it quick, easy, and dare we say... delightful!
-       </p>
-       
-       {streak > 1 && (
-         <div className="flex justify-center animate-in zoom-in duration-700 delay-300">
-           <div className="flex items-center space-x-3 px-6 py-3 bg-gradient-to-r from-orange-100 to-red-100 text-orange-700 rounded-full shadow-md">
-             <Flame className="w-6 h-6 animate-pulse" />
-             <span className="text-lg font-bold">{streak} day streak!</span>
-             <Trophy className="w-5 h-5" />
-           </div>
-         </div>
-       )}
-     </div>
-     
-     {/* Health Status Card */}
-     <div className="relative bg-gradient-to-br from-white to-gray-50 rounded-3xl p-8 border border-gray-200 shadow-xl animate-in slide-in-from-bottom duration-700 delay-400">
-       <div className="absolute top-4 right-4">
-         <button
-           onClick={() => setShowHealthDetails(!showHealthDetails)}
-           className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-         >
-           <Info className="w-5 h-5 text-gray-400" />
-         </button>
-       </div>
-       
-       <div className="flex items-center justify-between">
-         <div className="flex items-center space-x-6">
-           <div className="relative">
-             <ProgressRing percentage={reconciliationHealth} size={120} strokeWidth={8} color="blue" />
-             <div className="absolute inset-0 flex items-center justify-center">
-               <div>
-                 <span className="text-3xl font-bold text-gray-900">{reconciliationHealth}%</span>
-                 <span className="text-xs text-gray-500 block text-center">Health</span>
-               </div>
-             </div>
-           </div>
-           
-           <div>
-             <h3 className="text-2xl font-bold text-gray-900 mb-2">
-               Your Portfolio Health Score
-             </h3>
-             <p className="text-gray-600 mb-3">
-               Last full reconciliation: <span className="font-semibold">{lastReconciliation}</span>
-             </p>
-             
-             {/* Health indicators */}
-             <div className="flex items-center space-x-6">
-               <div className="flex items-center space-x-2">
-                 <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse" />
-                 <span className="text-sm text-gray-600">{stats.reconciled} up to date</span>
-               </div>
-               <div className="flex items-center space-x-2">
-                 <div className="w-3 h-3 bg-amber-500 rounded-full animate-pulse" />
-                 <span className="text-sm text-gray-600">{stats.needsReconciliation} need attention</span>
-               </div>
-             </div>
-           </div>
-         </div>
-         
-         <div className="grid grid-cols-2 gap-6 text-center">
-           <div className="space-y-2">
-             <div className="text-4xl font-bold text-green-600 animate-in zoom-in duration-700 delay-500">
-               {stats.reconciled}
-             </div>
-             <div className="text-sm text-gray-500">Reconciled</div>
-           </div>
-           <div className="space-y-2">
-             <div className="text-4xl font-bold text-amber-600 animate-in zoom-in duration-700 delay-600">
-               {stats.needsReconciliation}
-             </div>
-             <div className="text-sm text-gray-500">Pending</div>
-           </div>
-         </div>
-       </div>
-       
-       {/* Expandable health details */}
-       {showHealthDetails && (
-         <div className="mt-6 pt-6 border-t border-gray-200 grid grid-cols-3 gap-4 animate-in slide-in-from-top duration-300">
-           <div className="text-center">
-             <Gauge className="w-8 h-8 text-blue-600 mx-auto mb-2" />
-             <div className="text-sm text-gray-600">Account Accuracy</div>
-             <div className="text-lg font-semibold">{stats.percentage.toFixed(1)}%</div>
-           </div>
-           <div className="text-center">
-             <CircleDollarSign className="w-8 h-8 text-green-600 mx-auto mb-2" />
-             <div className="text-sm text-gray-600">Value Reconciled</div>
-             <div className="text-lg font-semibold">{stats.valuePercentage.toFixed(1)}%</div>
-           </div>
-           <div className="text-center">
-             <Clock className="w-8 h-8 text-purple-600 mx-auto mb-2" />
-             <div className="text-sm text-gray-600">Days Since Full</div>
-             <div className="text-lg font-semibold">{lastReconciliation === 'Today' ? 0 : lastReconciliation.match(/\d+/)?.[0] || '30+'}</div>
-           </div>
-         </div>
-       )}
-     </div>
-     
-     {/* Path Selection Cards */}
-     <div>
-       <h3 className="text-xl font-semibold text-gray-900 mb-6 flex items-center">
-         <Sparkles className="w-6 h-6 mr-2 text-yellow-500 animate-pulse" />
-         Choose your reconciliation path:
-       </h3>
-       
-       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-         {paths.map((path, index) => {
-           const Icon = path.icon;
-           return (
-             <button
-               key={path.id}
-               onClick={() => onSelectPath(path.id)}
-               onMouseEnter={() => setHoveredPath(path.id)}
-               onMouseLeave={() => setHoveredPath(null)}
-               className={`
-                 relative group text-left p-8 rounded-3xl border-2 
-                 transition-all duration-300 transform
-                 animate-in slide-in-from-bottom
-                 ${path.featured 
-                   ? 'border-purple-300 bg-gradient-to-br from-purple-50 via-pink-50 to-purple-50 shadow-xl' 
-                   : 'border-gray-200 bg-white hover:border-gray-300 shadow-lg'
-                 }
-                 ${hoveredPath === path.id ? 'scale-[1.03] shadow-2xl' : 'shadow-lg'}
-               `}
-               style={{ animationDelay: `${(index + 5) * 100}ms` }}
-             >
-               {path.featured && (
-                 <div className="absolute -top-4 left-1/2 transform -translate-x-1/2">
-                   <div className="bg-gradient-to-r from-purple-600 to-pink-600 text-white text-sm font-bold px-4 py-1.5 rounded-full shadow-lg flex items-center space-x-2">
-                     <Star className="w-4 h-4" />
-                     <span>RECOMMENDED</span>
-                   </div>
-                 </div>
-               )}
-               
-               <div className={`
-                 inline-flex p-4 rounded-2xl mb-6 transition-all duration-300
-                 ${hoveredPath === path.id 
-                   ? `bg-gradient-to-br ${path.gradient} shadow-lg transform rotate-3` 
-                   : `bg-${path.color}-100`
-                 }
-               `}>
-                 <Icon className={`
-                   w-8 h-8 transition-all duration-300
-                   ${hoveredPath === path.id ? 'text-white scale-110' : `text-${path.color}-600`}
-                 `} />
-               </div>
-               
-               <h4 className="text-xl font-bold text-gray-900 mb-2">{path.title}</h4>
-               <p className="text-gray-600 mb-4">{path.subtitle}</p>
-               
-               <div className="space-y-3 mb-6">
-                 <div className="flex items-center text-gray-700">
-                   <Activity className="w-5 h-5 mr-3 text-gray-400" />
-                   <span className="text-sm font-medium">{path.stats}</span>
-                 </div>
-                 <div className="flex items-center text-gray-700">
-                   <Timer className="w-5 h-5 mr-3 text-gray-400" />
-                   <span className="text-sm">Estimated {path.time}</span>
-                 </div>
-               </div>
-               
-               {/* Benefits */}
-               <div className="space-y-2 mb-6">
-                 {path.benefits.map((benefit, idx) => (
-                   <div key={idx} className="flex items-center text-sm text-gray-600">
-                     <Check className="w-4 h-4 mr-2 text-green-500" />
-                     <span>{benefit}</span>
-                   </div>
-                 ))}
-               </div>
-               
-               <div className={`
-                 absolute bottom-8 right-8 transition-all duration-300
-                 ${hoveredPath === path.id ? 'translate-x-2' : ''}
-               `}>
-                 <ChevronRight className={`
-                   w-6 h-6 
-                   ${path.featured ? 'text-purple-600' : 'text-gray-400'}
-                   ${hoveredPath === path.id ? 'scale-125' : ''}
-                 `} />
-               </div>
-             </button>
-           );
-         })}
-       </div>
-     </div>
-     
-     {/* Pro Tips with enhanced styling */}
-     <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-2xl p-8 border border-blue-200 shadow-lg animate-in slide-in-from-bottom duration-700 delay-700">
-       <div className="flex items-start space-x-4">
-         <div className="p-3 bg-blue-600 rounded-xl text-white flex-shrink-0">
-           <HelpCircle className="w-6 h-6" />
-         </div>
-         <div className="flex-1">
-           <h3 className="text-lg font-bold text-blue-900 mb-3">Pro Tips for Lightning-Fast Reconciliation</h3>
-           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm text-blue-800">
-             <div className="flex items-start space-x-2">
-               <Keyboard className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" />
-               <p>Use <kbd className="px-1.5 py-0.5 bg-blue-200 rounded text-xs font-mono">Tab</kbd> and <kbd className="px-1.5 py-0.5 bg-blue-200 rounded text-xs font-mono">Enter</kbd> to navigate quickly</p>
-             </div>
-             <div className="flex items-start space-x-2">
-               <Copy className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" />
-               <p>Copy/paste from your banking apps for accuracy</p>
-             </div>
-             <div className="flex items-start space-x-2">
-               <Calendar className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" />
-               <p>Update liquid positions daily for best results</p>
-             </div>
-             <div className="flex items-start space-x-2">
-               <Shield className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" />
-               <p>Reconcile investment accounts weekly or monthly</p>
-             </div>
-           </div>
-         </div>
-       </div>
-     </div>
-   </div>
- );
-};
-
-// Progress celebration component
-const ProgressCelebration = ({ show, message }) => {
- if (!show) return null;
- 
- return (
-   <div className="fixed inset-0 flex items-center justify-center bg-black/30 z-50 animate-in fade-in duration-300">
-     <div className="bg-white rounded-3xl p-10 shadow-2xl text-center animate-in zoom-in-95 duration-500 max-w-md">
-       <div className="mb-6">
-         <div className="inline-flex items-center justify-center w-20 h-20 bg-gradient-to-br from-green-400 to-emerald-500 rounded-full shadow-xl">
-           <Trophy className="w-10 h-10 text-white animate-bounce" />
-         </div>
-       </div>
-       <h3 className="text-3xl font-bold text-gray-900 mb-3">Awesome! 🎉</h3>
-       <p className="text-lg text-gray-600">{message}</p>
-       <div className="mt-6 flex justify-center space-x-2">
-         <div className="w-2 h-2 bg-green-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-         <div className="w-2 h-2 bg-green-500 rounded-full animate-bounce" style={{ animationDelay: '100ms' }} />
-         <div className="w-2 h-2 bg-green-500 rounded-full animate-bounce" style={{ animationDelay: '200ms' }} />
-       </div>
-     </div>
-   </div>
- );
-};
-
-// Main QuickReconciliationModal component
-const QuickReconciliationModal = ({ isOpen, onClose }) => {
- // DataStore Integration
- const { 
-   accounts = [], 
-   loading: accountsLoading,
-   error: accountsError,
-   refresh: refreshAccounts 
- } = useAccounts();
- 
- const { 
-   positions: allPositions = [], 
-   loading: positionsLoading,
-   error: positionsError,
-   refresh: refreshPositions 
- } = useDetailedPositions();
- 
- const { actions } = useDataStore();
- 
- // Combine loading states
- const loading = accountsLoading || positionsLoading;
- 
- // State management
- const [currentScreen, setCurrentScreen] = useState('welcome');
- const [positions, setPositions] = useState({});
- const [liquidPositions, setLiquidPositions] = useState([]);
- const [selectedAccount, setSelectedAccount] = useState(null);
- const [localLoading, setLocalLoading] = useState(false);
- const [reconciliationData, setReconciliationData] = useState({});
- const [streak, setStreak] = useState(0);
- const [showConfetti, setShowConfetti] = useState(false);
- const [pendingUpdates, setPendingUpdates] = useState({});
- const [showValues, setShowValues] = useState(true);
- const [message, setMessage] = useState({ type: '', text: '' });
- const [reconciliationResults, setReconciliationResults] = useState([]);
- 
- // Refs
- const messageTimeoutRef = useRef(null);
- 
- // Load data on mount
- useEffect(() => {
-   if (isOpen) {
-     loadData();
-     loadReconciliationData();
-     calculateStreak();
-   }
-   
-   return () => {
-     if (messageTimeoutRef.current) {
-       clearTimeout(messageTimeoutRef.current);
-     }
-   };
- }, [isOpen]);
- 
-// Load all data
- const loadData = async () => {
-   setLocalLoading(true);
-   try {
-     // Refresh DataStore
-     await Promise.all([
-       refreshAccounts(),
-       refreshPositions()
-     ]);
-     
-     // Enrich accounts with reconciliation status
-     // Debug: Check account structure
-     if (accounts.length > 0) {
-       console.log('Account fields from DataStore:', {
-         firstAccount: accounts[0],
-         fieldNames: Object.keys(accounts[0])
-       });
-     }
-     
-     // Enrich accounts with reconciliation status
-// Enrich accounts with reconciliation status using correct field names
-     const enrichedAccounts = accounts.map(account => {
-       const lastRec = reconciliationData[account.id]?.lastReconciled;
-       const daysSince = lastRec ? 
-         Math.floor((Date.now() - new Date(lastRec).getTime()) / (1000 * 60 * 60 * 24)) : 
-         null;
-       
-       return {
-         ...account,
-         reconciliationStatus: getReconciliationStatus(account, daysSince),
-         daysSinceReconciliation: daysSince,
-         // Ensure we have both field name formats for compatibility
-         total_value: account.totalValue || account.total_value || 0,
-         account_name: account.accountName || account.account_name || 'Unknown'
-       };
-     });
-     
-     setPositions(enrichedAccounts);
-     
-     // Filter liquid positions from DataStore - useDetailedPositions returns camelCase
-     const liquid = allPositions.filter(p => {
-       const assetType = p.assetType || p.asset_type || '';
-       return LIQUID_POSITION_TYPES.includes(assetType.toLowerCase()) || 
-              assetType.toLowerCase() === 'cash' ||
-              (p.name && (p.name.toLowerCase().includes('checking') || 
-                         p.name.toLowerCase().includes('savings') ||
-                         p.name.toLowerCase().includes('credit') ||
-                         p.name.toLowerCase().includes('loan')));
-     });
-     
-     // Enrich liquid positions with account info
-     const enrichedLiquid = liquid.map(pos => {
-       const account = enrichedAccounts.find(a => a.id === (pos.accountId || pos.account_id));
-       return {
-         ...pos,
-         institution: account?.institution || 'Unknown',
-         account_institution: account?.institution || 'Unknown',
-         account_name: account?.accountName || account?.account_name || 'Unknown Account',
-         current_value: pos.currentValue || pos.current_value || 0,
-         // Keep the itemId for updates
-         position_id: pos.itemId || pos.id
-       };
-     });
-     
-     setLiquidPositions(enrichedLiquid);
-     
-   } catch (error) {
-     console.error('Error loading data:', error);
-     showMessage('error', 'Failed to load data');
-   } finally {
-     setLocalLoading(false);
-   }
- };
- 
- // Get reconciliation status
- const getReconciliationStatus = (account, daysSince) => {
-   if (!daysSince) return 'pending';
-   if (daysSince <= 7) return 'reconciled';
-   if (daysSince <= 30) return 'warning';
-   return 'error';
- };
- 
- // Load reconciliation data from localStorage
- const loadReconciliationData = () => {
-   const saved = localStorage.getItem('nestegg_reconciliation_data');
-   if (saved) {
-     setReconciliationData(JSON.parse(saved));
-   }
- };
- 
- // Save reconciliation data to localStorage
- const saveReconciliationData = (data) => {
-   setReconciliationData(data);
-   localStorage.setItem('nestegg_reconciliation_data', JSON.stringify(data));
- };
- 
- // Calculate reconciliation streak
- const calculateStreak = () => {
-   const history = JSON.parse(localStorage.getItem('nestegg_reconciliation_history') || '[]');
-   let currentStreak = 0;
-   const today = new Date().toDateString();
-   
-   if (history.length > 0 && new Date(history[0]).toDateString() === today) {
-     currentStreak = 1;
-     
-     for (let i = 1; i < history.length; i++) {
-       const prevDate = new Date(history[i - 1]);
-       const currDate = new Date(history[i]);
-       const dayDiff = (prevDate - currDate) / (1000 * 60 * 60 * 24);
-       
-       if (dayDiff === 1) {
-         currentStreak++;
-       } else {
-         break;
-       }
-     }
-   }
-   
-   setStreak(currentStreak);
- };
- 
- // Save reconciliation to history
- const saveToHistory = () => {
-   const history = JSON.parse(localStorage.getItem('nestegg_reconciliation_history') || '[]');
-   const today = new Date().toISOString();
-   
-   if (!history.some(date => new Date(date).toDateString() === new Date(today).toDateString())) {
-     history.unshift(today);
-     history.splice(30);
-     localStorage.setItem('nestegg_reconciliation_history', JSON.stringify(history));
-   }
- };
- 
- // Show message
- const showMessage = (type, text, duration = 5000) => {
-   setMessage({ type, text });
-   
-   if (messageTimeoutRef.current) {
-     clearTimeout(messageTimeoutRef.current);
-   }
-   
-   if (duration > 0) {
-     messageTimeoutRef.current = setTimeout(() => {
-       setMessage({ type: '', text: '' });
-     }, duration);
-   }
- };
- 
-// Calculate stats using correct field names from DataStore
- const stats = useMemo(() => {
-   const total = accounts.length;
-   const enrichedAccounts = positions.length > 0 ? positions : accounts;
-   const needsReconciliation = enrichedAccounts.filter(a => 
-     a.reconciliationStatus === 'warning' || 
-     a.reconciliationStatus === 'error' || 
-     a.reconciliationStatus === 'pending'
-   ).length;
-   const reconciled = enrichedAccounts.filter(a => a.reconciliationStatus === 'reconciled').length;
-   // DataStore returns totalValue in camelCase
-   const totalValue = accounts.reduce((sum, a) => sum + (parseFloat(a.totalValue) || 0), 0);
-   const reconciledValue = enrichedAccounts
-     .filter(a => a.reconciliationStatus === 'reconciled')
-     .reduce((sum, a) => sum + (parseFloat(a.totalValue || a.total_value) || 0), 0);
-   
-   const liquidNeedingUpdate = liquidPositions.filter(p => {
-     const lastUpdate = reconciliationData[`pos_${p.id}`]?.lastUpdated;
-     const daysSince = lastUpdate ? 
-       Math.floor((Date.now() - new Date(lastUpdate).getTime()) / (1000 * 60 * 60 * 24)) : 
-       999;
-     return daysSince > 1;
-   }).length;
-   
-   return {
-     total,
-     needsReconciliation,
-     reconciled,
-     liquidPositions: liquidNeedingUpdate,
-     percentage: total > 0 ? (reconciled / total) * 100 : 0,
-     totalValue,
-     reconciledValue,
-     valuePercentage: totalValue > 0 ? (reconciledValue / totalValue) * 100 : 0
-   };
- }, [accounts, liquidPositions, reconciliationData]);
- 
- // Get reconciliation health
- const reconciliationHealth = useMemo(() => {
-   const weights = {
-     accountsReconciled: 0.6,
-     liquidPositionsUpdated: 0.3,
-     recency: 0.1
-   };
-   
-   const accountScore = stats.percentage;
-   const liquidScore = liquidPositions.length > 0 
-     ? ((liquidPositions.length - stats.liquidPositions) / liquidPositions.length) * 100
-     : 100;
-   
-   const lastFullReconciliation = Object.values(reconciliationData)
-     .map(d => d.lastReconciled)
-     .filter(Boolean)
-     .sort((a, b) => new Date(b) - new Date(a))[0];
-   
-   const daysSinceLastFull = lastFullReconciliation
-     ? Math.floor((Date.now() - new Date(lastFullReconciliation).getTime()) / (1000 * 60 * 60 * 24))
-     : 30;
-   
-   const recencyScore = Math.max(0, 100 - (daysSinceLastFull * 14));
-   
-   return Math.round(
-     accountScore * weights.accountsReconciled +
-     liquidScore * weights.liquidPositionsUpdated +
-     recencyScore * weights.recency
-   );
- }, [stats, liquidPositions, reconciliationData]);
- 
- // Get last reconciliation text
- const lastReconciliationText = useMemo(() => {
-   const dates = Object.values(reconciliationData)
-     .map(d => d.lastReconciled)
-     .filter(Boolean)
-     .map(d => new Date(d));
-   
-   if (dates.length === 0) return 'Never';
-   
-   const mostRecent = new Date(Math.max(...dates));
-   const daysAgo = Math.floor((Date.now() - mostRecent) / (1000 * 60 * 60 * 24));
-   
-   if (daysAgo === 0) return 'Today';
-   if (daysAgo === 1) return 'Yesterday';
-   if (daysAgo < 7) return `${daysAgo} days ago`;
-   if (daysAgo < 30) return `${Math.floor(daysAgo / 7)} weeks ago`;
-   return `${Math.floor(daysAgo / 30)} months ago`;
- }, [reconciliationData]);
- 
- // Handle path selection
- const handlePathSelection = (path) => {
-   switch (path) {
-     case 'liquid':
-       setCurrentScreen('liquid');
-       break;
-     case 'reconcile':
-       setCurrentScreen('reconcile');
-       break;
-     case 'full':
-       setCurrentScreen('liquid');
-       setPendingUpdates({ nextScreen: 'reconcile' });
-       break;
-   }
- };
- 
- // Handle liquid positions complete
- const handleLiquidComplete = async (updates) => {
-   try {
-     setLocalLoading(true);
-     
-     // Update positions via API
-     for (const [positionId, value] of Object.entries(updates)) {
-       const position = liquidPositions.find(p => p.id === parseInt(positionId));
-       if (position) {
-         await updatePosition(position.id, {
-           ...position,
-           current_value: parseFloat(value)
-         }, position.asset_type);
-       }
-     }
-     
-     // Update local storage
-     const newRecData = { ...reconciliationData };
-     Object.keys(updates).forEach(posId => {
-       newRecData[`pos_${posId}`] = {
-         lastUpdated: new Date().toISOString(),
-         value: updates[posId]
-       };
-     });
-     
-     saveReconciliationData(newRecData);
-     
-     // Continue to reconciliation if in full workflow
-     if (pendingUpdates.nextScreen === 'reconcile') {
-       setCurrentScreen('reconcile');
-       setPendingUpdates({});
-     } else {
-       // Show success and go back
-       setShowConfetti(true);
-       saveToHistory();
-       
-       // Refresh DataStore to get updated values
-       await Promise.all([
-         refreshAccounts(),
-         refreshPositions()
-       ]);
-       
-       setTimeout(() => {
-         setCurrentScreen('welcome');
-         loadData();
-       }, 2000);
-     }
-     
-   } catch (error) {
-     console.error('Error updating positions:', error);
-     showMessage('error', 'Failed to update positions');
-   } finally {
-     setLocalLoading(false);
-   }
- };
- 
- // Handle reconciliation complete
- const handleReconciliationComplete = async () => {
-   try {
-     setLocalLoading(true);
-     
-     // Prepare results using correct field names from DataStore
-     const results = accounts
-       .filter(a => reconciliationData[a.id]?.statementBalance)
-       .map(account => ({
-         accountName: account.accountName || account.account_name,
-         institution: account.institution,
-         finalBalance: parseFloat(reconciliationData[account.id].statementBalance),
-         change: parseFloat(reconciliationData[account.id].statementBalance) - parseFloat(account.totalValue || 0)
-       }));
-     
-     setReconciliationResults(results);
-     
-     // Calculate summary stats
-     const summaryStats = {
-       accountsReconciled: results.length,
-       liquidPositionsUpdated: Object.keys(pendingUpdates).length,
-       totalValueReconciled: results.reduce((sum, r) => sum + r.finalBalance, 0),
-       accuracy: reconciliationHealth
-     };
-     
-     // Save history
-     saveToHistory();
-     
-     // Show summary dashboard
-     setCurrentScreen('summary');
-     
-   } catch (error) {
-     console.error('Error completing reconciliation:', error);
-     showMessage('error', 'Failed to complete reconciliation');
-   } finally {
-     setLocalLoading(false);
-   }
- };
- 
- // Handle start new reconciliation
- const handleStartNewReconciliation = () => {
-   setCurrentScreen('welcome');
-   setReconciliationResults([]);
-   setPendingUpdates({});
-   loadData();
- };
- 
- // Render current screen
- const renderScreen = () => {
-   switch (currentScreen) {
-     case 'welcome':
-       return (
-         <WelcomeScreen
-           stats={stats}
-           onSelectPath={handlePathSelection}
-           reconciliationHealth={reconciliationHealth}
-           lastReconciliation={lastReconciliationText}
-           streak={streak}
-         />
-       );
-       
-     case 'liquid':
-       return (
-         <LiquidPositionsScreen
-           positions={liquidPositions}
-           onComplete={handleLiquidComplete}
-           onBack={() => setCurrentScreen('welcome')}
-           onUpdatePosition={() => {}}
-         />
-       );
-       
-     case 'reconcile':
-       return (
-         <AccountReconciliationScreen
-           accounts={accounts}
-           onComplete={handleReconciliationComplete}
-           onBack={() => setCurrentScreen('welcome')}
-           reconciliationData={reconciliationData}
-           onUpdateReconciliationData={saveReconciliationData}
-           showValues={showValues}
-         />
-       );
-       
-     case 'summary':
-       return (
-         <ReconciliationSummaryDashboard
-           stats={{
-             accountsReconciled: reconciliationResults.length,
-             liquidPositionsUpdated: Object.keys(pendingUpdates).length,
-             totalValueReconciled: reconciliationResults.reduce((sum, r) => sum + r.finalBalance, 0),
-             accuracy: reconciliationHealth
-           }}
-           reconciliationResults={reconciliationResults}
-           onClose={onClose}
-           onStartNewReconciliation={handleStartNewReconciliation}
-         />
-       );
-       
-     default:
-       return null;
-   }
- };
- 
- return (
-   <FixedModal
-     isOpen={isOpen}
-     onClose={onClose}
-     title=""
-     size="max-w-6xl"
-     showHeader={false}
-   >
-     <div className="min-h-[90vh] bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl overflow-hidden">
-       {/* Dynamic header based on screen */}
-       {(currentScreen === 'liquid' || currentScreen === 'reconcile') && (
-         <div className="bg-white border-b border-gray-200 px-8 py-5 shadow-sm">
-           <div className="flex items-center justify-between">
-             <div className="flex items-center space-x-4">
-               <div className="p-2 bg-gradient-to-br from-blue-500 to-indigo-500 rounded-lg">
-                 <Target className="w-6 h-6 text-white" />
-               </div>
-               <div>
-                 <h2 className="text-xl font-bold text-gray-900">
-                   {currentScreen === 'liquid' ? 'Update Liquid Positions' : 'Reconcile Accounts'}
-                 </h2>
-                 <p className="text-sm text-gray-500">NestEgg Reconciliation Workflow</p>
-               </div>
-             </div>
-             
-             <div className="flex items-center space-x-4">
-               <button
-                 onClick={() => setShowValues(!showValues)}
-                 className={`
-                   p-2.5 rounded-lg transition-all transform hover:scale-105
-                   ${showValues 
-                     ? 'bg-blue-100 text-blue-700 shadow-md' 
-                     : 'bg-gray-100 text-gray-600'
-                   }
-                 `}
-                 title={showValues ? 'Hide values' : 'Show values'}
-               >
-                 {showValues ? <Eye className="w-5 h-5" /> : <EyeOff className="w-5 h-5" />}
-               </button>
-               
-               <button
-                 onClick={loadData}
-                 className="p-2.5 bg-gray-100 hover:bg-gray-200 rounded-lg transition-all transform hover:scale-105"
-                 title="Refresh data"
-               >
-                 <RefreshCw className={`w-5 h-5 text-gray-600 ${loading || localLoading ? 'animate-spin' : ''}`} />
-               </button>
-               
-               <button
-                 onClick={onClose}
-                 className="p-2.5 bg-gray-100 hover:bg-gray-200 rounded-lg transition-all transform hover:scale-105"
-               >
-                 <X className="w-5 h-5 text-gray-600" />
-               </button>
-             </div>
-           </div>
-           
-           {/* Progress indicator */}
-           <div className="mt-4 relative">
-             <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
-               <div 
-                 className="h-full bg-gradient-to-r from-blue-500 to-indigo-500 transition-all duration-1000 ease-out"
-                 style={{ width: `${stats.percentage}%` }}
-               />
-             </div>
-           </div>
-         </div>
-       )}
-       
-       <div className={currentScreen === 'summary' ? '' : 'p-8'}>
-         {(loading || localLoading) && currentScreen === 'welcome' ? (
-           <div className="flex items-center justify-center h-96">
-             <div className="text-center">
-               <Loader2 className="w-12 h-12 text-blue-500 animate-spin mx-auto mb-4" />
-               <p className="text-gray-600">Loading your portfolio data...</p>
-             </div>
-           </div>
-         ) : (
-           renderScreen()
-         )}
-       </div>
-       
-       {/* Message Display */}
-       {message.text && (
-         <div className={`
-           fixed bottom-6 left-6 right-6 mx-auto max-w-md px-6 py-4 rounded-xl shadow-2xl
-           flex items-center justify-between animate-in slide-in-from-bottom duration-300
-           ${message.type === 'error' 
-             ? 'bg-red-600 text-white' 
-             : message.type === 'success'
-               ? 'bg-green-600 text-white'
-               : 'bg-blue-600 text-white'
-           }
-         `}>
-           <div className="flex items-center">
-             {message.type === 'error' ? <AlertCircle className="w-5 h-5 mr-3" /> :
-              message.type === 'success' ? <CheckCircle className="w-5 h-5 mr-3" /> :
-              <Info className="w-5 h-5 mr-3" />}
-             <span className="font-medium">{message.text}</span>
-           </div>
-           <button
-             onClick={() => setMessage({ type: '', text: '' })}
-             className="p-1 hover:bg-white/20 rounded-lg transition-colors"
-           >
-             <X className="w-4 h-4" />
-           </button>
-         </div>
-       )}
-       
-       <Confetti show={showConfetti} />
-     </div>
-   </FixedModal>
- );
-};
-
-// Export button component with enhanced styling
-export const QuickReconciliationButton = ({ className = '' }) => {
- const [isModalOpen, setIsModalOpen] = useState(false);
- const [isHovered, setIsHovered] = useState(false);
- 
- return (
-   <>
-     <button
-       onClick={() => setIsModalOpen(true)}
-       onMouseEnter={() => setIsHovered(true)}
-       onMouseLeave={() => setIsHovered(false)}
-       className={`group relative flex items-center text-white py-2 px-5 transition-all duration-300 transform hover:scale-105 ${className}`}
-     >
-       <div className="absolute inset-0 bg-gradient-to-r from-emerald-600 to-teal-600 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-300 shadow-lg"></div>
-       <div className="relative flex items-center">
-         <CheckSquare className={`
-           w-5 h-5 mr-2 transition-all duration-300
-           ${isHovered ? 'text-white rotate-12' : 'text-emerald-400'}
-         `} />
-         <span className="text-sm text-gray-200 group-hover:text-white font-medium">
-           Quick Reconcile
-         </span>
-         {isHovered && (
-           <Sparkles className="w-4 h-4 ml-2 text-yellow-300 animate-pulse" />
-         )}
-       </div>
-     </button>
-     
-     <QuickReconciliationModal 
-       isOpen={isModalOpen} 
-       onClose={() => setIsModalOpen(false)} 
-     />
-   </>
- );
+  return (
+    <>
+      <button
+        onClick={() => setIsModalOpen(true)}
+        className={`group relative flex items-center text-white py-1 px-4 transition-all duration-300 ${className}`}
+      >
+        <div className="absolute inset-0 bg-gradient-to-r from-blue-600 to-purple-600 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+        <div className="relative flex items-center">
+          <Target className="w-5 h-5 mr-2 text-blue-400 group-hover:text-white transition-colors" />
+          <span className="text-sm text-gray-200 group-hover:text-white font-medium">Quick Reconciliation</span>
+        </div>
+      </button>
+      
+      <QuickReconciliationModal 
+        isOpen={isModalOpen} 
+        onClose={() => setIsModalOpen(false)} 
+      />
+    </>
+  );
 };
 
 export default QuickReconciliationModal;
