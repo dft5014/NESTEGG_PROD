@@ -479,32 +479,97 @@ const QuickReconciliationModal2 = ({ isOpen, onClose }) => {
   }, [isOpen]);
   
   // Calculate streak
-  const calculateStreak = () => {
-    const history = reconciliationHistoryRef.current;
-    if (history.length === 0) {
-      streakRef.current = 0;
-      return;
-    }
-    
-    let streak = 0;
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    
-    for (let i = 0; i < history.length; i++) {
-      const recDate = new Date(history[i].date);
-      recDate.setHours(0, 0, 0, 0);
-      
-      const daysDiff = Math.floor((today - recDate) / (1000 * 60 * 60 * 24));
-      
-      if (daysDiff === streak) {
-        streak++;
-      } else {
-        break;
+    const calculateStreak = () => {
+      const history = reconciliationHistoryRef.current;
+      if (history.length === 0) {
+        streakRef.current = 0;
+        return;
       }
-    }
+      
+      let streak = 0;
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      
+      for (let i = 0; i < history.length; i++) {
+        const recDate = new Date(history[i].date);
+        recDate.setHours(0, 0, 0, 0);
+        
+        const daysDiff = Math.floor((today - recDate) / (1000 * 60 * 60 * 24));
+        
+        if (daysDiff === streak) {
+          streak++;
+        } else {
+          break;
+        }
+      }
+      
+      streakRef.current = streak;
+    };
     
-    streakRef.current = streak;
-  };
+    // Calculate achievements - MOVED HERE BEFORE RENDER METHODS
+    const achievements = useMemo(() => {
+      const unlocked = [];
+      const locked = [];
+      
+      const achievementList = [
+        {
+          id: 'first_reconciliation',
+          icon: Trophy,
+          label: 'First Steps',
+          description: 'Complete your first reconciliation',
+          condition: reconciliationHistoryRef.current.length > 0
+        },
+        {
+          id: 'week_streak',
+          icon: Zap,
+          label: 'Week Warrior',
+          description: 'Maintain a 7-day streak',
+          condition: streakRef.current >= 7
+        },
+        {
+          id: 'month_streak',
+          icon: Award,
+          label: 'Monthly Master',
+          description: 'Maintain a 30-day streak',
+          condition: streakRef.current >= 30
+        },
+        {
+          id: 'perfect_match',
+          icon: CheckCircle2,
+          label: 'Perfect Match',
+          description: 'All accounts match exactly',
+          condition: Object.values(variances).length > 0 && 
+                    Object.values(variances).every(v => Math.abs(v.variancePercent) < 0.1)
+        },
+        {
+          id: 'quick_reconciler',
+          icon: Clock,
+          label: 'Speed Demon',
+          description: 'Complete reconciliation in under 2 minutes',
+          condition: achievementsRef.current.has('quick_reconciler')
+        },
+        {
+          id: 'portfolio_pro',
+          icon: Star,
+          label: 'Portfolio Pro',
+          description: 'Reconcile 10+ accounts',
+          condition: processedAccounts.length >= 10
+        }
+      ];
+      
+      achievementList.forEach(achievement => {
+        if (achievement.condition || achievementsRef.current.has(achievement.id)) {
+          unlocked.push(achievement);
+          achievementsRef.current.add(achievement.id);
+        } else {
+          locked.push(achievement);
+        }
+      });
+      
+      localStorage.setItem('nestegg_achievements', JSON.stringify([...achievementsRef.current]));
+      
+      return { unlocked, locked };
+    }, [processedAccounts, variances]);
   
   // Refresh all data
   const refreshAllData = useCallback(async () => {
@@ -643,71 +708,7 @@ const QuickReconciliationModal2 = ({ isOpen, onClose }) => {
     );
   }, [processedAccounts, liquidPositions, reconciliationData]);
   
-  // Calculate achievements - MOVED BEFORE render methods
-  const achievements = useMemo(() => {
-    const unlocked = [];
-    const locked = [];
-    
-    const achievementList = [
-      {
-        id: 'first_reconciliation',
-        icon: Trophy,
-        label: 'First Steps',
-        description: 'Complete your first reconciliation',
-        condition: reconciliationHistoryRef.current.length > 0
-      },
-      {
-        id: 'week_streak',
-        icon: Zap,
-        label: 'Week Warrior',
-        description: 'Maintain a 7-day streak',
-        condition: streakRef.current >= 7
-      },
-      {
-        id: 'month_streak',
-        icon: Award,
-        label: 'Monthly Master',
-        description: 'Maintain a 30-day streak',
-        condition: streakRef.current >= 30
-      },
-      {
-        id: 'perfect_match',
-        icon: CheckCircle2,
-        label: 'Perfect Match',
-        description: 'All accounts match exactly',
-        condition: Object.values(variances).length > 0 && 
-                  Object.values(variances).every(v => Math.abs(v.variancePercent) < 0.1)
-      },
-      {
-        id: 'quick_reconciler',
-        icon: Clock,
-        label: 'Speed Demon',
-        description: 'Complete reconciliation in under 2 minutes',
-        condition: achievementsRef.current.has('quick_reconciler')
-      },
-      {
-        id: 'portfolio_pro',
-        icon: Star,
-        label: 'Portfolio Pro',
-        description: 'Reconcile 10+ accounts',
-        condition: processedAccounts.length >= 10
-      }
-    ];
-    
-    achievementList.forEach(achievement => {
-      if (achievement.condition || achievementsRef.current.has(achievement.id)) {
-        unlocked.push(achievement);
-        achievementsRef.current.add(achievement.id);
-      } else {
-        locked.push(achievement);
-      }
-    });
-    
-    localStorage.setItem('nestegg_achievements', JSON.stringify([...achievementsRef.current]));
-    
-    return { unlocked, locked };
-  }, [processedAccounts, variances]);
-  
+
   // Show message
   const showMessage = (type, text, duration = 3000) => {
     setMessage({ type, text });
