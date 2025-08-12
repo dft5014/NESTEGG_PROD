@@ -7,7 +7,7 @@ import {
   DollarSign, Percent, AlertCircle, ChevronRight, Building,
   Wallet, Home, Car, GraduationCap, Gem, Briefcase
 } from 'lucide-react';
-import { formatCurrency } from '../../../utils/formatters';
+import { formatCurrency } from '@/utils/formatters';
 
 const QuickUpdatePanel = ({ 
   accounts = [], 
