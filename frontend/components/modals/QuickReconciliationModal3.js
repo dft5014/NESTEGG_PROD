@@ -1,14 +1,13 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef, createContext, useContext } from 'react';
-import { motion, AnimatePresence, useSpring, useMotionValue, useTransform } from 'framer-motion';
-import FixedModal from '../FixedModal';
+import { motion, AnimatePresence } from 'framer-motion';
+import FixedModal from './FixedModal';
 import { useDataStore } from '@/store/DataStore';
-import { useAccounts } from '@/hooks/useAccounts';
-import { useDetailedPositions } from '@/hooks/useDetailedPositions';
-import { useGroupedLiabilities } from '@/hooks/useGroupedLiabilities';
-import { useGroupedPositions } from '@/hooks/useGroupedPositions';
+import { useAccounts } from '@/store/hooks/useAccounts';
+import { useDetailedPositions } from '@/store/hooks/useDetailedPositions';
+import { useGroupedLiabilities } from '@/store/hooks/useGroupedLiabilities';
+import { useGroupedPositions } from '@/store/hooks/useGroupedPositions';
 import { fetchWithAuth } from '@/utils/api';
 import { formatCurrency, formatPercentage } from '@/utils/formatters';
-import confetti from 'canvas-confetti';
 import {
   TrendingUp, TrendingDown, Activity, Target, Award, Timer,
   CheckCircle, AlertCircle, Info, Clock, Shield, Zap,
@@ -908,16 +907,16 @@ const AccountValidator = ({ onComplete }) => {
 // Success Celebration Component
 const SuccessCelebration = ({ stats, onClose }) => {
   useEffect(() => {
-    // Trigger confetti
-    confetti({
-      particleCount: 100,
-      spread: 70,
-      origin: { y: 0.6 }
-    });
+    // Trigger celebration animation
+    // Visual celebration without external library
     
     // Play success sound (if enabled)
-    const audio = new Audio('/sounds/success.mp3');
-    audio.play().catch(() => {});
+    try {
+      const audio = new Audio('/sounds/success.mp3');
+      audio.play().catch(() => {});
+    } catch (e) {
+      // Audio not available
+    }
   }, []);
   
   return (
@@ -966,29 +965,41 @@ const SuccessCelebration = ({ stats, onClose }) => {
 
 // ============= MAIN COMPONENT =============
 const QuickReconciliationModal3 = ({ isOpen, onClose }) => {
-  // DataStore hooks
+  // DataStore hooks - matching existing pattern
   const { 
-    accounts = [], 
-    loading: accountsLoading,
+    accounts: dataStoreAccounts, 
+    loading: accountsLoading, 
     error: accountsError,
     refresh: refreshAccounts 
   } = useAccounts();
-  
+
   const { 
-    positions = [], 
-    loading: positionsLoading,
+    positions: dataStorePositions, 
+    loading: positionsLoading, 
     error: positionsError,
     refresh: refreshPositions 
   } = useDetailedPositions();
-  
+
   const { 
-    liabilities = [], 
-    loading: liabilitiesLoading,
+    liabilities: dataStoreLiabilities, 
+    loading: liabilitiesLoading, 
     error: liabilitiesError,
     refreshData: refreshLiabilities 
   } = useGroupedLiabilities();
-  
+
+  const { 
+    positions: groupedPositions,
+    loading: groupedLoading,
+    refresh: refreshGrouped
+  } = useGroupedPositions();
+
+  // Get additional actions from DataStore
   const { actions } = useDataStore();
+  
+  // Use dataStore values
+  const accounts = dataStoreAccounts || [];
+  const positions = dataStorePositions || [];
+  const liabilities = dataStoreLiabilities || [];
   
   // State management
   const [currentView, setCurrentView] = useState('dashboard');
@@ -1156,12 +1167,13 @@ const QuickReconciliationModal3 = ({ isOpen, onClose }) => {
       setDraft(new Map());
       localStorage.removeItem('nestegg_reconciliation_draft');
       
-      // Refresh all data
+      // Refresh all affected data in DataStore
       await Promise.all([
-        refreshAccounts(),
-        refreshPositions(),
-        refreshLiabilities(),
-        actions.fetchPortfolioData(true)
+        refreshPositions(),  // Refresh detailed positions
+        actions.fetchGroupedPositionsData(true),  // Refresh grouped positions
+        actions.fetchPortfolioData(true),  // Refresh portfolio summary
+        refreshAccounts(),  // Refresh accounts
+        refreshLiabilities()  // Refresh liabilities
       ]);
       
       setShowSuccess(true);
@@ -1344,9 +1356,10 @@ export const QuickReconciliationButton3 = () => {
   const [isHovered, setIsHovered] = useState(false);
   const [pulseAnimation, setPulseAnimation] = useState(false);
   
-  // DataStore hooks
-  const { accounts = [] } = useAccounts();
-  const { portfolioSummary } = useDataStore();
+  // DataStore hooks - need to import at top if using button separately
+  const { accounts } = useAccounts();
+  const { state } = useDataStore();
+  const portfolioSummary = state.portfolioSummary?.data || null;
   
   // Calculate reconciliation health
   const reconciliationHealth = useMemo(() => {
