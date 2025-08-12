@@ -19,19 +19,20 @@ import {
 } from 'lucide-react';
 
 // DataStore hooks
-import { useDataStore } from '../../store/DataStore';
-import { useAccounts } from '../../store/hooks/useAccounts';
-import { useDetailedPositions } from '../../store/hooks/useDetailedPositions';
-import { useGroupedLiabilities } from '../../store/hooks/useGroupedLiabilities';
-import { useGroupedPositions } from '../../store/hooks/useGroupedPositions';
+import { useDataStore } from '@/store/DataStore';
+import { useAccounts } from '@/store/hooks/useAccounts';
+import { useDetailedPositions } from '@/store/hooks/useDetailedPositions';
+import { useGroupedLiabilities } from '@/store/hooks/useGroupedLiabilities';
+import { useGroupedPositions } from '@/store/hooks/useGroupedPositions';
 
 // Utils
-import { formatCurrency, formatPercentage } from '../../utils/formatters';
-import { fetchWithAuth } from '../../utils/api';
-import FixedModal from '../FixedModal';
+import { formatCurrency, formatPercentage } from '@/utils/formatters';
+import { fetchWithAuth } from '@/utils/api';
+
 
 // Import the QuickUpdatePanel component (the only external one)
-import QuickUpdatePanel from './components/QuickUpdatePanel';
+import FixedModal from './FixedModal';
+import QuickUpdatePanel from './QuickUpdatePanel';
 
 // ============================================================================
 // EMBEDDED COMPONENTS
