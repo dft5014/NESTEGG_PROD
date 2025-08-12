@@ -1145,7 +1145,7 @@ const AccountReconciliationScreen = ({
   // Calculate difference
   const calculateDifference = (account) => {
     const statementBalance = parseFloat(reconciliationData[account.id]?.statementBalance || 0);
-    const nesteggBalance = parseFloat(account.total_value || 0);
+    const nesteggBalance = parseFloat(account.totalValue || account.total_value || 0);
     const difference = statementBalance - nesteggBalance;
     const percentage = nesteggBalance !== 0 ? (difference / nesteggBalance) * 100 : 0;
     
@@ -1166,7 +1166,7 @@ const AccountReconciliationScreen = ({
       [account.id]: {
         ...reconciliationData[account.id],
         lastReconciled: new Date().toISOString(),
-        statementBalance: account.total_value
+        statementBalance: account.totalValue || account.total_value || 0
       }
     };
     onUpdateReconciliationData(updatedData);
@@ -1279,16 +1279,20 @@ const AccountReconciliationScreen = ({
                       <CategoryIcon className={`w-5 h-5 text-${category.color}-600`} />
                     </div>
                     <div>
-                      <h4 className="font-semibold text-gray-900">{account.account_name}</h4>
-                      <p className="text-sm text-gray-500">{account.type}</p>
+
+                      <h4 className="font-semibold text-gray-900">{account.accountName || account.account_name}</h4>
+                      <p className="text-sm text-gray-500">{account.accountType || account.type}</p>
                     </div>
                   </div>
                   <div className="flex items-center space-x-3">
                     <div className="text-right">
                       <p className="font-semibold text-gray-900">
-                        {showValues ? formatCurrency(account.total_value) : '••••••'}
+                        {showValues ? formatCurrency(account.totalValue || account.total_value || 0) : '••••••'}
                       </p>
-                      <p className="text-xs text-gray-500">{account.total_positions || 0} positions</p>
+                      <p className="text-xs text-gray-500">{account.positionsCount || account.total_positions || 0} positions</p>
+
+
+
                     </div>
                     <StatusIndicator status={account.reconciliationStatus} showPulse={false} />
                   </div>
@@ -1797,6 +1801,16 @@ const QuickReconciliationModal = ({ isOpen, onClose }) => {
      ]);
      
      // Enrich accounts with reconciliation status
+     // Debug: Check account structure
+     if (accounts.length > 0) {
+       console.log('Account fields from DataStore:', {
+         firstAccount: accounts[0],
+         fieldNames: Object.keys(accounts[0])
+       });
+     }
+     
+     // Enrich accounts with reconciliation status
+// Enrich accounts with reconciliation status using correct field names
      const enrichedAccounts = accounts.map(account => {
        const lastRec = reconciliationData[account.id]?.lastReconciled;
        const daysSince = lastRec ? 
@@ -1806,30 +1820,37 @@ const QuickReconciliationModal = ({ isOpen, onClose }) => {
        return {
          ...account,
          reconciliationStatus: getReconciliationStatus(account, daysSince),
-         daysSinceReconciliation: daysSince
+         daysSinceReconciliation: daysSince,
+         // Ensure we have both field name formats for compatibility
+         total_value: account.totalValue || account.total_value || 0,
+         account_name: account.accountName || account.account_name || 'Unknown'
        };
      });
      
-
+     setPositions(enrichedAccounts);
      
-     // Filter liquid positions
-     const liquid = allPositions.filter(p => 
-       LIQUID_POSITION_TYPES.includes(p.position_type) || 
-       p.asset_type === 'cash' ||
-       (p.name && (p.name.toLowerCase().includes('checking') || 
-                  p.name.toLowerCase().includes('savings') ||
-                  p.name.toLowerCase().includes('credit') ||
-                  p.name.toLowerCase().includes('loan')))
-     );
+     // Filter liquid positions from DataStore - useDetailedPositions returns camelCase
+     const liquid = allPositions.filter(p => {
+       const assetType = p.assetType || p.asset_type || '';
+       return LIQUID_POSITION_TYPES.includes(assetType.toLowerCase()) || 
+              assetType.toLowerCase() === 'cash' ||
+              (p.name && (p.name.toLowerCase().includes('checking') || 
+                         p.name.toLowerCase().includes('savings') ||
+                         p.name.toLowerCase().includes('credit') ||
+                         p.name.toLowerCase().includes('loan')));
+     });
      
      // Enrich liquid positions with account info
      const enrichedLiquid = liquid.map(pos => {
-       const account = enrichedAccounts.find(a => a.id === pos.account_id);
+       const account = enrichedAccounts.find(a => a.id === (pos.accountId || pos.account_id));
        return {
          ...pos,
          institution: account?.institution || 'Unknown',
          account_institution: account?.institution || 'Unknown',
-         account_name: account?.account_name || 'Unknown Account'
+         account_name: account?.accountName || account?.account_name || 'Unknown Account',
+         current_value: pos.currentValue || pos.current_value || 0,
+         // Keep the itemId for updates
+         position_id: pos.itemId || pos.id
        };
      });
      
@@ -1917,19 +1938,21 @@ const QuickReconciliationModal = ({ isOpen, onClose }) => {
    }
  };
  
- // Calculate stats
+// Calculate stats using correct field names from DataStore
  const stats = useMemo(() => {
    const total = accounts.length;
-   const needsReconciliation = accounts.filter(a => 
+   const enrichedAccounts = positions.length > 0 ? positions : accounts;
+   const needsReconciliation = enrichedAccounts.filter(a => 
      a.reconciliationStatus === 'warning' || 
      a.reconciliationStatus === 'error' || 
      a.reconciliationStatus === 'pending'
    ).length;
-   const reconciled = accounts.filter(a => a.reconciliationStatus === 'reconciled').length;
-   const totalValue = accounts.reduce((sum, a) => sum + (parseFloat(a.total_value) || 0), 0);
-   const reconciledValue = accounts
+   const reconciled = enrichedAccounts.filter(a => a.reconciliationStatus === 'reconciled').length;
+   // DataStore returns totalValue in camelCase
+   const totalValue = accounts.reduce((sum, a) => sum + (parseFloat(a.totalValue) || 0), 0);
+   const reconciledValue = enrichedAccounts
      .filter(a => a.reconciliationStatus === 'reconciled')
-     .reduce((sum, a) => sum + (parseFloat(a.total_value) || 0), 0);
+     .reduce((sum, a) => sum + (parseFloat(a.totalValue || a.total_value) || 0), 0);
    
    const liquidNeedingUpdate = liquidPositions.filter(p => {
      const lastUpdate = reconciliationData[`pos_${p.id}`]?.lastUpdated;
@@ -2078,14 +2101,14 @@ const QuickReconciliationModal = ({ isOpen, onClose }) => {
    try {
      setLocalLoading(true);
      
-     // Prepare results
+     // Prepare results using correct field names from DataStore
      const results = accounts
        .filter(a => reconciliationData[a.id]?.statementBalance)
        .map(account => ({
-         accountName: account.account_name,
+         accountName: account.accountName || account.account_name,
          institution: account.institution,
          finalBalance: parseFloat(reconciliationData[account.id].statementBalance),
-         change: parseFloat(reconciliationData[account.id].statementBalance) - parseFloat(account.total_value)
+         change: parseFloat(reconciliationData[account.id].statementBalance) - parseFloat(account.totalValue || 0)
        }));
      
      setReconciliationResults(results);
