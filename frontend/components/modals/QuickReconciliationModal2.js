@@ -1928,4 +1928,98 @@ const renderAchievementsView = () => (
   </motion.div>
 );
 
+// Export the button component for use in navbar
+export const QuickReconciliationButton2 = () => {
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [pulseAnimation, setPulseAnimation] = useState(false);
+  
+  // Get reconciliation history for badge
+  const [needsAttentionCount, setNeedsAttentionCount] = useState(0);
+  
+  useEffect(() => {
+    // Check localStorage for reconciliation history
+    const savedHistory = localStorage.getItem('nestegg_reconciliation_v2');
+    if (savedHistory) {
+      try {
+        const history = JSON.parse(savedHistory);
+        const lastRec = history[0];
+        if (lastRec) {
+          const daysSince = Math.floor((Date.now() - new Date(lastRec.date)) / (1000 * 60 * 60 * 24));
+          if (daysSince > 7) {
+            setNeedsAttentionCount(1);
+            setPulseAnimation(true);
+          }
+        } else {
+          setNeedsAttentionCount(1);
+          setPulseAnimation(true);
+        }
+      } catch (e) {
+        console.error('Failed to parse reconciliation history:', e);
+      }
+    } else {
+      // No history means first time user
+      setPulseAnimation(true);
+    }
+  }, []);
+  
+  return (
+    <>
+      <motion.button
+        whileHover={{ scale: 1.05 }}
+        whileTap={{ scale: 0.95 }}
+        onClick={() => setIsModalOpen(true)}
+        className="relative group"
+      >
+        <div className={`
+          relative px-4 py-2.5 bg-gradient-to-r from-blue-600 to-purple-600 
+          text-white font-medium rounded-xl shadow-lg 
+          hover:shadow-xl transition-all duration-300
+          flex items-center space-x-2
+          ${pulseAnimation ? 'animate-pulse' : ''}
+        `}>
+          <Target className="w-5 h-5" />
+          <span className="hidden sm:inline">Smart Reconcile</span>
+          
+          {/* Notification Badge */}
+          {needsAttentionCount > 0 && (
+            <motion.div
+              initial={{ scale: 0 }}
+              animate={{ scale: 1 }}
+              className="absolute -top-2 -right-2 bg-red-500 text-white text-xs font-bold rounded-full w-6 h-6 flex items-center justify-center shadow-md"
+            >
+              <span>!</span>
+            </motion.div>
+          )}
+          
+          {/* Hover Effect */}
+          <div className="absolute inset-0 bg-white opacity-0 group-hover:opacity-20 rounded-xl transition-opacity" />
+        </div>
+        
+        {/* Tooltip */}
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          whileHover={{ opacity: 1, y: 0 }}
+          className="absolute top-full mt-2 left-1/2 transform -translate-x-1/2 pointer-events-none z-50"
+        >
+          <div className="bg-gray-900 text-white text-xs px-3 py-2 rounded-lg shadow-xl whitespace-nowrap">
+            <div className="font-semibold mb-1">Quick Reconciliation</div>
+            <div className="text-gray-300">Keep your portfolio accurate</div>
+            {needsAttentionCount > 0 && (
+              <div className="text-yellow-300 mt-1">⚠️ Needs attention</div>
+            )}
+            <div className="absolute -top-1 left-1/2 transform -translate-x-1/2 w-2 h-2 bg-gray-900 rotate-45" />
+          </div>
+        </motion.div>
+      </motion.button>
+      
+      {/* Modal */}
+      <QuickReconciliationModal2
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+      />
+    </>
+  );
+};
+
+// Also export the modal as default
 export default QuickReconciliationModal2;
