@@ -1351,185 +1351,34 @@ const QuickReconciliationModal3 = ({ isOpen, onClose }) => {
 };
 
 // ============= NAVBAR BUTTON COMPONENT =============
-export const QuickReconciliationButton3 = () => {
+// Export button component with enhanced styling
+export const QuickReconciliationButton3 = ({ className = '' }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
-  const [pulseAnimation, setPulseAnimation] = useState(false);
-  
-  // DataStore hooks - need to import at top if using button separately
-  const { accounts } = useAccounts();
-  const { state } = useDataStore();
-  const portfolioSummary = state.portfolioSummary?.data || null;
-  
-  // Calculate reconciliation health
-  const reconciliationHealth = useMemo(() => {
-    const stored = localStorage.getItem('nestegg_reconciliation_v3');
-    if (!stored) return { score: 75, needsAttention: true, lastUpdate: null };
-    
-    const { history = [] } = JSON.parse(stored);
-    const lastRec = history[0];
-    
-    if (!lastRec) return { score: 75, needsAttention: true, lastUpdate: null };
-    
-    const daysSince = Math.floor((Date.now() - new Date(lastRec.date)) / (1000 * 60 * 60 * 24));
-    const needsAttention = daysSince > 7;
-    const score = lastRec.score || 75;
-    
-    return { score, needsAttention, lastUpdate: lastRec.date, daysSince };
-  }, []);
-  
-  // Pulse animation for attention
-  useEffect(() => {
-    if (reconciliationHealth.needsAttention) {
-      const timer = setInterval(() => {
-        setPulseAnimation(true);
-        setTimeout(() => setPulseAnimation(false), 2000);
-      }, 10000); // Pulse every 10 seconds
-      
-      return () => clearInterval(timer);
-    }
-  }, [reconciliationHealth.needsAttention]);
-  
-  // Get status color
-  const getStatusColor = () => {
-    if (reconciliationHealth.score >= 90) return 'text-green-500 bg-green-50 border-green-200';
-    if (reconciliationHealth.score >= 70) return 'text-yellow-500 bg-yellow-50 border-yellow-200';
-    return 'text-red-500 bg-red-50 border-red-200';
-  };
-  
-  const getStatusIcon = () => {
-    if (reconciliationHealth.score >= 90) return CheckCircle;
-    if (reconciliationHealth.score >= 70) return AlertCircle;
-    return AlertTriangle;
-  };
-  
-  const StatusIcon = getStatusIcon();
   
   return (
     <>
-      {/* Button */}
-      <motion.button
+      <button
         onClick={() => setIsModalOpen(true)}
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
-        className={`relative flex items-center gap-2 px-3 py-2 rounded-lg border transition-all ${
-          getStatusColor()
-        } hover:shadow-md`}
-        whileHover={{ scale: 1.02 }}
-        whileTap={{ scale: 0.98 }}
+        className={`group relative flex items-center text-white py-2 px-5 transition-all duration-300 transform hover:scale-105 ${className}`}
       >
-        {/* Health Indicator Ring */}
-        <div className="relative">
-          <svg className="w-8 h-8 transform -rotate-90">
-            <circle
-              cx="16"
-              cy="16"
-              r="14"
-              stroke="currentColor"
-              strokeWidth="2"
-              fill="none"
-              className="opacity-20"
-            />
-            <motion.circle
-              cx="16"
-              cy="16"
-              r="14"
-              stroke="currentColor"
-              strokeWidth="2"
-              fill="none"
-              strokeDasharray={`${reconciliationHealth.score * 0.88} 88`}
-              initial={{ strokeDasharray: '0 88' }}
-              animate={{ strokeDasharray: `${reconciliationHealth.score * 0.88} 88` }}
-              transition={{ duration: 1 }}
-            />
-          </svg>
-          <div className="absolute inset-0 flex items-center justify-center">
-            <StatusIcon className="w-4 h-4" />
-          </div>
-        </div>
-        
-        {/* Text (hidden on mobile) */}
-        <div className="hidden sm:block text-left">
-          <p className="text-xs font-semibold">Reconcile</p>
-          <p className="text-[10px] opacity-75">
-            {reconciliationHealth.daysSince !== undefined 
-              ? `${reconciliationHealth.daysSince}d ago` 
-              : 'Setup'
-            }
-          </p>
-        </div>
-        
-        {/* Notification Badge */}
-        {reconciliationHealth.needsAttention && (
-          <motion.div
-            className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full"
-            animate={pulseAnimation ? {
-              scale: [1, 1.5, 1],
-              opacity: [1, 0.5, 1]
-            } : {}}
-            transition={{ duration: 0.5 }}
-          />
-        )}
-        
-        {/* Hover Tooltip */}
-        <AnimatePresence>
+        <div className="absolute inset-0 bg-gradient-to-r from-green-600 to-teal-600 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-300 shadow-lg"></div>
+        <div className="relative flex items-center">
+          <Shield className={`
+            w-5 h-5 mr-2 transition-all duration-300
+            ${isHovered ? 'text-white rotate-12' : 'text-green-400'}
+          `} />
+          <span className="text-sm text-gray-200 group-hover:text-white font-medium">
+            Pro Reconcile
+          </span>
           {isHovered && (
-            <motion.div
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: 10 }}
-              className="absolute top-full mt-2 left-0 w-64 bg-white rounded-xl shadow-xl border border-gray-200 p-4 z-50"
-            >
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-semibold">Portfolio Health</span>
-                  <span className={`text-2xl font-bold ${
-                    reconciliationHealth.score >= 90 ? 'text-green-600' :
-                    reconciliationHealth.score >= 70 ? 'text-yellow-600' :
-                    'text-red-600'
-                  }`}>
-                    {reconciliationHealth.score}%
-                  </span>
-                </div>
-                
-                {reconciliationHealth.needsAttention && (
-                  <div className="bg-red-50 rounded-lg p-2">
-                    <p className="text-xs text-red-700 flex items-center gap-1">
-                      <AlertCircle className="w-3 h-3" />
-                      {accounts.filter(a => !a.last_reconciled || 
-                        (Date.now() - new Date(a.last_reconciled)) > 7 * 24 * 60 * 60 * 1000
-                      ).length} accounts need attention
-                    </p>
-                  </div>
-                )}
-                
-                <div className="pt-2 border-t border-gray-100">
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="text-gray-500">Last reconciled</span>
-                    <span className="font-medium">
-                      {reconciliationHealth.lastUpdate 
-                        ? new Date(reconciliationHealth.lastUpdate).toLocaleDateString()
-                        : 'Never'
-                      }
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between text-xs mt-1">
-                    <span className="text-gray-500">Total accounts</span>
-                    <span className="font-medium">{accounts.length}</span>
-                  </div>
-                </div>
-                
-                <div className="flex items-center gap-2 pt-2 border-t border-gray-100">
-                  <Sparkles className="w-4 h-4 text-yellow-500" />
-                  <p className="text-xs text-gray-600">Click to start reconciliation</p>
-                </div>
-              </div>
-            </motion.div>
+            <Sparkles className="w-4 h-4 ml-2 text-yellow-300 animate-pulse" />
           )}
-        </AnimatePresence>
-      </motion.button>
+        </div>
+      </button>
       
-      {/* Modal */}
       <QuickReconciliationModal3 
         isOpen={isModalOpen} 
         onClose={() => setIsModalOpen(false)} 

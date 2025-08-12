@@ -850,46 +850,32 @@ const QuickReconciliationModal2 = ({ isOpen, onClose }) => {
 // BUTTON EXPORT
 // ============================================================================
 
-export const QuickReconciliationButton2 = ({ 
-  className = '',
-  variant = 'primary',
-  size = 'md',
-  showHealthScore = true 
-}) => {
+// Export button component with enhanced styling
+export const QuickReconciliationButton2 = ({ className = '' }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const { accounts } = useAccounts();
-  
-  // Calculate basic health metrics
-  const needsAttention = accounts.filter(a => {
-    // Simple check - you can make this more sophisticated
-    const lastUpdated = a.lastUpdated || a.updated_at;
-    if (!lastUpdated) return true;
-    const daysSince = Math.floor((Date.now() - new Date(lastUpdated)) / (1000 * 60 * 60 * 24));
-    return daysSince > 7;
-  }).length;
+  const [isHovered, setIsHovered] = useState(false);
   
   return (
     <>
       <button
         onClick={() => setIsModalOpen(true)}
-        className={`
-          flex items-center space-x-2 
-          ${variant === 'primary' 
-            ? 'bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white' 
-            : 'bg-gray-700 hover:bg-gray-600 text-gray-300'
-          }
-          ${size === 'sm' ? 'px-3 py-2 text-sm' : 'px-4 py-3'}
-          rounded-lg font-medium transition-all transform hover:scale-105 shadow-lg
-          ${className}
-        `}
+        onMouseEnter={() => setIsHovered(true)}
+        onMouseLeave={() => setIsHovered(false)}
+        className={`group relative flex items-center text-white py-2 px-5 transition-all duration-300 transform hover:scale-105 ${className}`}
       >
-        <Target className="w-5 h-5" />
-        <span>Reconcile</span>
-        {showHealthScore && needsAttention > 0 && (
-          <span className="px-2 py-1 bg-red-500/20 text-red-400 text-xs rounded-full">
-            {needsAttention}
+        <div className="absolute inset-0 bg-gradient-to-r from-purple-600 to-indigo-600 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-300 shadow-lg"></div>
+        <div className="relative flex items-center">
+          <Zap className={`
+            w-5 h-5 mr-2 transition-all duration-300
+            ${isHovered ? 'text-white rotate-12' : 'text-purple-400'}
+          `} />
+          <span className="text-sm text-gray-200 group-hover:text-white font-medium">
+            Smart Reconcile
           </span>
-        )}
+          {isHovered && (
+            <Sparkles className="w-4 h-4 ml-2 text-yellow-300 animate-pulse" />
+          )}
+        </div>
       </button>
       
       <QuickReconciliationModal2 
