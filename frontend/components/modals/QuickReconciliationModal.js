@@ -1,15 +1,17 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import FixedModal from './FixedModal';
 import { fetchWithAuth } from '@/utils/api';
-import { updateAccount } from '@/utils/apimethods/accountMethods';
-import { updatePosition, deletePosition } from '@/utils/apimethods/positionMethods';
+import { 
+  fetchAllAccounts,
+  updateAccount 
+} from '@/utils/apimethods/accountMethods';
+import {
+  fetchUnifiedPositions,
+  updatePosition,
+  deletePosition
+} from '@/utils/apimethods/positionMethods';
 import { formatCurrency, formatPercentage } from '@/utils/formatters';
 import debounce from 'lodash.debounce';
-
-// DataStore hooks
-import { useDataStore } from '@/store/DataStore';
-import { useAccounts } from '@/store/hooks/useAccounts';
-import { useDetailedPositions } from '@/store/hooks/useDetailedPositions';
 import {
   CheckCircle, AlertCircle, Info, Clock, X, Check, ChevronRight,
   TrendingUp, TrendingDown, RefreshCw, Loader2, Search, Filter,
@@ -1734,32 +1736,13 @@ const ProgressCelebration = ({ show, message }) => {
 
 // Main QuickReconciliationModal component
 const QuickReconciliationModal = ({ isOpen, onClose }) => {
- // DataStore Integration
- const { 
-   accounts = [], 
-   loading: accountsLoading,
-   error: accountsError,
-   refresh: refreshAccounts 
- } = useAccounts();
- 
- const { 
-   positions: allPositions = [], 
-   loading: positionsLoading,
-   error: positionsError,
-   refresh: refreshPositions 
- } = useDetailedPositions();
- 
- const { actions } = useDataStore();
- 
- // Combine loading states
- const loading = accountsLoading || positionsLoading;
- 
  // State management
  const [currentScreen, setCurrentScreen] = useState('welcome');
+ const [accounts, setAccounts] = useState([]);
  const [positions, setPositions] = useState({});
  const [liquidPositions, setLiquidPositions] = useState([]);
  const [selectedAccount, setSelectedAccount] = useState(null);
- const [localLoading, setLocalLoading] = useState(false);
+ const [loading, setLoading] = useState(false);
  const [reconciliationData, setReconciliationData] = useState({});
  const [streak, setStreak] = useState(0);
  const [showConfetti, setShowConfetti] = useState(false);
@@ -1786,18 +1769,19 @@ const QuickReconciliationModal = ({ isOpen, onClose }) => {
    };
  }, [isOpen]);
  
-// Load all data
+ // Load all data
  const loadData = async () => {
-   setLocalLoading(true);
+   setLoading(true);
    try {
-     // Refresh DataStore
-     await Promise.all([
-       refreshAccounts(),
-       refreshPositions()
-     ]);
+     // Load accounts
+     const accountsResponse = await fetchWithAuth('/accounts/enriched');
+     if (!accountsResponse.ok) throw new Error('Failed to fetch accounts');
      
-     // Enrich accounts with reconciliation status
-     const enrichedAccounts = accounts.map(account => {
+     const accountsData = await accountsResponse.json();
+     const accountsList = accountsData.accounts || [];
+     
+     // Enrich with reconciliation status
+     const enrichedAccounts = accountsList.map(account => {
        const lastRec = reconciliationData[account.id]?.lastReconciled;
        const daysSince = lastRec ? 
          Math.floor((Date.now() - new Date(lastRec).getTime()) / (1000 * 60 * 60 * 24)) : 
@@ -1810,7 +1794,14 @@ const QuickReconciliationModal = ({ isOpen, onClose }) => {
        };
      });
      
-
+     setAccounts(enrichedAccounts);
+     
+     // Load all positions to find liquid ones
+     const positionsResponse = await fetchWithAuth('/positions/unified');
+     if (!positionsResponse.ok) throw new Error('Failed to fetch positions');
+     
+     const positionsData = await positionsResponse.json();
+     const allPositions = positionsData.positions || [];
      
      // Filter liquid positions
      const liquid = allPositions.filter(p => 
@@ -1839,7 +1830,7 @@ const QuickReconciliationModal = ({ isOpen, onClose }) => {
      console.error('Error loading data:', error);
      showMessage('error', 'Failed to load data');
    } finally {
-     setLocalLoading(false);
+     setLoading(false);
    }
  };
  
@@ -2020,7 +2011,7 @@ const QuickReconciliationModal = ({ isOpen, onClose }) => {
  // Handle liquid positions complete
  const handleLiquidComplete = async (updates) => {
    try {
-     setLocalLoading(true);
+     setLoading(true);
      
      // Update positions via API
      for (const [positionId, value] of Object.entries(updates)) {
@@ -2052,13 +2043,6 @@ const QuickReconciliationModal = ({ isOpen, onClose }) => {
        // Show success and go back
        setShowConfetti(true);
        saveToHistory();
-       
-       // Refresh DataStore to get updated values
-       await Promise.all([
-         refreshAccounts(),
-         refreshPositions()
-       ]);
-       
        setTimeout(() => {
          setCurrentScreen('welcome');
          loadData();
@@ -2069,14 +2053,14 @@ const QuickReconciliationModal = ({ isOpen, onClose }) => {
      console.error('Error updating positions:', error);
      showMessage('error', 'Failed to update positions');
    } finally {
-     setLocalLoading(false);
+     setLoading(false);
    }
  };
  
  // Handle reconciliation complete
  const handleReconciliationComplete = async () => {
    try {
-     setLocalLoading(true);
+     setLoading(true);
      
      // Prepare results
      const results = accounts
@@ -2108,7 +2092,7 @@ const QuickReconciliationModal = ({ isOpen, onClose }) => {
      console.error('Error completing reconciliation:', error);
      showMessage('error', 'Failed to complete reconciliation');
    } finally {
-     setLocalLoading(false);
+     setLoading(false);
    }
  };
  
@@ -2221,7 +2205,7 @@ const QuickReconciliationModal = ({ isOpen, onClose }) => {
                  className="p-2.5 bg-gray-100 hover:bg-gray-200 rounded-lg transition-all transform hover:scale-105"
                  title="Refresh data"
                >
-                 <RefreshCw className={`w-5 h-5 text-gray-600 ${loading || localLoading ? 'animate-spin' : ''}`} />
+                 <RefreshCw className={`w-5 h-5 text-gray-600 ${loading ? 'animate-spin' : ''}`} />
                </button>
                
                <button
@@ -2246,7 +2230,7 @@ const QuickReconciliationModal = ({ isOpen, onClose }) => {
        )}
        
        <div className={currentScreen === 'summary' ? '' : 'p-8'}>
-         {(loading || localLoading) && currentScreen === 'welcome' ? (
+         {loading && currentScreen === 'welcome' ? (
            <div className="flex items-center justify-center h-96">
              <div className="text-center">
                <Loader2 className="w-12 h-12 text-blue-500 animate-spin mx-auto mb-4" />
