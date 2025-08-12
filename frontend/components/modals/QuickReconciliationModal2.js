@@ -32,7 +32,7 @@ import { fetchWithAuth } from '@/utils/api';
 
 // Import the QuickUpdatePanel component (the only external one)
 import FixedModal from './FixedModal';
-import QuickUpdatePanel from './QuickUpdatePanel';
+import QuickUpdatePanel from '@/components/QuickUpdatePanel';
 
 // ============================================================================
 // EMBEDDED COMPONENTS
