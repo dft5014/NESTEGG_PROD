@@ -424,7 +424,12 @@ const QuickReconciliationModal2 = ({ isOpen, onClose }) => {
   const [quickEditMode, setQuickEditMode] = useState({});
   const [bulkEditMode, setBulkEditMode] = useState(false);
   const [selectedPositions, setSelectedPositions] = useState(new Set());
-  
+    // Filter and search state - MOVED OUTSIDE so accessible to all render methods
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedInstitution, setSelectedInstitution] = useState('all');
+  const [selectedAssetType, setSelectedAssetType] = useState('all');
+  const [showOnlyNeedsAttention, setShowOnlyNeedsAttention] = useState(false);
+
   // UI state
   const [message, setMessage] = useState(null);
   const [showSuccess, setShowSuccess] = useState(false);
@@ -434,11 +439,7 @@ const QuickReconciliationModal2 = ({ isOpen, onClose }) => {
   const [showTutorial, setShowTutorial] = useState(false);
   const [tutorialStep, setTutorialStep] = useState(0);
   
-  // Filter and search state - MOVED OUTSIDE so accessible to all render methods
-  const [searchQuery, setSearchQuery] = useState('');
-  const [selectedInstitution, setSelectedInstitution] = useState('all');
-  const [selectedAssetType, setSelectedAssetType] = useState('all');
-  const [showOnlyNeedsAttention, setShowOnlyNeedsAttention] = useState(false);
+
   
   // Refs
   const messageTimeoutRef = useRef(null);
