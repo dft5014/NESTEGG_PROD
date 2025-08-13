@@ -1068,7 +1068,7 @@ function QuickReconciliationModal2({ isOpen, onClose }) {
                             ref={el => inputRefs.current[`input_${account.id}`] = el}
                             type="number"
                             step="0.01"
-                            placeholder={formatCurrency(account.currentValue).replace('$', '').replace(',', '')}
+                            placeholder={account.currentValue ? formatCurrency(account.currentValue).replace('$', '').replace(/,/g, '') : '0.00'}
                             value={statementBalance !== undefined ? statementBalance : ''}
                             onChange={(e) => handleStatementInput(account.id, e.target.value)}
                             onKeyDown={(e) => handleKeyDown(e, account.id, index)}
