@@ -377,19 +377,34 @@ function QuickReconciliationModal2({ isOpen, onClose }) {
       pos.asset_type === 'security' || 
       pos.asset_type === 'crypto' || 
       pos.asset_type === 'metal'
-    ).map(pos => ({
-      ...pos,
-      statementValue: reconciliationData[`pos_${pos.identifier}`]?.value || pos.total_current_value,
-      statementQuantity: reconciliationData[`pos_${pos.identifier}`]?.quantity || pos.total_quantity,
-      variance: 0,
-      variancePercent: 0,
-      needsUpdate: false,
-      performanceBadge: getPerformanceBadge(pos.total_gain_loss_pct || 0),
-      assetConfig: ASSET_CONFIGS[pos.asset_type] || ASSET_CONFIGS.security
-    })).sort((a, b) => {
-      if (sortBy === 'value') return b.total_current_value - a.total_current_value;
-      if (sortBy === 'gain') return b.total_gain_loss - a.total_gain_loss;
-      if (sortBy === 'gainPercent') return b.total_gain_loss_pct - a.total_gain_loss_pct;
+    ).map(pos => {
+      // Safe performance badge creation
+      const gainLossPct = pos.total_gain_loss_pct || 0;
+      let performanceBadge = null;
+      try {
+        performanceBadge = getPerformanceBadge(gainLossPct);
+      } catch (error) {
+        console.error('Error creating performance badge for position:', pos.identifier, error);
+        performanceBadge = PERFORMANCE_BADGES.neutral; // fallback
+      }
+
+      // Safe asset config creation
+      const assetConfig = ASSET_CONFIGS[pos.asset_type] || ASSET_CONFIGS.security;
+      
+      return {
+        ...pos,
+        statementValue: reconciliationData[`pos_${pos.identifier}`]?.value || pos.total_current_value,
+        statementQuantity: reconciliationData[`pos_${pos.identifier}`]?.quantity || pos.total_quantity,
+        variance: 0,
+        variancePercent: 0,
+        needsUpdate: false,
+        performanceBadge,
+        assetConfig
+      };
+    }).sort((a, b) => {
+      if (sortBy === 'value') return (b.total_current_value || 0) - (a.total_current_value || 0);
+      if (sortBy === 'gain') return (b.total_gain_loss || 0) - (a.total_gain_loss || 0);
+      if (sortBy === 'gainPercent') return (b.total_gain_loss_pct || 0) - (a.total_gain_loss_pct || 0);
       // Handle null/undefined names
       const nameA = a.name || a.identifier || '';
       const nameB = b.name || b.identifier || '';
