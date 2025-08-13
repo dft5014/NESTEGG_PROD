@@ -930,15 +930,21 @@ const LiquidPositionsScreen = ({
     }
   };
   
-  // Submit all changes
+// Submit all changes
   const handleSubmitAll = () => {
     if (Object.keys(updatedValues).length === 0) {
       return;
     }
     
+    // Convert updatedValues to proper format for API
+    const formattedUpdates = {};
+    Object.entries(updatedValues).forEach(([positionId, value]) => {
+      formattedUpdates[positionId] = parseFloat(value) || 0;
+    });
+    
     setShowCelebration(true);
     setTimeout(() => {
-      onComplete(updatedValues);
+      onComplete(formattedUpdates);
       // Clear localStorage after successful submission
       localStorage.removeItem('nestegg_liquid_positions_progress');
     }, 2000);
@@ -2475,10 +2481,20 @@ const QuickReconciliationModal = ({ isOpen, onClose }) => {
      for (const [positionId, value] of Object.entries(updates)) {
        const position = liquidPositions.find(p => p.id === parseInt(positionId));
        if (position) {
-         await updatePosition(position.id, {
+         // Use the same update pattern as QuickEditDeleteModal
+         const updateData = {
            ...position,
-           current_value: parseFloat(value)
-         }, position.asset_type);
+           current_value: parseFloat(value),
+           // Ensure we have the correct field names
+           quantity: position.quantity || 1,
+           purchase_price: parseFloat(value), // For cash positions, purchase_price = current_value
+         };
+         
+         await updatePosition(
+           position.id, 
+           updateData, 
+           position.asset_type || position.assetType || 'cash'
+         );
        }
      }
      
