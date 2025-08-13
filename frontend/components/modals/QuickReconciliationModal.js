@@ -1147,4 +1147,31 @@ const QuickReconciliationModal = ({ isOpen, onClose }) => {
   );
 };
 
+// Export the button component for use in navbar
+export const QuickReconciliationButton = ({ className = "" }) => {
+  const [isOpen, setIsOpen] = useState(false);
+
+  return (
+    <>
+      <motion.button
+        whileHover={{ scale: 1.02 }}
+        whileTap={{ scale: 0.98 }}
+        onClick={() => setIsOpen(true)}
+        className={`flex items-center space-x-2 px-4 py-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg hover:from-blue-700 hover:to-purple-700 transition-all shadow-md hover:shadow-lg ${className}`}
+      >
+        <CheckCircle2 className="w-4 h-4" />
+        <span className="font-medium">Quick Reconcile</span>
+      </motion.button>
+      
+      {isOpen && (
+        <QuickReconciliationModal
+          isOpen={isOpen}
+          onClose={() => setIsOpen(false)}
+        />
+      )}
+    </>
+  );
+};
+
+// Keep the default export at the very end
 export default QuickReconciliationModal;
