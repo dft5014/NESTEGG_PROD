@@ -1430,286 +1430,403 @@ const AccountReconciliationScreen = ({
  );
 };
 
-// Enhanced welcome screen
+// ============================================
+// WELCOME SCREEN - Friendly & User-Focused
+// ============================================
 const WelcomeScreen = ({ 
- stats, 
- onSelectPath, 
- reconciliationHealth,
- lastReconciliation,
- streak
+  stats, 
+  onSelectPath, 
+  reconciliationHealth,
+  lastReconciliation,
+  streak
 }) => {
- const [hoveredPath, setHoveredPath] = useState(null);
- const [showHealthDetails, setShowHealthDetails] = useState(false);
- 
- const paths = [
-   {
-     id: 'liquid',
-     icon: Droplets,
-     title: 'Update Liquid Positions',
-     subtitle: 'Cash, credit cards & loans',
-     stats: `${stats.liquidPositions} positions need updates`,
-     time: '2-3 minutes',
-     color: 'blue',
-     gradient: 'from-blue-500 to-cyan-500',
-     benefits: ['Daily accuracy', 'Track spending', 'Monitor debt']
-   },
-   {
-     id: 'reconcile',
-     icon: CheckSquare,
-     title: 'Reconcile Accounts',
-     subtitle: 'Verify account balances',
-     stats: `${stats.needsReconciliation} accounts need attention`,
-     time: '3-5 minutes',
-     color: 'green',
-     gradient: 'from-green-500 to-emerald-500',
-     benefits: ['Catch discrepancies', 'Verify holdings', 'Peace of mind']
-   },
-   {
-     id: 'full',
-     icon: PlayCircle,
-     title: 'Full Workflow',
-     subtitle: 'Complete reconciliation process',
-     stats: 'Recommended for best results',
-     time: '5-8 minutes',
-     color: 'purple',
-     gradient: 'from-purple-500 to-pink-500',
-     featured: true,
-     benefits: ['Complete accuracy', 'Save time', 'Best practice']
-   }
- ];
- 
- return (
-   <div className="space-y-8 animate-in fade-in duration-500">
-     {/* Header */}
-     <div className="text-center space-y-4">
-       <div className="inline-flex items-center justify-center w-24 h-24 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full mb-4 shadow-2xl animate-in zoom-in duration-700">
-         <Target className="w-12 h-12 text-white" />
-       </div>
-       
-       <h1 className="text-4xl font-bold text-gray-900 animate-in slide-in-from-bottom duration-700 delay-100">
-         Welcome to Smart Reconciliation
-       </h1>
-       
-       <p className="text-xl text-gray-600 max-w-3xl mx-auto animate-in slide-in-from-bottom duration-700 delay-200">
-         Keep your NestEgg portfolio accurate with our intelligent reconciliation workflow. 
-         We've made it quick, easy, and dare we say... delightful!
-       </p>
-       
-       {streak > 1 && (
-         <div className="flex justify-center animate-in zoom-in duration-700 delay-300">
-           <div className="flex items-center space-x-3 px-6 py-3 bg-gradient-to-r from-orange-100 to-red-100 text-orange-700 rounded-full shadow-md">
-             <Flame className="w-6 h-6 animate-pulse" />
-             <span className="text-lg font-bold">{streak} day streak!</span>
-             <Trophy className="w-5 h-5" />
-           </div>
-         </div>
-       )}
-     </div>
-     
-     {/* Health Status Card */}
-     <div className="relative bg-gradient-to-br from-white to-gray-50 rounded-3xl p-8 border border-gray-200 shadow-xl animate-in slide-in-from-bottom duration-700 delay-400">
-       <div className="absolute top-4 right-4">
-         <button
-           onClick={() => setShowHealthDetails(!showHealthDetails)}
-           className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-         >
-           <Info className="w-5 h-5 text-gray-400" />
-         </button>
-       </div>
-       
-       <div className="flex items-center justify-between">
-         <div className="flex items-center space-x-6">
-           <div className="relative">
-             <ProgressRing percentage={reconciliationHealth} size={120} strokeWidth={8} color="blue" />
-             <div className="absolute inset-0 flex items-center justify-center">
-               <div>
-                 <span className="text-3xl font-bold text-gray-900">{reconciliationHealth}%</span>
-                 <span className="text-xs text-gray-500 block text-center">Health</span>
-               </div>
-             </div>
-           </div>
-           
-           <div>
-             <h3 className="text-2xl font-bold text-gray-900 mb-2">
-               Your Portfolio Health Score
-             </h3>
-             <p className="text-gray-600 mb-3">
-               Last full reconciliation: <span className="font-semibold">{lastReconciliation}</span>
-             </p>
-             
-             {/* Health indicators */}
-             <div className="flex items-center space-x-6">
-               <div className="flex items-center space-x-2">
-                 <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse" />
-                 <span className="text-sm text-gray-600">{stats.reconciled} up to date</span>
-               </div>
-               <div className="flex items-center space-x-2">
-                 <div className="w-3 h-3 bg-amber-500 rounded-full animate-pulse" />
-                 <span className="text-sm text-gray-600">{stats.needsReconciliation} need attention</span>
-               </div>
-             </div>
-           </div>
-         </div>
-         
-         <div className="grid grid-cols-2 gap-6 text-center">
-           <div className="space-y-2">
-             <div className="text-4xl font-bold text-green-600 animate-in zoom-in duration-700 delay-500">
-               {stats.reconciled}
-             </div>
-             <div className="text-sm text-gray-500">Reconciled</div>
-           </div>
-           <div className="space-y-2">
-             <div className="text-4xl font-bold text-amber-600 animate-in zoom-in duration-700 delay-600">
-               {stats.needsReconciliation}
-             </div>
-             <div className="text-sm text-gray-500">Pending</div>
-           </div>
-         </div>
-       </div>
-       
-       {/* Expandable health details */}
-       {showHealthDetails && (
-         <div className="mt-6 pt-6 border-t border-gray-200 grid grid-cols-3 gap-4 animate-in slide-in-from-top duration-300">
-           <div className="text-center">
-             <Gauge className="w-8 h-8 text-blue-600 mx-auto mb-2" />
-             <div className="text-sm text-gray-600">Account Accuracy</div>
-             <div className="text-lg font-semibold">{stats.percentage.toFixed(1)}%</div>
-           </div>
-           <div className="text-center">
-             <CircleDollarSign className="w-8 h-8 text-green-600 mx-auto mb-2" />
-             <div className="text-sm text-gray-600">Value Reconciled</div>
-             <div className="text-lg font-semibold">{stats.valuePercentage.toFixed(1)}%</div>
-           </div>
-           <div className="text-center">
-             <Clock className="w-8 h-8 text-purple-600 mx-auto mb-2" />
-             <div className="text-sm text-gray-600">Days Since Full</div>
-             <div className="text-lg font-semibold">{lastReconciliation === 'Today' ? 0 : lastReconciliation.match(/\d+/)?.[0] || '30+'}</div>
-           </div>
-         </div>
-       )}
-     </div>
-     
-     {/* Path Selection Cards */}
-     <div>
-       <h3 className="text-xl font-semibold text-gray-900 mb-6 flex items-center">
-         <Sparkles className="w-6 h-6 mr-2 text-yellow-500 animate-pulse" />
-         Choose your reconciliation path:
-       </h3>
-       
-       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-         {paths.map((path, index) => {
-           const Icon = path.icon;
-           return (
-             <button
-               key={path.id}
-               onClick={() => onSelectPath(path.id)}
-               onMouseEnter={() => setHoveredPath(path.id)}
-               onMouseLeave={() => setHoveredPath(null)}
-               className={`
-                 relative group text-left p-8 rounded-3xl border-2 
-                 transition-all duration-300 transform
-                 animate-in slide-in-from-bottom
-                 ${path.featured 
-                   ? 'border-purple-300 bg-gradient-to-br from-purple-50 via-pink-50 to-purple-50 shadow-xl' 
-                   : 'border-gray-200 bg-white hover:border-gray-300 shadow-lg'
-                 }
-                 ${hoveredPath === path.id ? 'scale-[1.03] shadow-2xl' : 'shadow-lg'}
-               `}
-               style={{ animationDelay: `${(index + 5) * 100}ms` }}
-             >
-               {path.featured && (
-                 <div className="absolute -top-4 left-1/2 transform -translate-x-1/2">
-                   <div className="bg-gradient-to-r from-purple-600 to-pink-600 text-white text-sm font-bold px-4 py-1.5 rounded-full shadow-lg flex items-center space-x-2">
-                     <Star className="w-4 h-4" />
-                     <span>RECOMMENDED</span>
-                   </div>
-                 </div>
-               )}
-               
-               <div className={`
-                 inline-flex p-4 rounded-2xl mb-6 transition-all duration-300
-                 ${hoveredPath === path.id 
-                   ? `bg-gradient-to-br ${path.gradient} shadow-lg transform rotate-3` 
-                   : `bg-${path.color}-100`
-                 }
-               `}>
-                 <Icon className={`
-                   w-8 h-8 transition-all duration-300
-                   ${hoveredPath === path.id ? 'text-white scale-110' : `text-${path.color}-600`}
-                 `} />
-               </div>
-               
-               <h4 className="text-xl font-bold text-gray-900 mb-2">{path.title}</h4>
-               <p className="text-gray-600 mb-4">{path.subtitle}</p>
-               
-               <div className="space-y-3 mb-6">
-                 <div className="flex items-center text-gray-700">
-                   <Activity className="w-5 h-5 mr-3 text-gray-400" />
-                   <span className="text-sm font-medium">{path.stats}</span>
-                 </div>
-                 <div className="flex items-center text-gray-700">
-                   <Timer className="w-5 h-5 mr-3 text-gray-400" />
-                   <span className="text-sm">Estimated {path.time}</span>
-                 </div>
-               </div>
-               
-               {/* Benefits */}
-               <div className="space-y-2 mb-6">
-                 {path.benefits.map((benefit, idx) => (
-                   <div key={idx} className="flex items-center text-sm text-gray-600">
-                     <Check className="w-4 h-4 mr-2 text-green-500" />
-                     <span>{benefit}</span>
-                   </div>
-                 ))}
-               </div>
-               
-               <div className={`
-                 absolute bottom-8 right-8 transition-all duration-300
-                 ${hoveredPath === path.id ? 'translate-x-2' : ''}
-               `}>
-                 <ChevronRight className={`
-                   w-6 h-6 
-                   ${path.featured ? 'text-purple-600' : 'text-gray-400'}
-                   ${hoveredPath === path.id ? 'scale-125' : ''}
-                 `} />
-               </div>
-             </button>
-           );
-         })}
-       </div>
-     </div>
-     
-     {/* Pro Tips with enhanced styling */}
-     <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-2xl p-8 border border-blue-200 shadow-lg animate-in slide-in-from-bottom duration-700 delay-700">
-       <div className="flex items-start space-x-4">
-         <div className="p-3 bg-blue-600 rounded-xl text-white flex-shrink-0">
-           <HelpCircle className="w-6 h-6" />
-         </div>
-         <div className="flex-1">
-           <h3 className="text-lg font-bold text-blue-900 mb-3">Pro Tips for Lightning-Fast Reconciliation</h3>
-           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm text-blue-800">
-             <div className="flex items-start space-x-2">
-               <Keyboard className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" />
-               <p>Use <kbd className="px-1.5 py-0.5 bg-blue-200 rounded text-xs font-mono">Tab</kbd> and <kbd className="px-1.5 py-0.5 bg-blue-200 rounded text-xs font-mono">Enter</kbd> to navigate quickly</p>
-             </div>
-             <div className="flex items-start space-x-2">
-               <Copy className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" />
-               <p>Copy/paste from your banking apps for accuracy</p>
-             </div>
-             <div className="flex items-start space-x-2">
-               <Calendar className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" />
-               <p>Update liquid positions daily for best results</p>
-             </div>
-             <div className="flex items-start space-x-2">
-               <Shield className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" />
-               <p>Reconcile investment accounts weekly or monthly</p>
-             </div>
-           </div>
-         </div>
-       </div>
-     </div>
-   </div>
- );
+  const [hoveredPath, setHoveredPath] = useState(null);
+  const [activeTab, setActiveTab] = useState('overview');
+  
+  // Friendly greeting based on time of day
+  const getGreeting = () => {
+    const hour = new Date().getHours();
+    if (hour < 12) return "Good morning";
+    if (hour < 17) return "Good afternoon";
+    return "Good evening";
+  };
+  
+  // Get health status message
+  const getHealthMessage = () => {
+    if (reconciliationHealth >= 90) return "Your portfolio is in excellent shape! 🌟";
+    if (reconciliationHealth >= 75) return "Looking good! A few accounts need attention. 📊";
+    if (reconciliationHealth >= 50) return "Time for a check-up on your accounts. 🔍";
+    return "Let's get your portfolio back on track! 💪";
+  };
+  
+  // Format currency helper
+  const formatCurrency = (value) => {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(value);
+  };
+  
+  // Workflow paths with enhanced UX
+  const paths = [
+    {
+      id: 'liquid',
+      icon: Droplets,
+      title: 'Quick Cash Update',
+      subtitle: 'Update your daily accounts',
+      description: 'Perfect for keeping your checking, savings, and credit cards current',
+      stats: stats.liquidPositions === 0 
+        ? '✅ All up to date!' 
+        : `${stats.liquidPositions} ${stats.liquidPositions === 1 ? 'account needs' : 'accounts need'} a quick update`,
+      time: '2-3 min',
+      color: 'blue',
+      gradient: 'from-blue-500 to-cyan-500',
+      benefits: ['Track daily spending', 'Monitor cash flow', 'Stay on budget'],
+      priority: stats.liquidPositions > 5 ? 'high' : stats.liquidPositions > 0 ? 'medium' : 'low'
+    },
+    {
+      id: 'reconcile',
+      icon: CheckSquare,
+      title: 'Investment Check-In',
+      subtitle: 'Verify your investment accounts',
+      description: 'Ensure your investment and retirement accounts match your statements',
+      stats: stats.needsReconciliation === 0 
+        ? '✅ Everything reconciled!' 
+        : `${stats.needsReconciliation} ${stats.needsReconciliation === 1 ? 'account' : 'accounts'} to review`,
+      time: '3-5 min',
+      color: 'green',
+      gradient: 'from-green-500 to-emerald-500',
+      benefits: ['Catch discrepancies early', 'Track investment growth', 'Maintain accuracy'],
+      priority: stats.needsReconciliation > 3 ? 'high' : stats.needsReconciliation > 0 ? 'medium' : 'low'
+    },
+    {
+      id: 'full',
+      icon: Zap,
+      title: 'Complete Sync',
+      subtitle: 'Full portfolio refresh',
+      description: 'The fastest way to update everything at once',
+      stats: '⚡ Most efficient workflow',
+      time: '5-8 min',
+      color: 'purple',
+      gradient: 'from-purple-500 to-pink-500',
+      featured: true,
+      benefits: ['One-stop update', 'Maximum accuracy', 'Time-saving'],
+      priority: (stats.liquidPositions + stats.needsReconciliation) > 5 ? 'high' : 'medium'
+    }
+  ];
+  
+  // Get priority badge color
+  const getPriorityColor = (priority) => {
+    switch(priority) {
+      case 'high': return 'bg-red-100 text-red-700 border-red-200';
+      case 'medium': return 'bg-amber-100 text-amber-700 border-amber-200';
+      case 'low': return 'bg-green-100 text-green-700 border-green-200';
+      default: return 'bg-gray-100 text-gray-700 border-gray-200';
+    }
+  };
+  
+  return (
+    <div className="space-y-6 animate-in fade-in duration-500">
+      {/* Personalized Header */}
+      <div className="text-center space-y-3">
+        <h1 className="text-3xl font-bold text-gray-900">
+          {getGreeting()}! Let's check on your NestEgg 🥚
+        </h1>
+        <p className="text-lg text-gray-600 max-w-2xl mx-auto">
+          {getHealthMessage()}
+        </p>
+        
+        {/* Streak Badge */}
+        {streak > 0 && (
+          <div className="inline-flex items-center px-4 py-2 bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 rounded-full">
+            <Flame className="w-5 h-5 text-orange-500 mr-2" />
+            <span className="text-sm font-medium text-gray-900">
+              {streak} day streak! Keep it going!
+            </span>
+          </div>
+        )}
+      </div>
+      
+      {/* Portfolio Overview Tabs */}
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
+        <div className="border-b border-gray-200">
+          <div className="flex">
+            <button
+              onClick={() => setActiveTab('overview')}
+              className={`flex-1 px-6 py-4 text-sm font-medium transition-colors ${
+                activeTab === 'overview' 
+                  ? 'text-blue-600 border-b-2 border-blue-600 bg-blue-50/50' 
+                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+              }`}
+            >
+              <Target className="w-4 h-4 inline mr-2" />
+              Portfolio Snapshot
+            </button>
+            <button
+              onClick={() => setActiveTab('actions')}
+              className={`flex-1 px-6 py-4 text-sm font-medium transition-colors ${
+                activeTab === 'actions' 
+                  ? 'text-blue-600 border-b-2 border-blue-600 bg-blue-50/50' 
+                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+              }`}
+            >
+              <Activity className="w-4 h-4 inline mr-2" />
+              Needed Actions
+            </button>
+          </div>
+        </div>
+        
+        <div className="p-6">
+          {activeTab === 'overview' ? (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              {/* Health Score */}
+              <div className="text-center">
+                <div className="relative inline-block mb-3">
+                  <ProgressRing 
+                    percentage={reconciliationHealth} 
+                    size={100} 
+                    strokeWidth={8} 
+                    color={reconciliationHealth >= 75 ? 'green' : reconciliationHealth >= 50 ? 'yellow' : 'red'}
+                  />
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <div>
+                      <div className="text-2xl font-bold text-gray-900">{reconciliationHealth}%</div>
+                      <div className="text-xs text-gray-500">Health</div>
+                    </div>
+                  </div>
+                </div>
+                <h3 className="font-medium text-gray-900">Portfolio Health</h3>
+                <p className="text-sm text-gray-500 mt-1">
+                  Last full update: {lastReconciliation}
+                </p>
+              </div>
+              
+              {/* Accounts Status */}
+              <div className="text-center">
+                <div className="mb-3">
+                  <div className="text-4xl font-bold text-gray-900">{stats.total}</div>
+                  <div className="text-sm text-gray-500">Total Accounts</div>
+                </div>
+                <div className="flex justify-center gap-4 mt-4">
+                  <div className="flex items-center">
+                    <div className="w-2 h-2 bg-green-500 rounded-full mr-2"></div>
+                    <span className="text-sm text-gray-600">{stats.reconciled} current</span>
+                  </div>
+                  <div className="flex items-center">
+                    <div className="w-2 h-2 bg-amber-500 rounded-full mr-2"></div>
+                    <span className="text-sm text-gray-600">{stats.needsReconciliation} pending</span>
+                  </div>
+                </div>
+              </div>
+              
+              {/* Portfolio Value Coverage */}
+              <div className="text-center">
+                <div className="mb-3">
+                  <div className="text-4xl font-bold text-gray-900">
+                    {stats.valuePercentage.toFixed(0)}%
+                  </div>
+                  <div className="text-sm text-gray-500">Value Reconciled</div>
+                </div>
+                <div className="w-full bg-gray-200 rounded-full h-2 mt-4">
+                  <div 
+                    className="bg-gradient-to-r from-green-500 to-emerald-500 h-2 rounded-full transition-all duration-500"
+                    style={{ width: `${stats.valuePercentage}%` }}
+                  />
+                </div>
+                <p className="text-xs text-gray-500 mt-2">
+                  {formatCurrency(stats.reconciledValue)} of {formatCurrency(stats.totalValue)}
+                </p>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {/* Priority Actions */}
+              {(stats.liquidPositions > 0 || stats.needsReconciliation > 0) ? (
+                <>
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="font-medium text-gray-900">Actions Needed</h3>
+                    <span className="text-sm text-gray-500">
+                      {stats.liquidPositions + stats.needsReconciliation} total items
+                    </span>
+                  </div>
+                  
+                  {stats.liquidPositions > 0 && (
+                    <div className="flex items-center justify-between p-3 bg-blue-50 rounded-lg border border-blue-200">
+                      <div className="flex items-center">
+                        <Droplets className="w-5 h-5 text-blue-600 mr-3" />
+                        <div>
+                          <p className="font-medium text-gray-900">Liquid Positions</p>
+                          <p className="text-sm text-gray-600">
+                            {stats.liquidPositions} positions need updating
+                          </p>
+                        </div>
+                      </div>
+                      <ChevronRight className="w-5 h-5 text-gray-400" />
+                    </div>
+                  )}
+                  
+                  {stats.needsReconciliation > 0 && (
+                    <div className="flex items-center justify-between p-3 bg-green-50 rounded-lg border border-green-200">
+                      <div className="flex items-center">
+                        <CheckSquare className="w-5 h-5 text-green-600 mr-3" />
+                        <div>
+                          <p className="font-medium text-gray-900">Account Reconciliation</p>
+                          <p className="text-sm text-gray-600">
+                            {stats.needsReconciliation} accounts to verify
+                          </p>
+                        </div>
+                      </div>
+                      <ChevronRight className="w-5 h-5 text-gray-400" />
+                    </div>
+                  )}
+                </>
+              ) : (
+                <div className="text-center py-8">
+                  <CheckCircle className="w-12 h-12 text-green-500 mx-auto mb-3" />
+                  <h3 className="font-medium text-gray-900 mb-2">All Caught Up!</h3>
+                  <p className="text-sm text-gray-600">
+                    Your portfolio is fully reconciled. Great job staying on top of your finances!
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+      
+      {/* Workflow Selection */}
+      <div>
+        <h2 className="text-lg font-semibold text-gray-900 mb-4">
+          Choose your workflow:
+        </h2>
+        
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {paths.map((path) => {
+            const Icon = path.icon;
+            const isHovered = hoveredPath === path.id;
+            
+            return (
+              <button
+                key={path.id}
+                onClick={() => onSelectPath(path.id)}
+                onMouseEnter={() => setHoveredPath(path.id)}
+                onMouseLeave={() => setHoveredPath(null)}
+                className={`
+                  relative group text-left p-6 rounded-xl border-2 
+                  transition-all duration-300 transform
+                  ${path.featured 
+                    ? 'border-purple-300 bg-gradient-to-br from-purple-50 to-pink-50' 
+                    : 'border-gray-200 bg-white'
+                  }
+                  ${isHovered ? 'scale-[1.02] shadow-xl' : 'shadow-md'}
+                  hover:border-opacity-100
+                `}
+              >
+                {path.featured && (
+                  <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
+                    <span className="inline-flex items-center px-3 py-1 bg-gradient-to-r from-purple-600 to-pink-600 text-white text-xs font-bold rounded-full">
+                      <Star className="w-3 h-3 mr-1" />
+                      RECOMMENDED
+                    </span>
+                  </div>
+                )}
+                
+                {/* Priority Badge */}
+                {path.priority && !path.featured && (
+                  <div className="absolute -top-2 -right-2">
+                    <span className={`inline-flex items-center px-2 py-1 text-xs font-medium rounded-full border ${getPriorityColor(path.priority)}`}>
+                      {path.priority === 'high' ? 'Urgent' : path.priority === 'medium' ? 'Soon' : 'Low'}
+                    </span>
+                  </div>
+                )}
+                
+                <div className="flex items-start space-x-4">
+                  <div className={`
+                    p-3 rounded-lg transition-all duration-300
+                    ${isHovered 
+                      ? `bg-gradient-to-br ${path.gradient} shadow-lg` 
+                      : path.color === 'blue' ? 'bg-blue-100' :
+                        path.color === 'green' ? 'bg-green-100' :
+                        path.color === 'purple' ? 'bg-purple-100' : 'bg-gray-100'
+                    }
+                  `}>
+                    <Icon className={`
+                      w-6 h-6 transition-all duration-300
+                      ${isHovered ? 'text-white scale-110' : 
+                        path.color === 'blue' ? 'text-blue-600' :
+                        path.color === 'green' ? 'text-green-600' :
+                        path.color === 'purple' ? 'text-purple-600' : 'text-gray-600'
+                      }
+                    `} />
+                  </div>
+                  
+                  <div className="flex-1">
+                    <h3 className="font-semibold text-gray-900 mb-1">{path.title}</h3>
+                    <p className="text-sm text-gray-600 mb-2">{path.description}</p>
+                    
+                    <div className="flex items-center justify-between text-sm">
+                      <span className={`font-medium ${
+                        path.stats.includes('✅') ? 'text-green-600' : 'text-gray-700'
+                      }`}>
+                        {path.stats}
+                      </span>
+                      <span className="text-gray-500 flex items-center">
+                        <Clock className="w-3 h-3 mr-1" />
+                        {path.time}
+                      </span>
+                    </div>
+                    
+                    {/* Benefits on hover */}
+                    <div className={`
+                      mt-3 space-y-1 transition-all duration-300
+                      ${isHovered ? 'opacity-100 max-h-20' : 'opacity-0 max-h-0 overflow-hidden'}
+                    `}>
+                      {path.benefits.map((benefit, idx) => (
+                        <div key={idx} className="flex items-center text-xs text-gray-600">
+                          <Check className="w-3 h-3 mr-1 text-green-500" />
+                          {benefit}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+                
+                <div className={`
+                  absolute bottom-4 right-4 transition-all duration-300
+                  ${isHovered ? 'translate-x-1' : ''}
+                `}>
+                  <ChevronRight className={`
+                    w-5 h-5 
+                    ${path.featured ? 'text-purple-600' : 'text-gray-400'}
+                  `} />
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+      
+      {/* Quick Tips - More Concise */}
+      <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-6 border border-blue-200">
+        <div className="flex items-start space-x-3">
+          <Sparkles className="w-6 h-6 text-blue-600 flex-shrink-0 mt-0.5" />
+          <div>
+            <h3 className="font-semibold text-gray-900 mb-2">Quick Tip</h3>
+            <p className="text-sm text-gray-700">
+              {stats.liquidPositions > stats.needsReconciliation 
+                ? "Start with your liquid positions - they change the most frequently and impact your daily finances."
+                : stats.needsReconciliation > 0
+                  ? "Your investment accounts need attention. Regular reconciliation helps catch discrepancies early."
+                  : "You're all caught up! Consider reviewing your asset allocation or updating any recent transactions."
+              }
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 };
 
 // Progress celebration component
