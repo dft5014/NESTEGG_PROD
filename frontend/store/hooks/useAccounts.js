@@ -7,7 +7,7 @@ export const useAccounts = () => {
 
   // Auto-fetch on mount only if no data exists
   useEffect(() => {
-    if (!accounts.data && !accounts.lastFetched && !accounts.loading) {
+    if ((!accounts.data || accounts.data.length === 0) && !accounts.lastFetched && !accounts.loading) {
       console.log('[useAccounts] Auto-fetching accounts data');
       actions.fetchAccountsData();
     }

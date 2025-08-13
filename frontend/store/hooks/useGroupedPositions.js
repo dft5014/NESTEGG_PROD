@@ -6,9 +6,9 @@ export const useGroupedPositions = () => {
   const { groupedPositions } = state;
   const { fetchGroupedPositionsData, markDataStale } = actions;
 
-// Auto-fetch on mount only if no data exists
+  // Auto-fetch on mount only if no data exists
   useEffect(() => {
-    if (!groupedPositions.data && !groupedPositions.lastFetched && !groupedPositions.loading) {
+    if ((!groupedPositions.data || groupedPositions.data.length === 0) && !groupedPositions.lastFetched && !groupedPositions.loading) {
       console.log('[useGroupedPositions] Auto-fetching grouped positions data');
       actions.fetchGroupedPositionsData();
     }

@@ -6,8 +6,9 @@ export const useDetailedPositions = () => {
   const { detailedPositions } = state;
 
   // Auto-fetch on mount only if no data exists
+  // Auto-fetch on mount only if no data exists
   useEffect(() => {
-    if (!detailedPositions.data && !detailedPositions.lastFetched && !detailedPositions.loading) {
+    if ((!detailedPositions.data || detailedPositions.data.length === 0) && !detailedPositions.lastFetched && !detailedPositions.loading) {
       console.log('[useDetailedPositions] Auto-fetching detailed positions data');
       actions.fetchDetailedPositionsData();
     }

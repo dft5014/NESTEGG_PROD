@@ -7,8 +7,9 @@ export const useGroupedLiabilities = () => {
   const { fetchGroupedLiabilitiesData, markDataStale } = actions;
 
   // Auto-fetch on mount only if no data exists
+  // Auto-fetch on mount only if no data exists
   useEffect(() => {
-    if (!groupedLiabilities.data && !groupedLiabilities.lastFetched && !groupedLiabilities.loading) {
+    if ((!groupedLiabilities.data || groupedLiabilities.data.length === 0) && !groupedLiabilities.lastFetched && !groupedLiabilities.loading) {
       console.log('[useGroupedLiabilities] Auto-fetching grouped liabilities data');
       actions.fetchGroupedLiabilitiesData();
     }
