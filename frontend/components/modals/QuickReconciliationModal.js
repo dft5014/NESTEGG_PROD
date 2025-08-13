@@ -702,7 +702,7 @@ const QuickReconciliationModal = ({ isOpen, onClose }) => {
                   
                   <div className="flex items-center justify-between">
                     <span className="text-lg font-semibold text-gray-800">
-                      {showValues ? formatCurrency(account.totalValue || account.total_value || 0) : '••••••'}
+                      {showValues ? formatCurrency(account?.totalValue || account?.total_value || 0) : '••••••'}
                     </span>
                     <ChevronRight className="w-4 h-4 text-gray-400" />
                   </div>
@@ -843,7 +843,7 @@ const QuickReconciliationModal = ({ isOpen, onClose }) => {
             <div>
               <label className="block text-sm text-gray-600 mb-1">NestEgg Balance</label>
               <div className="text-lg font-semibold text-gray-800">
-                {formatCurrency(selectedAccount.totalValue || selectedAccount.total_value || 0)}
+                {formatCurrency(selectedAccount?.totalValue || selectedAccount?.total_value || 0)}
               </div>
             </div>
             
@@ -947,7 +947,7 @@ const QuickReconciliationModal = ({ isOpen, onClose }) => {
                     <div>
                       <label className="block text-xs text-gray-600">Current</label>
                       <div className="text-sm font-medium text-gray-800">
-                        {formatCurrency(position.current_value || position.amount || 0)}
+                        {formatCurrency(position?.current_value || position?.amount || 0)}
                       </div>
                     </div>
                     
