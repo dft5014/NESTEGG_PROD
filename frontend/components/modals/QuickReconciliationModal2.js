@@ -322,8 +322,8 @@ function QuickReconciliationModal2({ isOpen, onClose }) {
       const accountData = {
         ...account,
         positions: accountPositions,
-        currentValue: accountValue,
-        statementValue: reconciliationData[`account_${account.id}`]?.statementBalance || accountValue,
+        currentValue: accountValue || 0,
+        statementValue: reconciliationData[`account_${account.id}`]?.statementBalance || accountValue || 0,
         variance: 0,
         variancePercent: 0,
         needsUpdate: false,
@@ -390,7 +390,10 @@ function QuickReconciliationModal2({ isOpen, onClose }) {
       if (sortBy === 'value') return b.total_current_value - a.total_current_value;
       if (sortBy === 'gain') return b.total_gain_loss - a.total_gain_loss;
       if (sortBy === 'gainPercent') return b.total_gain_loss_pct - a.total_gain_loss_pct;
-      return a.name.localeCompare(b.name);
+      // Handle null/undefined names
+      const nameA = a.name || a.identifier || '';
+      const nameB = b.name || b.identifier || '';
+      return nameA.localeCompare(nameB);
     });
   }, [groupedPositions, reconciliationData, sortBy]);
 
@@ -549,6 +552,7 @@ function QuickReconciliationModal2({ isOpen, onClose }) {
   const handleKeyDown = useCallback((e, accountId, accountIndex) => {
     if (e.key === 'Enter' || e.key === 'Tab') {
       e.preventDefault();
+      if (!institutionData || !selectedInstitution) return;
       const accounts = institutionData[selectedInstitution]?.accounts || [];
       const nextIndex = e.key === 'Tab' && e.shiftKey ? accountIndex - 1 : accountIndex + 1;
       
@@ -643,8 +647,8 @@ function QuickReconciliationModal2({ isOpen, onClose }) {
         refreshSummary()
       ]);
 
-      showMessage('success', `Updated ${account.name}`);
-      
+      showMessage('success', `Updated ${account.name || account.account_name || 'account'}`);      
+
       // Clear this account's reconciliation data
       setReconciliationData(prev => {
         const updated = { ...prev };
@@ -893,7 +897,9 @@ function QuickReconciliationModal2({ isOpen, onClose }) {
                     <h4 className="font-semibold text-gray-100 mb-1">{inst.name}</h4>
                     <p className="text-sm text-gray-400 mb-2">
                       {inst.accounts.length} account{inst.accounts.length !== 1 ? 's' : ''} • 
-                      {[...inst.accountTypes].join(', ')}
+                      {inst.accountTypes && inst.accountTypes.size > 0 
+                        ? [...inst.accountTypes].join(', ')
+                        : 'Various'}
                     </p>
                   </div>
                   
@@ -931,7 +937,7 @@ function QuickReconciliationModal2({ isOpen, onClose }) {
               <ChevronLeft className="w-5 h-5 text-gray-400" />
             </button>
             <div className="p-2 bg-gray-800 rounded-lg">
-              <Icon className="w-5 h-5 text-gray-300" />
+              {Icon ? <Icon className="w-5 h-5 text-gray-300" /> : <Building2 className="w-5 h-5 text-gray-300" />}
             </div>
             <div>
               <h3 className="text-lg font-semibold text-gray-100">{institution.name}</h3>
@@ -1042,10 +1048,12 @@ function QuickReconciliationModal2({ isOpen, onClose }) {
                           </div>
                           <div>
                             <div className="text-sm font-medium text-gray-100">
-                              {account.name}
+                              {account.name || account.account_name || 'Unnamed Account'}
                             </div>
                             <div className="text-xs text-gray-500">
-                              {account.account_number ? `••••${account.account_number.slice(-4)}` : ''}
+                              {account.account_number && account.account_number.length >= 4 
+                                ? `••••${account.account_number.slice(-4)}` 
+                                : ''}
                             </div>
                           </div>
                         </div>
@@ -1162,9 +1170,9 @@ function QuickReconciliationModal2({ isOpen, onClose }) {
             <div>
               <p className="text-xs text-gray-500 uppercase mb-1">Last Reconciled</p>
               <p className="text-sm font-medium text-gray-300">
-                {institution.accounts[0]?.lastReconciled ? 
-                  new Date(institution.accounts[0].lastReconciled).toLocaleDateString() : 
-                  'Never'}
+                 {institution.accounts?.[0]?.lastReconciled 
+                  ? new Date(institution.accounts[0].lastReconciled).toLocaleDateString() 
+                  : 'Never'}
               </p>
             </div>
             <div>
@@ -1353,7 +1361,7 @@ function QuickReconciliationModal2({ isOpen, onClose }) {
 
                {/* Position info */}
                <div className="mb-3">
-                 <h4 className="font-semibold text-gray-100 mb-1">{position.name}</h4>
+                 <h4 className="font-semibold text-gray-100 mb-1">{position.name || position.identifier || 'Unknown'}</h4>
                  <p className="text-xs text-gray-500">{position.identifier}</p>
                </div>
 
@@ -1422,7 +1430,7 @@ function QuickReconciliationModal2({ isOpen, onClose }) {
                    <div className="flex justify-between items-center">
                      <span className="text-xs text-gray-500">Quantity</span>
                      <span className="text-sm text-gray-400">
-                       {formatNumber(position.total_quantity)}
+                      {position.total_quantity != null ? formatNumber(position.total_quantity) : '0'} 
                      </span>
                    </div>
                    <div className="flex justify-between items-center">
