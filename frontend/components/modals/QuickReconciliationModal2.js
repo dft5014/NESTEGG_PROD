@@ -278,139 +278,18 @@ function QuickReconciliationModal2({ isOpen, onClose }) {
   );
 
   // Process and organize data by institution (ENHANCED)
-  const institutionData = useMemo(() => {
-    if (!dataStoreAccounts || !detailedPositions) return {};
-
-    const data = {};
-    
-    // Group accounts by institution
-    dataStoreAccounts.forEach(account => {
-      const institution = account.institution || 'Other';
-      if (!data[institution]) {
-        data[institution] = {
-          name: institution,
-          accounts: [],
-          totalValue: 0,
-          totalOriginal: 0,
-          totalLiabilities: 0,
-          icon: INSTITUTION_ICONS[institution] || INSTITUTION_ICONS.Default,
-          needsReconciliation: false,
-          lastUpdated: null,
-          accountTypes: new Set(),
-          healthScore: 100
-        };
-      }
-      
-      // Find positions for this account
-      const accountPositions = detailedPositions.filter(pos => 
-        pos.account_id === account.id && 
-        (pos.asset_type === 'cash' || pos.asset_type === 'credit_card' || 
-         pos.asset_type === 'loan' || pos.asset_type === 'mortgage')
-      );
-
-      // Calculate account totals
-      const accountValue = accountPositions.reduce((sum, pos) => {
-        const value = pos.asset_type === 'cash' ? pos.current_value : -Math.abs(pos.current_value);
-        return sum + value;
-      }, 0);
-
-      // Get reconciliation history for this account
-      const lastReconciliation = reconciliationHistoryRef.current.find(r => 
-        r.accountId === account.id
-      );
-
-      const accountData = {
-        ...account,
-        positions: accountPositions,
-        currentValue: accountValue || 0,
-        statementValue: reconciliationData[`account_${account.id}`]?.statementBalance || accountValue || 0,
-        variance: 0,
-        variancePercent: 0,
-        needsUpdate: false,
-        lastReconciled: lastReconciliation?.date,
-        daysSinceReconciliation: lastReconciliation ? 
-          Math.floor((Date.now() - new Date(lastReconciliation.date)) / (1000 * 60 * 60 * 24)) : null,
-        reconciliationStatus: !lastReconciliation ? 'never' : 
-          (Math.floor((Date.now() - new Date(lastReconciliation.date)) / (1000 * 60 * 60 * 24)) <= 7 ? 'recent' :
-           Math.floor((Date.now() - new Date(lastReconciliation.date)) / (1000 * 60 * 60 * 24)) <= 14 ? 'due' : 'overdue')
-      };
-
-      // Calculate variance
-      if (reconciliationData[`account_${account.id}`]?.statementBalance !== undefined) {
-        accountData.variance = accountData.statementValue - accountData.currentValue;
-        accountData.variancePercent = accountData.currentValue !== 0 ? 
-          (accountData.variance / Math.abs(accountData.currentValue)) * 100 : 0;
-        accountData.needsUpdate = Math.abs(accountData.variance) > 0.01;
-      }
-
-      // Track account types for this institution
-      data[institution].accountTypes.add(account.account_type || 'unknown');
-      
-      data[institution].accounts.push(accountData);
-      data[institution].totalValue += accountValue;
-      data[institution].totalOriginal += accountValue;
-      
-      if (accountValue < 0) {
-        data[institution].totalLiabilities += Math.abs(accountValue);
-      }
-      
-      // Update reconciliation status
-      if (accountData.needsUpdate || accountData.reconciliationStatus === 'overdue') {
-        data[institution].needsReconciliation = true;
-        data[institution].healthScore -= 10;
-      }
-    });
-
-    // Calculate institution health scores
-    Object.values(data).forEach(inst => {
-      inst.healthScore = Math.max(0, Math.min(100, inst.healthScore));
-    });
-
-    return data;
-  }, [dataStoreAccounts, detailedPositions, reconciliationData]);
+// Process and organize data by institution (MINIMAL)
+const institutionData = useMemo(() => {
+  // Return empty object for now
+  return {};
+}, [dataStoreAccounts, detailedPositions, reconciliationData]);
 
   // Process securities/investments for separate tab (ENHANCED)
-  const securitiesData = useMemo(() => {
-    if (!groupedPositions) return [];
-    
-    return groupedPositions.filter(pos => 
-      pos.asset_type === 'security' || 
-      pos.asset_type === 'crypto' || 
-      pos.asset_type === 'metal'
-    ).map(pos => {
-      // Safe performance badge creation
-      const gainLossPct = pos.total_gain_loss_pct || 0;
-      let performanceBadge = null;
-      try {
-        performanceBadge = getPerformanceBadge(gainLossPct);
-      } catch (error) {
-        console.error('Error creating performance badge for position:', pos.identifier, error);
-        performanceBadge = PERFORMANCE_BADGES.neutral; // fallback
-      }
-
-      // Safe asset config creation
-      const assetConfig = ASSET_CONFIGS[pos.asset_type] || ASSET_CONFIGS.security;
-      
-      return {
-        ...pos,
-        statementValue: reconciliationData[`pos_${pos.identifier}`]?.value || pos.total_current_value,
-        statementQuantity: reconciliationData[`pos_${pos.identifier}`]?.quantity || pos.total_quantity,
-        variance: 0,
-        variancePercent: 0,
-        needsUpdate: false,
-        performanceBadge,
-        assetConfig
-      };
-    }).sort((a, b) => {
-      if (sortBy === 'value') return (b.total_current_value || 0) - (a.total_current_value || 0);
-      if (sortBy === 'gain') return (b.total_gain_loss || 0) - (a.total_gain_loss || 0);
-      if (sortBy === 'gainPercent') return (b.total_gain_loss_pct || 0) - (a.total_gain_loss_pct || 0);
-      // Handle null/undefined names
-      const nameA = a.name || a.identifier || '';
-      const nameB = b.name || b.identifier || '';
-      return nameA.localeCompare(nameB);
-    });
-  }, [groupedPositions, reconciliationData, sortBy]);
+// Process securities/investments for separate tab (MINIMAL)
+const securitiesData = useMemo(() => {
+  // Just return empty array for now
+  return [];
+}, [groupedPositions, reconciliationData, sortBy]);
 
   // Get unique institutions for filtering
   const uniqueInstitutions = useMemo(() => {
@@ -1216,269 +1095,29 @@ function QuickReconciliationModal2({ isOpen, onClose }) {
   };
 
   // Render securities view (ENHANCED)
-  const renderSecuritiesView = () => {
-    return (
-      <div className="space-y-4">
-        <div className="flex items-center justify-between mb-6">
-          <div>
-            <h3 className="text-lg font-semibold text-gray-100">Investment Positions</h3>
-            <p className="text-sm text-gray-400 mt-1">
-              Update your securities, crypto, and precious metals
-            </p>
-          </div>
-          <div className="flex items-center space-x-2">
-            {selectedPositions.size > 0 && (
-              <div className="flex items-center space-x-2 mr-4">
-                <span className="text-sm text-gray-400">
-                  {selectedPositions.size} selected
-                </span>
-                <button
-                  onClick={() => setSelectedPositions(new Set())}
-                  className="text-sm text-blue-400 hover:text-blue-300"
-                >
-                  Clear
-                </button>
-              </div>
-            )}
-            <select
-              value={sortBy}
-              onChange={(e) => setSortBy(e.target.value)}
-              className="px-3 py-1.5 bg-gray-800 border border-gray-700 rounded-lg text-sm text-gray-300"
-            >
-              <option value="name">Sort by Name</option>
-              <option value="value">Sort by Value</option>
-              <option value="gain">Sort by Gain $</option>
-              <option value="gainPercent">Sort by Gain %</option>
-            </select>
-            <motion.button
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-              onClick={applyMarketPrices}
-              disabled={isSubmitting}
-              className="px-4 py-2 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-lg hover:from-green-700 hover:to-emerald-700 transition-all disabled:opacity-50"
-            >
-              {isSubmitting ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <>
-                  <RefreshCw className="w-4 h-4 inline mr-2" />
-                  Fetch Market Prices
-                </>
-              )}
-            </motion.button>
-          </div>
+// Render securities view (MINIMAL - TESTING ONLY)
+const renderSecuritiesView = () => {
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h3 className="text-lg font-semibold text-gray-100">Investment Positions</h3>
+          <p className="text-sm text-gray-400 mt-1">
+            Temporarily simplified for debugging
+          </p>
         </div>
+      </div>
 
-        {/* Bulk edit bar */}
-        {bulkEditMode && selectedPositions.size > 0 && (
-          <div className="bg-blue-900/20 border border-blue-800 rounded-lg p-3 flex items-center justify-between">
-            <span className="text-sm text-blue-300">
-              Apply percentage change to {selectedPositions.size} selected positions
-            </span>
-            <div className="flex items-center space-x-2">
-              <button
-                onClick={() => handleBulkUpdate(-5)}
-                className="px-2 py-1 bg-red-600 hover:bg-red-700 text-white text-sm rounded"
-              >
-                -5%
-              </button>
-              <button
-                onClick={() => handleBulkUpdate(-2)}
-                className="px-2 py-1 bg-orange-600 hover:bg-orange-700 text-white text-sm rounded"
-              >
-                -2%
-              </button>
-              <button
-                onClick={() => handleBulkUpdate(2)}
-                className="px-2 py-1 bg-green-600 hover:bg-green-700 text-white text-sm rounded"
-              >
-                +2%
-              </button>
-              <button
-                onClick={() => handleBulkUpdate(5)}
-                className="px-2 py-1 bg-green-600 hover:bg-green-700 text-white text-sm rounded"
-              >
-                +5%
-              </button>
-              <button
-                onClick={() => setBulkEditMode(false)}
-                className="ml-3 text-gray-400 hover:text-gray-300"
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* Securities grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
-          {securitiesData.map((position) => {
-            const config = position.assetConfig;
-            const Icon = config.icon;
-            const Badge = position.performanceBadge;
-            const BadgeIcon = Badge?.icon;
-            const isSelected = selectedPositions.has(position.identifier);
-            const isEditing = editingPosition === position.identifier;
-            const hasUpdate = reconciliationData[`pos_${position.identifier}`]?.value !== undefined;
-
-            // Debug logging
-            console.log('Position:', position.identifier);
-            console.log('Badge object:', Badge);
-            console.log('BadgeIcon:', BadgeIcon);
-            console.log('Badge.color:', Badge?.color);
-            console.log('Performance badge result:', getPerformanceBadge(position.total_gain_loss_pct || 0));
-
-
-            return (
-              <motion.div
-                key={position.identifier}
-                whileHover={{ scale: 1.01 }}
-                className={`p-4 rounded-lg border transition-all ${
-                  isSelected ? 'border-blue-500 bg-blue-900/10' : 
-                  hasUpdate ? 'border-green-700 bg-green-900/10' :
-                  'border-gray-700 bg-gray-800/50'
-                }`}
-              >
-                {/* Header */}
-                <div className="flex items-start justify-between mb-3">
-                  <div className="flex items-center space-x-2">
-                    <input
-                      type="checkbox"
-                      checked={isSelected}
-                      onChange={(e) => {
-                        const newSelected = new Set(selectedPositions);
-                        if (e.target.checked) {
-                          newSelected.add(position.identifier);
-                        } else {
-                          newSelected.delete(position.identifier);
-                        }
-                        setSelectedPositions(newSelected);
-                        if (newSelected.size > 0 && !bulkEditMode) {
-                          setBulkEditMode(true);
-                        }
-                      }}
-                      className="w-4 h-4 rounded border-gray-600 bg-gray-800 text-blue-600"
-                    />
-                    <div className={`p-1.5 ${config.bgColor} rounded`}>
-                      <Icon className={`w-4 h-4 ${config.textColor}`} />
-                    </div>
-                    {BadgeIcon && <BadgeIcon className={`w-4 h-4 ${Badge?.color || 'text-gray-400'}`} />}
-                  </div>
-
-                  <button
-                    onClick={() => {
-                      if (isEditing) {
-                        setEditingPosition(null);
-                        setEditValues({});
-                      } else {
-                        setEditingPosition(position.identifier);
-                        setEditValues({
-                          value: reconciliationData[`pos_${position.identifier}`]?.value || position.total_current_value,
-                          quantity: reconciliationData[`pos_${position.identifier}`]?.quantity || position.total_quantity
-                        });
-                      }
-                    }}
-                    className="p-1 hover:bg-gray-700 rounded transition-colors"
-                  >
-                    {isEditing ? <X className="w-4 h-4 text-gray-400" /> : <Edit2 className="w-4 h-4 text-gray-400" />}
-                  </button>
-               </div>
-
-
-
-
-
-               {/* Position info */}
-               <div className="mb-3">
-                 <h4 className="font-semibold text-gray-100 mb-1">{position.name || position.identifier || 'Unknown'}</h4>
-                 <p className="text-xs text-gray-500">{position.identifier}</p>
-               </div>
-
-               {/* Values */}
-               {isEditing ? (
-                 <div className="space-y-2">
-                   <div>
-                     <label className="text-xs text-gray-400">Quantity</label>
-                     <input
-                       type="number"
-                       step="0.0001"
-                       value={editValues.quantity || ''}
-                       onChange={(e) => setEditValues({...editValues, quantity: parseFloat(e.target.value)})}
-                       className="w-full px-2 py-1 bg-gray-900 border border-gray-700 rounded text-sm text-gray-100"
-                     />
-                   </div>
-                   <div>
-                     <label className="text-xs text-gray-400">Total Value</label>
-                     <input
-                       type="number"
-                       step="0.01"
-                       value={editValues.value || ''}
-                       onChange={(e) => setEditValues({...editValues, value: parseFloat(e.target.value)})}
-                       className="w-full px-2 py-1 bg-gray-900 border border-gray-700 rounded text-sm text-gray-100"
-                     />
-                   </div>
-                   <div className="flex space-x-2">
-                     <button
-                       onClick={() => {
-                         handleQuickUpdate(position.identifier, editValues.value, 'value');
-                         handleQuickUpdate(position.identifier, editValues.quantity, 'quantity');
-                         setEditingPosition(null);
-                         showMessage('success', 'Position updated');
-                       }}
-                       className="flex-1 px-2 py-1 bg-blue-600 hover:bg-blue-700 text-white text-xs rounded"
-                     >
-                       Save
-                     </button>
-                     <button
-                       onClick={() => {
-                         setEditingPosition(null);
-                         setEditValues({});
-                       }}
-                       className="flex-1 px-2 py-1 bg-gray-700 hover:bg-gray-600 text-gray-300 text-xs rounded"
-                     >
-                       Cancel
-                     </button>
-                   </div>
-                 </div>
-               ) : (
-                 <div className="space-y-2">
-                   <div className="flex justify-between items-center">
-                     <span className="text-xs text-gray-500">Current</span>
-                     <span className="text-sm font-medium text-gray-300">
-                       {showValues ? formatCurrency(position.total_current_value) : '••••••'}
-                     </span>
-                   </div>
-                   {hasUpdate && (
-                     <div className="flex justify-between items-center">
-                       <span className="text-xs text-gray-500">Updated</span>
-                       <span className="text-sm font-medium text-green-400">
-                         {formatCurrency(reconciliationData[`pos_${position.identifier}`].value)}
-                       </span>
-                     </div>
-                   )}
-                   <div className="flex justify-between items-center">
-                     <span className="text-xs text-gray-500">Quantity</span>
-                     <span className="text-sm text-gray-400">
-                      {position.total_quantity != null ? formatNumber(position.total_quantity) : '0'} 
-                     </span>
-                   </div>
-                   <div className="flex justify-between items-center">
-                     <span className="text-xs text-gray-500">Gain/Loss</span>
-                     <span className={`text-sm font-medium ${
-                       position.total_gain_loss >= 0 ? 'text-green-400' : 'text-red-400'
-                     }`}>
-                       {formatCurrency(position.total_gain_loss)} ({formatPercentage(position.total_gain_loss_pct)})
-                     </span>
-                   </div>
-                 </div>
-               )}
-             </motion.div>
-           );
-         })}
-       </div>
-     </div>
-   );
- };
+      {/* Simple test content */}
+      <div className="bg-gray-800/50 rounded-lg p-6 text-center">
+        <p className="text-gray-300">Securities view loading...</p>
+        <p className="text-sm text-gray-500 mt-2">
+          Positions found: {groupedPositions ? groupedPositions.length : 0}
+        </p>
+      </div>
+    </div>
+  );
+};
 
  // Render history view
  const renderHistoryView = () => {
