@@ -2432,7 +2432,7 @@ const QuickReconciliationModal = ({ isOpen, onClose }) => {
 };
 
 // Export button component with enhanced styling
-export const QuickReconciliationButton2 = ({ className = '' }) => {
+export const QuickReconciliationButton = ({ className = '' }) => {
  const [isModalOpen, setIsModalOpen] = useState(false);
  const [isHovered, setIsHovered] = useState(false);
  
