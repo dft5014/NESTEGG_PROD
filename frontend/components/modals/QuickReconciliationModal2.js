@@ -7,7 +7,7 @@ import {
   ChevronDown, Check, Plus, Minus, Edit2, Save, XCircle, Info,
   ArrowUpRight, ArrowDownRight, Activity, BarChart3, DollarSign,
   Smartphone, Lock, Calendar, Hash, Percent, FileText,
-  ChevronUp, AlertTriangle, TrendingFlat, Banknote, Coins,
+    ChevronUp, AlertTriangle, Banknote, Coins,
   Gem, Building, CheckSquare, Trophy, Landmark, Calculator,
   Loader2, ArrowRight, Search, Settings, HelpCircle, Star,
   Keyboard, TabletSmartphone, MousePointer, PlayCircle,
@@ -126,7 +126,7 @@ const ASSET_CONFIGS = {
 const PERFORMANCE_BADGES = {
   strongGain: { icon: FlameIcon, color: 'text-green-500', bg: 'bg-green-900/20', label: 'Strong Gain' },
   gain: { icon: TrendingUp, color: 'text-green-400', bg: 'bg-green-900/20', label: 'Gain' },
-  neutral: { icon: TrendingFlat, color: 'text-gray-400', bg: 'bg-gray-800', label: 'Neutral' },
+  neutral: { icon: Minus, color: 'text-gray-400', bg: 'bg-gray-800', label: 'Neutral' },
   loss: { icon: TrendingDown, color: 'text-red-400', bg: 'bg-red-900/20', label: 'Loss' },
   strongLoss: { icon: AlertTriangle, color: 'text-red-500', bg: 'bg-red-900/20', label: 'Strong Loss' }
 };
