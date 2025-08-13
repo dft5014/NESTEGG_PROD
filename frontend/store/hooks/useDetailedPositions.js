@@ -5,16 +5,18 @@ export const useDetailedPositions = () => {
   const { state, actions } = useDataStore();
   const { detailedPositions } = state;
 
-  // Auto-fetch on mount
+  // Auto-fetch on mount only if no data exists
   useEffect(() => {
-    if (!detailedPositions.lastFetched && !detailedPositions.loading) {
+    if (!detailedPositions.data && !detailedPositions.lastFetched && !detailedPositions.loading) {
+      console.log('[useDetailedPositions] Auto-fetching detailed positions data');
       actions.fetchDetailedPositionsData();
     }
-  }, []);
+  }, []); // Empty deps
 
   // Auto-refresh when stale
   useEffect(() => {
     if (detailedPositions.isStale && !detailedPositions.loading) {
+      console.log('[useDetailedPositions] Refreshing stale detailed positions');
       actions.fetchDetailedPositionsData();
     }
   }, [detailedPositions.isStale, detailedPositions.loading]);

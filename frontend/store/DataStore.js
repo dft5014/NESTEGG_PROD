@@ -1,5 +1,8 @@
-import React, { createContext, useContext, useReducer, useCallback, useEffect } from 'react';
+import React, { createContext, useContext, useReducer, useCallback, useEffect, useRef } from 'react';
 import { fetchWithAuth } from '@/utils/api';
+
+// Fetch locks to prevent concurrent fetches
+const fetchLocks = new Map();
 
 // Initial state with full data structure
 const initialState = {
@@ -663,8 +666,11 @@ export const DataStoreProvider = ({ children }) => {
 
   // Fetch portfolio data
   const fetchPortfolioData = useCallback(async (force = false) => {
-    // Skip if loading
-    if (state.portfolioSummary.loading && !force) return;
+    // Skip if already loading (prevent duplicate fetches)
+    if (state.portfolioSummary.loading) {
+      console.log('[DataStore] Skip portfolio fetch - already loading');
+      return;
+    }
 
     // Skip if data is fresh (< 1 minute) unless forced
     const oneMinuteAgo = Date.now() - 60000;
@@ -1010,17 +1016,21 @@ export const DataStoreProvider = ({ children }) => {
     dispatch({ type: ActionTypes.MARK_ACCOUNTS_STALE });
   }, []);
 
-  // Initial load
+// Initial load - only fetch if we have no data
   useEffect(() => {
-    fetchPortfolioData();
-  }, []);
+    if (!state.portfolioSummary.data && !state.portfolioSummary.loading && !state.portfolioSummary.lastFetched) {
+      console.log('[DataStore] Initial portfolio fetch');
+      fetchPortfolioData();
+    }
+  }, []); // Empty deps, runs once
 
   // Auto-refresh stale data
   useEffect(() => {
     if (state.portfolioSummary.isStale && !state.portfolioSummary.loading) {
+      console.log('[DataStore] Refreshing stale portfolio data');
       fetchPortfolioData();
     }
-  }, [state.portfolioSummary.isStale, state.portfolioSummary.loading, fetchPortfolioData]);
+  }, [state.portfolioSummary.isStale, state.portfolioSummary.loading]); // Remove fetchPortfolioData from deps
 
   // Auto-refresh stale accounts
   useEffect(() => {

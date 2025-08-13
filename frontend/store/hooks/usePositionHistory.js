@@ -8,12 +8,13 @@ export const usePositionHistory = (identifier, options = {}) => {
 
   const { days = 90, enabled = true } = options;
 
-  // Fetch history when identifier changes or on mount
+  // Fetch history when identifier changes and enabled
   useEffect(() => {
-    if (enabled && identifier) {
-      fetchPositionHistory(identifier, days);
+    if (identifier && enabled && !positionHistory.data[identifier] && !positionHistory.loading[identifier]) {
+      console.log(`[usePositionHistory] Fetching history for ${identifier}`);
+      actions.fetchPositionHistory(identifier, days);
     }
-  }, [identifier, days, enabled, fetchPositionHistory]);
+  }, [identifier, enabled]); // Minimal deps to prevent re-fetches
 
   // Get history data for this identifier
   const history = useMemo(() => {

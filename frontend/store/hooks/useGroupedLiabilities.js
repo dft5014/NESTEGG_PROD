@@ -6,12 +6,21 @@ export const useGroupedLiabilities = () => {
   const { groupedLiabilities } = state;
   const { fetchGroupedLiabilitiesData, markDataStale } = actions;
 
-  // Auto-fetch on mount if needed
+  // Auto-fetch on mount only if no data exists
   useEffect(() => {
-    if (!groupedLiabilities.data.length && !groupedLiabilities.loading && !groupedLiabilities.error) {
-      fetchGroupedLiabilitiesData();
+    if (!groupedLiabilities.data && !groupedLiabilities.lastFetched && !groupedLiabilities.loading) {
+      console.log('[useGroupedLiabilities] Auto-fetching grouped liabilities data');
+      actions.fetchGroupedLiabilitiesData();
     }
-  }, []);
+  }, []); // Empty deps
+
+  // Auto-refresh when stale
+  useEffect(() => {
+    if (groupedLiabilities.isStale && !groupedLiabilities.loading) {
+      console.log('[useGroupedLiabilities] Refreshing stale grouped liabilities');
+      actions.fetchGroupedLiabilitiesData();
+    }
+  }, [groupedLiabilities.isStale, groupedLiabilities.loading]);
 
   // Process liabilities data
   const liabilities = useMemo(() => {

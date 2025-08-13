@@ -9,10 +9,11 @@ export const useSnapshots = () => {
 
   // Fetch on mount if not already loaded
   useEffect(() => {
-    if (!snapshots.data && !snapshots.loading && !snapshots.error) {
+    if (!snapshots.data && !snapshots.lastFetched && !snapshots.loading && !snapshots.error) {
+      console.log('[useSnapshots] Auto-fetching snapshots data');
       fetchSnapshotsData();
     }
-  }, [snapshots.data, snapshots.loading, snapshots.error, fetchSnapshotsData]);
+  }, []); // Empty deps - only run once on mount
 
   return {
     snapshots: snapshots.data,

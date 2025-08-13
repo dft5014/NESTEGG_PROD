@@ -6,12 +6,21 @@ export const useGroupedPositions = () => {
   const { groupedPositions } = state;
   const { fetchGroupedPositionsData, markDataStale } = actions;
 
-  // Auto-fetch on mount if needed
+// Auto-fetch on mount only if no data exists
   useEffect(() => {
-    if (!groupedPositions.data.length && !groupedPositions.loading && !groupedPositions.error) {
-      fetchGroupedPositionsData();
+    if (!groupedPositions.data && !groupedPositions.lastFetched && !groupedPositions.loading) {
+      console.log('[useGroupedPositions] Auto-fetching grouped positions data');
+      actions.fetchGroupedPositionsData();
     }
-  }, []);
+  }, []); // Empty deps
+
+  // Auto-refresh when stale
+  useEffect(() => {
+    if (groupedPositions.isStale && !groupedPositions.loading) {
+      console.log('[useGroupedPositions] Refreshing stale grouped positions');
+      actions.fetchGroupedPositionsData();
+    }
+  }, [groupedPositions.isStale, groupedPositions.loading]);
 
   // Process positions data
   const positions = useMemo(() => {

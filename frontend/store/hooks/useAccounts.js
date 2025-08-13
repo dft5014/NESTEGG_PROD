@@ -5,12 +5,13 @@ export const useAccounts = () => {
   const { state, actions } = useDataStore();
   const { accounts } = state;
 
-  // Auto-fetch on mount
+  // Auto-fetch on mount only if no data exists
   useEffect(() => {
-    if (!accounts.lastFetched && !accounts.loading) {
+    if (!accounts.data && !accounts.lastFetched && !accounts.loading) {
+      console.log('[useAccounts] Auto-fetching accounts data');
       actions.fetchAccountsData();
     }
-  }, []);
+  }, []); // Empty deps
 
   // Auto-refresh when stale
   useEffect(() => {
