@@ -1885,18 +1885,18 @@ function QuickReconciliationModal2({ isOpen, onClose }) {
        </AnimatePresence>
 
        {/* Confetti */}
-       {showConfetti && (
+       {showConfetti && typeof window !== 'undefined' && (
          <div className="absolute inset-0 pointer-events-none">
            {[...Array(50)].map((_, i) => (
              <motion.div
                key={i}
                initial={{ 
-                 x: Math.random() * window.innerWidth,
+                 x: Math.random() * (typeof window !== 'undefined' ? window.innerWidth : 1000),
                  y: -20,
                  rotate: 0
                }}
                animate={{ 
-                 y: window.innerHeight + 20,
+                 y: (typeof window !== 'undefined' ? window.innerHeight : 800) + 20,
                  rotate: Math.random() * 360
                }}
                transition={{ 
