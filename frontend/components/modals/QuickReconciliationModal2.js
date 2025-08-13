@@ -1737,7 +1737,7 @@ const ProgressCelebration = ({ show, message }) => {
 };
 
 // Main QuickReconciliationModal component
-const QuickReconciliationModal = ({ isOpen, onClose }) => {
+const QuickReconciliationModal2 = ({ isOpen, onClose }) => {
  // DataStore Integration
  const { 
    accounts = [], 
@@ -2315,7 +2315,7 @@ const QuickReconciliationModal = ({ isOpen, onClose }) => {
 };
 
 // Export button component with enhanced styling
-export const QuickReconciliationButton = ({ className = '' }) => {
+export const QuickReconciliationButton2 = ({ className = '' }) => {
  const [isModalOpen, setIsModalOpen] = useState(false);
  const [isHovered, setIsHovered] = useState(false);
  
@@ -2342,7 +2342,7 @@ export const QuickReconciliationButton = ({ className = '' }) => {
        </div>
      </button>
      
-     <QuickReconciliationModal 
+     <QuickReconciliationModal2 
        isOpen={isModalOpen} 
        onClose={() => setIsModalOpen(false)} 
      />
@@ -2350,4 +2350,4 @@ export const QuickReconciliationButton = ({ className = '' }) => {
  );
 };
 
-export default QuickReconciliationModal;
+export default QuickReconciliationModal2;
