@@ -1306,6 +1306,14 @@ function QuickReconciliationModal2({ isOpen, onClose }) {
             const isEditing = editingPosition === position.identifier;
             const hasUpdate = reconciliationData[`pos_${position.identifier}`]?.value !== undefined;
 
+            // Debug logging
+            console.log('Position:', position.identifier);
+            console.log('Badge object:', Badge);
+            console.log('BadgeIcon:', BadgeIcon);
+            console.log('Badge.color:', Badge?.color);
+            console.log('Performance badge result:', getPerformanceBadge(position.total_gain_loss_pct || 0));
+
+
             return (
               <motion.div
                 key={position.identifier}
@@ -1339,7 +1347,7 @@ function QuickReconciliationModal2({ isOpen, onClose }) {
                     <div className={`p-1.5 ${config.bgColor} rounded`}>
                       <Icon className={`w-4 h-4 ${config.textColor}`} />
                     </div>
-                    {BadgeIcon && <BadgeIcon className={`w-4 h-4 ${Badge.color}`} />}
+                    {BadgeIcon && <BadgeIcon className={`w-4 h-4 ${Badge?.color || 'text-gray-400'}`} />}
                   </div>
 
                   <button
