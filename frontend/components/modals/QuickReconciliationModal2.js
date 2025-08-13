@@ -1301,10 +1301,11 @@ function QuickReconciliationModal2({ isOpen, onClose }) {
             const config = position.assetConfig;
             const Icon = config.icon;
             const Badge = position.performanceBadge;
+            const BadgeIcon = Badge?.icon;
             const isSelected = selectedPositions.has(position.identifier);
             const isEditing = editingPosition === position.identifier;
             const hasUpdate = reconciliationData[`pos_${position.identifier}`]?.value !== undefined;
-            
+
             return (
               <motion.div
                 key={position.identifier}
@@ -1338,8 +1339,9 @@ function QuickReconciliationModal2({ isOpen, onClose }) {
                     <div className={`p-1.5 ${config.bgColor} rounded`}>
                       <Icon className={`w-4 h-4 ${config.textColor}`} />
                     </div>
-                    <Badge.icon className={`w-4 h-4 ${Badge.color}`} />
+                    {BadgeIcon && <BadgeIcon className={`w-4 h-4 ${Badge.color}`} />}
                   </div>
+
                   <button
                     onClick={() => {
                       if (isEditing) {
@@ -1358,6 +1360,10 @@ function QuickReconciliationModal2({ isOpen, onClose }) {
                     {isEditing ? <X className="w-4 h-4 text-gray-400" /> : <Edit2 className="w-4 h-4 text-gray-400" />}
                   </button>
                </div>
+
+
+
+
 
                {/* Position info */}
                <div className="mb-3">
