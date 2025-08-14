@@ -12,9 +12,11 @@ import { useDataStore } from '@/store/DataStore';
 import { useAccounts } from '@/store/hooks/useAccounts';
 import { useDetailedPositions } from '@/store/hooks/useDetailedPositions';
 import { updateCashPosition, updateLiability, updateOtherAsset } from '@/utils/apimethods/positionMethods';
+import { popularBrokerages } from "@/utils/constants";
 
 // =============== Utilities (inlined; avoids extra imports) ===================
-const fmtCurrency = (n, hide = false) => hide ? '••••••' : (new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(Number(n || 0)));
+const fmtCurrency = (val, hide = false) =>
+  hide ? "••••••" : new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(Number(val || 0));
 const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 const toNumber = (s) => {
   const n = Number(String(s ?? '').replace(/[^\d.-]/g, '').trim());
@@ -47,7 +49,22 @@ const GRADIENTS = {
   gray:   ['#D1D5DB', '#6B7280'],
 };
 
+const getInstitutionLogo = (name) => {
+  if (!name) return null;
+  const hit = popularBrokerages.find(
+    b => b.name.toLowerCase() === String(name).toLowerCase()
+  );
+  return hit?.logo || null;
+};
 // ==================== Inline UI helpers (no imports) =========================
+
+const calcRow = (pos, updated) => {
+  const rawNestEgg = Number(pos.current_value ?? pos.currentValue ?? 0);
+  const rawStatement = updated[pos.id] !== undefined ? Number(updated[pos.id]) : rawNestEgg;
+  const diff = rawStatement - rawNestEgg;
+  const pct = rawNestEgg !== 0 ? (diff / rawNestEgg) * 100 : 0;
+  return { rawNestEgg, rawStatement, diff, pct };
+};
 
 // Modal shell (no external component)
 function ModalShell({ isOpen, onClose, children, showHeader = false, title = '' }) {
@@ -189,6 +206,43 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
   const [streak, setStreak] = useState(0);
   const [localLoading, setLocalLoading] = useState(false);
   const [confetti, setConfetti] = useState(false);
+
+
+  const handleBulkSave = async (changes, institution) => {
+    try {
+      setLocalLoading(true);
+      // Map UI changes -> API batch
+      const batch = changes.map(c => {
+        const kind =
+          c.kind ||
+          (['cash','checking','savings'].includes(c.meta?.type) ? 'cash' :
+          (['liability','credit_card','loan'].includes(c.meta?.type) ? 'liability' : 'other'));
+        return {
+          itemId: c.id ?? c.meta?.itemId ?? c.meta?.id,
+          kind,
+          value: Number(c.amount)
+        };
+      }).filter(b => Number.isFinite(b.value));
+
+      if (batch.length) await writeAndRefresh(batch);
+
+      // stamp local recon data timestamps
+      const nextData = { ...reconData };
+      for (const c of changes) {
+        const key = c.kind === 'liability' ? `L_${c.id}` : c.id;
+        nextData[`pos_${key}`] = { lastUpdated: new Date().toISOString(), value: Number(c.amount) };
+      }
+      saveReconData(nextData);
+      saveHistory();
+
+      showMsg('success', `Updated ${institution}`);
+    } catch (e) {
+      console.error(e);
+      showMsg('error', `Failed to update ${institution}`);
+    } finally {
+      setLocalLoading(false);
+    }
+  };
 
   // ============== Message helpers =================
   const showMsg = useCallback((type, text, duration = 4000) => {
@@ -635,7 +689,7 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
           </div>
         </div>
 
-        {/* Institution selector */}
+        {/* DELETE Institution selector */}
         <div className="flex flex-wrap gap-3 mb-6">
           {groups.map(g => {
             const isSel = g.institution === selectedInstitution;
@@ -645,7 +699,20 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
                 className={`relative px-6 py-4 rounded-xl border-2 transition-all ${isSel ? 'border-blue-500 bg-blue-50' : done ? 'border-green-400 bg-green-50' : 'border-gray-200 bg-white hover:border-gray-300'}`}>
                 {done && <div className="absolute -top-2 -right-2 bg-green-500 text-white rounded-full p-1"><Check className="w-4 h-4"/></div>}
                 <div className="flex items-center gap-2">
-                  <Landmark className={`${isSel ? 'text-blue-600' : done ? 'text-green-600' : 'text-gray-400'}`} />
+                  {(() => {
+                            const inst = popularBrokerages.find(
+                              b => b.name.toLowerCase() === g.institution?.toLowerCase()
+                            );
+                            return inst && inst.logo ? (
+                              <img
+                                src={inst.logo}
+                                alt={g.institution}
+                                className="w-6 h-6 rounded-full object-contain"
+                              />
+                            ) : (
+                              <Landmark className={`${isSel ? 'text-blue-600' : done ? 'text-green-600' : 'text-gray-400'}`} />
+                            );
+                          })()}
                   <div className="text-left">
                     <div className="font-semibold text-gray-900">{g.institution}</div>
                     <div className="text-xs text-gray-500">{g.positions.length} positions</div>
@@ -660,7 +727,212 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
           })}
         </div>
 
-        {/* Current position card */}
+        {/* Institution selector + inline reconciliation panel */}
+        <div className="flex flex-col gap-4 mb-6">
+          {groups.map(g => {
+            const isSel = g.institution === selectedInstitution;
+            const logo = getInstitutionLogo(g.institution);
+            const done = g.positions.length > 0 && g.positions.every(p => updated[p.id] !== undefined || reviewed.has(p.id));
+
+            // compute a per-institution progress if you like; else keep your existing instProgress
+            const localProgress = g.positions.length
+              ? (g.positions.filter(p => updated[p.id] !== undefined || reviewed.has(p.id)).length / g.positions.length) * 100
+              : 0;
+
+            return (
+              <div key={g.institution} className="rounded-2xl border-2 bg-white">
+                {/* Chip / Header */}
+                <button
+                  onClick={() => onSelectInstitution(g.institution)}
+                  className={`w-full text-left px-6 py-4 flex items-center justify-between rounded-2xl transition-all
+                    ${isSel ? 'border-blue-500 bg-blue-50' : done ? 'border-green-400 bg-green-50' : 'border-gray-200 hover:border-gray-300'}`}
+                  style={{ borderColor: isSel ? '#3b82f6' : done ? '#22c55e' : '#e5e7eb' }}
+                >
+                  <div className="flex items-center gap-3">
+                    {logo ? (
+                      <img src={logo} alt={g.institution} className="w-7 h-7 rounded-full object-contain" />
+                    ) : (
+                      <Landmark className={`${isSel ? 'text-blue-600' : done ? 'text-green-600' : 'text-gray-400'} w-7 h-7`} />
+                    )}
+                    <div className="text-left">
+                      <div className="font-semibold text-gray-900">{g.institution}</div>
+                      <div className="text-xs text-gray-500">
+                        {g.positions.length} position{g.positions.length !== 1 ? 's' : ''}{g.liabilities?.length ? ` • ${g.liabilities.length} liab.` : ''}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="min-w-[220px] text-right">
+                    <div className="text-sm text-gray-500">Total</div>
+                    <div className="text-sm font-semibold text-gray-900">{fmtCurrency(g.totalValue, !showValues)}</div>
+                    <div className="mt-2 h-1 bg-gray-200 rounded-full overflow-hidden">
+                      <div
+                        className={`${isSel ? 'bg-blue-500' : done ? 'bg-green-500' : 'bg-gray-400'} h-full transition-all`}
+                        style={{ width: `${instProgress && g.institution === selectedInstitution ? instProgress : localProgress}%` }}
+                      />
+                    </div>
+                  </div>
+                </button>
+
+                {/* INLINE RECONCILIATION TABLE (only when selected) */}
+                {isSel && (
+                  <div className="px-6 pb-6 pt-2">
+                    {/* CASH / ACCOUNTS TABLE */}
+                    {g.positions.length > 0 && (
+                      <div className="overflow-hidden rounded-xl border border-gray-200 mb-4">
+                        <div className="bg-gray-50 px-4 py-3 font-semibold text-gray-800">Accounts & Cash</div>
+                        <table className="w-full">
+                          <thead className="bg-gray-50">
+                            <tr className="text-xs uppercase text-gray-500">
+                              <th className="px-4 py-2 text-left">Account</th>
+                              <th className="px-4 py-2 text-right">NestEgg</th>
+                              <th className="px-4 py-2 text-center">Statement</th>
+                              <th className="px-4 py-2 text-right">Δ</th>
+                              <th className="px-4 py-2 text-right">%</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-gray-200">
+                            {g.positions.map(pos => {
+                              const { rawNestEgg, rawStatement, diff, pct } = calcRow(pos, updated);
+                              const changed = updated[pos.id] !== undefined && Number(updated[pos.id]) !== rawNestEgg;
+                              return (
+                                <tr key={pos.id} className={changed ? "bg-blue-50" : ""}>
+                                  <td className="px-4 py-3">
+                                    <div className="font-medium text-gray-900">{pos.name || pos.accountName || "Account"}</div>
+                                    <div className="text-xs text-gray-500">{pos.accountName || pos.account_name || ""}</div>
+                                  </td>
+                                  <td className="px-4 py-3 text-right text-gray-800">{fmtCurrency(rawNestEgg, !showValues)}</td>
+                                  <td className="px-4 py-3 text-center">
+                                    <input
+                                      type="number"
+                                      step="0.01"
+                                      inputMode="decimal"
+                                      className={`w-36 text-right px-3 py-1.5 rounded-md border ${
+                                        changed ? 'border-blue-400 ring-2 ring-blue-200 bg-white' : 'border-gray-300'
+                                      }`}
+                                      value={updated[pos.id] !== undefined ? updated[pos.id] : rawNestEgg}
+                                      onChange={(e) =>
+                                                setUpdated(prev => ({ ...prev, [pos.id]: toNumber(e.target.value) }))
+                                              }
+                                    />
+                                  </td>
+                                  <td className={`px-4 py-3 text-right font-semibold ${diff > 0 ? 'text-green-600' : diff < 0 ? 'text-red-600' : 'text-gray-500'}`}>
+                                    {fmtCurrency(diff, !showValues)}
+                                  </td>
+                                  <td className={`px-4 py-3 text-right ${diff > 0 ? 'text-green-600' : diff < 0 ? 'text-red-600' : 'text-gray-500'}`}>
+                                    {rawNestEgg === 0 ? "—" : `${pct.toFixed(2)}%`}
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+
+                    {/* LIABILITIES TABLE (optional; will render if you populate g.liabilities by institution) */}
+                    {!!g.liabilities?.length && (
+                      <div className="overflow-hidden rounded-xl border border-gray-200">
+                        <div className="bg-gray-50 px-4 py-3 font-semibold text-gray-800">Liabilities</div>
+                        <table className="w-full">
+                          <thead className="bg-gray-50">
+                            <tr className="text-xs uppercase text-gray-500">
+                              <th className="px-4 py-2 text-left">Name</th>
+                              <th className="px-4 py-2 text-right">NestEgg</th>
+                              <th className="px-4 py-2 text-center">Statement</th>
+                              <th className="px-4 py-2 text-right">Δ</th>
+                              <th className="px-4 py-2 text-right">%</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-gray-200">
+                            {g.liabilities.map(liab => {
+                              // If your liabilities use different field names, adjust here:
+                              const liabId = liab.id;
+                              const nest = Number(liab.currentBalance ?? liab.total_current_balance ?? liab.current_balance ?? 0);
+                              const stmt = updated[`L_${liabId}`] !== undefined ? Number(updated[`L_${liabId}`]) : nest;
+                              const diff = stmt - nest;
+                              const pct = nest !== 0 ? (diff / nest) * 100 : 0;
+                              const changed = updated[`L_${liabId}`] !== undefined && Number(updated[`L_${liabId}`]) !== nest;
+                              return (
+                                <tr key={liabId} className={changed ? "bg-blue-50" : ""}>
+                                  <td className="px-4 py-3">
+                                    <div className="font-medium text-gray-900">{liab.name}</div>
+                                    <div className="text-xs text-gray-500">{liab.liabilityType || liab.liability_type}</div>
+                                  </td>
+                                  <td className="px-4 py-3 text-right text-gray-800">{fmtCurrency(nest, !showValues)}</td>
+                                  <td className="px-4 py-3 text-center">
+                                    <input
+                                      type="number"
+                                      step="0.01"
+                                      inputMode="decimal"
+                                      className={`w-36 text-right px-3 py-1.5 rounded-md border ${
+                                        changed ? 'border-blue-400 ring-2 ring-blue-200 bg-white' : 'border-gray-300'
+                                      }`}
+                                      value={updated[`L_${liabId}`] !== undefined ? updated[`L_${liabId}`] : nest}
+                                      onChange={(e) =>
+                                                  setUpdated(prev => ({ ...prev, [`L_${liabId}`]: toNumber(e.target.value) }))
+                                                }
+                                    />
+                                  </td>
+                                  <td className={`px-4 py-3 text-right font-semibold ${diff > 0 ? 'text-red-600' : diff < 0 ? 'text-green-600' : 'text-gray-500'}`}>
+                                    {/* for liabilities, a positive diff is “worse” so we flip colors above */}
+                                    {fmtCurrency(diff, !showValues)}
+                                  </td>
+                                  <td className={`px-4 py-3 text-right ${diff > 0 ? 'text-red-600' : diff < 0 ? 'text-green-600' : 'text-gray-500'}`}>
+                                    {nest === 0 ? "—" : `${pct.toFixed(2)}%`}
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+
+                    {/* Update CTA */}
+                    <div className="flex justify-end pt-4">
+                      <button
+                        onClick={() => {
+                          // collect only changed rows for this institution
+                          const changes = [];
+                          g.positions.forEach(pos => {
+                            const curr = Number(pos.current_value ?? pos.currentValue ?? 0);
+                            const next = updated[pos.id] !== undefined ? Number(updated[pos.id]) : curr;
+                            if (!Number.isNaN(next) && next !== curr) {
+                              changes.push({ kind: "cash", id: pos.itemId ?? pos.id, amount: next, meta: pos });
+                            }
+                          });
+                          (g.liabilities || []).forEach(liab => {
+                            const id = liab.id;
+                            const curr = Number(liab.currentBalance ?? liab.total_current_balance ?? liab.current_balance ?? 0);
+                            const next = updated[`L_${id}`] !== undefined ? Number(updated[`L_${id}`]) : curr;
+                            if (!Number.isNaN(next) && next !== curr) {
+                              changes.push({ kind: "liability", id, amount: next, meta: liab });
+                            }
+                          });
+
+                          if (changes.length === 0) return;
+
+                          // Delegate to your existing bulk update handler
+                          // e.g., handleBulkSave(changes)
+                          handleBulkSave
+                            ? handleBulkSave(changes, g.institution)
+                            : console.warn("Provide handleBulkSave(changes, institution) to persist updates.");
+                        }}
+                        className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg shadow"
+                      >
+                        Update {g.institution}
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+
+
+        {/* DELETE Current position card */}
         {currentPos ? (
           <div className="max-w-2xl mx-auto">
             <div className={`rounded-xl border-2 bg-white ${delta!==0 ? 'border-amber-300' : 'border-gray-200'} p-6`}>
@@ -862,16 +1134,26 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
         {/* Institution tabs */}
         <div className="border-b border-gray-200">
           <div className="flex overflow-x-auto">
-            {groups.map(g => (
-              <button key={g.institution} onClick={()=>{ setSelectedInstitution(g.institution); setSelectedAccount(null); }}
-                className={`px-6 py-3 text-sm font-medium ${selectedInstitution===g.institution ? 'text-blue-600 border-b-2 border-blue-600 bg-blue-50' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'}`}>
-                <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2">
+              {(() => {
+                const logo = getInstitutionLogo(g.institution);
+                return logo ? (
+                  <img
+                    src={logo}
+                    alt={`${g.institution} logo`}
+                    className="w-4 h-4 object-contain rounded-full"
+                  />
+                ) : (
                   <Landmark className="w-4 h-4" />
-                  <span>{g.institution}</span>
-                  {g.needs>0 && <span className="ml-2 text-xs bg-amber-100 text-amber-700 rounded-full px-2 py-0.5">{g.needs}</span>}
-                </div>
-              </button>
-            ))}
+                );
+              })()}
+              <span>{g.institution}</span>
+              {g.needs > 0 && (
+                <span className="ml-2 text-xs bg-amber-100 text-amber-700 rounded-full px-2 py-0.5">
+                  {g.needs}
+                </span>
+              )}
+            </div>
           </div>
         </div>
 
