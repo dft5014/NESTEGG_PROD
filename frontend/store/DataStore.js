@@ -713,7 +713,7 @@ export const DataStoreProvider = ({ children }) => {
     // Store the pending fetch
     pendingFetches.current.set(fetchKey, fetchPromise);
     return fetchPromise;
-  }, [state.portfolioSummary.lastFetched, state.portfolioSummary.isStale]);
+   }, []);
 
   // Fetch accounts data with deduplication
   const fetchAccountsData = useCallback(async (force = false) => {
@@ -766,7 +766,7 @@ export const DataStoreProvider = ({ children }) => {
     // Store the pending fetch
     pendingFetches.current.set(fetchKey, fetchPromise);
     return fetchPromise;
-  }, [state.accounts.lastFetched, state.accounts.isStale]);
+    }, []);
 
   const fetchSnapshotsData = useCallback(async (days = 90, force = false) => {
     const fetchKey = 'snapshots';
@@ -879,7 +879,7 @@ export const DataStoreProvider = ({ children }) => {
     // Store the pending fetch
     pendingFetches.current.set(fetchKey, fetchPromise);
     return fetchPromise;
-  }, [state.snapshots.lastFetched, state.snapshots.isStale]);
+  }, []);
 
   // Fetch detailed positions (individual, not grouped) with deduplication
   const fetchDetailedPositionsData = useCallback(async (force = false) => {
@@ -929,7 +929,7 @@ export const DataStoreProvider = ({ children }) => {
     // Store the pending fetch
     pendingFetches.current.set(fetchKey, fetchPromise);
     return fetchPromise;
-  }, [state.detailedPositions.lastFetched]);
+  }, []);
 
 
   // Fetch grouped positions data with deduplication
@@ -983,7 +983,7 @@ export const DataStoreProvider = ({ children }) => {
     // Store the pending fetch
     pendingFetches.current.set(fetchKey, fetchPromise);
     return fetchPromise;
-  }, [state.groupedPositions.lastFetched, state.groupedPositions.isStale]);
+  }, []);
 
     // Fetch position history for a specific identifier
   const fetchPositionHistory = useCallback(async (identifier, days = 90, force = false) => {
@@ -1086,7 +1086,7 @@ export const DataStoreProvider = ({ children }) => {
     // Store the pending fetch
     pendingFetches.current.set(fetchKey, fetchPromise);
     return fetchPromise;
-  }, [state.groupedLiabilities.lastFetched, state.groupedLiabilities.isStale]);
+  }, []);
 
 
 
@@ -1196,11 +1196,7 @@ export const DataStoreProvider = ({ children }) => {
     state.groupedLiabilities.data,
     state.groupedLiabilities.loading,
     state.groupedLiabilities.lastFetched,
-    state.groupedLiabilities.isStale,
-    fetchPortfolioData,
-    fetchAccountsData,
-    fetchGroupedPositionsData,
-    fetchGroupedLiabilitiesData
+    state.groupedLiabilities.isStale
   ]);
 
   const value = {
