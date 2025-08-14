@@ -1,829 +1,1110 @@
 // QuickReconciliationModal.js
-// Best-in-class reconciliation flow with localStorage staging, robust institution mapping,
-// two clear workflows, accurate deltas, and safe updates that mirror QuickEditDelete refresh patterns.
-
-import React, { useEffect, useMemo, useState, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import {
-  X, Building2, ArrowLeft, Save, Loader2, RefreshCw, AlertCircle, Check,
-  DollarSign, CreditCard, ChevronRight, Package, LayoutDashboard, CheckCircle2, XCircle, Trash2
+  X, Check, CheckCircle, CheckSquare, CheckCheck, AlertCircle, AlertTriangle, Info, Clock, Loader2,
+  ChevronRight, ChevronDown, ChevronUp, ArrowLeft, ArrowRight, ArrowUpRight, ArrowDownRight, Eye, EyeOff,
+  Building2 as Landmark, DollarSign, CreditCard, Wallet, PiggyBank, Receipt, Sparkles, Target, Trophy,
+  FileText, FileCheck, RefreshCw, Droplets, LineChart, Bell, Share2, Copy, Download, Percent
 } from 'lucide-react';
 
+// ====== External app hooks / API (same as QuickEditDelete.js patterns) ======
 import { useDataStore } from '@/store/DataStore';
-import { useDetailedPositions } from '@/store/hooks/useDetailedPositions';
-import { useGroupedLiabilities } from '@/store/hooks/useGroupedLiabilities';
 import { useAccounts } from '@/store/hooks/useAccounts';
+import { useDetailedPositions } from '@/store/hooks/useDetailedPositions';
+import { updateCashPosition, updateLiability, updateOtherAsset } from '@/utils/apimethods/positionMethods';
 
-import {
-  updateCashPosition,
-  updateLiability,
-  updateOtherAsset,
-} from '@/utils/apimethods/positionMethods';
+// =============== Utilities (inlined; avoids extra imports) ===================
+const fmtCurrency = (n, hide = false) => hide ? '••••••' : (new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(Number(n || 0)));
+const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
+const toNumber = (s) => {
+  const n = Number(String(s ?? '').replace(/[^\d.-]/g, '').trim());
+  return Number.isFinite(n) ? n : 0;
+};
+const diffPct = (base, delta) => base !== 0 ? (delta / base) * 100 : 0;
 
-import { formatCurrency } from '@/utils/formatters';
+const NS = 'nestegg:v1:recon'; // localStorage namespace keys
+const LS_DATA = `${NS}:data`;
+const LS_HISTORY = `${NS}:history`;
+const LS_DRAFT_PREFIX = `${NS}:draft:`;
 
-// -------------------------------
-// Configuration / Feature flags
-// -------------------------------
-const FEATURES = {
-  showLiabilities: true,     // set false to focus only on cash for bank tie-outs
-  showOtherAssets: true,     // set false if “Other Assets” shouldn’t appear as a synthetic group
+// Tailwind-safe palette (no dynamic class strings)
+const tone = {
+  blue:   { bg100: 'bg-blue-100',  text600: 'text-blue-600'  },
+  green:  { bg100: 'bg-green-100', text600: 'text-green-600' },
+  purple: { bg100: 'bg-purple-100',text600: 'text-purple-600'},
+  yellow: { bg100: 'bg-yellow-100',text600: 'text-yellow-600'},
+  red:    { bg100: 'bg-red-100',   text600: 'text-red-600'   },
+  gray:   { bg100: 'bg-gray-100',  text600: 'text-gray-600'  },
 };
 
-// -------------------------------
-// Local Storage Queue Helpers
-// -------------------------------
-const LS_KEY = 'nestegg_recon_queue_v1';
-const qKey = (type, id) => `${type}:${id}`;
-
-const loadQueue = () => {
-  try { return JSON.parse(localStorage.getItem(LS_KEY) || '{}'); } catch { return {}; }
+// SVG gradient stops (no Tailwind in <stop>)
+const GRADIENTS = {
+  blue:   ['#60A5FA', '#2563EB'],
+  green:  ['#34D399', '#059669'],
+  purple: ['#A78BFA', '#7C3AED'],
+  yellow: ['#FBBF24', '#D97706'],
+  red:    ['#F87171', '#DC2626'],
+  gray:   ['#D1D5DB', '#6B7280'],
 };
-const saveQueue = (q) => { try { localStorage.setItem(LS_KEY, JSON.stringify(q)); } catch {} };
 
-// -------------------------------
-// Lightweight Modal Shell (dark UI)
-// -------------------------------
-const ModalShell = ({ isOpen, onClose, title, children }) => {
+// ==================== Inline UI helpers (no imports) =========================
+
+// Modal shell (no external component)
+function ModalShell({ isOpen, onClose, children, showHeader = false, title = '' }) {
   if (!isOpen) return null;
   return (
     <div className="fixed inset-0 z-[9999]">
-      <div className="absolute inset-0 bg-black/75" onClick={onClose} />
-      <div className="absolute inset-0 flex items-center justify-center p-4">
-        <div
-          role="dialog"
-          aria-modal="true"
-          aria-label={title}
-          className="w-full max-w-5xl bg-gray-900 rounded-2xl shadow-2xl overflow-hidden border border-gray-800"
-        >
-          <div className="flex items-center justify-between px-6 py-4 border-b border-gray-800">
-            <h2 className="text-lg font-semibold text-white">{title}</h2>
-            <button
-              onClick={onClose}
-              className="p-2 text-gray-400 hover:text-white hover:bg-gray-800 rounded-lg"
-              aria-label="Close"
-            >
-              <X className="w-5 h-5" />
-            </button>
-          </div>
-          <div className="max-h-[76vh] overflow-y-auto px-6 py-5">{children}</div>
+      <div className="absolute inset-0 bg-black/70" onClick={onClose} />
+      <div className="relative z-[10000] mx-auto my-8 w-full max-w-6xl">
+        <div className="rounded-2xl bg-white shadow-2xl overflow-hidden">
+          {showHeader && (
+            <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4">
+              <h3 className="text-lg font-semibold text-gray-900">{title}</h3>
+              <button onClick={onClose} className="p-2 rounded-lg hover:bg-gray-100">
+                <X className="w-5 h-5 text-gray-600" />
+              </button>
+            </div>
+          )}
+          {children}
         </div>
       </div>
     </div>
   );
-};
+}
 
-// -------------------------------
-// Main Component
-// -------------------------------
-const QuickReconciliationModal = ({ isOpen, onClose }) => {
-  // Data hooks (mirror QuickEditDelete)
-  const { positions: detailedPositions, refresh: refreshPositions } = useDetailedPositions();
-  const { liabilities: groupedLiabilities } = useGroupedLiabilities();
-  const { accounts } = useAccounts();
+// Progress ring with hex gradient
+function ProgressRing({ percentage, size = 72, strokeWidth = 6, color = 'blue' }) {
+  const radius = (size - strokeWidth) / 2;
+  const C = 2 * Math.PI * radius;
+  const offset = C - (clamp(percentage, 0, 100) / 100) * C;
+  const [anim, setAnim] = useState(C);
+  useEffect(() => {
+    const t = setTimeout(() => setAnim(offset), 50);
+    return () => clearTimeout(t);
+  }, [offset]);
+  const [c0, c1] = GRADIENTS[color] || GRADIENTS.blue;
+  const gid = `grad-${color}-${size}-${strokeWidth}`;
+  return (
+    <svg width={size} height={size} className="-rotate-90">
+      <defs>
+        <linearGradient id={gid} x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stopColor={c0} />
+          <stop offset="100%" stopColor={c1} />
+        </linearGradient>
+      </defs>
+      <circle cx={size/2} cy={size/2} r={radius} fill="none" stroke="#E5E7EB" strokeWidth={strokeWidth}/>
+      <circle
+        cx={size/2} cy={size/2} r={radius} fill="none"
+        stroke={`url(#${gid})`} strokeWidth={strokeWidth}
+        strokeLinecap="round" strokeDasharray={C} strokeDashoffset={anim}
+        className="transition-all duration-700 ease-out"
+      />
+    </svg>
+  );
+}
+
+// Lightweight confetti
+function Confetti({ show }) {
+  const [particles, setParticles] = useState([]);
+  useEffect(() => {
+    if (!show) return;
+    const colors = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899', '#14B8A6'];
+    const shapes = ['square', 'circle'];
+    const ps = Array.from({ length: 80 }, (_, i) => ({
+      id: i, x: Math.random()*100, y: -10,
+      vx: (Math.random()-0.5)*3, vy: Math.random()*5+3,
+      color: colors[Math.floor(Math.random()*colors.length)],
+      size: Math.random()*8+4, rotation: Math.random()*360,
+      rotationSpeed: (Math.random()-0.5)*8, shape: shapes[Math.floor(Math.random()*shapes.length)]
+    }));
+    setParticles(ps);
+    const timer = setTimeout(() => setParticles([]), 4200);
+    return () => clearTimeout(timer);
+  }, [show]);
+  if (!show || particles.length === 0) return null;
+  return (
+    <div className="pointer-events-none fixed inset-0 z-[10001]">
+      {particles.map(p => (
+        <div key={p.id} className="absolute" style={{
+          left: `${p.x}%`, top: `${p.y}%`,
+          animation: 'confetti-fall 4.2s ease-out forwards',
+          '--vx': p.vx, '--vy': p.vy, '--rs': p.rotationSpeed
+        }}>
+          <div className={p.shape === 'circle' ? 'rounded-full' : 'rounded-sm'} style={{
+            width: `${p.size}px`, height: `${p.size}px`, backgroundColor: p.color,
+            transform: `rotate(${p.rotation}deg)`, animation: 'confetti-spin 4.2s linear infinite'
+          }} />
+        </div>
+      ))}
+      <style>{`
+        @keyframes confetti-fall { to { transform: translate(calc(var(--vx) * 200px), calc(100vh + 120px)); } }
+        @keyframes confetti-spin { to { transform: rotate(calc(360deg * var(--rs))); } }
+      `}</style>
+    </div>
+  );
+}
+
+// Status chip
+function StatusIndicator({ status = 'pending' }) {
+  const map = {
+    reconciled: { cls: 'text-green-600', Icon: CheckCircle, label: 'Reconciled' },
+    warning:    { cls: 'text-yellow-600', Icon: AlertTriangle, label: 'Needs Review' },
+    error:      { cls: 'text-red-600',    Icon: AlertCircle, label: 'Out of Sync' },
+    pending:    { cls: 'text-gray-600',   Icon: Clock,        label: 'Not Reconciled' },
+  };
+  const { cls, Icon, label } = map[status] || map.pending;
+  return (
+    <span className={`inline-flex items-center gap-1 ${cls}`} title={label}>
+      <Icon className="w-4 h-4" /><span className="text-xs">{label}</span>
+    </span>
+  );
+}
+
+// ===================== Main Modal ============================================
+const TOLERANCE = 0.01; // treat as reconciled within 1 cent
+
+export default function QuickReconciliationModal({ isOpen, onClose }) {
+  // Hooks / data
   const { actions } = useDataStore();
+  const {
+    accounts = [], loading: accountsLoading, refresh: refreshAccounts
+  } = useAccounts();
+  const {
+    positions: rawPositions = [], loading: positionsLoading, refresh: refreshPositions
+  } = useDetailedPositions();
 
-  // Views: home | institutions | reconcile
-  const [view, setView] = useState('home');
-  const [selectedInstitution, setSelectedInstitution] = useState(null);
+  const loading = accountsLoading || positionsLoading;
 
-  // Local queue persisted to storage
-  const [queue, setQueue] = useState({});
-  useEffect(() => { if (isOpen) setQueue(loadQueue()); }, [isOpen]);
-  useEffect(() => { saveQueue(queue); }, [queue]);
+  // UI state
+  const [screen, setScreen] = useState('welcome'); // welcome | liquid | reconcile | summary
+  const [showValues, setShowValues] = useState(true);
+  const [message, setMessage] = useState({ type: '', text: '' });
+  const msgRef = useRef(null);
 
-  // UX state
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [banner, setBanner] = useState(null);
-  const bannerTimer = useRef(null);
+  // Flow state
+  const [liquidPositions, setLiquidPositions] = useState([]);
+  const [reconData, setReconData] = useState({});
+  const [pendingUpdates, setPendingUpdates] = useState({});
+  const [reconResults, setReconResults] = useState([]);
+  const [streak, setStreak] = useState(0);
+  const [localLoading, setLocalLoading] = useState(false);
+  const [confetti, setConfetti] = useState(false);
 
-  const showBanner = useCallback((type, text, ttl = 3500) => {
-    if (bannerTimer.current) clearTimeout(bannerTimer.current);
-    setBanner({ type, text });
-    if (ttl > 0) bannerTimer.current = setTimeout(() => setBanner(null), ttl);
+  // ============== Message helpers =================
+  const showMsg = useCallback((type, text, duration = 4000) => {
+    setMessage({ type, text });
+    if (msgRef.current) clearTimeout(msgRef.current);
+    if (duration > 0) {
+      msgRef.current = setTimeout(() => setMessage({ type: '', text: '' }), duration);
+    }
   }, []);
-  useEffect(() => () => bannerTimer.current && clearTimeout(bannerTimer.current), []);
 
-  // ---------------------------------
-  // Resilient mapping helpers
-  // ---------------------------------
-  const accountById = useMemo(() => {
+  // ============== Normalize data ==================
+  const accountsById = useMemo(() => {
     const map = new Map();
     (accounts || []).forEach(a => map.set(a.id, a));
     return map;
   }, [accounts]);
 
-  const normalizeType = (raw) => {
-    const t = (raw || '').toString().toLowerCase().trim();
-    if (t === 'cash') return 'cash';
-    if (['other_asset','other_assets','real_estate','vehicle','collectible','jewelry','art','equipment','other'].includes(t)) {
-      return 'other';
-    }
-    return t; // liabilities handled separately via hook
-  };
-
-  // ---------------------------------
-  // Build institution groups
-  // ---------------------------------
-  const institutionGroups = useMemo(() => {
-    const groups = {};
-
-    // Cash from positions
-    const cashPositions = (detailedPositions || []).filter(p => normalizeType(p.assetType ?? p.asset_type) === 'cash');
-
-    cashPositions.forEach(p => {
-      const acct = p.accountId ? accountById.get(p.accountId) : null;
-      const institution =
-        (p.institution && String(p.institution).trim()) ||
-        (acct?.institution && String(acct.institution).trim()) ||
-        'Unknown Institution';
-
-      if (!groups[institution]) {
-        groups[institution] = {
-          name: institution,
-          cash: [],
-          liabilities: [],
-          otherAssets: [],
-          totalCash: 0,
-          totalLiab: 0,
-          totalOther: 0,
-        };
-      }
-
-      const row = {
-        id: p.itemId ?? p.id, // must use itemId for updates
-        name: p.name || p.identifier || 'Cash',
-        accountName: p.accountName || acct?.name || 'Unknown Account',
-        currentValue: Number(p.currentValue || 0),
-        accountId: p.accountId || null,
-        institution,
-      };
-
-      groups[institution].cash.push(row);
-      groups[institution].totalCash += row.currentValue;
+  const positionsNorm = useMemo(() => {
+    return (rawPositions || []).map(p => {
+      const id = p.itemId ?? p.id; // itemId is the one we must update with
+      const accountId = p.accountId ?? p.account_id;
+      const acct = accountsById.get(accountId);
+      const type = String(p.assetType ?? p.asset_type ?? p.position_type ?? '').toLowerCase();
+      const name = p.name ?? p.identifier ?? 'Unnamed';
+      const currentValue = Number(p.currentValue ?? p.current_value ?? 0);
+      const institution = p.institution ?? acct?.institution ?? 'Unknown Institution';
+      return { id, itemId: id, accountId, institution, type, name, currentValue };
     });
+  }, [rawPositions, accountsById]);
 
-    // Liabilities (optional)
-    if (FEATURES.showLiabilities && Array.isArray(groupedLiabilities) && groupedLiabilities.length > 0) {
-      groupedLiabilities.forEach(l => {
-        const institution =
-          (l.institution_name && String(l.institution_name).trim()) || 'Unknown Institution';
-        if (!groups[institution]) {
-          groups[institution] = {
-            name: institution,
-            cash: [],
-            liabilities: [],
-            otherAssets: [],
-            totalCash: 0,
-            totalLiab: 0,
-            totalOther: 0,
-          };
-        }
-        const row = {
-          id: l.id,
-          name: l.name,
-          currentBalance: Number(l.total_current_balance ?? l.current_balance ?? 0),
-          liabilityType: l.liability_type,
-        };
-        groups[institution].liabilities.push(row);
-        groups[institution].totalLiab += row.currentBalance;
-      });
-    }
-
-    // Other Assets (synthetic group)
-    if (FEATURES.showOtherAssets) {
-      const otherAssets = (detailedPositions || []).filter(
-        p => normalizeType(p.assetType ?? p.asset_type) === 'other'
-      );
-      if (otherAssets.length > 0) {
-        const groupName = 'Other Assets';
-        if (!groups[groupName]) {
-          groups[groupName] = {
-            name: groupName,
-            cash: [],
-            liabilities: [],
-            otherAssets: [],
-            totalCash: 0,
-            totalLiab: 0,
-            totalOther: 0,
-          };
-        }
-        otherAssets.forEach(p => {
-          const row = {
-            id: p.itemId ?? p.id,
-            name: p.name || p.identifier || 'Asset',
-            accountName: p.accountName || 'Other Assets',
-            currentValue: Number(p.currentValue || 0),
-            assetType: p.assetType ?? p.asset_type,
-          };
-          groups[groupName].otherAssets.push(row);
-          groups[groupName].totalOther += row.currentValue;
-        });
-      }
-    }
-
-    return groups;
-  }, [detailedPositions, groupedLiabilities, accountById]);
-
-  const isLoading = !detailedPositions || !accounts;
-
-  // ---------------------------------
-  // Queue integration
-  // ---------------------------------
-  const setStaged = (type, id, val) => {
-    setQueue(prev => ({ ...prev, [qKey(type, id)]: { value: val } }));
-  };
-
-  const clearQueue = () => {
-    setQueue({});
-    showBanner('info', 'Local reconciliation queue cleared.');
-  };
-
-  // ---------------------------------
-  // Calculations
-  // ---------------------------------
-  const calcDelta = (currentValue, stagedVal) => {
-    if (stagedVal === '' || stagedVal === undefined) return { hasValue: false, delta: 0, pct: 0 };
-    const current = Number(currentValue || 0);
-    const statement = Number(stagedVal || 0);
-    const delta = statement - current;
-    const pct = current !== 0 ? (delta / current) * 100 : 0;
-    return { hasValue: true, delta, pct };
-  };
-
-  const enterInstitution = (inst) => {
-    setSelectedInstitution(inst);
-    setView('reconcile');
-
-    // Prefill queue (non-destructive)
-    const g = institutionGroups[inst];
-    if (!g) return;
-
-    setQueue(prev => {
-      const next = { ...prev };
-      g.cash.forEach(pos => {
-        const k = qKey('cash', pos.id);
-        if (!(k in next)) next[k] = { value: pos.currentValue };
-      });
-      if (FEATURES.showLiabilities) {
-        g.liabilities.forEach(li => {
-          const k = qKey('liability', li.id);
-          if (!(k in next)) next[k] = { value: li.currentBalance };
-        });
-      }
-      if (FEATURES.showOtherAssets) {
-        g.otherAssets.forEach(a => {
-          const k = qKey('other', a.id);
-          if (!(k in next)) next[k] = { value: a.currentValue };
-        });
-      }
-      return next;
+  // Liquid-only set
+  useEffect(() => {
+    const liquidSet = positionsNorm.filter(p => {
+      return ['cash','checking','savings','credit_card','loan','liability'].includes(p.type)
+        || /checking|savings|credit|loan/i.test(p.name);
     });
-  };
+    setLiquidPositions(liquidSet);
+  }, [positionsNorm]);
 
-  const exitInstitution = () => {
-    setSelectedInstitution(null);
-    setView('institutions');
-  };
-
-  const institutionRows = useMemo(() => {
-    if (!selectedInstitution) return { cash: [], liabilities: [], other: [], totals: { delta: 0 } };
-    const g = institutionGroups[selectedInstitution];
-    if (!g) return { cash: [], liabilities: [], other: [], totals: { delta: 0 } };
-
-    const rowsCash = g.cash.map(p => {
-      const staged = queue[qKey('cash', p.id)]?.value;
-      const { hasValue, delta, pct } = calcDelta(p.currentValue, staged);
-      const changed = hasValue && Number(staged) !== Number(p.currentValue);
-      return { ...p, staged, delta, pct, changed };
-    });
-
-    const rowsLiab = FEATURES.showLiabilities ? g.liabilities.map(l => {
-      const staged = queue[qKey('liability', l.id)]?.value;
-      const { hasValue, delta, pct } = calcDelta(l.currentBalance, staged);
-      const changed = hasValue && Number(staged) !== Number(l.currentBalance);
-      return { ...l, staged, delta, pct, changed };
-    }) : [];
-
-    const rowsOther = FEATURES.showOtherAssets ? g.otherAssets.map(a => {
-      const staged = queue[qKey('other', a.id)]?.value;
-      const { hasValue, delta, pct } = calcDelta(a.currentValue, staged);
-      const changed = hasValue && Number(staged) !== Number(a.currentValue);
-      return { ...a, staged, delta, pct, changed };
-    }) : [];
-
-    // Net: cash (+), liabilities (-), other assets (+)
-    const totalDelta =
-      rowsCash.reduce((s, r) => s + (r.staged === '' || r.staged === undefined ? 0 : r.delta), 0)
-      - rowsLiab.reduce((s, r) => s + (r.staged === '' || r.staged === undefined ? 0 : r.delta), 0)
-      + rowsOther.reduce((s, r) => s + (r.staged === '' || r.staged === undefined ? 0 : r.delta), 0);
-
-    return { cash: rowsCash, liabilities: rowsLiab, other: rowsOther, totals: { delta: totalDelta } };
-  }, [selectedInstitution, institutionGroups, queue]);
-
-  const anyChanges =
-    institutionRows.cash.some(r => r.changed) ||
-    institutionRows.liabilities.some(r => r.changed) ||
-    institutionRows.other.some(r => r.changed);
-
-  // ---------------------------------
-  // Submit Updates (institution-scoped)
-  // ---------------------------------
-  const handleUpdateAll = async () => {
-    if (!selectedInstitution) return;
-    const g = institutionGroups[selectedInstitution];
-    if (!g) return;
-
-    const updates = [];
-
-    // Cash
-    for (const r of institutionRows.cash) {
-      if (r.changed) {
-        updates.push(updateCashPosition(r.id, { amount: Number(r.staged) }));
-      }
-    }
-    // Liabilities (optional)
-    if (FEATURES.showLiabilities) {
-      for (const r of institutionRows.liabilities) {
-        if (r.changed && typeof updateLiability === 'function') {
-          updates.push(updateLiability(r.id, { current_balance: Number(r.staged) }));
-        }
-      }
-    }
-    // Other assets (optional)
-    if (FEATURES.showOtherAssets) {
-      for (const r of institutionRows.other) {
-        if (r.changed && typeof updateOtherAsset === 'function') {
-          updates.push(updateOtherAsset(Number(r.id), { current_value: Number(r.staged) }));
-        }
-      }
-    }
-
-    if (updates.length === 0) {
-      showBanner('warning', 'No changes to update.');
-      return;
-    }
-
-    setIsSubmitting(true);
-    let ok = 0, fail = 0;
-
-    for (const u of updates) {
-      try { await u; ok++; } catch (e) { console.error(e); fail++; }
-    }
-
-    // Robust refresh (mirror QuickEditDelete)
+  // ============== LocalStorage: recon data + history ==============
+  const loadReconData = useCallback(() => {
     try {
-      await Promise.all([
-        (typeof refreshPositions === 'function' ? refreshPositions() : Promise.resolve()),
-        actions?.fetchGroupedPositionsData?.(true),
-        actions?.fetchPortfolioData?.(true),
-      ]);
-    } catch (e) {
-      console.warn('Post-update refresh encountered issues but will not block UX.', e);
+      const saved = localStorage.getItem(LS_DATA);
+      if (saved) setReconData(JSON.parse(saved));
+    } catch {}
+  }, []);
+  const saveReconData = useCallback((data) => {
+    setReconData(data);
+    try { localStorage.setItem(LS_DATA, JSON.stringify(data)); } catch {}
+  }, []);
+  const saveHistory = useCallback(() => {
+    try {
+      const now = new Date().toISOString();
+      const history = JSON.parse(localStorage.getItem(LS_HISTORY) || '[]');
+      if (!history.some(d => new Date(d).toDateString() === new Date(now).toDateString())) {
+        history.unshift(now);
+        if (history.length > 60) history.pop();
+        localStorage.setItem(LS_HISTORY, JSON.stringify(history));
+      }
+    } catch {}
+  }, []);
+  const refreshStreak = useCallback(() => {
+    try {
+      const history = JSON.parse(localStorage.getItem(LS_HISTORY) || '[]');
+      let s = 0;
+      const today = new Date().toDateString();
+      if (history.length > 0 && new Date(history[0]).toDateString() === today) {
+        s = 1;
+        for (let i = 1; i < history.length; i++) {
+          const d0 = new Date(history[i-1]);
+          const d1 = new Date(history[i]);
+          const dd = Math.round((d0 - d1) / (1000*60*60*24));
+          if (dd === 1) s++; else break;
+        }
+      }
+      setStreak(s);
+    } catch { setStreak(0); }
+  }, []);
+
+  // ============== Open/close lifecycle ===========================
+  useEffect(() => {
+    if (!isOpen) return;
+    setScreen('welcome');
+    setPendingUpdates({});
+    setReconResults([]);
+    setConfetti(false);
+    loadReconData();
+    refreshStreak();
+    // Optionally refresh data if hooks are empty
+    (async () => {
+      if (!accounts?.length || !rawPositions?.length) {
+        try {
+          setLocalLoading(true);
+          await Promise.all([ refreshAccounts?.(), refreshPositions?.() ]);
+        } finally { setLocalLoading(false); }
+      }
+    })();
+    return () => { if (msgRef.current) clearTimeout(msgRef.current); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen]);
+
+  // ============== Stats / health =================================
+  const stats = useMemo(() => {
+    const total = accounts.length;
+    const reconStatus = a => {
+      const rec = reconData[a.id]?.lastReconciled;
+      if (!rec) return 'pending';
+      const days = Math.floor((Date.now() - new Date(rec).getTime()) / (1000*60*60*24));
+      if (days <= 7) return 'reconciled';
+      if (days <= 30) return 'warning';
+      return 'error';
+    };
+    const reconciled = accounts.filter(a => reconStatus(a) === 'reconciled');
+    const needsRecon = accounts.filter(a => reconStatus(a) !== 'reconciled');
+    const totalValue = accounts.reduce((s, a) => s + Number(a.totalValue || 0), 0);
+    const reconciledValue = reconciled.reduce((s, a) => s + Number(a.totalValue || 0), 0);
+
+    // liquid needing update = stale > 1 day by our saved per-position timestamps
+    const liquidNeeding = liquidPositions.filter(p => {
+      const k = `pos_${p.id}`;
+      const last = reconData[k]?.lastUpdated;
+      const days = last ? Math.floor((Date.now() - new Date(last).getTime())/(1000*60*60*24)) : 999;
+      return days > 1;
+    }).length;
+
+    return {
+      total,
+      reconciled: reconciled.length,
+      needsReconciliation: needsRecon.length,
+      liquidPositions: liquidNeeding,
+      percentage: total ? (reconciled.length / total) * 100 : 0,
+      totalValue, reconciledValue,
+      valuePercentage: totalValue ? (reconciledValue / totalValue) * 100 : 0
+    };
+  }, [accounts, reconData, liquidPositions]);
+
+  const healthScore = useMemo(() => {
+    const weights = { accountsReconciled: 0.6, liquidUpdated: 0.3, recency: 0.1 };
+    const accountScore = stats.percentage;
+    const liquidScore = liquidPositions.length ? ((liquidPositions.length - stats.liquidPositions) / liquidPositions.length) * 100 : 100;
+    const lastFull = Object.values(reconData).map(d => d.lastReconciled).filter(Boolean).sort((a,b)=>new Date(b)-new Date(a))[0];
+    const daysSinceFull = lastFull ? Math.floor((Date.now()-new Date(lastFull).getTime())/(1000*60*60*24)) : 30;
+    const recencyScore = clamp(100 - daysSinceFull*14, 0, 100);
+    return Math.round(accountScore*weights.accountsReconciled + liquidScore*weights.liquidUpdated + recencyScore*weights.recency);
+  }, [stats, liquidPositions, reconData]);
+
+  const lastReconText = useMemo(() => {
+    const dates = Object.values(reconData).map(d => d.lastReconciled).filter(Boolean).map(d=>new Date(d));
+    if (!dates.length) return 'Never';
+    const mostRecent = new Date(Math.max(...dates));
+    const days = Math.floor((Date.now() - mostRecent)/(1000*60*60*24));
+    if (days === 0) return 'Today';
+    if (days === 1) return 'Yesterday';
+    if (days < 7) return `${days} days ago`;
+    if (days < 30) return `${Math.floor(days/7)} weeks ago`;
+    return `${Math.floor(days/30)} months ago`;
+  }, [reconData]);
+
+  // ============== Write engine ====================================
+  async function writeAndRefresh(batch) {
+    // batch: [{ itemId, kind: 'cash'|'liability'|'other', value:number }]
+    for (const b of batch) {
+      const v = Number(b.value);
+      if (!Number.isFinite(v)) continue;
+      if (b.kind === 'cash') {
+        await updateCashPosition(b.itemId, { amount: v });
+      } else if (b.kind === 'liability') {
+        await updateLiability(b.itemId, { current_balance: v });
+      } else {
+        await updateOtherAsset(Number(b.itemId), { current_value: v });
+      }
     }
+    await Promise.all([
+      refreshPositions?.(),
+      actions?.fetchGroupedPositionsData?.(true),
+      actions?.fetchPortfolioData?.(true),
+    ]);
+  }
 
-    setIsSubmitting(false);
+  // ============== Screens =========================================
 
-    if (fail === 0) {
-      showBanner('success', `Updated ${ok} item${ok !== 1 ? 's' : ''}.`);
-      exitInstitution();
-    } else {
-      showBanner('warning', `Updated ${ok}, failed ${fail}. Review console for details.`);
-    }
-  };
-
-  // ---------------------------------
-  // Views
-  // ---------------------------------
-  const Home = () => {
-    // Stats
-    const groups = Object.values(institutionGroups);
-    const totalInstitutions = groups.filter(g => g.cash.length + g.liabilities.length + g.otherAssets.length > 0).length;
-    const totalCashPositions = groups.reduce((s, g) => s + g.cash.length, 0);
-    const totalLiabilities = groups.reduce((s, g) => s + g.liabilities.length, 0);
-    const totalOtherAssets = groups.reduce((s, g) => s + g.otherAssets.length, 0);
-    const totalPositions = totalCashPositions + totalLiabilities + totalOtherAssets;
-
+  // ---- Welcome
+  function WelcomeScreen() {
     return (
-      <div className="space-y-6">
+      <div className="p-8 bg-gradient-to-br from-gray-50 to-gray-100">
         {/* Header */}
-        <div className="text-center">
-          <div className="mx-auto w-16 h-16 bg-gradient-to-br from-emerald-600 to-teal-600 rounded-full flex items-center justify-center mb-4">
-            <RefreshCw className="w-8 h-8 text-white" />
-          </div>
-          <h3 className="text-2xl font-bold text-white mb-2">Quick Reconciliation</h3>
-          <p className="text-gray-400">Tie out balances fast and accurately with staged edits.</p>
+        <div className="text-center space-y-3">
+          <h1 className="text-3xl font-bold text-gray-900">Welcome back 👋</h1>
+          <p className="text-gray-600">Let’s keep NestEgg accurate and tight.</p>
+          {streak > 0 && (
+            <div className="inline-flex items-center px-4 py-2 rounded-full border border-amber-200 bg-amber-50">
+              <Sparkles className="w-4 h-4 text-amber-600 mr-2" /> {streak}-day reconciliation streak
+            </div>
+          )}
         </div>
 
         {/* Stats */}
-        <div className="grid grid-cols-2 gap-4">
-          <StatCard label="Total Positions" value={totalPositions} tone="blue" icon={<TrendingIcon />} />
-          <StatCard label="Institutions" value={totalInstitutions} tone="green" icon={<Building2 className="w-8 h-8 opacity-50" />} />
-          <StatCard label="Cash & Assets" value={totalCashPositions + totalOtherAssets} tone="purple" icon={<DollarSign className="w-8 h-8 opacity-50" />} />
-          <StatCard label="Liabilities" value={totalLiabilities} tone="orange" icon={<CreditCard className="w-8 h-8 opacity-50" />} />
-        </div>
-
-        {/* Workflows */}
-        <div className="space-y-3">
-          <PrimaryCTA
-            onClick={() => setView('institutions')}
-            title="Quick Balance Update"
-            subtitle="Update cash, liabilities, and other assets by institution"
-            icon={<DollarSign className="w-5 h-5 text-white" />}
-          />
-          <SecondaryCTA
-            onClick={() => showBanner('info', 'Full-account sign-off will sync to backend in a later iteration. For now, use staged edits and update per institution.')}
-            title="Full Account Reconciliation"
-            subtitle="Coming soon — institution sign-off and audit trail"
-            icon={<LayoutDashboard className="w-5 h-5 text-white" />}
-          />
-        </div>
-
-        {/* Queue controls */}
-        <div className="flex items-center justify-between bg-gray-800/60 border border-gray-700 rounded-xl p-3">
-          <div className="text-sm text-gray-300">
-            Staged edits in local queue: <strong>{Object.keys(queue).length}</strong>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-8">
+          <div className="bg-white rounded-xl p-6 border border-gray-200 text-center">
+            <div className="inline-block relative mb-2">
+              <ProgressRing percentage={healthScore} size={96} strokeWidth={8} color={healthScore>=75?'green':healthScore>=50?'yellow':'red'} />
+              <div className="absolute inset-0 flex items-center justify-center">
+                <div>
+                  <div className="text-2xl font-bold text-gray-900">{healthScore}%</div>
+                  <div className="text-xs text-gray-500">Health</div>
+                </div>
+              </div>
+            </div>
+            <div className="text-sm text-gray-500">Last full update: {lastReconText}</div>
           </div>
-          <button
-            onClick={clearQueue}
-            className="px-3 py-1.5 text-sm rounded-md border border-gray-600 hover:bg-gray-700 text-gray-200 inline-flex items-center"
-          >
-            <Trash2 className="w-4 h-4 mr-2" /> Clear Local Queue
+          <div className="bg-white rounded-xl p-6 border border-gray-200 text-center">
+            <div className="text-4xl font-bold text-gray-900">{stats.total}</div>
+            <div className="text-sm text-gray-500">Total Accounts</div>
+            <div className="mt-3 flex justify-center gap-4">
+              <span className="text-xs text-green-700 bg-green-50 px-2 py-1 rounded-full">{stats.reconciled} current</span>
+              <span className="text-xs text-amber-700 bg-amber-50 px-2 py-1 rounded-full">{stats.needsReconciliation} pending</span>
+            </div>
+          </div>
+          <div className="bg-white rounded-xl p-6 border border-gray-200 text-center">
+            <div className="text-4xl font-bold text-gray-900">{Math.round(stats.valuePercentage)}%</div>
+            <div className="text-sm text-gray-500">Value Reconciled</div>
+            <div className="mt-2 text-xs text-gray-500">{fmtCurrency(stats.reconciledValue)} of {fmtCurrency(stats.totalValue)}</div>
+          </div>
+        </div>
+
+        {/* Paths */}
+        <div className="mt-10 grid grid-cols-1 md:grid-cols-3 gap-4">
+          <button onClick={()=>setScreen('liquid')} className="group text-left p-6 bg-white rounded-xl border-2 border-blue-200 hover:border-blue-400 transition-all hover:shadow-lg">
+            <div className="flex items-start gap-3">
+              <div className={`p-3 rounded-lg ${tone.blue.bg100}`}><Droplets className={tone.blue.text600} /></div>
+              <div className="flex-1">
+                <div className="font-semibold text-gray-900">Quick Cash Update</div>
+                <div className="text-sm text-gray-600">Update checking, savings, and cards fast</div>
+                <div className="mt-2 text-xs text-gray-500">{stats.liquidPositions === 0 ? '✅ All up to date' : `${stats.liquidPositions} need updates`}</div>
+              </div>
+              <ChevronRight className="w-5 h-5 text-gray-400 group-hover:translate-x-1 transition-transform" />
+            </div>
+          </button>
+
+          <button onClick={()=>setScreen('reconcile')} className="group text-left p-6 bg-white rounded-xl border-2 border-green-200 hover:border-green-400 transition-all hover:shadow-lg">
+            <div className="flex items-start gap-3">
+              <div className={`p-3 rounded-lg ${tone.green.bg100}`}><CheckSquare className={tone.green.text600} /></div>
+              <div className="flex-1">
+                <div className="font-semibold text-gray-900">Investment Check-In</div>
+                <div className="text-sm text-gray-600">Verify accounts match statements</div>
+                <div className="mt-2 text-xs text-gray-500">{stats.needsReconciliation === 0 ? '✅ Nothing pending' : `${stats.needsReconciliation} accounts to review`}</div>
+              </div>
+              <ChevronRight className="w-5 h-5 text-gray-400 group-hover:translate-x-1 transition-transform" />
+            </div>
+          </button>
+
+          <button onClick={() => { setScreen('liquid'); setPendingUpdates({ next: 'reconcile' }); }} className="group text-left p-6 bg-white rounded-xl border-2 border-purple-200 hover:border-purple-400 transition-all hover:shadow-lg">
+            <div className="flex items-start gap-3">
+              <div className={`p-3 rounded-lg ${tone.purple.bg100}`}><Target className={tone.purple.text600} /></div>
+              <div className="flex-1">
+                <div className="font-semibold text-gray-900">Complete Sync</div>
+                <div className="text-sm text-gray-600">Fastest way to refresh everything</div>
+                <div className="mt-2 text-xs text-gray-500">⚡ Most efficient workflow</div>
+              </div>
+              <ChevronRight className="w-5 h-5 text-gray-400 group-hover:translate-x-1 transition-transform" />
+            </div>
           </button>
         </div>
       </div>
     );
-  };
+  }
 
-  const Institutions = () => {
-    const list = Object.entries(institutionGroups).filter(([_, g]) =>
-      g.cash.length > 0 || g.liabilities.length > 0 || g.otherAssets.length > 0
-    );
+  // ---- Liquid workflow
+  function LiquidScreen() {
+    const [selectedInstitution, setSelectedInstitution] = useState(null);
+    const [updated, setUpdated] = useState({}); // { [posId]: number }
+    const [reviewed, setReviewed] = useState(new Set());
+    const draftKey = `${LS_DRAFT_PREFIX}${selectedInstitution || 'all'}`;
 
-    if (list.length === 0) {
-      return (
-        <div className="p-10 text-center text-gray-400 bg-gray-800/40 rounded-xl border border-gray-700">
-          No positions found.
-        </div>
-      );
-    }
+    // Group by institution
+    const groups = useMemo(() => {
+      const map = new Map();
+      liquidPositions.forEach(p => {
+        const key = p.institution || 'Unknown Institution';
+        if (!map.has(key)) map.set(key, []);
+        map.get(key).push({ ...p, hasUpdate: updated[p.id] !== undefined });
+      });
+      return Array.from(map.entries()).map(([institution, positions]) => ({
+        institution,
+        positions,
+        totalValue: positions.reduce((s,x)=>s+Math.abs(x.currentValue||0),0),
+        updatedCount: positions.filter(x=>updated[x.id] !== undefined).length
+      })).sort((a,b)=>b.totalValue - a.totalValue);
+    }, [liquidPositions, updated]);
+
+    // Auto-select first institution
+    useEffect(() => {
+      if (!groups.length) return;
+      if (!selectedInstitution) setSelectedInstitution(groups[0].institution);
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [groups.length]);
+
+    const current = groups.find(g => g.institution === selectedInstitution);
+    const positions = current?.positions || [];
+    const [idx, setIdx] = useState(0);
+    useEffect(() => { setIdx(0); }, [selectedInstitution]);
+
+    // Draft autosave/restore
+    useEffect(() => {
+      try {
+        const saved = localStorage.getItem(draftKey);
+        if (saved) {
+          const obj = JSON.parse(saved);
+          setUpdated(prev => ({ ...prev, ...obj }));
+        }
+      } catch {}
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [draftKey]);
+    useEffect(() => {
+      const t = setTimeout(() => {
+        try { localStorage.setItem(draftKey, JSON.stringify(updated)); } catch {}
+      }, 750);
+      return () => clearTimeout(t);
+    }, [updated, draftKey]);
+
+    // Bulk paste handler (paste column values)
+    const wrapPaste = (e) => {
+      if (!positions.length) return;
+      const txt = e.clipboardData.getData('text');
+      if (!txt) return;
+      const lines = txt.split(/\r?\n/).map(toNumber).filter(v => v !== null);
+      if (!lines.length) return;
+      setUpdated(prev => {
+        const next = { ...prev };
+        positions.forEach((p, i) => {
+          if (lines[i] !== undefined && lines[i] !== null) next[p.id] = lines[i];
+        });
+        return next;
+      });
+      e.preventDefault();
+    };
+
+    const currentPos = positions[idx];
+    const totalProgress = liquidPositions.length ? (Object.keys(updated).length / liquidPositions.length) * 100 : 0;
+    const instProgress = positions.length ? (positions.filter(p=>updated[p.id] !== undefined).length / positions.length) * 100 : 0;
+
+    const onChange = (posId, val) => setUpdated(prev => ({ ...prev, [posId]: toNumber(val) }));
+    const onNext = () => {
+      setReviewed(r => new Set([...r, currentPos?.id]));
+      if (idx < positions.length - 1) setIdx(idx+1);
+      else {
+        // move to next institution
+        const next = groups.find(g => g.institution !== selectedInstitution && !g.positions.every(p => reviewed.has(p.id) || updated[p.id] !== undefined));
+        if (next) { setSelectedInstitution(next.institution); setIdx(0); }
+        else {
+          // done liquid step
+          onComplete();
+        }
+      }
+    };
+    const onPrev = () => { if (idx > 0) setIdx(idx-1); };
+
+    const onComplete = async () => {
+      try {
+        setLocalLoading(true);
+        // Build batch from updated map
+        const batch = Object.entries(updated).map(([posId, value]) => {
+          const p = liquidPositions.find(x => String(x.id) === String(posId));
+          if (!p) return null;
+          const kind = ['cash','checking','savings'].includes(p.type) ? 'cash'
+            : (p.type === 'liability' || p.type === 'credit_card' || p.type === 'loan') ? 'liability' : 'other';
+          return { itemId: p.itemId, kind, value: Number(value) };
+        }).filter(Boolean);
+
+        if (batch.length) await writeAndRefresh(batch);
+
+        // update local recon data for positions timestamps
+        const nextData = { ...reconData };
+        Object.keys(updated).forEach(id => {
+          nextData[`pos_${id}`] = { lastUpdated: new Date().toISOString(), value: Number(updated[id]) };
+        });
+        saveReconData(nextData);
+        saveHistory();
+
+        setConfetti(true);
+        setTimeout(() => {
+          setConfetti(false);
+          if (pendingUpdates.next === 'reconcile') {
+            setPendingUpdates({});
+            setScreen('reconcile');
+          } else {
+            setScreen('welcome');
+          }
+        }, 1500);
+      } catch (e) {
+        console.error(e);
+        showMsg('error', 'Failed to update positions');
+      } finally {
+        setLocalLoading(false);
+      }
+    };
+
+    const onSelectInstitution = (inst) => {
+      setSelectedInstitution(inst);
+      const group = groups.find(g => g.institution === inst);
+      // jump to first not-updated
+      const i = group.positions.findIndex(p => updated[p.id] === undefined);
+      setIdx(i >= 0 ? i : 0);
+    };
+
+    // Compute differences for current card
+    const curVal = currentPos ? Number(currentPos.currentValue || 0) : 0;
+    const newVal = updated[currentPos?.id] ?? curVal;
+    const delta = newVal - curVal;
 
     return (
-      <div className="space-y-5">
-        <button
-          onClick={() => setView('home')}
-          className="inline-flex items-center text-sm text-gray-400 hover:text-white"
-        >
-          <ArrowLeft className="w-4 h-4 mr-1" /> Back to Overview
-        </button>
-
-        <div>
-          <h3 className="text-lg font-semibold text-white mb-1">Select Institution to Reconcile</h3>
-          <p className="text-sm text-gray-400 mb-3">Choose an institution or “Other Assets” to update.</p>
+      <div className="p-8" onPaste={wrapPaste}>
+        {/* Header */}
+        <div className="flex items-center justify-between mb-6">
+          <button onClick={()=>setScreen('welcome')} className="flex items-center text-gray-600 hover:text-gray-900">
+            <ArrowLeft className="w-4 h-4 mr-1" /> Back
+          </button>
+          <div className="flex items-center gap-4">
+            <div className="text-right">
+              <div className="text-xs text-gray-500">Overall Progress</div>
+              <div className="text-lg font-semibold text-gray-900">
+                {Object.keys(updated).length} / {liquidPositions.length}
+              </div>
+            </div>
+            <ProgressRing percentage={totalProgress} size={64} color="blue" />
+            <button
+              onClick={()=>setShowValues(s=>!s)}
+              className={`p-2 rounded-lg ${showValues ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-600'}`}
+              title={showValues ? 'Hide values' : 'Show values'}
+            >
+              {showValues ? <Eye className="w-5 h-5" /> : <EyeOff className="w-5 h-5" />}
+            </button>
+            <button
+              onClick={async ()=>{
+                setLocalLoading(true);
+                await Promise.all([refreshPositions?.(), refreshAccounts?.()]);
+                setLocalLoading(false);
+              }}
+              className="p-2 rounded-lg bg-gray-100 hover:bg-gray-200"
+              title="Refresh data"
+            >
+              <RefreshCw className={`w-5 h-5 text-gray-700 ${localLoading ? 'animate-spin' : ''}`} />
+            </button>
+          </div>
         </div>
 
-        <div className="space-y-3">
-          {list.map(([name, g]) => {
-            const isOther = name === 'Other Assets';
-            const totalValue = g.totalCash + g.totalOther - g.totalLiab; // simple snapshot
+        {/* Institution selector */}
+        <div className="flex flex-wrap gap-3 mb-6">
+          {groups.map(g => {
+            const isSel = g.institution === selectedInstitution;
+            const done = g.positions.every(p => updated[p.id] !== undefined || reviewed.has(p.id));
             return (
-              <button
-                key={name}
-                onClick={() => enterInstitution(name)}
-                className="w-full p-4 bg-gray-800/50 border border-gray-700 rounded-xl hover:bg-gray-700/50 hover:border-gray-600 text-left group transition"
-              >
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center">
-                    <div className={`w-10 h-10 rounded-lg flex items-center justify-center mr-3 ${
-                      isOther ? 'bg-purple-500/20 text-purple-400' : 'bg-blue-500/20 text-blue-400'
-                    }`}>
-                      {isOther ? <Package className="w-5 h-5" /> : <Building2 className="w-5 h-5" />}
-                    </div>
-                    <div>
-                      <p className="font-medium text-white">{name}</p>
-                      <p className="text-sm text-gray-400">
-                        {g.cash.length > 0 && `${g.cash.length} cash`}
-                        {g.liabilities.length > 0 && `${g.cash.length > 0 ? ', ' : ''}${g.liabilities.length} liabilities`}
-                        {g.otherAssets.length > 0 && `${(g.cash.length > 0 || g.liabilities.length > 0) ? ', ' : ''}${g.otherAssets.length} assets`}
-                      </p>
-                    </div>
+              <button key={g.institution} onClick={()=>onSelectInstitution(g.institution)}
+                className={`relative px-6 py-4 rounded-xl border-2 transition-all ${isSel ? 'border-blue-500 bg-blue-50' : done ? 'border-green-400 bg-green-50' : 'border-gray-200 bg-white hover:border-gray-300'}`}>
+                {done && <div className="absolute -top-2 -right-2 bg-green-500 text-white rounded-full p-1"><Check className="w-4 h-4"/></div>}
+                <div className="flex items-center gap-2">
+                  <Landmark className={`${isSel ? 'text-blue-600' : done ? 'text-green-600' : 'text-gray-400'}`} />
+                  <div className="text-left">
+                    <div className="font-semibold text-gray-900">{g.institution}</div>
+                    <div className="text-xs text-gray-500">{g.positions.length} positions</div>
                   </div>
-                  <div className="text-right">
-                    <p className={`text-sm font-medium ${totalValue >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-                      {totalValue >= 0 ? '+' : ''}{formatCurrency(totalValue)}
-                    </p>
-                    <ChevronRight className="w-5 h-5 text-gray-500 mt-1 group-hover:translate-x-1 transition-transform" />
-                  </div>
+                </div>
+                <div className="mt-2 text-sm text-gray-900 font-semibold">{fmtCurrency(g.totalValue, !showValues)}</div>
+                <div className="mt-2 h-1 bg-gray-200 rounded-full overflow-hidden">
+                  <div className={`${isSel ? 'bg-blue-500' : 'bg-green-500'} h-full`} style={{ width: `${instProgress && g.institution===selectedInstitution ? instProgress : (g.updatedCount / g.positions.length)*100}%` }} />
                 </div>
               </button>
             );
           })}
         </div>
+
+        {/* Current position card */}
+        {currentPos ? (
+          <div className="max-w-2xl mx-auto">
+            <div className={`rounded-xl border-2 bg-white ${delta!==0 ? 'border-amber-300' : 'border-gray-200'} p-6`}>
+              <div className="flex items-start justify-between">
+                <div>
+                  <div className="text-sm text-gray-500">{currentPos.institution}</div>
+                  <div className="text-xl font-semibold text-gray-900">{currentPos.name}</div>
+                </div>
+                <div className="text-right">
+                  {delta !== 0 && (
+                    <div className={`text-sm font-medium px-2 py-1 rounded-full inline-block ${delta>0 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                      {delta>0?'+':''}{fmtCurrency(delta)}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4 mt-4">
+                <div>
+                  <div className="text-sm text-gray-600">Current NestEgg</div>
+                  <div className="text-xl font-bold text-gray-900">{fmtCurrency(currentPos.currentValue, !showValues)}</div>
+                </div>
+                <div>
+                  <div className="text-sm text-gray-600">Statement / New Value</div>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">{(currentPos.type==='liability'||currentPos.type==='credit_card'||currentPos.type==='loan')?'-$':'$'}</span>
+                    <input
+                      type="text"
+                      value={updated[currentPos.id] ?? currentPos.currentValue}
+                      onChange={(e)=>onChange(currentPos.id, e.target.value)}
+                      onKeyDown={(e)=>{ if(e.key==='Enter'){ e.preventDefault(); onNext(); } if(e.key==='ArrowLeft'){ onPrev(); } if(e.key==='ArrowRight'){ onNext(); } }}
+                      className="w-full pl-8 pr-4 py-3 text-xl font-bold rounded-lg border-2 border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {delta !== 0 && (
+                <div className={`mt-4 p-3 rounded-lg border ${delta>0?'bg-green-50 border-green-200':'bg-red-50 border-red-200'}`}>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-gray-700">Difference</span>
+                    <span className={`font-bold ${delta>0?'text-green-700':'text-red-700'}`}>{delta>0?'+':''}{fmtCurrency(delta, !showValues)} ({diffPct(currentPos.currentValue, delta).toFixed(1)}%)</span>
+                  </div>
+                </div>
+              )}
+
+              <div className="flex items-center justify-between mt-6">
+                <button onClick={onPrev} disabled={idx===0} className={`px-4 py-2 rounded-lg border ${idx===0?'text-gray-400 border-gray-200':'text-gray-700 border-gray-300 hover:bg-gray-50'}`}>
+                  <ArrowLeft className="w-4 h-4 inline mr-1" /> Previous
+                </button>
+                <button onClick={()=>setIdx(Math.min(idx+1, positions.length-1))} className="text-sm text-gray-500 hover:text-gray-700">Skip</button>
+                <button onClick={onNext} className="px-5 py-2.5 rounded-lg bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-medium hover:from-blue-700 hover:to-indigo-700 shadow">
+                  {idx === positions.length-1 ? 'Complete Institution' : 'Next'} <ChevronRight className="w-4 h-4 inline ml-1" />
+                </button>
+              </div>
+
+              <div className="mt-4 flex justify-center gap-2">
+                {positions.map((p,i)=>(
+                  <div key={p.id} className={`h-2 rounded-full ${i===idx?'w-8 bg-blue-600': (updated[p.id]!==undefined?'w-2 bg-green-500':'w-2 bg-gray-300')}`} />
+                ))}
+              </div>
+            </div>
+
+            {/* Update summary */}
+            {Object.keys(updated).length>0 && (
+              <div className="mt-6 bg-blue-50 border border-blue-200 rounded-xl p-5">
+                <div className="flex items-center justify-between mb-3">
+                  <h4 className="font-semibold text-gray-900 flex items-center"><FileCheck className="w-5 h-5 mr-2 text-blue-600" />Pending Updates</h4>
+                  <span className="text-2xl font-bold text-blue-600">{Object.keys(updated).length}</span>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  {(() => {
+                    const entries = Object.entries(updated);
+                    let inc=0, dec=0, net=0;
+                    for (const [id, nv] of entries) {
+                      const p = liquidPositions.find(x => String(x.id)===String(id));
+                      if (!p) continue;
+                      const d = Number(nv) - Number(p.currentValue || 0);
+                      net += d; if (d>0) inc+=d; else dec += Math.abs(d);
+                    }
+                    return (
+                      <>
+                        <div className="bg-white rounded-lg p-4 text-center">
+                          <ArrowUpRight className="w-6 h-6 text-green-600 mx-auto mb-2" />
+                          <div className="text-sm text-gray-600">Total Increase</div>
+                          <div className="text-xl font-bold text-green-600">+{fmtCurrency(inc, !showValues)}</div>
+                        </div>
+                        <div className="bg-white rounded-lg p-4 text-center">
+                          <ArrowDownRight className="w-6 h-6 text-red-600 mx-auto mb-2" />
+                          <div className="text-sm text-gray-600">Total Decrease</div>
+                          <div className="text-xl font-bold text-red-600">-{fmtCurrency(dec, !showValues)}</div>
+                        </div>
+                        <div className="bg-white rounded-lg p-4 text-center">
+                          <Percent className="w-6 h-6 text-blue-600 mx-auto mb-2" />
+                          <div className="text-sm text-gray-600">Net Change</div>
+                          <div className={`text-xl font-bold ${net>=0?'text-green-600':'text-red-600'}`}>{net>=0?'+':''}{fmtCurrency(net, !showValues)}</div>
+                        </div>
+                      </>
+                    );
+                  })()}
+                </div>
+
+                <div className="mt-4 flex justify-end gap-3">
+                  <button onClick={()=>setScreen('welcome')} className="px-4 py-2 rounded-lg bg-gray-100 text-gray-700 hover:bg-gray-200">Cancel</button>
+                  <button onClick={onComplete} className="px-5 py-2.5 rounded-lg bg-blue-600 text-white font-semibold hover:bg-blue-700">
+                    Apply {Object.keys(updated).length} Update{Object.keys(updated).length>1?'s':''}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="text-center text-gray-500">No liquid positions were found.</div>
+        )}
       </div>
     );
-  };
+  }
 
-  const Reconcile = () => {
-    const g = institutionGroups[selectedInstitution];
-    if (!g) return null;
+  // ---- Account reconciliation
+  function ReconcileScreen() {
+    const [selectedInstitution, setSelectedInstitution] = useState(null);
+    const [selectedAccount, setSelectedAccount] = useState(null);
 
-    const netDelta = institutionRows.totals.delta;
+    // group accounts by institution
+    const groups = useMemo(() => {
+      const map = new Map();
+      accounts.forEach(a => {
+        const inst = a.institution || 'Unknown Institution';
+        if (!map.has(inst)) map.set(inst, []);
+        map.get(inst).push(a);
+      });
+      return Array.from(map.entries()).map(([institution, list]) => ({
+        institution,
+        accounts: list,
+        totalValue: list.reduce((s,a)=>s+Number(a.totalValue||0),0),
+        needs: list.filter(a => {
+          const r = reconData[a.id]?.lastReconciled;
+          if (!r) return true;
+          const days = Math.floor((Date.now() - new Date(r).getTime())/(1000*60*60*24));
+          return !(days <= 7);
+        }).length
+      })).sort((a,b)=>b.totalValue - a.totalValue);
+    }, [accounts, reconData]);
+
+    useEffect(() => { if (groups.length && !selectedInstitution) setSelectedInstitution(groups[0].institution); }, [groups, selectedInstitution]);
+
+    const current = groups.find(g => g.institution === selectedInstitution);
+
+    const handleStatementChange = (accId, val) => {
+      const v = toNumber(val);
+      const next = { ...reconData, [accId]: { ...(reconData[accId]||{}), statementBalance: v, timestamp: new Date().toISOString() } };
+      saveReconData(next);
+    };
+
+    const calc = (a) => {
+      const ne = Number(a.totalValue || 0);
+      const st = Number(reconData[a.id]?.statementBalance ?? 0);
+      const diff = st - ne;
+      return {
+        nest: ne, stmt: st, diff, pct: diffPct(ne, diff),
+        isReconciled: Math.abs(diff) < TOLERANCE
+      };
+    };
+
+    const quickReconcile = (a) => {
+      const ne = Number(a.totalValue || 0);
+      const next = { ...reconData, [a.id]: { ...(reconData[a.id]||{}), statementBalance: ne, lastReconciled: new Date().toISOString() } };
+      saveReconData(next);
+      showMsg('success', 'Account marked reconciled');
+    };
+
+    const onComplete = async () => {
+      // For now, reconciliation "sign off" is local only per requirements.
+      saveHistory();
+      setReconResults((current?.accounts || []).filter(a => reconData[a.id]?.statementBalance !== undefined).map(a => {
+        const r = calc(a);
+        return { accountName: a.accountName || a.account_name || 'Account', institution: a.institution, finalBalance: r.stmt, change: r.diff };
+      }));
+      setScreen('summary');
+    };
 
     return (
-      <div className="space-y-5">
-        <div className="flex items-center justify-between">
-          <button
-            onClick={exitInstitution}
-            className="inline-flex items-center text-sm text-gray-400 hover:text-white"
-          >
-            <ArrowLeft className="w-4 h-4 mr-1" /> Back to Institutions
+      <div className="p-8">
+        {/* Header */}
+        <div className="flex items-center justify-between mb-6">
+          <button onClick={()=>setScreen('welcome')} className="flex items-center text-gray-600 hover:text-gray-900">
+            <ArrowLeft className="w-4 h-4 mr-1" /> Back
           </button>
-          {anyChanges && (
-            <div className="inline-flex items-center text-sm text-amber-400">
-              <AlertCircle className="w-4 h-4 mr-1" /> Unsaved changes
-            </div>
-          )}
-        </div>
-
-        {/* Instance header */}
-        <div className="bg-gray-800/60 rounded-xl p-4 border border-gray-700">
-          <h3 className="text-lg font-semibold text-white flex items-center">
-            {selectedInstitution === 'Other Assets' ? (
-              <Package className="w-5 h-5 mr-2 text-purple-400" />
-            ) : (
-              <Building2 className="w-5 h-5 mr-2 text-blue-400" />
-            )}
-            {selectedInstitution}
-          </h3>
-          <p className="text-sm text-gray-400 mt-1">Enter statement values and commit when ready.</p>
-        </div>
-
-        {/* Cash */}
-        {g.cash.length > 0 && (
-          <SectionTable
-            title="Cash Positions"
-            titleIcon={<DollarSign className="w-4 h-4 mr-2 text-emerald-400" />}
-            rows={institutionRows.cash}
-            type="cash"
-            setStaged={setStaged}
-          />
-        )}
-
-        {/* Liabilities */}
-        {FEATURES.showLiabilities && g.liabilities.length > 0 && (
-          <SectionTable
-            title="Liabilities"
-            titleIcon={<CreditCard className="w-4 h-4 mr-2 text-rose-400" />}
-            rows={institutionRows.liabilities}
-            type="liability"
-            setStaged={setStaged}
-            invertColors // positive delta = worse (red), negative = paydown (green)
-          />
-        )}
-
-        {/* Other Assets */}
-        {FEATURES.showOtherAssets && g.otherAssets.length > 0 && (
-          <SectionTable
-            title="Other Assets"
-            titleIcon={<Package className="w-4 h-4 mr-2 text-purple-400" />}
-            rows={institutionRows.other}
-            type="other"
-            setStaged={setStaged}
-          />
-        )}
-
-        {/* Net Summary */}
-        {(
-          institutionRows.cash.some(r => r.staged !== '' && r.staged !== undefined) ||
-          institutionRows.liabilities.some(r => r.staged !== '' && r.staged !== undefined) ||
-          institutionRows.other.some(r => r.staged !== '' && r.staged !== undefined)
-        ) && (
-          <div className="bg-gray-800/60 rounded-xl p-4 border border-gray-700">
-            <div className="flex items-center justify-between">
-              <span className="text-sm font-medium text-gray-300">Net Change:</span>
-              <span className={`text-xl font-bold ${
-                netDelta > 0 ? 'text-emerald-400' : netDelta < 0 ? 'text-rose-400' : 'text-gray-400'
-              }`}>
-                {netDelta > 0 ? '+' : ''}{formatCurrency(netDelta)}
-              </span>
-            </div>
+          <div className="flex items-center gap-4">
+            <button onClick={()=>setShowValues(s=>!s)} className={`p-2 rounded-lg ${showValues ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-600'}`}>
+              {showValues ? <Eye className="w-5 h-5" /> : <EyeOff className="w-5 h-5" />}
+            </button>
+            <button onClick={onComplete} className="px-5 py-2.5 rounded-lg bg-gradient-to-r from-green-600 to-emerald-600 text-white font-semibold hover:from-green-700 hover:to-emerald-700">
+              <CheckCheck className="w-5 h-5 inline mr-2" /> Complete Reconciliation
+            </button>
           </div>
-        )}
+        </div>
 
-        {/* Actions */}
-        <div className="flex justify-end gap-3">
-          <button
-            onClick={exitInstitution}
-            className="px-5 py-2 text-sm rounded-lg bg-gray-800 text-gray-200 hover:bg-gray-700 border border-gray-700"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={handleUpdateAll}
-            disabled={!anyChanges || isSubmitting}
-            className={`px-5 py-2 text-sm rounded-lg text-white inline-flex items-center ${
-              (!anyChanges || isSubmitting) ? 'bg-gray-600 cursor-not-allowed' : 'bg-emerald-600 hover:bg-emerald-700'
-            }`}
-          >
-            {isSubmitting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
-            Update NestEgg Balances
-          </button>
+        {/* Institution tabs */}
+        <div className="border-b border-gray-200">
+          <div className="flex overflow-x-auto">
+            {groups.map(g => (
+              <button key={g.institution} onClick={()=>{ setSelectedInstitution(g.institution); setSelectedAccount(null); }}
+                className={`px-6 py-3 text-sm font-medium ${selectedInstitution===g.institution ? 'text-blue-600 border-b-2 border-blue-600 bg-blue-50' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'}`}>
+                <div className="flex items-center gap-2">
+                  <Landmark className="w-4 h-4" />
+                  <span>{g.institution}</span>
+                  {g.needs>0 && <span className="ml-2 text-xs bg-amber-100 text-amber-700 rounded-full px-2 py-0.5">{g.needs}</span>}
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Content grid */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
+          {/* Account list */}
+          <div className="space-y-3">
+            <h4 className="font-semibold text-gray-900">Select Account</h4>
+            {(current?.accounts || []).map(a => {
+              const sel = selectedAccount?.id === a.id;
+              const r = calc(a);
+              const status = r.isReconciled ? 'reconciled' : (Math.abs(r.diff) >= TOLERANCE ? 'warning' : 'pending');
+              return (
+                <button key={a.id} onClick={()=>setSelectedAccount(a)}
+                  className={`w-full text-left p-4 rounded-xl border-2 transition-all ${sel ? 'border-blue-500 bg-blue-50' : r.isReconciled ? 'border-green-200 bg-green-50 hover:border-green-300' : 'border-gray-200 bg-white hover:border-gray-300'}`}>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="font-semibold text-gray-900">{a.accountName || a.account_name || 'Account'}</div>
+                      <div className="text-xs text-gray-500">{a.accountType || a.type}</div>
+                    </div>
+                    <div className="text-right">
+                      <div className="font-semibold text-gray-900">{fmtCurrency(a.totalValue || 0, !showValues)}</div>
+                      <div className="text-xs text-gray-500">{/* positions count if available */}</div>
+                    </div>
+                  </div>
+                  <div className="mt-2"><StatusIndicator status={status} /></div>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Reconcile panel */}
+          <div>
+            {selectedAccount ? (
+              <div className="p-6 border-2 border-gray-200 rounded-xl bg-white sticky top-6">
+                <h4 className="font-semibold text-gray-900 mb-4">Reconcile Account</h4>
+                <div className="space-y-4">
+                  <div>
+                    <div className="text-sm text-gray-600">NestEgg Balance</div>
+                    <div className="text-2xl font-bold text-gray-900 mt-1">{fmtCurrency(selectedAccount.totalValue || 0, !showValues)}</div>
+                  </div>
+                  <div>
+                    <div className="text-sm text-gray-600">Statement Balance</div>
+                    <div className="relative mt-1">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-lg">$</span>
+                      <input
+                        type="text"
+                        value={reconData[selectedAccount.id]?.statementBalance ?? ''}
+                        onChange={(e)=>handleStatementChange(selectedAccount.id, e.target.value)}
+                        placeholder="0.00"
+                        className="w-full pl-8 pr-4 py-3 text-2xl font-bold border-2 border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-blue-50"
+                      />
+                    </div>
+                  </div>
+                  {reconData[selectedAccount.id]?.statementBalance !== undefined && (
+                    <div className={`${calc(selectedAccount).isReconciled ? 'bg-green-50 border-green-200' : 'bg-amber-50 border-amber-200'} border rounded-lg p-3`}>
+                      <div className="flex items-center">
+                        {calc(selectedAccount).isReconciled ? (
+                          <>
+                            <CheckCircle className="w-5 h-5 text-green-600 mr-2" />
+                            <div>
+                              <div className="font-medium text-green-900">Balances Match</div>
+                              <div className="text-sm text-green-700">Ready to mark as reconciled</div>
+                            </div>
+                          </>
+                        ) : (
+                          <>
+                            <AlertCircle className="w-5 h-5 text-amber-600 mr-2" />
+                            <div>
+                              <div className="font-medium text-amber-900">Balances Don’t Match</div>
+                              <div className="text-sm text-amber-700">Diff: {fmtCurrency(Math.abs(calc(selectedAccount).diff), !showValues)}</div>
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="flex gap-3">
+                    <button onClick={()=>quickReconcile(selectedAccount)} className="flex-1 px-4 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700">
+                      <CheckCircle className="w-4 h-4 inline mr-2" /> Quick Reconcile
+                    </button>
+                    <button onClick={()=>setSelectedAccount(null)} className="px-4 py-3 rounded-lg bg-gray-100 text-gray-700 hover:bg-gray-200">Cancel</button>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="p-12 border-2 border-dashed border-gray-300 rounded-xl text-center text-gray-500">Select an account to begin</div>
+            )}
+          </div>
         </div>
       </div>
     );
-  };
+  }
 
-  return (
-    <ModalShell isOpen={isOpen} onClose={onClose} title="Quick Reconciliation">
-      {/* Banner */}
-      {banner && (
-        <div
-          className={`mb-4 px-4 py-3 rounded-lg flex items-start gap-2 border ${
-            banner.type === 'success'
-              ? 'bg-emerald-900/30 text-emerald-200 border-emerald-700'
-              : banner.type === 'error'
-                ? 'bg-rose-900/30 text-rose-200 border-rose-700'
-                : banner.type === 'warning'
-                  ? 'bg-amber-900/30 text-amber-200 border-amber-700'
-                  : 'bg-blue-900/30 text-blue-200 border-blue-700'
-          }`}
-        >
-          {banner.type === 'success' && <CheckCircle2 className="w-5 h-5 mt-[2px]" />}
-          {banner.type === 'error' && <XCircle className="w-5 h-5 mt-[2px]" />}
-          {banner.type === 'warning' && <AlertCircle className="w-5 h-5 mt-[2px]" />}
-          <span className="text-sm">{banner.text}</span>
+  // ---- Summary
+  function SummaryScreen() {
+    const stats = {
+      accountsReconciled: reconResults.length,
+      liquidPositionsUpdated: 0, // we don’t track count across steps here; could pass via state if needed
+      totalValueReconciled: reconResults.reduce((s,r)=>s+Number(r.finalBalance||0),0),
+      accuracy: healthScore
+    };
+    return (
+      <div className="min-h-[70vh] bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 p-8">
+        <Confetti show={true} />
+        <div className="max-w-5xl mx-auto">
+          <div className="text-center mb-8">
+            <div className="inline-flex items-center justify-center w-24 h-24 bg-gradient-to-br from-green-400 to-emerald-500 rounded-full mb-6 shadow-2xl">
+              <Trophy className="w-12 h-12 text-white" />
+            </div>
+            <h1 className="text-3xl font-bold text-gray-900">Reconciliation Complete 🎉</h1>
+            <p className="text-gray-600 mt-2">Nice work. Your data is up to date.</p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+            <div className="bg-white rounded-2xl p-6 shadow border border-gray-100">
+              <div className="flex items-center justify-between mb-3"><CheckCircle className="w-7 h-7 text-green-600"/><span className="text-3xl font-bold">{stats.accountsReconciled}</span></div>
+              <div className="text-gray-700 font-semibold">Accounts Reconciled</div>
+            </div>
+            <div className="bg-white rounded-2xl p-6 shadow border border-gray-100">
+              <div className="flex items-center justify-between mb-3"><Droplets className="w-7 h-7 text-blue-600"/><span className="text-3xl font-bold">{stats.liquidPositionsUpdated}</span></div>
+              <div className="text-gray-700 font-semibold">Liquid Positions</div>
+            </div>
+            <div className="bg-white rounded-2xl p-6 shadow border border-gray-100">
+              <div className="flex items-center justify-between mb-3"><DollarSign className="w-7 h-7 text-indigo-600"/><span className="text-2xl font-bold">{fmtCurrency(stats.totalValueReconciled)}</span></div>
+              <div className="text-gray-700 font-semibold">Total Value</div>
+            </div>
+            <div className="bg-white rounded-2xl p-6 shadow border border-gray-100">
+              <div className="flex items-center justify-between mb-3"><Percent className="w-7 h-7 text-purple-600"/><div className="relative"><ProgressRing percentage={healthScore} size={56} color="purple" /><div className="absolute inset-0 flex items-center justify-center"><span className="text-sm font-bold">{healthScore}%</span></div></div></div>
+              <div className="text-gray-700 font-semibold">Accuracy</div>
+            </div>
+          </div>
+
+          {reconResults.length>0 && (
+            <div className="bg-white rounded-2xl p-6 shadow border border-gray-100 mb-8">
+              <h3 className="text-lg font-semibold text-gray-900 mb-3 flex items-center"><FileText className="w-5 h-5 mr-2 text-gray-600"/>Reconciliation Details</h3>
+              <div className="space-y-3">
+                {reconResults.map((r,i)=>(
+                  <div key={i} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                    <div>
+                      <div className="font-medium text-gray-900">{r.accountName}</div>
+                      <div className="text-xs text-gray-500">{r.institution}</div>
+                    </div>
+                    <div className="text-right">
+                      <div className="font-semibold text-gray-900">{fmtCurrency(r.finalBalance)}</div>
+                      {r.change !== 0 && <div className={`text-sm ${r.change>0?'text-green-600':'text-red-600'}`}>{r.change>0?'+':''}{fmtCurrency(r.change)}</div>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div className="bg-gradient-to-r from-blue-600 to-indigo-600 rounded-2xl p-6 text-white shadow">
+            <div className="grid md:grid-cols-3 gap-6">
+              <div className="flex items-start gap-3">
+                <div className="p-2 bg-white/20 rounded"><Clock className="w-6 h-6"/></div>
+                <div><div className="font-semibold">Schedule weekly</div><div className="text-sm text-blue-100">Reconciling weekly keeps drift low</div></div>
+              </div>
+              <div className="flex items-start gap-3">
+                <div className="p-2 bg-white/20 rounded"><LineChart className="w-6 h-6"/></div>
+                <div><div className="font-semibold">Track progress</div><div className="text-sm text-blue-100">Watch portfolio health trend</div></div>
+              </div>
+              <div className="flex items-start gap-3">
+                <div className="p-2 bg-white/20 rounded"><Bell className="w-6 h-6"/></div>
+                <div><div className="font-semibold">Set alerts</div><div className="text-sm text-blue-100">Get pinged when data drifts</div></div>
+              </div>
+            </div>
+            <div className="mt-6 flex justify-center gap-3">
+              <button onClick={onClose} className="px-5 py-2.5 bg-white text-blue-700 rounded-lg hover:bg-gray-100">Back to Dashboard</button>
+              <button onClick={()=>{ setReconResults([]); setScreen('welcome'); }} className="px-5 py-2.5 bg-blue-700 rounded-lg hover:bg-blue-800">Start New Reconciliation</button>
+            </div>
+          </div>
         </div>
-      )}
+      </div>
+    );
+  }
 
-      {isLoading ? (
-        <div className="py-16 flex items-center justify-center text-gray-400">
-          <Loader2 className="w-6 h-6 mr-2 animate-spin" />
-          Loading data…
+  // ============== Render ==========================================
+  return (
+    <ModalShell isOpen={isOpen} onClose={onClose} showHeader={false}>
+      {(loading || localLoading) && screen==='welcome' ? (
+        <div className="flex items-center justify-center h-[60vh]">
+          <div className="text-center">
+            <Loader2 className="w-12 h-12 text-blue-500 animate-spin mx-auto mb-4" />
+            <p className="text-gray-600">Loading your portfolio...</p>
+          </div>
         </div>
       ) : (
         <>
-          {view === 'home' && <Home />}
-          {view === 'institutions' && <Institutions />}
-          {view === 'reconcile' && <Reconcile />}
+          {screen==='welcome'   && <WelcomeScreen />}
+          {screen==='liquid'    && <LiquidScreen />}
+          {screen==='reconcile' && <ReconcileScreen />}
+          {screen==='summary'   && <SummaryScreen />}
         </>
       )}
+
+      {/* Toast */}
+      {message.text && (
+        <div className={`fixed bottom-6 left-1/2 -translate-x-1/2 w-[90%] max-w-md px-5 py-4 rounded-xl shadow-2xl text-white flex items-center justify-between ${message.type==='error'?'bg-red-600':message.type==='success'?'bg-green-600':'bg-blue-600'}`} role="status" aria-live="polite">
+          <div className="flex items-center gap-3">
+            {message.type==='error' ? <AlertCircle className="w-5 h-5" /> : message.type==='success' ? <CheckCircle className="w-5 h-5" /> : <Info className="w-5 h-5" />}
+            <span className="font-medium">{message.text}</span>
+          </div>
+          <button onClick={()=>setMessage({type:'',text:''})} className="p-1 hover:bg-white/20 rounded"><X className="w-4 h-4" /></button>
+        </div>
+      )}
+
+      {confetti && <Confetti show={true} />}
     </ModalShell>
   );
-};
+}
 
-// -------------------------------
-// Small presentational components
-// -------------------------------
-const StatCard = ({ label, value, tone, icon }) => {
-  const tones = {
-    blue:   'from-blue-900/20 to-blue-800/10',
-    green:  'from-emerald-900/20 to-emerald-800/10',
-    purple: 'from-purple-900/20 to-purple-800/10',
-    orange: 'from-orange-900/20 to-orange-800/10',
-  };
-  return (
-    <div className={`bg-gradient-to-br ${tones[tone]} rounded-xl p-4 border border-gray-800`}>
-      <div className="flex items-center justify-between">
-        <div>
-          <p className={`text-sm font-medium text-gray-300`}>{label}</p>
-          <p className="text-2xl font-bold text-white mt-1">{value}</p>
-        </div>
-        <div className="text-gray-500">{icon}</div>
-      </div>
-    </div>
-  );
-};
-
-const TrendingIcon = () => (
-  <svg viewBox="0 0 24 24" className="w-8 h-8 opacity-50" fill="none" stroke="currentColor" strokeWidth="2">
-    <path d="M3 17l6-6 4 4 8-8" />
-    <path d="M14 7h7v7" />
-  </svg>
-);
-
-const PrimaryCTA = ({ onClick, title, subtitle, icon }) => (
-  <button
-    onClick={onClick}
-    className="w-full group relative overflow-hidden rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 p-0.5 hover:shadow-lg"
-  >
-    <div className="relative flex items-center justify-between rounded-xl bg-gray-900 px-6 py-4 group-hover:bg-opacity-90">
-      <div className="flex items-center">
-        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-white/10">
-          {icon}
-        </div>
-        <div className="ml-4 text-left">
-          <p className="font-semibold text-white">{title}</p>
-          <p className="text-sm text-gray-300">{subtitle}</p>
-        </div>
-      </div>
-      <ChevronRight className="w-5 h-5 text-gray-400 transition-transform group-hover:translate-x-1" />
-    </div>
-  </button>
-);
-
-const SecondaryCTA = ({ onClick, title, subtitle, icon }) => (
-  <button
-    onClick={onClick}
-    className="w-full group relative overflow-hidden rounded-xl bg-gradient-to-r from-gray-700 to-gray-800 p-0.5 hover:shadow-lg opacity-90"
-  >
-    <div className="relative flex items-center justify-between rounded-xl bg-gray-900 px-6 py-4">
-      <div className="flex items-center">
-        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-white/10">
-          {icon}
-        </div>
-        <div className="ml-4 text-left">
-          <p className="font-semibold text-white">{title}</p>
-          <p className="text-sm text-gray-300">{subtitle}</p>
-        </div>
-      </div>
-      <ChevronRight className="w-5 h-5 text-gray-400" />
-    </div>
-  </button>
-);
-
-const SectionTable = ({ title, titleIcon, rows, type, setStaged, invertColors = false }) => (
-  <div className="bg-gray-800/50 rounded-xl border border-gray-700 overflow-hidden">
-    <div className="px-4 py-3 bg-gray-800/70 border-b border-gray-700 flex items-center">
-      <h4 className="text-sm font-medium text-gray-300 flex items-center">
-        {titleIcon}{title}
-      </h4>
-    </div>
-    <table className="w-full">
-      <thead className="bg-gray-800/50">
-        <tr>
-          <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase">Name</th>
-          <th className="px-4 py-3 text-right text-xs font-medium text-gray-400 uppercase">NestEgg</th>
-          <th className="px-4 py-3 text-center text-xs font-medium text-gray-400 uppercase">Statement</th>
-          <th className="px-4 py-3 text-right text-xs font-medium text-gray-400 uppercase">Δ</th>
-          <th className="px-4 py-3 text-right text-xs font-medium text-gray-400 uppercase">%Δ</th>
-        </tr>
-      </thead>
-      <tbody className="divide-y divide-gray-700">
-        {rows.map(r => {
-          const deltaColor = (() => {
-            if (r.staged === '' || r.staged === undefined) return 'text-gray-400';
-            const positive = r.delta > 0;
-            if (invertColors) {
-              // liabilities: higher balance (worse) = red
-              return positive ? 'text-rose-400' : r.delta < 0 ? 'text-emerald-400' : 'text-gray-400';
-            }
-            return positive ? 'text-emerald-400' : r.delta < 0 ? 'text-rose-400' : 'text-gray-400';
-          })();
-
-          return (
-            <tr key={`${type}-${r.id}`} className={r.changed ? 'bg-blue-900/10' : ''}>
-              <td className="px-4 py-3">
-                <div className="font-medium text-gray-200">{r.name}</div>
-                {'accountName' in r && <div className="text-xs text-gray-500">{r.accountName}</div>}
-              </td>
-              <td className="px-4 py-3 text-right">
-                <span className="font-medium text-gray-300">
-                  {formatCurrency('currentValue' in r ? r.currentValue : r.currentBalance)}
-                </span>
-              </td>
-              <td className="px-4 py-3">
-                <input
-                  type="number"
-                  inputMode="decimal"
-                  value={r.staged === undefined ? '' : r.staged}
-                  onChange={(e) => setStaged(type, r.id, e.target.value)}
-                  placeholder="0.00"
-                  className={`w-full px-3 py-1.5 text-sm text-right bg-gray-700 border rounded-lg text-gray-200 placeholder-gray-500 focus:ring-2 focus:border-transparent ${
-                    r.changed ? 'border-blue-400 focus:ring-blue-500' : 'border-gray-600 focus:ring-gray-500'
-                  }`}
-                  aria-label={`Statement value for ${r.name}`}
-                />
-              </td>
-              <td className={`px-4 py-3 text-right font-medium ${deltaColor}`}>
-                {r.staged === '' || r.staged === undefined ? '—' : `${r.delta > 0 ? '+' : ''}${formatCurrency(r.delta)}`}
-              </td>
-              <td className={`px-4 py-3 text-right ${deltaColor}`}>
-                {r.staged === '' || r.staged === undefined ? '—' : `${r.pct > 0 ? '+' : ''}${r.pct.toFixed(1)}%`}
-              </td>
-            </tr>
-          );
-        })}
-      </tbody>
-    </table>
-  </div>
-);
-
-// -------------------------------
-// Exported Navbar Button
-// -------------------------------
-export const QuickReconciliationButton = ({ className = '', label = 'Reconcile' }) => {
+// ============== Optional: Navbar button in the same file ==============
+export function QuickReconciliationButton({ className = '' }) {
   const [open, setOpen] = useState(false);
+  const [hover, setHover] = useState(false);
   return (
     <>
       <button
-        onClick={() => setOpen(true)}
-        className={`flex items-center gap-2 px-3 py-2 text-sm font-medium text-gray-300 hover:text-white transition-colors ${className}`}
+        onClick={()=>setOpen(true)}
+        onMouseEnter={()=>setHover(true)} onMouseLeave={()=>setHover(false)}
+        className={`relative inline-flex items-center gap-2 px-4 py-2 rounded-lg text-white transition-all ${className}`}
       >
-        <RefreshCw className="w-4 h-4" />
-        <span>{label}</span>
+        <span className={`absolute inset-0 rounded-lg bg-gradient-to-r from-emerald-600 to-teal-600 ${hover?'opacity-100':'opacity-80'}`} />
+        <span className="relative z-10 inline-flex items-center">
+          <CheckSquare className={`w-5 h-5 mr-1 ${hover ? 'rotate-12' : ''} transition-transform`} />
+          <span className="text-sm font-medium">Quick Reconcile</span>
+          {hover && <Sparkles className="w-4 h-4 ml-2 text-yellow-300 animate-pulse" />}
+        </span>
       </button>
-      <QuickReconciliationModal isOpen={open} onClose={() => setOpen(false)} />
+      <QuickReconciliationModal isOpen={open} onClose={()=>setOpen(false)} />
     </>
   );
-};
-
-export default QuickReconciliationModal;
+}
