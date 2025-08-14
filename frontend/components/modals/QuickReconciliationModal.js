@@ -10,7 +10,6 @@ import debounce from 'lodash.debounce';
 import { useDataStore } from '@/store/DataStore';
 import { useAccounts } from '@/store/hooks/useAccounts';
 import { useDetailedPositions } from '@/store/hooks/useDetailedPositions';
-import { usePortfolioSummary } from '@/store/hooks/usePortfolioSummary';
 import {
   CheckCircle, AlertCircle, Info, Clock, X, Check, ChevronRight,
   TrendingUp, TrendingDown, RefreshCw, Loader2, Search, Filter,
@@ -1604,21 +1603,11 @@ const WelcomeScreen = ({
                 </p>
               </div>
               
-              {/* Portfolio Overview - Database Sourced */}
+              {/* Accounts Status */}
               <div className="text-center">
-                <div className="grid grid-cols-3 gap-2 mb-3">
-                  <div>
-                    <div className="text-2xl font-bold text-gray-900">{stats.total}</div>
-                    <div className="text-xs text-gray-500">Accounts</div>
-                  </div>
-                  <div>
-                    <div className="text-2xl font-bold text-blue-600">{stats.totalPositions}</div>
-                    <div className="text-xs text-gray-500">Positions</div>
-                  </div>
-                  <div>
-                    <div className="text-2xl font-bold text-orange-600">{stats.totalLiabilities}</div>
-                    <div className="text-xs text-gray-500">Liabilities</div>
-                  </div>
+                <div className="mb-3">
+                  <div className="text-4xl font-bold text-gray-900">{stats.total}</div>
+                  <div className="text-sm text-gray-500">Total Accounts</div>
                 </div>
                 <div className="flex justify-center gap-4 mt-4">
                   <div className="flex items-center">
@@ -1881,17 +1870,10 @@ const QuickReconciliationModal = ({ isOpen, onClose }) => {
    refresh: refreshPositions 
  } = useDetailedPositions();
  
- const {
-   summary,
-   loading: summaryLoading,
-   error: summaryError,
-   refresh: refreshSummary
- } = usePortfolioSummary();
- 
  const { actions } = useDataStore();
  
  // Combine loading states
- const loading = accountsLoading || positionsLoading || summaryLoading;
+ const loading = accountsLoading || positionsLoading;
  
  // State management
  const [currentScreen, setCurrentScreen] = useState('welcome');
@@ -2079,13 +2061,9 @@ const QuickReconciliationModal = ({ isOpen, onClose }) => {
    }
  };
  
+// Calculate stats using correct field names from DataStore
  const stats = useMemo(() => {
-   // Use database counts from rept_net_worth_trend_summary
-   const total = summary?.positionStats?.activeAccountCount || accounts.length;
-   const totalPositions = summary?.positionStats?.totalCount || 0;
-   const liquidPositions = summary?.positionStats?.liquidCount || 0;
-   const totalLiabilities = summary?.liabilities?.counts?.total || 0;
-   
+   const total = accounts.length;
    const enrichedAccounts = positions.length > 0 ? positions : accounts;
    const needsReconciliation = enrichedAccounts.filter(a => 
      a.reconciliationStatus === 'warning' || 
@@ -2112,9 +2090,6 @@ const QuickReconciliationModal = ({ isOpen, onClose }) => {
      needsReconciliation,
      reconciled,
      liquidPositions: liquidNeedingUpdate,
-     totalPositions,      // From database
-     liquidPositionsCount: liquidPositions,  // From database
-     totalLiabilities,    // From database
      percentage: total > 0 ? (reconciled / total) * 100 : 0,
      totalValue,
      reconciledValue,
