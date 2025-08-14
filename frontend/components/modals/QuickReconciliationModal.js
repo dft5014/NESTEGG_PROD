@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { X, AlertCircle, ChevronRight, Edit2, DollarSign, CreditCard, Building2, ArrowLeft, Save, Loader2 } from 'lucide-react';
+import { X, AlertCircle, ChevronRight, Edit2, DollarSign, CreditCard, Building2, ArrowLeft, Save, Loader2, RefreshCw } from 'lucide-react';
 import { useDataStore } from '@/store/DataStore';
 import { updatePosition, updateOtherAsset, updateCashPosition } from '@/utils/apimethods/positionMethods';
 import { formatCurrency } from '@/utils/formatters';
@@ -579,4 +579,27 @@ const QuickReconciliationModal = ({ isOpen, onClose }) => {
   );
 };
 
+// Add this BEFORE the final export
+export const QuickReconciliationButton = ({ className = '' }) => {
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  
+  return (
+    <>
+      <button
+        onClick={() => setIsModalOpen(true)}
+        className={`flex items-center gap-2 px-3 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white transition-colors ${className}`}
+      >
+        <RefreshCw className="w-4 h-4" />
+        <span>Reconcile</span>
+      </button>
+      
+      <QuickReconciliationModal 
+        isOpen={isModalOpen} 
+        onClose={() => setIsModalOpen(false)} 
+      />
+    </>
+  );
+};
+
+// Keep the existing default export
 export default QuickReconciliationModal;
