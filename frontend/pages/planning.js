@@ -1,5 +1,9 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { ChevronDown, ChevronRight, Plus, Trash2, Save, Copy, TrendingUp, DollarSign, Calculator, Info, Settings, Download, Upload, BarChart3, PieChart, Eye, EyeOff, Zap, Target, Calendar, AlertCircle } from 'lucide-react';
+import React, { useState, useMemo } from 'react';
+import {
+  ChevronDown, ChevronRight, Plus, Trash2, Save, Copy, TrendingUp, DollarSign, Calculator,
+  Info, Settings, Download, Upload, BarChart3, PieChart, Eye, EyeOff, Zap, Target,
+  Calendar, AlertCircle
+} from 'lucide-react';
 
 const FinancialPlanning = () => {
   const currentYear = new Date().getFullYear();
@@ -9,104 +13,152 @@ const FinancialPlanning = () => {
   const [showAdvancedSettings, setShowAdvancedSettings] = useState(false);
   const [currency, setCurrency] = useState('USD');
   const [inflationRate, setInflationRate] = useState(2.5);
-  
+
   // Asset classes with their configurations
   const [assetClasses, setAssetClasses] = useState([
-    { id: 1, name: 'Stocks', color: '#3B82F6', growthRate: 10, risk: 'High', allocation: 60, visible: true },
-    { id: 2, name: 'Bonds', color: '#10B981', growthRate: 5, risk: 'Low', allocation: 30, visible: true },
-    { id: 3, name: 'Real Estate', color: '#F59E0B', growthRate: 8, risk: 'Medium', allocation: 10, visible: true },
+    { id: 1, name: 'Stocks',      color: '#3B82F6', growthRate: 10, risk: 'High',   allocation: 60, visible: true },
+    { id: 2, name: 'Bonds',       color: '#10B981', growthRate: 5,  risk: 'Low',    allocation: 30, visible: true },
+    { id: 3, name: 'Real Estate', color: '#F59E0B', growthRate: 8,  risk: 'Medium', allocation: 10, visible: true },
   ]);
 
-  // Cash flow configuration
+  // Cash flows
   const [cashFlows, setCashFlows] = useState([
     { id: 1, name: 'Monthly Salary Investment', type: 'monthly', amount: 2000, startYear: 0, endYear: 30, growthRate: 3 },
-    { id: 2, name: 'Annual Bonus', type: 'annual', amount: 10000, startYear: 0, endYear: 20, growthRate: 2 },
+    { id: 2, name: 'Annual Bonus',              type: 'annual',  amount: 10000, startYear: 0, endYear: 20, growthRate: 2 },
   ]);
 
-  // Initialize yearly data
-  const initializeYearlyData = useCallback(() => {
+  // --- Derivations & Toggles ---
+  const [showValues, setShowValues] = useState(true);
+  const [viewMode, setViewMode] = useState('table');
+  const [showRealDollars, setShowRealDollars] = useState(false); // NEW
+
+  // Helpers
+  const clamp = (n, min, max) => Math.min(max, Math.max(min, n ?? 0));
+  const toNum = (v, fallback = 0) => {
+    const n = typeof v === 'number' ? v : parseFloat(v);
+    return Number.isFinite(n) ? n : fallback;
+  };
+
+  // Currency
+  const currencyFormatter = useMemo(() => {
+    const code = ['USD', 'EUR', 'GBP'].includes(currency) ? currency : 'USD';
+    return new Intl.NumberFormat('en-US', { style: 'currency', currency: code, maximumFractionDigits: 0 });
+  }, [currency]);
+  const formatCurrency = (value) => currencyFormatter.format(toNum(value));
+
+  // Allocation utilities
+  const totalAllocation = useMemo(
+    () => assetClasses.reduce((sum, a) => sum + toNum(a.allocation), 0),
+    [assetClasses]
+  );
+  const normalizeAllocations = () => {
+    const sum = totalAllocation || 1;
+    setAssetClasses(prev =>
+      prev.map(a => ({ ...a, allocation: parseFloat(((toNum(a.allocation) / sum) * 100).toFixed(2)) }))
+    );
+  };
+
+  // Base yearly scaffold
+  const baseYearly = useMemo(() => {
     const data = {};
     for (let i = 0; i <= selectedYears; i++) {
       data[currentYear + i] = {
         contributions: 0,
         totalValue: 0,
-        assetValues: {},
+        assetValues: Object.fromEntries(assetClasses.map(a => [a.id, 0])),
         cumulative: 0,
         netWorth: 0,
       };
-      assetClasses.forEach(asset => {
-        data[currentYear + i].assetValues[asset.id] = 0;
-      });
     }
     return data;
   }, [currentYear, selectedYears, assetClasses]);
 
-  const [yearlyData, setYearlyData] = useState(initializeYearlyData);
-  const [showValues, setShowValues] = useState(true);
-  const [viewMode, setViewMode] = useState('table'); // table, chart, summary
-
-  // Calculate projections
-  const calculateProjections = useCallback(() => {
-    const data = initializeYearlyData();
+  // Projections
+  const yearlyData = useMemo(() => {
+    const data = JSON.parse(JSON.stringify(baseYearly));
     let cumulative = 0;
 
     for (let yearIndex = 0; yearIndex <= selectedYears; yearIndex++) {
       const year = currentYear + yearIndex;
       let yearlyContribution = 0;
 
-      // Calculate contributions for this year
-      cashFlows.forEach(flow => {
-        if (yearIndex >= flow.startYear && yearIndex <= flow.endYear) {
-          const growthMultiplier = Math.pow(1 + flow.growthRate / 100, yearIndex);
-          if (flow.type === 'monthly') {
-            yearlyContribution += flow.amount * 12 * growthMultiplier;
-          } else {
-            yearlyContribution += flow.amount * growthMultiplier;
-          }
+      for (const flow of cashFlows) {
+        const s = clamp(toNum(flow.startYear), 0, selectedYears);
+        const e = clamp(toNum(flow.endYear), 0, selectedYears);
+        if (yearIndex >= s && yearIndex <= e) {
+          const t = yearIndex - s; // FIX: growth from startYear
+          const g = (toNum(flow.growthRate) / 100) || 0;
+          const amt = toNum(flow.amount);
+          const grown = amt * Math.pow(1 + g, t);
+          yearlyContribution += (flow.type === 'monthly' ? grown * 12 : grown);
         }
-      });
+      }
 
       data[year].contributions = yearlyContribution;
       cumulative += yearlyContribution;
 
-      // Calculate asset values
       let totalValue = 0;
-      assetClasses.forEach(asset => {
-        const allocation = asset.allocation / 100;
-        const assetContribution = yearlyContribution * allocation;
-        
-        // Add previous year's value with growth
-        if (yearIndex > 0) {
-          const prevYear = currentYear + yearIndex - 1;
-          const prevValue = data[prevYear].assetValues[asset.id];
-          data[year].assetValues[asset.id] = prevValue * (1 + asset.growthRate / 100) + assetContribution;
-        } else {
-          data[year].assetValues[asset.id] = assetContribution;
+      for (const asset of assetClasses) {
+        const alloc = (toNum(asset.allocation) / 100) || 0;
+        const rtn = (toNum(asset.growthRate) / 100) || 0;
+        const assetContribution = yearlyContribution * alloc;
+
+        const prevYear = yearIndex > 0 ? currentYear + yearIndex - 1 : null;
+        const prevValue = prevYear ? toNum(data[prevYear].assetValues[asset.id]) : 0;
+
+        const next = (prevValue * (1 + rtn)) + assetContribution;
+        data[year].assetValues[asset.id] = next;
+        totalValue += next;
+      }
+
+      if (showRealDollars) {
+        const inf = (toNum(inflationRate) / 100) || 0;
+        const deflator = Math.pow(1 + inf, yearIndex);
+        const deflate = (v) => v / (deflator || 1);
+
+        for (const asset of assetClasses) {
+          data[year].assetValues[asset.id] = deflate(data[year].assetValues[asset.id]);
         }
-        
-        totalValue += data[year].assetValues[asset.id];
-      });
+        data[year].contributions = deflate(data[year].contributions);
+        totalValue = deflate(totalValue);
+        cumulative = deflate(cumulative);
+      }
 
       data[year].totalValue = totalValue;
       data[year].cumulative = cumulative;
       data[year].netWorth = totalValue;
     }
 
-    setYearlyData(data);
-  }, [currentYear, selectedYears, cashFlows, assetClasses, initializeYearlyData]);
+    return data;
+  }, [baseYearly, selectedYears, currentYear, cashFlows, assetClasses, showRealDollars, inflationRate]);
 
-  useEffect(() => {
-    calculateProjections();
-  }, [calculateProjections]);
+  // Summary
+  const summaryStats = useMemo(() => {
+    const years = Object.keys(yearlyData).map(Number).sort((a,b)=>a-b);
+    const finalYear = years[years.length - 1];
+    const finalData = yearlyData[finalYear] || { totalValue: 0 };
 
-  // Format currency
-  const formatCurrency = (value) => {
-    const symbols = { USD: '$', EUR: '€', GBP: '£' };
-    const symbol = symbols[currency] || '$';
-    return `${symbol}${value.toLocaleString('en-US', { maximumFractionDigits: 0 })}`;
-  };
+    const totalContributions = Object.values(yearlyData)
+      .reduce((sum, row) => sum + toNum(row.contributions), 0);
 
-  // Add new asset class
+    const finalValue = toNum(finalData.totalValue);
+    const totalGrowth = finalValue - totalContributions;
+
+    const n = Math.max(1, selectedYears);
+    const avgAnnualReturn = totalContributions > 0
+      ? ((finalValue / totalContributions) ** (1 / n) - 1) * 100
+      : 0;
+
+    return {
+      totalContributions,
+      finalValue,
+      totalGrowth,
+      avgAnnualReturn,
+      growthMultiplier: totalContributions > 0 ? finalValue / totalContributions : 0,
+    };
+  }, [yearlyData, selectedYears]);
+
+  // Mutators
   const addAssetClass = () => {
     const colors = ['#8B5CF6', '#EC4899', '#6366F1', '#14B8A6', '#F97316'];
     const newAsset = {
@@ -121,7 +173,6 @@ const FinancialPlanning = () => {
     setAssetClasses([...assetClasses, newAsset]);
   };
 
-  // Add new cash flow
   const addCashFlow = () => {
     const newFlow = {
       id: Date.now(),
@@ -135,21 +186,18 @@ const FinancialPlanning = () => {
     setCashFlows([...cashFlows, newFlow]);
   };
 
-  // Update asset class
   const updateAssetClass = (id, field, value) => {
-    setAssetClasses(prev => prev.map(asset => 
+    setAssetClasses(prev => prev.map(asset =>
       asset.id === id ? { ...asset, [field]: value } : asset
     ));
   };
 
-  // Update cash flow
   const updateCashFlow = (id, field, value) => {
-    setCashFlows(prev => prev.map(flow => 
+    setCashFlows(prev => prev.map(flow =>
       flow.id === id ? { ...flow, [field]: value } : flow
     ));
   };
 
-  // Delete functions
   const deleteAssetClass = (id) => {
     setAssetClasses(prev => prev.filter(asset => asset.id !== id));
   };
@@ -157,27 +205,6 @@ const FinancialPlanning = () => {
   const deleteCashFlow = (id) => {
     setCashFlows(prev => prev.filter(flow => flow.id !== id));
   };
-
-  // Calculate summary statistics
-  const summaryStats = useMemo(() => {
-    const finalYear = currentYear + selectedYears;
-    const finalData = yearlyData[finalYear];
-    const totalContributions = Object.values(yearlyData).reduce((sum, year) => sum + year.contributions, 0);
-    const finalValue = finalData?.totalValue || 0;
-    const totalGrowth = finalValue - totalContributions;
-    const avgAnnualReturn = totalContributions > 0 ? ((finalValue / totalContributions) ** (1 / selectedYears) - 1) * 100 : 0;
-
-    return {
-      totalContributions,
-      finalValue,
-      totalGrowth,
-      avgAnnualReturn,
-      growthMultiplier: totalContributions > 0 ? finalValue / totalContributions : 0,
-    };
-  }, [yearlyData, currentYear, selectedYears]);
-
-  // Ensure allocations sum to 100%
-  const totalAllocation = assetClasses.reduce((sum, asset) => sum + asset.allocation, 0);
 
   return (
     <div className="w-full max-w-full mx-auto p-6 bg-gradient-to-br from-gray-50 to-gray-100 min-h-screen">
@@ -195,12 +222,13 @@ const FinancialPlanning = () => {
                   value={planName}
                   onChange={(e) => setPlanName(e.target.value)}
                   onBlur={() => setIsEditingName(false)}
-                  onKeyPress={(e) => e.key === 'Enter' && setIsEditingName(false)}
+                  onKeyDown={(e) => e.key === 'Enter' && setIsEditingName(false)}
                   className="text-2xl font-bold bg-transparent border-b-2 border-blue-500 outline-none"
                   autoFocus
+                  aria-label="Plan name"
                 />
               ) : (
-                <h1 
+                <h1
                   className="text-2xl font-bold text-gray-800 cursor-pointer hover:text-blue-600 transition-colors"
                   onClick={() => setIsEditingName(true)}
                 >
@@ -209,10 +237,11 @@ const FinancialPlanning = () => {
               )}
               <p className="text-gray-500 text-sm mt-1">
                 Financial projection for the next {selectedYears} years
+                {showRealDollars ? ' (today’s dollars)' : ''}
               </p>
             </div>
           </div>
-          
+
           <div className="flex items-center gap-3">
             <button className="px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg transition-all duration-200 flex items-center gap-2">
               <Upload className="w-4 h-4" />
@@ -242,7 +271,7 @@ const FinancialPlanning = () => {
               <DollarSign className="w-8 h-8 text-blue-400" />
             </div>
           </div>
-          
+
           <div className="bg-gradient-to-br from-green-50 to-green-100 p-4 rounded-xl border border-green-200">
             <div className="flex items-center justify-between">
               <div>
@@ -254,7 +283,7 @@ const FinancialPlanning = () => {
               <TrendingUp className="w-8 h-8 text-green-400" />
             </div>
           </div>
-          
+
           <div className="bg-gradient-to-br from-purple-50 to-purple-100 p-4 rounded-xl border border-purple-200">
             <div className="flex items-center justify-between">
               <div>
@@ -266,7 +295,7 @@ const FinancialPlanning = () => {
               <BarChart3 className="w-8 h-8 text-purple-400" />
             </div>
           </div>
-          
+
           <div className="bg-gradient-to-br from-amber-50 to-amber-100 p-4 rounded-xl border border-amber-200">
             <div className="flex items-center justify-between">
               <div>
@@ -298,9 +327,9 @@ const FinancialPlanning = () => {
               Add Flow
             </button>
           </div>
-          
+
           <div className="space-y-3">
-            {cashFlows.map((flow, index) => (
+            {cashFlows.map((flow) => (
               <div key={flow.id} className="bg-gray-50 rounded-xl p-4 border border-gray-200 hover:border-blue-300 transition-all duration-200">
                 <div className="flex items-center justify-between mb-3">
                   <input
@@ -308,15 +337,17 @@ const FinancialPlanning = () => {
                     value={flow.name}
                     onChange={(e) => updateCashFlow(flow.id, 'name', e.target.value)}
                     className="font-medium bg-transparent border-b border-transparent hover:border-gray-400 focus:border-blue-500 outline-none transition-colors"
+                    aria-label="Cash flow name"
                   />
                   <button
                     onClick={() => deleteCashFlow(flow.id)}
                     className="text-red-500 hover:text-red-700 transition-colors"
+                    aria-label="Delete cash flow"
                   >
                     <Trash2 className="w-4 h-4" />
                   </button>
                 </div>
-                
+
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="text-xs text-gray-500">Type</label>
@@ -329,45 +360,54 @@ const FinancialPlanning = () => {
                       <option value="annual">Annual</option>
                     </select>
                   </div>
-                  
+
                   <div>
                     <label className="text-xs text-gray-500">Amount</label>
                     <input
                       type="number"
                       value={flow.amount}
-                      onChange={(e) => updateCashFlow(flow.id, 'amount', parseFloat(e.target.value) || 0)}
+                      onChange={(e) => updateCashFlow(flow.id, 'amount', toNum(e.target.value))}
                       className="w-full mt-1 px-3 py-2 bg-white border border-gray-200 rounded-lg focus:border-blue-500 outline-none transition-colors"
                     />
                   </div>
-                  
+
                   <div>
                     <label className="text-xs text-gray-500">Years {flow.startYear}-{flow.endYear}</label>
                     <div className="flex gap-2 mt-1">
                       <input
                         type="number"
                         value={flow.startYear}
-                        onChange={(e) => updateCashFlow(flow.id, 'startYear', parseInt(e.target.value) || 0)}
+                        onChange={(e) => {
+                          const v = clamp(parseInt(e.target.value), 0, selectedYears);
+                          updateCashFlow(flow.id, 'startYear', v);
+                          if (v > flow.endYear) updateCashFlow(flow.id, 'endYear', v);
+                        }}
                         className="w-1/2 px-2 py-2 bg-white border border-gray-200 rounded-lg focus:border-blue-500 outline-none transition-colors"
                         min="0"
                         max={selectedYears}
+                        aria-label="Cash flow start year"
                       />
                       <input
                         type="number"
                         value={flow.endYear}
-                        onChange={(e) => updateCashFlow(flow.id, 'endYear', parseInt(e.target.value) || 0)}
+                        onChange={(e) => {
+                          const v = clamp(parseInt(e.target.value), 0, selectedYears);
+                          updateCashFlow(flow.id, 'endYear', Math.max(v, flow.startYear));
+                        }}
                         className="w-1/2 px-2 py-2 bg-white border border-gray-200 rounded-lg focus:border-blue-500 outline-none transition-colors"
                         min="0"
                         max={selectedYears}
+                        aria-label="Cash flow end year"
                       />
                     </div>
                   </div>
-                  
+
                   <div>
                     <label className="text-xs text-gray-500">Annual Growth %</label>
                     <input
                       type="number"
                       value={flow.growthRate}
-                      onChange={(e) => updateCashFlow(flow.id, 'growthRate', parseFloat(e.target.value) || 0)}
+                      onChange={(e) => updateCashFlow(flow.id, 'growthRate', toNum(e.target.value))}
                       className="w-full mt-1 px-3 py-2 bg-white border border-gray-200 rounded-lg focus:border-blue-500 outline-none transition-colors"
                       step="0.1"
                     />
@@ -393,64 +433,69 @@ const FinancialPlanning = () => {
               Add Asset
             </button>
           </div>
-          
-          {totalAllocation !== 100 && (
-            <div className="mb-3 px-3 py-2 bg-amber-50 border border-amber-200 rounded-lg flex items-center gap-2">
+
+          {Math.round(totalAllocation) !== 100 && (
+            <div className="mb-3 px-3 py-2 bg-amber-50 border border-amber-200 rounded-lg flex items-center gap-3">
               <AlertCircle className="w-4 h-4 text-amber-600" />
               <span className="text-sm text-amber-700">
-                Total allocation is {totalAllocation}% (should be 100%)
+                Total allocation is {totalAllocation.toFixed(2)}% (should be 100%)
               </span>
+              <button
+                onClick={normalizeAllocations}
+                className="ml-auto px-2.5 py-1 text-xs rounded-md bg-amber-600 text-white hover:bg-amber-700 transition"
+              >
+                Auto-balance
+              </button>
             </div>
           )}
-          
+
           <div className="space-y-3">
             {assetClasses.map((asset) => (
               <div key={asset.id} className="bg-gray-50 rounded-xl p-4 border border-gray-200 hover:border-purple-300 transition-all duration-200">
                 <div className="flex items-center justify-between mb-3">
                   <div className="flex items-center gap-2">
-                    <div 
-                      className="w-4 h-4 rounded"
-                      style={{ backgroundColor: asset.color }}
-                    />
+                    <div className="w-4 h-4 rounded" style={{ backgroundColor: asset.color }} />
                     <input
                       type="text"
                       value={asset.name}
                       onChange={(e) => updateAssetClass(asset.id, 'name', e.target.value)}
                       className="font-medium bg-transparent border-b border-transparent hover:border-gray-400 focus:border-blue-500 outline-none transition-colors"
+                      aria-label="Asset class name"
                     />
                   </div>
                   <button
                     onClick={() => deleteAssetClass(asset.id)}
                     className="text-red-500 hover:text-red-700 transition-colors"
+                    aria-label="Delete asset class"
                   >
                     <Trash2 className="w-4 h-4" />
                   </button>
                 </div>
-                
+
                 <div className="grid grid-cols-3 gap-3">
                   <div>
                     <label className="text-xs text-gray-500">Allocation %</label>
                     <input
                       type="number"
                       value={asset.allocation}
-                      onChange={(e) => updateAssetClass(asset.id, 'allocation', parseFloat(e.target.value) || 0)}
+                      onChange={(e) => updateAssetClass(asset.id, 'allocation', toNum(e.target.value))}
                       className="w-full mt-1 px-3 py-2 bg-white border border-gray-200 rounded-lg focus:border-blue-500 outline-none transition-colors"
                       min="0"
                       max="100"
                     />
                   </div>
-                  
+
                   <div>
                     <label className="text-xs text-gray-500">Annual Return %</label>
                     <input
                       type="number"
                       value={asset.growthRate}
-                      onChange={(e) => updateAssetClass(asset.id, 'growthRate', parseFloat(e.target.value) || 0)}
+                      onChange={(e) => updateAssetClass(asset.id, 'growthRate', toNum(e.target.value))}
                       className="w-full mt-1 px-3 py-2 bg-white border border-gray-200 rounded-lg focus:border-blue-500 outline-none transition-colors"
                       step="0.1"
                     />
                   </div>
-                  
+
                   <div>
                     <label className="text-xs text-gray-500">Risk Level</label>
                     <select
@@ -489,7 +534,7 @@ const FinancialPlanning = () => {
               <option value={40}>40 years</option>
             </select>
           </div>
-          
+
           <div className="flex items-center gap-2">
             <label className="text-sm font-medium text-gray-700">Currency:</label>
             <select
@@ -502,7 +547,7 @@ const FinancialPlanning = () => {
               <option value="GBP">GBP</option>
             </select>
           </div>
-          
+
           <button
             onClick={() => setShowAdvancedSettings(!showAdvancedSettings)}
             className="px-3 py-1.5 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors flex items-center gap-2 text-sm"
@@ -511,9 +556,9 @@ const FinancialPlanning = () => {
             Advanced
             {showAdvancedSettings ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
           </button>
-          
+
           <div className="flex-1" />
-          
+
           <button
             onClick={() => setShowValues(!showValues)}
             className="px-3 py-1.5 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors flex items-center gap-2 text-sm"
@@ -522,7 +567,7 @@ const FinancialPlanning = () => {
             {showValues ? 'Hide' : 'Show'} Values
           </button>
         </div>
-        
+
         {showAdvancedSettings && (
           <div className="mt-4 pt-4 border-t border-gray-200">
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -531,10 +576,24 @@ const FinancialPlanning = () => {
                 <input
                   type="number"
                   value={inflationRate}
-                  onChange={(e) => setInflationRate(parseFloat(e.target.value) || 0)}
+                  onChange={(e) => setInflationRate(toNum(e.target.value))}
                   className="w-full mt-1 px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:border-blue-500 outline-none transition-colors"
                   step="0.1"
+                  min="0"
+                  aria-label="Inflation rate"
                 />
+                <div className="mt-3 flex items-center gap-2">
+                  <input
+                    id="showReal"
+                    type="checkbox"
+                    checked={showRealDollars}
+                    onChange={(e) => setShowRealDollars(e.target.checked)}
+                    className="h-4 w-4"
+                  />
+                  <label htmlFor="showReal" className="text-sm text-gray-700">
+                    Show values in today’s dollars
+                  </label>
+                </div>
               </div>
             </div>
           </div>
@@ -570,12 +629,13 @@ const FinancialPlanning = () => {
               </tr>
             </thead>
             <tbody>
-              {Object.entries(yearlyData).map(([year, data], index) => {
-                const isCurrentYear = parseInt(year) === currentYear;
-                const isMilestone = (parseInt(year) - currentYear) % 5 === 0;
-                
+              {Object.entries(yearlyData).map(([year, data]) => {
+                const y = parseInt(year);
+                const isCurrentYear = y === currentYear;
+                const isMilestone = (y - currentYear) % 5 === 0;
+
                 return (
-                  <tr 
+                  <tr
                     key={year}
                     className={`
                       border-b border-gray-100 transition-all duration-200
