@@ -1617,10 +1617,19 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
 
     // Core state management
 
+    // Core state management
     const [currentView, setCurrentView] = useState('selection');
-    const [accounts, setAccounts] = useState(dataStoreAccounts || []);
+    const [accounts, setAccounts] = useState([]);
     const [positions, setPositions] = useState([]);
     const [liabilities, setLiabilities] = useState([]);
+
+    // Trigger DataStore to pre-fetch when component mounts
+    useEffect(() => {
+      // Pre-fetch all data to ensure it's in DataStore
+      if (!dataStoreAccounts?.length) refreshAccounts();
+      if (!dataStorePositions?.length) refreshPositions();
+      if (!dataStoreLiabilities?.length) refreshLiabilities();
+    }, []); // Run once on mount
     const [filteredAccounts, setFilteredAccounts] = useState([]);
     const [filteredPositions, setFilteredPositions] = useState([]);
     const [filteredLiabilities, setFilteredLiabilities] = useState([]);
@@ -1744,22 +1753,49 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
       return false;
     }, [currentView, accountsLoading, positionsLoading, liabilitiesLoading]);
 
-    const loadAccounts = useCallback(() => {
-      // Update local state from data store
-      if (dataStoreAccounts && Array.isArray(dataStoreAccounts)) {
-        setAccounts(dataStoreAccounts);
-        setFilteredAccounts(dataStoreAccounts);
-      }
-    }, [dataStoreAccounts]);
+  const loadAccounts = useCallback(() => {
+    // Update local state from data store
+    if (dataStoreAccounts && Array.isArray(dataStoreAccounts)) {
+      setAccounts(dataStoreAccounts);
+      setFilteredAccounts(dataStoreAccounts);
+    }
+  }, [dataStoreAccounts]);
+
+  // Auto-sync when DataStore updates
+  useEffect(() => {
+    if (dataStoreAccounts?.length > 0 && accounts.length === 0) {
+      loadAccounts();
+    }
+  }, [dataStoreAccounts, accounts.length, loadAccounts]);
+
+  useEffect(() => {
+    if (dataStorePositions?.length > 0 && positions.length === 0) {
+      loadPositions();
+    }
+  }, [dataStorePositions, positions.length, loadPositions]);
+
+  useEffect(() => {
+    if (dataStoreLiabilities?.length > 0 && liabilities.length === 0) {
+      loadLiabilities();
+    }
+  }, [dataStoreLiabilities, liabilities.length, loadLiabilities]);
 
     // Load data on mount or view change
     useEffect(() => {
-      if (isOpen && currentView === 'accounts') {
+      if (isOpen) {
+        // Always load all data when modal opens to populate dashboard
         loadAccounts();
-      } else if (isOpen && currentView === 'positions') {
         loadPositions();
-      } else if (isOpen && currentView === 'liabilities') {
         loadLiabilities();
+        
+        // Then keep updating based on current view
+        if (currentView === 'accounts') {
+          loadAccounts();
+        } else if (currentView === 'positions') {
+          loadPositions();
+        } else if (currentView === 'liabilities') {
+          loadLiabilities();
+        }
       }
     }, [isOpen, currentView, loadAccounts, loadPositions, loadLiabilities]);
 
@@ -2486,19 +2522,24 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
 
     // Calculate portfolio summary for dashboard
     const portfolioSummary = useMemo(() => {
-      const totalAssets = positions.reduce((sum, pos) => sum + parseFloat(pos.current_value || 0), 0);
-      const totalLiabilities = liabilities.reduce((sum, l) => sum + parseFloat(l.current_balance || 0), 0);
+      // Use DataStore data if local state isn't loaded yet
+      const accountsData = accounts.length > 0 ? accounts : (dataStoreAccounts || []);
+      const positionsData = positions.length > 0 ? positions : (dataStorePositions || []);
+      const liabilitiesData = liabilities.length > 0 ? liabilities : (dataStoreLiabilities || []);
+      
+      const totalAssets = positionsData.reduce((sum, pos) => sum + parseFloat(pos.currentValue || pos.current_value || 0), 0);
+      const totalLiabilities = liabilitiesData.reduce((sum, l) => sum + parseFloat(l.current_balance || 0), 0);
       const netWorth = totalAssets - totalLiabilities;
       
       return {
-        accountCount: accounts.length,
-        positionCount: positions.length,
-        liabilityCount: liabilities.length,
+        accountCount: accountsData.length,
+        positionCount: positionsData.length,
+        liabilityCount: liabilitiesData.length,
         totalAssets,
         totalLiabilities,
         netWorth
       };
-    }, [accounts, positions, liabilities]);
+    }, [accounts, positions, liabilities, dataStoreAccounts, dataStorePositions, dataStoreLiabilities]);
 
     // Render dashboard
     const renderDashboard = () => (
