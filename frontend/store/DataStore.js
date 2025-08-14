@@ -379,16 +379,6 @@ const dataStoreReducer = (state, action) => {
         },
       };
 
-          case ActionTypes.MARK_GROUPED_POSITIONS_STALE:
-      return {
-        ...state,
-        groupedPositions: {
-          ...state.groupedPositions,
-          isStale: true,
-        },
-      };
-
-
           // Detailed positions cases
     case ActionTypes.FETCH_DETAILED_POSITIONS_START:
       return {
@@ -663,11 +653,21 @@ const DataStoreContext = createContext(null);
 // Provider
 export const DataStoreProvider = ({ children }) => {
   const [state, dispatch] = useReducer(dataStoreReducer, initialState);
+  const pendingFetches = useRef(new Map());
+  const fetchDebounceTimers = useRef(new Map());
 
-  // Fetch portfolio data
+  // Fetch portfolio data with deduplication
   const fetchPortfolioData = useCallback(async (force = false) => {
-    // Skip if already loading (prevent duplicate fetches)
-    if (state.portfolioSummary.loading) {
+    const fetchKey = 'portfolioSummary';
+    
+    // Check if we already have a pending fetch
+    if (pendingFetches.current.has(fetchKey)) {
+      console.log('[DataStore] Deduplicating portfolio fetch - already in progress');
+      return pendingFetches.current.get(fetchKey);
+    }
+
+    // Skip if already loading (backup check)
+    if (state.portfolioSummary.loading && !force) {
       console.log('[DataStore] Skip portfolio fetch - already loading');
       return;
     }
@@ -678,34 +678,53 @@ export const DataStoreProvider = ({ children }) => {
         state.portfolioSummary.lastFetched && 
         state.portfolioSummary.lastFetched > oneMinuteAgo && 
         !state.portfolioSummary.isStale) {
+      console.log('[DataStore] Skip portfolio fetch - data is fresh');
       return;
     }
 
-    dispatch({ type: ActionTypes.FETCH_SUMMARY_START });
+    // Create the fetch promise
+    const fetchPromise = (async () => {
+      dispatch({ type: ActionTypes.FETCH_SUMMARY_START });
 
-    try {
-      const response = await fetchWithAuth('/portfolio/net_worth_summary/datastore?include_history=true');
-      if (!response.ok) {
-        throw new Error('Failed to fetch portfolio data');
+      try {
+        const response = await fetchWithAuth('/portfolio/net_worth_summary/datastore?include_history=true');
+        if (!response.ok) {
+          throw new Error('Failed to fetch portfolio data');
+        }
+        
+        const data = await response.json();
+        
+        dispatch({
+          type: ActionTypes.FETCH_SUMMARY_SUCCESS,
+          payload: data,
+        });
+      } catch (error) {
+        console.error('Error fetching portfolio data:', error);
+        dispatch({
+          type: ActionTypes.FETCH_SUMMARY_ERROR,
+          payload: error.message,
+        });
+      } finally {
+        // Clean up pending fetch
+        pendingFetches.current.delete(fetchKey);
       }
-      
-      const data = await response.json();
-      
-      dispatch({
-        type: ActionTypes.FETCH_SUMMARY_SUCCESS,
-        payload: data,
-      });
-    } catch (error) {
-      console.error('Error fetching portfolio data:', error);
-      dispatch({
-        type: ActionTypes.FETCH_SUMMARY_ERROR,
-        payload: error.message,
-      });
-    }
-  }, [state.portfolioSummary.loading, state.portfolioSummary.lastFetched, state.portfolioSummary.isStale]);
+    })();
 
-  // Fetch accounts data
+    // Store the pending fetch
+    pendingFetches.current.set(fetchKey, fetchPromise);
+    return fetchPromise;
+  }, [state.portfolioSummary.lastFetched, state.portfolioSummary.isStale]);
+
+  // Fetch accounts data with deduplication
   const fetchAccountsData = useCallback(async (force = false) => {
+    const fetchKey = 'accounts';
+    
+    // Check if we already have a pending fetch
+    if (pendingFetches.current.has(fetchKey)) {
+      console.log('[DataStore] Deduplicating accounts fetch - already in progress');
+      return pendingFetches.current.get(fetchKey);
+    }
+
     if (state.accounts.loading && !force) return;
 
     const oneMinuteAgo = Date.now() - 60000;
@@ -716,30 +735,48 @@ export const DataStoreProvider = ({ children }) => {
       return;
     }
 
-    dispatch({ type: ActionTypes.FETCH_ACCOUNTS_START });
+    // Create the fetch promise
+    const fetchPromise = (async () => {
+      dispatch({ type: ActionTypes.FETCH_ACCOUNTS_START });
 
-    try {
-      const response = await fetchWithAuth('/datastore/accounts/summary?snapshot_date=latest');
-      if (!response.ok) {
-        throw new Error('Failed to fetch accounts data');
+      try {
+        const response = await fetchWithAuth('/datastore/accounts');
+        if (!response.ok) {
+          throw new Error('Failed to fetch accounts');
+        }
+        
+        const data = await response.json();
+        
+        dispatch({
+          type: ActionTypes.FETCH_ACCOUNTS_SUCCESS,
+          payload: data,
+        });
+      } catch (error) {
+        console.error('Error fetching accounts:', error);
+        dispatch({
+          type: ActionTypes.FETCH_ACCOUNTS_ERROR,
+          payload: error.message,
+        });
+      } finally {
+        // Clean up pending fetch
+        pendingFetches.current.delete(fetchKey);
       }
-      
-      const data = await response.json();
-      
-      dispatch({
-        type: ActionTypes.FETCH_ACCOUNTS_SUCCESS,
-        payload: data
-      });
-    } catch (error) {
-      console.error('Error fetching accounts data:', error);
-      dispatch({
-        type: ActionTypes.FETCH_ACCOUNTS_ERROR,
-        payload: error.message
-      });
-    }
-  }, [state.accounts.loading, state.accounts.lastFetched, state.accounts.isStale]);
+    })();
+
+    // Store the pending fetch
+    pendingFetches.current.set(fetchKey, fetchPromise);
+    return fetchPromise;
+  }, [state.accounts.lastFetched, state.accounts.isStale]);
 
   const fetchSnapshotsData = useCallback(async (days = 90, force = false) => {
+    const fetchKey = 'snapshots';
+    
+    // Check if we already have a pending fetch
+    if (pendingFetches.current.has(fetchKey)) {
+      console.log('[DataStore] Deduplicating snapshots fetch - already in progress');
+      return pendingFetches.current.get(fetchKey);
+    }
+
     if (state.snapshots.loading && !force) return;
 
     const oneMinuteAgo = Date.now() - 60000;
@@ -750,92 +787,110 @@ export const DataStoreProvider = ({ children }) => {
       return;
     }
 
-    dispatch({ type: ActionTypes.FETCH_SNAPSHOTS_START });
+    // Create the fetch promise
+    const fetchPromise = (async () => {
+      dispatch({ type: ActionTypes.FETCH_SNAPSHOTS_START });
 
-    try {
-      // Fetch summary data and position details in parallel
-      const [summaryResponse, positionsResponse] = await Promise.all([
-        fetchWithAuth('/portfolio/net_worth_summary/datastore?include_history=true'),
-        fetchWithAuth(`/datastore/positions/detail?days=${days}`)
-      ]);
+      try {
+        // Fetch summary data and position details in parallel
+        const [summaryResponse, positionsResponse] = await Promise.all([
+          fetchWithAuth('/portfolio/net_worth_summary/datastore?include_history=true'),
+          fetchWithAuth(`/datastore/positions/detail?days=${days}`)
+        ]);
 
-      if (!summaryResponse.ok || !positionsResponse.ok) {
-        throw new Error('Failed to fetch snapshot data');
-      }
-
-      const summaryData = await summaryResponse.json();
-      const positionsData = await positionsResponse.json();
-
-      // Group positions by date
-      const positionsByDate = {};
-      const assetTypes = new Set();
-      
-      positionsData.positions.forEach(pos => {
-        const date = pos.snapshot_date;
-        if (!positionsByDate[date]) {
-          positionsByDate[date] = {};
+        if (!summaryResponse.ok || !positionsResponse.ok) {
+          throw new Error('Failed to fetch snapshot data');
         }
-        
-        // Track asset types
-        assetTypes.add(pos.item_type);
-        
-        // Key by unified_id
-        const key = pos.unified_id || `${pos.item_type}|${pos.identifier}|${pos.inv_account_id}`;
-        positionsByDate[date][key] = pos;
-      });
 
-      // Build snapshots combining summary and position data
-      const snapshots_by_date = {};
-      const dates = [];
-      
-      summaryData.history.forEach(dayData => {
-        const date = dayData.date;
-        dates.push(date);
+        const summaryData = await summaryResponse.json();
+        const positionsData = await positionsResponse.json();
+
+        // Group positions by date
+        const positionsByDate = {};
+        const assetTypes = new Set();
         
-        snapshots_by_date[date] = {
-          snapshot_date: date,
-          total_value: dayData.total_assets || dayData.net_worth,
-          total_cost_basis: dayData.net_cash_basis_metrics?.total_cost_basis || 0,
-          total_gain_loss: dayData.unrealized_gain || 0,
-          position_count: Object.keys(positionsByDate[date] || {}).length,
-          positions: positionsByDate[date] || {}
-        };
-      });
+        positionsData.positions.forEach(pos => {
+          const date = pos.snapshot_date;
+          if (!positionsByDate[date]) {
+            positionsByDate[date] = {};
+          }
+          
+          // Track asset types
+          assetTypes.add(pos.item_type);
+          
+          // Key by unified_id
+          const key = pos.unified_id || `${pos.item_type}|${pos.identifier}|${pos.inv_account_id}`;
+          positionsByDate[date][key] = pos;
+        });
 
-      // Also include latest summary data
-      const latestDate = summaryData.summary.snapshot_date;
-      if (!snapshots_by_date[latestDate] && positionsByDate[latestDate]) {
-        snapshots_by_date[latestDate] = {
-          snapshot_date: latestDate,
-          total_value: summaryData.summary.total_assets,
-          total_cost_basis: summaryData.summary.net_cash_basis_metrics?.total_cost_basis || 0,
-          total_gain_loss: summaryData.summary.total_unrealized_gain || 0,
-          position_count: Object.keys(positionsByDate[latestDate] || {}).length,
-          positions: positionsByDate[latestDate] || {}
-        };
-        dates.push(latestDate);
-      }
+        // Build snapshots combining summary and position data
+        const snapshots_by_date = {};
+        const dates = [];
+        
+        summaryData.history.forEach(dayData => {
+          const date = dayData.date;
+          dates.push(date);
+          
+          snapshots_by_date[date] = {
+            snapshot_date: date,
+            total_value: dayData.total_assets || dayData.net_worth,
+            total_cost_basis: dayData.net_cash_basis_metrics?.total_cost_basis || 0,
+            total_gain_loss: dayData.unrealized_gain || 0,
+            position_count: Object.keys(positionsByDate[date] || {}).length,
+            positions: positionsByDate[date] || {}
+          };
+        });
 
-      dispatch({
-        type: ActionTypes.FETCH_SNAPSHOTS_SUCCESS,
-        payload: {
-          data: Object.values(snapshots_by_date),
-          byDate: snapshots_by_date,
-          dates: dates.sort(),
-          assetTypes: Array.from(assetTypes)
+        // Also include latest summary data
+        const latestDate = summaryData.summary.snapshot_date;
+        if (!snapshots_by_date[latestDate] && positionsByDate[latestDate]) {
+          snapshots_by_date[latestDate] = {
+            snapshot_date: latestDate,
+            total_value: summaryData.summary.total_assets,
+            total_cost_basis: summaryData.summary.net_cash_basis_metrics?.total_cost_basis || 0,
+            total_gain_loss: summaryData.summary.total_unrealized_gain || 0,
+            position_count: Object.keys(positionsByDate[latestDate] || {}).length,
+            positions: positionsByDate[latestDate] || {}
+          };
+          dates.push(latestDate);
         }
-      });
-    } catch (error) {
-      console.error('Error fetching snapshots:', error);
-      dispatch({
-        type: ActionTypes.FETCH_SNAPSHOTS_ERROR,
-        payload: error.message
-      });
-    }
-  }, [state.snapshots.loading, state.snapshots.lastFetched, state.snapshots.isStale]);
 
-  // Fetch detailed positions (individual, not grouped)
+        dispatch({
+          type: ActionTypes.FETCH_SNAPSHOTS_SUCCESS,
+          payload: {
+            data: Object.values(snapshots_by_date),
+            byDate: snapshots_by_date,
+            dates: dates.sort(),
+            assetTypes: Array.from(assetTypes)
+          }
+        });
+      } catch (error) {
+        console.error('Error fetching snapshots:', error);
+        dispatch({
+          type: ActionTypes.FETCH_SNAPSHOTS_ERROR,
+          payload: error.message
+        });
+      } finally {
+        // Clean up pending fetch
+        pendingFetches.current.delete(fetchKey);
+      }
+    })();
+
+    // Store the pending fetch
+    pendingFetches.current.set(fetchKey, fetchPromise);
+    return fetchPromise;
+  }, [state.snapshots.lastFetched, state.snapshots.isStale]);
+
+  // Fetch detailed positions (individual, not grouped) with deduplication
   const fetchDetailedPositionsData = useCallback(async (force = false) => {
+    const fetchKey = 'detailedPositions';
+    
+    // Check if we already have a pending fetch
+    if (pendingFetches.current.has(fetchKey)) {
+      console.log('[DataStore] Deduplicating detailed positions fetch - already in progress');
+      return pendingFetches.current.get(fetchKey);
+    }
+
     // Skip if already loading or recently fetched (unless forced)
     if (!force && (state.detailedPositions.loading || 
         (state.detailedPositions.lastFetched && 
@@ -843,31 +898,50 @@ export const DataStoreProvider = ({ children }) => {
       return;
     }
 
-    dispatch({ type: ActionTypes.FETCH_DETAILED_POSITIONS_START });
+    // Create the fetch promise
+    const fetchPromise = (async () => {
+      dispatch({ type: ActionTypes.FETCH_DETAILED_POSITIONS_START });
 
-    try {
-      const response = await fetchWithAuth('/datastore/positions/detail?snapshot_date=latest');
-      
-      if (response.ok) {
-        const data = await response.json();
+      try {
+        const response = await fetchWithAuth('/datastore/positions/detail?snapshot_date=latest');
+        
+        if (response.ok) {
+          const data = await response.json();
+          dispatch({ 
+            type: ActionTypes.FETCH_DETAILED_POSITIONS_SUCCESS, 
+            payload: data 
+          });
+        } else {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+      } catch (error) {
+        console.error('Error fetching detailed positions:', error);
         dispatch({ 
-          type: ActionTypes.FETCH_DETAILED_POSITIONS_SUCCESS, 
-          payload: data 
+          type: ActionTypes.FETCH_DETAILED_POSITIONS_ERROR, 
+          payload: error.message 
         });
-      } else {
-        throw new Error(`HTTP error! status: ${response.status}`);
+      } finally {
+        // Clean up pending fetch
+        pendingFetches.current.delete(fetchKey);
       }
-    } catch (error) {
-      console.error('Error fetching detailed positions:', error);
-      dispatch({ 
-        type: ActionTypes.FETCH_DETAILED_POSITIONS_ERROR, 
-        payload: error.message 
-      });
-    }
-  }, [state.detailedPositions.loading, state.detailedPositions.lastFetched]);
+    })();
+
+    // Store the pending fetch
+    pendingFetches.current.set(fetchKey, fetchPromise);
+    return fetchPromise;
+  }, [state.detailedPositions.lastFetched]);
 
 
+  // Fetch grouped positions data with deduplication
   const fetchGroupedPositionsData = useCallback(async (force = false) => {
+    const fetchKey = 'groupedPositions';
+    
+    // Check if we already have a pending fetch
+    if (pendingFetches.current.has(fetchKey)) {
+      console.log('[DataStore] Deduplicating grouped positions fetch - already in progress');
+      return pendingFetches.current.get(fetchKey);
+    }
+
     if (state.groupedPositions.loading && !force) return;
 
     const oneMinuteAgo = Date.now() - 60000;
@@ -878,28 +952,38 @@ export const DataStoreProvider = ({ children }) => {
       return;
     }
 
-    dispatch({ type: ActionTypes.FETCH_GROUPED_POSITIONS_START });
+    // Create the fetch promise
+    const fetchPromise = (async () => {
+      dispatch({ type: ActionTypes.FETCH_GROUPED_POSITIONS_START });
 
-    try {
-      const response = await fetchWithAuth('/datastore/positions/grouped?snapshot_date=latest');
-      if (!response.ok) {
-        throw new Error(`Failed to fetch grouped positions: ${response.status}`);
+      try {
+        const response = await fetchWithAuth('/datastore/positions/grouped?snapshot_date=latest');
+        if (!response.ok) {
+          throw new Error(`Failed to fetch grouped positions: ${response.status}`);
+        }
+        
+        const data = await response.json();
+        
+        dispatch({
+          type: ActionTypes.FETCH_GROUPED_POSITIONS_SUCCESS,
+          payload: data
+        });
+      } catch (error) {
+        console.error('Error fetching grouped positions:', error);
+        dispatch({
+          type: ActionTypes.FETCH_GROUPED_POSITIONS_ERROR,
+          payload: error.message,
+        });
+      } finally {
+        // Clean up pending fetch
+        pendingFetches.current.delete(fetchKey);
       }
-      
-      const data = await response.json();
-      
-      dispatch({
-        type: ActionTypes.FETCH_GROUPED_POSITIONS_SUCCESS,
-        payload: data
-      });
-    } catch (error) {
-      console.error('Error fetching grouped positions:', error);
-      dispatch({
-        type: ActionTypes.FETCH_GROUPED_POSITIONS_ERROR,
-        payload: error.message,
-      });
-    }
-  }, [state.groupedPositions.loading, state.groupedPositions.lastFetched, state.groupedPositions.isStale]);
+    })();
+
+    // Store the pending fetch
+    pendingFetches.current.set(fetchKey, fetchPromise);
+    return fetchPromise;
+  }, [state.groupedPositions.lastFetched, state.groupedPositions.isStale]);
 
     // Fetch position history for a specific identifier
   const fetchPositionHistory = useCallback(async (identifier, days = 90, force = false) => {
@@ -953,6 +1037,14 @@ export const DataStoreProvider = ({ children }) => {
 
   // liabilities fetch
   const fetchGroupedLiabilitiesData = useCallback(async (force = false) => {
+    const fetchKey = 'groupedLiabilities';
+    
+    // Check if we already have a pending fetch
+    if (pendingFetches.current.has(fetchKey)) {
+      console.log('[DataStore] Deduplicating grouped liabilities fetch - already in progress');
+      return pendingFetches.current.get(fetchKey);
+    }
+    
     if (state.groupedLiabilities.loading && !force) return;
 
     const oneMinuteAgo = Date.now() - 60000;
@@ -963,28 +1055,38 @@ export const DataStoreProvider = ({ children }) => {
       return;
     }
 
-    dispatch({ type: ActionTypes.FETCH_GROUPED_LIABILITIES_START });
+    // Create the fetch promise
+    const fetchPromise = (async () => {
+      dispatch({ type: ActionTypes.FETCH_GROUPED_LIABILITIES_START });
 
-    try {
-      const response = await fetchWithAuth('/datastore/liabilities/grouped?snapshot_date=latest');
-      if (!response.ok) {
-        throw new Error(`Failed to fetch grouped liabilities: ${response.status}`);
+      try {
+        const response = await fetchWithAuth('/datastore/liabilities/grouped?snapshot_date=latest');
+        if (!response.ok) {
+          throw new Error(`Failed to fetch grouped liabilities: ${response.status}`);
+        }
+        
+        const data = await response.json();
+        
+        dispatch({
+          type: ActionTypes.FETCH_GROUPED_LIABILITIES_SUCCESS,
+          payload: data
+        });
+      } catch (error) {
+        console.error('Error fetching grouped liabilities:', error);
+        dispatch({
+          type: ActionTypes.FETCH_GROUPED_LIABILITIES_ERROR,
+          payload: error.message,
+        });
+      } finally {
+        // Clean up pending fetch
+        pendingFetches.current.delete(fetchKey);
       }
-      
-      const data = await response.json();
-      
-      dispatch({
-        type: ActionTypes.FETCH_GROUPED_LIABILITIES_SUCCESS,
-        payload: data
-      });
-    } catch (error) {
-      console.error('Error fetching grouped liabilities:', error);
-      dispatch({
-        type: ActionTypes.FETCH_GROUPED_LIABILITIES_ERROR,
-        payload: error.message,
-      });
-    }
-  }, [state.groupedLiabilities.loading, state.groupedLiabilities.lastFetched, state.groupedLiabilities.isStale]);
+    })();
+
+    // Store the pending fetch
+    pendingFetches.current.set(fetchKey, fetchPromise);
+    return fetchPromise;
+  }, [state.groupedLiabilities.lastFetched, state.groupedLiabilities.isStale]);
 
 
 
@@ -997,18 +1099,23 @@ export const DataStoreProvider = ({ children }) => {
     ]);
   }, [fetchPortfolioData, fetchAccountsData, fetchGroupedPositionsData]);
 
-  // Auto-refresh stale grouped positions
-  useEffect(() => {
-    if (state.groupedPositions.isStale && !state.groupedPositions.loading) {
-      fetchGroupedPositionsData();
-    }
-  }, [state.groupedPositions.isStale, state.groupedPositions.loading, fetchGroupedPositionsData]);
-
-  // Mark data as stale
+  // Mark data as stale with debouncing
   const markDataStale = useCallback(() => {
-    dispatch({ type: ActionTypes.MARK_DATA_STALE })
-    dispatch({ type: ActionTypes.MARK_ACCOUNTS_STALE });
-    dispatch({ type: ActionTypes.MARK_GROUPED_POSITIONS_STALE });
+    // Clear any pending debounce
+    if (fetchDebounceTimers.current.has('markStale')) {
+      clearTimeout(fetchDebounceTimers.current.get('markStale'));
+    }
+    
+    // Debounce the stale marking to prevent rapid re-fetches
+    const timer = setTimeout(() => {
+      dispatch({ type: ActionTypes.MARK_DATA_STALE });
+      dispatch({ type: ActionTypes.MARK_ACCOUNTS_STALE });
+      dispatch({ type: ActionTypes.MARK_GROUPED_POSITIONS_STALE });
+      dispatch({ type: ActionTypes.MARK_GROUPED_LIABILITIES_STALE });
+      fetchDebounceTimers.current.delete('markStale');
+    }, 100);
+    
+    fetchDebounceTimers.current.set('markStale', timer);
   }, []);
 
   // Mark accounts as stale
@@ -1016,47 +1123,125 @@ export const DataStoreProvider = ({ children }) => {
     dispatch({ type: ActionTypes.MARK_ACCOUNTS_STALE });
   }, []);
 
-// Initial load - only fetch if we have no data
+// Single combined useEffect for all data management
   useEffect(() => {
-    if (!state.portfolioSummary.data && !state.portfolioSummary.loading && !state.portfolioSummary.lastFetched) {
+    // Portfolio data
+    if (!state.portfolioSummary.data && 
+        !state.portfolioSummary.loading && 
+        !state.portfolioSummary.lastFetched &&
+        !pendingFetches.current.has('portfolioSummary')) {
       console.log('[DataStore] Initial portfolio fetch');
       fetchPortfolioData();
-    }
-  }, []); // Empty deps, runs once
-
-  // Auto-refresh stale data
-  useEffect(() => {
-    if (state.portfolioSummary.isStale && !state.portfolioSummary.loading) {
+    } else if (state.portfolioSummary.isStale && 
+            !state.portfolioSummary.loading &&
+            !pendingFetches.current.has('portfolioSummary')) {
       console.log('[DataStore] Refreshing stale portfolio data');
       fetchPortfolioData();
     }
-  }, [state.portfolioSummary.isStale, state.portfolioSummary.loading]); // Remove fetchPortfolioData from deps
 
-  // Auto-refresh stale accounts
-  useEffect(() => {
-    if (state.accounts.isStale && !state.accounts.loading) {
+    // Accounts data
+    if (!state.accounts.data?.length && 
+        !state.accounts.loading && 
+        !state.accounts.lastFetched &&
+        !pendingFetches.current.has('accounts')) {
+      console.log('[DataStore] Initial accounts fetch');
+      fetchAccountsData();
+    } else if (state.accounts.isStale && 
+            !state.accounts.loading &&
+            !pendingFetches.current.has('accounts')) {
+      console.log('[DataStore] Refreshing stale accounts data');
       fetchAccountsData();
     }
-  }, [state.accounts.isStale, state.accounts.loading, fetchAccountsData]);
+
+    // Grouped positions data
+    if (!state.groupedPositions.data?.length && 
+        !state.groupedPositions.loading && 
+        !state.groupedPositions.lastFetched &&
+        !pendingFetches.current.has('groupedPositions')) {
+      console.log('[DataStore] Initial grouped positions fetch');
+      fetchGroupedPositionsData();
+    } else if (state.groupedPositions.isStale && 
+            !state.groupedPositions.loading &&
+            !pendingFetches.current.has('groupedPositions')) {
+      console.log('[DataStore] Refreshing stale grouped positions data');
+      fetchGroupedPositionsData();
+    }
+
+    // Grouped liabilities data
+    if (!state.groupedLiabilities.data?.length && 
+        !state.groupedLiabilities.loading && 
+        !state.groupedLiabilities.lastFetched &&
+        !pendingFetches.current.has('groupedLiabilities')) {
+      console.log('[DataStore] Initial grouped liabilities fetch');
+      fetchGroupedLiabilitiesData();
+    } else if (state.groupedLiabilities.isStale && 
+            !state.groupedLiabilities.loading &&
+            !pendingFetches.current.has('groupedLiabilities')) {
+      console.log('[DataStore] Refreshing stale grouped liabilities data');
+      fetchGroupedLiabilitiesData();
+    }
+  }, [
+    state.portfolioSummary.data,
+    state.portfolioSummary.loading,
+    state.portfolioSummary.lastFetched,
+    state.portfolioSummary.isStale,
+    state.accounts.data,
+    state.accounts.loading,
+    state.accounts.lastFetched,
+    state.accounts.isStale,
+    state.groupedPositions.data,
+    state.groupedPositions.loading,
+    state.groupedPositions.lastFetched,
+    state.groupedPositions.isStale,
+    state.groupedLiabilities.data,
+    state.groupedLiabilities.loading,
+    state.groupedLiabilities.lastFetched,
+    state.groupedLiabilities.isStale,
+    fetchPortfolioData,
+    fetchAccountsData,
+    fetchGroupedPositionsData,
+    fetchGroupedLiabilitiesData
+  ]);
 
   const value = {
-    state,
-    actions: {
-      fetchPortfolioData,
-      fetchAccountsData,
-      fetchGroupedPositionsData, 
-      fetchPositionHistory,
-      markDataStale,
-      markAccountsStale,
-      refreshData,  
-      fetchGroupedLiabilitiesData,
-      fetchDetailedPositionsData,
-      fetchSnapshotsData,
-      refreshAccounts: () => fetchAccountsData(true),
-      refreshGroupedPositions: () => fetchGroupedPositionsData(true),
-      refreshGroupedLiabilities: () => fetchGroupedLiabilitiesData(true),
-    },
-  };
+      state,
+      actions: {
+        fetchPortfolioData,
+        fetchAccountsData,
+        fetchGroupedPositionsData, 
+        fetchPositionHistory,
+        markDataStale,
+        markAccountsStale,
+        refreshData,  
+        fetchGroupedLiabilitiesData,
+        fetchDetailedPositionsData,
+        fetchSnapshotsData,
+        refreshAccounts: () => fetchAccountsData(true),
+        refreshGroupedPositions: () => fetchGroupedPositionsData(true),
+        refreshGroupedLiabilities: () => fetchGroupedLiabilitiesData(true),
+      },
+      // Global loading state for critical data
+      isGloballyLoading: state.portfolioSummary.loading || 
+                        state.accounts.loading || 
+                        state.groupedPositions.loading || 
+                        state.groupedLiabilities.loading,
+      // Check if any critical data is missing
+      isMissingCriticalData: !state.portfolioSummary.data || 
+                              !state.accounts.data?.length || 
+                              !state.groupedPositions.data?.length,
+    };
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      // Clear any pending fetches
+      pendingFetches.current.clear();
+      
+      // Clear any pending timers
+      fetchDebounceTimers.current.forEach(timer => clearTimeout(timer));
+      fetchDebounceTimers.current.clear();
+    };
+  }, []);
 
   return (
     <DataStoreContext.Provider value={value}>

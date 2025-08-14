@@ -1933,7 +1933,6 @@ const QuickReconciliationModal = ({ isOpen, onClose }) => {
         });
       }
      
-     // Enrich accounts with reconciliation status
 // Enrich accounts with reconciliation status using correct field names
      const enrichedAccounts = accounts.map(account => {
        const lastRec = reconciliationData[account.id]?.lastReconciled;
