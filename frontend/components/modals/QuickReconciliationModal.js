@@ -1893,38 +1893,45 @@ const QuickReconciliationModal = ({ isOpen, onClose }) => {
  const messageTimeoutRef = useRef(null);
  
  // Load data on mount
- useEffect(() => {
-   if (isOpen) {
-     loadData();
-     loadReconciliationData();
-     calculateStreak();
-   }
-   
-   return () => {
-     if (messageTimeoutRef.current) {
-       clearTimeout(messageTimeoutRef.current);
-     }
-   };
- }, [isOpen]);
+  useEffect(() => {
+    if (isOpen) {
+      // Only load reconciliation-specific data
+      loadReconciliationData();
+      calculateStreak();
+      
+      // Only refresh DataStore if we have no data
+      if (!accounts.length || !allPositions.length) {
+        loadData();
+      }
+    }
+    
+    return () => {
+      if (messageTimeoutRef.current) {
+        clearTimeout(messageTimeoutRef.current);
+      }
+    };
+  }, [isOpen, accounts.length, allPositions.length]);
  
-// Load all data
- const loadData = async () => {
-   setLocalLoading(true);
-   try {
-     // Refresh DataStore
-     await Promise.all([
-       refreshAccounts(),
-       refreshPositions()
-     ]);
-     
-     // Enrich accounts with reconciliation status
-     // Debug: Check account structure
-     if (accounts.length > 0) {
-       console.log('Account fields from DataStore:', {
-         firstAccount: accounts[0],
-         fieldNames: Object.keys(accounts[0])
-       });
-     }
+  // Load all data
+  const loadData = async () => {
+    setLocalLoading(true);
+    try {
+      // Only refresh if data is truly missing
+      // The hooks already provide fresh data from DataStore
+      if (!accounts.length || !allPositions.length) {
+        await Promise.all([
+          refreshAccounts(),
+          refreshPositions()
+        ]);
+      }
+      
+      // Debug: Check account structure
+      if (accounts.length > 0) {
+        console.log('Account fields from DataStore:', {
+          firstAccount: accounts[0],
+          fieldNames: Object.keys(accounts[0])
+        });
+      }
      
      // Enrich accounts with reconciliation status
 // Enrich accounts with reconciliation status using correct field names
@@ -2188,22 +2195,20 @@ const QuickReconciliationModal = ({ isOpen, onClose }) => {
      if (pendingUpdates.nextScreen === 'reconcile') {
        setCurrentScreen('reconcile');
        setPendingUpdates({});
-     } else {
-       // Show success and go back
-       setShowConfetti(true);
-       saveToHistory();
-       
-       // Refresh DataStore to get updated values
-       await Promise.all([
-         refreshAccounts(),
-         refreshPositions()
-       ]);
-       
-       setTimeout(() => {
-         setCurrentScreen('welcome');
-         loadData();
-       }, 2000);
-     }
+        } else {
+          // Show success and go back
+          setShowConfetti(true);
+          saveToHistory();
+          
+          // Mark data as stale - DataStore will auto-refresh
+          // This prevents duplicate refreshes
+          actions.markDataStale();
+          
+          setTimeout(() => {
+            setCurrentScreen('welcome');
+            // Don't call loadData() - data will be fresh from DataStore
+          }, 2000);
+        }
      
    } catch (error) {
      console.error('Error updating positions:', error);
@@ -2253,12 +2258,12 @@ const QuickReconciliationModal = ({ isOpen, onClose }) => {
  };
  
  // Handle start new reconciliation
- const handleStartNewReconciliation = () => {
-   setCurrentScreen('welcome');
-   setReconciliationResults([]);
-   setPendingUpdates({});
-   loadData();
- };
+  const handleStartNewReconciliation = () => {
+    setCurrentScreen('welcome');
+    setReconciliationResults([]);
+    setPendingUpdates({});
+    // Don't call loadData() - hooks already provide fresh data
+  };
  
  // Render current screen
  const renderScreen = () => {
@@ -2356,13 +2361,16 @@ const QuickReconciliationModal = ({ isOpen, onClose }) => {
                  {showValues ? <Eye className="w-5 h-5" /> : <EyeOff className="w-5 h-5" />}
                </button>
                
-               <button
-                 onClick={loadData}
-                 className="p-2.5 bg-gray-100 hover:bg-gray-200 rounded-lg transition-all transform hover:scale-105"
-                 title="Refresh data"
-               >
-                 <RefreshCw className={`w-5 h-5 text-gray-600 ${loading || localLoading ? 'animate-spin' : ''}`} />
-               </button>
+                <button
+                  onClick={() => {
+                    // Use DataStore's refresh pattern instead of direct loadData
+                    actions.markDataStale();
+                  }}
+                  className="p-2.5 bg-gray-100 hover:bg-gray-200 rounded-lg transition-all transform hover:scale-105"
+                  title="Refresh data"
+                >
+                  <RefreshCw className={`w-5 h-5 text-gray-600 ${loading || localLoading ? 'animate-spin' : ''}`} />
+                </button>
                
                <button
                  onClick={onClose}
