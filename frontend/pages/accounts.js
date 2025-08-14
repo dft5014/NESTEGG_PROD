@@ -14,7 +14,8 @@ import {
 } from 'lucide-react';
 import KpiCard from '@/components/ui/KpiCard';
 import UnifiedAccountTable from '@/components/tables/UnifiedAccountTable';
-import { formatCurrency, formatPercentage } from '@/utils/formatters';
+import { formatCurrency, formatPercentage, formatNumber } from '@/utils/formatters';
+
 
 
 // Import DataStore hooks - NO API METHODS!
@@ -240,7 +241,7 @@ export default function AccountsPage() {
                   'text-gray-400'
                 }`}>
                   {portfolioSummary.unrealizedGainPercent > 0 ? '+' : ''}
-                  {portfolioSummary.unrealizedGainPercent.toFixed(2)}%
+                  {formatPercentage(portfolioSummary.unrealizedGainPercent / 100, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </span>
               )}
             </KpiCard>
@@ -277,9 +278,9 @@ export default function AccountsPage() {
                       <span className="text-gray-400">Securities</span>
                       <span className="text-white font-medium">
                         {showValues ? formatCurrency(portfolioSummary.assetAllocation.securities?.value || 0) : '•••••'}
-                        <span className="text-gray-400 text-sm ml-2">
-                          ({portfolioSummary.assetAllocation.securities?.percentage?.toFixed(1) || 0}%)
-                        </span>
+                            <span className="text-gray-400 text-sm ml-2">
+                              ({formatPercentage(portfolioSummary.assetAllocation.securities?.percentage, { minimumFractionDigits: 1, maximumFractionDigits: 1 })})
+                            </span>     
                       </span>
                     </div>
                     <div className="flex justify-between items-center">
@@ -287,7 +288,7 @@ export default function AccountsPage() {
                       <span className="text-white font-medium">
                         {showValues ? formatCurrency(portfolioSummary.assetAllocation.cash?.value || 0) : '•••••'}
                         <span className="text-gray-400 text-sm ml-2">
-                          ({portfolioSummary.assetAllocation.cash?.percentage?.toFixed(1) || 0}%)
+                          ({formatPercentage(portfolioSummary.assetAllocation.cash?.percentage || 0, { minimumFractionDigits: 1, maximumFractionDigits: 1 })})
                         </span>
                       </span>
                     </div>
@@ -296,7 +297,7 @@ export default function AccountsPage() {
                       <span className="text-white font-medium">
                         {showValues ? formatCurrency(portfolioSummary.assetAllocation.crypto?.value || 0) : '•••••'}
                         <span className="text-gray-400 text-sm ml-2">
-                          ({portfolioSummary.assetAllocation.crypto?.percentage?.toFixed(1) || 0}%)
+                          ({formatPercentage(portfolioSummary.assetAllocation.crypto?.percentage || 0, { minimumFractionDigits: 1, maximumFractionDigits: 1 })})
                         </span>
                       </span>
                     </div>
@@ -305,7 +306,7 @@ export default function AccountsPage() {
                       <span className="text-white font-medium">
                         {showValues ? formatCurrency(portfolioSummary.otherAssets || 0) : '•••••'}
                         <span className="text-gray-400 text-sm ml-2">
-                          ({portfolioSummary.totalAssets > 0 ? ((portfolioSummary.otherAssets / portfolioSummary.totalAssets) * 100).toFixed(1) : 0}%)
+                          ({formatPercentage(portfolioSummary.totalAssets > 0 ? (portfolioSummary.otherAssets / portfolioSummary.totalAssets) : 0, { minimumFractionDigits: 1, maximumFractionDigits: 1 })})
                         </span>
                       </span>
                     </div>
