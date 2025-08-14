@@ -302,6 +302,15 @@ export default function AccountsPage() {
                       </span>
                     </div>
                     <div className="flex justify-between items-center">
+                      <span className="text-gray-400">Metals</span>
+                      <span className="text-white font-medium">
+                        {showValues ? formatCurrency(portfolioSummary.assetAllocation.metal?.value || 0) : '•••••'}
+                        <span className="text-gray-400 text-sm ml-2">
+                          ({formatPercentage(portfolioSummary.assetAllocation.metal?.percentage || 0, { minimumFractionDigits: 1, maximumFractionDigits: 1 })})
+                        </span>
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center">
                       <span className="text-gray-400">Other Assets</span>
                       <span className="text-white font-medium">
                         {showValues ? formatCurrency(portfolioSummary.otherAssets || 0) : '•••••'}
@@ -335,7 +344,7 @@ export default function AccountsPage() {
                         {showValues ? formatCurrency(portfolioSummary.periodChanges['1d']?.netWorth || 0) : '•••••'}
                         <span className="text-sm ml-1">
                           ({portfolioSummary.periodChanges['1d']?.netWorthPercent > 0 ? '+' : ''}
-                          {portfolioSummary.periodChanges['1d']?.netWorthPercent?.toFixed(2) || 0}%)
+                          ({formatPercentage(portfolioSummary.periodChanges['1d'].percentChange / 100, { minimumFractionDigits: 2, maximumFractionDigits: 2 })})
                         </span>
                       </span>
                     </div>
@@ -350,7 +359,7 @@ export default function AccountsPage() {
                         {showValues ? formatCurrency(portfolioSummary.periodChanges['1w']?.netWorth || 0) : '•••••'}
                         <span className="text-sm ml-1">
                           ({portfolioSummary.periodChanges['1w']?.netWorthPercent > 0 ? '+' : ''}
-                          {portfolioSummary.periodChanges['1w']?.netWorthPercent?.toFixed(2) || 0}%)
+                          ({formatPercentage(portfolioSummary.periodChanges['1w'].percentChange / 100, { minimumFractionDigits: 2, maximumFractionDigits: 2 })})
                         </span>
                       </span>
                     </div>
@@ -365,7 +374,7 @@ export default function AccountsPage() {
                         {showValues ? formatCurrency(portfolioSummary.periodChanges['1m']?.netWorth || 0) : '•••••'}
                         <span className="text-sm ml-1">
                           ({portfolioSummary.periodChanges['1m']?.netWorthPercent > 0 ? '+' : ''}
-                          {portfolioSummary.periodChanges['1m']?.netWorthPercent?.toFixed(2) || 0}%)
+                          ({formatPercentage(portfolioSummary.periodChanges['1m'].percentChange / 100, { minimumFractionDigits: 2, maximumFractionDigits: 2 })})
                         </span>
                       </span>
                     </div>
@@ -380,7 +389,7 @@ export default function AccountsPage() {
                         {showValues ? formatCurrency(portfolioSummary.periodChanges['ytd']?.netWorth || 0) : '•••••'}
                         <span className="text-sm ml-1">
                           ({portfolioSummary.periodChanges['ytd']?.netWorthPercent > 0 ? '+' : ''}
-                          {portfolioSummary.periodChanges['ytd']?.netWorthPercent?.toFixed(2) || 0}%)
+                          ({formatPercentage(portfolioSummary.periodChanges['ytd'].percentChange / 100, { minimumFractionDigits: 2, maximumFractionDigits: 2 })})
                         </span>
                       </span>
                     </div>
@@ -399,6 +408,8 @@ export default function AccountsPage() {
           onDataChanged={handleRefresh}
         />
 
+        {/* Section Divider */}
+        <div className="my-8 border-t border-gray-700/50" />
 
         {/* Institution & Account Type Breakdown */}
         {accounts.length > 0 && (
