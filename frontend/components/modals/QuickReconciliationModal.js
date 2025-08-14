@@ -780,9 +780,7 @@ const Confetti = ({ show }) => {
   );
 };
 
-// ============================================
-// LIQUID POSITIONS SCREEN - Institution-Based Batch Editing
-// ============================================
+// Enhanced liquid positions screen
 const LiquidPositionsScreen = ({ 
   positions, 
   onComplete, 
@@ -790,49 +788,22 @@ const LiquidPositionsScreen = ({
   onUpdatePosition
 }) => {
   const [selectedInstitution, setSelectedInstitution] = useState(null);
-  const [updatedValues, setUpdatedValues] = useState({});
-  const [editingPositions, setEditingPositions] = useState({});
+  const [currentPositionIndex, setCurrentPositionIndex] = useState(0);
+  const [updatedPositions, setUpdatedPositions] = useState({});
   const [completedInstitutions, setCompletedInstitutions] = useState([]);
   const [showCelebration, setShowCelebration] = useState(false);
   const [originalValues, setOriginalValues] = useState({});
-  const [unsavedChanges, setUnsavedChanges] = useState(false);
-  const [showQuickTips, setShowQuickTips] = useState(true);
   
-  // Initialize and load from localStorage
+  // Initialize original values
   useEffect(() => {
-    // Initialize original values
     const values = {};
     positions.forEach(pos => {
       values[pos.id] = pos.current_value || 0;
     });
     setOriginalValues(values);
-    
-    // Load saved progress from localStorage
-    const savedProgress = localStorage.getItem('nestegg_liquid_positions_progress');
-    if (savedProgress) {
-      try {
-        const parsed = JSON.parse(savedProgress);
-        setUpdatedValues(parsed.updatedValues || {});
-        setCompletedInstitutions(parsed.completedInstitutions || []);
-      } catch (e) {
-        console.error('Error loading saved progress:', e);
-      }
-    }
   }, [positions]);
   
-  // Save progress to localStorage
-  useEffect(() => {
-    if (Object.keys(updatedValues).length > 0 || completedInstitutions.length > 0) {
-      localStorage.setItem('nestegg_liquid_positions_progress', JSON.stringify({
-        updatedValues,
-        completedInstitutions,
-        timestamp: new Date().toISOString()
-      }));
-      setUnsavedChanges(true);
-    }
-  }, [updatedValues, completedInstitutions]);
-  
-  // Group positions by institution with enriched metadata
+  // Group positions by institution with enriched data
   const groupedPositions = useMemo(() => {
     const groups = {};
     positions.forEach(pos => {
@@ -842,139 +813,91 @@ const LiquidPositionsScreen = ({
       }
       groups[institution].push({
         ...pos,
-        hasUpdate: updatedValues[pos.id] !== undefined,
-        currentDisplayValue: updatedValues[pos.id] !== undefined ? updatedValues[pos.id] : pos.current_value
+        hasUpdate: updatedPositions[pos.id] !== undefined
       });
     });
     
-    // Convert to array with rich metadata
-    return Object.entries(groups).map(([institution, positions]) => {
-      const totalOriginal = positions.reduce((sum, p) => sum + Math.abs(originalValues[p.id] || 0), 0);
-      const totalUpdated = positions.reduce((sum, p) => {
-        const value = updatedValues[p.id] !== undefined ? parseFloat(updatedValues[p.id]) : (originalValues[p.id] || 0);
-        return sum + Math.abs(value);
-      }, 0);
-      const variance = totalUpdated - totalOriginal;
-      const updatedCount = positions.filter(p => updatedValues[p.id] !== undefined).length;
-      
-      return {
-        institution,
-        positions,
-        totalOriginal,
-        totalUpdated,
-        variance,
-        updatedCount,
-        isComplete: updatedCount === positions.length,
-        hasChanges: updatedCount > 0
-      };
-    }).sort((a, b) => {
-      // Sort completed institutions to the bottom
-      if (completedInstitutions.includes(a.institution) && !completedInstitutions.includes(b.institution)) return 1;
-      if (!completedInstitutions.includes(a.institution) && completedInstitutions.includes(b.institution)) return -1;
-      return b.totalOriginal - a.totalOriginal;
-    });
-  }, [positions, updatedValues, originalValues, completedInstitutions]);
+    // Convert to array with metadata
+    return Object.entries(groups).map(([institution, positions]) => ({
+      institution,
+      positions,
+      totalValue: positions.reduce((sum, p) => sum + Math.abs(p.current_value || 0), 0),
+      updatedCount: positions.filter(p => updatedPositions[p.id] !== undefined).length
+    })).sort((a, b) => b.totalValue - a.totalValue);
+  }, [positions, updatedPositions]);
   
-  // Format currency helper
-  const formatCurrency = (value) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    }).format(Math.abs(value || 0));
-  };
+  // Auto-select first institution
+  useEffect(() => {
+    if (groupedPositions.length > 0 && !selectedInstitution) {
+      setSelectedInstitution(groupedPositions[0].institution);
+    }
+  }, [groupedPositions, selectedInstitution]);
   
-  // Handle value update for a position
-  const handleValueUpdate = (positionId, value) => {
-    setUpdatedValues(prev => ({
+  // Get current institution's positions
+  const currentInstitutionData = groupedPositions.find(g => g.institution === selectedInstitution);
+  const currentPositions = currentInstitutionData?.positions || [];
+  const currentPosition = currentPositions[currentPositionIndex];
+  
+  // Calculate progress
+  const totalProgress = ((Object.keys(updatedPositions).length / positions.length) * 100) || 0;
+  const institutionProgress = currentInstitutionData 
+    ? ((currentInstitutionData.updatedCount / currentInstitutionData.positions.length) * 100)
+    : 0;
+  
+  const handlePositionUpdate = (positionId, value) => {
+    setUpdatedPositions(prev => ({
       ...prev,
       [positionId]: value
     }));
   };
   
-  // Toggle editing mode for a position
-  const toggleEditing = (positionId) => {
-    setEditingPositions(prev => ({
-      ...prev,
-      [positionId]: !prev[positionId]
-    }));
-  };
-  
-  // Mark institution as complete
-  const markInstitutionComplete = (institution) => {
-    setCompletedInstitutions(prev => {
-      if (prev.includes(institution)) {
-        return prev.filter(i => i !== institution);
-      }
-      return [...prev, institution];
-    });
-  };
-  
-  // Clear all changes for an institution
-  const clearInstitutionChanges = (institution) => {
-    const institutionData = groupedPositions.find(g => g.institution === institution);
-    if (institutionData) {
-      const newUpdatedValues = { ...updatedValues };
-      institutionData.positions.forEach(pos => {
-        delete newUpdatedValues[pos.id];
-      });
-      setUpdatedValues(newUpdatedValues);
+  const handleNext = () => {
+    if (currentPositionIndex < currentPositions.length - 1) {
+      setCurrentPositionIndex(currentPositionIndex + 1);
+    } else {
+      // Mark institution as completed
+      setCompletedInstitutions(prev => [...prev, selectedInstitution]);
       
-      // Clear editing states
-      const newEditingPositions = { ...editingPositions };
-      institutionData.positions.forEach(pos => {
-        delete newEditingPositions[pos.id];
-      });
-      setEditingPositions(newEditingPositions);
+      // Find next incomplete institution
+      const nextInstitution = groupedPositions.find(g => 
+        g.institution !== selectedInstitution && !completedInstitutions.includes(g.institution)
+      );
+      
+      if (nextInstitution) {
+        setSelectedInstitution(nextInstitution.institution);
+        setCurrentPositionIndex(0);
+      } else {
+        // All done!
+        setShowCelebration(true);
+        setTimeout(() => {
+          onComplete(updatedPositions);
+        }, 2000);
+      }
     }
   };
   
-// Submit all changes
-  const handleSubmitAll = () => {
-    if (Object.keys(updatedValues).length === 0) {
-      return;
+  const handlePrevious = () => {
+    if (currentPositionIndex > 0) {
+      setCurrentPositionIndex(currentPositionIndex - 1);
     }
-    
-    // Convert updatedValues to proper format for API
-    const formattedUpdates = {};
-    Object.entries(updatedValues).forEach(([positionId, value]) => {
-      formattedUpdates[positionId] = parseFloat(value) || 0;
-    });
-    
-    setShowCelebration(true);
-    setTimeout(() => {
-      onComplete(formattedUpdates);
-      // Clear localStorage after successful submission
-      localStorage.removeItem('nestegg_liquid_positions_progress');
-    }, 2000);
   };
   
-  // Calculate overall progress
-  const overallStats = useMemo(() => {
-    const totalPositions = positions.length;
-    const updatedCount = Object.keys(updatedValues).length;
-    const progress = totalPositions > 0 ? (updatedCount / totalPositions) * 100 : 0;
-    
-    const totalVariance = positions.reduce((sum, pos) => {
-      const original = originalValues[pos.id] || 0;
-      const updated = updatedValues[pos.id] !== undefined ? parseFloat(updatedValues[pos.id]) : original;
-      return sum + (updated - original);
-    }, 0);
-    
-    return {
-      totalPositions,
-      updatedCount,
-      progress,
-      totalVariance,
-      institutionsComplete: completedInstitutions.length,
-      totalInstitutions: groupedPositions.length
-    };
-  }, [positions, updatedValues, originalValues, completedInstitutions, groupedPositions]);
+  const handleInstitutionSelect = (institution) => {
+    setSelectedInstitution(institution);
+    const institutionData = groupedPositions.find(g => g.institution === institution);
+    // Find first unupdated position or start at beginning
+    const firstUnupdatedIndex = institutionData.positions.findIndex(p => !updatedPositions[p.id]);
+    setCurrentPositionIndex(firstUnupdatedIndex >= 0 ? firstUnupdatedIndex : 0);
+  };
+  
+  const calculateDifference = (positionId, newValue) => {
+    const original = originalValues[positionId] || 0;
+    return parseFloat(newValue || 0) - original;
+  };
   
   return (
     <div className="space-y-6">
-      {/* Header with back button and progress */}
+      {/* Header with back button */}
       <div>
         <button
           onClick={onBack}
@@ -987,27 +910,17 @@ const LiquidPositionsScreen = ({
         <div className="flex items-center justify-between mb-6">
           <div>
             <h2 className="text-3xl font-bold text-gray-900">Update Liquid Positions</h2>
-            <p className="text-gray-600 mt-1">Review and update your cash accounts by institution</p>
+            <p className="text-gray-600 mt-1">Keep your cash and credit balances accurate</p>
           </div>
           
-          <div className="flex items-center space-x-6">
-            {/* Progress Stats */}
+          <div className="flex items-center space-x-4">
             <div className="text-right">
-              <div className="text-sm text-gray-500">Positions Updated</div>
+              <div className="text-sm text-gray-500">Overall Progress</div>
               <div className="text-2xl font-bold text-gray-900">
-                {overallStats.updatedCount} / {overallStats.totalPositions}
+                {Object.keys(updatedPositions).length} / {positions.length}
               </div>
             </div>
-            
-            {/* Institutions Complete */}
-            <div className="text-right">
-              <div className="text-sm text-gray-500">Institutions</div>
-              <div className="text-2xl font-bold text-gray-900">
-                {overallStats.institutionsComplete} / {overallStats.totalInstitutions}
-              </div>
-            </div>
-            
-            <ProgressRing percentage={overallStats.progress} size={80} color="blue" />
+            <ProgressRing percentage={totalProgress} size={80} color="blue" />
           </div>
         </div>
         
@@ -1015,355 +928,127 @@ const LiquidPositionsScreen = ({
         <div className="relative h-3 bg-gray-200 rounded-full overflow-hidden shadow-inner">
           <div 
             className="absolute left-0 top-0 h-full bg-gradient-to-r from-blue-500 to-cyan-500 transition-all duration-500 ease-out shadow-md"
-            style={{ width: `${overallStats.progress}%` }}
+            style={{ width: `${totalProgress}%` }}
           />
         </div>
-        
-        {/* Unsaved changes warning */}
-        {unsavedChanges && overallStats.updatedCount > 0 && (
-          <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-lg flex items-center justify-between">
-            <div className="flex items-center">
-              <AlertCircle className="w-5 h-5 text-amber-600 mr-3" />
-              <span className="text-sm text-amber-800">
-                You have unsaved changes. Your progress is automatically saved locally.
-              </span>
-            </div>
-            <button
-              onClick={handleSubmitAll}
-              className="px-4 py-2 bg-amber-600 text-white text-sm font-medium rounded-lg hover:bg-amber-700 transition-colors"
-            >
-              Submit All Changes
-            </button>
-          </div>
-        )}
       </div>
       
-      {/* Quick Tips */}
-      {showQuickTips && (
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 relative">
-          <button
-            onClick={() => setShowQuickTips(false)}
-            className="absolute top-2 right-2 text-blue-400 hover:text-blue-600"
-          >
-            <X className="w-4 h-4" />
-          </button>
-          <div className="flex items-start space-x-3">
-            <Info className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
-            <div className="text-sm text-blue-800">
-              <p className="font-medium mb-1">Quick Tips:</p>
-              <ul className="space-y-1">
-                <li>• Open your bank app or website for each institution</li>
-                <li>• Update all accounts at once for each institution</li>
-                <li>• Click the value to edit, press Enter to save</li>
-                <li>• Your progress is saved automatically</li>
-              </ul>
+      {/* Institution selector */}
+      <InstitutionSelector
+        institutions={groupedPositions}
+        selectedInstitution={selectedInstitution}
+        onSelect={handleInstitutionSelect}
+        completedInstitutions={completedInstitutions}
+      />
+      
+      {/* Update summary dashboard */}
+      <UpdateSummaryDashboard
+        pendingUpdates={updatedPositions}
+        originalValues={originalValues}
+      />
+      
+      {/* Current institution progress */}
+      {currentInstitutionData && (
+        <div className="bg-gradient-to-r from-gray-50 to-gray-100 rounded-xl p-4 border border-gray-200">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-3">
+              <Landmark className="w-6 h-6 text-gray-600" />
+              <div>
+                <h3 className="font-semibold text-gray-900">{selectedInstitution}</h3>
+                <p className="text-sm text-gray-600">
+                  Position {currentPositionIndex + 1} of {currentPositions.length}
+                </p>
+              </div>
             </div>
+            <div className="flex items-center space-x-4">
+              <div className="text-right">
+                <div className="text-sm text-gray-500">Institution Progress</div>
+                <div className="text-lg font-bold text-gray-900">
+                  {currentInstitutionData.updatedCount} / {currentInstitutionData.positions.length}
+                </div>
+              </div>
+              <ProgressRing percentage={institutionProgress} size={60} color="green" />
+            </div>
+          </div>
+          
+          {/* Institution progress bar */}
+          <div className="mt-3 h-2 bg-gray-200 rounded-full overflow-hidden">
+            <div 
+              className="h-full bg-gradient-to-r from-green-500 to-emerald-500 transition-all duration-500"
+              style={{ width: `${institutionProgress}%` }}
+            />
           </div>
         </div>
       )}
       
-      {/* Institution Cards */}
-      <div className="space-y-4">
-        {groupedPositions.map((institutionData) => {
-          const isSelected = selectedInstitution === institutionData.institution;
-          const isCompleted = completedInstitutions.includes(institutionData.institution);
+      {/* Current position card */}
+      {currentPosition && (
+        <div className="max-w-2xl mx-auto">
+          <LiquidPositionCard
+            position={currentPosition}
+            institution={currentPosition.institution || currentPosition.account_institution}
+            value={updatedPositions[currentPosition.id] || currentPosition.current_value}
+            onChange={handlePositionUpdate}
+            onComplete={handleNext}
+            isActive={true}
+            suggestion={`Tip: Check for pending transactions`}
+            lastUpdated={originalValues[currentPosition.id]?.lastUpdated}
+            isUpdated={!!updatedPositions[currentPosition.id]}
+            difference={calculateDifference(currentPosition.id, updatedPositions[currentPosition.id])}
+          />
           
-          return (
-            <div
-              key={institutionData.institution}
+          {/* Navigation controls */}
+          <div className="flex items-center justify-between mt-6">
+            <button
+              onClick={handlePrevious}
+              disabled={currentPositionIndex === 0 && completedInstitutions.length === 0}
               className={`
-                bg-white rounded-xl border-2 transition-all duration-300
-                ${isCompleted ? 'border-green-400 bg-green-50/30' : 
-                  isSelected ? 'border-blue-500 shadow-xl' : 
-                  'border-gray-200 hover:border-gray-300 hover:shadow-lg'}
+                px-6 py-3 font-medium rounded-lg transition-all transform hover:scale-105
+                ${currentPositionIndex === 0 && completedInstitutions.length === 0
+                  ? 'text-gray-400 bg-gray-100 cursor-not-allowed'
+                  : 'text-gray-700 bg-white border-2 border-gray-300 hover:bg-gray-50 hover:border-gray-400 shadow-md'
+                }
               `}
             >
-              {/* Institution Header */}
-              <div
-                className="p-4 cursor-pointer"
-                onClick={() => setSelectedInstitution(isSelected ? null : institutionData.institution)}
-              >
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-3">
-                    <div className={`
-                      p-2 rounded-lg transition-colors
-                      ${isCompleted ? 'bg-green-100' : 'bg-gray-100'}
-                    `}>
-                      <Landmark className={`
-                        w-6 h-6 
-                        ${isCompleted ? 'text-green-600' : 'text-gray-600'}
-                      `} />
-                    </div>
-                    <div>
-                      <h3 className="font-semibold text-gray-900 text-lg">
-                        {institutionData.institution}
-                      </h3>
-                      <p className="text-sm text-gray-500">
-                        {institutionData.positions.length} accounts • 
-                        {institutionData.updatedCount > 0 && (
-                          <span className="text-blue-600 ml-1">
-                            {institutionData.updatedCount} updated
-                          </span>
-                        )}
-                        {institutionData.updatedCount === 0 && (
-                          <span className="text-gray-400 ml-1">
-                            No updates yet
-                          </span>
-                        )}
-                      </p>
-                    </div>
-                  </div>
-                  
-                  <div className="flex items-center space-x-4">
-                    {/* Variance Badge */}
-                    {institutionData.variance !== 0 && (
-                      <div className={`
-                        px-3 py-1 rounded-full text-sm font-medium
-                        ${institutionData.variance > 0 
-                          ? 'bg-green-100 text-green-700' 
-                          : 'bg-red-100 text-red-700'}
-                      `}>
-                        {institutionData.variance > 0 ? '+' : ''}{formatCurrency(institutionData.variance)}
-                      </div>
-                    )}
-                    
-                    {/* Status Badge */}
-                    {isCompleted && (
-                      <div className="flex items-center px-3 py-1 bg-green-100 text-green-700 rounded-full">
-                        <CheckCircle className="w-4 h-4 mr-1" />
-                        <span className="text-sm font-medium">Complete</span>
-                      </div>
-                    )}
-                    
-                    <ChevronDown className={`
-                      w-5 h-5 text-gray-400 transition-transform duration-300
-                      ${isSelected ? 'rotate-180' : ''}
-                    `} />
-                  </div>
-                </div>
-              </div>
-              
-              {/* Expanded Content - Account Table */}
-              {isSelected && (
-                <div className="border-t border-gray-200 p-4 animate-in slide-in-from-top duration-300">
-                  <div className="overflow-x-auto">
-                    <table className="w-full">
-                      <thead>
-                        <tr className="border-b border-gray-200">
-                          <th className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider pb-3">
-                            Account
-                          </th>
-                          <th className="text-right text-xs font-medium text-gray-500 uppercase tracking-wider pb-3">
-                            NestEgg Balance
-                          </th>
-                          <th className="text-right text-xs font-medium text-gray-500 uppercase tracking-wider pb-3">
-                            Statement Balance
-                          </th>
-                          <th className="text-right text-xs font-medium text-gray-500 uppercase tracking-wider pb-3">
-                            Variance
-                          </th>
-                          <th className="text-center text-xs font-medium text-gray-500 uppercase tracking-wider pb-3">
-                            Actions
-                          </th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-gray-100">
-                        {institutionData.positions.map((position) => {
-                          const isEditing = editingPositions[position.id];
-                          const originalValue = originalValues[position.id] || 0;
-                          const currentValue = updatedValues[position.id] !== undefined 
-                            ? parseFloat(updatedValues[position.id]) 
-                            : originalValue;
-                          const variance = currentValue - originalValue;
-                          const isLiability = position.position_type === 'credit_card' || 
-                                            position.position_type === 'loan' || 
-                                            position.type === 'liability';
-                          
-                          return (
-                            <tr key={position.id} className="group hover:bg-gray-50">
-                              <td className="py-3">
-                                <div className="flex items-center space-x-3">
-                                  <div className={`
-                                    p-2 rounded-lg
-                                    ${isLiability ? 'bg-red-50' : 'bg-green-50'}
-                                  `}>
-                                    {position.position_type === 'checking' ? <Wallet className={`w-4 h-4 ${isLiability ? 'text-red-600' : 'text-green-600'}`} /> :
-                                     position.position_type === 'savings' ? <PiggyBank className={`w-4 h-4 ${isLiability ? 'text-red-600' : 'text-green-600'}`} /> :
-                                     position.position_type === 'credit_card' ? <CreditCard className="w-4 h-4 text-red-600" /> :
-                                     position.position_type === 'loan' ? <Receipt className="w-4 h-4 text-red-600" /> :
-                                     <DollarSign className={`w-4 h-4 ${isLiability ? 'text-red-600' : 'text-green-600'}`} />}
-                                  </div>
-                                  <div>
-                                    <p className="font-medium text-gray-900">
-                                      {position.name || position.position_name}
-                                    </p>
-                                    <p className="text-sm text-gray-500">
-                                      {position.position_type || position.type}
-                                    </p>
-                                  </div>
-                                </div>
-                              </td>
-                              
-                              <td className="text-right py-3">
-                                <span className="text-gray-900 font-medium">
-                                  {isLiability && '-'}{formatCurrency(originalValue)}
-                                </span>
-                              </td>
-                              
-                              <td className="text-right py-3">
-                                {isEditing ? (
-                                  <div className="flex items-center justify-end">
-                                    <span className="mr-1 text-gray-500">
-                                      {isLiability ? '-$' : '$'}
-                                    </span>
-                                    <input
-                                      type="text"
-                                      defaultValue={Math.abs(currentValue).toFixed(2)}
-                                      onChange={(e) => handleValueUpdate(position.id, e.target.value)}
-                                      onKeyPress={(e) => {
-                                        if (e.key === 'Enter') {
-                                          toggleEditing(position.id);
-                                        }
-                                      }}
-                                      className="w-32 px-2 py-1 border-2 border-blue-500 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-right"
-                                      autoFocus
-                                    />
-                                  </div>
-                                ) : (
-                                  <span className={`
-                                    font-medium cursor-pointer hover:text-blue-600 transition-colors
-                                    ${updatedValues[position.id] !== undefined ? 'text-blue-600' : 'text-gray-900'}
-                                  `}
-                                  onClick={() => toggleEditing(position.id)}
-                                  >
-                                    {isLiability && '-'}{formatCurrency(currentValue)}
-                                  </span>
-                                )}
-                              </td>
-                              
-                              <td className="text-right py-3">
-                                {variance !== 0 && (
-                                  <span className={`
-                                    font-medium
-                                    ${variance > 0 ? 'text-green-600' : 'text-red-600'}
-                                  `}>
-                                    {variance > 0 ? '+' : ''}{formatCurrency(variance)}
-                                  </span>
-                                )}
-                                {variance === 0 && (
-                                  <span className="text-gray-400">—</span>
-                                )}
-                              </td>
-                              
-                              <td className="text-center py-3">
-                                <button
-                                  onClick={() => toggleEditing(position.id)}
-                                  className="p-1.5 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all"
-                                  title={isEditing ? "Save" : "Edit"}
-                                >
-                                  {isEditing ? <Check className="w-4 h-4" /> : <Edit3 className="w-4 h-4" />}
-                                </button>
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                      
-                      {/* Institution Total Row */}
-                      <tfoot>
-                        <tr className="border-t-2 border-gray-300">
-                          <td className="pt-3 font-semibold text-gray-900">
-                            Total
-                          </td>
-                          <td className="pt-3 text-right font-semibold text-gray-900">
-                            {formatCurrency(institutionData.totalOriginal)}
-                          </td>
-                          <td className="pt-3 text-right font-semibold text-gray-900">
-                            {formatCurrency(institutionData.totalUpdated)}
-                          </td>
-                          <td className="pt-3 text-right">
-                            {institutionData.variance !== 0 && (
-                              <span className={`
-                                font-semibold
-                                ${institutionData.variance > 0 ? 'text-green-600' : 'text-red-600'}
-                              `}>
-                                {institutionData.variance > 0 ? '+' : ''}{formatCurrency(institutionData.variance)}
-                              </span>
-                            )}
-                          </td>
-                          <td></td>
-                        </tr>
-                      </tfoot>
-                    </table>
-                  </div>
-                  
-                  {/* Institution Actions */}
-                  <div className="flex items-center justify-between mt-6 pt-6 border-t border-gray-200">
-                    <button
-                      onClick={() => clearInstitutionChanges(institutionData.institution)}
-                      className="text-gray-500 hover:text-gray-700 text-sm font-medium"
-                      disabled={institutionData.updatedCount === 0}
-                    >
-                      Clear Changes
-                    </button>
-                    
-                    <div className="flex items-center space-x-3">
-                      <button
-                        onClick={() => markInstitutionComplete(institutionData.institution)}
-                        className={`
-                          px-4 py-2 font-medium rounded-lg transition-all
-                          ${isCompleted 
-                            ? 'bg-gray-200 text-gray-700 hover:bg-gray-300' 
-                            : 'bg-green-600 text-white hover:bg-green-700'}
-                        `}
-                      >
-                        {isCompleted ? (
-                          <>
-                            <X className="w-4 h-4 inline mr-2" />
-                            Mark Incomplete
-                          </>
-                        ) : (
-                          <>
-                            <CheckCircle className="w-4 h-4 inline mr-2" />
-                            Mark Complete
-                          </>
-                        )}
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-          );
-        })}
-      </div>
-      
-      {/* Summary and Actions */}
-      {overallStats.updatedCount > 0 && (
-        <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-6 border border-blue-200">
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="font-semibold text-gray-900 mb-2">Ready to Submit?</h3>
-              <p className="text-sm text-gray-600">
-                You've updated {overallStats.updatedCount} positions across {overallStats.institutionsComplete} institutions.
-                {overallStats.totalVariance !== 0 && (
-                  <span className={`
-                    ml-2 font-medium
-                    ${overallStats.totalVariance > 0 ? 'text-green-600' : 'text-red-600'}
-                  `}>
-                    Net change: {overallStats.totalVariance > 0 ? '+' : ''}{formatCurrency(overallStats.totalVariance)}
-                  </span>
-                )}
-              </p>
-            </div>
+              <ArrowLeft className="w-4 h-4 inline mr-2" />
+              Previous
+            </button>
             
             <button
-              onClick={handleSubmitAll}
+              onClick={() => handleNext()}
+              className="text-gray-500 hover:text-gray-700 text-sm font-medium transition-colors"
+            >
+              Skip this one
+            </button>
+            
+            <button
+              onClick={handleNext}
               className="px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-medium rounded-lg hover:from-blue-700 hover:to-indigo-700 transition-all transform hover:scale-105 shadow-lg flex items-center"
             >
-              <Save className="w-5 h-5 mr-2" />
-              Submit All Updates
+              {currentPositionIndex === currentPositions.length - 1 && 
+               groupedPositions.filter(g => !completedInstitutions.includes(g.institution)).length === 1
+                ? 'Complete All' 
+                : 'Next'}
+              <ChevronRight className="w-4 h-4 ml-2" />
             </button>
+          </div>
+          
+          {/* Position indicators */}
+          <div className="flex justify-center mt-6 space-x-2">
+            {currentPositions.map((_, idx) => (
+              <div
+                key={idx}
+                className={`
+                  h-2 rounded-full transition-all duration-300
+                  ${idx === currentPositionIndex 
+                    ? 'w-8 bg-blue-600' 
+                    : updatedPositions[currentPositions[idx].id]
+                      ? 'w-2 bg-green-500'
+                      : 'w-2 bg-gray-300'
+                  }
+                `}
+              />
+            ))}
           </div>
         </div>
       )}
@@ -1371,7 +1056,7 @@ const LiquidPositionsScreen = ({
       {/* Celebration */}
       <ProgressCelebration 
         show={showCelebration}
-        message="All liquid positions updated successfully!"
+        message="All liquid positions updated! Moving to reconciliation..."
       />
       <Confetti show={showCelebration} />
     </div>
@@ -2481,20 +2166,10 @@ const QuickReconciliationModal = ({ isOpen, onClose }) => {
      for (const [positionId, value] of Object.entries(updates)) {
        const position = liquidPositions.find(p => p.id === parseInt(positionId));
        if (position) {
-         // Use the same update pattern as QuickEditDeleteModal
-         const updateData = {
+         await updatePosition(position.id, {
            ...position,
-           current_value: parseFloat(value),
-           // Ensure we have the correct field names
-           quantity: position.quantity || 1,
-           purchase_price: parseFloat(value), // For cash positions, purchase_price = current_value
-         };
-         
-         await updatePosition(
-           position.id, 
-           updateData, 
-           position.asset_type || position.assetType || 'cash'
-         );
+           current_value: parseFloat(value)
+         }, position.asset_type);
        }
      }
      
