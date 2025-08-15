@@ -497,56 +497,165 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
   // ===== Screens =====
 
   function WelcomeScreen() {
+    // We can safely read state again; the top-level already has useDataStore for actions
+    const { state, actions } = useDataStore();
+    const { groupedLiabilities } = state;
+
+    // Ensure liabilities are ready so the institution preview includes cards/loans/mortgages
+    useEffect(() => {
+      if (!groupedLiabilities?.lastFetched && !groupedLiabilities?.loading) {
+        actions.fetchGroupedLiabilitiesData?.();
+      }
+    }, [groupedLiabilities?.lastFetched, groupedLiabilities?.loading, actions]);
+
+    // ---- Draft aggregation across institutions (from localStorage) ----
+    const allDrafts = useMemo(() => {
+      const out = {};
+      try {
+        for (let i = 0; i < localStorage.length; i += 1) {
+          const k = localStorage.key(i);
+          if (k && k.startsWith(LS_DRAFT_PREFIX)) {
+            const obj = JSON.parse(localStorage.getItem(k) || '{}');
+            Object.assign(out, obj);
+          }
+        }
+      } catch {/* noop */}
+      return out; // shape: { [rowKey]: number }
+    }, [isOpen]); // recompute when modal mounts
+
+    // ---- Build per-institution preview (cash + liabilities) ----
+    const institutionPreview = useMemo(() => {
+      // cash-like items from normalized positions
+      const cash = (positionsNorm || []).filter((p) => {
+        const t = (p.type || '').toLowerCase();
+        return ['cash', 'checking', 'savings'].includes(t) || /checking|savings|cash/i.test(p.name || '');
+      });
+
+      // liabilities from store
+      const liabs = (groupedLiabilities?.data || []).map((L) => {
+        const id = L.item_id ?? L.liability_id ?? L.id ?? L.history_id;
+        const type = (L.item_type || L.type || 'liability').toLowerCase();
+        return {
+          id,
+          key: `L_${id}`,
+          institution: L.institution || 'Unknown Institution',
+          name: L.name || L.identifier || 'Liability',
+          identifier: L.identifier || '',
+          type,
+          currentValue: Number(L.current_balance ?? L.current_value ?? L.balance ?? 0),
+          inv_account_name: L.inv_account_name ?? L.account_name ?? '',
+        };
+      });
+
+      const map = new Map();
+      const add = (inst) => {
+        if (!map.has(inst)) map.set(inst, { institution: inst, rows: [], value: 0, changed: 0 });
+        return map.get(inst);
+      };
+
+      cash.forEach((p) => {
+        const inst = p.institution || 'Unknown Institution';
+        const g = add(inst);
+        const key = p.id;
+        const curr = Number(p.currentValue || 0);
+        const draft = allDrafts[key];
+        const hasChange = Number.isFinite(draft) && draft !== curr;
+        g.rows.push({ kind: 'asset', key, name: p.name, type: p.type, identifier: p.identifier, curr, draft });
+        g.value += Math.abs(curr);
+        if (hasChange) g.changed += 1;
+      });
+
+      liabs.forEach((p) => {
+        const inst = p.institution || 'Unknown Institution';
+        const g = add(inst);
+        const key = p.key;
+        const curr = Number(p.currentValue || 0);
+        const draft = allDrafts[key];
+        const hasChange = Number.isFinite(draft) && draft !== curr;
+        g.rows.push({ kind: 'liability', key, name: p.name, type: p.type, identifier: p.identifier, curr, draft });
+        g.value += Math.abs(curr);
+        if (hasChange) g.changed += 1;
+      });
+
+      return Array.from(map.values()).sort((a, b) => b.value - a.value);
+    }, [positionsNorm, groupedLiabilities?.data, allDrafts]);
+
+    // ---- Pending changes dashboard (counts, +/- amounts, net) ----
+    const pending = useMemo(() => {
+      let count = 0, posCount = 0, negCount = 0;
+      let posAmt = 0, negAmt = 0;
+
+      // Build a quick lookup of current values for asset ids and liability keys
+      const currMap = new Map();
+      (positionsNorm || []).forEach((p) => {
+        const t = (p.type || '').toLowerCase();
+        if (['cash', 'checking', 'savings'].includes(t) || /checking|savings|cash/i.test(p.name || '')) {
+          currMap.set(p.id, Number(p.currentValue || 0));
+        }
+      });
+      (groupedLiabilities?.data || []).forEach((L) => {
+        const id = L.item_id ?? L.liability_id ?? L.id ?? L.history_id;
+        const key = `L_${id}`;
+        const curr = Number(L.current_balance ?? L.current_value ?? L.balance ?? 0);
+        currMap.set(key, curr);
+      });
+
+      Object.entries(allDrafts).forEach(([key, draftVal]) => {
+        const curr = currMap.get(key);
+        if (curr === undefined) return;
+        const next = Number(draftVal);
+        if (!Number.isFinite(next) || next === curr) return;
+        const delta = next - curr;
+        count += 1;
+        if (delta > 0) { posCount += 1; posAmt += delta; }
+        else { negCount += 1; negAmt += delta; }
+      });
+
+      return { count, posCount, posAmt, negCount, negAmt, net: posAmt + negAmt };
+    }, [positionsNorm, groupedLiabilities?.data, allDrafts]);
+
+    // ---- Helpers ----
+    const startLiquid = () => setScreen('liquid');
+    const startReconcile = () => setScreen('reconcile');
+
     return (
       <div className="p-8 bg-gradient-to-br from-gray-50 to-gray-100">
-        <div className="text-center space-y-3">
-          <h1 className="text-3xl font-bold text-gray-900">Welcome back 👋</h1>
-          <p className="text-gray-600">Let’s keep NestEgg accurate and tight.</p>
-          {streak > 0 && (
-            <div className="inline-flex items-center px-4 py-2 rounded-full border border-amber-200 bg-amber-50">
-              <Sparkles className="w-4 h-4 text-amber-600 mr-2" /> {streak}-day reconciliation streak
-            </div>
-          )}
-        </div>
+        {/* Title & instructions (persistent, succinct) */}
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900">Quick Update & Reconcile</h1>
+            <p className="text-gray-600 mt-1">
+              Keep NestEgg tight by entering today’s cash, card, and loan balances, then verify your investment accounts.
+            </p>
+          </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-8">
-          <div className="bg-white rounded-xl p-6 border border-gray-200 text-center">
-            <div className="inline-block relative mb-2">
-              <ProgressRing
-                percentage={healthScore}
-                size={96}
-                strokeWidth={8}
-                color={healthScore >= 75 ? 'green' : healthScore >= 50 ? 'yellow' : 'red'}
-              />
-              <div className="absolute inset-0 flex items-center justify-center">
-                <div>
-                  <div className="text-2xl font-bold text-gray-900">{healthScore}%</div>
-                  <div className="text-xs text-gray-500">Health</div>
-                </div>
+          {/* Pending dashboard */}
+          <div className="grid grid-cols-4 gap-2">
+            <div className="rounded-lg bg-gray-50 px-4 py-2 border border-gray-200 text-right">
+              <div className="text-xs text-gray-500">Pending</div>
+              <div className="text-lg font-semibold text-gray-900">{pending.count}</div>
+            </div>
+            <div className="rounded-lg bg-green-50 px-4 py-2 border border-green-200 text-right">
+              <div className="text-xs text-green-700">↑ {pending.posCount}</div>
+              <div className="text-sm font-semibold text-green-800">{fmtCurrency(pending.posAmt, false)}</div>
+            </div>
+            <div className="rounded-lg bg-red-50 px-4 py-2 border border-red-200 text-right">
+              <div className="text-xs text-red-700">↓ {pending.negCount}</div>
+              <div className="text-sm font-semibold text-red-800">{fmtCurrency(pending.negAmt, false)}</div>
+            </div>
+            <div className="rounded-lg bg-white px-4 py-2 border border-gray-200 text-right">
+              <div className="text-xs text-gray-500">Net Impact</div>
+              <div className={`text-lg font-semibold ${pending.net >= 0 ? 'text-green-700' : 'text-red-700'}`}>
+                {fmtCurrency(pending.net, false)}
               </div>
             </div>
-            <div className="text-sm text-gray-500">Last full update: {lastReconText}</div>
-          </div>
-          <div className="bg-white rounded-xl p-6 border border-gray-200 text-center">
-            <div className="text-4xl font-bold text-gray-900">{stats.total}</div>
-            <div className="text-sm text-gray-500">Total Accounts</div>
-            <div className="mt-3 flex justify-center gap-4">
-              <span className="text-xs text-green-700 bg-green-50 px-2 py-1 rounded-full">{stats.reconciled} current</span>
-              <span className="text-xs text-amber-700 bg-amber-50 px-2 py-1 rounded-full">{stats.needsReconciliation} pending</span>
-            </div>
-          </div>
-          <div className="bg-white rounded-xl p-6 border border-gray-200 text-center">
-            <div className="text-4xl font-bold text-gray-900">{Math.round(stats.valuePercentage)}%</div>
-            <div className="text-sm text-gray-500">Value Reconciled</div>
-            <div className="mt-2 text-xs text-gray-500">
-              {fmtCurrency(stats.reconciledValue)} of {fmtCurrency(stats.totalValue)}
-            </div>
           </div>
         </div>
 
-        <div className="mt-10 grid grid-cols-1 md:grid-cols-3 gap-4">
+        {/* CTA tiles */}
+        <div className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-4">
           <button
-            onClick={() => setScreen('liquid')}
+            onClick={startLiquid}
             className="group text-left p-6 bg-white rounded-xl border-2 border-blue-200 hover:border-blue-400 transition-all hover:shadow-lg"
           >
             <div className="flex items-start gap-3">
@@ -554,10 +663,10 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
                 <Droplets className={tone.blue.text600} />
               </div>
               <div className="flex-1">
-                <div className="font-semibold text-gray-900">Quick Cash Update</div>
-                <div className="text-sm text-gray-600">Update checking, savings, and cards fast</div>
+                <div className="font-semibold text-gray-900">Quick Cash & Liabilities</div>
+                <div className="text-sm text-gray-600">Update checking, savings, credit cards, loans</div>
                 <div className="mt-2 text-xs text-gray-500">
-                  {stats.liquidPositions === 0 ? '✅ All up to date' : `${stats.liquidPositions} need updates`}
+                  {institutionPreview.length === 0 ? 'No institutions yet' : `${institutionPreview.length} institutions detected`}
                 </div>
               </div>
               <ChevronRight className="w-5 h-5 text-gray-400 group-hover:translate-x-1 transition-transform" />
@@ -565,7 +674,7 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
           </button>
 
           <button
-            onClick={() => setScreen('reconcile')}
+            onClick={startReconcile}
             className="group text-left p-6 bg-white rounded-xl border-2 border-green-200 hover:border-green-400 transition-all hover:shadow-lg"
           >
             <div className="flex items-start gap-3">
@@ -573,10 +682,10 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
                 <CheckSquare className={tone.green.text600} />
               </div>
               <div className="flex-1">
-                <div className="font-semibold text-gray-900">Investment Check-In</div>
-                <div className="text-sm text-gray-600">Verify accounts match statements</div>
+                <div className="font-semibold text-gray-900">Investment Check‑In</div>
+                <div className="text-sm text-gray-600">Verify account totals match statements</div>
                 <div className="mt-2 text-xs text-gray-500">
-                  {stats.needsReconciliation === 0 ? '✅ Nothing pending' : `${stats.needsReconciliation} accounts to review`}
+                  {stats.needsReconciliation === 0 ? '✅ All current' : `${stats.needsReconciliation} accounts to review`}
                 </div>
               </div>
               <ChevronRight className="w-5 h-5 text-gray-400 group-hover:translate-x-1 transition-transform" />
@@ -596,12 +705,71 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
               </div>
               <div className="flex-1">
                 <div className="font-semibold text-gray-900">Complete Sync</div>
-                <div className="text-sm text-gray-600">Fastest way to refresh everything</div>
+                <div className="text-sm text-gray-600">Refresh everything in one flow</div>
                 <div className="mt-2 text-xs text-gray-500">⚡ Most efficient workflow</div>
               </div>
               <ChevronRight className="w-5 h-5 text-gray-400 group-hover:translate-x-1 transition-transform" />
             </div>
           </button>
+        </div>
+
+        {/* Institution status preview (no selection needed) */}
+        <div className="mt-8">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-sm font-semibold text-gray-900">Institutions Overview</h3>
+            <div className="text-xs text-gray-500">
+              Last full update: {lastReconText}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 max-h-[38vh] overflow-auto pr-1">
+            {institutionPreview.length === 0 ? (
+              <div className="text-sm text-gray-500">Connect or add accounts to get started.</div>
+            ) : (
+              institutionPreview.map((g) => {
+                const logo = getInstitutionLogo(g.institution);
+                const totalRows = g.rows.length;
+                const changed = g.changed;
+                const done = totalRows > 0 && changed === 0;
+
+                // simple progress based on drafts present
+                const pct = totalRows ? ((totalRows - changed) / totalRows) * 100 : 0;
+
+                return (
+                  <div
+                    key={g.institution}
+                    className={`rounded-xl border transition-all bg-white ${done ? 'border-green-200' : 'border-gray-200 hover:border-gray-300'} p-4`}
+                  >
+                    <div className="flex items-center gap-3">
+                      {logo ? (
+                        <img src={logo} alt={g.institution} className="w-8 h-8 rounded object-contain" />
+                      ) : (
+                        <Landmark className="w-8 h-8 text-gray-400" />
+                      )}
+                      <div className="flex-1">
+                        <div className="font-semibold text-gray-900">{g.institution}</div>
+                        <div className="text-xs text-gray-500">{totalRows} items • {fmtCurrency(g.value, false)}</div>
+                      </div>
+                      {done ? (
+                        <span className="inline-flex items-center text-green-700 text-xs"><CheckCircle className="w-4 h-4 mr-1" /> Ready</span>
+                      ) : (
+                        <span className="inline-flex items-center text-amber-700 text-xs"><AlertTriangle className="w-4 h-4 mr-1" /> Drafts</span>
+                      )}
+                    </div>
+
+                    <div className="mt-3 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                      <div className={`${done ? 'bg-green-500' : 'bg-blue-500'} h-full transition-all`} style={{ width: `${clamp(pct, 0, 100)}%` }} />
+                    </div>
+
+                    <div className="mt-3 flex items-center justify-between text-xs">
+                      <div className="text-gray-500">Pending edits</div>
+                      <div className={`font-medium ${changed ? 'text-amber-700' : 'text-green-700'}`}>{changed}</div>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
         </div>
       </div>
     );
@@ -1247,8 +1415,6 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
       </div>
     );
   }
-
-
 
   // ---- Account reconciliation (Investment check-in) with richer descriptors + KPI + better layout + currency input
   function ReconcileScreen() {
