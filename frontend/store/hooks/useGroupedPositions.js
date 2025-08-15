@@ -6,13 +6,13 @@ export const useGroupedPositions = () => {
   const { groupedPositions } = state;
   const { fetchGroupedPositionsData, markDataStale } = actions;
 
-  // Auto-fetch on mount only if no data exists
-  useEffect(() => {
-    if ((!groupedPositions.data || groupedPositions.data.length === 0) && !groupedPositions.lastFetched && !groupedPositions.loading) {
-      console.log('[useGroupedPositions] Auto-fetching grouped positions data');
-      actions.fetchGroupedPositionsData();
-    }
-  }, []); // Empty deps
+  // DISABLED - DataStore handles initial fetch in Phase 1
+  // useEffect(() => {
+  //   if ((!groupedPositions.data || groupedPositions.data.length === 0) && !groupedPositions.lastFetched && !groupedPositions.loading) {
+  //     console.log('[useGroupedPositions] Auto-fetching grouped positions data');
+  //     actions.fetchGroupedPositionsData();
+  //   }
+  // }, []);
 
   // Auto-refresh when stale
   useEffect(() => {

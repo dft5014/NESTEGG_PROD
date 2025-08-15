@@ -7,13 +7,13 @@ export const useSnapshots = () => {
   const { snapshots } = state;
   const { fetchSnapshotsData } = actions;
 
-  // Fetch on mount if not already loaded
-  useEffect(() => {
-    if (!snapshots.data && !snapshots.lastFetched && !snapshots.loading && !snapshots.error) {
-      console.log('[useSnapshots] Auto-fetching snapshots data');
-      fetchSnapshotsData();
-    }
-  }, []); // Empty deps - only run once on mount
+  // DISABLED - Fetch snapshots only when needed (e.g., when user navigates to specific pages)
+  // useEffect(() => {
+  //   if (!snapshots.data && !snapshots.lastFetched && !snapshots.loading && !snapshots.error) {
+  //     console.log('[useSnapshots] Auto-fetching snapshots data');
+  //     fetchSnapshotsData();
+  //   }
+  // }, []);
 
   return {
     snapshots: snapshots.data,

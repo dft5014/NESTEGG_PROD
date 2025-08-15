@@ -6,14 +6,13 @@ export const useGroupedLiabilities = () => {
   const { groupedLiabilities } = state;
   const { fetchGroupedLiabilitiesData, markDataStale } = actions;
 
-  // Auto-fetch on mount only if no data exists
-  // Auto-fetch on mount only if no data exists
-  useEffect(() => {
-    if ((!groupedLiabilities.data || groupedLiabilities.data.length === 0) && !groupedLiabilities.lastFetched && !groupedLiabilities.loading) {
-      console.log('[useGroupedLiabilities] Auto-fetching grouped liabilities data');
-      actions.fetchGroupedLiabilitiesData();
-    }
-  }, []); // Empty deps
+  // DISABLED - DataStore handles initial fetch in Phase 2
+  // useEffect(() => {
+  //   if ((!groupedLiabilities.data || groupedLiabilities.data.length === 0) && !groupedLiabilities.lastFetched && !groupedLiabilities.loading) {
+  //     console.log('[useGroupedLiabilities] Auto-fetching grouped liabilities data');
+  //     actions.fetchGroupedLiabilitiesData();
+  //   }
+  // }, []);
 
   // Auto-refresh when stale
   useEffect(() => {

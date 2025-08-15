@@ -14,13 +14,13 @@ export const useDetailedPositions = () => {
     }
   }, []); // Empty deps
 
-  // Auto-refresh when stale
-  useEffect(() => {
-    if (detailedPositions.isStale && !detailedPositions.loading) {
-      console.log('[useDetailedPositions] Refreshing stale detailed positions');
-      actions.fetchDetailedPositionsData();
-    }
-  }, [detailedPositions.isStale, detailedPositions.loading]);
+  // DISABLED - DataStore handles initial fetch in Phase 3
+  // useEffect(() => {
+  //   if ((!detailedPositions.data || detailedPositions.data.length === 0) && !detailedPositions.lastFetched && !detailedPositions.loading) {
+  //     console.log('[useDetailedPositions] Auto-fetching detailed positions data');
+  //     actions.fetchDetailedPositionsData();
+  //   }
+  // }, []);
 
   // Process positions data
     const processedPositions = useMemo(() => {

@@ -776,6 +776,7 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
   }
 
   // ---- Liquid workflow (with explainer, scrolling, continue-to-next, submit-all)
+// ---- Liquid workflow (with explainer, global stats, strong indicators, bulk/paste, caret-stable input)
   function LiquidScreen() {
     // Pull liabilities so CCs/loans/mortgages appear with cash for Quick Update
     const { state, actions } = useDataStore();
@@ -785,6 +786,7 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
     const [selectedInstitution, setSelectedInstitution] = useState(null); // default: none (per spec)
     const [updated, setUpdated] = useState({}); // draft edits by row id (assets: id, liabilities: `L_${id}`)
     const [sortKey, setSortKey] = useState('nest'); // 'nest' | 'name' | 'diff'
+    const [editingKey, setEditingKey] = useState(null); // row key while typing (freeze sort while editing)
     const [sortDir, setSortDir] = useState('desc');
     const [jumping, setJumping] = useState(false); // micro-animation for "Continue to Next"
 
@@ -795,9 +797,16 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
       }
     }, [groupedLiabilities?.lastFetched, groupedLiabilities?.loading, actions]);
 
-    // ================= CurrencyInput =================
-    // Paste-friendly, caret-stable, raw while focused; pretty currency when blurred.
-    const CurrencyInput = ({ value, onValueChange, className = '', 'aria-label': ariaLabel }) => {
+    // ================= CurrencyInput (paste-friendly, caret-stable, keyboard nav) =================
+    const CurrencyInput = ({
+      value,
+      onValueChange,
+      className = '',
+      'aria-label': ariaLabel,
+      onFocus,
+      onBlur,
+      nextFocusId, // optional: id of the next input to focus on Enter
+    }) => {
       const [focused, setFocused] = useState(false);
       const [raw, setRaw] = useState(Number.isFinite(value) ? String(value) : '');
       const inputRef = useRef(null);
@@ -807,12 +816,10 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
       }, [value, focused]);
 
       const sanitize = (s) => {
-        // allow digits, one dot, optional leading minus (for liabilities that might be negative)
+        // allow digits, one dot, optional leading minus (some institutions show negative cash or CCs)
         const cleaned = s.replace(/[^0-9.\-]/g, '');
-        // only one dot
         const parts = cleaned.split('.');
         const withOneDot = parts.length > 2 ? `${parts[0]}.${parts.slice(1).join('')}` : cleaned;
-        // only a single leading minus
         return withOneDot.replace(/(?!^)-/g, '');
       };
 
@@ -837,20 +844,31 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
         });
       };
 
+      const handleKeyDown = (e) => {
+        if (['e', 'E'].includes(e.key)) e.preventDefault();
+        if (e.key === 'Enter' && nextFocusId) {
+          e.preventDefault();
+          const nextEl = document.getElementById(nextFocusId);
+          if (nextEl) nextEl.focus();
+        }
+      };
+
       return (
         <input
           ref={inputRef}
+          id={ariaLabel?.replace(/\s+/g, '_')}
           type="text"
           inputMode="decimal"
           value={focused ? raw : (Number.isFinite(value) ? fmtCurrency(value, false) : '')}
-          onFocus={() => setFocused(true)}
-          onBlur={() => setFocused(false)}
+          onFocus={(e) => { setFocused(true); onFocus?.(e); }}
+          onBlur={(e) => { setFocused(false); onBlur?.(e); }}
           onChange={handleChange}
           onPaste={handlePaste}
-          onKeyDown={(e) => { if (['e', 'E'].includes(e.key)) e.preventDefault(); }}
+          onKeyDown={handleKeyDown}
           placeholder="$0.00"
           aria-label={ariaLabel}
           className={className}
+          autoComplete="off"
         />
       );
     };
@@ -870,6 +888,14 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
       const liabsRaw = (groupedLiabilities?.data || []).map((L) => {
         const id = L.item_id ?? L.liability_id ?? L.id ?? L.history_id;
         const t = (L.item_type || L.type || 'liability').toLowerCase();
+        const val = Number(
+          L.current_balance ??
+          L.current_value ??
+          L.balance ??
+          L.net_worth_value ??
+          L.principal_balance ??
+          L.amount ?? 0
+        );
         return {
           id,
           itemId: id,
@@ -878,7 +904,7 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
           name: L.name || L.identifier || 'Liability',
           identifier: L.identifier || '',
           type: t, // credit_card | loan | mortgage | liability...
-          currentValue: Number(L.current_balance ?? L.current_value ?? L.balance ?? 0),
+          currentValue: val,
           inv_account_name: L.inv_account_name ?? L.account_name ?? '',
         };
       });
@@ -910,15 +936,24 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
           g.positions.filter((x) => updated[x.id] !== undefined).length +
           g.liabilities.filter((x) => updated[`L_${x.id}`] !== undefined).length;
 
-        // determine simple status: done if every row has either a change value or was unchanged but reviewed later (optional)
         const totalRows = g.positions.length + g.liabilities.length;
         const progressPct = totalRows ? (updatedCount / totalRows) * 100 : 0;
 
-        return {
-          ...g,
-          updatedCount,
-          progressPct,
-        };
+        // Draft change detector that does NOT depend on selection
+        const hasAnyChanges =
+          g.positions.some((p) => {
+            const draft = updated[p.id];
+            if (draft === undefined) return false;
+            return Number(draft) !== Number(p.currentValue || 0);
+          }) ||
+          g.liabilities.some((p) => {
+            const key = `L_${p.id}`;
+            const draft = updated[key];
+            if (draft === undefined) return false;
+            return Number(draft) !== Number(p.currentValue || 0);
+          });
+
+        return { ...g, updatedCount, progressPct, hasAnyChanges, totalRows };
       });
 
       // sort by value desc
@@ -968,7 +1003,7 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
       setUpdated((prev) => ({ ...prev, [`L_${liabId}`]: Number.isFinite(value) ? value : 0 }));
     };
 
-    // Pending-changes dashboard (counts and net impact)
+    // Pending-changes dashboard (GLOBAL: counts and net impact across all institutions)
     const pending = useMemo(() => {
       let count = 0;
       let posCount = 0, negCount = 0;
@@ -997,14 +1032,18 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
 
     // Sorting util for tables
     const makeSorted = useCallback((rows, type) => {
-      const rowsWithCalc = rows.map((p) => {
+      const rowsWithCalc = rows.map((p, idx) => {
         const key = type === 'liab' ? `L_${p.id}` : p.id;
         const nest = Number(p.currentValue || 0);
         const stmt = updated[key] !== undefined ? Number(updated[key]) : nest;
         const diff = stmt - nest;
         const pct = nest !== 0 ? (diff / nest) * 100 : 0;
-        return { ...p, _calc: { rawNestEgg: nest, rawStatement: stmt, diff, pct }, _key: key };
+        return { ...p, _calc: { rawNestEgg: nest, rawStatement: stmt, diff, pct }, _key: key, _idx: idx };
       });
+
+      // 🔒 Freeze sorting while typing to avoid row remount/focus loss
+      if (editingKey) return rowsWithCalc.sort((a, b) => a._idx - b._idx);
+
       rowsWithCalc.sort((a, b) => {
         const dir = sortDir === 'asc' ? 1 : -1;
         if (sortKey === 'name') return a.name.localeCompare(b.name) * dir;
@@ -1012,7 +1051,7 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
         return (a._calc.rawNestEgg - b._calc.rawNestEgg) * dir; // 'nest'
       });
       return rowsWithCalc;
-    }, [sortKey, sortDir, updated]);
+    }, [sortKey, sortDir, updated, editingKey]);
 
     const sortedPositions = useMemo(() => makeSorted(current?.positions || [], 'pos'), [current, makeSorted]);
     const sortedLiabilities = useMemo(() => makeSorted(current?.liabilities || [], 'liab'), [current, makeSorted]);
@@ -1026,7 +1065,7 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
     const logo = getInstitutionLogo(selectedInstitution || '');
 
     // ================= Save & continue =================
-    const handleBulkSave = async (changes, institutionLabel) => {
+    async function handleBulkSave(changes, institutionLabel) {
       try {
         setLocalLoading(true);
 
@@ -1065,7 +1104,7 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
       } finally {
         setLocalLoading(false);
       }
-    };
+    }
 
     const onUpdateInstitution = async () => {
       if (!current) return;
@@ -1117,22 +1156,75 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
       }
     };
 
+    // ================= Bulk paste into the visible grid (fills down) =================
+    const onBulkPaste = (e) => {
+      if (!current) return;
+      const txt = e.clipboardData?.getData('text') || '';
+      if (!txt) return;
+      const lines = txt
+        .trim()
+        .split(/\r?\n/)
+        .map((s) => toNumber(String(s).trim()))
+        .filter((n) => Number.isFinite(n));
+
+      if (!lines.length) return;
+
+      e.preventDefault();
+
+      // Fill positions first (top to bottom), then liabilities
+      const posIds = (sortedPositions || []).map((p) => p.id);
+      const liabIds = (sortedLiabilities || []).map((l) => `L_${l.id}`);
+
+      const keysInOrder = [...posIds, ...liabIds];
+
+      setUpdated((prev) => {
+        const next = { ...prev };
+        for (let i = 0; i < keysInOrder.length && i < lines.length; i += 1) {
+          next[keysInOrder[i]] = lines[i];
+        }
+        return next;
+      });
+    };
+
     // ================= Layout =================
     return (
-      <div className="h-[80vh] px-6 pb-6">
+      <div className="h-[80vh] px-6 pb-6" onPaste={onBulkPaste}>
         <div className="grid grid-cols-12 gap-6 h-full">
           {/* Left rail: instructions + institutions list (sticky) */}
           <aside className="col-span-12 lg:col-span-4 xl:col-span-3 h-full">
             <div className="h-full flex flex-col">
-              {/* Persistent instructions */}
+              {/* Persistent controls + global dashboard */}
               <div className="mb-4 rounded-xl border border-gray-200 bg-white p-4 shadow-sm sticky top-0 z-[2]">
-                <div className="flex items-center gap-2 mb-2">
+                <div className="flex items-center justify-between">
+                  <button
+                    onClick={() => setScreen('welcome')}
+                    className="inline-flex items-center px-3 py-1.5 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 transition-colors border border-gray-200"
+                    title="Back to welcome"
+                  >
+                    <ArrowLeft className="w-4 h-4 mr-1" />
+                    Back
+                  </button>
+                  <button
+                    onClick={() => {
+                      setLocalLoading(true);
+                      Promise.all([refreshPositions?.(), refreshAccounts?.()]).finally(() => setLocalLoading(false));
+                    }}
+                    className="px-3 py-1.5 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 transition-colors border border-gray-200"
+                    title="Refresh data"
+                  >
+                    <RefreshCw className={`w-4 h-4 ${localLoading ? 'animate-spin' : ''}`} />
+                  </button>
+                </div>
+
+                <div className="flex items-center gap-2 mt-3">
                   <Droplets className="w-5 h-5 text-blue-600" />
                   <h3 className="font-semibold text-gray-900">Quick Cash & Liabilities Update</h3>
                 </div>
-                <p className="text-sm text-gray-600">
+                <p className="text-sm text-gray-600 mt-1">
                   Paste or type your latest balances from bank/credit card statements. We track changes per account and show the net impact before you submit.
                 </p>
+
+                {/* Global stats (stable, not selection-based) */}
                 <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
                   <div className="rounded-lg bg-gray-50 px-3 py-2 border border-gray-200">
                     <div className="text-gray-500">Pending</div>
@@ -1164,13 +1256,11 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
                     {groups.map((g) => {
                       const isSel = g.institution === selectedInstitution;
                       const logoSmall = getInstitutionLogo(g.institution);
-                      const totalRows = g.positions.length + g.liabilities.length;
-                      const hasAnyChanges =
-                        g.positions.some((p) => updated[p.id] !== undefined && updated[p.id] !== Number(p.currentValue || 0)) ||
-                        g.liabilities.some((p) => {
-                          const key = `L_${p.id}`;
-                          return updated[key] !== undefined && updated[key] !== Number(p.currentValue || 0);
-                        });
+
+                      // Indicator is consistent (doesn't depend on selection), driven by hasAnyChanges
+                      const statusChip = g.hasAnyChanges
+                        ? <span className="text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full text-[11px]">Draft changes</span>
+                        : <span className="text-green-700 bg-green-50 border border-green-200 px-2 py-0.5 rounded-full text-[11px]">No changes</span>;
 
                       return (
                         <li key={g.institution}>
@@ -1189,23 +1279,21 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
                                 <div className="font-medium text-gray-900">
                                   {g.institution}
                                 </div>
-                                <div className="text-xs text-gray-500">{totalRows} items</div>
+                                <div className="flex items-center gap-2">
+                                  {statusChip}
+                                  <div className="text-[11px] text-gray-500">{g.totalRows} items</div>
+                                </div>
                               </div>
                               <div className="text-xs text-gray-500">
                                 {fmtCurrency(g.totalValue, false)}
                               </div>
                               <div className="mt-2 h-1.5 bg-gray-200/70 rounded-full overflow-hidden">
                                 <div
-                                  className={`${hasAnyChanges ? 'bg-amber-500' : 'bg-blue-500'} h-full transition-all`}
+                                  className={`${g.hasAnyChanges ? 'bg-amber-500' : 'bg-blue-500'} h-full transition-all`}
                                   style={{ width: `${clamp(g.progressPct, 0, 100)}%` }}
                                 />
                               </div>
                             </div>
-                            {hasAnyChanges ? (
-                              <AlertTriangle className="w-4 h-4 text-amber-600" title="Draft changes present" />
-                            ) : (
-                              <CheckCircle className="w-4 h-4 text-green-600" title="No draft changes" />
-                            )}
                           </button>
                         </li>
                       );
@@ -1264,6 +1352,7 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
                       title="Move to the next institution"
                     >
                       Continue to Next
+                      <ChevronRight className="inline w-4 h-4 ml-1" />
                     </button>
                   </div>
                 </div>
@@ -1272,7 +1361,7 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
                 <div className="flex-1 overflow-auto">
                   {/* Accounts & Cash */}
                   {sortedPositions.length > 0 && (
-                    <div className="min-w-[760px]">
+                    <div className="min-w-[780px]">
                       <div className="bg-gray-50 px-6 py-3 text-sm font-semibold text-gray-800 sticky top-0 z-[1]">Accounts & Cash</div>
                       <table className="w-full">
                         <thead className="bg-gray-50 sticky top-[44px] z-[1]">
@@ -1293,9 +1382,11 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-100">
-                          {sortedPositions.map((pos) => {
+                          {sortedPositions.map((pos, idx) => {
                             const c = pos._calc;
                             const changed = updated[pos.id] !== undefined && Number(updated[pos.id]) !== c.rawNestEgg;
+                            const nextFocusId = `Statement_balance_for_${(sortedPositions[idx + 1]?.name || '')}`.replace(/\s+/g, '_');
+
                             return (
                               <tr key={pos.id} className={changed ? 'bg-blue-50/50' : ''}>
                                 <td className="px-6 py-2">
@@ -1311,8 +1402,11 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
                                   <CurrencyInput
                                     value={updated[pos.id] !== undefined ? updated[pos.id] : c.rawNestEgg}
                                     onValueChange={(v) => handleChangePos(pos.id, v)}
+                                    onFocus={() => setEditingKey(pos.id)}
+                                    onBlur={() => setEditingKey(null)}
+                                    nextFocusId={nextFocusId}
                                     aria-label={`Statement balance for ${pos.name}`}
-                                    className={`w-40 text-right px-3 py-1.5 rounded-md border transition-all
+                                    className={`w-44 text-right px-3 py-1.5 rounded-md border transition-all
                                       ${changed ? 'border-blue-400 ring-2 ring-blue-200 bg-white' : 'border-gray-300 bg-white'}`}
                                   />
                                 </td>
@@ -1338,7 +1432,7 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
 
                   {/* Liabilities */}
                   {sortedLiabilities.length > 0 && (
-                    <div className="min-w-[760px] mt-8">
+                    <div className="min-w-[780px] mt-8">
                       <div className="bg-gray-50 px-6 py-3 text-sm font-semibold text-gray-800 sticky top-0 z-[1]">Liabilities</div>
                       <table className="w-full">
                         <thead className="bg-gray-50 sticky top-[44px] z-[1]">
@@ -1359,10 +1453,12 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-100">
-                          {sortedLiabilities.map((liab) => {
+                          {sortedLiabilities.map((liab, idx) => {
                             const c = liab._calc;
                             const key = `L_${liab.id}`;
                             const changed = updated[key] !== undefined && Number(updated[key]) !== c.rawNestEgg;
+                            const nextFocusId = `Statement_balance_for_${(sortedLiabilities[idx + 1]?.name || '')}`.replace(/\s+/g, '_');
+
                             return (
                               <tr key={liab.id} className={changed ? 'bg-blue-50/50' : ''}>
                                 <td className="px-6 py-2">
@@ -1378,8 +1474,11 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
                                   <CurrencyInput
                                     value={updated[key] !== undefined ? updated[key] : c.rawNestEgg}
                                     onValueChange={(v) => handleChangeLiab(liab.id, v)}
+                                    onFocus={() => setEditingKey(key)}
+                                    onBlur={() => setEditingKey(null)}
+                                    nextFocusId={nextFocusId}
                                     aria-label={`Statement balance for ${liab.name}`}
-                                    className={`w-40 text-right px-3 py-1.5 rounded-md border transition-all
+                                    className={`w-44 text-right px-3 py-1.5 rounded-md border transition-all
                                       ${changed ? 'border-blue-400 ring-2 ring-blue-200 bg-white' : 'border-gray-300 bg-white'}`}
                                   />
                                 </td>
@@ -1416,51 +1515,131 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
     );
   }
 
+
   // ---- Account reconciliation (Investment check-in) with richer descriptors + KPI + better layout + currency input
   function ReconcileScreen() {
+    // —— Layout & state
     const [selectedInstitution, setSelectedInstitution] = useState(null);
     const [selectedAccount, setSelectedAccount] = useState(null);
+    const [editing, setEditing] = useState(null); // freeze UI jitter while typing in the statement input
 
+    // ================= CurrencyInput (paste-friendly, caret-stable) =================
+    const CurrencyInput = ({ value, onValueChange, className = '', onFocus, onBlur, 'aria-label': ariaLabel }) => {
+      const [focused, setFocused] = useState(false);
+      const [raw, setRaw] = useState(Number.isFinite(value) ? String(value) : '');
+      const inputRef = useRef(null);
+
+      useEffect(() => {
+        if (!focused) setRaw(Number.isFinite(value) ? String(value) : '');
+      }, [value, focused]);
+
+      const sanitize = (s) => {
+        const cleaned = s.replace(/[^0-9.\-]/g, '');
+        const parts = cleaned.split('.');
+        const withOneDot = parts.length > 2 ? `${parts[0]}.${parts.slice(1).join('')}` : cleaned;
+        return withOneDot.replace(/(?!^)-/g, '');
+      };
+
+      const handleChange = (e) => {
+        const nextRaw = sanitize(e.target.value);
+        setRaw(nextRaw);
+        onValueChange?.(toNumber(nextRaw));
+      };
+
+      const handlePaste = (e) => {
+        const txt = e.clipboardData.getData('text') || '';
+        const cleaned = sanitize(txt);
+        e.preventDefault();
+        setRaw(cleaned);
+        onValueChange?.(toNumber(cleaned));
+        requestAnimationFrame(() => {
+          const el = inputRef.current;
+          if (el) {
+            const end = el.value.length;
+            el.setSelectionRange(end, end);
+          }
+        });
+      };
+
+      return (
+        <input
+          ref={inputRef}
+          type="text"
+          inputMode="decimal"
+          value={focused ? raw : (Number.isFinite(value) ? fmtCurrency(value, false) : '')}
+          onFocus={(e) => { setFocused(true); onFocus?.(e); }}
+          onBlur={(e) => { setFocused(false); onBlur?.(e); }}
+          onChange={handleChange}
+          onPaste={handlePaste}
+          onKeyDown={(e) => { if (['e', 'E'].includes(e.key)) e.preventDefault(); }}
+          placeholder="$0.00"
+          aria-label={ariaLabel}
+          className={className}
+          autoComplete="off"
+        />
+      );
+    };
+
+    // ================= Group accounts by institution (mirrors LiquidScreen’s left rail) =================
     const groups = useMemo(() => {
       const map = new Map();
-      accounts.forEach((a) => {
+      (accounts || []).forEach((a) => {
         const inst = a.institution || 'Unknown Institution';
         if (!map.has(inst)) map.set(inst, []);
         map.get(inst).push(a);
       });
-      return Array.from(map.entries())
-        .map(([institution, list]) => {
-          const totalValue = list.reduce((s, a) => s + Number(a.totalValue || 0), 0);
-          const needs = list.filter((a) => {
-            const r = reconData[a.id]?.lastReconciled;
-            if (!r) return true;
-            const days = Math.floor((Date.now() - new Date(r).getTime()) / (1000 * 60 * 60 * 24));
-            return !(days <= 7);
-          }).length;
-          return { institution, accounts: list, totalValue, needs };
-        })
-        .sort((a, b) => b.totalValue - a.totalValue);
+
+      const results = Array.from(map.entries()).map(([institution, list]) => {
+        const totalValue = list.reduce((s, a) => s + Number(a.totalValue || 0), 0);
+
+        // consider "needs" based on either (a) not reconciled recently or (b) has a statement value that differs
+        let needs = 0;
+        list.forEach((a) => {
+          const rec = reconData[a.id]?.lastReconciled;
+          const stmt = reconData[a.id]?.statementBalance;
+          const ne = Number(a.totalValue || 0);
+          const diff = Number.isFinite(stmt) ? (stmt - ne) : null;
+
+          const stale = !rec || (Math.floor((Date.now() - new Date(rec).getTime()) / (1000 * 60 * 60 * 24)) > 7);
+          const mismatched = diff !== null && Math.abs(diff) >= TOLERANCE;
+          if (stale || mismatched) needs += 1;
+        });
+
+        return { institution, accounts: list, totalValue, needs };
+      });
+
+      return results.sort((a, b) => b.totalValue - a.totalValue);
     }, [accounts, reconData]);
 
-    // DONT auto-select institution; user chooses
-    const current = groups.find((g) => g.institution === selectedInstitution);
+    // Default institution selection unchanged (none until click); if you prefer first, uncomment:
+    // useEffect(() => { if (!selectedInstitution && groups.length) setSelectedInstitution(groups[0].institution); }, [groups, selectedInstitution]);
 
-    const handleStatementChange = (accId, val) => {
-      // val can be number or '' (cleared)
-      const v = val === '' ? '' : toNumber(val);
+    const current = useMemo(
+      () => groups.find((g) => g.institution === selectedInstitution),
+      [groups, selectedInstitution]
+    );
+
+    // ================= Helpers =================
+    const calc = useCallback((a) => {
+      const ne = Number(a.totalValue || 0);
+      const st = Number(reconData[a.id]?.statementBalance ?? NaN);
+      const hasStmt = Number.isFinite(st);
+      const diff = hasStmt ? (st - ne) : 0;
+      return {
+        nest: ne,
+        stmt: hasStmt ? st : null,
+        diff,
+        pct: hasStmt ? diffPct(ne, diff) : 0,
+        isReconciled: hasStmt ? Math.abs(diff) < TOLERANCE : false
+      };
+    }, [reconData]);
+
+    const handleStatementChange = (accId, v) => {
       const next = {
         ...reconData,
-        [accId]: { ...(reconData[accId] || {}), statementBalance: v, timestamp: new Date().toISOString() },
+        [accId]: { ...(reconData[accId] || {}), statementBalance: Number.isFinite(v) ? v : 0, timestamp: new Date().toISOString() },
       };
       saveReconData(next);
-    };
-
-    const calc = (a) => {
-      const ne = Number(a.totalValue || 0);
-      const raw = reconData[a.id]?.statementBalance;
-      const st = raw === '' || raw === undefined || raw === null ? 0 : Number(raw);
-      const diff = st - ne;
-      return { nest: ne, stmt: st, diff, pct: diffPct(ne, diff), isReconciled: Math.abs(diff) < TOLERANCE };
     };
 
     const quickReconcile = (a) => {
@@ -1475,22 +1654,23 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
 
     const onComplete = async () => {
       saveHistory();
-      const results = (current?.accounts || [])
-        .filter((a) => reconData[a.id]?.statementBalance !== undefined && reconData[a.id]?.statementBalance !== '')
+      // Collect all reconciled/entered balances across institutions for the final summary
+      const results = (accounts || [])
+        .filter((a) => reconData[a.id]?.statementBalance !== undefined)
         .map((a) => {
           const r = calc(a);
           return {
             accountName: a.accountName || a.account_name || 'Account',
             institution: a.institution,
-            finalBalance: r.stmt,
-            change: r.diff,
+            finalBalance: r.stmt ?? 0,
+            change: r.stmt !== null ? r.diff : 0,
           };
         });
       setReconResults(results);
       setScreen('summary');
     };
 
-    // drill-down: positions for the selected account + count KPI
+    // positions under selected account (drilldown)
     const positionsForSelectedAccount = useMemo(() => {
       if (!selectedAccount) return [];
       const id = selectedAccount.id;
@@ -1506,234 +1686,305 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
         .sort((a, b) => b.value - a.value);
     }, [selectedAccount, positionsNorm]);
 
-    const posCount = positionsForSelectedAccount.length;
+    // Continue to next account within the current institution
+    const continueToNextAccount = () => {
+      if (!current) return;
+      const list = current.accounts || [];
+      if (!selectedAccount) {
+        setSelectedAccount(list[0] || null);
+        return;
+      }
+      const idx = list.findIndex((x) => x.id === selectedAccount.id);
+      const next = list[idx + 1];
+      if (next) {
+        setSelectedAccount(next);
+      } else {
+        // move to next institution
+        const i = groups.findIndex((g) => g.institution === current.institution);
+        const nextInst = groups[i + 1];
+        if (nextInst) {
+          setSelectedInstitution(nextInst.institution);
+          setSelectedAccount(nextInst.accounts?.[0] || null);
+          showMsg('success', `Moving to ${nextInst.institution}`, 2000);
+        } else {
+          setSelectedInstitution(null);
+          setSelectedAccount(null);
+          showMsg('success', 'All institutions reviewed. You can complete reconciliation.', 3000);
+        }
+      }
+    };
 
+    // ================= UI =================
     return (
-      <div className="p-8">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-6">
-          <button onClick={() => setScreen('welcome')} className="flex items-center text-gray-600 hover:text-gray-900">
-            <ArrowLeft className="w-4 h-4 mr-1" /> Back
-          </button>
-          <div className="flex items-center gap-4">
-            <button
-              onClick={() => setShowValues((s) => !s)}
-              className={`p-2 rounded-lg ${showValues ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-600'}`}
-              title={showValues ? 'Hide values' : 'Show values'}
-            >
-              {showValues ? <Eye className="w-5 h-5" /> : <EyeOff className="w-5 h-5" />}
-            </button>
-            <button
-              onClick={onComplete}
-              className="px-5 py-2.5 rounded-lg bg-gradient-to-r from-green-600 to-emerald-600 text-white font-semibold hover:from-green-700 hover:to-emerald-700"
-            >
-              <CheckCheck className="w-5 h-5 inline mr-2" /> Complete Reconciliation
-            </button>
-          </div>
-        </div>
-
-        {/* Institution tabs */}
-        <div className="border-b border-gray-200">
-          <div className="flex overflow-x-auto">
-            {groups.map((g) => (
-              <button
-                key={g.institution}
-                onClick={() => {
-                  setSelectedInstitution(g.institution);
-                  setSelectedAccount(null);
-                }}
-                className={`px-6 py-3 text-sm font-medium ${
-                  selectedInstitution === g.institution
-                    ? 'text-blue-600 border-b-2 border-blue-600 bg-blue-50'
-                    : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
-                }`}
-              >
-                <div className="flex items-center gap-2">
-                  <Landmark className="w-4 h-4" />
-                  <span>{g.institution}</span>
-                  {g.needs > 0 && (
-                    <span className="ml-2 text-xs bg-amber-100 text-amber-700 rounded-full px-2 py-0.5">
-                      {g.needs}
-                    </span>
-                  )}
+      <div className="h-[80vh] px-6 pb-6">
+        <div className="grid grid-cols-12 gap-6 h-full">
+          {/* Left rail: navigation + overview (sticky) */}
+          <aside className="col-span-12 lg:col-span-4 xl:col-span-3 h-full">
+            <div className="h-full flex flex-col">
+              {/* Persistent header/nav */}
+              <div className="sticky top-0 z-[2] bg-white rounded-xl border border-gray-200 shadow-sm p-4 mb-4">
+                <div className="flex items-center justify-between">
+                  <button
+                    onClick={() => setScreen('welcome')}
+                    className="inline-flex items-center px-3 py-1.5 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 transition-colors border border-gray-200"
+                  >
+                    <ArrowLeft className="w-4 h-4 mr-1" />
+                    Back
+                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setShowValues((s) => !s)}
+                      className={`p-2 rounded-lg ${showValues ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-600'}`}
+                      title={showValues ? 'Hide values' : 'Show values'}
+                    >
+                      {showValues ? <Eye className="w-5 h-5" /> : <EyeOff className="w-5 h-5" />}
+                    </button>
+                    <button
+                      onClick={onComplete}
+                      className="px-3 py-1.5 rounded-lg bg-green-600 text-white font-semibold hover:bg-green-700 transition-colors"
+                      title="Complete reconciliation"
+                    >
+                      <CheckCheck className="w-4 h-4 inline mr-1" />
+                      Complete
+                    </button>
+                  </div>
                 </div>
-              </button>
-            ))}
-          </div>
-        </div>
+                <p className="text-xs text-gray-600 mt-3">
+                  Enter statement totals per investment account. We’ll flag differences and let you step through accounts quickly.
+                </p>
+              </div>
 
-        {/* Content grid (wider right panel) */}
-        <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 mt-6">
-          {/* Account list (2 columns on large) */}
-          <div className="lg:col-span-2 space-y-3">
-            <h4 className="font-semibold text-gray-900">Select Account</h4>
-            {(current?.accounts || []).map((a) => {
-              const sel = selectedAccount?.id === a.id;
-              const r = calc(a);
-              const status = r.isReconciled ? 'reconciled' : Math.abs(r.diff) >= TOLERANCE ? 'warning' : 'pending';
-              // richer descriptors
-              const acctName = a.accountName || a.account_name || 'Account';
-              const acctType = a.accountType || a.type || a.invAccountType || '';
-              const identifier = a.identifier || a.mask || a.last4 || '';
-              return (
-                <button
-                  key={a.id}
-                  onClick={() => setSelectedAccount(a)}
-                  className={`w-full text-left p-4 rounded-xl border-2 transition-all ${
-                    sel
-                      ? 'border-blue-500 bg-blue-50'
-                      : r.isReconciled
-                      ? 'border-green-200 bg-green-50 hover:border-green-300'
-                      : 'border-gray-200 bg-white hover:border-gray-300'
-                  }`}
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <div className="font-semibold text-gray-900">{acctName}</div>
-                      <div className="text-xs text-gray-500">
-                        {identifier ? `ID: ${identifier}` : ''}{identifier && acctType ? ' • ' : ''}{acctType}
-                        {a.institution ? ` • ${a.institution}` : ''}
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <div className="font-semibold text-gray-900">{fmtCurrency(a.totalValue || 0, !showValues)}</div>
-                      <div className="text-[11px] text-gray-500">NestEgg</div>
-                    </div>
-                  </div>
-                  <div className="mt-2 flex items-center justify-between">
-                    <StatusIndicator status={status} />
-                    <div className="text-[11px] text-gray-500 bg-gray-100 rounded-full px-2 py-0.5">
-                      {positionsNorm.filter((p) => String(p.accountId) === String(a.id)).length} positions
-                    </div>
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-
-          {/* Reconcile & drill-down panel (3 columns on large) */}
-          <div className="lg:col-span-3">
-            {selectedAccount ? (
-              <div className="p-6 border-2 border-gray-200 rounded-xl bg-white sticky top-6">
-                <h4 className="font-semibold text-gray-900 mb-4">Reconcile Account</h4>
-                <div className="space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <div className="text-sm text-gray-600">NestEgg Balance</div>
-                      <div className="text-2xl font-bold text-gray-900 mt-1">
-                        {fmtCurrency(selectedAccount.totalValue || 0, !showValues)}
-                      </div>
-                    </div>
-                    <div>
-                      <div className="text-sm text-gray-600">Statement Balance</div>
-                      <div className="relative mt-1">
-                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-lg">$</span>
-                        <CurrencyInput
-                          value={reconData[selectedAccount.id]?.statementBalance ?? ''}
-                          onChange={(v) => handleStatementChange(selectedAccount.id, v)}
-                          placeholder="0.00"
-                          className="pl-8"
-                        />
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* match status */}
-                  {reconData[selectedAccount.id]?.statementBalance !== undefined && reconData[selectedAccount.id]?.statementBalance !== '' && (
-                    <div
-                      className={`${
-                        calc(selectedAccount).isReconciled ? 'bg-green-50 border-green-200' : 'bg-amber-50 border-amber-200'
-                      } border rounded-lg p-3`}
-                    >
-                      <div className="flex items-center">
-                        {calc(selectedAccount).isReconciled ? (
-                          <>
-                            <CheckCircle className="w-5 h-5 text-green-600 mr-2" />
-                            <div>
-                              <div className="font-medium text-green-900">Balances Match</div>
-                              <div className="text-sm text-green-700">Ready to mark as reconciled</div>
-                            </div>
-                          </>
-                        ) : (
-                          <>
-                            <AlertCircle className="w-5 h-5 text-amber-600 mr-2" />
-                            <div>
-                              <div className="font-medium text-amber-900">Balances Don’t Match</div>
-                              <div className="text-sm text-amber-700">
-                                Diff: {fmtCurrency(Math.abs(calc(selectedAccount).diff), !showValues)}
+              {/* Institutions list */}
+              <div className="flex-1 overflow-auto rounded-xl border border-gray-200 bg-white">
+                {groups.length === 0 ? (
+                  <div className="p-6 text-sm text-gray-500">No investment accounts found.</div>
+                ) : (
+                  <ul className="divide-y divide-gray-100">
+                    {groups.map((g) => {
+                      const isSel = g.institution === selectedInstitution;
+                      const logo = getInstitutionLogo(g.institution);
+                      return (
+                        <li key={g.institution}>
+                          <button
+                            onClick={() => { setSelectedInstitution(g.institution); setSelectedAccount(null); }}
+                            className={`w-full text-left px-4 py-3 transition-colors flex items-center gap-3
+                              ${isSel ? 'bg-blue-50' : 'hover:bg-gray-50'}`}
+                          >
+                            {logo ? (
+                              <img src={logo} alt={g.institution} className="w-7 h-7 rounded object-contain" />
+                            ) : (
+                              <Landmark className="w-6 h-6 text-gray-400" />
+                            )}
+                            <div className="flex-1">
+                              <div className="flex items-center justify-between">
+                                <div className="font-medium text-gray-900">{g.institution}</div>
+                                <div className="text-xs text-gray-500">{g.accounts.length} accounts</div>
                               </div>
+                              <div className="text-xs text-gray-500">{fmtCurrency(g.totalValue, !showValues)}</div>
+                              {g.needs > 0 ? (
+                                <div className="mt-2 inline-flex items-center text-amber-700 text-xs">
+                                  <AlertTriangle className="w-4 h-4 mr-1" /> {g.needs} to review
+                                </div>
+                              ) : (
+                                <div className="mt-2 inline-flex items-center text-green-700 text-xs">
+                                  <CheckCircle className="w-4 h-4 mr-1" /> Up to date
+                                </div>
+                              )}
                             </div>
-                          </>
-                        )}
-                      </div>
-                    </div>
-                  )}
+                          </button>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+              </div>
+            </div>
+          </aside>
 
-                  {/* drill-down: position detail by account */}
-                  <div className="mt-2">
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="text-sm font-semibold text-gray-900">Positions in this account</div>
-                      <div className="text-xs text-gray-500 bg-gray-100 rounded-full px-2 py-0.5">{posCount} positions</div>
-                    </div>
-                    <div className="max-h-[32vh] overflow-auto border rounded-lg">
-                      <table className="w-full min-w-[560px]">
-                        <thead className="bg-gray-50 sticky top-0 z-10">
-                          <tr className="text-xs uppercase text-gray-500">
-                            <th className="px-4 py-2 text-left">Name</th>
-                            <th className="px-3 py-2 text-left">Identifier</th>
-                            <th className="px-3 py-2 text-left">Type</th>
-                            <th className="px-3 py-2 text-right">Value</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-100">
-                          {positionsForSelectedAccount.map((p) => (
-                            <tr key={p.id} className="hover:bg-gray-50 transition-colors">
-                              <td className="px-4 py-2 text-sm text-gray-900">{p.name}</td>
-                              <td className="px-3 py-2 text-sm text-gray-600">{p.identifier || '—'}</td>
-                              <td className="px-3 py-2 text-sm text-gray-600 capitalize">{p.type || '—'}</td>
-                              <td className="px-3 py-2 text-right text-sm text-gray-900">
-                                {fmtCurrency(p.value, !showValues)}
-                              </td>
-                            </tr>
-                          ))}
-                          {positionsForSelectedAccount.length === 0 && (
-                            <tr>
-                              <td className="px-4 py-3 text-sm text-gray-500" colSpan={4}>
-                                No positions found for this account.
-                              </td>
-                            </tr>
-                          )}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-
-                  <div className="flex gap-3">
-                    <button
-                      onClick={() => quickReconcile(selectedAccount)}
-                      className="flex-1 px-4 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
-                    >
-                      <CheckCircle className="w-4 h-4 inline mr-2" /> Quick Reconcile
-                    </button>
-                    <button
-                      onClick={() => setSelectedAccount(null)}
-                      className="px-4 py-3 rounded-lg bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors"
-                    >
-                      Cancel
-                    </button>
-                  </div>
+          {/* Right: Work surface */}
+          <section className="col-span-12 lg:col-span-8 xl:col-span-9 h-full">
+            {!current ? (
+              <div className="h-full rounded-2xl border-2 border-dashed border-gray-300 bg-white/50 flex items-center justify-center text-center p-10">
+                <div>
+                  <h4 className="text-xl font-semibold text-gray-900">Select an institution to begin</h4>
+                  <p className="text-gray-600 mt-2 max-w-lg">
+                    Choose a provider on the left, then enter the latest statement balance for each investment account.
+                  </p>
                 </div>
               </div>
             ) : (
-              <div className="p-12 border-2 border-dashed border-gray-300 rounded-xl text-center text-gray-500">
-                Select an account to begin
+              <div className="h-full rounded-2xl border border-gray-200 bg-white flex flex-col">
+                {/* Sticky header for the work surface */}
+                <div className="px-6 py-4 border-b flex items-center justify-between sticky top-0 bg-white z-[1]">
+                  <div className="flex items-center gap-3">
+                    {getInstitutionLogo(current.institution) ? (
+                      <img src={getInstitutionLogo(current.institution)} alt={current.institution} className="w-9 h-9 rounded object-contain" />
+                    ) : (
+                      <Landmark className="w-8 h-8 text-gray-400" />
+                    )}
+                    <div>
+                      <div className="font-semibold text-gray-900">{current.institution}</div>
+                      <div className="text-xs text-gray-500">{current.accounts.length} accounts</div>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={continueToNextAccount}
+                      className="px-3 py-2 rounded-lg bg-gray-100 text-gray-800 font-semibold hover:bg-gray-200 transition-colors"
+                      title="Continue to next account"
+                    >
+                      Continue
+                      <ChevronRight className="inline w-4 h-4 ml-1" />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Accounts list with statement input */}
+                <div className="flex-1 overflow-auto">
+                  <div className="min-w-[720px]">
+                    <div className="bg-gray-50 px-6 py-3 text-sm font-semibold text-gray-800 sticky top-0 z-[1]">
+                      Accounts in {current.institution}
+                    </div>
+                    <table className="w-full">
+                      <thead className="bg-gray-50 sticky top-[44px] z-[1]">
+                        <tr className="text-xs uppercase text-gray-500">
+                          <th className="px-6 py-2 text-left">Account</th>
+                          <th className="px-3 py-2 text-left">Identifier</th>
+                          <th className="px-3 py-2 text-left">Category</th>
+                          <th className="px-3 py-2 text-right">NestEgg</th>
+                          <th className="px-3 py-2 text-center">Statement</th>
+                          <th className="px-3 py-2 text-right">Δ</th>
+                          <th className="px-3 py-2 text-right">%</th>
+                          <th className="px-3 py-2 text-center">Positions</th>
+                          <th className="px-3 py-2 text-center">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100">
+                        {current.accounts.map((a) => {
+                          const r = calc(a);
+                          const posCount = positionsNorm.filter((p) => String(p.accountId) === String(a.id)).length;
+                          const isSel = selectedAccount?.id === a.id;
+                          const changed = r.stmt !== null && Math.abs(r.diff) >= 0.0000001;
+
+                          return (
+                            <tr key={a.id} className={`${isSel ? 'bg-blue-50/40' : ''}`}>
+                              <td className="px-6 py-2">
+                                <div className="font-medium text-gray-900">{a.accountName || a.account_name || 'Account'}</div>
+                                <div className="text-xs text-gray-500">{a.accountType || a.type || '—'}</div>
+                              </td>
+                              <td className="px-3 py-2 text-sm text-gray-600">{a.accountIdentifier || a.identifier || '—'}</td>
+                              <td className="px-3 py-2 text-sm text-gray-600">{a.accountCategory || a.category || '—'}</td>
+                              <td className="px-3 py-2 text-right text-gray-800">{fmtCurrency(r.nest, !showValues)}</td>
+                              <td className="px-3 py-2 text-center">
+                                <CurrencyInput
+                                  value={r.stmt ?? r.nest}
+                                  onValueChange={(v) => handleStatementChange(a.id, v)}
+                                  onFocus={() => setEditing(a.id)}
+                                  onBlur={() => setEditing(null)}
+                                  aria-label={`Statement balance for ${a.accountName || 'Account'}`}
+                                  className={`w-40 text-right px-3 py-1.5 rounded-md border transition-all
+                                    ${changed ? 'border-blue-400 ring-2 ring-blue-200 bg-white' : 'border-gray-300 bg-white'}`}
+                                />
+                              </td>
+                              <td className={`px-3 py-2 text-right font-semibold ${r.diff > 0 ? 'text-green-600' : r.diff < 0 ? 'text-red-600' : 'text-gray-500'}`}>
+                                {r.stmt === null ? '—' : fmtCurrency(r.diff, !showValues)}
+                              </td>
+                              <td className={`px-3 py-2 text-right ${r.diff > 0 ? 'text-green-600' : r.diff < 0 ? 'text-red-600' : 'text-gray-500'}`}>
+                                {r.stmt === null || r.nest === 0 ? '—' : `${r.pct.toFixed(2)}%`}
+                              </td>
+                              <td className="px-3 py-2 text-center">
+                                <span className="inline-flex items-center text-xs text-gray-600 bg-gray-100 px-2 py-0.5 rounded-full border border-gray-200">
+                                  {posCount}
+                                </span>
+                              </td>
+                              <td className="px-3 py-2 text-center">
+                                <div className="flex items-center justify-center gap-2">
+                                  <button
+                                    onClick={() => setSelectedAccount(a)}
+                                    className="px-2 py-1 text-xs rounded bg-gray-100 hover:bg-gray-200 text-gray-800"
+                                    title="View positions"
+                                  >
+                                    Details
+                                  </button>
+                                  <button
+                                    onClick={() => quickReconcile(a)}
+                                    className="px-2 py-1 text-xs rounded bg-green-600 hover:bg-green-700 text-white"
+                                    title="Set statement equal to NestEgg"
+                                  >
+                                    Quick
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+
+                    {/* Drilldown panel under the table */}
+                    {selectedAccount && (
+                      <div className="px-6 py-4 border-t">
+                        <div className="flex items-center justify-between mb-2">
+                          <div>
+                            <div className="font-semibold text-gray-900">
+                              {selectedAccount.accountName || selectedAccount.account_name || 'Account'} • Positions
+                            </div>
+                            <div className="text-xs text-gray-500">
+                              {positionsForSelectedAccount.length} positions
+                            </div>
+                          </div>
+                          <button
+                            onClick={continueToNextAccount}
+                            className="px-3 py-1.5 rounded-lg bg-gray-100 text-gray-800 font-semibold hover:bg-gray-200 transition-colors"
+                          >
+                            Continue
+                            <ChevronRight className="inline w-4 h-4 ml-1" />
+                          </button>
+                        </div>
+
+                        <div className="max-h-[32vh] overflow-auto border rounded-lg">
+                          <table className="w-full min-w-[560px]">
+                            <thead className="bg-gray-50 sticky top-0 z-10">
+                              <tr className="text-xs uppercase text-gray-500">
+                                <th className="px-4 py-2 text-left">Name</th>
+                                <th className="px-3 py-2 text-left">Identifier</th>
+                                <th className="px-3 py-2 text-left">Type</th>
+                                <th className="px-3 py-2 text-right">Value</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-100">
+                              {positionsForSelectedAccount.map((p) => (
+                                <tr key={p.id}>
+                                  <td className="px-4 py-2 text-sm text-gray-900">{p.name}</td>
+                                  <td className="px-3 py-2 text-sm text-gray-600">{p.identifier || '—'}</td>
+                                  <td className="px-3 py-2 text-sm text-gray-600">{p.type || '—'}</td>
+                                  <td className="px-3 py-2 text-right text-sm text-gray-900">
+                                    {fmtCurrency(p.value, !showValues)}
+                                  </td>
+                                </tr>
+                              ))}
+                              {positionsForSelectedAccount.length === 0 && (
+                                <tr>
+                                  <td className="px-4 py-3 text-sm text-gray-500" colSpan={4}>
+                                    No positions found for this account.
+                                  </td>
+                                </tr>
+                              )}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
               </div>
             )}
-          </div>
+          </section>
         </div>
       </div>
     );
   }
+
 
   // ---- Summary
   function SummaryScreen() {

@@ -663,22 +663,26 @@ const DataStoreContext = createContext(null);
 // Provider
 export const DataStoreProvider = ({ children }) => {
   const [state, dispatch] = useReducer(dataStoreReducer, initialState);
+  const hasInitialized = useRef(false);
+  const phase2Timeout = useRef(null);
+  const phase3Timeout = useRef(null);
 
   // Fetch portfolio data
   const fetchPortfolioData = useCallback(async (force = false) => {
     // Skip if already loading (prevent duplicate fetches)
     if (state.portfolioSummary.loading) {
       console.log('[DataStore] Skip portfolio fetch - already loading');
-      return;
+      return Promise.resolve(); // Return resolved promise instead of undefined
     }
 
     // Skip if data is fresh (< 1 minute) unless forced
-    const oneMinuteAgo = Date.now() - 60000;
+    const fiveMinutesAgo = Date.now() - 300000;
     if (!force && 
         state.portfolioSummary.lastFetched && 
-        state.portfolioSummary.lastFetched > oneMinuteAgo && 
+        state.portfolioSummary.lastFetched > fiveMinutesAgo && 
         !state.portfolioSummary.isStale) {
-      return;
+      console.log('[DataStore] Portfolio data is fresh, skipping fetch');
+      return Promise.resolve();
     }
 
     dispatch({ type: ActionTypes.FETCH_SUMMARY_START });
@@ -702,7 +706,8 @@ export const DataStoreProvider = ({ children }) => {
         payload: error.message,
       });
     }
-  }, [state.portfolioSummary.loading, state.portfolioSummary.lastFetched, state.portfolioSummary.isStale]);
+  }, []); // Remove all dependencies to prevent recreation
+
 
   // Fetch accounts data
   const fetchAccountsData = useCallback(async (force = false) => {
@@ -1016,13 +1021,58 @@ export const DataStoreProvider = ({ children }) => {
     dispatch({ type: ActionTypes.MARK_ACCOUNTS_STALE });
   }, []);
 
-// Initial load - only fetch if we have no data
+  // Initial load - only fetch if we have no data
+// Progressive loading strategy - fetch data in phases
   useEffect(() => {
-    if (!state.portfolioSummary.data && !state.portfolioSummary.loading && !state.portfolioSummary.lastFetched) {
-      console.log('[DataStore] Initial portfolio fetch');
-      fetchPortfolioData();
-    }
-  }, []); // Empty deps, runs once
+    if (hasInitialized.current) return;
+    hasInitialized.current = true;
+    
+    // Phase 1: Critical data (immediate - needed for portfolio page and navbar)
+    const phase1 = setTimeout(() => {
+      console.log('[DataStore] Phase 1: Loading critical data...');
+      
+      if (!state.portfolioSummary.data && !state.portfolioSummary.loading) {
+        fetchPortfolioData();
+      }
+      if (!state.groupedPositions.data && !state.groupedPositions.loading) {
+        fetchGroupedPositionsData();
+      }
+    }, 100);
+    
+    // Phase 2: Likely needed soon (1 second delay)
+    phase2Timeout.current = setTimeout(() => {
+      console.log('[DataStore] Phase 2: Pre-fetching likely needed data...');
+      
+      // Quick modals might need these
+      if (!state.accounts.data && !state.accounts.loading) {
+        fetchAccountsData();
+      }
+      if (!state.groupedLiabilities.data && !state.groupedLiabilities.loading) {
+        fetchGroupedLiabilitiesData();
+      }
+    }, 1000);
+    
+    // Phase 3: Nice to have (3 seconds delay)
+    phase3Timeout.current = setTimeout(() => {
+      console.log('[DataStore] Phase 3: Pre-fetching modal data...');
+      
+      // Pre-fetch for QuickEdit modal
+      if (!state.detailedPositions.data && !state.detailedPositions.loading) {
+        fetchDetailedPositionsData();
+      }
+      // Could add snapshots here if needed
+      // if (!state.snapshots.data && !state.snapshots.loading) {
+      //   fetchSnapshotsData();
+      // }
+    }, 3000);
+    
+    // Cleanup
+    return () => {
+      clearTimeout(phase1);
+      if (phase2Timeout.current) clearTimeout(phase2Timeout.current);
+      if (phase3Timeout.current) clearTimeout(phase3Timeout.current);
+    };
+  }, []); // Run once
 
   // Auto-refresh stale data
   useEffect(() => {

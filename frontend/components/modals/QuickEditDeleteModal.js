@@ -1623,13 +1623,22 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
     const [positions, setPositions] = useState([]);
     const [liabilities, setLiabilities] = useState([]);
 
-    // Trigger DataStore to pre-fetch when component mounts
     useEffect(() => {
-      // Pre-fetch all data to ensure it's in DataStore
-      if (!dataStoreAccounts?.length) refreshAccounts();
-      if (!dataStorePositions?.length) refreshPositions();
-      if (!dataStoreLiabilities?.length) refreshLiabilities();
-    }, []); // Run once on mount
+      if (!isOpen) return; // Only check when modal is actually opened
+      
+      // Safety check when modal opens
+      if (!dataStoreAccounts?.length && !accountsLoading) {
+        refreshAccounts();
+      }
+      if (!dataStorePositions?.length && !positionsLoading) {
+        refreshPositions();
+      }
+      if (!dataStoreLiabilities?.length && !liabilitiesLoading) {
+        refreshLiabilities();
+      }
+    }, [isOpen]); // Run when modal opens
+
+    
     const [filteredAccounts, setFilteredAccounts] = useState([]);
     const [filteredPositions, setFilteredPositions] = useState([]);
     const [filteredLiabilities, setFilteredLiabilities] = useState([]);
