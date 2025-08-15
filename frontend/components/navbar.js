@@ -19,6 +19,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useGroupedPositions } from '@/store/hooks/useGroupedPositions';
 import { usePortfolioSummary } from '@/store/hooks/usePortfolioSummary';
 import { formatCurrency, formatPercentage, formatStockPrice } from '@/utils/formatters';
+import { useDataStore } from '@/store/DataStore';
+
 
 
 // Stock ticker component
@@ -32,6 +34,27 @@ const StockTicker = () => {
     error: positionsError 
   } = useGroupedPositions();
   
+  // ADD THIS DEBUG
+  useEffect(() => {
+    console.log('[StockTicker] Debug:', {
+      positions: positions?.length || 0,
+      loading: positionsLoading,
+      error: positionsError,
+      firstPosition: positions?.[0]
+    });
+  }, [positions, positionsLoading, positionsError]);
+
+  // Get actions from DataStore
+  const { actions } = useDataStore();
+
+  // TEMPORARY: Force fetch if no data
+  useEffect(() => {
+    if (!positions && !positionsLoading) {
+      console.log('[StockTicker] No positions, forcing fetch');
+      actions.fetchGroupedPositionsData();
+    }
+  }, []);
+
   const { 
     summary: portfolioSummary,
     loading: summaryLoading 
@@ -283,7 +306,7 @@ const Navbar = () => {
         : user?.email || 'User';
 
     return (
-        <div className="fixed top-0 left-0 right-0 z-40">
+        <div className="fixed top-0 left-0 right-0 z-30">
             <motion.nav
                 initial={{ y: -100 }}
                 animate={{ y: 0 }}

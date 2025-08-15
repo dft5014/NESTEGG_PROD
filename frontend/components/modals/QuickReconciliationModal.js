@@ -2139,11 +2139,11 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
       )}
 
       {/* Toast */}
-      {message.text && (
-        <div
-          className={`fixed bottom-6 left-1/2 -translate-x-1/2 w-[90%] max-w-md px-5 py-4 rounded-xl shadow-2xl text-white flex items-center justify-between ${
-            message.type === 'error' ? 'bg-red-600' : message.type === 'success' ? 'bg-green-600' : 'bg-blue-600'
-          }`}
+        {message.text && (
+          <div
+            className={`fixed bottom-6 left-1/2 -translate-x-1/2 w-[90%] max-w-md px-5 py-4 rounded-xl shadow-2xl text-white flex items-center justify-between z-[100002] ${
+              message.type === 'error' ? 'bg-red-600' : message.type === 'success' ? 'bg-green-600' : 'bg-blue-600'
+            }`}
           role="status"
           aria-live="polite"
         >

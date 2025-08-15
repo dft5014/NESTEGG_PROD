@@ -1035,7 +1035,8 @@ export const DataStoreProvider = ({ children }) => {
         fetchPortfolioData();
       }
       if (!state.groupedPositions.data && !state.groupedPositions.loading) {
-        fetchGroupedPositionsData();
+        console.log('[DataStore] Phase 1: Fetching grouped positions for navbar ticker');
+        fetchGroupedPositionsData();  // THIS IS CRITICAL FOR THE TICKER
       }
     }, 100);
     
