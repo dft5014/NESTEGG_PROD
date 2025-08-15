@@ -1032,12 +1032,12 @@ export const DataStoreProvider = ({ children }) => {
     }
   }, [state.portfolioSummary.isStale, state.portfolioSummary.loading]); // Remove fetchPortfolioData from deps
 
-  // Auto-refresh stale accounts
+// Auto-refresh stale accounts
   useEffect(() => {
     if (state.accounts.isStale && !state.accounts.loading) {
       fetchAccountsData();
     }
-  }, [state.accounts.isStale, state.accounts.loading, fetchAccountsData]);
+  }, [state.accounts.isStale, state.accounts.loading]); // Removed fetchAccountsData from deps
 
   const value = {
     state,
