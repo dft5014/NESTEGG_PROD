@@ -28,6 +28,89 @@ const getLogo = (name) => {
   return hit?.logo || null;
 };
 
+// ===== Shared, focus-stable, paste-friendly currency input =====
+export const CurrencyInput = React.memo(function CurrencyInput({
+  value,
+  onValueChange,
+  className = '',
+  'aria-label': ariaLabel,
+  onFocus,
+  onBlur,
+  nextFocusId,
+}) {
+  const [focused, setFocused] = React.useState(false);
+  const [raw, setRaw] = React.useState(Number.isFinite(value) ? String(value) : '');
+  const inputRef = React.useRef(null);
+
+  // Only accept external value updates when **not** focused
+  React.useEffect(() => {
+    if (!focused) setRaw(Number.isFinite(value) ? String(value) : '');
+  }, [value, focused]);
+
+  const sanitize = (s) => {
+    const cleaned = s.replace(/[^0-9.\-]/g, '');
+    const parts = cleaned.split('.');
+    const withOneDot = parts.length > 2 ? `${parts[0]}.${parts.slice(1).join('')}` : cleaned;
+    return withOneDot.replace(/(?!^)-/g, '');
+  };
+
+  const handleChange = (e) => {
+    const nextRaw = sanitize(e.target.value);
+    setRaw(nextRaw);
+    onValueChange?.(Number(nextRaw || 0));
+  };
+
+  const handlePaste = (e) => {
+    const txt = e.clipboardData.getData('text') || '';
+    const cleaned = sanitize(txt);
+    e.preventDefault();
+    setRaw(cleaned);
+    onValueChange?.(Number(cleaned || 0));
+    requestAnimationFrame(() => {
+      const el = inputRef.current;
+      if (el) {
+        const end = el.value.length;
+        el.setSelectionRange(end, end);
+      }
+    });
+  };
+
+  const handleKeyDown = (e) => {
+    if (['e', 'E'].includes(e.key)) e.preventDefault();
+    if (e.key === 'Enter' && nextFocusId) {
+      e.preventDefault();
+      const nextEl = document.getElementById(nextFocusId);
+      if (nextEl) nextEl.focus();
+    }
+  };
+
+  return (
+    <input
+      ref={inputRef}
+      id={ariaLabel?.replace(/\s+/g, '_')}
+      type="text"
+      inputMode="decimal"
+      value={
+        focused
+          ? raw
+          : Number.isFinite(value)
+          ? new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(value)
+          : ''
+      }
+      onFocus={(e) => { setFocused(true); onFocus?.(e); }}
+      onBlur={(e) => { setFocused(false); onBlur?.(e); }}
+      onChange={handleChange}
+      onPaste={handlePaste}
+      onKeyDown={handleKeyDown}
+      placeholder="$0.00"
+      aria-label={ariaLabel}
+      className={className}
+      autoComplete="off"
+    />
+  );
+});
+
+
 // ------- Keys (normalized across assets & liabilities) -------
 const makeKey = (kind, id) => `${kind}:${id}`;           // kind: 'asset' | 'liability'
 const parseKey = (key) => { const [kind, id] = String(key).split(':'); return { kind, id }; };
@@ -37,90 +120,6 @@ const NS = (userId) => `nestegg:v1:recon:${userId || 'anon'}`;
 const LS_DATA = (u) => `${NS(u)}:data`;
 const LS_HISTORY = (u) => `${NS(u)}:history`;
 const LS_DRAFT_PREFIX = (u) => `${NS(u)}:draft:`;
-
-// ======= CurrencyInput (single source of truth) =======
-function CurrencyInput({
-  value,
-  onChange,               // (number|null) => void
-  placeholder = '$0.00',
-  allowNegative = true,
-  formatOnBlur = true,
-  onEnterNextId,          // focus next input on Enter
-  className = '',
-  'aria-label': ariaLabel,
-  autoFocus = false,
-}) {
-  const [focused, setFocused] = useState(false);
-  const [raw, setRaw] = useState(value === null || value === undefined ? '' : String(value));
-  const ref = useRef(null);
-
-  useEffect(() => {
-    if (!focused) setRaw(value === null || value === undefined ? '' : String(value));
-  }, [value, focused]);
-
-  const sanitize = useCallback((s) => {
-    let cleaned = s.replace(/[^0-9.\-]/g, '');
-    if (!allowNegative) cleaned = cleaned.replace(/-/g, '');
-    const parts = cleaned.split('.');
-    if (parts.length > 2) cleaned = `${parts[0]}.${parts.slice(1).join('')}`;
-    // only one leading minus
-    cleaned = cleaned.replace(/(?!^)-/g, '');
-    return cleaned;
-  }, [allowNegative]);
-
-  const handleChange = (e) => {
-    const next = sanitize(e.target.value);
-    setRaw(next);
-    onChange?.(toNum(next));
-  };
-
-  const handlePaste = (e) => {
-    const txt = (e.clipboardData || window.clipboardData).getData('text') || '';
-    const cleaned = sanitize(txt);
-    e.preventDefault();
-    setRaw(cleaned);
-    onChange?.(toNum(cleaned));
-    requestAnimationFrame(() => {
-      const el = ref.current;
-      if (el) { const end = el.value.length; el.setSelectionRange(end, end); }
-    });
-  };
-
-  const handleKeyDown = (e) => {
-    if (['e','E'].includes(e.key)) e.preventDefault();
-    if (e.key === 'Enter' && onEnterNextId) {
-      e.preventDefault();
-      const el = document.getElementById(onEnterNextId);
-      if (el) el.focus();
-    }
-  };
-
-  const display = focused ? raw : (raw === '' ? '' : fmtUSD(toNum(raw), false));
-
-  return (
-    <input
-      ref={ref}
-      id={ariaLabel?.replace(/\s+/g,'_')}
-      type="text"
-      inputMode="decimal"
-      value={display}
-      onChange={handleChange}
-      onPaste={handlePaste}
-      onKeyDown={handleKeyDown}
-      onFocus={() => setFocused(true)}
-      onBlur={() => {
-        setFocused(false);
-        if (formatOnBlur) setRaw(raw === '' ? '' : String(toNum(raw)));
-      }}
-      placeholder={placeholder}
-      aria-label={ariaLabel}
-      autoFocus={autoFocus}
-      autoComplete="off"
-      className={`w-full text-right px-3 py-2 rounded-md border transition-all focus:ring-2 focus:ring-blue-400
-        border-gray-300 bg-white dark:bg-zinc-900 dark:border-zinc-700 dark:text-zinc-100 ${className}`}
-    />
-  );
-}
 
 // =================== Modal Shell (ARIA + Focus Trap + Dirty Guard) ===================
 function ModalShell({ isOpen, onRequestClose, onBeforeClose, children, titleId }) {
@@ -719,7 +718,7 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
     };
 
     return (
-      <div className="h-[80vh] px-6 pb-6" onPaste={onBulkPaste}>
+      <div className="h-[80vh] px-6 pt-3 pb-6 border-t border-gray-200 dark:border-zinc-800" onPaste={onBulkPaste}>
         <div className="grid grid-cols-12 gap-6 h-full">
           {/* Left rail */}
           <aside className="col-span-12 lg:col-span-4 xl:col-span-3 h-full">
@@ -910,13 +909,17 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
                                   {fmtUSD(c.nest, !showValues)}
                                 </td>
                                 <td className="px-3 py-2 text-center">
-                                  <CurrencyInput
-                                    value={drafts[makeKey('asset', pos.id)] ?? c.nest}
-                                    onChange={(v) => setDrafts(prev => ({ ...prev, [makeKey('asset', pos.id)]: Number.isFinite(v) ? v : 0 }))}
-                                    onEnterNextId={nextId}
-                                    className={`${changed ? 'border-blue-400 ring-2 ring-blue-200 dark:ring-blue-900/40 bg-white dark:bg-zinc-900' : ''}`}
-                                    aria-label={`Statement balance for ${pos.name}`}
-                                  />
+                                      <CurrencyInput
+                                        value={drafts[makeKey('asset', pos.id)] ?? c.nest}
+                                        onValueChange={(v) =>
+                                          setDrafts(prev => ({ ...prev, [makeKey('asset', pos.id)]: Number.isFinite(v) ? v : 0 }))
+                                        }
+                                        nextFocusId={nextId}
+                                        onFocus={() => setEditingKey(pos.id)}
+                                        onBlur={() => setEditingKey(null)}
+                                        className={`${changed ? 'border-blue-400 ring-2 ring-blue-200 dark:ring-blue-900/40 bg-white dark:bg-zinc-900' : ''}`}
+                                        aria-label={`Statement balance for ${pos.name}`}
+                                      />
                                 </td>
                                 <td className={`px-3 py-2 text-right font-semibold ${c.diff > 0 ? 'text-green-600' : c.diff < 0 ? 'text-red-600' : 'text-gray-500 dark:text-zinc-400'}`}>
                                   {fmtUSD(c.diff, !showValues)}
@@ -965,13 +968,17 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
                                 <td className="px-3 py-2 text-sm text-gray-600 dark:text-zinc-300">{liab.type || '—'}</td>
                                 <td className="px-3 py-2 text-right text-gray-800 dark:text-zinc-100">{fmtUSD(c.nest, !showValues)}</td>
                                 <td className="px-3 py-2 text-center">
-                                  <CurrencyInput
-                                    value={drafts[key] ?? c.nest}
-                                    onChange={(v) => setDrafts(prev => ({ ...prev, [key]: Number.isFinite(v) ? v : 0 }))}
-                                    onEnterNextId={nextId}
-                                    className={`${changed ? 'border-blue-400 ring-2 ring-blue-200 dark:ring-blue-900/40 bg-white dark:bg-zinc-900' : ''}`}
-                                    aria-label={`Statement balance for ${liab.name}`}
-                                  />
+                                    <CurrencyInput
+                                      value={drafts[key] ?? c.nest}
+                                      onValueChange={(v) =>
+                                        setDrafts(prev => ({ ...prev, [key]: Number.isFinite(v) ? v : 0 }))
+                                      }
+                                      nextFocusId={nextId}
+                                      onFocus={() => setEditingKey(key)}
+                                      onBlur={() => setEditingKey(null)}
+                                      className={`${changed ? 'border-blue-400 ring-2 ring-blue-200 dark:ring-blue-900/40 bg-white dark:bg-zinc-900' : ''}`}
+                                      aria-label={`Statement balance for ${liab.name}`}
+                                    />
                                 </td>
                                 <td className={`px-3 py-2 text-right font-semibold ${c.diff > 0 ? 'text-red-600' : c.diff < 0 ? 'text-green-600' : 'text-gray-500 dark:text-zinc-400'}`}>
                                   {fmtUSD(c.diff, !showValues)}
@@ -1086,7 +1093,7 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
     }, [selectedAccount, positionsNorm]);
 
     return (
-      <div className="h-[80vh] px-6 pb-6">
+      <div className="h-[80vh] px-6 pt-3 pb-6 border-t border-gray-200 dark:border-zinc-800">
         <div className="grid grid-cols-12 gap-6 h-full">
           {/* Left rail */}
           <aside className="col-span-12 lg:col-span-4 xl:col-span-3 h-full">
@@ -1232,12 +1239,12 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
                               <td className="px-3 py-2 text-sm text-gray-600 dark:text-zinc-300">{a.accountCategory || a.category || '—'}</td>
                               <td className="px-3 py-2 text-right text-gray-800 dark:text-zinc-100">{fmtUSD(r.nest, !showValues)}</td>
                               <td className="px-3 py-2 text-center">
-                                <CurrencyInput
-                                  value={r.stmt ?? r.nest}
-                                  onChange={(v)=>handleStatementChange(a.id, v)}
-                                  aria-label={`Statement balance for ${a.accountName || 'Account'}`}
-                                  className={`${changed ? 'border-blue-400 ring-2 ring-blue-200 dark:ring-blue-900/40 bg-white dark:bg-zinc-900' : ''}`}
-                                />
+                                  <CurrencyInput
+                                    value={r.stmt ?? r.nest}
+                                    onValueChange={(v) => handleStatementChange(a.id, v)}
+                                    aria-label={`Statement balance for ${a.accountName || 'Account'}`}
+                                    className={`${changed ? 'border-blue-400 ring-2 ring-blue-200 dark:ring-blue-900/40 bg-white dark:bg-zinc-900' : ''}`}
+                                  />
                               </td>
                               <td className={`px-3 py-2 text-right font-semibold ${r.diff > 0 ? 'text-green-600' : r.diff < 0 ? 'text-red-600' : 'text-gray-500 dark:text-zinc-400'}`}>
                                 {r.stmt === null ? '—' : fmtUSD(r.diff, !showValues)}
