@@ -609,52 +609,164 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
 
   // ---- Liquid workflow (with explainer, scrolling, continue-to-next, submit-all)
   function LiquidScreen() {
-    const [selectedInstitution, setSelectedInstitution] = useState(null);
-    const [updated, setUpdated] = useState({});
-    const [reviewed, setReviewed] = useState(new Set());
-    const [sortKey, setSortKey] = useState('nest'); // 'nest' | 'name' | 'diff'
-    const [sortDir, setSortDir] = useState('desc'); // 'asc' | 'desc'
-    const draftKey = `${LS_DRAFT_PREFIX}${selectedInstitution || 'all'}`;
+    // Pull liabilities so CCs/loans/mortgages appear with cash for Quick Update
+    const { state, actions } = useDataStore();
+    const { groupedLiabilities } = state;
 
-    // Group by institution (include liabilities by looking at type markers)
+    // UI local state
+    const [selectedInstitution, setSelectedInstitution] = useState(null); // default: none (per spec)
+    const [updated, setUpdated] = useState({}); // draft edits by row id (assets: id, liabilities: `L_${id}`)
+    const [sortKey, setSortKey] = useState('nest'); // 'nest' | 'name' | 'diff'
+    const [sortDir, setSortDir] = useState('desc');
+    const [jumping, setJumping] = useState(false); // micro-animation for "Continue to Next"
+
+    // Ensure liabilities are available
+    useEffect(() => {
+      if (!groupedLiabilities?.lastFetched && !groupedLiabilities?.loading) {
+        actions.fetchGroupedLiabilitiesData?.();
+      }
+    }, [groupedLiabilities?.lastFetched, groupedLiabilities?.loading, actions]);
+
+    // ================= CurrencyInput =================
+    // Paste-friendly, caret-stable, raw while focused; pretty currency when blurred.
+    const CurrencyInput = ({ value, onValueChange, className = '', 'aria-label': ariaLabel }) => {
+      const [focused, setFocused] = useState(false);
+      const [raw, setRaw] = useState(Number.isFinite(value) ? String(value) : '');
+      const inputRef = useRef(null);
+
+      useEffect(() => {
+        if (!focused) setRaw(Number.isFinite(value) ? String(value) : '');
+      }, [value, focused]);
+
+      const sanitize = (s) => {
+        // allow digits, one dot, optional leading minus (for liabilities that might be negative)
+        const cleaned = s.replace(/[^0-9.\-]/g, '');
+        // only one dot
+        const parts = cleaned.split('.');
+        const withOneDot = parts.length > 2 ? `${parts[0]}.${parts.slice(1).join('')}` : cleaned;
+        // only a single leading minus
+        return withOneDot.replace(/(?!^)-/g, '');
+      };
+
+      const handleChange = (e) => {
+        const nextRaw = sanitize(e.target.value);
+        setRaw(nextRaw);
+        onValueChange?.(toNumber(nextRaw));
+      };
+
+      const handlePaste = (e) => {
+        const txt = e.clipboardData.getData('text') || '';
+        const cleaned = sanitize(txt);
+        e.preventDefault();
+        setRaw(cleaned);
+        onValueChange?.(toNumber(cleaned));
+        requestAnimationFrame(() => {
+          const el = inputRef.current;
+          if (el) {
+            const end = el.value.length;
+            el.setSelectionRange(end, end);
+          }
+        });
+      };
+
+      return (
+        <input
+          ref={inputRef}
+          type="text"
+          inputMode="decimal"
+          value={focused ? raw : (Number.isFinite(value) ? fmtCurrency(value, false) : '')}
+          onFocus={() => setFocused(true)}
+          onBlur={() => setFocused(false)}
+          onChange={handleChange}
+          onPaste={handlePaste}
+          onKeyDown={(e) => { if (['e', 'E'].includes(e.key)) e.preventDefault(); }}
+          placeholder="$0.00"
+          aria-label={ariaLabel}
+          className={className}
+        />
+      );
+    };
+
+    // ================= Build groups (cash + true liabilities) =================
     const groups = useMemo(() => {
-      const map = new Map();
-      positionsNorm.forEach((p) => {
-        const inst = p.institution || 'Unknown Institution';
-        if (!map.has(inst)) map.set(inst, { positions: [], liabilities: [] });
-        if (['liability', 'loan', 'credit_card'].includes(p.type)) {
-          map.get(inst).liabilities.push({ ...p });
-        } else if (
-          ['cash', 'checking', 'savings'].includes(p.type) ||
-          /checking|savings|credit|loan/i.test(p.name)
-        ) {
-          map.get(inst).positions.push({ ...p });
-        }
+      // Cash-like assets from normalized positions
+      const cashPositions = (positionsNorm || []).filter((p) => {
+        const t = (p.type || '').toLowerCase();
+        return (
+          ['cash', 'checking', 'savings'].includes(t) ||
+          /checking|savings|cash/i.test(p.name || '')
+        );
       });
 
-      return Array.from(map.entries())
-        .map(([institution, { positions, liabilities }]) => {
-          const totalPositions = positions.reduce((s, x) => s + Math.abs(x.currentValue || 0), 0);
-          const totalLiabs = liabilities.reduce((s, x) => s + Math.abs(x.currentValue || 0), 0);
-          return {
-            institution,
-            positions,
-            liabilities,
-            totalValue: totalPositions + totalLiabs,
-            updatedCount: positions.filter((x) => updated[x.id] !== undefined).length +
-              liabilities.filter((x) => updated[`L_${x.id}`] !== undefined).length,
-          };
-        })
-        .sort((a, b) => b.totalValue - a.totalValue);
-    }, [positionsNorm, updated]);
+      // Liabilities (credit cards, loans, mortgages) from DataStore
+      const liabsRaw = (groupedLiabilities?.data || []).map((L) => {
+        const id = L.item_id ?? L.liability_id ?? L.id ?? L.history_id;
+        const t = (L.item_type || L.type || 'liability').toLowerCase();
+        return {
+          id,
+          itemId: id,
+          accountId: L.inv_account_id ?? L.account_id ?? null,
+          institution: L.institution || 'Unknown Institution',
+          name: L.name || L.identifier || 'Liability',
+          identifier: L.identifier || '',
+          type: t, // credit_card | loan | mortgage | liability...
+          currentValue: Number(L.current_balance ?? L.current_value ?? L.balance ?? 0),
+          inv_account_name: L.inv_account_name ?? L.account_name ?? '',
+        };
+      });
 
-    // DONT auto-select; we want the explainer empty state first
+      // Group by institution
+      const map = new Map();
+      const add = (inst) => {
+        if (!map.has(inst)) map.set(inst, { institution: inst, positions: [], liabilities: [], totalValue: 0 });
+        return map.get(inst);
+      };
 
-    const current = groups.find((g) => g.institution === selectedInstitution);
-    const positions = current?.positions || [];
-    const liabilities = current?.liabilities || [];
+      cashPositions.forEach((p) => {
+        const inst = p.institution || 'Unknown Institution';
+        const g = add(inst);
+        g.positions.push({ ...p });
+        g.totalValue += Math.abs(Number(p.currentValue || 0));
+      });
 
-    // Draft autosave/restore
+      liabsRaw.forEach((p) => {
+        const inst = p.institution || 'Unknown Institution';
+        const g = add(inst);
+        g.liabilities.push({ ...p });
+        g.totalValue += Math.abs(Number(p.currentValue || 0));
+      });
+
+      // Compute updated count per institution
+      const enriched = Array.from(map.values()).map((g) => {
+        const updatedCount =
+          g.positions.filter((x) => updated[x.id] !== undefined).length +
+          g.liabilities.filter((x) => updated[`L_${x.id}`] !== undefined).length;
+
+        // determine simple status: done if every row has either a change value or was unchanged but reviewed later (optional)
+        const totalRows = g.positions.length + g.liabilities.length;
+        const progressPct = totalRows ? (updatedCount / totalRows) * 100 : 0;
+
+        return {
+          ...g,
+          updatedCount,
+          progressPct,
+        };
+      });
+
+      // sort by value desc
+      return enriched.sort((a, b) => b.totalValue - a.totalValue);
+    }, [positionsNorm, groupedLiabilities?.data, updated]);
+
+    // Keep selection valid; default is null until user picks
+    useEffect(() => {
+      if (selectedInstitution && !groups.find((g) => g.institution === selectedInstitution)) {
+        setSelectedInstitution(null);
+      }
+    }, [groups, selectedInstitution]);
+
+    // ================= Draft autosave/restore =================
+    const draftKey = `${LS_DRAFT_PREFIX}${selectedInstitution || 'all'}`;
+
     useEffect(() => {
       try {
         const saved = localStorage.getItem(draftKey);
@@ -662,134 +774,101 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
           const obj = JSON.parse(saved);
           setUpdated((prev) => ({ ...prev, ...obj }));
         }
-      } catch {
-        /* noop */
-      }
+      } catch { /* noop */ }
       // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [draftKey]);
+
     useEffect(() => {
       const t = setTimeout(() => {
         try {
           localStorage.setItem(draftKey, JSON.stringify(updated));
-        } catch {
-          /* noop */
-        }
-      }, 600);
+        } catch { /* noop */ }
+      }, 450);
       return () => clearTimeout(t);
     }, [updated, draftKey]);
 
-    // bulk paste
-    const onPasteIntoGrid = (e) => {
-      if (!positions.length) return;
-      const txt = e.clipboardData.getData('text');
-      if (!txt) return;
-      const lines = txt.split(/\r?\n/).map(toNumber);
-      if (!lines.length) return;
-      setUpdated((prev) => {
-        const next = { ...prev };
-        positions.forEach((p, i) => {
-          if (Number.isFinite(lines[i])) next[p.id] = lines[i];
-        });
-        return next;
-      });
-      e.preventDefault();
+    // ================= Helpers / selectors =================
+    const current = useMemo(
+      () => groups.find((g) => g.institution === selectedInstitution),
+      [groups, selectedInstitution]
+    );
+
+    const handleChangePos = (posId, value) => {
+      setUpdated((prev) => ({ ...prev, [posId]: Number.isFinite(value) ? value : 0 }));
+    };
+    const handleChangeLiab = (liabId, value) => {
+      setUpdated((prev) => ({ ...prev, [`L_${liabId}`]: Number.isFinite(value) ? value : 0 }));
     };
 
-    const totalProgressCount =
-      Object.keys(updated).filter((k) => updated[k] !== undefined && updated[k] !== null).length;
-    const liquidCount = positions.length + liabilities.length;
-    const totalProgressPct = liquidCount ? (totalProgressCount / liquidCount) * 100 : 0;
+    // Pending-changes dashboard (counts and net impact)
+    const pending = useMemo(() => {
+      let count = 0;
+      let posCount = 0, negCount = 0;
+      let posAmt = 0, negAmt = 0;
 
-    // sorting
-    const sortedPositions = useMemo(() => {
-      const rows = positions.map((p) => {
-        const c = calcRow(p, updated);
-        return { ...p, _calc: c };
+      const all = groups.flatMap((g) => [
+        ...g.positions.map((p) => ({ key: p.id, curr: Number(p.currentValue || 0) })),
+        ...g.liabilities.map((p) => ({ key: `L_${p.id}`, curr: Number(p.currentValue || 0) })),
+      ]);
+
+      all.forEach((row) => {
+        const nextVal = updated[row.key];
+        if (nextVal === undefined) return;
+        if (!Number.isFinite(nextVal)) return;
+
+        const delta = nextVal - row.curr;
+        if (delta === 0) return;
+
+        count += 1;
+        if (delta > 0) { posCount += 1; posAmt += delta; }
+        else { negCount += 1; negAmt += delta; }
       });
-      rows.sort((a, b) => {
+
+      return { count, posCount, posAmt, negCount, negAmt, net: posAmt + negAmt };
+    }, [groups, updated]);
+
+    // Sorting util for tables
+    const makeSorted = useCallback((rows, type) => {
+      const rowsWithCalc = rows.map((p) => {
+        const key = type === 'liab' ? `L_${p.id}` : p.id;
+        const nest = Number(p.currentValue || 0);
+        const stmt = updated[key] !== undefined ? Number(updated[key]) : nest;
+        const diff = stmt - nest;
+        const pct = nest !== 0 ? (diff / nest) * 100 : 0;
+        return { ...p, _calc: { rawNestEgg: nest, rawStatement: stmt, diff, pct }, _key: key };
+      });
+      rowsWithCalc.sort((a, b) => {
         const dir = sortDir === 'asc' ? 1 : -1;
         if (sortKey === 'name') return a.name.localeCompare(b.name) * dir;
         if (sortKey === 'diff') return (a._calc.diff - b._calc.diff) * dir;
         return (a._calc.rawNestEgg - b._calc.rawNestEgg) * dir; // 'nest'
       });
-      return rows;
-    }, [positions, updated, sortKey, sortDir]);
+      return rowsWithCalc;
+    }, [sortKey, sortDir, updated]);
 
-    const sortedLiabs = useMemo(() => {
-      const rows = liabilities.map((p) => {
-        const nest = Number(p.currentValue || 0);
-        const key = `L_${p.id}`;
-        const stmt = updated[key] !== undefined ? Number(updated[key]) : nest;
-        const diff = stmt - nest;
-        const pct = nest !== 0 ? (diff / nest) * 100 : 0;
-        return { ...p, _calc: { rawNestEgg: nest, rawStatement: stmt, diff, pct } };
-      });
-      rows.sort((a, b) => {
-        const dir = sortDir === 'asc' ? 1 : -1;
-        if (sortKey === 'name') return a.name.localeCompare(b.name) * dir;
-        if (sortKey === 'diff') return (a._calc.diff - b._calc.diff) * dir;
-        return (a._calc.rawNestEgg - b._calc.rawNestEgg) * dir;
-      });
-      return rows;
-    }, [liabilities, updated, sortKey, sortDir]);
+    const sortedPositions = useMemo(() => makeSorted(current?.positions || [], 'pos'), [current, makeSorted]);
+    const sortedLiabilities = useMemo(() => makeSorted(current?.liabilities || [], 'liab'), [current, makeSorted]);
 
-    const handleSort = (key) => {
-      if (sortKey === key) {
-        setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
-      } else {
-        setSortKey(key);
-        setSortDir('desc');
-      }
-    };
-
-    const headerSortIcon = (key) => {
-      if (sortKey !== key) return null;
-      return <span className="ml-1 text-gray-400">{sortDir === 'asc' ? '▲' : '▼'}</span>;
+    const headerSortIcon = (key) => (sortKey === key ? <span className="ml-1 text-gray-400">{sortDir === 'asc' ? '▲' : '▼'}</span> : null);
+    const toggleSort = (key) => {
+      if (sortKey === key) setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
+      else { setSortKey(key); setSortDir('desc'); }
     };
 
     const logo = getInstitutionLogo(selectedInstitution || '');
 
-    const handleChangePos = (posId, value) => {
-      setUpdated((prev) => ({ ...prev, [posId]: toNumber(value) }));
-    };
-    const handleChangeLiab = (liabId, value) => {
-      setUpdated((prev) => ({ ...prev, [`L_${liabId}`]: toNumber(value) }));
-    };
-
-    const widthPct = (pct) => {
-      const n = clamp(pct, 0, 100);
-      return { width: `${n}%` };
-    };
-
-    const buildInstitutionChanges = (g) => {
-      const changes = [];
-      g.positions.forEach((pos) => {
-        const curr = Number(pos.current_value ?? pos.currentValue ?? 0);
-        const next = updated[pos.id] !== undefined ? Number(updated[pos.id]) : curr;
-        if (Number.isFinite(next) && next !== curr) {
-          changes.push({ kind: 'cash', id: pos.itemId ?? pos.id, amount: next, meta: pos });
-        }
-      });
-      g.liabilities.forEach((liab) => {
-        const curr = Number(liab.currentValue || 0);
-        const next = updated[`L_${liab.id}`] !== undefined ? Number(updated[`L_${liab.id}`]) : curr;
-        if (Number.isFinite(next) && next !== curr) {
-          changes.push({ kind: 'liability', id: liab.itemId ?? liab.id, amount: next, meta: liab });
-        }
-      });
-      return changes;
-    };
-
-    const handleBulkSave = async (changes, institution) => {
+    // ================= Save & continue =================
+    const handleBulkSave = async (changes, institutionLabel) => {
       try {
         setLocalLoading(true);
+
         const batch = changes
           .map((c) => {
             const kind =
               c.kind ||
-              (['cash', 'checking', 'savings'].includes(c.meta?.type)
+              (['cash', 'checking', 'savings'].includes((c.meta?.type || '').toLowerCase())
                 ? 'cash'
-                : ['liability', 'credit_card', 'loan'].includes(c.meta?.type)
+                : ['liability', 'credit_card', 'loan', 'mortgage'].includes((c.meta?.type || '').toLowerCase())
                 ? 'liability'
                 : 'other');
             return {
@@ -802,6 +881,7 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
 
         if (batch.length) await writeAndRefresh(batch);
 
+        // Persist "lastUpdated" locally (UI smoothness)
         const nextData = { ...reconData };
         changes.forEach((c) => {
           const key = c.kind === 'liability' ? `L_${c.id}` : c.id;
@@ -809,10 +889,11 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
         });
         saveReconData(nextData);
         saveHistory();
-        showMsg('success', `Updated ${institution}`);
+
+        showMsg('success', `Updated ${institutionLabel}`);
       } catch (e) {
         console.error(e);
-        showMsg('error', `Failed to update ${institution}`);
+        showMsg('error', `Failed to update ${institutionLabel}`);
       } finally {
         setLocalLoading(false);
       }
@@ -820,406 +901,354 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
 
     const onUpdateInstitution = async () => {
       if (!current) return;
-      const changes = buildInstitutionChanges(current);
+
+      const changes = [];
+
+      current.positions.forEach((pos) => {
+        const curr = Number(pos.currentValue ?? 0);
+        const next = updated[pos.id] !== undefined ? Number(updated[pos.id]) : curr;
+        if (Number.isFinite(next) && next !== curr) {
+          changes.push({ kind: 'cash', id: pos.itemId ?? pos.id, amount: next, meta: pos });
+        }
+      });
+
+      current.liabilities.forEach((liab) => {
+        const curr = Number(liab.currentValue ?? 0);
+        const key = `L_${liab.id}`;
+        const next = updated[key] !== undefined ? Number(updated[key]) : curr;
+        if (Number.isFinite(next) && next !== curr) {
+          changes.push({ kind: 'liability', id: liab.itemId ?? liab.id, amount: next, meta: liab });
+        }
+      });
+
       if (!changes.length) {
         showMsg('info', 'No changes to apply');
         return;
       }
+
       await handleBulkSave(changes, current.institution);
     };
 
-    const onContinueToNext = async () => {
-      await onUpdateInstitution();
-      // move to next institution
+    const continueToNext = () => {
       if (!groups.length) return;
-      const idx = groups.findIndex((g) => g.institution === selectedInstitution);
-      const nextIdx = idx >= 0 && idx < groups.length - 1 ? idx + 1 : 0;
-      setSelectedInstitution(groups[nextIdx].institution);
-      showMsg('info', `Moved to ${groups[nextIdx].institution}`, 2500);
-    };
-
-    const onSubmitAll = async () => {
-      try {
-        setLocalLoading(true);
-        // Build all changes across all groups
-        const allChanges = groups.flatMap((g) => buildInstitutionChanges(g));
-        if (!allChanges.length) {
-          showMsg('info', 'No changes to submit');
-          return;
-        }
-        const batch = allChanges.map((c) => ({
-          itemId: c.id ?? c.meta?.itemId ?? c.meta?.id,
-          kind:
-            c.kind ||
-            (['cash', 'checking', 'savings'].includes(c.meta?.type)
-              ? 'cash'
-              : ['liability', 'credit_card', 'loan'].includes(c.meta?.type)
-              ? 'liability'
-              : 'other'),
-          value: Number(c.amount),
-        }));
-        await writeAndRefresh(batch);
-
-        const nextData = { ...reconData };
-        allChanges.forEach((c) => {
-          const key = c.kind === 'liability' ? `L_${c.id}` : c.id;
-          nextData[`pos_${key}`] = { lastUpdated: new Date().toISOString(), value: Number(c.amount) };
-        });
-        saveReconData(nextData);
-        saveHistory();
-        showMsg('success', `Submitted ${batch.length} updates across all institutions`);
-      } catch (e) {
-        console.error(e);
-        showMsg('error', 'Failed to submit all changes');
-      } finally {
-        setLocalLoading(false);
+      if (!current) {
+        setSelectedInstitution(groups[0].institution);
+        return;
+      }
+      const idx = groups.findIndex((g) => g.institution === current.institution);
+      const next = groups[idx + 1];
+      setJumping(true);
+      setTimeout(() => setJumping(false), 350);
+      if (next) {
+        setSelectedInstitution(next.institution);
+        showMsg('success', `Moving to ${next.institution}`, 2000);
+      } else {
+        // Finished the list — show friendly nudge
+        setSelectedInstitution(null);
+        showMsg('success', 'All institutions reviewed. You can submit updates anytime.', 3000);
       }
     };
 
-    const hasAnyPending = useMemo(() => {
-      return groups.some((g) => buildInstitutionChanges(g).length > 0);
-    }, [groups, updated]);
-
+    // ================= Layout =================
     return (
-      <div className="p-8" onPaste={onPasteIntoGrid}>
-        {/* Header */}
-        <div className="flex items-center justify-between mb-6">
-          <button onClick={() => setScreen('welcome')} className="flex items-center text-gray-600 hover:text-gray-900">
-            <ArrowLeft className="w-4 h-4 mr-1" /> Back
-          </button>
-          <div className="flex items-center gap-4">
-            <div className="text-right">
-              <div className="text-xs text-gray-500">Overall Progress</div>
-              <div className="text-lg font-semibold text-gray-900">
-                {Object.keys(updated).length} / {groups.reduce((s, g) => s + g.positions.length + g.liabilities.length, 0)}
-              </div>
-            </div>
-            <ProgressRing percentage={
-              (() => {
-                const total = groups.reduce((s, g) => s + g.positions.length + g.liabilities.length, 0);
-                return total ? (Object.keys(updated).length / total) * 100 : 0;
-              })()
-            } size={64} color="blue" />
-            <button
-              onClick={() => setShowValues((s) => !s)}
-              className={`p-2 rounded-lg ${showValues ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-600'}`}
-              title={showValues ? 'Hide values' : 'Show values'}
-            >
-              {showValues ? <Eye className="w-5 h-5" /> : <EyeOff className="w-5 h-5" />}
-            </button>
-            <button
-              onClick={async () => {
-                setLocalLoading(true);
-                await Promise.all([refreshPositions?.(), refreshAccounts?.()]);
-                setLocalLoading(false);
-              }}
-              className="p-2 rounded-lg bg-gray-100 hover:bg-gray-200"
-              title="Refresh data"
-            >
-              <RefreshCw className={`w-5 h-5 text-gray-700 ${localLoading ? 'animate-spin' : ''}`} />
-            </button>
-          </div>
-        </div>
-
-        {/* Explainer when no institution selected */}
-        {!selectedInstitution && (
-          <div className="mb-6 rounded-2xl border border-blue-200 bg-blue-50 p-5">
-            <div className="flex items-start gap-3">
-              <Droplets className="w-6 h-6 text-blue-600 mt-0.5" />
-              <div>
-                <div className="font-semibold text-gray-900">Quick Cash Update</div>
-                <p className="text-sm text-gray-700 mt-1">
-                  Select a financial institution below. Enter your latest statements for checking, savings, cards, and loans.
-                  Update one bank at a time, or use <span className="font-semibold">Submit All Changes</span> to push updates in bulk.
+      <div className="h-[80vh] px-6 pb-6">
+        <div className="grid grid-cols-12 gap-6 h-full">
+          {/* Left rail: instructions + institutions list (sticky) */}
+          <aside className="col-span-12 lg:col-span-4 xl:col-span-3 h-full">
+            <div className="h-full flex flex-col">
+              {/* Persistent instructions */}
+              <div className="mb-4 rounded-xl border border-gray-200 bg-white p-4 shadow-sm sticky top-0 z-[2]">
+                <div className="flex items-center gap-2 mb-2">
+                  <Droplets className="w-5 h-5 text-blue-600" />
+                  <h3 className="font-semibold text-gray-900">Quick Cash & Liabilities Update</h3>
+                </div>
+                <p className="text-sm text-gray-600">
+                  Paste or type your latest balances from bank/credit card statements. We track changes per account and show the net impact before you submit.
                 </p>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Institution selector */}
-        <div className="flex flex-wrap gap-3 mb-5">
-          {groups.map((g) => {
-            const isSel = g.institution === selectedInstitution;
-            const done =
-              g.positions.concat(g.liabilities).length > 0 &&
-              g.positions.concat(g.liabilities).every((p) => {
-                const key = ['liability', 'loan', 'credit_card'].includes(p.type) ? `L_${p.id}` : p.id;
-                return updated[key] !== undefined || reviewed.has(p.id);
-              });
-            const instProgress =
-              g.positions.concat(g.liabilities).length > 0
-                ? (g.updatedCount / (g.positions.length + g.liabilities.length)) * 100
-                : 0;
-            const barStyle = widthPct(instProgress);
-            const logoSmall = getInstitutionLogo(g.institution);
-
-            return (
-              <button
-                key={g.institution}
-                onClick={() => setSelectedInstitution(g.institution)}
-                className={`relative px-5 py-3 rounded-xl border-2 transition-all ${
-                  isSel
-                    ? 'border-blue-500 bg-blue-50'
-                    : done
-                    ? 'border-green-400 bg-green-50'
-                    : 'border-gray-200 bg-white hover:border-gray-300'
-                }`}
-              >
-                {done && (
-                  <div className="absolute -top-2 -right-2 bg-green-500 text-white rounded-full p-1">
-                    <Check className="w-4 h-4" />
+                <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+                  <div className="rounded-lg bg-gray-50 px-3 py-2 border border-gray-200">
+                    <div className="text-gray-500">Pending</div>
+                    <div className="font-semibold text-gray-900">{pending.count}</div>
                   </div>
-                )}
-                <div className="flex items-center gap-2">
-                  {logoSmall ? (
-                    <img src={logoSmall} alt={g.institution} className="w-6 h-6 rounded-full object-contain" />
-                  ) : (
-                    <Landmark
-                      className={`w-6 h-6 ${
-                        isSel ? 'text-blue-600' : done ? 'text-green-600' : 'text-gray-400'
-                      }`}
-                    />
-                  )}
-                  <div className="text-left">
-                    <div className="font-semibold text-gray-900">{g.institution}</div>
-                    <div className="text-xs text-gray-500">
-                      {g.positions.length + g.liabilities.length} items
+                  <div className="rounded-lg bg-gray-50 px-3 py-2 border border-gray-200">
+                    <div className="text-gray-500">Net Impact</div>
+                    <div className={`font-semibold ${pending.net >= 0 ? 'text-green-700' : 'text-red-700'}`}>
+                      {fmtCurrency(pending.net, false)}
                     </div>
                   </div>
+                  <div className="rounded-lg bg-green-50 px-3 py-2 border border-green-200">
+                    <div className="text-green-700">↑ {pending.posCount} items</div>
+                    <div className="font-semibold text-green-800">{fmtCurrency(pending.posAmt, false)}</div>
+                  </div>
+                  <div className="rounded-lg bg-red-50 px-3 py-2 border border-red-200">
+                    <div className="text-red-700">↓ {pending.negCount} items</div>
+                    <div className="font-semibold text-red-800">{fmtCurrency(pending.negAmt, false)}</div>
+                  </div>
                 </div>
-                <div className="mt-2 text-sm text-gray-900 font-semibold">{fmtCurrency(g.totalValue, !showValues)}</div>
-                <div className="mt-2 h-1 bg-gray-200 rounded-full overflow-hidden">
-                  <div
-                    className={`${isSel ? 'bg-blue-500' : 'bg-green-500'} h-full`}
-                    style={barStyle}
-                  />
-                </div>
-              </button>
-            );
-          })}
-        </div>
+              </div>
 
-        {/* Inline panel for selected institution */}
-        {current ? (
-          <div className="rounded-2xl border bg-white">
-            {/* Header row */}
-            <div className="flex items-center justify-between px-6 py-4">
-              <div className="flex items-center gap-3">
-                {logo ? (
-                  <img src={logo} alt={selectedInstitution || ''} className="w-8 h-8 rounded-full object-contain" />
+              {/* Institutions list */}
+              <div className="flex-1 overflow-auto rounded-xl border border-gray-200 bg-white">
+                {groups.length === 0 ? (
+                  <div className="p-6 text-sm text-gray-500">No cash or liability accounts found.</div>
                 ) : (
-                  <Landmark className="w-8 h-8 text-gray-400" />
+                  <ul className="divide-y divide-gray-100">
+                    {groups.map((g) => {
+                      const isSel = g.institution === selectedInstitution;
+                      const logoSmall = getInstitutionLogo(g.institution);
+                      const totalRows = g.positions.length + g.liabilities.length;
+                      const hasAnyChanges =
+                        g.positions.some((p) => updated[p.id] !== undefined && updated[p.id] !== Number(p.currentValue || 0)) ||
+                        g.liabilities.some((p) => {
+                          const key = `L_${p.id}`;
+                          return updated[key] !== undefined && updated[key] !== Number(p.currentValue || 0);
+                        });
+
+                      return (
+                        <li key={g.institution}>
+                          <button
+                            onClick={() => setSelectedInstitution(g.institution)}
+                            className={`w-full text-left px-4 py-3 transition-colors flex items-center gap-3
+                              ${isSel ? 'bg-blue-50' : 'hover:bg-gray-50'}`}
+                          >
+                            {logoSmall ? (
+                              <img src={logoSmall} alt={g.institution} className="w-7 h-7 rounded object-contain" />
+                            ) : (
+                              <Landmark className="w-6 h-6 text-gray-400" />
+                            )}
+                            <div className="flex-1">
+                              <div className="flex items-center justify-between">
+                                <div className="font-medium text-gray-900">
+                                  {g.institution}
+                                </div>
+                                <div className="text-xs text-gray-500">{totalRows} items</div>
+                              </div>
+                              <div className="text-xs text-gray-500">
+                                {fmtCurrency(g.totalValue, false)}
+                              </div>
+                              <div className="mt-2 h-1.5 bg-gray-200/70 rounded-full overflow-hidden">
+                                <div
+                                  className={`${hasAnyChanges ? 'bg-amber-500' : 'bg-blue-500'} h-full transition-all`}
+                                  style={{ width: `${clamp(g.progressPct, 0, 100)}%` }}
+                                />
+                              </div>
+                            </div>
+                            {hasAnyChanges ? (
+                              <AlertTriangle className="w-4 h-4 text-amber-600" title="Draft changes present" />
+                            ) : (
+                              <CheckCircle className="w-4 h-4 text-green-600" title="No draft changes" />
+                            )}
+                          </button>
+                        </li>
+                      );
+                    })}
+                  </ul>
                 )}
+              </div>
+            </div>
+          </aside>
+
+          {/* Right: Work surface */}
+          <section className="col-span-12 lg:col-span-8 xl:col-span-9 h-full">
+            {!current ? (
+              <div className="h-full rounded-2xl border-2 border-dashed border-gray-300 bg-white/50 flex items-center justify-center text-center p-10">
                 <div>
-                  <div className="font-semibold text-gray-900">{selectedInstitution}</div>
-                  <div className="text-xs text-gray-500">
-                    {positions.length} accounts • {liabilities.length} liabilities
-                  </div>
+                  <h4 className="text-xl font-semibold text-gray-900">Select a bank or card to begin</h4>
+                  <p className="text-gray-600 mt-2 max-w-lg">
+                    Pick an institution on the left to update checking/savings balances and any credit cards, loans, or mortgages.
+                    You can paste from spreadsheets — we auto-detect and format amounts.
+                  </p>
                 </div>
               </div>
-              <div className="flex items-center gap-3">
-                <div className="text-right">
-                  <div className="text-xs text-gray-500">Total</div>
-                  <div className="font-semibold text-gray-900">
-                    {fmtCurrency(current.totalValue, !showValues)}
+            ) : (
+              <div className={`h-full rounded-2xl border border-gray-200 bg-white flex flex-col ${jumping ? 'ring-2 ring-blue-200 transition' : ''}`}>
+                {/* Header */}
+                <div className="px-6 py-4 border-b flex items-center justify-between sticky top-0 bg-white z-[1]">
+                  <div className="flex items-center gap-3">
+                    {logo ? (
+                      <img src={logo} alt={current.institution} className="w-9 h-9 rounded object-contain" />
+                    ) : (
+                      <Landmark className="w-8 h-8 text-gray-400" />
+                    )}
+                    <div>
+                      <div className="font-semibold text-gray-900">{current.institution}</div>
+                      <div className="text-xs text-gray-500">
+                        {current.positions.length} accounts • {current.liabilities.length} liabilities
+                      </div>
+                    </div>
                   </div>
-                </div>
-                <div className="flex gap-2">
-                  <button
-                    onClick={onUpdateInstitution}
-                    className="px-4 py-2 rounded-lg bg-blue-600 text-white font-semibold hover:bg-blue-700 transition-colors"
-                  >
-                    Update {selectedInstitution}
-                  </button>
-                  <button
-                    onClick={onContinueToNext}
-                    className="px-4 py-2 rounded-lg bg-gray-100 text-gray-800 font-semibold hover:bg-gray-200 transition-colors"
-                    title="Save this institution and move to the next one"
-                  >
-                    Continue to Next →
-                  </button>
-                </div>
-              </div>
-            </div>
 
-            {/* SCROLLABLE grid */}
-            <div className="max-h-[52vh] overflow-auto border-t">
-              {/* positions table */}
-              {positions.length > 0 && (
-                <div className="min-w-[720px]">
-                  <div className="bg-gray-50 px-6 py-3 text-sm font-semibold text-gray-800">
-                    Accounts & Cash
+                  <div className="flex items-center gap-3">
+                    <div className="hidden sm:block text-right">
+                      <div className="text-xs text-gray-500">Total</div>
+                      <div className="font-semibold text-gray-900">{fmtCurrency(current.totalValue, false)}</div>
+                    </div>
+                    <button
+                      onClick={onUpdateInstitution}
+                      className="px-4 py-2 rounded-lg bg-blue-600 text-white font-semibold hover:bg-blue-700 transition-colors"
+                      title={`Apply changes for ${current.institution}`}
+                    >
+                      Update {current.institution}
+                    </button>
+                    <button
+                      onClick={continueToNext}
+                      className="px-4 py-2 rounded-lg bg-gray-100 text-gray-800 font-semibold hover:bg-gray-200 transition-colors"
+                      title="Move to the next institution"
+                    >
+                      Continue to Next
+                    </button>
                   </div>
-                  <table className="w-full">
-                    <thead className="bg-gray-50 sticky top-0 z-10">
-                      <tr className="text-xs uppercase text-gray-500">
-                        <th className="px-6 py-2 text-left cursor-pointer" onClick={() => handleSort('name')}>
-                          Account / Details {headerSortIcon('name')}
-                        </th>
-                        <th className="px-3 py-2 text-left">Identifier</th>
-                        <th className="px-3 py-2 text-left">Type</th>
-                        <th className="px-3 py-2 text-right cursor-pointer" onClick={() => handleSort('nest')}>
-                          NestEgg {headerSortIcon('nest')}
-                        </th>
-                        <th className="px-3 py-2 text-center">Statement</th>
-                        <th className="px-3 py-2 text-right cursor-pointer" onClick={() => handleSort('diff')}>
-                          Δ {headerSortIcon('diff')}
-                        </th>
-                        <th className="px-3 py-2 text-right">%</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-100">
-                      {sortedPositions.map((pos) => {
-                        const c = pos._calc;
-                        const changed = updated[pos.id] !== undefined && Number(updated[pos.id]) !== c.rawNestEgg;
-                        return (
-                          <tr key={pos.id} className={changed ? 'bg-blue-50' : ''}>
-                            <td className="px-6 py-2">
-                              <div className="font-medium text-gray-900">{pos.name || 'Account'}</div>
-                              <div className="text-xs text-gray-500">{pos.inv_account_name || ''}</div>
-                            </td>
-                            <td className="px-3 py-2 text-sm text-gray-600">{pos.identifier || '—'}</td>
-                            <td className="px-3 py-2 text-sm text-gray-600">{pos.type || '—'}</td>
-                            <td className="px-3 py-2 text-right text-gray-800">
-                              {fmtCurrency(c.rawNestEgg, !showValues)}
-                            </td>
-                            <td className="px-3 py-2 text-center">
-                              <input
-                                type="number"
-                                step="0.01"
-                                inputMode="decimal"
-                                className={`w-40 text-right px-3 py-1.5 rounded-md border ${
-                                  changed ? 'border-blue-400 ring-2 ring-blue-200 bg-white' : 'border-gray-300'
-                                }`}
-                                value={updated[pos.id] !== undefined ? updated[pos.id] : c.rawNestEgg}
-                                onChange={(e) => handleChangePos(pos.id, e.target.value)}
-                              />
-                            </td>
-                            <td
-                              className={`px-3 py-2 text-right font-semibold ${
-                                c.diff > 0 ? 'text-green-600' : c.diff < 0 ? 'text-red-600' : 'text-gray-500'
-                              }`}
-                            >
-                              {fmtCurrency(c.diff, !showValues)}
-                            </td>
-                            <td
-                              className={`px-3 py-2 text-right ${
-                                c.diff > 0 ? 'text-green-600' : c.diff < 0 ? 'text-red-600' : 'text-gray-500'
-                              }`}
-                            >
-                              {c.rawNestEgg === 0 ? '—' : `${c.pct.toFixed(2)}%`}
-                            </td>
+                </div>
+
+                {/* Scrollable tables */}
+                <div className="flex-1 overflow-auto">
+                  {/* Accounts & Cash */}
+                  {sortedPositions.length > 0 && (
+                    <div className="min-w-[760px]">
+                      <div className="bg-gray-50 px-6 py-3 text-sm font-semibold text-gray-800 sticky top-0 z-[1]">Accounts & Cash</div>
+                      <table className="w-full">
+                        <thead className="bg-gray-50 sticky top-[44px] z-[1]">
+                          <tr className="text-xs uppercase text-gray-500">
+                            <th className="px-6 py-2 text-left cursor-pointer" onClick={() => toggleSort('name')}>
+                              Account / Details {headerSortIcon('name')}
+                            </th>
+                            <th className="px-3 py-2 text-left">Identifier</th>
+                            <th className="px-3 py-2 text-left">Type</th>
+                            <th className="px-3 py-2 text-right cursor-pointer" onClick={() => toggleSort('nest')}>
+                              NestEgg {headerSortIcon('nest')}
+                            </th>
+                            <th className="px-3 py-2 text-center">Statement</th>
+                            <th className="px-3 py-2 text-right cursor-pointer" onClick={() => toggleSort('diff')}>
+                              Δ {headerSortIcon('diff')}
+                            </th>
+                            <th className="px-3 py-2 text-right">%</th>
                           </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              )}
+                        </thead>
+                        <tbody className="divide-y divide-gray-100">
+                          {sortedPositions.map((pos) => {
+                            const c = pos._calc;
+                            const changed = updated[pos.id] !== undefined && Number(updated[pos.id]) !== c.rawNestEgg;
+                            return (
+                              <tr key={pos.id} className={changed ? 'bg-blue-50/50' : ''}>
+                                <td className="px-6 py-2">
+                                  <div className="font-medium text-gray-900">{pos.name || 'Account'}</div>
+                                  <div className="text-xs text-gray-500">{pos.inv_account_name || ''}</div>
+                                </td>
+                                <td className="px-3 py-2 text-sm text-gray-600">{pos.identifier || '—'}</td>
+                                <td className="px-3 py-2 text-sm text-gray-600">{pos.type || '—'}</td>
+                                <td className="px-3 py-2 text-right text-gray-800">
+                                  {fmtCurrency(c.rawNestEgg, false)}
+                                </td>
+                                <td className="px-3 py-2 text-center">
+                                  <CurrencyInput
+                                    value={updated[pos.id] !== undefined ? updated[pos.id] : c.rawNestEgg}
+                                    onValueChange={(v) => handleChangePos(pos.id, v)}
+                                    aria-label={`Statement balance for ${pos.name}`}
+                                    className={`w-40 text-right px-3 py-1.5 rounded-md border transition-all
+                                      ${changed ? 'border-blue-400 ring-2 ring-blue-200 bg-white' : 'border-gray-300 bg-white'}`}
+                                  />
+                                </td>
+                                <td
+                                  className={`px-3 py-2 text-right font-semibold
+                                    ${c.diff > 0 ? 'text-green-600' : c.diff < 0 ? 'text-red-600' : 'text-gray-500'}`}
+                                >
+                                  {fmtCurrency(c.diff, false)}
+                                </td>
+                                <td
+                                  className={`px-3 py-2 text-right
+                                    ${c.diff > 0 ? 'text-green-600' : c.diff < 0 ? 'text-red-600' : 'text-gray-500'}`}
+                                >
+                                  {c.rawNestEgg === 0 ? '—' : `${c.pct.toFixed(2)}%`}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
 
-              {/* liabilities table */}
-              {liabilities.length > 0 && (
-                <div className="min-w-[720px] mt-6">
-                  <div className="bg-gray-50 px-6 py-3 text-sm font-semibold text-gray-800">Liabilities</div>
-                  <table className="w-full">
-                    <thead className="bg-gray-50 sticky top-0 z-10">
-                      <tr className="text-xs uppercase text-gray-500">
-                        <th className="px-6 py-2 text-left cursor-pointer" onClick={() => handleSort('name')}>
-                          Name {headerSortIcon('name')}
-                        </th>
-                        <th className="px-3 py-2 text-left">Identifier</th>
-                        <th className="px-3 py-2 text-left">Type</th>
-                        <th className="px-3 py-2 text-right cursor-pointer" onClick={() => handleSort('nest')}>
-                          NestEgg {headerSortIcon('nest')}
-                        </th>
-                        <th className="px-3 py-2 text-center">Statement</th>
-                        <th className="px-3 py-2 text-right cursor-pointer" onClick={() => handleSort('diff')}>
-                          Δ {headerSortIcon('diff')}
-                        </th>
-                        <th className="px-3 py-2 text-right">%</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-100">
-                      {sortedLiabs.map((liab) => {
-                        const c = liab._calc;
-                        const key = `L_${liab.id}`;
-                        const changed = updated[key] !== undefined && Number(updated[key]) !== c.rawNestEgg;
-                        return (
-                          <tr key={liab.id} className={changed ? 'bg-blue-50' : ''}>
-                            <td className="px-6 py-2">
-                              <div className="font-medium text-gray-900">{liab.name || 'Liability'}</div>
-                              <div className="text-xs text-gray-500">{liab.inv_account_name || ''}</div>
-                            </td>
-                            <td className="px-3 py-2 text-sm text-gray-600">{liab.identifier || '—'}</td>
-                            <td className="px-3 py-2 text-sm text-gray-600">{liab.type || '—'}</td>
-                            <td className="px-3 py-2 text-right text-gray-800">
-                              {fmtCurrency(c.rawNestEgg, !showValues)}
-                            </td>
-                            <td className="px-3 py-2 text-center">
-                              <input
-                                type="number"
-                                step="0.01"
-                                inputMode="decimal"
-                                className={`w-40 text-right px-3 py-1.5 rounded-md border ${
-                                  changed ? 'border-blue-400 ring-2 ring-blue-200 bg-white' : 'border-gray-300'
-                                }`}
-                                value={updated[key] !== undefined ? updated[key] : c.rawNestEgg}
-                                onChange={(e) => handleChangeLiab(liab.id, e.target.value)}
-                              />
-                            </td>
-                            <td
-                              className={`px-3 py-2 text-right font-semibold ${
-                                c.diff > 0 ? 'text-red-600' : c.diff < 0 ? 'text-green-600' : 'text-gray-500'
-                              }`}
-                            >
-                              {fmtCurrency(c.diff, !showValues)}
-                            </td>
-                            <td
-                              className={`px-3 py-2 text-right ${
-                                c.diff > 0 ? 'text-red-600' : c.diff < 0 ? 'text-green-600' : 'text-gray-500'
-                              }`}
-                            >
-                              {c.rawNestEgg === 0 ? '—' : `${c.pct.toFixed(2)}%`}
-                            </td>
+                  {/* Liabilities */}
+                  {sortedLiabilities.length > 0 && (
+                    <div className="min-w-[760px] mt-8">
+                      <div className="bg-gray-50 px-6 py-3 text-sm font-semibold text-gray-800 sticky top-0 z-[1]">Liabilities</div>
+                      <table className="w-full">
+                        <thead className="bg-gray-50 sticky top-[44px] z-[1]">
+                          <tr className="text-xs uppercase text-gray-500">
+                            <th className="px-6 py-2 text-left cursor-pointer" onClick={() => toggleSort('name')}>
+                              Name {headerSortIcon('name')}
+                            </th>
+                            <th className="px-3 py-2 text-left">Identifier</th>
+                            <th className="px-3 py-2 text-left">Type</th>
+                            <th className="px-3 py-2 text-right cursor-pointer" onClick={() => toggleSort('nest')}>
+                              NestEgg {headerSortIcon('nest')}
+                            </th>
+                            <th className="px-3 py-2 text-center">Statement</th>
+                            <th className="px-3 py-2 text-right cursor-pointer" onClick={() => toggleSort('diff')}>
+                              Δ {headerSortIcon('diff')}
+                            </th>
+                            <th className="px-3 py-2 text-right">%</th>
                           </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100">
+                          {sortedLiabilities.map((liab) => {
+                            const c = liab._calc;
+                            const key = `L_${liab.id}`;
+                            const changed = updated[key] !== undefined && Number(updated[key]) !== c.rawNestEgg;
+                            return (
+                              <tr key={liab.id} className={changed ? 'bg-blue-50/50' : ''}>
+                                <td className="px-6 py-2">
+                                  <div className="font-medium text-gray-900">{liab.name || 'Liability'}</div>
+                                  <div className="text-xs text-gray-500">{liab.inv_account_name || ''}</div>
+                                </td>
+                                <td className="px-3 py-2 text-sm text-gray-600">{liab.identifier || '—'}</td>
+                                <td className="px-3 py-2 text-sm text-gray-600">{liab.type || '—'}</td>
+                                <td className="px-3 py-2 text-right text-gray-800">
+                                  {fmtCurrency(c.rawNestEgg, false)}
+                                </td>
+                                <td className="px-3 py-2 text-center">
+                                  <CurrencyInput
+                                    value={updated[key] !== undefined ? updated[key] : c.rawNestEgg}
+                                    onValueChange={(v) => handleChangeLiab(liab.id, v)}
+                                    aria-label={`Statement balance for ${liab.name}`}
+                                    className={`w-40 text-right px-3 py-1.5 rounded-md border transition-all
+                                      ${changed ? 'border-blue-400 ring-2 ring-blue-200 bg-white' : 'border-gray-300 bg-white'}`}
+                                  />
+                                </td>
+                                <td
+                                  className={`px-3 py-2 text-right font-semibold
+                                    ${c.diff > 0 ? 'text-red-600' : c.diff < 0 ? 'text-green-600' : 'text-gray-500'}`}
+                                >
+                                  {fmtCurrency(c.diff, false)}
+                                </td>
+                                <td
+                                  className={`px-3 py-2 text-right
+                                    ${c.diff > 0 ? 'text-red-600' : c.diff < 0 ? 'text-green-600' : 'text-gray-500'}`}
+                                >
+                                  {c.rawNestEgg === 0 ? '—' : `${c.pct.toFixed(2)}%`}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
 
-            {/* sticky submit-all footer */}
-            <div className="sticky bottom-0 border-t bg-white/95 backdrop-blur px-6 py-3 flex items-center justify-between">
-              <div className="text-sm text-gray-600">
-                {hasAnyPending ? 'You have unsaved changes across institutions.' : 'No pending changes.'}
+                  {/* Empty state if both empty */}
+                  {sortedPositions.length === 0 && sortedLiabilities.length === 0 && (
+                    <div className="p-10 text-center text-gray-500">No accounts or liabilities for this institution.</div>
+                  )}
+                </div>
               </div>
-              <button
-                onClick={onSubmitAll}
-                className={`px-4 py-2 rounded-lg font-semibold transition-colors ${
-                  hasAnyPending ? 'bg-emerald-600 text-white hover:bg-emerald-700' : 'bg-gray-200 text-gray-500 cursor-not-allowed'
-                }`}
-                disabled={!hasAnyPending}
-                title="Apply all pending changes across institutions"
-              >
-                Submit All Changes
-              </button>
-            </div>
-          </div>
-        ) : (
-          <div className="text-center text-gray-600 bg-white border rounded-2xl p-10">
-            <div className="mx-auto w-12 h-12 rounded-full bg-blue-100 flex items-center justify-center mb-3">
-              <Droplets className="w-6 h-6 text-blue-600" />
-            </div>
-            <div className="text-lg font-semibold">Select an institution to begin</div>
-            <p className="text-sm mt-1">Use the tiles above to choose a bank, then enter statement values to sync.</p>
-          </div>
-        )}
+            )}
+          </section>
+        </div>
       </div>
     );
   }
+
+
 
   // ---- Account reconciliation (Investment check-in) with richer descriptors + KPI + better layout + currency input
   function ReconcileScreen() {
