@@ -49,7 +49,7 @@ const StockTicker = () => {
 
   // TEMPORARY: Force fetch if no data
   useEffect(() => {
-    if (!positions && !positionsLoading) {
+    if ((!positions || positions.length === 0) && !positionsLoading) {
       console.log('[StockTicker] No positions, forcing fetch');
       actions.fetchGroupedPositionsData();
     }
