@@ -20,6 +20,7 @@ const fmtCurrency = (val, hide = false) =>
 const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 
 const toNumber = (s) => {
+  if (typeof s === 'number') return Number.isFinite(s) ? s : 0;
   const n = Number(String(s ?? '').replace(/[^\d.-]/g, '').trim());
   return Number.isFinite(n) ? n : 0;
 };
@@ -65,14 +66,16 @@ const calcRow = (pos, updated) => {
   return { rawNestEgg, rawStatement, diff, pct };
 };
 
-// Modal shell
+// =================== Shared UI Bits ===================
+
+// Modal shell (raised z-index + scrollable inner container)
 function ModalShell({ isOpen, onClose, children, showHeader = false, title = '' }) {
   if (!isOpen) return null;
   return (
-    <div className="fixed inset-0 z-[9999]">
-      <div className="absolute inset-0 bg-black/70" onClick={onClose} />
-      <div className="relative z-[10000] mx-auto my-8 w-full max-w-7xl">
-        <div className="rounded-2xl bg-white shadow-2xl overflow-hidden">
+    <div className="fixed inset-0 z-[100000]"> {/* was z-[9999], increased to sit above any navbar */}
+      <div className="absolute inset-0 bg-black/70 backdrop-blur-[1px]" onClick={onClose} />
+      <div className="relative z-[100001] mx-auto my-4 w-full max-w-7xl">
+        <div className="rounded-2xl bg-white shadow-2xl overflow-hidden border border-gray-200">
           {showHeader && (
             <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4">
               <h3 className="text-lg font-semibold text-gray-900">{title}</h3>
@@ -81,7 +84,10 @@ function ModalShell({ isOpen, onClose, children, showHeader = false, title = '' 
               </button>
             </div>
           )}
-          {children}
+          {/* scrollable container with subtle styled scrollbar */}
+          <div className="max-h-[88vh] overflow-y-auto [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-gray-300 hover:[&::-webkit-scrollbar-thumb]:bg-gray-400">
+            {children}
+          </div>
         </div>
       </div>
     </div>
@@ -151,7 +157,7 @@ function Confetti({ show }) {
   }, [show]);
   if (!show || particles.length === 0) return null;
   return (
-    <div className="pointer-events-none fixed inset-0 z-[10001]">
+    <div className="pointer-events-none fixed inset-0 z-[100002]">
       {particles.map((p) => (
         <div
           key={p.id}
@@ -160,7 +166,6 @@ function Confetti({ show }) {
             left: `${p.x}%`,
             top: `${p.y}%`,
             animation: 'confetti-fall 4.2s ease-out forwards',
-            // inline CSS vars for the keyframes:
             '--vx': p.vx,
             '--vy': p.vy,
             '--rs': p.rotationSpeed,
@@ -201,6 +206,61 @@ function StatusIndicator({ status = 'pending' }) {
       <Icon className="w-4 h-4" />
       <span className="text-xs">{picked.label}</span>
     </span>
+  );
+}
+
+// Currency Input (no blur on type, caret-safe, $ and commas)
+function CurrencyInput({ value, onChange, placeholder = '0.00', className = '', autoFocus = false }) {
+  const [display, setDisplay] = useState(value === null || value === undefined || value === '' ? '' : fmtCurrency(value));
+  const ref = useRef(null);
+
+  useEffect(() => {
+    // Sync from external changes (but avoid thrashing while typing)
+    if (document.activeElement !== ref.current) {
+      const v = (value === null || value === undefined || value === '') ? '' : fmtCurrency(value);
+      setDisplay(v);
+    }
+  }, [value]);
+
+  const handleChange = (e) => {
+    const raw = e.target.value;
+    // Allow user to clear
+    if (raw === '') {
+      setDisplay('');
+      onChange?.('');
+      return;
+    }
+    const numeric = toNumber(raw);
+    setDisplay(fmtCurrency(numeric));
+    onChange?.(numeric);
+  };
+
+  const handleFocus = (e) => {
+    // Strip formatting for easier typing
+    const numeric = toNumber(display);
+    e.target.value = numeric ? String(numeric) : '';
+    setDisplay(e.target.value);
+  };
+
+  const handleBlur = (e) => {
+    const numeric = toNumber(e.target.value);
+    setDisplay(numeric ? fmtCurrency(numeric) : '');
+    onChange?.(numeric);
+  };
+
+  return (
+    <input
+      ref={ref}
+      type="text"
+      inputMode="decimal"
+      autoFocus={autoFocus}
+      value={display}
+      onChange={handleChange}
+      onFocus={handleFocus}
+      onBlur={handleBlur}
+      placeholder={placeholder}
+      className={`w-full pl-8 pr-4 py-3 text-2xl font-bold border-2 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-blue-50 border-blue-300 ${className}`}
+    />
   );
 }
 
@@ -248,10 +308,10 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
   // normalize positions
   const positionsNorm = useMemo(() => {
     return (rawPositions || []).map((p) => {
-      const id = p.itemId ?? p.id;
-      const accountId = p.accountId ?? p.account_id;
+      const id = p.itemId ?? p.item_id ?? p.id;
+      const accountId = p.accountId ?? p.inv_account_id ?? p.account_id;
       const acct = accountsById.get(accountId);
-      const type = String(p.assetType ?? p.asset_type ?? p.position_type ?? '').toLowerCase();
+      const type = String(p.assetType ?? p.item_type ?? p.asset_type ?? p.position_type ?? '').toLowerCase();
       const name = p.name ?? p.identifier ?? 'Unnamed';
       const currentValue = Number(p.currentValue ?? p.current_value ?? 0);
       const institution = p.institution ?? acct?.institution ?? 'Unknown Institution';
@@ -547,7 +607,7 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
     );
   }
 
-  // ---- Liquid workflow (with scrollable, sortable table and liabilities grouped)
+  // ---- Liquid workflow (with explainer, scrolling, continue-to-next, submit-all)
   function LiquidScreen() {
     const [selectedInstitution, setSelectedInstitution] = useState(null);
     const [updated, setUpdated] = useState({});
@@ -588,12 +648,7 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
         .sort((a, b) => b.totalValue - a.totalValue);
     }, [positionsNorm, updated]);
 
-    // Auto-select first institution
-    useEffect(() => {
-      if (!groups.length) return;
-      if (!selectedInstitution) setSelectedInstitution(groups[0].institution);
-      // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [groups.length]);
+    // DONT auto-select; we want the explainer empty state first
 
     const current = groups.find((g) => g.institution === selectedInstitution);
     const positions = current?.positions || [];
@@ -706,6 +761,25 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
       return { width: `${n}%` };
     };
 
+    const buildInstitutionChanges = (g) => {
+      const changes = [];
+      g.positions.forEach((pos) => {
+        const curr = Number(pos.current_value ?? pos.currentValue ?? 0);
+        const next = updated[pos.id] !== undefined ? Number(updated[pos.id]) : curr;
+        if (Number.isFinite(next) && next !== curr) {
+          changes.push({ kind: 'cash', id: pos.itemId ?? pos.id, amount: next, meta: pos });
+        }
+      });
+      g.liabilities.forEach((liab) => {
+        const curr = Number(liab.currentValue || 0);
+        const next = updated[`L_${liab.id}`] !== undefined ? Number(updated[`L_${liab.id}`]) : curr;
+        if (Number.isFinite(next) && next !== curr) {
+          changes.push({ kind: 'liability', id: liab.itemId ?? liab.id, amount: next, meta: liab });
+        }
+      });
+      return changes;
+    };
+
     const handleBulkSave = async (changes, institution) => {
       try {
         setLocalLoading(true);
@@ -746,30 +820,65 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
 
     const onUpdateInstitution = async () => {
       if (!current) return;
-      const changes = [];
-
-      positions.forEach((pos) => {
-        const curr = Number(pos.current_value ?? pos.currentValue ?? 0);
-        const next = updated[pos.id] !== undefined ? Number(updated[pos.id]) : curr;
-        if (Number.isFinite(next) && next !== curr) {
-          changes.push({ kind: 'cash', id: pos.itemId ?? pos.id, amount: next, meta: pos });
-        }
-      });
-
-      liabilities.forEach((liab) => {
-        const curr = Number(liab.currentValue || 0);
-        const next = updated[`L_${liab.id}`] !== undefined ? Number(updated[`L_${liab.id}`]) : curr;
-        if (Number.isFinite(next) && next !== curr) {
-          changes.push({ kind: 'liability', id: liab.itemId ?? liab.id, amount: next, meta: liab });
-        }
-      });
-
+      const changes = buildInstitutionChanges(current);
       if (!changes.length) {
         showMsg('info', 'No changes to apply');
         return;
       }
       await handleBulkSave(changes, current.institution);
     };
+
+    const onContinueToNext = async () => {
+      await onUpdateInstitution();
+      // move to next institution
+      if (!groups.length) return;
+      const idx = groups.findIndex((g) => g.institution === selectedInstitution);
+      const nextIdx = idx >= 0 && idx < groups.length - 1 ? idx + 1 : 0;
+      setSelectedInstitution(groups[nextIdx].institution);
+      showMsg('info', `Moved to ${groups[nextIdx].institution}`, 2500);
+    };
+
+    const onSubmitAll = async () => {
+      try {
+        setLocalLoading(true);
+        // Build all changes across all groups
+        const allChanges = groups.flatMap((g) => buildInstitutionChanges(g));
+        if (!allChanges.length) {
+          showMsg('info', 'No changes to submit');
+          return;
+        }
+        const batch = allChanges.map((c) => ({
+          itemId: c.id ?? c.meta?.itemId ?? c.meta?.id,
+          kind:
+            c.kind ||
+            (['cash', 'checking', 'savings'].includes(c.meta?.type)
+              ? 'cash'
+              : ['liability', 'credit_card', 'loan'].includes(c.meta?.type)
+              ? 'liability'
+              : 'other'),
+          value: Number(c.amount),
+        }));
+        await writeAndRefresh(batch);
+
+        const nextData = { ...reconData };
+        allChanges.forEach((c) => {
+          const key = c.kind === 'liability' ? `L_${c.id}` : c.id;
+          nextData[`pos_${key}`] = { lastUpdated: new Date().toISOString(), value: Number(c.amount) };
+        });
+        saveReconData(nextData);
+        saveHistory();
+        showMsg('success', `Submitted ${batch.length} updates across all institutions`);
+      } catch (e) {
+        console.error(e);
+        showMsg('error', 'Failed to submit all changes');
+      } finally {
+        setLocalLoading(false);
+      }
+    };
+
+    const hasAnyPending = useMemo(() => {
+      return groups.some((g) => buildInstitutionChanges(g).length > 0);
+    }, [groups, updated]);
 
     return (
       <div className="p-8" onPaste={onPasteIntoGrid}>
@@ -782,10 +891,15 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
             <div className="text-right">
               <div className="text-xs text-gray-500">Overall Progress</div>
               <div className="text-lg font-semibold text-gray-900">
-                {totalProgressCount} / {liquidCount}
+                {Object.keys(updated).length} / {groups.reduce((s, g) => s + g.positions.length + g.liabilities.length, 0)}
               </div>
             </div>
-            <ProgressRing percentage={totalProgressPct} size={64} color="blue" />
+            <ProgressRing percentage={
+              (() => {
+                const total = groups.reduce((s, g) => s + g.positions.length + g.liabilities.length, 0);
+                return total ? (Object.keys(updated).length / total) * 100 : 0;
+              })()
+            } size={64} color="blue" />
             <button
               onClick={() => setShowValues((s) => !s)}
               className={`p-2 rounded-lg ${showValues ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-600'}`}
@@ -806,6 +920,22 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
             </button>
           </div>
         </div>
+
+        {/* Explainer when no institution selected */}
+        {!selectedInstitution && (
+          <div className="mb-6 rounded-2xl border border-blue-200 bg-blue-50 p-5">
+            <div className="flex items-start gap-3">
+              <Droplets className="w-6 h-6 text-blue-600 mt-0.5" />
+              <div>
+                <div className="font-semibold text-gray-900">Quick Cash Update</div>
+                <p className="text-sm text-gray-700 mt-1">
+                  Select a financial institution below. Enter your latest statements for checking, savings, cards, and loans.
+                  Update one bank at a time, or use <span className="font-semibold">Submit All Changes</span> to push updates in bulk.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Institution selector */}
         <div className="flex flex-wrap gap-3 mb-5">
@@ -895,12 +1025,21 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
                     {fmtCurrency(current.totalValue, !showValues)}
                   </div>
                 </div>
-                <button
-                  onClick={onUpdateInstitution}
-                  className="px-4 py-2 rounded-lg bg-blue-600 text-white font-semibold hover:bg-blue-700"
-                >
-                  Update {selectedInstitution}
-                </button>
+                <div className="flex gap-2">
+                  <button
+                    onClick={onUpdateInstitution}
+                    className="px-4 py-2 rounded-lg bg-blue-600 text-white font-semibold hover:bg-blue-700 transition-colors"
+                  >
+                    Update {selectedInstitution}
+                  </button>
+                  <button
+                    onClick={onContinueToNext}
+                    className="px-4 py-2 rounded-lg bg-gray-100 text-gray-800 font-semibold hover:bg-gray-200 transition-colors"
+                    title="Save this institution and move to the next one"
+                  >
+                    Continue to Next →
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -950,7 +1089,7 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
                                 type="number"
                                 step="0.01"
                                 inputMode="decimal"
-                                className={`w-36 text-right px-3 py-1.5 rounded-md border ${
+                                className={`w-40 text-right px-3 py-1.5 rounded-md border ${
                                   changed ? 'border-blue-400 ring-2 ring-blue-200 bg-white' : 'border-gray-300'
                                 }`}
                                 value={updated[pos.id] !== undefined ? updated[pos.id] : c.rawNestEgg}
@@ -1022,7 +1161,7 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
                                 type="number"
                                 step="0.01"
                                 inputMode="decimal"
-                                className={`w-36 text-right px-3 py-1.5 rounded-md border ${
+                                className={`w-40 text-right px-3 py-1.5 rounded-md border ${
                                   changed ? 'border-blue-400 ring-2 ring-blue-200 bg-white' : 'border-gray-300'
                                 }`}
                                 value={updated[key] !== undefined ? updated[key] : c.rawNestEgg}
@@ -1051,15 +1190,38 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
                 </div>
               )}
             </div>
+
+            {/* sticky submit-all footer */}
+            <div className="sticky bottom-0 border-t bg-white/95 backdrop-blur px-6 py-3 flex items-center justify-between">
+              <div className="text-sm text-gray-600">
+                {hasAnyPending ? 'You have unsaved changes across institutions.' : 'No pending changes.'}
+              </div>
+              <button
+                onClick={onSubmitAll}
+                className={`px-4 py-2 rounded-lg font-semibold transition-colors ${
+                  hasAnyPending ? 'bg-emerald-600 text-white hover:bg-emerald-700' : 'bg-gray-200 text-gray-500 cursor-not-allowed'
+                }`}
+                disabled={!hasAnyPending}
+                title="Apply all pending changes across institutions"
+              >
+                Submit All Changes
+              </button>
+            </div>
           </div>
         ) : (
-          <div className="text-center text-gray-500">Select an institution to begin.</div>
+          <div className="text-center text-gray-600 bg-white border rounded-2xl p-10">
+            <div className="mx-auto w-12 h-12 rounded-full bg-blue-100 flex items-center justify-center mb-3">
+              <Droplets className="w-6 h-6 text-blue-600" />
+            </div>
+            <div className="text-lg font-semibold">Select an institution to begin</div>
+            <p className="text-sm mt-1">Use the tiles above to choose a bank, then enter statement values to sync.</p>
+          </div>
         )}
       </div>
     );
   }
 
-  // ---- Account reconciliation (with drill-down position detail)
+  // ---- Account reconciliation (Investment check-in) with richer descriptors + KPI + better layout + currency input
   function ReconcileScreen() {
     const [selectedInstitution, setSelectedInstitution] = useState(null);
     const [selectedAccount, setSelectedAccount] = useState(null);
@@ -1085,14 +1247,12 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
         .sort((a, b) => b.totalValue - a.totalValue);
     }, [accounts, reconData]);
 
-    useEffect(() => {
-      if (groups.length && !selectedInstitution) setSelectedInstitution(groups[0].institution);
-    }, [groups, selectedInstitution]);
-
+    // DONT auto-select institution; user chooses
     const current = groups.find((g) => g.institution === selectedInstitution);
 
     const handleStatementChange = (accId, val) => {
-      const v = toNumber(val);
+      // val can be number or '' (cleared)
+      const v = val === '' ? '' : toNumber(val);
       const next = {
         ...reconData,
         [accId]: { ...(reconData[accId] || {}), statementBalance: v, timestamp: new Date().toISOString() },
@@ -1102,7 +1262,8 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
 
     const calc = (a) => {
       const ne = Number(a.totalValue || 0);
-      const st = Number(reconData[a.id]?.statementBalance ?? 0);
+      const raw = reconData[a.id]?.statementBalance;
+      const st = raw === '' || raw === undefined || raw === null ? 0 : Number(raw);
       const diff = st - ne;
       return { nest: ne, stmt: st, diff, pct: diffPct(ne, diff), isReconciled: Math.abs(diff) < TOLERANCE };
     };
@@ -1120,7 +1281,7 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
     const onComplete = async () => {
       saveHistory();
       const results = (current?.accounts || [])
-        .filter((a) => reconData[a.id]?.statementBalance !== undefined)
+        .filter((a) => reconData[a.id]?.statementBalance !== undefined && reconData[a.id]?.statementBalance !== '')
         .map((a) => {
           const r = calc(a);
           return {
@@ -1134,7 +1295,7 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
       setScreen('summary');
     };
 
-    // drill-down: positions for the selected account
+    // drill-down: positions for the selected account + count KPI
     const positionsForSelectedAccount = useMemo(() => {
       if (!selectedAccount) return [];
       const id = selectedAccount.id;
@@ -1150,6 +1311,8 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
         .sort((a, b) => b.value - a.value);
     }, [selectedAccount, positionsNorm]);
 
+    const posCount = positionsForSelectedAccount.length;
+
     return (
       <div className="p-8">
         {/* Header */}
@@ -1161,6 +1324,7 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
             <button
               onClick={() => setShowValues((s) => !s)}
               className={`p-2 rounded-lg ${showValues ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-600'}`}
+              title={showValues ? 'Hide values' : 'Show values'}
             >
               {showValues ? <Eye className="w-5 h-5" /> : <EyeOff className="w-5 h-5" />}
             </button>
@@ -1203,15 +1367,19 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
           </div>
         </div>
 
-        {/* Content grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
-          {/* Account list */}
-          <div className="space-y-3">
+        {/* Content grid (wider right panel) */}
+        <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 mt-6">
+          {/* Account list (2 columns on large) */}
+          <div className="lg:col-span-2 space-y-3">
             <h4 className="font-semibold text-gray-900">Select Account</h4>
             {(current?.accounts || []).map((a) => {
               const sel = selectedAccount?.id === a.id;
               const r = calc(a);
               const status = r.isReconciled ? 'reconciled' : Math.abs(r.diff) >= TOLERANCE ? 'warning' : 'pending';
+              // richer descriptors
+              const acctName = a.accountName || a.account_name || 'Account';
+              const acctType = a.accountType || a.type || a.invAccountType || '';
+              const identifier = a.identifier || a.mask || a.last4 || '';
               return (
                 <button
                   key={a.id}
@@ -1224,25 +1392,32 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
                       : 'border-gray-200 bg-white hover:border-gray-300'
                   }`}
                 >
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-start justify-between gap-3">
                     <div>
-                      <div className="font-semibold text-gray-900">{a.accountName || a.account_name || 'Account'}</div>
-                      <div className="text-xs text-gray-500">{a.accountType || a.type}</div>
+                      <div className="font-semibold text-gray-900">{acctName}</div>
+                      <div className="text-xs text-gray-500">
+                        {identifier ? `ID: ${identifier}` : ''}{identifier && acctType ? ' • ' : ''}{acctType}
+                        {a.institution ? ` • ${a.institution}` : ''}
+                      </div>
                     </div>
                     <div className="text-right">
                       <div className="font-semibold text-gray-900">{fmtCurrency(a.totalValue || 0, !showValues)}</div>
+                      <div className="text-[11px] text-gray-500">NestEgg</div>
                     </div>
                   </div>
-                  <div className="mt-2">
+                  <div className="mt-2 flex items-center justify-between">
                     <StatusIndicator status={status} />
+                    <div className="text-[11px] text-gray-500 bg-gray-100 rounded-full px-2 py-0.5">
+                      {positionsNorm.filter((p) => String(p.accountId) === String(a.id)).length} positions
+                    </div>
                   </div>
                 </button>
               );
             })}
           </div>
 
-          {/* Reconcile & drill-down panel */}
-          <div>
+          {/* Reconcile & drill-down panel (3 columns on large) */}
+          <div className="lg:col-span-3">
             {selectedAccount ? (
               <div className="p-6 border-2 border-gray-200 rounded-xl bg-white sticky top-6">
                 <h4 className="font-semibold text-gray-900 mb-4">Reconcile Account</h4>
@@ -1258,19 +1433,18 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
                       <div className="text-sm text-gray-600">Statement Balance</div>
                       <div className="relative mt-1">
                         <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-lg">$</span>
-                        <input
-                          type="text"
+                        <CurrencyInput
                           value={reconData[selectedAccount.id]?.statementBalance ?? ''}
-                          onChange={(e) => handleStatementChange(selectedAccount.id, e.target.value)}
+                          onChange={(v) => handleStatementChange(selectedAccount.id, v)}
                           placeholder="0.00"
-                          className="w-full pl-8 pr-4 py-3 text-2xl font-bold border-2 border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-blue-50"
+                          className="pl-8"
                         />
                       </div>
                     </div>
                   </div>
 
                   {/* match status */}
-                  {reconData[selectedAccount.id]?.statementBalance !== undefined && (
+                  {reconData[selectedAccount.id]?.statementBalance !== undefined && reconData[selectedAccount.id]?.statementBalance !== '' && (
                     <div
                       className={`${
                         calc(selectedAccount).isReconciled ? 'bg-green-50 border-green-200' : 'bg-amber-50 border-amber-200'
@@ -1302,7 +1476,10 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
 
                   {/* drill-down: position detail by account */}
                   <div className="mt-2">
-                    <div className="text-sm font-semibold text-gray-900 mb-2">Positions in this account</div>
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="text-sm font-semibold text-gray-900">Positions in this account</div>
+                      <div className="text-xs text-gray-500 bg-gray-100 rounded-full px-2 py-0.5">{posCount} positions</div>
+                    </div>
                     <div className="max-h-[32vh] overflow-auto border rounded-lg">
                       <table className="w-full min-w-[560px]">
                         <thead className="bg-gray-50 sticky top-0 z-10">
@@ -1315,10 +1492,10 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
                         </thead>
                         <tbody className="divide-y divide-gray-100">
                           {positionsForSelectedAccount.map((p) => (
-                            <tr key={p.id}>
+                            <tr key={p.id} className="hover:bg-gray-50 transition-colors">
                               <td className="px-4 py-2 text-sm text-gray-900">{p.name}</td>
                               <td className="px-3 py-2 text-sm text-gray-600">{p.identifier || '—'}</td>
-                              <td className="px-3 py-2 text-sm text-gray-600">{p.type || '—'}</td>
+                              <td className="px-3 py-2 text-sm text-gray-600 capitalize">{p.type || '—'}</td>
                               <td className="px-3 py-2 text-right text-sm text-gray-900">
                                 {fmtCurrency(p.value, !showValues)}
                               </td>
@@ -1337,10 +1514,16 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
                   </div>
 
                   <div className="flex gap-3">
-                    <button onClick={() => quickReconcile(selectedAccount)} className="flex-1 px-4 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700">
+                    <button
+                      onClick={() => quickReconcile(selectedAccount)}
+                      className="flex-1 px-4 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                    >
                       <CheckCircle className="w-4 h-4 inline mr-2" /> Quick Reconcile
                     </button>
-                    <button onClick={() => setSelectedAccount(null)} className="px-4 py-3 rounded-lg bg-gray-100 text-gray-700 hover:bg-gray-200">
+                    <button
+                      onClick={() => setSelectedAccount(null)}
+                      className="px-4 py-3 rounded-lg bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors"
+                    >
                       Cancel
                     </button>
                   </div>
@@ -1471,7 +1654,7 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
               </div>
             </div>
             <div className="mt-6 flex justify-center gap-3">
-              <button onClick={onClose} className="px-5 py-2.5 bg-white text-blue-700 rounded-lg hover:bg-gray-100">
+              <button onClick={onClose} className="px-5 py-2.5 bg-white text-blue-700 rounded-lg hover:bg-gray-100 transition-colors">
                 Back to Dashboard
               </button>
               <button
@@ -1479,7 +1662,7 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
                   setReconResults([]);
                   setScreen('welcome');
                 }}
-                className="px-5 py-2.5 bg-blue-700 rounded-lg hover:bg-blue-800"
+                className="px-5 py-2.5 bg-blue-700 rounded-lg hover:bg-blue-800 transition-colors"
               >
                 Start New Reconciliation
               </button>
