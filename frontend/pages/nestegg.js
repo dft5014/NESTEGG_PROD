@@ -1,249 +1,620 @@
 // pages/nestegg.js
-import { useState, useMemo, useEffect } from 'react';
-import Head from 'next/head';
-import { useRouter } from 'next/router';
-import { motion, AnimatePresence } from 'framer-motion';
+import { useEffect, useMemo, useState, useCallback } from "react";
+import Head from "next/head";
+import { useRouter } from "next/router";
+import { motion, AnimatePresence } from "framer-motion";
+import { useDataStore } from "@/store/DataStore";
+import { usePortfolioSummary, usePortfolioTrends } from "@/store/hooks";
+
 import {
-  AreaChart, Area, LineChart, Line, PieChart, Pie, BarChart, Bar,
-  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, Cell, ReferenceLine
-} from 'recharts';
+  ResponsiveContainer, AreaChart, Area, LineChart, Line, BarChart, Bar,
+  XAxis, YAxis, CartesianGrid, Tooltip, Legend, ReferenceLine, Brush,
+  PieChart, Pie, Cell, Treemap
+} from "recharts";
+
 import {
-  Sparkles, RefreshCw, TrendingUp, TrendingDown, ArrowUp, ArrowDown, Wallet,
-  Landmark, Building2, PieChart as PieChartIcon, Gauge, Shield, BarChart3,
-  CreditCard, Banknote, Coins, Package, Home, ArrowRight, Target
-} from 'lucide-react';
+  DollarSign, Wallet, Activity, Percent, Gift, Droplet, Home, Shield, Layers,
+  TrendingUp, TrendingDown, ArrowUp, ArrowDown, Sparkles, RefreshCw, Info,
+  BarChart3, PieChart as PieIcon, Briefcase, Target, Settings, Database, Landmark,
+  Building2, Zap, ChevronRight, HelpCircle, LayoutGrid, Maximize2, Download, SlidersHorizontal, X
+} from "lucide-react";
 
-import { useDataStore } from '@/store/DataStore';
-import { usePortfolioSummary, usePortfolioTrends } from '@/store/hooks';
-
-// -----------------------------
-// Palette & helpers
-// -----------------------------
-const assetColors = {
-  securities: '#4f46e5',
-  security: '#4f46e5',
-  cash: '#10b981',
-  crypto: '#8b5cf6',
-  metal: '#f59e0b',
-  metals: '#f59e0b',
-  real_estate: '#14b8a6',
-  other: '#6b7280',
-  other_assets: '#6b7280'
-};
-
-const liabilityColors = {
-  credit_card: '#dc2626',
-  mortgage: '#7c2d12',
-  auto_loan: '#f97316',
-  personal_loan: '#ea580c',
-  student_loan: '#fb923c',
-  home_equity: '#f59e0b',
-  other: '#fbbf24'
-};
-
-const sectorColors = {
-  'Technology': '#6366f1',
-  'Financial Services': '#0ea5e9',
-  'Healthcare': '#10b981',
-  'Consumer Cyclical': '#f59e0b',
-  'Communication Services': '#8b5cf6',
-  'Industrials': '#64748b',
-  'Consumer Defensive': '#14b8a6',
-  'Energy': '#f97316',
-  'Basic Materials': '#f43f5e',
-  'Real Estate': '#84cc16',
-  'Utilities': '#0284c7',
-  'Unknown': '#9ca3af',
-  'Other': '#9ca3af'
-};
-
+/* ---------------------------
+   Visual System & Helpers
+--------------------------- */
 const timeframeOptions = [
-  { id: '1w', label: '1W' },
-  { id: '1m', label: '1M' },
-  { id: '3m', label: '3M' },
-  { id: '6m', label: '6M' },
-  { id: 'ytd', label: 'YTD' },
-  { id: '1y', label: '1Y' },
-  { id: 'all', label: 'All' }
+  { id: "1w", label: "1W", days: 7 },
+  { id: "1m", label: "1M", days: 30 },
+  { id: "3m", label: "3M", days: 90 },
+  { id: "6m", label: "6M", days: 180 },
+  { id: "ytd", label: "YTD", ytd: true },
+  { id: "1y", label: "1Y", days: 365 },
+  { id: "all", label: "All", all: true },
 ];
 
-const fmtCurrency = (v, inThousands = false) => {
-  if (v === null || v === undefined || isNaN(v)) return '-';
-  if (inThousands) {
-    const k = v / 1000;
-    return `$${k.toLocaleString('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}k`;
+const perfBands = [
+  { id: "1d", label: "1D" },
+  { id: "1w", label: "1W" },
+  { id: "1m", label: "1M" },
+  { id: "ytd", label: "YTD" },
+  { id: "1y", label: "1Y" },
+];
+
+const assetColors = {
+  securities: "#4f46e5",
+  security: "#4f46e5",
+  cash: "#10b981",
+  netCash: "#10b981",
+  crypto: "#8b5cf6",
+  bond: "#ec4899",
+  metal: "#f59e0b",
+  metals: "#f59e0b",
+  currency: "#3b82f6",
+  real_estate: "#14b8a6",
+  realEstateEquity: "#14b8a6",
+  other: "#6b7280",
+  other_assets: "#6b7280",
+  altLiquidNetWorth: "#3b82f6",
+  altRetirementAssets: "#10b981",
+  altIlliquidNetWorth: "#a855f7",
+};
+
+const sectorPalette = {
+  Technology: "#6366f1",
+  "Financial Services": "#0ea5e9",
+  Healthcare: "#10b981",
+  "Consumer Cyclical": "#f59e0b",
+  "Communication Services": "#8b5cf6",
+  Industrials: "#64748b",
+  "Consumer Defensive": "#14b8a6",
+  Energy: "#f97316",
+  "Basic Materials": "#f43f5e",
+  "Real Estate": "#84cc16",
+  Utilities: "#0284c7",
+  Unknown: "#9ca3af",
+  Other: "#9ca3af",
+};
+
+const hoverSpring = { type: "spring", stiffness: 380, damping: 24 };
+const cardHover = { scale: 1.02, transition: hoverSpring };
+const cardTap = { scale: 0.98, transition: { duration: 0.08 } };
+
+const isFiniteNum = (v) => Number.isFinite(v);
+const formatCurrency = (value, inK = false) => {
+  if (!isFiniteNum(value)) return "-";
+  if (inK) {
+    const v = value / 1000;
+    return `$${v.toLocaleString("en-US", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}k`;
   }
-  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(v);
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  }).format(value);
+};
+const formatPct = (v) => {
+  if (!isFiniteNum(v)) return "0%";
+  return `${v > 0 ? "+" : ""}${(v).toFixed(2)}%`;
 };
 
-const fmtPct = (v) => {
-  if (v === null || v === undefined || isNaN(v)) return '0%';
-  return `${v > 0 ? '+' : ''}${v.toFixed(2)}%`;
+const filterByTimeframe = (rows, timeframeId) => {
+  if (!Array.isArray(rows) || rows.length === 0) return [];
+  if (timeframeId === "all") return rows;
+  const today = new Date();
+  if (timeframeId === "ytd") {
+    const start = new Date(today.getFullYear(), 0, 1);
+    return rows.filter(d => {
+      const dt = new Date(d._rawDate || d.date);
+      return dt >= start && dt <= today;
+    });
+  }
+  const spec = timeframeOptions.find(t => t.id === timeframeId);
+  if (!spec?.days) return rows;
+  const start = new Date(+today - spec.days * 24 * 60 * 60 * 1000);
+  return rows.filter(d => {
+    const dt = new Date(d._rawDate || d.date);
+    return dt >= start && dt <= today;
+  });
+};
+const filterByPerfBand = (rows, perfId) => {
+  if (!Array.isArray(rows) || rows.length === 0) return [];
+  if (perfId === "ytd") return filterByTimeframe(rows, "ytd");
+  if (perfId === "1d") {
+    const today = new Date();
+    const start = new Date(+today - 1 * 24 * 60 * 60 * 1000);
+    return rows.filter(d => {
+      const dt = new Date(d._rawDate || d.date);
+      return dt >= start && dt <= today;
+    });
+  }
+  if (perfId === "1w") return filterByTimeframe(rows, "1w");
+  if (perfId === "1m") return filterByTimeframe(rows, "1m");
+  if (perfId === "1y") return filterByTimeframe(rows, "1y");
+  return rows;
 };
 
+// CSV of current trend window
+const downloadCSV = (rows) => {
+  if (!rows?.length) return;
+  const head = ["date", "netWorth", "totalAssets", "totalLiabilities", "altLiquidNetWorth", "altRetirementAssets", "altIlliquidNetWorth"];
+  const body = rows.map(r => [
+    r._rawDate || r.date,
+    isFiniteNum(r.netWorth) ? r.netWorth : "",
+    isFiniteNum(r.totalAssets) ? r.totalAssets : "",
+    isFiniteNum(r.totalLiabilities) ? r.totalLiabilities : "",
+    isFiniteNum(r.altLiquidNetWorth) ? r.altLiquidNetWorth : "",
+    isFiniteNum(r.altRetirementAssets) ? r.altRetirementAssets : "",
+    isFiniteNum(r.altIlliquidNetWorth) ? r.altIlliquidNetWorth : "",
+  ]);
+  const csv = [head, ...body].map(a => a.join(",")).join("\n");
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `nestegg_trend_${Date.now()}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+};
+
+// Risk JSON normalization
 const parseMaybeJSON = (value) => {
   if (!value) return null;
-  if (typeof value === 'string') {
-    try {
-      return JSON.parse(value);
-    } catch {
-      return null;
-    }
+  if (typeof value === "string") {
+    try { return JSON.parse(value); } catch { return null; }
   }
   return value;
 };
-
-// Normalize risk metrics whether from object or json-string & with variant key names.
 const normalizeRisk = (raw) => {
   const obj = parseMaybeJSON(raw) ?? raw ?? {};
-  const n = (x, d = null) => (x === undefined || x === null || x === '' ? d : Number(x));
+  const n = (x, d = null) => (x === undefined || x === null || x === "" ? d : Number(x));
   return {
     beta: n(obj.portfolio_beta ?? obj.beta ?? 1, 1),
     volatility: n(obj.volatility_estimate ?? obj.volatility ?? obj.volatility_pct ?? 0, 0),
     liquidityRatio: n(obj.liquidity_ratio ?? obj.liquidity_ratio_pct ?? obj.liquidity ?? 0, 0),
     var95: n(obj.var_95 ?? obj.value_at_risk_95 ?? null),
-    maxDrawdown: n(obj.max_drawdown ?? obj.max_drawdown_pct ?? null)
+    maxDrawdown: n(obj.max_drawdown ?? obj.max_drawdown_pct ?? null),
   };
 };
 
-// Guarded chart renderer helper
-const hasData = (arr, key = 'value') =>
-  Array.isArray(arr) && arr.some(d => typeof d?.[key] === 'number' && !isNaN(d[key]) && d[key] !== 0);
+/* ---------------------------
+   Micro Components
+--------------------------- */
+const TimeframeSelector = ({ selected, onChange }) => (
+  <div className="flex items-center gap-1 bg-gray-800 rounded-lg p-1">
+    {timeframeOptions.map(opt => (
+      <motion.button
+        key={opt.id}
+        whileHover={{ scale: 1.05 }}
+        whileTap={{ scale: 0.96 }}
+        onClick={() => onChange(opt.id)}
+        className={`px-3 py-1.5 text-sm rounded-md transition
+          ${selected === opt.id ? "bg-gray-700 text-white" : "text-gray-300 hover:text-white hover:bg-gray-700/60"}`}
+      >
+        {opt.label}
+      </motion.button>
+    ))}
+  </div>
+);
 
-// -----------------------------
-// Page
-// -----------------------------
+const SmallStat = ({ label, value, icon, hint }) => (
+  <motion.div whileHover={cardHover} whileTap={cardTap}
+    className="rounded-xl border border-gray-700 bg-gray-900/60 p-4">
+    <div className="flex items-center justify-between">
+      <div className="flex items-center gap-2">
+        <div className="p-2 rounded-lg bg-gray-800">{icon}</div>
+        <p className="text-xs text-gray-400">{label}</p>
+      </div>
+      {hint}
+    </div>
+    <div className="mt-1 text-xl font-semibold text-white">{value}</div>
+  </motion.div>
+);
+
+const TrendBadge = ({ deltaPct }) => {
+  if (!isFiniteNum(deltaPct)) return <span className="text-gray-400">--</span>;
+  const up = deltaPct > 0;
+  const Icon = up ? ArrowUp : ArrowDown;
+  return (
+    <span className={`inline-flex items-center text-xs font-medium ${up ? "text-green-400" : "text-red-400"}`}>
+      <Icon className="w-3 h-3 mr-1" />
+      {formatPct(deltaPct * 100)}
+    </span>
+  );
+};
+
+const PerfCard = ({ label, abs, pct, series, showK, paletteMuted }) => {
+  const up = (pct || 0) >= 0;
+  const safeSeries = Array.isArray(series)
+    ? series.filter(pt => isFiniteNum(pt?.netWorth) && pt?.date)
+    : [];
+  const hasLine = safeSeries.length >= 2;
+
+  return (
+    <motion.div whileHover={cardHover} whileTap={cardTap} className="rounded-xl border border-gray-700 bg-gray-900/70 p-3">
+      <div className="flex items-center justify-between">
+        <div className="text-xs text-gray-400">{label}</div>
+        <div className={`text-xs ${up ? "text-green-400" : "text-red-400"}`}>
+          {up ? <ArrowUp className="w-3 h-3 inline mr-1" /> : <ArrowDown className="w-3 h-3 inline mr-1" />}
+          {formatPct((pct || 0) * 100)}
+        </div>
+      </div>
+      <div className="text-sm text-white font-semibold mt-0.5">{formatCurrency(abs || 0, showK)}</div>
+      <div className="h-8 mt-2">
+        {hasLine ? (
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart data={safeSeries}>
+              <XAxis dataKey="date" hide />
+              <YAxis hide />
+              <Tooltip formatter={(v) => formatCurrency(v, showK)} />
+              <Line
+                type="monotone"
+                dataKey="netWorth"
+                stroke={paletteMuted ? "#a5b4fc" : "#4f46e5"}
+                dot={false}
+                strokeWidth={1.8}
+                opacity={paletteMuted ? 0.8 : 1}
+              />
+            </LineChart>
+          </ResponsiveContainer>
+        ) : (
+          <div className="h-full w-full rounded bg-gray-800/60" />
+        )}
+      </div>
+    </motion.div>
+  );
+};
+
+// Net Worth Mix Table
+const NetWorthMixTable = ({ summary, showK }) => {
+  if (!summary) return null;
+  const rows = [
+    {
+      key: "securities",
+      label: "Securities",
+      pct: summary?.netWorthMix?.securities,
+      assets: summary?.assetAllocation?.securities?.value,
+      liabilities: 0,
+      color: assetColors.securities,
+      net: summary?.assetAllocation?.securities?.value,
+    },
+    {
+      key: "netCash",
+      label: "Net Cash",
+      pct: summary?.netWorthMix?.netCash,
+      assets: summary?.assetAllocation?.cash?.value,
+      liabilities: summary?.liabilities?.creditCard || 0,
+      color: assetColors.netCash,
+      net: summary?.altNetWorth?.netCash,
+    },
+    {
+      key: "crypto",
+      label: "Crypto",
+      pct: summary?.netWorthMix?.crypto,
+      assets: summary?.assetAllocation?.crypto?.value,
+      liabilities: 0,
+      color: assetColors.crypto,
+      net: summary?.assetAllocation?.crypto?.value,
+    },
+    {
+      key: "metals",
+      label: "Metals",
+      pct: summary?.netWorthMix?.metals,
+      assets: summary?.assetAllocation?.metals?.value,
+      liabilities: 0,
+      color: assetColors.metals,
+      net: summary?.assetAllocation?.metals?.value,
+    },
+    {
+      key: "realEstateEquity",
+      label: "Real Estate",
+      pct: summary?.netWorthMix?.realEstateEquity,
+      assets: (summary?.altNetWorth?.realEstate || 0) + (summary?.liabilities?.mortgage || 0),
+      liabilities: summary?.liabilities?.mortgage || 0,
+      color: assetColors.real_estate,
+      net: summary?.altNetWorth?.realEstate,
+    },
+    {
+      key: "netOtherAssets",
+      label: "Net Other Assets",
+      pct: summary?.netWorthMix?.netOtherAssets,
+      assets:
+        (summary?.assetAllocation?.otherAssets?.value || 0) -
+        ((summary?.altNetWorth?.realEstate || 0) + (summary?.liabilities?.mortgage || 0)),
+      liabilities:
+        (summary?.liabilities?.total || 0) -
+        (summary?.liabilities?.creditCard || 0) -
+        (summary?.liabilities?.mortgage || 0),
+      color: assetColors.other,
+      net: summary?.altNetWorth?.netOtherAssets,
+    },
+  ].filter(r => isFiniteNum(r.assets) || isFiniteNum(r.liabilities) || isFiniteNum(r.net));
+
+  const cell = (v, cls="") => <span className={`tabular-nums ${cls}`}>{formatCurrency(isFiniteNum(v) ? v : 0, showK)}</span>;
+
+  return (
+    <div className="rounded-xl border border-gray-800 bg-gray-900/70 p-4">
+      <div className="flex items-center justify-between mb-3">
+        <h4 className="text-sm font-semibold">Net Worth Mix — Detail</h4>
+        <span className="text-xs text-gray-400">assets • liabilities • net</span>
+      </div>
+      <div className="grid grid-cols-12 gap-2 text-xs text-gray-400 px-2">
+        <div className="col-span-4">Category</div>
+        <div className="col-span-2 text-right">% Mix</div>
+        <div className="col-span-2 text-right">Assets</div>
+        <div className="col-span-2 text-right">Liabilities</div>
+        <div className="col-span-2 text-right">Net</div>
+      </div>
+      <div className="divide-y divide-gray-800 mt-1">
+        {rows.map(r => (
+          <div key={r.key} className="grid grid-cols-12 gap-2 px-2 py-2 hover:bg-gray-800/40 rounded">
+            <div className="col-span-4 flex items-center">
+              <span className="w-2.5 h-2.5 rounded-full mr-2" style={{ backgroundColor: r.color }} />
+              <span className="text-sm text-white">{r.label}</span>
+            </div>
+            <div className="col-span-2 text-right text-gray-300">
+              {isFiniteNum(r.pct) ? `${(r.pct * 100).toFixed(1)}%` : "—"}
+            </div>
+            <div className="col-span-2 text-right text-gray-300">{cell(r.assets)}</div>
+            <div className="col-span-2 text-right text-red-400">
+              {isFiniteNum(r.liabilities) && r.liabilities > 0 ? `-${formatCurrency(r.liabilities, showK).replace("$","$")}` : "$0"}
+            </div>
+            <div className={`col-span-2 text-right ${r.net >= 0 ? "text-emerald-400" : "text-red-400"}`}>{cell(r.net)}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+// Liquidity Analysis
+const LiquidityAnalysisCard = ({ summary, showK }) => {
+  if (!summary) return null;
+  const total = isFiniteNum(summary?.totalAssets) ? summary.totalAssets : 0;
+  const liquid = isFiniteNum(summary?.liquidAssets) ? summary.liquidAssets : 0;
+  const illiquid = isFiniteNum(summary?.altIlliquidNetWorth) ? summary.altIlliquidNetWorth : 0;
+  const pct = (val) => total > 0 && isFiniteNum(val) ? Math.min(Math.max((val/total)*100, 0), 100) : 0;
+
+  return (
+    <div className="rounded-2xl border border-gray-800 bg-gray-900/70 p-5">
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-2">
+          <Droplet className="w-4 h-4 text-blue-400" />
+          <h3 className="text-sm font-semibold">Liquidity Analysis</h3>
+        </div>
+      </div>
+      <div className="mb-3 p-3 bg-gray-800/60 rounded-lg">
+        <div className="flex items-center justify-between">
+          <span className="text-sm text-gray-300">Total Assets</span>
+          <span className="text-lg font-semibold text-white">{formatCurrency(total, showK)}</span>
+        </div>
+      </div>
+      <div className="space-y-3">
+        <div className="flex justify-between text-sm">
+          <span className="text-gray-400">Liquid Assets</span>
+          <span className="font-medium text-white">{formatCurrency(liquid, showK)}</span>
+        </div>
+        <div className="h-2.5 bg-gray-800 rounded-full overflow-hidden">
+          <div className="h-full bg-emerald-500" style={{ width: `${pct(liquid)}%` }} />
+        </div>
+        <div className="flex justify-between text-sm">
+          <span className="text-gray-400">Illiquid Net Worth</span>
+          <span className="font-medium text-white">{formatCurrency(illiquid, showK)}</span>
+        </div>
+        <div className="h-2.5 bg-gray-800 rounded-full overflow-hidden">
+          <div className="h-full bg-purple-500" style={{ width: `${pct(illiquid)}%` }} />
+        </div>
+      </div>
+    </div>
+  );
+};
+
+/* ---------------------------
+   Main Page Component
+--------------------------- */
 export default function NestEgg() {
   const router = useRouter();
-  const { state } = useDataStore();
+  useDataStore(); // keep DS warm
 
-  const [selectedTimeframe, setSelectedTimeframe] = useState('1m');
-  const [showInThousands, setShowInThousands] = useState(true);
-
+  // store data
   const {
     summary,
     topPositions,
-    topPerformersAmount,
-    topPerformersPercent,
-    accountDiversification,
-    assetPerformance,
     sectorAllocation: rawSectorAllocation,
     institutionAllocation: rawInstitutionAllocation,
     riskMetrics,
     concentrationMetrics,
-    dividendMetrics,
-    taxEfficiencyMetrics,
-    netCashBasisMetrics,
     history,
-    loading,
+    loading: isLoading,
     error,
     refresh: refreshData,
     lastFetched,
-    isStale
+    isStale,
   } = usePortfolioSummary();
 
   const { trends } = usePortfolioTrends();
 
-  // --------------- Derived (display-only) data ---------------
-  const chartData = useMemo(() => {
-    const src = trends?.chartData;
-    if (!Array.isArray(src)) return [];
-    return src.map(d => ({
-      dateISO: d.date,
-      date: new Date(d.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-      netWorth: d.netWorth,
-      totalAssets: d.totalAssets,
-      totalLiabilities: d.totalLiabilities,
-      costBasis: summary?.totalCostBasis ?? 0,
-      liquidAssets: d.liquidAssets ?? 0,
-      altLiquidNetWorth: d.altLiquidNetWorth ?? 0,
-      altRetirementAssets: d.altRetirementAssets ?? 0,
-      altIlliquidNetWorth: d.altIlliquidNetWorth ?? 0
-    }));
-  }, [trends?.chartData, summary?.totalCostBasis]);
+  // UI State
+  const [timeframe, setTimeframe] = useState("3m");
+  const [showK, setShowK] = useState(true);
+  const [cursorIndex, setCursorIndex] = useState(null);
+  const [brushDomain, setBrushDomain] = useState(null);
+  const [paletteMuted, setPaletteMuted] = useState(false);
+  const [showHelp, setShowHelp] = useState(false);
+  const [focusTrends, setFocusTrends] = useState(false);
+  const [showBaseline, setShowBaseline] = useState(false);
+  const [showComp, setShowComp] = useState({ liquid: true, retirement: true, illiquid: true });
 
-  // Timeframe filtering is a view choice (no custom calc)
-  const chartDataFiltered = useMemo(() => {
-    if (!Array.isArray(chartData) || chartData.length === 0) return [];
-    const take = (n) => chartData.slice(-n);
-    switch (selectedTimeframe) {
-      case '1w': return take(7);
-      case '1m': return take(30);
-      case '3m': return take(90);
-      case '6m': return take(180);
-      case 'ytd': {
-        const y = new Date().getFullYear();
-        return chartData.filter(d => new Date(d.dateISO).getFullYear() === y);
+  // Cross-highlighting
+  const [hoveredSector, setHoveredSector] = useState(null);
+  const [hoveredInstitution, setHoveredInstitution] = useState(null);
+  const [hoveredAssetKey, setHoveredAssetKey] = useState(null);
+
+  // persist prefs
+  useEffect(() => {
+    const prefK = localStorage.getItem("nestegg_showK");
+    if (prefK !== null) setShowK(prefK === "true");
+    const pal = localStorage.getItem("nestegg_paletteMuted");
+    if (pal !== null) setPaletteMuted(pal === "true");
+    const base = localStorage.getItem("nestegg_showBaseline");
+    if (base !== null) setShowBaseline(base === "true");
+  }, []);
+  useEffect(() => { localStorage.setItem("nestegg_showK", String(showK)); }, [showK]);
+  useEffect(() => { localStorage.setItem("nestegg_paletteMuted", String(paletteMuted)); }, [paletteMuted]);
+  useEffect(() => { localStorage.setItem("nestegg_showBaseline", String(showBaseline)); }, [showBaseline]);
+
+  // keyboard shortcuts
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.key === "ArrowRight" || e.key === "]") {
+        e.preventDefault();
+        const idx = timeframeOptions.findIndex(t => t.id === timeframe);
+        const next = timeframeOptions[(idx + 1) % timeframeOptions.length]?.id || timeframe;
+        setTimeframe(next);
+      } else if (e.key === "ArrowLeft" || e.key === "[") {
+        e.preventDefault();
+        const idx = timeframeOptions.findIndex(t => t.id === timeframe);
+        const prev = timeframeOptions[(idx - 1 + timeframeOptions.length) % timeframeOptions.length]?.id || timeframe;
+        setTimeframe(prev);
+      } else if (e.key.toLowerCase() === "r") {
+        refreshData();
+      } else if (e.key.toLowerCase() === "k") {
+        setShowK(v => !v);
+      } else if (e.key === "?") {
+        setShowHelp(v => !v);
+      } else if (e.key.toLowerCase() === "f") {
+        setFocusTrends(v => !v);
+      } else if (e.key.toLowerCase() === "b") {
+        setShowBaseline(v => !v);
       }
-      case '1y': return take(365);
-      default: return chartData;
-    }
-  }, [chartData, selectedTimeframe]);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [timeframe, refreshData]);
 
-  // Net Worth Mix (assets + liabilities + equity) from summary (no new math)
-  const netWorthMixData = useMemo(() => {
+  // reshape trends; guard numbers (no new math)
+  const baseRowsAll = useMemo(() => {
+    const arr = Array.isArray(trends?.chartData) ? trends.chartData : [];
+    return arr.map(day => ({
+      date: new Date(day.date).toLocaleDateString("en-US", { month: "short", day: "numeric" }),
+      _rawDate: day.date,
+      netWorth: isFiniteNum(day.netWorth) ? day.netWorth : null,
+      totalAssets: isFiniteNum(day.totalAssets) ? day.totalAssets : null,
+      totalLiabilities: isFiniteNum(day.totalLiabilities) ? day.totalLiabilities : null,
+      altLiquidNetWorth: isFiniteNum(day.altLiquidNetWorth) ? day.altLiquidNetWorth : 0,
+      altRetirementAssets: isFiniteNum(day.altRetirementAssets) ? day.altRetirementAssets : 0,
+      altIlliquidNetWorth: isFiniteNum(day.altIlliquidNetWorth) ? day.altIlliquidNetWorth : 0,
+    })).filter(r => isFiniteNum(r.netWorth)); // ensure primary series safe
+  }, [trends?.chartData]);
+
+  const cashFlowRows = useMemo(() => {
+    const arr = Array.isArray(history) ? history : [];
+    const rows = arr
+      .filter(h => isFiniteNum(h?.net_cash_basis_metrics?.net_cash_position))
+      .map(h => {
+        const d = h.date || h.snapshot_date;
+        return {
+          _rawDate: d,
+          date: new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric" }),
+          netCashPosition: h.net_cash_basis_metrics.net_cash_position,
+        };
+      })
+      .sort((a, b) => new Date(a._rawDate) - new Date(b._rawDate));
+    return rows;
+  }, [history]);
+
+  // timeframe filters
+  const baseRows = useMemo(() => {
+    const rows = brushDomain
+      ? baseRowsAll.slice(brushDomain.startIndex, brushDomain.endIndex + 1)
+      : baseRowsAll;
+    return filterByTimeframe(rows, timeframe);
+  }, [baseRowsAll, timeframe, brushDomain]);
+
+  const filteredCash = useMemo(() => filterByTimeframe(cashFlowRows, timeframe), [cashFlowRows, timeframe]);
+
+  // performance series for badges
+  const perfSeries = useMemo(() => {
+    const map = {};
+    perfBands.forEach(b => { map[b.id] = filterByPerfBand(baseRowsAll, b.id); });
+    return map;
+  }, [baseRowsAll]);
+
+  // YTD baseline value (first point of current window)
+  const baselineValue = useMemo(() => {
+    if (!showBaseline || baseRows.length < 1) return null;
+    return baseRows[0]?.netWorth ?? null;
+  }, [baseRows, showBaseline]);
+
+  // net worth mix from summary
+  const netWorthMix = useMemo(() => {
     if (!summary) return [];
-    const rows = [
-      { key: 'Securities', value: Number(summary?.assetAllocation?.securities?.value) || 0, pct: (Number(summary?.netWorthMix?.securities) || 0) * 100, color: assetColors.securities },
-      { key: 'Net Cash', value: Number(summary?.altNetWorth?.netCash) || 0, pct: (Number(summary?.netWorthMix?.netCash) || 0) * 100, color: assetColors.cash },
-      { key: 'Crypto', value: Number(summary?.assetAllocation?.crypto?.value) || 0, pct: (Number(summary?.netWorthMix?.crypto) || 0) * 100, color: assetColors.crypto },
-      { key: 'Metals', value: Number(summary?.assetAllocation?.metals?.value) || 0, pct: (Number(summary?.netWorthMix?.metals) || 0) * 100, color: assetColors.metals },
-      { key: 'Real Estate', value: Number(summary?.altNetWorth?.realEstate) || 0, pct: (Number(summary?.netWorthMix?.realEstateEquity) || 0) * 100, color: assetColors.real_estate },
-      { key: 'Net Other Assets', value: Number(summary?.altNetWorth?.netOtherAssets) || 0, pct: (Number(summary?.netWorthMix?.netOtherAssets) || 0) * 100, color: assetColors.other }
-    ].filter(r => r.value > 0 || r.pct > 0);
-    return rows.map(r => ({ name: r.key, value: r.value, percentage: r.pct, color: r.color }));
+    const items = [
+      { key: "securities", name: "Securities", value: summary.assetAllocation?.securities?.value, pct: summary.netWorthMix?.securities },
+      { key: "netCash", name: "Net Cash", value: summary.altNetWorth?.netCash, pct: summary.netWorthMix?.netCash },
+      { key: "crypto", name: "Crypto", value: summary.assetAllocation?.crypto?.value, pct: summary.netWorthMix?.crypto },
+      { key: "metals", name: "Metals", value: summary.assetAllocation?.metals?.value, pct: summary.netWorthMix?.metals },
+      { key: "realEstateEquity", name: "Real Estate", value: summary.altNetWorth?.realEstate, pct: summary.netWorthMix?.realEstateEquity },
+      { key: "netOtherAssets", name: "Net Other Assets", value: summary.altNetWorth?.netOtherAssets, pct: summary.netWorthMix?.netOtherAssets },
+    ];
+    return items
+      .filter(i => isFiniteNum(i.value) || isFiniteNum(i.pct))
+      .map(i => ({ ...i, color: assetColors[i.key] || assetColors.other }));
   }, [summary]);
 
-  const sectorAllocationData = useMemo(() => {
-    if (!rawSectorAllocation || typeof rawSectorAllocation !== 'object') return [];
+  // sectors
+  const sectorRows = useMemo(() => {
+    if (!rawSectorAllocation || typeof rawSectorAllocation !== "object") return [];
     return Object.entries(rawSectorAllocation)
-      .filter(([, d]) => d && d.value > 0)
+      .filter(([, d]) => d && isFiniteNum(d.value) && d.value > 0)
       .map(([name, d]) => ({
-        name: name || 'Unknown',
-        value: Number(d.value) || 0,
-        percentage: (Number(d.percentage) || 0) * 100,
+        name: name || "Unknown",
+        value: d.value,
+        percentage: isFiniteNum(d.percentage) ? d.percentage * 100 : 0,
         positionCount: d.position_count || 0,
-        color: sectorColors[name] || sectorColors.Unknown
+        color: sectorPalette[name] || sectorPalette.Unknown,
       }))
       .sort((a, b) => b.value - a.value);
   }, [rawSectorAllocation]);
 
-  const institutionMixData = useMemo(() => {
+  // institutions
+  const instRows = useMemo(() => {
     if (!Array.isArray(rawInstitutionAllocation)) return [];
     return rawInstitutionAllocation
-      .filter(d => d && d.value > 0)
-      .map(d => ({
-        name: d.institution,
-        value: Number(d.value) || 0,
-        percentage: Number(d.percentage) || 0,
-        accountCount: d.account_count || 0,
-        positionCount: d.position_count || 0,
-        color: d.primary_color || '#6b7280'
+      .filter(i => isFiniteNum(i?.value) && i.value > 0)
+      .map(i => ({
+        name: i.institution,
+        value: i.value,
+        percentage: isFiniteNum(i.percentage) ? i.percentage : 0,
+        accountCount: i.account_count || 0,
+        positionCount: i.position_count || 0,
+        color: i.primary_color || "#6B7280",
       }))
       .sort((a, b) => b.value - a.value)
-      .slice(0, 5);
+      .slice(0, 6);
   }, [rawInstitutionAllocation]);
 
-  const topPositionsData = useMemo(() => {
+  // top positions peek
+  const topPositionsPeek = useMemo(() => {
     if (!Array.isArray(topPositions)) return [];
-    return topPositions.slice(0, 6).map(p => ({
+    return topPositions.slice(0, 12).map(p => ({
       name: p.name || p.identifier,
-      identifier: p.identifier,
-      value: Number(p.current_value ?? p.value) || 0,
-      gainLoss: Number(p.gain_loss) || 0,
-      gainLossPercent: Number(p.gain_loss_percent) || 0,
-      accountName: p.account_name,
-      assetType: p.asset_type || 'security',
-      percentage: Number(p.percentage) || 0
+      id: p.identifier,
+      value: isFiniteNum(p.current_value) ? p.current_value : (isFiniteNum(p.value) ? p.value : 0),
+      gainLoss: isFiniteNum(p.gain_loss) ? p.gain_loss : 0,
+      gainLossPercent: isFiniteNum(p.gain_loss_percent) ? p.gain_loss_percent : 0,
+      account: p.account_name || p.account || "",
+      assetType: p.asset_type || "security",
+      percentage: isFiniteNum(p.percentage) ? p.percentage : 0,
+      sector: p.sector || p.sector_name || null,
+      institution: p.institution || p.institution_name || null,
     }));
   }, [topPositions]);
 
-  // Risk (JSON-safe)
+  // risk + concentration (JSON-safe)
   const risk = useMemo(() => normalizeRisk(
     riskMetrics ?? summary?.riskMetrics ?? summary?.risk_metrics ?? summary?.riskJson
   ), [riskMetrics, summary]);
-
-  // Concentration metrics (support both names)
   const concentration = useMemo(() => {
     const c = concentrationMetrics || {};
     return {
@@ -252,579 +623,779 @@ export default function NestEgg() {
     };
   }, [concentrationMetrics]);
 
-  // Cash flow trend from history (view-only mapping)
-  const cashFlowTrendData = useMemo(() => {
-    if (!Array.isArray(history)) return [];
-    return history
-      .filter(i => i?.net_cash_basis_metrics?.net_cash_position !== null && i?.net_cash_basis_metrics?.net_cash_position !== undefined)
-      .map(i => {
-        const dateStr = i.date || i.snapshot_date;
-        const [y, m, d] = String(dateStr).split('-').map(n => parseInt(n, 10));
-        const displayDate = new Date(y, (m || 1) - 1, d || 1).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-        return {
-          date: dateStr,
-          displayDate,
-          netCashPosition: Number(i.net_cash_basis_metrics.net_cash_position) || 0
-        };
-      })
-      .sort((a, b) => new Date(a.date) - new Date(b.date));
-  }, [history]);
+  // narrative strip
+  const narrativeBand = "1m";
+  const bandData = summary?.periodChanges?.[narrativeBand] || null;
+  const bandAbs = isFiniteNum(bandData?.netWorthAbs) ? bandData.netWorthAbs : null;
+  const bandPct = isFiniteNum(bandData?.netWorthPercent) ? bandData.netWorthPercent : null;
+  const topMix = (netWorthMix || []).slice().sort((a, b) => (b.pct || 0) - (a.pct || 0)).slice(0, 3);
 
-  // --------------- Small UI bits ---------------
-  const TimePeriodBadge = ({ label, change, changePercent }) => (
-    <motion.div
-      whileHover={{ scale: 1.02, y: -2 }}
-      className="flex flex-col p-3 rounded-lg bg-gray-800 hover:bg-gray-700 transition-all duration-200 cursor-default"
-    >
-      <span className="text-xs text-gray-300 mb-1">{label}</span>
-      <div className="flex items-center justify-between">
-        <span className="font-medium text-white">
-          {fmtCurrency(change?.netWorth ?? 0, showInThousands)}
-        </span>
-        <span className={`text-xs flex items-center ${((changePercent?.netWorthPercent) ?? 0) > 0 ? 'text-green-500' : ((changePercent?.netWorthPercent) ?? 0) < 0 ? 'text-red-500' : 'text-gray-400'}`}>
-          {((changePercent?.netWorthPercent) ?? 0) > 0 ? <ArrowUp className="h-3 w-3 mr-1" /> : ((changePercent?.netWorthPercent) ?? 0) < 0 ? <ArrowDown className="h-3 w-3 mr-1" /> : null}
-          {fmtPct(((changePercent?.netWorthPercent) ?? 0) * 100)}
-        </span>
-      </div>
-    </motion.div>
-  );
-
-  const AllocationTooltip = ({ active, payload }) => {
-    if (!active || !payload?.length) return null;
-    const p = payload[0]?.payload;
-    return (
-      <div className="rounded-lg border border-gray-700 bg-gray-900 px-3 py-2 text-sm text-gray-100">
-        <div className="flex items-center">
-          <div className="h-3 w-3 rounded-full mr-2" style={{ background: p?.color || '#9ca3af' }} />
-          <span className="font-medium">{p?.name}</span>
-        </div>
-        <div className="mt-1 text-xs text-gray-300">
-          {fmtCurrency(p?.value, showInThousands)} • {fmtPct(Number(p?.percentage) || 0)}
-        </div>
-      </div>
-    );
+  const onSyncHover = useCallback((e) => {
+    if (!e?.activeTooltipIndex && e?.activeTooltipIndex !== 0) return setCursorIndex(null);
+    setCursorIndex(e.activeTooltipIndex);
+  }, []);
+  const onBrushChange = (range) => {
+    if (!range || range.startIndex === undefined || range.endIndex === undefined) return;
+    setBrushDomain({ startIndex: range.startIndex, endIndex: range.endIndex });
   };
 
-  const NetWorthComponentsTooltip = ({ active, payload, label }) => {
-    if (!active || !payload) return null;
-    const mk = (name) => payload.find(p => p.dataKey === name);
-    const l = mk('altLiquidNetWorth')?.value ?? 0;
-    const r = mk('altRetirementAssets')?.value ?? 0;
-    const il = mk('altIlliquidNetWorth')?.value ?? 0;
-    return (
-      <div className="rounded-lg border border-gray-700 bg-gray-900 px-3 py-2 text-sm text-gray-100">
-        <div className="font-medium">{label}</div>
-        <div className="mt-1 text-xs text-gray-300 space-y-1">
-          <div>Liquid: {fmtCurrency(l)}</div>
-          <div>Retirement: {fmtCurrency(r)}</div>
-          <div>Illiquid: {fmtCurrency(il)}</div>
-        </div>
-      </div>
-    );
-  };
+  const hasData = !!summary && baseRows.length > 0;
 
-  // ----------------------------- Render -----------------------------
-  if (error) {
-    return (
-      <div className="p-6">
-        <Head><title>NestEgg — Dashboard</title></Head>
-        <div className="rounded-xl border border-red-700 bg-red-900/30 p-4 text-red-200">
-          Oops—there was an error loading your data. Please try refresh.
-        </div>
-      </div>
-    );
-  }
-
+  /* ---------------------------
+     Render
+  --------------------------- */
   return (
-    <div className="min-h-screen bg-gray-950">
-      <Head><title>NestEgg — Dashboard</title></Head>
+    <>
+      <Head><title>NestEgg • Portfolio</title></Head>
 
-      {/* Header */}
-      <div className="mx-auto max-w-7xl px-4 pt-6 pb-3">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-xl bg-indigo-600/20 flex items-center justify-center">
-              <Sparkles className="h-5 w-5 text-indigo-400" />
+      <div className="min-h-screen bg-gradient-to-b from-gray-950 to-gray-900 text-gray-100">
+        {/* HERO */}
+        <div className="sticky top-0 z-30 backdrop-blur supports-[backdrop-filter]:bg-gray-950/70 bg-gray-950/90 border-b border-gray-800">
+          <div className="max-w-7xl mx-auto px-4 py-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <motion.div
+                  animate={{ rotate: [0, 6, -6, 0] }}
+                  transition={{ duration: 6, repeat: Infinity }}
+                  className={`p-2 rounded-xl ${paletteMuted ? "bg-gray-700" : "bg-gradient-to-br from-indigo-500 to-blue-500"} shadow`}
+                >
+                  <Sparkles className="w-5 h-5 text-white" />
+                </motion.div>
+                <div>
+                  <h1 className="text-lg md:text-xl font-bold">NestEgg — Portfolio Command Center</h1>
+                  <p className="text-xs text-gray-400">
+                    Last updated:{" "}
+                    {lastFetched ? new Date(lastFetched).toLocaleString() : "—"}
+                    {isStale && (
+                      <span className="ml-2 inline-flex items-center text-amber-400">
+                        <Info className="w-3 h-3 mr-1" /> Stale
+                      </span>
+                    )}
+                  </p>
+                </div>
+              </div>
+
+              {/* Utility Bar */}
+              <div className="flex items-center gap-2">
+                <TimeframeSelector selected={timeframe} onChange={setTimeframe} />
+                <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.96 }}
+                  onClick={() => setShowK(v => !v)}
+                  className="px-3 py-1.5 rounded-md bg-gray-800 hover:bg-gray-700 text-sm"
+                  aria-pressed={showK}
+                >
+                  {showK ? "Display: $K" : "Display: $"}
+                </motion.button>
+                <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.96 }}
+                  onClick={() => setPaletteMuted(v => !v)}
+                  className="px-3 py-1.5 rounded-md bg-gray-800 hover:bg-gray-700 text-sm"
+                  aria-pressed={paletteMuted}
+                >
+                  {paletteMuted ? "Theme: Muted" : "Theme: Vibrant"}
+                </motion.button>
+                <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.96 }}
+                  onClick={refreshData}
+                  className="inline-flex items-center gap-2 px-3 py-1.5 rounded-md bg-indigo-600 hover:bg-indigo-500"
+                >
+                  <RefreshCw className="w-4 h-4" /> Refresh
+                </motion.button>
+                <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.96 }}
+                  onClick={() => setShowHelp(true)}
+                  title="Keyboard shortcuts"
+                  className="px-3 py-1.5 rounded-md bg-gray-800 hover:bg-gray-700 text-sm"
+                >
+                  <HelpCircle className="w-4 h-4" />
+                </motion.button>
+              </div>
             </div>
-            <div>
-              <h1 className="text-xl font-semibold text-white">NestEgg</h1>
-              <p className="text-xs text-gray-400">Your complete, credential-free portfolio dashboard</p>
-            </div>
+
+            {/* Narrative strip */}
+            {summary && (
+              <div className="mt-2 text-xs text-gray-300">
+                {bandAbs !== null && bandPct !== null ? (
+                  <>
+                    In the past month, your Net Worth is{" "}
+                    <span className={`${bandAbs >= 0 ? "text-green-400" : "text-red-400"}`}>
+                      {bandAbs >= 0 ? "up" : "down"} {formatCurrency(Math.abs(bandAbs), showK)} ({formatPct((bandPct || 0) * 100)})
+                    </span>
+                    . Mix highlights:{" "}
+                    {topMix.map((m, i) => (
+                      <span key={m.key} className="mr-2">
+                        {m.name} {(m.pct * 100).toFixed(1)}%
+                        {i < topMix.length - 1 ? "," : ""}
+                      </span>
+                    ))}
+                  </>
+                ) : (
+                  "Performance overview will appear as data loads."
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* CONTENT */}
+        <div className="max-w-7xl mx-auto px-4 py-6 grid grid-cols-1 lg:grid-cols-12 gap-6">
+          {/* MAIN COLUMN */}
+          <div className="lg:col-span-8 space-y-6">
+            {/* OVERVIEW BAND */}
+            <AnimatePresence mode="popLayout">
+              {!isLoading && summary && (
+                <motion.div
+                  key="overview"
+                  initial={{ opacity: 0, y: 12 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.35 }}
+                  className="rounded-2xl border border-gray-800 bg-gray-900/70 p-5"
+                >
+                  {/* KPI row */}
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <SmallStat
+                      label="Net Worth"
+                      value={formatCurrency(summary.netWorth, showK)}
+                      icon={<DollarSign className="w-4 h-4 text-indigo-400" />}
+                      hint={<TrendBadge deltaPct={summary?.periodChanges?.["1d"]?.netWorthPercent} />}
+                    />
+                    <SmallStat
+                      label="Total Assets"
+                      value={formatCurrency(summary.totalAssets, showK)}
+                      icon={<Wallet className="w-4 h-4 text-emerald-400" />}
+                      hint={<span className="text-xs text-gray-400">{formatCurrency(summary.liquidAssets, showK)} liquid</span>}
+                    />
+                    <SmallStat
+                      label="Unrealized Gain"
+                      value={formatCurrency(summary.unrealizedGain, showK)}
+                      icon={<Activity className="w-4 h-4 text-emerald-400" />}
+                      hint={<span className={summary.unrealizedGainPercent >= 0 ? "text-green-400 text-xs" : "text-red-400 text-xs"}>
+                        {formatPct((summary.unrealizedGainPercent || 0) * 100)}
+                      </span>}
+                    />
+                    <SmallStat
+                      label="Annual Income"
+                      value={formatCurrency(summary.income?.annual, showK)}
+                      icon={<Gift className="w-4 h-4 text-amber-400" />}
+                      hint={<span className="text-xs text-gray-400"><Percent className="w-3 h-3 inline mr-1" />
+                        {formatPct((summary.income?.yield || 0) * 100)} yield</span>}
+                    />
+                  </div>
+
+                  {/* Performance band with sparklines */}
+                  <div className="mt-4 grid grid-cols-2 md:grid-cols-5 gap-3">
+                    {perfBands.map(b => {
+                      const abs = summary?.periodChanges?.[b.id]?.netWorthAbs;
+                      const pct = summary?.periodChanges?.[b.id]?.netWorthPercent;
+                      return (
+                        <PerfCard
+                          key={b.id}
+                          label={b.label}
+                          abs={abs}
+                          pct={pct}
+                          series={perfSeries[b.id] || []}
+                          showK={showK}
+                          paletteMuted={paletteMuted}
+                        />
+                      );
+                    })}
+                  </div>
+
+                  {/* Component KPIs */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mt-4">
+                    <SmallStat
+                      label="Liquid Net Worth"
+                      value={formatCurrency(summary.altLiquidNetWorth, showK)}
+                      icon={<Droplet className="w-4 h-4 text-blue-400" />}
+                      hint={<span className={`${(summary.altLiquidNetWorthYTDChangePercent||0)>=0?"text-green-400":"text-red-400"} text-xs`}>
+                        {formatCurrency(Math.abs(summary.altLiquidNetWorthYTDChange), showK)} ({formatPct((summary.altLiquidNetWorthYTDChangePercent||0)*100)}) YTD
+                      </span>}
+                    />
+                    <SmallStat
+                      label="Retirement Assets"
+                      value={formatCurrency(summary.altRetirementAssets, showK)}
+                      icon={<Shield className="w-4 h-4 text-green-400" />}
+                      hint={<span className={`${(summary.altRetirementAssetsYTDChangePercent||0)>=0?"text-green-400":"text-red-400"} text-xs`}>
+                        {formatCurrency(Math.abs(summary.altRetirementAssetsYTDChange), showK)} ({formatPct((summary.altRetirementAssetsYTDChangePercent||0)*100)}) YTD
+                      </span>}
+                    />
+                    <SmallStat
+                      label="Illiquid Net Worth"
+                      value={formatCurrency(summary.altIlliquidNetWorth, showK)}
+                      icon={<Home className="w-4 h-4 text-purple-400" />}
+                      hint={<span className={`${(summary.altIlliquidNetWorthYTDChangePercent||0)>=0?"text-green-400":"text-red-400"} text-xs`}>
+                        {formatCurrency(Math.abs(summary.altIlliquidNetWorthYTDChange), showK)} ({formatPct((summary.altIlliquidNetWorthYTDChangePercent||0)*100)}) YTD
+                      </span>}
+                    />
+                    <SmallStat
+                      label="Liabilities"
+                      value={formatCurrency(summary?.liabilities?.total || 0, showK)}
+                      icon={<Layers className="w-4 h-4 text-rose-400" />}
+                      hint={<span className="text-xs text-gray-400">{summary?.positionStats?.totalCount} positions</span>}
+                    />
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            {/* LINKED TRENDS BAND */}
+            <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35 }}
+              className="rounded-2xl border border-gray-800 bg-gray-900/70 p-5">
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2">
+                  <BarChart3 className="w-4 h-4 text-indigo-400" />
+                  <h3 className="text-sm font-semibold">Trended Net Worth</h3>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setShowBaseline(v => !v)}
+                    className={`text-xs px-2 py-1 rounded border ${showBaseline ? "border-indigo-500 text-indigo-300" : "border-gray-700 text-gray-400"} hover:border-indigo-500`}
+                  >
+                    Baseline
+                  </button>
+                  <button
+                    onClick={() => downloadCSV(baseRows)}
+                    className="text-xs px-2 py-1 rounded border border-gray-700 text-gray-400 hover:border-indigo-500 hover:text-indigo-300 inline-flex items-center gap-1"
+                  >
+                    <Download className="w-3 h-3" /> CSV
+                  </button>
+                  <button
+                    onClick={() => setFocusTrends(true)}
+                    className="text-xs px-2 py-1 rounded border border-gray-700 text-gray-400 hover:border-indigo-500 hover:text-indigo-300 inline-flex items-center gap-1"
+                  >
+                    <Maximize2 className="w-3 h-3" /> Focus
+                  </button>
+                </div>
+              </div>
+
+              <div className="h-56">
+                {baseRows.length >= 2 ? (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart
+                      data={baseRows}
+                      onMouseMove={onSyncHover}
+                      onMouseLeave={() => setCursorIndex(null)}
+                      margin={{ top: 8, right: 8, left: 0, bottom: 0 }}
+                    >
+                      <defs>
+                        <linearGradient id="nw" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#4f46e5" stopOpacity={paletteMuted ? 0.35 : 0.55} />
+                          <stop offset="95%" stopColor="#4f46e5" stopOpacity={0.05} />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid vertical={false} stroke="#1f2937" />
+                      <XAxis dataKey="date" tick={{ fill: "#9ca3af", fontSize: 12 }} />
+                      <YAxis tick={{ fill: "#9ca3af", fontSize: 12 }} tickFormatter={v => formatCurrency(v, showK)} width={72} />
+                      <Tooltip
+                        content={({ active, payload, label }) => {
+                          if (active && payload?.length) {
+                            const a = payload.find(p => p.dataKey === "totalAssets")?.value;
+                            const l = payload.find(p => p.dataKey === "totalLiabilities")?.value;
+                            const nw = payload.find(p => p.dataKey === "netWorth")?.value;
+                            return (
+                              <div className="bg-gray-800 border border-gray-700 rounded-lg p-3 text-xs">
+                                <div className="text-white font-medium">{label}</div>
+                                {isFiniteNum(nw) && <div className="text-indigo-400">Net Worth: {formatCurrency(nw, showK)}</div>}
+                                {isFiniteNum(a) && <div className="text-emerald-400">Assets: {formatCurrency(a, showK)}</div>}
+                                {isFiniteNum(l) && l > 0 && <div className="text-rose-400">Liabilities: {formatCurrency(l, showK)}</div>}
+                              </div>
+                            );
+                          }
+                          return null;
+                        }}
+                      />
+                      {showBaseline && baselineValue !== null && <ReferenceLine y={baselineValue} stroke="#64748b" strokeDasharray="3 3" />}
+                      <Area type="monotone" dataKey="netWorth" stroke="#4f46e5" fill="url(#nw)" strokeWidth={2} activeDot={{ r: 4 }} />
+                      <Line type="monotone" dataKey="totalAssets" stroke="#10b981" dot={false} strokeOpacity={0.7} isAnimationActive={false} />
+                      <Line type="monotone" dataKey="totalLiabilities" stroke="#ef4444" dot={false} strokeOpacity={0.7} isAnimationActive={false} />
+                      <Brush dataKey="date" height={18} stroke="#4f46e5" onChange={onBrushChange} travellerWidth={8} />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <div className="h-full w-full rounded bg-gray-800/30 flex items-center justify-center text-sm text-gray-500">Insufficient data</div>
+                )}
+              </div>
+
+              {/* Components — linked hover with toggles */}
+              <div className="mt-6">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <PieIcon className="w-4 h-4 text-indigo-400" />
+                    <h3 className="text-sm font-semibold">Net Worth Components</h3>
+                  </div>
+                  <div className="flex items-center gap-2 text-xs">
+                    <SlidersHorizontal className="w-3.5 h-3.5 text-gray-400" />
+                    <button onClick={() => setShowComp(s => ({ ...s, liquid: !s.liquid }))}
+                      className={`px-2 py-0.5 rounded border ${showComp.liquid ? "border-blue-500 text-blue-300" : "border-gray-700 text-gray-400"}`}>Liquid</button>
+                    <button onClick={() => setShowComp(s => ({ ...s, retirement: !s.retirement }))}
+                      className={`px-2 py-0.5 rounded border ${showComp.retirement ? "border-emerald-500 text-emerald-300" : "border-gray-700 text-gray-400"}`}>Retirement</button>
+                    <button onClick={() => setShowComp(s => ({ ...s, illiquid: !s.illiquid }))}
+                      className={`px-2 py-0.5 rounded border ${showComp.illiquid ? "border-purple-500 text-purple-300" : "border-gray-700 text-gray-400"}`}>Illiquid</button>
+                  </div>
+                </div>
+                <div className="h-48">
+                  {baseRows.length >= 2 ? (
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart
+                        data={baseRows}
+                        onMouseMove={onSyncHover}
+                        onMouseLeave={() => setCursorIndex(null)}
+                        margin={{ top: 8, right: 8, left: 0, bottom: 0 }}
+                      >
+                        <CartesianGrid vertical={false} stroke="#1f2937" />
+                        <XAxis dataKey="date" tick={{ fill: "#9ca3af", fontSize: 12 }} />
+                        <YAxis tick={{ fill: "#9ca3af", fontSize: 12 }} tickFormatter={v => formatCurrency(v, showK)} width={72} />
+                        <Tooltip formatter={(v) => formatCurrency(v, showK)} />
+                        <Legend />
+                        {showComp.liquid && <Line type="monotone" dataKey="altLiquidNetWorth" name="Liquid NW" stroke={assetColors.altLiquidNetWorth} dot={false} isAnimationActive={false} />}
+                        {showComp.retirement && <Line type="monotone" dataKey="altRetirementAssets" name="Retirement" stroke={assetColors.altRetirementAssets} dot={false} isAnimationActive={false} />}
+                        {showComp.illiquid && <Line type="monotone" dataKey="altIlliquidNetWorth" name="Illiquid NW" stroke={assetColors.altIlliquidNetWorth} dot={false} isAnimationActive={false} />}
+                        {cursorIndex !== null && (
+                          <ReferenceLine x={baseRows[cursorIndex]?.date} stroke="#6b7280" strokeDasharray="3 3" />
+                        )}
+                      </LineChart>
+                    </ResponsiveContainer>
+                  ) : (
+                    <div className="h-full w-full rounded bg-gray-800/30" />
+                  )}
+                </div>
+              </div>
+
+              {/* Cash Basis Trend */}
+              {filteredCash.length > 0 && (
+                <div className="mt-6">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Database className="w-4 h-4 text-indigo-400" />
+                    <h3 className="text-sm font-semibold">Net Cash (Cash Basis)</h3>
+                  </div>
+                  <div className="h-40">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <AreaChart data={filteredCash} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+                        <defs>
+                          <linearGradient id="cash" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor="#22c55e" stopOpacity={paletteMuted ? 0.3 : 0.45} />
+                            <stop offset="95%" stopColor="#22c55e" stopOpacity={0.05} />
+                          </linearGradient>
+                        </defs>
+                        <CartesianGrid vertical={false} stroke="#1f2937" />
+                        <XAxis dataKey="date" tick={{ fill: "#9ca3af", fontSize: 12 }} />
+                        <YAxis tick={{ fill: "#9ca3af", fontSize: 12 }} tickFormatter={v => formatCurrency(v, showK)} width={72} />
+                        <Tooltip formatter={(v) => formatCurrency(v, showK)} />
+                        <Area type="monotone" dataKey="netCashPosition" stroke="#22c55e" fill="url(#cash)" strokeWidth={2} />
+                      </AreaChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+              )}
+            </motion.div>
+
+            {/* ALLOCATION BAND */}
+            <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35 }}
+              className="rounded-2xl border border-gray-800 bg-gray-900/70 p-5">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                {/* Net Worth Mix Donut + Table */}
+                <div className="md:col-span-1">
+                  <div className="flex items-center gap-2 mb-2">
+                    <PieIcon className="w-4 h-4 text-indigo-400" />
+                    <h3 className="text-sm font-semibold">Net Worth Mix</h3>
+                  </div>
+                  <div className="h-48">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie
+                          data={netWorthMix
+                            .filter(i => isFiniteNum(i.value) && i.value > 0)
+                            .map(i => ({ name: i.name, key: i.key, value: i.value, pct: isFiniteNum(i.pct) ? i.pct * 100 : 0, color: i.color }))}
+                          dataKey="value" nameKey="name" innerRadius="60%" outerRadius="90%"
+                          onMouseLeave={() => setHoveredAssetKey(null)}
+                        >
+                          {netWorthMix
+                            .filter(i => isFiniteNum(i.value) && i.value > 0)
+                            .map((i, idx) => (
+                              <Cell
+                                key={idx}
+                                fill={i.color || "#6b7280"}
+                                onMouseEnter={() => setHoveredAssetKey(i.key)}
+                                style={{ opacity: hoveredAssetKey && hoveredAssetKey !== i.key ? 0.4 : 1 }}
+                              />
+                          ))}
+                        </Pie>
+                        <Tooltip
+                          content={({ active, payload }) => {
+                            const d = payload?.[0]?.payload;
+                            if (!active || !d) return null;
+                            return (
+                              <div className="bg-gray-800 border border-gray-700 rounded-lg p-3 text-xs">
+                                <div className="text-white font-medium">{d.name}</div>
+                                <div className="text-indigo-400">{(d.pct || 0).toFixed(1)}%</div>
+                                <div className="text-gray-300">{formatCurrency(d.value, showK)}</div>
+                              </div>
+                            );
+                          }}
+                        />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </div>
+
+                  <div className="mt-4">
+                    <NetWorthMixTable summary={summary} showK={showK} />
+                  </div>
+                </div>
+
+                {/* Sector Bars */}
+                <div className="md:col-span-2">
+                  <div className="flex items-center gap-2 mb-2">
+                    <BarChart3 className="w-4 h-4 text-indigo-400" />
+                    <h3 className="text-sm font-semibold">Sector Allocation</h3>
+                  </div>
+                  <div className="h-48">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={sectorRows} onMouseLeave={() => setHoveredSector(null)}>
+                        <CartesianGrid vertical={false} stroke="#1f2937" />
+                        <XAxis dataKey="name" tick={{ fill: "#9ca3af", fontSize: 12 }} />
+                        <YAxis tick={{ fill: "#9ca3af", fontSize: 12 }} tickFormatter={(v) => `${v >= 1000 ? (v/1000).toFixed(0)+"k" : v}`} />
+                        <Tooltip
+                          content={({ active, payload }) => {
+                            const d = payload?.[0]?.payload;
+                            if (!active || !d) return null;
+                            return (
+                              <div className="bg-gray-800 border border-gray-700 rounded-lg p-3 text-xs">
+                                <div className="text-white font-medium">{d.name}</div>
+                                <div className="text-indigo-400">{d.percentage.toFixed(1)}%</div>
+                                <div className="text-gray-300">{formatCurrency(d.value, showK)}</div>
+                                <div className="text-gray-400">{d.positionCount} positions</div>
+                              </div>
+                            );
+                          }}
+                        />
+                        <Bar dataKey="value">
+                          {sectorRows.map((d, i) => (
+                            <Cell
+                              key={i}
+                              fill={d.color || "#6b7280"}
+                              onMouseEnter={() => setHoveredSector(d.name)}
+                              style={{ opacity: hoveredSector && hoveredSector !== d.name ? 0.4 : 1 }}
+                            />
+                          ))}
+                        </Bar>
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+              </div>
+
+              {/* Institutions */}
+              {instRows.length > 0 && (
+                <div className="mt-6">
+                  <div className="flex items-center gap-2 mb-3">
+                    <Landmark className="w-4 h-4 text-indigo-400" />
+                    <h3 className="text-sm font-semibold">Top Institutions</h3>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                    {instRows.map((i, idx) => (
+                      <motion.div key={idx} whileHover={cardHover} whileTap={cardTap}
+                        onMouseEnter={() => setHoveredInstitution(i.name)}
+                        onMouseLeave={() => setHoveredInstitution(null)}
+                        className="rounded-xl border border-gray-800 bg-gray-900/80 p-4">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: i.color || "#6b7280" }} />
+                            <div className="text-sm font-medium">{i.name}</div>
+                          </div>
+                          <span className="text-xs text-gray-400">{(i.percentage*100).toFixed(1)}%</span>
+                        </div>
+                        <div className="mt-1 text-lg font-semibold">{formatCurrency(i.value, showK)}</div>
+                        <div className="mt-1 text-xs text-gray-400">{i.accountCount} accounts • {i.positionCount} positions</div>
+                      </motion.div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </motion.div>
+
+            {/* TREEMAP + TOP POSITIONS */}
+            {topPositionsPeek.length > 0 && (
+              <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35 }}
+                className="rounded-2xl border border-gray-800 bg-gray-900/70 p-5">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                  <div>
+                    <div className="flex items-center gap-2 mb-3">
+                      <Building2 className="w-4 h-4 text-indigo-400" />
+                      <h3 className="text-sm font-semibold">Concentration Map (Top Positions)</h3>
+                    </div>
+                    <div className="h-48">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <Treemap
+                          data={topPositionsPeek.map(p => ({
+                            name: p.name,
+                            size: (p.percentage || 0) * 100,
+                            value: p.value,
+                            color: assetColors[p.assetType] || "#6b7280",
+                          }))}
+                          dataKey="size"
+                          stroke="#1f2937"
+                          fill="#4f46e5"
+                          content={(props) => {
+                            const { x, y, width, height, payload } = props || {};
+                            if (!payload || width < 40 || height < 20) return null;
+                            const color = payload.color || "#4f46e5";
+                            return (
+                              <g>
+                                <rect x={x} y={y} width={width} height={height} fill={color} opacity={paletteMuted ? 0.85 : 1} />
+                                <text x={x + 6} y={y + 16} fill="#fff" fontSize={11}>{payload.name}</text>
+                                <text x={x + 6} y={y + 30} fill="#e5e7eb" fontSize={10}>
+                                  {(payload.size || 0).toFixed(1)}%
+                                </text>
+                              </g>
+                            );
+                          }}
+                        />
+                      </ResponsiveContainer>
+                    </div>
+                  </div>
+                  <div>
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center gap-2">
+                        <Building2 className="w-4 h-4 text-indigo-400" />
+                        <h3 className="text-sm font-semibold">Top Positions</h3>
+                      </div>
+                      <button
+                        onClick={() => router.push("/positions")}
+                        className="text-xs text-indigo-400 hover:text-indigo-300 inline-flex items-center gap-1"
+                      >
+                        View all <ChevronRight className="w-3 h-3" />
+                      </button>
+                    </div>
+                    <div className="space-y-2">
+                      {topPositionsPeek.map((p, idx) => {
+                        const up = (p.gainLossPercent || 0) >= 0;
+                        const sectorMismatch = hoveredSector && p.sector && p.sector !== hoveredSector;
+                        const instMismatch = hoveredInstitution && p.institution && p.institution !== hoveredInstitution && !p.account?.includes(hoveredInstitution);
+                        const assetMismatch = hoveredAssetKey && p.assetType && hoveredAssetKey !== p.assetType && hoveredAssetKey !== (p.assetType === "security" ? "securities" : p.assetType);
+                        const dim = Boolean((hoveredSector && sectorMismatch) || (hoveredInstitution && instMismatch) || (hoveredAssetKey && assetMismatch));
+                        return (
+                          <motion.div key={idx} whileHover={{ x: 2 }}
+                            className={`flex items-center justify-between rounded-lg border border-gray-800 p-3 ${dim ? "bg-gray-900/40 opacity-60" : "bg-gray-900"}`}>
+                            <div>
+                              <div className="text-sm font-medium">{p.name}</div>
+                              <div className="text-xs text-gray-400">{p.account}</div>
+                              {p.sector && <div className="text-[10px] text-gray-500 mt-0.5">{p.sector}</div>}
+                            </div>
+                            <div className="text-right">
+                              <div className="text-sm">{formatCurrency(p.value, showK)}</div>
+                              <div className={`text-xs ${up ? "text-green-400" : "text-red-400"}`}>
+                                {up ? <ArrowUp className="w-3 h-3 inline mr-1" /> : <ArrowDown className="w-3 h-3 inline mr-1" />}
+                                {formatPct((p.gainLossPercent || 0) * 100)}
+                              </div>
+                            </div>
+                          </motion.div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+              </motion.div>
+            )}
+
+            {/* Liquidity Analysis */}
+            <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35 }}>
+              <LiquidityAnalysisCard summary={summary} showK={showK} />
+            </motion.div>
+
+            {/* Analytics Portals */}
+            <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35 }}
+              className="rounded-2xl border border-gray-800 bg-gray-900/70 p-5">
+              <div className="flex items-center gap-2 mb-3">
+                <LayoutGrid className="w-4 h-4 text-indigo-400" />
+                <h3 className="text-sm font-semibold">Analytics Portals</h3>
+              </div>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <motion.button whileHover={cardHover} whileTap={cardTap} onClick={() => router.push("/accounts")}
+                  className="text-left rounded-xl border border-gray-800 bg-gray-900 p-3">
+                  <div className="text-xs text-gray-400">Accounts</div>
+                  <div className="text-lg font-semibold">{summary?.positionStats?.activeAccountCount ?? 0}</div>
+                  <div className="text-xs text-gray-500 mt-1">active</div>
+                </motion.button>
+                <motion.button whileHover={cardHover} whileTap={cardTap} onClick={() => router.push("/positions")}
+                  className="text-left rounded-xl border border-gray-800 bg-gray-900 p-3">
+                  <div className="text-xs text-gray-400">Positions</div>
+                  <div className="text-lg font-semibold">{summary?.positionStats?.totalCount ?? 0}</div>
+                  <div className="text-xs text-gray-500 mt-1">tracked</div>
+                </motion.button>
+                <motion.button whileHover={cardHover} whileTap={cardTap} onClick={() => router.push("/liabilities")}
+                  className="text-left rounded-xl border border-gray-800 bg-gray-900 p-3">
+                  <div className="text-xs text-gray-400">Liabilities</div>
+                  <div className="text-lg font-semibold">{formatCurrency(summary?.liabilities?.total || 0, showK)}</div>
+                  <div className="text-xs text-gray-500 mt-1">total</div>
+                </motion.button>
+                <motion.button whileHover={cardHover} whileTap={cardTap} onClick={() => router.push("/command-center")}
+                  className="text-left rounded-xl border border-gray-800 bg-gray-900 p-3">
+                  <div className="text-xs text-gray-400">Command Center</div>
+                  <div className="text-xs text-gray-500 mt-1">deep analytics & workflows</div>
+                </motion.button>
+              </div>
+            </motion.div>
           </div>
 
-          <div className="flex items-center gap-2">
-            {isStale && (
-              <span className="text-xs text-amber-400 px-2 py-1 rounded bg-amber-900/20 border border-amber-800">
-                Data might be out of date
-              </span>
-            )}
-            <motion.button
-              whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.98 }}
-              onClick={refreshData}
-              className="inline-flex items-center gap-2 rounded-md bg-gray-800 px-3 py-2 text-sm text-gray-200 hover:bg-gray-700"
-            >
-              <RefreshCw className="h-4 w-4" /> Refresh
-            </motion.button>
+          {/* INSIGHT RAIL */}
+          <div className="lg:col-span-4 space-y-6">
+            {/* Risk & Concentration (JSON-safe) */}
+            <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35 }}
+              className="rounded-2xl border border-gray-800 bg-gray-900/70 p-5">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <Shield className="w-4 h-4 text-indigo-400" />
+                  <h3 className="text-sm font-semibold">Portfolio Insights</h3>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <SmallStat label="Portfolio Beta" value={(Number(risk.beta) || 1).toFixed(2)} icon={<Target className="w-4 h-4 text-indigo-400" />} />
+                <SmallStat label="Est. Volatility" value={formatPct(((Number(risk.volatility) || 0) * 100))} icon={<Activity className="w-4 h-4 text-emerald-400" />} />
+                <SmallStat label="Liquidity Ratio" value={formatPct(((Number(risk.liquidityRatio) || 0) * 100))} icon={<Droplet className="w-4 h-4 text-blue-400" />} />
+                <SmallStat label="Top-5 Concentration" value={formatPct((Number(concentration.top5Pct) || 0) * 100)} icon={<Layers className="w-4 h-4 text-purple-400" />} />
+                <SmallStat label="Largest Position Weight" value={formatPct((Number(concentration.largestWeight) || 0) * 100)} icon={<Target className="w-4 h-4 text-rose-400" />} />
+                {risk.var95 != null && <SmallStat label="VaR (95%)" value={formatCurrency(Number(risk.var95), showK)} icon={<Shield className="w-4 h-4 text-sky-400" />} />}
+              </div>
+            </motion.div>
+          </div>
+        </div>
+
+        {/* EMPTY / ERROR / LOADING */}
+        {!hasData && !isLoading && !error && (
+          <div className="max-w-7xl mx-auto px-4 py-16 text-center text-gray-400">
+            No portfolio data available.{" "}
+            <button onClick={() => router.push("/accounts")} className="underline text-indigo-400">Connect accounts or add manual positions</button>{" "}
+            to see your performance here.
+          </div>
+        )}
+        {error && (
+          <div className="max-w-7xl mx-auto px-4 py-16 text-center text-rose-400">
+            Something went wrong: {String(error)}
+          </div>
+        )}
+        {isLoading && (
+          <div className="max-w-7xl mx-auto px-4 py-6">
+            <div className="animate-pulse grid grid-cols-1 lg:grid-cols-12 gap-6">
+              <div className="lg:col-span-8 space-y-6">
+                <div className="h-40 rounded-2xl bg-gray-800/40" />
+                <div className="h-72 rounded-2xl bg-gray-800/40" />
+                <div className="h-72 rounded-2xl bg-gray-800/40" />
+              </div>
+              <div className="lg:col-span-4 space-y-6">
+                <div className="h-56 rounded-2xl bg-gray-800/40" />
+                <div className="h-56 rounded-2xl bg-gray-800/40" />
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* STICKY COMMAND SHELF */}
+        <div className="sticky bottom-4 z-20">
+          <div className="max-w-7xl mx-auto px-4">
+            <div className="rounded-2xl bg-gray-900/90 border border-gray-800 shadow-2xl p-2 flex items-center justify-between gap-2">
+              <motion.button whileHover={cardHover} whileTap={cardTap}
+                onClick={() => router.push("/positions")}
+                className="flex-1 text-sm px-3 py-2 rounded-xl bg-gray-800 hover:bg-gray-700 inline-flex items-center justify-center gap-2">
+                <TrendingUp className="w-4 h-4" /> Positions
+              </motion.button>
+              <motion.button whileHover={cardHover} whileTap={cardTap}
+                onClick={() => router.push("/accounts")}
+                className="flex-1 text-sm px-3 py-2 rounded-xl bg-gray-800 hover:bg-gray-700 inline-flex items-center justify-center gap-2">
+                <Wallet className="w-4 h-4" /> Accounts
+              </motion.button>
+              <motion.button whileHover={cardHover} whileTap={cardTap}
+                onClick={() => router.push("/liabilities")}
+                className="flex-1 text-sm px-3 py-2 rounded-xl bg-gray-800 hover:bg-gray-700 inline-flex items-center justify-center gap-2">
+                <Layers className="w-4 h-4" /> Liabilities
+              </motion.button>
+              <motion.button whileHover={cardHover} whileTap={cardTap}
+                onClick={() => router.push("/command-center")}
+                className="flex-1 text-sm px-3 py-2 rounded-xl bg-gray-800 hover:bg-gray-700 inline-flex items-center justify-center gap-2">
+                <Settings className="w-4 h-4" /> Command Center
+              </motion.button>
+            </div>
           </div>
         </div>
       </div>
 
-      <div className="mx-auto max-w-7xl px-4 pb-8">
-        {/* Top KPI row */}
-        {summary && (
+      {/* HELP OVERLAY */}
+      <AnimatePresence>
+        {showHelp && (
           <motion.div
-            initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
-            className="grid grid-cols-1 md:grid-cols-3 gap-4"
+            className="fixed inset-0 z-40 bg-black/60 flex items-center justify-center"
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            onClick={() => setShowHelp(false)}
           >
-            {/* Net Worth */}
-            <div className="rounded-xl border border-gray-800 bg-gray-900 p-4">
+            <motion.div
+              className="max-w-md w-full mx-4 rounded-2xl border border-gray-700 bg-gray-900 p-6 text-sm"
+              initial={{ scale: 0.96, y: 8, opacity: 0 }}
+              animate={{ scale: 1, y: 0, opacity: 1 }}
+              exit={{ scale: 0.96, y: 8, opacity: 0 }}
+              onClick={(e) => e.stopPropagation()}
+            >
               <div className="flex items-center justify-between">
-                <div className="text-gray-300 text-sm">Net Worth</div>
-                <Gauge className="h-4 w-4 text-indigo-400" />
+                <h4 className="font-semibold">Keyboard Shortcuts</h4>
+                <button className="text-gray-400 hover:text-white" onClick={() => setShowHelp(false)}>Close</button>
               </div>
-              <div className="mt-1 text-2xl font-bold text-white">{fmtCurrency(summary.netWorth)}</div>
-              <div className="mt-2 flex items-center gap-2 text-xs text-gray-400">
-                <span>Total Assets: <span className="text-gray-200">{fmtCurrency(summary.totalAssets)}</span></span>
-                <span>•</span>
-                <span>Total Liabilities: <span className="text-red-300">-{fmtCurrency(summary.liabilities?.total ?? 0).replace('$', '')}</span></span>
-              </div>
-            </div>
+              <ul className="mt-3 space-y-1 text-gray-300">
+                <li><span className="text-white">← / →</span> — change timeframe</li>
+                <li><span className="text-white">R</span> — refresh data</li>
+                <li><span className="text-white">K</span> — toggle $ / $K</li>
+                <li><span className="text-white">B</span> — toggle baseline</li>
+                <li><span className="text-white">F</span> — focus trends (fullscreen)</li>
+                <li><span className="text-white">?</span> — show this help</li>
+              </ul>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
-            {/* Performance over time badges */}
-            <div className="rounded-xl border border-gray-800 bg-gray-900 p-4">
-              <div className="flex items-center justify-between">
-                <div className="text-gray-300 text-sm">Performance Over Time</div>
-                <TrendingUp className="h-4 w-4 text-green-400" />
-              </div>
-              <div className="mt-3 grid grid-cols-2 md:grid-cols-5 gap-2">
-                <TimePeriodBadge label="1D"  change={summary.periodChanges?.['1d']} changePercent={summary.periodChanges?.['1d']} />
-                <TimePeriodBadge label="1W"  change={summary.periodChanges?.['1w']} changePercent={summary.periodChanges?.['1w']} />
-                <TimePeriodBadge label="1M"  change={summary.periodChanges?.['1m']} changePercent={summary.periodChanges?.['1m']} />
-                <TimePeriodBadge label="YTD" change={summary.periodChanges?.['ytd']} changePercent={summary.periodChanges?.['ytd']} />
-                <TimePeriodBadge label="1Y"  change={summary.periodChanges?.['1y']} changePercent={summary.periodChanges?.['1y']} />
-              </div>
+      {/* FOCUS MODE (Fullscreen Trends) */}
+      <AnimatePresence>
+        {focusTrends && (
+          <motion.div
+            className="fixed inset-0 z-50 bg-gray-950/95"
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+          >
+            <div className="absolute top-4 right-4">
+              <button
+                onClick={() => setFocusTrends(false)}
+                className="inline-flex items-center gap-1 text-sm px-3 py-1.5 rounded-md bg-gray-800 hover:bg-gray-700 border border-gray-700"
+              >
+                <X className="w-4 h-4" /> Close
+              </button>
             </div>
-
-            {/* Quick links */}
-            <div className="rounded-xl border border-gray-800 bg-gray-900 p-4">
-              <div className="flex items-center justify-between">
-                <div className="text-gray-300 text-sm">Deep Dives</div>
-                <Target className="h-4 w-4 text-sky-400" />
-              </div>
-              <div className="mt-3 grid grid-cols-2 gap-2">
-                {[
-                  { label: 'Accounts', icon: <Building2 className="h-4 w-4" />, href: '/accounts' },
-                  { label: 'Positions', icon: <BarChart3 className="h-4 w-4" />, href: '/positions' },
-                  { label: 'Liabilities', icon: <CreditCard className="h-4 w-4" />, href: '/liabilities' },
-                  { label: 'Command Center', icon: <Shield className="h-4 w-4" />, href: '/command-center' }
-                ].map((b) => (
-                  <motion.button
-                    key={b.label}
-                    whileHover={{ scale: 1.03, x: 2 }}
-                    className="flex items-center justify-between rounded-lg bg-gray-800 px-3 py-2 text-sm text-gray-200 hover:bg-gray-700"
-                    onClick={() => router.push(b.href)}
-                  >
-                    <span className="flex items-center gap-2">{b.icon}{b.label}</span>
-                    <ArrowRight className="h-3.5 w-3.5" />
-                  </motion.button>
-                ))}
+            <div className="max-w-6xl mx-auto pt-12 px-6">
+              <h3 className="text-sm text-gray-300 mb-2">Trended Net Worth — Focus</h3>
+              <div className="h-[60vh] rounded-2xl border border-gray-800 bg-gray-900/70 p-3">
+                {baseRows.length >= 2 ? (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart
+                      data={baseRows}
+                      onMouseMove={onSyncHover}
+                      onMouseLeave={() => setCursorIndex(null)}
+                      margin={{ top: 8, right: 8, left: 0, bottom: 0 }}
+                    >
+                      <defs>
+                        <linearGradient id="nw2" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#4f46e5" stopOpacity={paletteMuted ? 0.35 : 0.55} />
+                          <stop offset="95%" stopColor="#4f46e5" stopOpacity={0.05} />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid vertical={false} stroke="#1f2937" />
+                      <XAxis dataKey="date" tick={{ fill: "#9ca3af", fontSize: 12 }} />
+                      <YAxis tick={{ fill: "#9ca3af", fontSize: 12 }} tickFormatter={v => formatCurrency(v, showK)} width={80} />
+                      <Tooltip formatter={(v) => formatCurrency(v, showK)} />
+                      {showBaseline && baselineValue !== null && <ReferenceLine y={baselineValue} stroke="#64748b" strokeDasharray="3 3" />}
+                      <Area type="monotone" dataKey="netWorth" stroke="#4f46e5" fill="url(#nw2)" strokeWidth={2} activeDot={{ r: 4 }} />
+                      <Line type="monotone" dataKey="totalAssets" stroke="#10b981" dot={false} strokeOpacity={0.7} />
+                      <Line type="monotone" dataKey="totalLiabilities" stroke="#ef4444" dot={false} strokeOpacity={0.7} />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <div className="h-full w-full rounded bg-gray-800/30" />
+                )}
               </div>
             </div>
           </motion.div>
         )}
-
-        {/* Trend + Components */}
-        <div className="mt-5 grid grid-cols-1 lg:grid-cols-12 gap-4">
-          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="lg:col-span-8 space-y-4">
-            {/* Timeframe toggle */}
-            <div className="flex items-center justify-between">
-              <div className="text-sm text-gray-300">Trended Net Worth</div>
-              <div className="flex items-center gap-2 rounded-lg bg-gray-900 p-1">
-                {timeframeOptions.map(opt => (
-                  <motion.button
-                    key={opt.id}
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                    onClick={() => setSelectedTimeframe(opt.id)}
-                    className={`px-2.5 py-1 text-xs rounded-md ${selectedTimeframe === opt.id ? 'bg-indigo-600 text-white' : 'text-gray-300 hover:bg-gray-800'}`}
-                  >
-                    {opt.label}
-                  </motion.button>
-                ))}
-              </div>
-            </div>
-
-            <div className="h-72 rounded-xl border border-gray-800 bg-gray-900 p-3">
-              {hasData(chartDataFiltered, 'netWorth') ? (
-                <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={chartDataFiltered} margin={{ top: 8, right: 8, left: 8, bottom: 8 }}>
-                    <defs>
-                      <linearGradient id="nwFill" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#4f46e5" stopOpacity={0.25}/>
-                        <stop offset="95%" stopColor="#4f46e5" stopOpacity={0}/>
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-                    <XAxis dataKey="date" tick={{ fill:'#9ca3af' }} />
-                    <YAxis tick={{ fill:'#9ca3af' }} tickFormatter={(v)=>{
-                      if (v >= 1_000_000) return `$${(v/1_000_000).toFixed(1)}M`;
-                      if (v >= 1_000) return `$${(v/1_000).toFixed(0)}k`;
-                      return `$${v.toLocaleString()}`;
-                    }}/>
-                    <Tooltip contentStyle={{ background:'#111827', border:'1px solid #374151', borderRadius:8, color:'#e5e7eb' }}
-                      formatter={(v, n)=>[fmtCurrency(v), n === 'netWorth' ? 'Net Worth' : n]}/>
-                    <Area type="monotone" dataKey="netWorth" stroke="#4f46e5" fill="url(#nwFill)" strokeWidth={2} activeDot={{ r: 4 }} />
-                    <ReferenceLine y={chartDataFiltered[0]?.netWorth || 0} stroke="#374151" strokeDasharray="3 3" />
-                  </AreaChart>
-                </ResponsiveContainer>
-              ) : (
-                <div className="h-full flex items-center justify-center text-gray-500 text-sm">No trend data</div>
-              )}
-            </div>
-
-            {/* Net-worth components (Liquid / Retirement / Illiquid) */}
-            <div className="h-72 rounded-xl border border-gray-800 bg-gray-900 p-3">
-              {hasData(chartDataFiltered, 'altLiquidNetWorth') ? (
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={chartDataFiltered}>
-                    <defs>
-                      <linearGradient id="colorLiquid" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.8}/>
-                        <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
-                      </linearGradient>
-                      <linearGradient id="colorRetirement" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#10b981" stopOpacity={0.8}/>
-                        <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
-                      </linearGradient>
-                      <linearGradient id="colorIlliquid" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.8}/>
-                        <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0}/>
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-                    <XAxis dataKey="date" tick={{ fill:'#9ca3af' }} />
-                    <YAxis tick={{ fill:'#9ca3af' }} tickFormatter={(v)=>{
-                      if (v >= 1_000_000) return `$${(v/1_000_000).toFixed(1)}M`;
-                      if (v >= 1_000) return `$${(v/1_000).toFixed(0)}k`;
-                      return `$${v.toLocaleString()}`;
-                    }}/>
-                    <Tooltip content={<NetWorthComponentsTooltip />} />
-                    <Line type="monotone" dataKey="altLiquidNetWorth" stroke="#3b82f6" strokeWidth={2} dot={false} activeDot={{ r: 5, fill:'#3b82f6' }} />
-                    <Line type="monotone" dataKey="altRetirementAssets" stroke="#10b981" strokeWidth={2} dot={false} activeDot={{ r: 5, fill:'#10b981' }} />
-                    <Line type="monotone" dataKey="altIlliquidNetWorth" stroke="#8b5cf6" strokeWidth={2} dot={false} activeDot={{ r: 5, fill:'#8b5cf6' }} />
-                  </LineChart>
-                </ResponsiveContainer>
-              ) : (
-                <div className="h-full flex items-center justify-center text-gray-500 text-sm">No component data</div>
-              )}
-            </div>
-
-            {/* Personal Cash Flow */}
-            {netCashBasisMetrics && (
-              <div className="rounded-xl border border-gray-800 bg-gray-900 p-4">
-                <div className="flex items-center justify-between mb-2">
-                  <h3 className="text-white text-sm flex items-center gap-2"><Wallet className="h-4 w-4 text-green-400" />Personal Cash Flow</h3>
-                  <div className="text-xl font-bold text-white">{fmtCurrency(netCashBasisMetrics.net_cash_position)}</div>
-                </div>
-                <div className="h-56">
-                  {hasData(cashFlowTrendData, 'netCashPosition') ? (
-                    <ResponsiveContainer width="100%" height="100%">
-                      <AreaChart data={cashFlowTrendData}>
-                        <defs>
-                          <linearGradient id="cashFlowGradient" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="5%" stopColor="#10b981" stopOpacity={0.3}/>
-                            <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
-                          </linearGradient>
-                        </defs>
-                        <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-                        <XAxis dataKey="displayDate" tick={{ fill:'#9ca3af' }} />
-                        <YAxis tick={{ fill:'#9ca3af' }} tickFormatter={(v)=>{
-                          if (v >= 1_000_000) return `$${(v/1_000_000).toFixed(1)}M`;
-                          if (v >= 1_000) return `$${(v/1_000).toFixed(0)}k`;
-                          return `$${v.toLocaleString()}`;
-                        }}/>
-                        <Tooltip contentStyle={{ background:'#111827', border:'1px solid #374151', borderRadius:8, color:'#e5e7eb' }}
-                                 formatter={(value)=>[`$${Number(value).toLocaleString()}`, 'Net Cash Position']} />
-                        <Area type="monotone" dataKey="netCashPosition" stroke="#10b981" fill="url(#cashFlowGradient)" strokeWidth={2} />
-                      </AreaChart>
-                    </ResponsiveContainer>
-                  ) : (
-                    <div className="h-full flex items-center justify-center text-gray-500 text-sm">No cash flow history</div>
-                  )}
-                </div>
-              </div>
-            )}
-          </motion.div>
-
-          {/* Right column */}
-          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="lg:col-span-4 space-y-4">
-            {/* Net Worth Mix (Donut + Table) */}
-            <div className="rounded-xl border border-gray-800 bg-gray-900 p-4">
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="text-white text-sm">Net Worth Mix</h3>
-                <PieChartIcon className="h-4 w-4 text-indigo-400" />
-              </div>
-              <div className="h-60">
-                {hasData(netWorthMixData) ? (
-                  <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
-                      <Pie data={netWorthMixData} cx="50%" cy="50%" innerRadius={56} outerRadius={80} paddingAngle={3} dataKey="value">
-                        {netWorthMixData.map((d, i) => (
-                          <Cell key={i} fill={d.color || '#9ca3af'} stroke="none" />
-                        ))}
-                      </Pie>
-                      <Tooltip content={<AllocationTooltip />} />
-                    </PieChart>
-                  </ResponsiveContainer>
-                ) : (
-                  <div className="h-full flex items-center justify-center text-gray-500 text-sm">No mix data</div>
-                )}
-              </div>
-
-              {/* Format toggle */}
-              <div className="mt-3 flex items-center justify-between">
-                <span className="text-xs text-gray-400">Values in {showInThousands ? 'thousands (k)' : 'dollars ($)'}</span>
-                <motion.button whileHover={{ scale:1.05 }} whileTap={{ scale:0.95 }}
-                  className="text-xs px-2 py-1 rounded bg-gray-800 hover:bg-gray-700 text-gray-200"
-                  onClick={()=>setShowInThousands(v=>!v)}
-                >
-                  {showInThousands ? 'Show $' : 'Show k'}
-                </motion.button>
-              </div>
-
-              {/* Tabular breakdown you liked */}
-              {summary && (
-                <div className="mt-3 text-xs">
-                  <div className="grid grid-cols-12 px-2 py-2 text-gray-400 border-b border-gray-800">
-                    <div className="col-span-4">Asset Type</div>
-                    <div className="col-span-2 text-right">% of NW</div>
-                    <div className="col-span-2 text-right">Net Worth</div>
-                    <div className="col-span-2 text-right">Assets</div>
-                    <div className="col-span-2 text-right">Liabilities</div>
-                  </div>
-
-                  {/* Securities */}
-                  <div className="grid grid-cols-12 px-2 py-2 hover:bg-gray-800/60 rounded">
-                    <div className="col-span-4 flex items-center">
-                      <span className="h-2.5 w-2.5 rounded-full mr-2" style={{ background: assetColors.securities }} />
-                      <span className="text-gray-100">Securities</span>
-                    </div>
-                    <div className="col-span-2 text-right text-indigo-300">{(summary?.netWorthMix?.securities*100 || 0).toFixed(1)}%</div>
-                    <div className="col-span-2 text-right text-gray-100">{fmtCurrency(summary?.assetAllocation?.securities?.value ?? 0, showInThousands)}</div>
-                    <div className="col-span-2 text-right text-indigo-300">{fmtCurrency(summary?.assetAllocation?.securities?.value ?? 0, showInThousands)}</div>
-                    <div className="col-span-2 text-right text-gray-500">$0</div>
-                  </div>
-
-                  {/* Net Cash */}
-                  <div className="grid grid-cols-12 px-2 py-2 hover:bg-gray-800/60 rounded">
-                    <div className="col-span-4 flex items-center">
-                      <span className="h-2.5 w-2.5 rounded-full mr-2" style={{ background: assetColors.cash }} />
-                      <span className="text-gray-100">Net Cash</span>
-                    </div>
-                    <div className="col-span-2 text-right text-green-300">{(summary?.netWorthMix?.netCash*100 || 0).toFixed(1)}%</div>
-                    <div className="col-span-2 text-right text-gray-100">{fmtCurrency(summary?.altNetWorth?.netCash ?? 0, showInThousands)}</div>
-                    <div className="col-span-2 text-right text-green-300">{fmtCurrency(summary?.assetAllocation?.cash?.value ?? 0, showInThousands)}</div>
-                    <div className="col-span-2 text-right text-red-300">
-                      {summary?.liabilities?.creditCard > 0
-                        ? `-${fmtCurrency(summary?.liabilities?.creditCard, showInThousands).slice(1)}`
-                        : '$0'}
-                    </div>
-                  </div>
-
-                  {/* Crypto */}
-                  <div className="grid grid-cols-12 px-2 py-2 hover:bg-gray-800/60 rounded">
-                    <div className="col-span-4 flex items-center">
-                      <span className="h-2.5 w-2.5 rounded-full mr-2" style={{ background: assetColors.crypto }} />
-                      <span className="text-gray-100">Crypto</span>
-                    </div>
-                    <div className="col-span-2 text-right text-purple-300">{(summary?.netWorthMix?.crypto*100 || 0).toFixed(1)}%</div>
-                    <div className="col-span-2 text-right text-gray-100">{fmtCurrency(summary?.assetAllocation?.crypto?.value ?? 0, showInThousands)}</div>
-                    <div className="col-span-2 text-right text-purple-300">{fmtCurrency(summary?.assetAllocation?.crypto?.value ?? 0, showInThousands)}</div>
-                    <div className="col-span-2 text-right text-gray-500">$0</div>
-                  </div>
-
-                  {/* Metals */}
-                  <div className="grid grid-cols-12 px-2 py-2 hover:bg-gray-800/60 rounded">
-                    <div className="col-span-4 flex items-center">
-                      <span className="h-2.5 w-2.5 rounded-full mr-2" style={{ background: assetColors.metals }} />
-                      <span className="text-gray-100">Metals</span>
-                    </div>
-                    <div className="col-span-2 text-right text-amber-300">{(summary?.netWorthMix?.metals*100 || 0).toFixed(1)}%</div>
-                    <div className="col-span-2 text-right text-gray-100">{fmtCurrency(summary?.assetAllocation?.metals?.value ?? 0, showInThousands)}</div>
-                    <div className="col-span-2 text-right text-amber-300">{fmtCurrency(summary?.assetAllocation?.metals?.value ?? 0, showInThousands)}</div>
-                    <div className="col-span-2 text-right text-gray-500">$0</div>
-                  </div>
-
-                  {/* Real Estate */}
-                  <div className="grid grid-cols-12 px-2 py-2 hover:bg-gray-800/60 rounded">
-                    <div className="col-span-4 flex items-center">
-                      <span className="h-2.5 w-2.5 rounded-full mr-2" style={{ background: assetColors.real_estate }} />
-                      <span className="text-gray-100">Real Estate</span>
-                    </div>
-                    <div className="col-span-2 text-right text-teal-300">{(summary?.netWorthMix?.realEstateEquity*100 || 0).toFixed(1)}%</div>
-                    <div className="col-span-2 text-right text-gray-100">{fmtCurrency(summary?.altNetWorth?.realEstate ?? 0, showInThousands)}</div>
-                    <div className="col-span-2 text-right text-teal-300">{fmtCurrency((summary?.altNetWorth?.realEstate ?? 0) + (summary?.liabilities?.mortgage ?? 0), showInThousands)}</div>
-                    <div className="col-span-2 text-right text-red-300">
-                      {summary?.liabilities?.mortgage > 0
-                        ? `-${fmtCurrency(summary?.liabilities?.mortgage, showInThousands).slice(1)}`
-                        : '$0'}
-                    </div>
-                  </div>
-
-                  {/* Net Other Assets */}
-                  <div className="grid grid-cols-12 px-2 py-2 hover:bg-gray-800/60 rounded">
-                    <div className="col-span-4 flex items-center">
-                      <span className="h-2.5 w-2.5 rounded-full mr-2" style={{ background: assetColors.other }} />
-                      <span className="text-gray-100">Net Other Assets</span>
-                    </div>
-                    <div className="col-span-2 text-right text-gray-300">{(summary?.netWorthMix?.netOtherAssets*100 || 0).toFixed(1)}%</div>
-                    <div className="col-span-2 text-right text-gray-100">{fmtCurrency(summary?.altNetWorth?.netOtherAssets ?? 0, showInThousands)}</div>
-                    <div className="col-span-2 text-right text-gray-300">
-                      {fmtCurrency(
-                        (summary?.assetAllocation?.otherAssets?.value ?? 0) -
-                        ((summary?.altNetWorth?.realEstate ?? 0) + (summary?.liabilities?.mortgage ?? 0)),
-                        showInThousands
-                      )}
-                    </div>
-                    <div className="col-span-2 text-right text-red-300">
-                      {(() => {
-                        const other = (summary?.liabilities?.total ?? 0) - (summary?.liabilities?.creditCard ?? 0) - (summary?.liabilities?.mortgage ?? 0);
-                        return other > 0 ? `-${fmtCurrency(other, showInThousands).slice(1)}` : '$0';
-                      })()}
-                    </div>
-                  </div>
-
-                  {/* Totals */}
-                  <div className="mt-2 border-t border-gray-800 pt-2 grid grid-cols-12 px-2 py-2 rounded bg-gray-800/40">
-                    <div className="col-span-4 text-gray-100 font-semibold">Total</div>
-                    <div className="col-span-2 text-right text-indigo-300 font-semibold">100.0%</div>
-                    <div className="col-span-2 text-right text-gray-100 font-semibold">{fmtCurrency(summary?.netWorth ?? 0, showInThousands)}</div>
-                    <div className="col-span-2 text-right text-green-300 font-semibold">{fmtCurrency(summary?.totalAssets ?? 0, showInThousands)}</div>
-                    <div className="col-span-2 text-right text-red-300 font-semibold">
-                      {summary?.liabilities?.total > 0
-                        ? `-${fmtCurrency(summary?.liabilities?.total, showInThousands).slice(1)}`
-                        : '$0'}
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Risk & Concentration (JSON-safe) */}
-            <div className="rounded-xl border border-gray-800 bg-gray-900 p-4">
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="text-white text-sm">Portfolio Insights</h3>
-                <Shield className="h-4 w-4 text-indigo-400" />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div className="rounded-lg bg-gray-800 p-3">
-                  <div className="text-xs text-gray-300">Portfolio Beta</div>
-                  <div className="text-xl font-bold text-white mt-0.5">{(Number(risk.beta) || 1).toFixed(2)}</div>
-                </div>
-                <div className="rounded-lg bg-gray-800 p-3">
-                  <div className="text-xs text-gray-300">Est. Volatility</div>
-                  <div className="text-xl font-bold text-white mt-0.5">{fmtPct(((Number(risk.volatility) || 0) * 100))}</div>
-                </div>
-                <div className="rounded-lg bg-gray-800 p-3">
-                  <div className="text-xs text-gray-300">Liquidity Ratio</div>
-                  <div className="text-xl font-bold text-white mt-0.5">{fmtPct(((Number(risk.liquidityRatio) || 0) * 100))}</div>
-                </div>
-                <div className="rounded-lg bg-gray-800 p-3">
-                  <div className="text-xs text-gray-300">Top-5 Concentration</div>
-                  <div className="text-xl font-bold text-white mt-0.5">{fmtPct((Number(concentration.top5Pct) || 0) * 100)}</div>
-                </div>
-                <div className="rounded-lg bg-gray-800 p-3">
-                  <div className="text-xs text-gray-300">Largest Position Weight</div>
-                  <div className="text-xl font-bold text-white mt-0.5">{fmtPct((Number(concentration.largestWeight) || 0) * 100)}</div>
-                </div>
-                {risk.var95 != null && (
-                  <div className="rounded-lg bg-gray-800 p-3">
-                    <div className="text-xs text-gray-300">VaR (95%)</div>
-                    <div className="text-xl font-bold text-white mt-0.5">{fmtCurrency(Number(risk.var95))}</div>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Sector Allocation */}
-            <div className="rounded-xl border border-gray-800 bg-gray-900 p-4">
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="text-white text-sm">Sector Allocation</h3>
-                <Landmark className="h-4 w-4 text-sky-400" />
-              </div>
-              <div className="h-64">
-                {hasData(sectorAllocationData) ? (
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={sectorAllocationData} layout="vertical" margin={{ top: 5, right: 10, left: 10, bottom: 5 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-                      <XAxis type="number" tick={{ fill:'#9ca3af' }} tickFormatter={(v)=>fmtPct(v)} />
-                      <YAxis type="category" dataKey="name" tick={{ fill:'#9ca3af' }} width={120} />
-                      <Tooltip contentStyle={{ background:'#111827', border:'1px solid #374151', borderRadius:8, color:'#e5e7eb' }}
-                               formatter={(v, n)=>[fmtPct(v), 'Weight']} />
-                      <Bar dataKey="percentage" radius={[4,4,4,4]}>
-                        {sectorAllocationData.map((s, i)=>(
-                          <Cell key={i} fill={s.color || '#9ca3af'} />
-                        ))}
-                      </Bar>
-                    </BarChart>
-                  </ResponsiveContainer>
-                ) : (
-                  <div className="h-full flex items-center justify-center text-gray-500 text-sm">No sector data</div>
-                )}
-              </div>
-            </div>
-
-            {/* Top Positions & Institutions */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="rounded-xl border border-gray-800 bg-gray-900 p-4">
-                <div className="flex items-center justify-between mb-3">
-                  <h3 className="text-white text-sm">Top Positions</h3>
-                  <BarChart3 className="h-4 w-4 text-rose-400" />
-                </div>
-                <div className="space-y-2">
-                  {topPositionsData.length ? topPositionsData.map((p, idx)=>(
-                    <motion.div key={idx} whileHover={{ x: 2 }} className="flex items-center justify-between rounded px-2 py-1 hover:bg-gray-800/60">
-                      <div className="flex items-center min-w-0">
-                        <span className="h-2.5 w-2.5 rounded-full mr-2" style={{ background: assetColors[p.assetType] || assetColors.other }} />
-                        <div className="min-w-0">
-                          <div className="truncate text-sm text-gray-200">{p.name}</div>
-                          <div className="text-xs text-gray-500">{p.accountName}</div>
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <div className="text-sm text-white">{fmtCurrency(p.value, showInThousands)}</div>
-                        <div className={`text-xs ${p.gainLossPercent >= 0 ? 'text-green-400' : 'text-red-400'}`}>{fmtPct(p.gainLossPercent*100)}</div>
-                      </div>
-                    </motion.div>
-                  )) : <div className="text-sm text-gray-500 py-3 text-center">No position data</div>}
-                </div>
-              </div>
-
-              <div className="rounded-xl border border-gray-800 bg-gray-900 p-4">
-                <div className="flex items-center justify-between mb-3">
-                  <h3 className="text-white text-sm">Top Institutions</h3>
-                  <Building2 className="h-4 w-4 text-indigo-400" />
-                </div>
-                <div className="space-y-2">
-                  {institutionMixData.length ? institutionMixData.map((i, idx)=>(
-                    <motion.div key={idx} whileHover={{ x: 2 }} className="flex items-center justify-between rounded px-2 py-1 hover:bg-gray-800/60">
-                      <div className="flex items-center">
-                        <span className="h-2.5 w-2.5 rounded-full mr-2" style={{ background:i.color || '#6b7280' }} />
-                        <div>
-                          <div className="text-sm text-gray-200">{i.name}</div>
-                          <div className="text-xs text-gray-500">{i.accountCount} {i.accountCount === 1 ? 'account' : 'accounts'} • {i.positionCount} positions</div>
-                        </div>
-                      </div>
-                      <div className="text-sm text-white">{fmtPct((i.percentage || 0)*100)}</div>
-                    </motion.div>
-                  )) : <div className="text-sm text-gray-500 py-3 text-center">No institution data</div>}
-                </div>
-              </div>
-            </div>
-          </motion.div>
-        </div>
-      </div>
-    </div>
+      </AnimatePresence>
+    </>
   );
 }
