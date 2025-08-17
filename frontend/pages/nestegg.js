@@ -1,5 +1,5 @@
 // pages/nestegg.js
-import { useEffect, useMemo, useRef, useState, useCallback } from "react";
+import { useEffect, useMemo, useState, useCallback } from "react";
 import Head from "next/head";
 import { useRouter } from "next/router";
 import { motion, AnimatePresence } from "framer-motion";
@@ -8,14 +8,15 @@ import { usePortfolioSummary, usePortfolioTrends } from "@/store/hooks";
 
 import {
   ResponsiveContainer, AreaChart, Area, LineChart, Line, BarChart, Bar,
-  XAxis, YAxis, CartesianGrid, Tooltip, Legend, ReferenceLine, Brush, PieChart, Pie, Cell, Treemap
+  XAxis, YAxis, CartesianGrid, Tooltip, Legend, ReferenceLine, Brush,
+  PieChart, Pie, Cell, Treemap
 } from "recharts";
 
 import {
   DollarSign, Wallet, Activity, Percent, Gift, Droplet, Home, Shield, Layers,
   TrendingUp, TrendingDown, ArrowUp, ArrowDown, Sparkles, RefreshCw, Info,
   BarChart3, PieChart as PieIcon, Briefcase, Target, Settings, Database, Landmark,
-  Building2, Zap, ChevronRight, HelpCircle, LayoutGrid
+  Building2, Zap, ChevronRight, HelpCircle, LayoutGrid, Maximize2, Download, SlidersHorizontal, X
 } from "lucide-react";
 
 /* ---------------------------
@@ -80,12 +81,13 @@ const cardHover = { scale: 1.02, transition: hoverSpring };
 const cardTap = { scale: 0.98, transition: { duration: 0.08 } };
 
 // formatters (presentation only)
+const isFiniteNum = (v) => Number.isFinite(v);
 const formatCurrency = (value, inK = false) => {
-  if (value === null || value === undefined || isNaN(value)) return "-";
+  if (!isFiniteNum(value)) return "-";
   if (inK) {
     const v = value / 1000;
     return `$${v.toLocaleString("en-US", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}k`;
-    }
+  }
   return new Intl.NumberFormat("en-US", {
     style: "currency",
     currency: "USD",
@@ -93,12 +95,12 @@ const formatCurrency = (value, inK = false) => {
     maximumFractionDigits: 0,
   }).format(value);
 };
-
 const formatPct = (v) => {
-  if (v === null || v === undefined || isNaN(v)) return "0%";
+  if (!isFiniteNum(v)) return "0%";
   return `${v > 0 ? "+" : ""}${(v).toFixed(2)}%`;
 };
 
+// timeframe filtering (view-only)
 const filterByTimeframe = (rows, timeframeId) => {
   if (!Array.isArray(rows) || rows.length === 0) return [];
   if (timeframeId === "all") return rows;
@@ -118,9 +120,7 @@ const filterByTimeframe = (rows, timeframeId) => {
     return dt >= start && dt <= today;
   });
 };
-
 const filterByPerfBand = (rows, perfId) => {
-  // reusing timeframe logic but mapped to perf bands
   if (!Array.isArray(rows) || rows.length === 0) return [];
   if (perfId === "ytd") return filterByTimeframe(rows, "ytd");
   if (perfId === "1d") {
@@ -135,6 +135,26 @@ const filterByPerfBand = (rows, perfId) => {
   if (perfId === "1m") return filterByTimeframe(rows, "1m");
   if (perfId === "1y") return filterByTimeframe(rows, "1y");
   return rows;
+};
+
+// csv download of current trend window (no new calcs)
+const downloadCSV = (rows) => {
+  if (!rows?.length) return;
+  const head = ["date", "netWorth", "totalAssets", "totalLiabilities"];
+  const body = rows.map(r => [
+    r._rawDate || r.date,
+    isFiniteNum(r.netWorth) ? r.netWorth : "",
+    isFiniteNum(r.totalAssets) ? r.totalAssets : "",
+    isFiniteNum(r.totalLiabilities) ? r.totalLiabilities : ""
+  ]);
+  const csv = [head, ...body].map(a => a.join(",")).join("\n");
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `nestegg_trend_${Date.now()}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
 };
 
 /* ---------------------------
@@ -172,7 +192,7 @@ const SmallStat = ({ label, value, icon, hint }) => (
 );
 
 const TrendBadge = ({ deltaPct }) => {
-  if (deltaPct === null || deltaPct === undefined) return <span className="text-gray-400">--</span>;
+  if (!isFiniteNum(deltaPct)) return <span className="text-gray-400">--</span>;
   const up = deltaPct > 0;
   const Icon = up ? ArrowUp : ArrowDown;
   return (
@@ -185,6 +205,11 @@ const TrendBadge = ({ deltaPct }) => {
 
 const PerfCard = ({ label, abs, pct, series, showK, paletteMuted }) => {
   const up = (pct || 0) >= 0;
+  const safeSeries = Array.isArray(series)
+    ? series.filter(pt => isFiniteNum(pt?.netWorth) && pt?.date)
+    : [];
+  const hasLine = safeSeries.length >= 2;
+
   return (
     <motion.div whileHover={cardHover} whileTap={cardTap} className="rounded-xl border border-gray-700 bg-gray-900/70 p-3">
       <div className="flex items-center justify-between">
@@ -196,21 +221,25 @@ const PerfCard = ({ label, abs, pct, series, showK, paletteMuted }) => {
       </div>
       <div className="text-sm text-white font-semibold mt-0.5">{formatCurrency(abs || 0, showK)}</div>
       <div className="h-8 mt-2">
-        <ResponsiveContainer width="100%" height="100%">
-          <LineChart data={series}>
-            <XAxis dataKey="date" hide />
-            <YAxis hide />
-            <Tooltip formatter={(v) => formatCurrency(v, showK)} />
-            <Line
-              type="monotone"
-              dataKey="netWorth"
-              stroke={paletteMuted ? "#a5b4fc" : "#4f46e5"}
-              dot={false}
-              strokeWidth={1.8}
-              opacity={paletteMuted ? 0.8 : 1}
-            />
-          </LineChart>
-        </ResponsiveContainer>
+        {hasLine ? (
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart data={safeSeries}>
+              <XAxis dataKey="date" hide />
+              <YAxis hide />
+              <Tooltip formatter={(v) => formatCurrency(v, showK)} />
+              <Line
+                type="monotone"
+                dataKey="netWorth"
+                stroke={paletteMuted ? "#a5b4fc" : "#4f46e5"}
+                dot={false}
+                strokeWidth={1.8}
+                opacity={paletteMuted ? 0.8 : 1}
+              />
+            </LineChart>
+          </ResponsiveContainer>
+        ) : (
+          <div className="h-full w-full rounded bg-gray-800/60" />
+        )}
       </div>
     </motion.div>
   );
@@ -221,9 +250,9 @@ const PerfCard = ({ label, abs, pct, series, showK, paletteMuted }) => {
 --------------------------- */
 export default function NestEgg() {
   const router = useRouter();
-  const { state } = useDataStore(); // wired for future needs
+  useDataStore(); // keep DS warm for future needs
 
-  // store data
+  // store data (no new calcs — presentation only)
   const {
     summary,
     topPositions,
@@ -231,7 +260,6 @@ export default function NestEgg() {
     institutionAllocation: rawInstitutionAllocation,
     riskMetrics,
     concentrationMetrics,
-    netCashBasisMetrics,
     history,
     loading: isLoading,
     error,
@@ -249,25 +277,27 @@ export default function NestEgg() {
   const [brushDomain, setBrushDomain] = useState(null);
   const [paletteMuted, setPaletteMuted] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
+  const [focusTrends, setFocusTrends] = useState(false);
+  const [showBaseline, setShowBaseline] = useState(false);
+  const [showComp, setShowComp] = useState({ liquid: true, retirement: true, illiquid: true });
 
   // Cross-highlighting
   const [hoveredSector, setHoveredSector] = useState(null);
   const [hoveredInstitution, setHoveredInstitution] = useState(null);
   const [hoveredAssetKey, setHoveredAssetKey] = useState(null);
 
-  // persist $/K preference
+  // persist prefs
   useEffect(() => {
-    const pref = localStorage.getItem("nestegg_showK");
-    if (pref !== null) setShowK(pref === "true");
+    const prefK = localStorage.getItem("nestegg_showK");
+    if (prefK !== null) setShowK(prefK === "true");
     const pal = localStorage.getItem("nestegg_paletteMuted");
     if (pal !== null) setPaletteMuted(pal === "true");
+    const base = localStorage.getItem("nestegg_showBaseline");
+    if (base !== null) setShowBaseline(base === "true");
   }, []);
-  useEffect(() => {
-    localStorage.setItem("nestegg_showK", String(showK));
-  }, [showK]);
-  useEffect(() => {
-    localStorage.setItem("nestegg_paletteMuted", String(paletteMuted));
-  }, [paletteMuted]);
+  useEffect(() => { localStorage.setItem("nestegg_showK", String(showK)); }, [showK]);
+  useEffect(() => { localStorage.setItem("nestegg_paletteMuted", String(paletteMuted)); }, [paletteMuted]);
+  useEffect(() => { localStorage.setItem("nestegg_showBaseline", String(showBaseline)); }, [showBaseline]);
 
   // keyboard shortcuts
   useEffect(() => {
@@ -288,39 +318,43 @@ export default function NestEgg() {
         setShowK(v => !v);
       } else if (e.key === "?") {
         setShowHelp(v => !v);
+      } else if (e.key.toLowerCase() === "f") {
+        setFocusTrends(v => !v);
+      } else if (e.key.toLowerCase() === "b") {
+        setShowBaseline(v => !v);
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [timeframe, refreshData]);
 
-  // reshape trends for charts (no new math)
-  const baseRows = useMemo(() => {
-    if (!trends?.chartData || !Array.isArray(trends.chartData)) return [];
-    return trends.chartData.map(day => ({
+  // reshape trends for charts; guard numbers (no new math)
+  const baseRowsAll = useMemo(() => {
+    const arr = Array.isArray(trends?.chartData) ? trends.chartData : [];
+    return arr.map(day => ({
       date: new Date(day.date).toLocaleDateString("en-US", { month: "short", day: "numeric" }),
       _rawDate: day.date,
-      netWorth: day.netWorth,
-      totalAssets: day.totalAssets,
-      totalLiabilities: day.totalLiabilities,
-      altLiquidNetWorth: day.altLiquidNetWorth || 0,
-      altRetirementAssets: day.altRetirementAssets || 0,
-      altIlliquidNetWorth: day.altIlliquidNetWorth || 0,
-    }));
+      netWorth: isFiniteNum(day.netWorth) ? day.netWorth : null,
+      totalAssets: isFiniteNum(day.totalAssets) ? day.totalAssets : null,
+      totalLiabilities: isFiniteNum(day.totalLiabilities) ? day.totalLiabilities : null,
+      altLiquidNetWorth: isFiniteNum(day.altLiquidNetWorth) ? day.altLiquidNetWorth : 0,
+      altRetirementAssets: isFiniteNum(day.altRetirementAssets) ? day.altRetirementAssets : 0,
+      altIlliquidNetWorth: isFiniteNum(day.altIlliquidNetWorth) ? day.altIlliquidNetWorth : 0,
+    })).filter(r => isFiniteNum(r.netWorth)); // ensure primary series safe
   }, [trends?.chartData]);
 
   const cashFlowRows = useMemo(() => {
-    if (!history?.length) return [];
-    const rows = history
-      .filter(h => h?.net_cash_basis_metrics?.net_cash_position !== undefined && h?.net_cash_basis_metrics?.net_cash_position !== null)
+    const arr = Array.isArray(history) ? history : [];
+    const rows = arr
+      .filter(h => isFiniteNum(h?.net_cash_basis_metrics?.net_cash_position))
       .map(h => {
         const d = h.date || h.snapshot_date;
         return {
           _rawDate: d,
           date: new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric" }),
           netCashPosition: h.net_cash_basis_metrics.net_cash_position,
-          change: h.net_cash_basis_metrics.cash_flow_1d || 0,
-          changePct: h.net_cash_basis_metrics.cash_flow_1d_pct || 0,
+          change: isFiniteNum(h.net_cash_basis_metrics.cash_flow_1d) ? h.net_cash_basis_metrics.cash_flow_1d : 0,
+          changePct: isFiniteNum(h.net_cash_basis_metrics.cash_flow_1d_pct) ? h.net_cash_basis_metrics.cash_flow_1d_pct : 0,
         };
       })
       .sort((a, b) => new Date(a._rawDate) - new Date(b._rawDate));
@@ -328,19 +362,20 @@ export default function NestEgg() {
   }, [history]);
 
   // timeframe filters
-  const filteredMain = useMemo(() => {
-    const rows = brushDomain ? baseRows.slice(brushDomain.startIndex, brushDomain.endIndex + 1) : baseRows;
+  const baseRows = useMemo(() => {
+    const rows = brushDomain
+      ? baseRowsAll.slice(brushDomain.startIndex, brushDomain.endIndex + 1)
+      : baseRowsAll;
     return filterByTimeframe(rows, timeframe);
-  }, [baseRows, timeframe, brushDomain]);
+  }, [baseRowsAll, timeframe, brushDomain]);
 
   const filteredCash = useMemo(() => filterByTimeframe(cashFlowRows, timeframe), [cashFlowRows, timeframe]);
 
-  // YTD baseline (first YTD value)
-  const ytdBaseline = useMemo(() => {
-    if (timeframe !== "ytd") return null;
-    const ytdRows = filterByTimeframe(baseRows, "ytd");
-    return ytdRows?.[0]?.netWorth ?? null;
-  }, [baseRows, timeframe]);
+  // YTD baseline (first value of current window)
+  const baselineValue = useMemo(() => {
+    if (!showBaseline || baseRows.length < 1) return null;
+    return baseRows[0]?.netWorth ?? null;
+  }, [baseRows, showBaseline]);
 
   // net worth mix from summary (no math, just mapping)
   const netWorthMix = useMemo(() => {
@@ -352,19 +387,21 @@ export default function NestEgg() {
       { key: "metals", name: "Metals", value: summary.assetAllocation?.metals?.value, pct: summary.netWorthMix?.metals },
       { key: "realEstateEquity", name: "Real Estate", value: summary.altNetWorth?.realEstate, pct: summary.netWorthMix?.realEstateEquity },
       { key: "netOtherAssets", name: "Other Assets", value: summary.altNetWorth?.netOtherAssets, pct: summary.netWorthMix?.netOtherAssets },
-    ].filter(i => (i.value ?? 0) > 0 || (i.pct ?? 0) > 0);
-    return items.map(i => ({ ...i, color: assetColors[i.key] || assetColors.other }));
+    ];
+    return items
+      .filter(i => isFiniteNum(i.value) || isFiniteNum(i.pct))
+      .map(i => ({ ...i, color: assetColors[i.key] || assetColors.other }));
   }, [summary]);
 
   // sectors
   const sectorRows = useMemo(() => {
     if (!rawSectorAllocation || typeof rawSectorAllocation !== "object") return [];
     return Object.entries(rawSectorAllocation)
-      .filter(([, d]) => d && d.value > 0)
+      .filter(([, d]) => d && isFiniteNum(d.value) && d.value > 0)
       .map(([name, d]) => ({
         name: name || "Unknown",
         value: d.value,
-        percentage: (d.percentage || 0) * 100,
+        percentage: isFiniteNum(d.percentage) ? d.percentage * 100 : 0,
         positionCount: d.position_count || 0,
         color: sectorPalette[name] || sectorPalette.Unknown,
       }))
@@ -375,11 +412,11 @@ export default function NestEgg() {
   const instRows = useMemo(() => {
     if (!Array.isArray(rawInstitutionAllocation)) return [];
     return rawInstitutionAllocation
-      .filter(i => i?.value > 0)
+      .filter(i => isFiniteNum(i?.value) && i.value > 0)
       .map(i => ({
         name: i.institution,
         value: i.value,
-        percentage: i.percentage || 0,
+        percentage: isFiniteNum(i.percentage) ? i.percentage : 0,
         accountCount: i.account_count || 0,
         positionCount: i.position_count || 0,
         color: i.primary_color || "#6B7280",
@@ -394,12 +431,12 @@ export default function NestEgg() {
     return topPositions.slice(0, 12).map(p => ({
       name: p.name || p.identifier,
       id: p.identifier,
-      value: p.current_value ?? p.value,
-      gainLoss: p.gain_loss ?? 0,
-      gainLossPercent: p.gain_loss_percent ?? 0,
+      value: isFiniteNum(p.current_value) ? p.current_value : (isFiniteNum(p.value) ? p.value : 0),
+      gainLoss: isFiniteNum(p.gain_loss) ? p.gain_loss : 0,
+      gainLossPercent: isFiniteNum(p.gain_loss_percent) ? p.gain_loss_percent : 0,
       account: p.account_name || p.account || "",
       assetType: p.asset_type || "security",
-      percentage: p.percentage || 0,
+      percentage: isFiniteNum(p.percentage) ? p.percentage : 0,
       sector: p.sector || p.sector_name || null,
       institution: p.institution || p.institution_name || null,
     }));
@@ -409,16 +446,13 @@ export default function NestEgg() {
   const perfSeries = useMemo(() => {
     const map = {};
     perfBands.forEach(b => {
-      map[b.id] = filterByPerfBand(baseRows, b.id);
+      map[b.id] = filterByPerfBand(baseRowsAll, b.id);
     });
     return map;
-  }, [baseRows]);
+  }, [baseRowsAll]);
 
   const onSyncHover = useCallback((e) => {
-    if (!e?.activeTooltipIndex && e?.activeTooltipIndex !== 0) {
-      setCursorIndex(null);
-      return;
-    }
+    if (!e?.activeTooltipIndex && e?.activeTooltipIndex !== 0) return setCursorIndex(null);
     setCursorIndex(e.activeTooltipIndex);
   }, []);
   const onBrushChange = (range) => {
@@ -426,13 +460,13 @@ export default function NestEgg() {
     setBrushDomain({ startIndex: range.startIndex, endIndex: range.endIndex });
   };
 
-  const hasData = !!summary && filteredMain.length > 0;
+  const hasData = !!summary && baseRows.length > 0;
 
-  // narrative strip: use 1M by default when available
+  // narrative strip: 1M when available
   const narrativeBand = "1m";
   const bandData = summary?.periodChanges?.[narrativeBand] || null;
-  const bandAbs = bandData?.netWorthAbs ?? null;
-  const bandPct = bandData?.netWorthPercent ?? null;
+  const bandAbs = isFiniteNum(bandData?.netWorthAbs) ? bandData.netWorthAbs : null;
+  const bandPct = isFiniteNum(bandData?.netWorthPercent) ? bandData.netWorthPercent : null;
   const topMix = (netWorthMix || []).slice().sort((a, b) => (b.pct || 0) - (a.pct || 0)).slice(0, 3);
 
   /* ---------------------------
@@ -636,79 +670,118 @@ export default function NestEgg() {
                   <BarChart3 className="w-4 h-4 text-indigo-400" />
                   <h3 className="text-sm font-semibold">Trended Net Worth</h3>
                 </div>
-                <span className="text-xs text-gray-400">Hover to sync; brush to zoom</span>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setShowBaseline(v => !v)}
+                    className={`text-xs px-2 py-1 rounded border ${showBaseline ? "border-indigo-500 text-indigo-300" : "border-gray-700 text-gray-400"} hover:border-indigo-500`}
+                  >
+                    Baseline
+                  </button>
+                  <button
+                    onClick={() => downloadCSV(baseRows)}
+                    className="text-xs px-2 py-1 rounded border border-gray-700 text-gray-400 hover:border-indigo-500 hover:text-indigo-300 inline-flex items-center gap-1"
+                  >
+                    <Download className="w-3 h-3" /> CSV
+                  </button>
+                  <button
+                    onClick={() => setFocusTrends(true)}
+                    className="text-xs px-2 py-1 rounded border border-gray-700 text-gray-400 hover:border-indigo-500 hover:text-indigo-300 inline-flex items-center gap-1"
+                  >
+                    <Maximize2 className="w-3 h-3" /> Focus
+                  </button>
+                </div>
               </div>
 
               <div className="h-56">
-                <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart
-                    data={filteredMain}
-                    onMouseMove={onSyncHover}
-                    onMouseLeave={() => setCursorIndex(null)}
-                    margin={{ top: 8, right: 8, left: 0, bottom: 0 }}
-                  >
-                    <defs>
-                      <linearGradient id="nw" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#4f46e5" stopOpacity={paletteMuted ? 0.35 : 0.55} />
-                        <stop offset="95%" stopColor="#4f46e5" stopOpacity={0.05} />
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid vertical={false} stroke="#1f2937" />
-                    <XAxis dataKey="date" tick={{ fill: "#9ca3af", fontSize: 12 }} />
-                    <YAxis tick={{ fill: "#9ca3af", fontSize: 12 }} tickFormatter={v => formatCurrency(v, showK)} width={72} />
-                    <Tooltip
-                      content={({ active, payload, label }) => {
-                        if (active && payload?.length) {
-                          const a = payload.find(p => p.dataKey === "totalAssets")?.value;
-                          const l = payload.find(p => p.dataKey === "totalLiabilities")?.value;
-                          return (
-                            <div className="bg-gray-800 border border-gray-700 rounded-lg p-3 text-xs">
-                              <div className="text-white font-medium">{label}</div>
-                              <div className="text-indigo-400">Net Worth: {formatCurrency(payload[0].value, showK)}</div>
-                              {a !== undefined && <div className="text-emerald-400">Assets: {formatCurrency(a, showK)}</div>}
-                              {l > 0 && <div className="text-rose-400">Liabilities: {formatCurrency(l, showK)}</div>}
-                            </div>
-                          );
-                        }
-                        return null;
-                      }}
-                    />
-                    {ytdBaseline !== null && <ReferenceLine y={ytdBaseline} stroke="#64748b" strokeDasharray="3 3" />}
-                    <Area type="monotone" dataKey="netWorth" stroke="#4f46e5" fill="url(#nw)" strokeWidth={2} activeDot={{ r: 4 }} />
-                    <Line type="monotone" dataKey="totalAssets" stroke="#10b981" dot={false} strokeOpacity={0.7} />
-                    <Line type="monotone" dataKey="totalLiabilities" stroke="#ef4444" dot={false} strokeOpacity={0.7} />
-                    <Brush dataKey="date" height={18} stroke="#4f46e5" onChange={onBrushChange} travellerWidth={8} />
-                  </AreaChart>
-                </ResponsiveContainer>
-              </div>
-
-              {/* Components — linked hover */}
-              <div className="mt-6">
-                <div className="flex items-center gap-2 mb-2">
-                  <PieIcon className="w-4 h-4 text-indigo-400" />
-                  <h3 className="text-sm font-semibold">Net Worth Components</h3>
-                </div>
-                <div className="h-48">
+                {baseRows.length >= 2 ? (
                   <ResponsiveContainer width="100%" height="100%">
-                    <LineChart
-                      data={filteredMain}
+                    <AreaChart
+                      data={baseRows}
                       onMouseMove={onSyncHover}
                       onMouseLeave={() => setCursorIndex(null)}
                       margin={{ top: 8, right: 8, left: 0, bottom: 0 }}
                     >
+                      <defs>
+                        <linearGradient id="nw" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#4f46e5" stopOpacity={paletteMuted ? 0.35 : 0.55} />
+                          <stop offset="95%" stopColor="#4f46e5" stopOpacity={0.05} />
+                        </linearGradient>
+                      </defs>
                       <CartesianGrid vertical={false} stroke="#1f2937" />
                       <XAxis dataKey="date" tick={{ fill: "#9ca3af", fontSize: 12 }} />
                       <YAxis tick={{ fill: "#9ca3af", fontSize: 12 }} tickFormatter={v => formatCurrency(v, showK)} width={72} />
-                      <Tooltip formatter={(v) => formatCurrency(v, showK)} />
-                      <Legend />
-                      <Line type="monotone" dataKey="altLiquidNetWorth" name="Liquid NW" stroke={assetColors.altLiquidNetWorth} dot={false} />
-                      <Line type="monotone" dataKey="altRetirementAssets" name="Retirement" stroke={assetColors.altRetirementAssets} dot={false} />
-                      <Line type="monotone" dataKey="altIlliquidNetWorth" name="Illiquid NW" stroke={assetColors.altIlliquidNetWorth} dot={false} />
-                      {cursorIndex !== null && (
-                        <ReferenceLine x={filteredMain[cursorIndex]?.date} stroke="#6b7280" strokeDasharray="3 3" />
-                      )}
-                    </LineChart>
+                      <Tooltip
+                        content={({ active, payload, label }) => {
+                          if (active && payload?.length) {
+                            const a = payload.find(p => p.dataKey === "totalAssets")?.value;
+                            const l = payload.find(p => p.dataKey === "totalLiabilities")?.value;
+                            const nw = payload.find(p => p.dataKey === "netWorth")?.value;
+                            return (
+                              <div className="bg-gray-800 border border-gray-700 rounded-lg p-3 text-xs">
+                                <div className="text-white font-medium">{label}</div>
+                                {isFiniteNum(nw) && <div className="text-indigo-400">Net Worth: {formatCurrency(nw, showK)}</div>}
+                                {isFiniteNum(a) && <div className="text-emerald-400">Assets: {formatCurrency(a, showK)}</div>}
+                                {isFiniteNum(l) && l > 0 && <div className="text-rose-400">Liabilities: {formatCurrency(l, showK)}</div>}
+                              </div>
+                            );
+                          }
+                          return null;
+                        }}
+                      />
+                      {baselineValue !== null && <ReferenceLine y={baselineValue} stroke="#64748b" strokeDasharray="3 3" />}
+                      <Area type="monotone" dataKey="netWorth" stroke="#4f46e5" fill="url(#nw)" strokeWidth={2} activeDot={{ r: 4 }} />
+                      <Line type="monotone" dataKey="totalAssets" stroke="#10b981" dot={false} strokeOpacity={0.7} isAnimationActive={false} />
+                      <Line type="monotone" dataKey="totalLiabilities" stroke="#ef4444" dot={false} strokeOpacity={0.7} isAnimationActive={false} />
+                      <Brush dataKey="date" height={18} stroke="#4f46e5" onChange={onBrushChange} travellerWidth={8} />
+                    </AreaChart>
                   </ResponsiveContainer>
+                ) : (
+                  <div className="h-full w-full rounded bg-gray-800/30 flex items-center justify-center text-sm text-gray-500">Insufficient data</div>
+                )}
+              </div>
+
+              {/* Components — linked hover with toggles */}
+              <div className="mt-6">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <PieIcon className="w-4 h-4 text-indigo-400" />
+                    <h3 className="text-sm font-semibold">Net Worth Components</h3>
+                  </div>
+                  <div className="flex items-center gap-2 text-xs">
+                    <SlidersHorizontal className="w-3.5 h-3.5 text-gray-400" />
+                    <button onClick={() => setShowComp(s => ({ ...s, liquid: !s.liquid }))}
+                      className={`px-2 py-0.5 rounded border ${showComp.liquid ? "border-blue-500 text-blue-300" : "border-gray-700 text-gray-400"}`}>Liquid</button>
+                    <button onClick={() => setShowComp(s => ({ ...s, retirement: !s.retirement }))}
+                      className={`px-2 py-0.5 rounded border ${showComp.retirement ? "border-emerald-500 text-emerald-300" : "border-gray-700 text-gray-400"}`}>Retirement</button>
+                    <button onClick={() => setShowComp(s => ({ ...s, illiquid: !s.illiquid }))}
+                      className={`px-2 py-0.5 rounded border ${showComp.illiquid ? "border-purple-500 text-purple-300" : "border-gray-700 text-gray-400"}`}>Illiquid</button>
+                  </div>
+                </div>
+                <div className="h-48">
+                  {baseRows.length >= 2 ? (
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart
+                        data={baseRows}
+                        onMouseMove={onSyncHover}
+                        onMouseLeave={() => setCursorIndex(null)}
+                        margin={{ top: 8, right: 8, left: 0, bottom: 0 }}
+                      >
+                        <CartesianGrid vertical={false} stroke="#1f2937" />
+                        <XAxis dataKey="date" tick={{ fill: "#9ca3af", fontSize: 12 }} />
+                        <YAxis tick={{ fill: "#9ca3af", fontSize: 12 }} tickFormatter={v => formatCurrency(v, showK)} width={72} />
+                        <Tooltip formatter={(v) => formatCurrency(v, showK)} />
+                        <Legend />
+                        {showComp.liquid && <Line type="monotone" dataKey="altLiquidNetWorth" name="Liquid NW" stroke={assetColors.altLiquidNetWorth} dot={false} isAnimationActive={false} />}
+                        {showComp.retirement && <Line type="monotone" dataKey="altRetirementAssets" name="Retirement" stroke={assetColors.altRetirementAssets} dot={false} isAnimationActive={false} />}
+                        {showComp.illiquid && <Line type="monotone" dataKey="altIlliquidNetWorth" name="Illiquid NW" stroke={assetColors.altIlliquidNetWorth} dot={false} isAnimationActive={false} />}
+                        {cursorIndex !== null && (
+                          <ReferenceLine x={baseRows[cursorIndex]?.date} stroke="#6b7280" strokeDasharray="3 3" />
+                        )}
+                      </LineChart>
+                    </ResponsiveContainer>
+                  ) : (
+                    <div className="h-full w-full rounded bg-gray-800/30" />
+                  )}
                 </div>
               </div>
 
@@ -754,32 +827,34 @@ export default function NestEgg() {
                     <ResponsiveContainer width="100%" height="100%">
                       <PieChart>
                         <Pie
-                          data={netWorthMix.map(i => ({ name: i.name, key: i.key, value: i.value, pct: (i.pct || 0) * 100, color: i.color }))}
+                          data={netWorthMix
+                            .filter(i => isFiniteNum(i.value) && i.value > 0)
+                            .map(i => ({ name: i.name, key: i.key, value: i.value, pct: isFiniteNum(i.pct) ? i.pct * 100 : 0, color: i.color }))}
                           dataKey="value" nameKey="name" innerRadius="60%" outerRadius="90%"
                           onMouseLeave={() => setHoveredAssetKey(null)}
                         >
-                          {netWorthMix.map((i, idx) => (
-                            <Cell
-                              key={idx}
-                              fill={i.color}
-                              onMouseEnter={() => setHoveredAssetKey(i.key)}
-                              style={{ opacity: hoveredAssetKey && hoveredAssetKey !== i.key ? 0.4 : 1 }}
-                            />
+                          {netWorthMix
+                            .filter(i => isFiniteNum(i.value) && i.value > 0)
+                            .map((i, idx) => (
+                              <Cell
+                                key={idx}
+                                fill={i.color || "#6b7280"}
+                                onMouseEnter={() => setHoveredAssetKey(i.key)}
+                                style={{ opacity: hoveredAssetKey && hoveredAssetKey !== i.key ? 0.4 : 1 }}
+                              />
                           ))}
                         </Pie>
                         <Tooltip
                           content={({ active, payload }) => {
-                            if (active && payload?.length) {
-                              const d = payload[0]?.payload;
-                              return (
-                                <div className="bg-gray-800 border border-gray-700 rounded-lg p-3 text-xs">
-                                  <div className="text-white font-medium">{d.name}</div>
-                                  <div className="text-indigo-400">{(d.pct || 0).toFixed(1)}%</div>
-                                  <div className="text-gray-300">{formatCurrency(d.value, showK)}</div>
-                                </div>
-                              );
-                            }
-                            return null;
+                            const d = payload?.[0]?.payload;
+                            if (!active || !d) return null;
+                            return (
+                              <div className="bg-gray-800 border border-gray-700 rounded-lg p-3 text-xs">
+                                <div className="text-white font-medium">{d.name}</div>
+                                <div className="text-indigo-400">{(d.pct || 0).toFixed(1)}%</div>
+                                <div className="text-gray-300">{formatCurrency(d.value, showK)}</div>
+                              </div>
+                            );
                           }}
                         />
                       </PieChart>
@@ -801,25 +876,23 @@ export default function NestEgg() {
                         <YAxis tick={{ fill: "#9ca3af", fontSize: 12 }} tickFormatter={(v) => `${v >= 1000 ? (v/1000).toFixed(0)+"k" : v}`} />
                         <Tooltip
                           content={({ active, payload }) => {
-                            if (active && payload?.length) {
-                              const d = payload[0].payload;
-                              return (
-                                <div className="bg-gray-800 border border-gray-700 rounded-lg p-3 text-xs">
-                                  <div className="text-white font-medium">{d.name}</div>
-                                  <div className="text-indigo-400">{d.percentage.toFixed(1)}%</div>
-                                  <div className="text-gray-300">{formatCurrency(d.value, showK)}</div>
-                                  <div className="text-gray-400">{d.positionCount} positions</div>
-                                </div>
-                              );
-                            }
-                            return null;
+                            const d = payload?.[0]?.payload;
+                            if (!active || !d) return null;
+                            return (
+                              <div className="bg-gray-800 border border-gray-700 rounded-lg p-3 text-xs">
+                                <div className="text-white font-medium">{d.name}</div>
+                                <div className="text-indigo-400">{d.percentage.toFixed(1)}%</div>
+                                <div className="text-gray-300">{formatCurrency(d.value, showK)}</div>
+                                <div className="text-gray-400">{d.positionCount} positions</div>
+                              </div>
+                            );
                           }}
                         />
                         <Bar dataKey="value">
                           {sectorRows.map((d, i) => (
                             <Cell
                               key={i}
-                              fill={d.color}
+                              fill={d.color || "#6b7280"}
                               onMouseEnter={() => setHoveredSector(d.name)}
                               style={{ opacity: hoveredSector && hoveredSector !== d.name ? 0.4 : 1 }}
                             />
@@ -846,7 +919,7 @@ export default function NestEgg() {
                         className="rounded-xl border border-gray-800 bg-gray-900/80 p-4">
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-2">
-                            <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: i.color }} />
+                            <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: i.color || "#6b7280" }} />
                             <div className="text-sm font-medium">{i.name}</div>
                           </div>
                           <span className="text-xs text-gray-400">{(i.percentage*100).toFixed(1)}%</span>
@@ -905,7 +978,7 @@ export default function NestEgg() {
                   <Shield className="w-4 h-4 text-indigo-400" />
                   <h3 className="text-sm font-semibold">Risk Snapshot</h3>
                 </div>
-                {/* Resilience badge */}
+                {/* Resilience badge (visual thresholds only) */}
                 <div className="text-xs">
                   {(() => {
                     const topPct = (concentrationMetrics?.topPositionPct || 0) * 100;
@@ -946,11 +1019,13 @@ export default function NestEgg() {
                       dataKey="size"
                       stroke="#1f2937"
                       fill="#4f46e5"
-                      content={({ x, y, width, height, index, payload }) => {
-                        if (width < 40 || height < 20) return null;
+                      content={(props) => {
+                        const { x, y, width, height, payload } = props || {};
+                        if (!payload || width < 40 || height < 20) return null;
+                        const color = payload.color || "#4f46e5";
                         return (
                           <g>
-                            <rect x={x} y={y} width={width} height={height} fill={payload.color} opacity={paletteMuted ? 0.85 : 1} />
+                            <rect x={x} y={y} width={width} height={height} fill={color} opacity={paletteMuted ? 0.85 : 1} />
                             <text x={x + 6} y={y + 16} fill="#fff" fontSize={11}>{payload.name}</text>
                             <text x={x + 6} y={y + 30} fill="#e5e7eb" fontSize={10}>
                               {(payload.size || 0).toFixed(1)}%
@@ -983,7 +1058,6 @@ export default function NestEgg() {
                 <div className="space-y-2">
                   {topPositionsPeek.map((p, idx) => {
                     const up = (p.gainLossPercent || 0) >= 0;
-                    // dim if a filter is active and this item doesn't match
                     const sectorMismatch = hoveredSector && p.sector && p.sector !== hoveredSector;
                     const instMismatch = hoveredInstitution && p.institution && p.institution !== hoveredInstitution && !p.account?.includes(hoveredInstitution);
                     const assetMismatch = hoveredAssetKey && p.assetType && hoveredAssetKey !== p.assetType && hoveredAssetKey !== (p.assetType === "security" ? "securities" : p.assetType);
@@ -1087,17 +1161,68 @@ export default function NestEgg() {
             >
               <div className="flex items-center justify-between">
                 <h4 className="font-semibold">Keyboard Shortcuts</h4>
-                <button className="text-gray-400 hover:text-white" onClick={() => setShowHelp(false)}>
-                  Close
-                </button>
+                <button className="text-gray-400 hover:text-white" onClick={() => setShowHelp(false)}>Close</button>
               </div>
               <ul className="mt-3 space-y-1 text-gray-300">
                 <li><span className="text-white">← / →</span> — change timeframe</li>
                 <li><span className="text-white">R</span> — refresh data</li>
                 <li><span className="text-white">K</span> — toggle $ / $K</li>
+                <li><span className="text-white">B</span> — toggle baseline</li>
+                <li><span className="text-white">F</span> — focus trends (fullscreen)</li>
                 <li><span className="text-white">?</span> — show this help</li>
               </ul>
             </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* FOCUS MODE (Fullscreen Trends) */}
+      <AnimatePresence>
+        {focusTrends && (
+          <motion.div
+            className="fixed inset-0 z-50 bg-gray-950/95"
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+          >
+            <div className="absolute top-4 right-4">
+              <button
+                onClick={() => setFocusTrends(false)}
+                className="inline-flex items-center gap-1 text-sm px-3 py-1.5 rounded-md bg-gray-800 hover:bg-gray-700 border border-gray-700"
+              >
+                <X className="w-4 h-4" /> Close
+              </button>
+            </div>
+            <div className="max-w-6xl mx-auto pt-12 px-6">
+              <h3 className="text-sm text-gray-300 mb-2">Trended Net Worth — Focus</h3>
+              <div className="h-[60vh] rounded-2xl border border-gray-800 bg-gray-900/70 p-3">
+                {baseRows.length >= 2 ? (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart
+                      data={baseRows}
+                      onMouseMove={onSyncHover}
+                      onMouseLeave={() => setCursorIndex(null)}
+                      margin={{ top: 8, right: 8, left: 0, bottom: 0 }}
+                    >
+                      <defs>
+                        <linearGradient id="nw2" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#4f46e5" stopOpacity={paletteMuted ? 0.35 : 0.55} />
+                          <stop offset="95%" stopColor="#4f46e5" stopOpacity={0.05} />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid vertical={false} stroke="#1f2937" />
+                      <XAxis dataKey="date" tick={{ fill: "#9ca3af", fontSize: 12 }} />
+                      <YAxis tick={{ fill: "#9ca3af", fontSize: 12 }} tickFormatter={v => formatCurrency(v, showK)} width={80} />
+                      <Tooltip formatter={(v) => formatCurrency(v, showK)} />
+                      {baselineValue !== null && <ReferenceLine y={baselineValue} stroke="#64748b" strokeDasharray="3 3" />}
+                      <Area type="monotone" dataKey="netWorth" stroke="#4f46e5" fill="url(#nw2)" strokeWidth={2} activeDot={{ r: 4 }} />
+                      <Line type="monotone" dataKey="totalAssets" stroke="#10b981" dot={false} strokeOpacity={0.7} />
+                      <Line type="monotone" dataKey="totalLiabilities" stroke="#ef4444" dot={false} strokeOpacity={0.7} />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <div className="h-full w-full rounded bg-gray-800/30" />
+                )}
+              </div>
+            </div>
           </motion.div>
         )}
       </AnimatePresence>
