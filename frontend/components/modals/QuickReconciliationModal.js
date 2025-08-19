@@ -41,10 +41,13 @@ export const CurrencyInput = React.memo(function CurrencyInput({
   const [focused, setFocused] = React.useState(false);
   const [raw, setRaw] = React.useState(Number.isFinite(value) ? String(value) : '');
   const inputRef = React.useRef(null);
+  const debounceRef = React.useRef(null);
 
   // Only accept external value updates when **not** focused
   React.useEffect(() => {
-    if (!focused) setRaw(Number.isFinite(value) ? String(value) : '');
+    if (!focused) {
+      setRaw(Number.isFinite(value) ? String(value) : '');
+    }
   }, [value, focused]);
 
   const sanitize = (s) => {
@@ -57,8 +60,26 @@ export const CurrencyInput = React.memo(function CurrencyInput({
   const handleChange = (e) => {
     const nextRaw = sanitize(e.target.value);
     setRaw(nextRaw);
-    onValueChange?.(Number(nextRaw || 0));
+    
+    // Clear existing timeout
+    if (debounceRef.current) {
+      clearTimeout(debounceRef.current);
+    }
+    
+    // Set new timeout for value change
+    debounceRef.current = setTimeout(() => {
+      onValueChange?.(Number(nextRaw || 0));
+    }, 150);
   };
+
+  // Add cleanup
+  React.useEffect(() => {
+    return () => {
+      if (debounceRef.current) {
+        clearTimeout(debounceRef.current);
+      }
+    };
+  }, []);
 
   const handlePaste = (e) => {
     const txt = e.clipboardData.getData('text') || '';
@@ -609,6 +630,7 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
         const pct = nest !== 0 ? (diff / nest) * 100 : 0;
         return { ...p, _calc: { nest, stmt, diff, pct }, _key: key, _idx: idx };
       });
+      // CRITICAL: While editing, maintain original order to prevent jumping
       if (editingKey) return rowsWithCalc.sort((a,b)=>a._idx-b._idx);
       rowsWithCalc.sort((a,b)=>{
         const dir = sortDir==='asc' ? 1 : -1;
@@ -720,10 +742,10 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
     return (
       <div className="h-[80vh] px-6 pt-3 pb-6 border-t border-gray-200 dark:border-zinc-800" onPaste={onBulkPaste}>
         <div className="grid grid-cols-12 gap-6 h-full">
-          {/* Left rail */}
-          <aside className="col-span-12 lg:col-span-4 xl:col-span-3 h-full">
-            <div className="h-full flex flex-col">
-              <div className="mb-4 rounded-xl border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-4 shadow-sm sticky top-0 z-[2]">
+        {/* Left rail */}
+        <aside className="col-span-12 lg:col-span-4 xl:col-span-3 h-full overflow-hidden">
+          <div className="h-full flex flex-col">
+            <div className="bg-white dark:bg-zinc-900 rounded-xl border border-gray-200 dark:border-zinc-800 shadow-sm p-4 mb-4 flex-shrink-0">
                 <div className="flex items-center justify-between">
                   <button
                     onClick={() => setScreen('welcome')}
@@ -781,8 +803,9 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
                 </div>
               </div>
 
-              <div className="flex-1 overflow-auto rounded-xl border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900">
-                {groups.length === 0 ? (
+              <div className="flex-1 overflow-hidden rounded-xl border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900">
+                <div className="h-full overflow-y-auto reconciliation-sidebar">
+                  {groups.length === 0 ? (
                   <div className="p-6 text-sm text-gray-500 dark:text-zinc-400">No cash or liabilities found.</div>
                 ) : (
                   <ul className="divide-y divide-gray-100 dark:divide-zinc-800">
@@ -815,11 +838,12 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
                               </div>
                             </div>
                           </button>
-                        </li>
-                      );
-                    })}
-                  </ul>
-                )}
+                            </li>
+                          );
+                        })}
+                      </ul>
+                      )}
+                      </div>
               </div>
             </div>
           </aside>
@@ -915,7 +939,7 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
                                           setDrafts(prev => ({ ...prev, [makeKey('asset', pos.id)]: Number.isFinite(v) ? v : 0 }))
                                         }
                                         nextFocusId={nextId}
-                                        onFocus={() => setEditingKey(pos.id)}
+                                        onFocus={() => setEditingKey(makeKey('asset', pos.id))}
                                         onBlur={() => setEditingKey(null)}
                                         className={`${changed ? 'border-blue-400 ring-2 ring-blue-200 dark:ring-blue-900/40 bg-white dark:bg-zinc-900' : ''}`}
                                         aria-label={`Statement balance for ${pos.name}`}
@@ -1095,10 +1119,10 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
     return (
       <div className="h-[80vh] px-6 pt-3 pb-6 border-t border-gray-200 dark:border-zinc-800">
         <div className="grid grid-cols-12 gap-6 h-full">
-          {/* Left rail */}
-          <aside className="col-span-12 lg:col-span-4 xl:col-span-3 h-full">
-            <div className="h-full flex flex-col">
-              <div className="sticky top-0 z-[2] bg-white dark:bg-zinc-900 rounded-xl border border-gray-200 dark:border-zinc-800 shadow-sm p-4 mb-4">
+        {/* Left rail */}
+        <aside className="col-span-12 lg:col-span-4 xl:col-span-3 h-full overflow-hidden">
+          <div className="h-full flex flex-col">
+            <div className="bg-white dark:bg-zinc-900 rounded-xl border border-gray-200 dark:border-zinc-800 shadow-sm p-4 mb-4 flex-shrink-0">
                 <div className="flex items-center justify-between">
                   <button
                     onClick={() => setScreen('welcome')}
@@ -1127,13 +1151,14 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
                 <p className="text-xs text-gray-600 dark:text-zinc-400 mt-3">
                   Enter statement totals per investment account. We’ll flag differences and let you step through accounts quickly.
                 </p>
-              </div>
+                </div>
 
-              <div className="flex-1 overflow-auto rounded-xl border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900">
-                {groups.length === 0 ? (
-                  <div className="p-6 text-sm text-gray-500 dark:text-zinc-400">No investment accounts found.</div>
-                ) : (
-                  <ul className="divide-y divide-gray-100 dark:divide-zinc-800">
+                <div className="flex-1 overflow-hidden rounded-xl border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900">
+                  <div className="h-full overflow-y-auto reconciliation-sidebar">
+                    {groups.length === 0 ? (
+                      <div className="p-6 text-sm text-gray-500 dark:text-zinc-400">No investment accounts found.</div>
+                    ) : (
+                      <ul className="divide-y divide-gray-100 dark:divide-zinc-800">
                     {groups.map(g=>{
                       const isSel = g.institution === selectedInstitution;
                       const logo = getLogo(g.institution);
@@ -1163,10 +1188,11 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
                             </div>
                           </button>
                         </li>
-                      );
-                    })}
-                  </ul>
-                )}
+                                );
+                              })}
+                            </ul>
+                          )}
+                    </div>
               </div>
             </div>
           </aside>

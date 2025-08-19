@@ -950,3 +950,55 @@ body:has(.quickstart-modal-overlay) [class*="sidebar-button"] {
 .modal-open [class*="sidebar-button"] {
   z-index: 1 !important;
 }
+
+/* Custom scrollbar for reconciliation sidebars */
+.reconciliation-sidebar {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(156, 163, 175, 0.5) transparent;
+}
+
+.reconciliation-sidebar::-webkit-scrollbar {
+  width: 6px;
+}
+
+.reconciliation-sidebar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.reconciliation-sidebar::-webkit-scrollbar-thumb {
+  background-color: rgba(156, 163, 175, 0.5);
+  border-radius: 3px;
+  transition: background-color 0.2s;
+}
+
+.reconciliation-sidebar::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(156, 163, 175, 0.7);
+}
+
+/* Dark mode scrollbar */
+[data-theme="dark"] .reconciliation-sidebar::-webkit-scrollbar-thumb {
+  background-color: rgba(113, 113, 122, 0.5);
+}
+
+[data-theme="dark"] .reconciliation-sidebar::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(113, 113, 122, 0.7);
+}
+
+/* Ensure smooth scrolling */
+.reconciliation-sidebar {
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch; /* For iOS smooth scrolling */
+}
+
+/* Optional: Hide scrollbar on mobile for cleaner look */
+@media (max-width: 768px) {
+  .reconciliation-sidebar::-webkit-scrollbar {
+    width: 0px;
+    display: none;
+  }
+  
+  .reconciliation-sidebar {
+    -ms-overflow-style: none;  /* IE and Edge */
+    scrollbar-width: none;  /* Firefox */
+  }
+}
