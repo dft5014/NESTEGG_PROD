@@ -340,11 +340,13 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
   }, [groupedLiabilities?.lastFetched, groupedLiabilities?.loading, actions]);
 
   const liabilities = useMemo(() => {
+    console.log('[QuickRecon] Raw liability data:', groupedLiabilities?.data?.[0]); // Debug first liability
     return (groupedLiabilities?.data || []).map((L) => {
       const id = L.item_id ?? L.liability_id ?? L.id ?? L.history_id;
       const t = (L.item_type || L.type || 'liability').toLowerCase();
+      // CRITICAL FIX: Use total_current_balance which is what the API returns
       const val = Number(
-        L.current_balance ?? L.current_value ?? L.balance ?? L.net_worth_value ?? L.principal_balance ?? L.amount ?? 0
+        L.total_current_balance ?? L.current_balance ?? L.current_value ?? L.balance ?? L.net_worth_value ?? L.principal_balance ?? L.amount ?? 0
       );
       return {
         id,
@@ -716,8 +718,11 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
       current.liabilities.forEach(p => {
         const key = makeKey('liability', p.id);
         const curr = Number(p.currentValue||0);
-        const next = drafts[key]; if (next===undefined || !Number.isFinite(next) || next===curr) return;
-        changes.push({ kind:'liability', id: p.itemId ?? p.id, value: next });
+        const next = drafts[key]; 
+        if (next === undefined || !Number.isFinite(next) || next === curr) return;
+        // Use the correct ID field for liabilities
+        const liabilityId = p.itemId ?? p.id;
+        changes.push({ kind: 'liability', id: liabilityId, value: next });
       });
       if (!changes.length) { showToast('info','No changes to apply'); return; }
 
