@@ -41,7 +41,6 @@ export const CurrencyInput = React.memo(function CurrencyInput({
   const [focused, setFocused] = React.useState(false);
   const [raw, setRaw] = React.useState(Number.isFinite(value) ? String(value) : '');
   const inputRef = React.useRef(null);
-  const debounceRef = React.useRef(null);
 
   // Only accept external value updates when **not** focused
   React.useEffect(() => {
@@ -60,26 +59,10 @@ export const CurrencyInput = React.memo(function CurrencyInput({
   const handleChange = (e) => {
     const nextRaw = sanitize(e.target.value);
     setRaw(nextRaw);
-    
-    // Clear existing timeout
-    if (debounceRef.current) {
-      clearTimeout(debounceRef.current);
-    }
-    
-    // Set new timeout for value change - increased delay for stability
-    debounceRef.current = setTimeout(() => {
-      onValueChange?.(Number(nextRaw || 0));
-    }, 300);
+    // Direct update - no debouncing needed since we're not re-sorting
+    onValueChange?.(Number(nextRaw || 0));
   };
 
-  // Add cleanup
-  React.useEffect(() => {
-    return () => {
-      if (debounceRef.current) {
-        clearTimeout(debounceRef.current);
-      }
-    };
-  }, []);
 
   const handlePaste = (e) => {
     const txt = e.clipboardData.getData('text') || '';
@@ -609,8 +592,6 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
     const [selectedInstitution, setSelectedInstitution] = useState(null);
     const [sortKey, setSortKey] = useState('nest'); // 'nest' | 'name' | 'diff'
     const [sortDir, setSortDir] = useState('desc');
-    const [editingKey, setEditingKey] = useState(null); // freeze sort while typing
-    const [isFrozen, setIsFrozen] = useState(false); // complete freeze during input
     const [jumping, setJumping] = useState(false);
 
     // build groups
@@ -641,40 +622,52 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
     const toggleSort = (key) => { if (sortKey===key) setSortDir(d=>d==='asc'?'desc':'asc'); else { setSortKey(key); setSortDir('desc'); } };
 
     const makeSorted = useCallback((rows, kind) => {
-      const rowsWithCalc = rows.map((p, idx) => {
+      // First, sort the rows based on STABLE values (not drafts)
+      const sorted = [...rows].sort((a, b) => {
+        const dir = sortDir === 'asc' ? 1 : -1;
+        
+        // Sort by stable values that DON'T change during editing
+        if (sortKey === 'name') {
+          return a.name.localeCompare(b.name) * dir;
+        }
+        
+        // Always sort by the NESTEGG value, not the statement value
+        const aValue = Number(a.currentValue || 0);
+        const bValue = Number(b.currentValue || 0);
+        
+        if (sortKey === 'diff') {
+          // Even for diff, calculate based on stable NestEgg values for sorting
+          const aDraft = drafts[makeKey(kind, a.id)];
+          const bDraft = drafts[makeKey(kind, b.id)];
+          const aDiff = aDraft !== undefined ? (Number(aDraft) - aValue) : 0;
+          const bDiff = bDraft !== undefined ? (Number(bDraft) - bValue) : 0;
+          return (aDiff - bDiff) * dir;
+        }
+        
+        // Default: sort by NestEgg value
+        return (aValue - bValue) * dir;
+      });
+      
+      // Now add the calculated values for display
+      return sorted.map((p) => {
         const key = makeKey(kind, p.id);
-        const nest = Number(p.currentValue||0);
+        const nest = Number(p.currentValue || 0);
         const stmt = drafts[key] !== undefined ? Number(drafts[key]) : nest;
         const diff = stmt - nest;
         const pct = nest !== 0 ? (diff / nest) * 100 : 0;
-        return { ...p, _calc: { nest, stmt, diff, pct }, _key: key, _idx: idx, _originalIndex: idx };
+        return { ...p, _calc: { nest, stmt, diff, pct }, _key: key };
       });
-      
-      // CRITICAL: While editing ANY field, maintain original order completely
-      if (editingKey) {
-        return rowsWithCalc.sort((a, b) => a._originalIndex - b._originalIndex);
-      }
-      
-      // Only sort when not editing
-      const sorted = [...rowsWithCalc];
-      sorted.sort((a,b) => {
-        const dir = sortDir === 'asc' ? 1 : -1;
-        if (sortKey === 'name') return a.name.localeCompare(b.name) * dir;
-        if (sortKey === 'diff') return (a._calc.diff - b._calc.diff) * dir;
-        return (a._calc.nest - b._calc.nest) * dir; // 'nest'
-      });
-      return sorted;
-    }, [sortKey, sortDir, drafts, editingKey]);
+    }, [sortKey, sortDir, drafts]);
 
     const sortedPositions = useMemo(() => {
       if (!current?.positions) return [];
       return makeSorted(current.positions, 'asset');
-    }, [current?.positions, makeSorted, editingKey]); // Add editingKey as dependency
+    }, [current?.positions, makeSorted]);
 
     const sortedLiabilities = useMemo(() => {
       if (!current?.liabilities) return [];
       return makeSorted(current.liabilities, 'liability');
-    }, [current?.liabilities, makeSorted, editingKey]); // Add editingKey as dependency
+    }, [current?.liabilities, makeSorted]);
 
     // bulk paste (CSV/TSV or column)
     const onBulkPaste = (e) => {
@@ -967,33 +960,18 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
                                 <td className="px-3 py-2 text-right text-gray-800 dark:text-zinc-100">
                                   {fmtUSD(c.nest, !showValues)}
                                 </td>
-                                  <td className="px-3 py-2 text-center">
-                                    <CurrencyInput
-                                      value={drafts[makeKey('asset', pos.id)] ?? c.nest}
-                                      onValueChange={(v) => {
-                                        // Use functional update to prevent re-renders
-                                        setDrafts(prev => {
-                                          const newDrafts = { ...prev };
-                                          newDrafts[makeKey('asset', pos.id)] = Number.isFinite(v) ? v : 0;
-                                          return newDrafts;
-                                        });
-                                      }}
-                                      nextFocusId={nextId}
-                                      onFocus={() => {
-                                        const key = makeKey('asset', pos.id);
-                                        setEditingKey(key);
-                                        setIsFrozen(true);
-                                      }}
-                                      onBlur={() => {
-                                        setTimeout(() => {
-                                          setEditingKey(null);
-                                          setIsFrozen(false);
-                                        }, 100);
-                                      }}
-                                      className={changed ? 'border-blue-400 ring-2 ring-blue-200 dark:ring-blue-400/40' : ''}
-                                      aria-label={`Statement balance for ${pos.name}`}
-                                    />
-                                  </td>
+                                  <CurrencyInput
+                                    value={drafts[makeKey('asset', pos.id)] ?? c.nest}
+                                    onValueChange={(v) => {
+                                      setDrafts(prev => ({ 
+                                        ...prev, 
+                                        [makeKey('asset', pos.id)]: Number.isFinite(v) ? v : 0 
+                                      }));
+                                    }}
+                                    nextFocusId={nextId}
+                                    className={changed ? 'border-blue-400 ring-2 ring-blue-200 dark:ring-blue-400/40' : ''}
+                                    aria-label={`Statement balance for ${pos.name}`}
+                                  />
                                 <td className={`px-3 py-2 text-right font-semibold ${c.diff > 0 ? 'text-green-600' : c.diff < 0 ? 'text-red-600' : 'text-gray-500 dark:text-zinc-400'}`}>
                                   {fmtUSD(c.diff, !showValues)}
                                 </td>
