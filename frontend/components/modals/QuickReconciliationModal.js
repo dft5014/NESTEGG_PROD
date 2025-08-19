@@ -1752,3 +1752,18 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
     </ModalShell>
   );
 }
+export function QuickReconciliationButton({ className = '', label = 'Reconcile' }) {
+  const [open, setOpen] = React.useState(false);
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className={className || 'px-3 py-1.5 rounded-lg bg-blue-600 text-white hover:bg-blue-700'}
+      >
+        {label}
+      </button>
+      <QuickReconciliationModal isOpen={open} onClose={() => setOpen(false)} />
+    </>
+  );
+}
