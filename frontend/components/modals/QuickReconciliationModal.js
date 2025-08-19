@@ -66,10 +66,10 @@ export const CurrencyInput = React.memo(function CurrencyInput({
       clearTimeout(debounceRef.current);
     }
     
-    // Set new timeout for value change
+    // Set new timeout for value change - increased delay for stability
     debounceRef.current = setTimeout(() => {
       onValueChange?.(Number(nextRaw || 0));
-    }, 150);
+    }, 300);
   };
 
   // Add cleanup
@@ -118,14 +118,30 @@ export const CurrencyInput = React.memo(function CurrencyInput({
           ? new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(value)
           : ''
       }
-      onFocus={(e) => { setFocused(true); onFocus?.(e); }}
-      onBlur={(e) => { setFocused(false); onBlur?.(e); }}
+      onFocus={(e) => { 
+        setFocused(true); 
+        onFocus?.(e);
+        // Select all text on focus for easier editing
+        setTimeout(() => {
+          e.target.select();
+        }, 10);
+      }}
+      onBlur={(e) => { 
+        setFocused(false); 
+        onBlur?.(e); 
+      }}
       onChange={handleChange}
       onPaste={handlePaste}
       onKeyDown={handleKeyDown}
       placeholder="$0.00"
       aria-label={ariaLabel}
-      className={className}
+      className={`${className} w-24 px-2 py-1 text-center rounded-lg border 
+        bg-white dark:bg-zinc-900 
+        text-gray-900 dark:text-white 
+        placeholder-gray-400 dark:placeholder-zinc-500
+        focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400
+        border-gray-300 dark:border-zinc-700
+        font-medium`}
       autoComplete="off"
     />
   );
@@ -187,13 +203,13 @@ function ModalShell({ isOpen, onRequestClose, onBeforeClose, children, titleId }
   };
 
   return (
-    <div className="fixed inset-0 z-[100000]" aria-modal="true" role="dialog" aria-labelledby={titleId}>
+    <div className="fixed inset-0 z-[9999]" style={{ isolation: 'isolate' }} aria-modal="true" role="dialog" aria-labelledby={titleId}>
       <div
         ref={overlayRef}
-        className="absolute inset-0 bg-black/60 backdrop-blur-[1px]"
+        className="absolute inset-0 bg-black/60 backdrop-blur-[1px] z-[9998]"
         onClick={tryClose}
       />
-      <div className="relative z-[100001] mx-auto my-4 w-full max-w-7xl">
+      <div className="relative z-[9999] mx-auto my-4 w-full max-w-7xl">
         <div
           ref={bodyRef}
           className="rounded-2xl bg-white dark:bg-zinc-950 shadow-2xl overflow-hidden border border-gray-200 dark:border-zinc-800"
@@ -592,6 +608,7 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
     const [sortKey, setSortKey] = useState('nest'); // 'nest' | 'name' | 'diff'
     const [sortDir, setSortDir] = useState('desc');
     const [editingKey, setEditingKey] = useState(null); // freeze sort while typing
+    const [isFrozen, setIsFrozen] = useState(false); // complete freeze during input
     const [jumping, setJumping] = useState(false);
 
     // build groups
@@ -628,21 +645,34 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
         const stmt = drafts[key] !== undefined ? Number(drafts[key]) : nest;
         const diff = stmt - nest;
         const pct = nest !== 0 ? (diff / nest) * 100 : 0;
-        return { ...p, _calc: { nest, stmt, diff, pct }, _key: key, _idx: idx };
+        return { ...p, _calc: { nest, stmt, diff, pct }, _key: key, _idx: idx, _originalIndex: idx };
       });
-      // CRITICAL: While editing, maintain original order to prevent jumping
-      if (editingKey) return rowsWithCalc.sort((a,b)=>a._idx-b._idx);
-      rowsWithCalc.sort((a,b)=>{
-        const dir = sortDir==='asc' ? 1 : -1;
-        if (sortKey==='name') return a.name.localeCompare(b.name)*dir;
-        if (sortKey==='diff') return (a._calc.diff - b._calc.diff)*dir;
-        return (a._calc.nest - b._calc.nest)*dir; // 'nest'
+      
+      // CRITICAL: While editing ANY field, maintain original order completely
+      if (editingKey) {
+        return rowsWithCalc.sort((a, b) => a._originalIndex - b._originalIndex);
+      }
+      
+      // Only sort when not editing
+      const sorted = [...rowsWithCalc];
+      sorted.sort((a,b) => {
+        const dir = sortDir === 'asc' ? 1 : -1;
+        if (sortKey === 'name') return a.name.localeCompare(b.name) * dir;
+        if (sortKey === 'diff') return (a._calc.diff - b._calc.diff) * dir;
+        return (a._calc.nest - b._calc.nest) * dir; // 'nest'
       });
-      return rowsWithCalc;
+      return sorted;
     }, [sortKey, sortDir, drafts, editingKey]);
 
-    const sortedPositions = useMemo(()=>makeSorted(current?.positions||[], 'asset'),[current, makeSorted]);
-    const sortedLiabilities = useMemo(()=>makeSorted(current?.liabilities||[], 'liability'),[current, makeSorted]);
+    const sortedPositions = useMemo(() => {
+      if (!current?.positions) return [];
+      return makeSorted(current.positions, 'asset');
+    }, [current?.positions, makeSorted, editingKey]); // Add editingKey as dependency
+
+    const sortedLiabilities = useMemo(() => {
+      if (!current?.liabilities) return [];
+      return makeSorted(current.liabilities, 'liability');
+    }, [current?.liabilities, makeSorted, editingKey]); // Add editingKey as dependency
 
     // bulk paste (CSV/TSV or column)
     const onBulkPaste = (e) => {
@@ -932,19 +962,33 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
                                 <td className="px-3 py-2 text-right text-gray-800 dark:text-zinc-100">
                                   {fmtUSD(c.nest, !showValues)}
                                 </td>
-                                <td className="px-3 py-2 text-center">
-                                      <CurrencyInput
-                                        value={drafts[makeKey('asset', pos.id)] ?? c.nest}
-                                        onValueChange={(v) =>
-                                          setDrafts(prev => ({ ...prev, [makeKey('asset', pos.id)]: Number.isFinite(v) ? v : 0 }))
-                                        }
-                                        nextFocusId={nextId}
-                                        onFocus={() => setEditingKey(makeKey('asset', pos.id))}
-                                        onBlur={() => setEditingKey(null)}
-                                        className={`${changed ? 'border-blue-400 ring-2 ring-blue-200 dark:ring-blue-900/40 bg-white dark:bg-zinc-900' : ''}`}
-                                        aria-label={`Statement balance for ${pos.name}`}
-                                      />
-                                </td>
+                                  <td className="px-3 py-2 text-center">
+                                    <CurrencyInput
+                                      value={drafts[makeKey('asset', pos.id)] ?? c.nest}
+                                      onValueChange={(v) => {
+                                        // Use functional update to prevent re-renders
+                                        setDrafts(prev => {
+                                          const newDrafts = { ...prev };
+                                          newDrafts[makeKey('asset', pos.id)] = Number.isFinite(v) ? v : 0;
+                                          return newDrafts;
+                                        });
+                                      }}
+                                      nextFocusId={nextId}
+                                      onFocus={() => {
+                                        const key = makeKey('asset', pos.id);
+                                        setEditingKey(key);
+                                        setIsFrozen(true);
+                                      }}
+                                      onBlur={() => {
+                                        setTimeout(() => {
+                                          setEditingKey(null);
+                                          setIsFrozen(false);
+                                        }, 100);
+                                      }}
+                                      className={changed ? 'border-blue-400 ring-2 ring-blue-200 dark:ring-blue-400/40' : ''}
+                                      aria-label={`Statement balance for ${pos.name}`}
+                                    />
+                                  </td>
                                 <td className={`px-3 py-2 text-right font-semibold ${c.diff > 0 ? 'text-green-600' : c.diff < 0 ? 'text-red-600' : 'text-gray-500 dark:text-zinc-400'}`}>
                                   {fmtUSD(c.diff, !showValues)}
                                 </td>

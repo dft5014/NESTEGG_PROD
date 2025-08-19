@@ -1002,3 +1002,14 @@ body:has(.quickstart-modal-overlay) [class*="sidebar-button"] {
     scrollbar-width: none;  /* Firefox */
   }
 }
+/* Hide navbar ticker when QuickReconciliation modal is open */
+.qr-modal-open .fixed.top-0.left-0.right-0.z-30,
+.qr-modal-open [class*="StockTicker"],
+.qr-modal-open .h-8.bg-gray-950.border-t {
+  z-index: 1 !important;
+}
+
+/* Force the modal to be on top */
+[aria-labelledby="qr-title"] {
+  z-index: 9999 !important;
+}
