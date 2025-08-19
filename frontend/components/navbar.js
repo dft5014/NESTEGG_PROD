@@ -2,31 +2,35 @@
 import { useState, useContext, useEffect, useCallback, useMemo, useRef } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
+import { motion, AnimatePresence } from 'framer-motion';
+
 import { QuickStartButton } from '@/components/QuickStartModal';
-import { AuthContext } from '@/context/AuthContext';
-import {
-  User, Settings, LogOut, HelpCircle, Shield, Clock,
-  ChevronDown, Activity, Plus,
-  TrendingUp, TrendingDown
-} from 'lucide-react';
-import UpdateStatusIndicator from '@/components/UpdateStatusIndicator';
-import AddPositionButton from '@/components/AddPositionButton';
-import AddAccountButton from '@/components/AddAccountButton';
-import { fetchAccounts } from '@/utils/apimethods/accountMethods';
 import { QuickReconciliationButton } from '@/components/modals/QuickReconciliationModal';
 import { QuickEditDeleteButton } from '@/components/modals/QuickEditDeleteModal';
-import { motion, AnimatePresence } from 'framer-motion';
+import AddPositionButton from '@/components/AddPositionButton';
+import AddAccountButton from '@/components/AddAccountButton';
+import UpdateStatusIndicator from '@/components/UpdateStatusIndicator';
+
+import { AuthContext } from '@/context/AuthContext';
+import { fetchAccounts } from '@/utils/apimethods/accountMethods';
+
 import { useGroupedPositions } from '@/store/hooks/useGroupedPositions';
 import { usePortfolioSummary } from '@/store/hooks/usePortfolioSummary';
-import { formatCurrency, formatStockPrice } from '@/utils/formatters';
 import { useDataStore } from '@/store/DataStore';
 
-// ---- Layout constants (keep header heights in one place)
-const NAV_BAR_H = 64;    // 16 * 4px
-const TICKER_H  = 32;    // 8  * 4px
+import {
+  User, Settings, LogOut, HelpCircle, Shield, Clock,
+  ChevronDown, Activity, Plus, TrendingUp, TrendingDown
+} from 'lucide-react';
+
+import { formatCurrency, formatStockPrice } from '@/utils/formatters';
+
+// ---- Layout constants
+const NAV_BAR_H = 64;      // 16 * 4px
+const TICKER_H  = 32;      // 8  * 4px
 const HEADER_TOTAL_H = NAV_BAR_H + TICKER_H; // 96
 
-// ---- rAF throttle helper
+// ---- rAF-throttled scroll state setter
 function useRafScroll(cb) {
   const ticking = useRef(false);
   useEffect(() => {
@@ -58,29 +62,32 @@ const StockTicker = () => {
     window.matchMedia('(prefers-reduced-motion: reduce)').matches
   );
 
-  const {
-    positions,
-    loading: positionsLoading,
-  } = useGroupedPositions();
+  const { positions, loading: positionsLoading, error: positionsError } = useGroupedPositions();
+  const { actions } = useDataStore();
 
-  const {
-    summary: portfolioSummary,
-    loading: summaryLoading
-  } = usePortfolioSummary();
+  // Nudge a fetch if we truly have nothing (defensive)
+  useEffect(() => {
+    if (!positionsLoading && (!positions || positions.length === 0)) {
+      actions?.fetchGroupedPositionsData?.();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [positionsLoading]);
 
-  // When user has no positions, show small sample set
+  const { summary: portfolioSummary, loading: summaryLoading } = usePortfolioSummary();
+
+  // Sample data if user has no positions
   const sampleStocks = [
-    { symbol: 'AAPL', price: 182.52, changePercent: 1.30, isUp: true },
+    { symbol: 'AAPL',  price: 182.52, changePercent: 1.30, isUp: true },
     { symbol: 'GOOGL', price: 142.18, changePercent: -0.86, isUp: false },
-    { symbol: 'MSFT', price: 378.91, changePercent: 1.22, isUp: true },
-    { symbol: 'AMZN', price: 156.33, changePercent: 2.10, isUp: true },
-    { symbol: 'TSLA', price: 238.45, changePercent: -2.32, isUp: false },
-    { symbol: 'META', price: 456.78, changePercent: 1.99, isUp: true },
-    { symbol: 'NVDA', price: 678.90, changePercent: 1.85, isUp: true },
-    { symbol: 'BTC',  price: 64230.50, changePercent: 1.96, isUp: true },
+    { symbol: 'MSFT',  price: 378.91, changePercent: 1.22, isUp: true },
+    { symbol: 'AMZN',  price: 156.33, changePercent: 2.10, isUp: true },
+    { symbol: 'TSLA',  price: 238.45, changePercent: -2.32, isUp: false },
+    { symbol: 'META',  price: 456.78, changePercent: 1.99, isUp: true },
+    { symbol: 'NVDA',  price: 678.90, changePercent: 1.85, isUp: true },
+    { symbol: 'BTC',   price: 64230.50, changePercent: 1.96, isUp: true },
   ];
 
-  // Map your grouped positions into ticker items
+  // Map grouped positions for ticker
   const userStocks = useMemo(() => {
     if (!positions || positions.length === 0) return [];
     return positions
@@ -97,7 +104,13 @@ const StockTicker = () => {
         value: pos.total_current_value,
         price: pos.latest_price_per_unit,
         dayChangePercent: (pos.value_1d_change_pct || 0),
-        isUp: (pos.value_1d_change_pct || 0) >= 0
+        weekChangePercent: (pos.value_1w_change_pct || 0),
+        ytdChangePercent: (pos.value_ytd_change_pct || 0),
+        totalGainLossPercent: typeof pos.total_gain_loss_pct === 'number' ? pos.total_gain_loss_pct * 100 : null,
+        isUp1d: (pos.value_1d_change_pct || 0) >= 0,
+        isUp1w: (pos.value_1w_change_pct || 0) >= 0,
+        isUpYtd: (pos.value_ytd_change_pct || 0) >= 0,
+        isUpTotal: (pos.total_gain_loss_pct || 0) >= 0,
       }));
   }, [positions]);
 
@@ -108,12 +121,13 @@ const StockTicker = () => {
   // Render list 3x for seamless loop
   const tickerContent = useMemo(() => [...items, ...items, ...items], [items]);
 
-  // Measure track width after first render and when items change
+  // Measure width of one loop copy
   const measure = useCallback(() => {
     if (trackRef.current && containerRef.current) {
       const trackWidth = trackRef.current.scrollWidth;
       const containerWidth = containerRef.current.clientWidth;
-      contentWidthRef.current = trackWidth > 0 ? trackWidth / 3 : containerWidth; // single copy width
+      // since we render content 3x, a single copy is trackWidth / 3
+      contentWidthRef.current = trackWidth > 0 ? trackWidth / 3 : containerWidth;
     }
   }, []);
 
@@ -123,7 +137,7 @@ const StockTicker = () => {
     return () => window.removeEventListener('resize', measure);
   }, [measure, tickerContent.length]);
 
-  // Pause when tab is hidden
+  // Pause when tab hidden
   useEffect(() => {
     const onVis = () => {
       pausedRef.current = document.visibilityState !== 'visible';
@@ -139,13 +153,12 @@ const StockTicker = () => {
     if (prefersReducedMotion.current) return;
     if (pausedRef.current) { rafRef.current = null; return; }
 
-    // Advance by 0.6px per frame (~36px/s @60fps) – subtle and smooth
+    // advance ~36px/s @ 60fps
     posRef.current -= 0.6;
     const singleWidth = contentWidthRef.current || 1000;
 
-    // Reset translate when a full copy has scrolled past
     if (Math.abs(posRef.current) >= singleWidth) {
-      posRef.current += singleWidth;
+      posRef.current += singleWidth; // loop
     }
 
     if (trackRef.current) {
@@ -154,7 +167,6 @@ const StockTicker = () => {
     rafRef.current = requestAnimationFrame(tick);
   }, []);
 
-  // Start loop on mount
   useEffect(() => {
     if (!prefersReducedMotion.current) {
       rafRef.current = requestAnimationFrame(tick);
@@ -173,6 +185,40 @@ const StockTicker = () => {
     }
   };
 
+  // Helpers for right-side performance capsule
+  const getPeriod = useCallback((key) => {
+    return portfolioSummary?.periodChanges?.[key] ?? null;
+  }, [portfolioSummary]);
+
+  const renderChip = useCallback((label, data, fallbackAmt = null, fallbackPct = null) => {
+    const amt = data?.netWorthChange ?? fallbackAmt ?? null;
+    const pct = data?.netWorthPercent ?? fallbackPct ?? null;
+    const up  = typeof pct === 'number' ? pct >= 0 : (typeof amt === 'number' ? amt >= 0 : null);
+    const color = up == null ? 'text-gray-300' : up ? 'text-green-400' : 'text-red-400';
+
+    return (
+      <div className="flex items-center gap-2 px-3 py-1 bg-gray-800 rounded" title={label}>
+        <span className="text-gray-400">{label}:</span>
+        <span className={`font-medium ${color}`}>
+          {amt != null ? `${amt >= 0 ? '+' : ''}${formatCurrency(Math.abs(amt)).replace('$','')}` : '—'}
+        </span>
+        <span className="text-gray-500">/</span>
+        <span className={`font-medium ${color}`}>
+          {typeof pct === 'number' ? `${pct >= 0 ? '+' : ''}${pct.toFixed(2)}%` : '—'}
+        </span>
+      </div>
+    );
+  }, []);
+
+  const totalValue = useMemo(() => {
+    return (
+      portfolioSummary?.totals?.netWorth ??
+      portfolioSummary?.netWorth ??
+      portfolioSummary?.currentNetWorth ??
+      null
+    );
+  }, [portfolioSummary]);
+
   return (
     <div
       ref={containerRef}
@@ -189,6 +235,7 @@ const StockTicker = () => {
         </div>
       )}
 
+      {/* Scrolling track */}
       <div
         ref={trackRef}
         className="absolute inset-y-0 left-0 flex items-center whitespace-nowrap will-change-transform"
@@ -197,47 +244,105 @@ const StockTicker = () => {
         {tickerContent.map((stock, index) => (
           <div
             key={`${stock.symbol}-${index}`}
-            className="inline-flex items-center gap-3 px-6 border-r border-gray-800"
+            className="inline-flex items-center gap-4 px-6 border-r border-gray-800"
           >
+            {/* Symbol + optional name */}
             <div>
               <span className="font-semibold text-gray-300">{stock.symbol}</span>
               {stock.name && (
                 <span className="text-xs text-gray-500 ml-1">({String(stock.name).slice(0, 15)}…)</span>
               )}
             </div>
-            <span className="text-gray-400">
-              {stock.price !== null && stock.price !== undefined ? formatStockPrice(stock.price) : 'N/A'}
-            </span>
 
+            {/* Labeled Market Price */}
+            <div className="flex items-center gap-1">
+              <span className="text-xs text-gray-500">Price:</span>
+              <span className="text-gray-300">
+                {stock.price !== null && stock.price !== undefined ? formatStockPrice(stock.price) : 'N/A'}
+              </span>
+            </div>
+
+            {/* Labeled Value when available (user positions only) */}
             {typeof stock.value === 'number' && (
-              <span className="text-gray-400">{formatCurrency(stock.value)}</span>
+              <div className="flex items-center gap-1">
+                <span className="text-xs text-gray-500">Value:</span>
+                <span className="text-gray-300">{formatCurrency(stock.value)}</span>
+              </div>
             )}
 
+            {/* 1D change (or sample % if no positions) */}
             <span
-              className={`flex items-center text-sm ${stock.isUp ? 'text-green-400' : 'text-red-400'}`}
+              className={`flex items-center text-sm ${
+                (hasPositions ? stock.isUp1d : stock.isUp) ? 'text-green-400' : 'text-red-400'
+              }`}
               title="1D change"
             >
-              {stock.isUp ? <TrendingUp className="w-3 h-3 mr-1" /> : <TrendingDown className="w-3 h-3 mr-1" />}
-              {`${stock.dayChangePercent !== undefined
-                ? (stock.dayChangePercent >= 0 ? '+' : '') + stock.dayChangePercent.toFixed(1)
-                : (stock.changePercent >= 0 ? '+' : '') + (stock.changePercent ?? 0).toFixed(1)
-              }%`}
+              {(hasPositions ? stock.isUp1d : stock.isUp)
+                ? <TrendingUp className="w-3 h-3 mr-1" />
+                : <TrendingDown className="w-3 h-3 mr-1" />
+              }
+              {(() => {
+                const pct = hasPositions ? stock.dayChangePercent : stock.changePercent;
+                if (typeof pct === 'number') return `${pct >= 0 ? '+' : ''}${pct.toFixed(1)}%`;
+                return '—';
+              })()}
             </span>
+
+            {/* Optional: 1W / YTD / Total chips inside each row (can be commented if too dense) */}
+            {hasPositions && (
+              <>
+                <span
+                  className={`hidden md:flex items-center text-sm ${
+                    stock.isUp1w ? 'text-green-400' : 'text-red-400'
+                  }`}
+                  title="1W change"
+                >
+                  {stock.isUp1w ? <TrendingUp className="w-3 h-3 mr-1" /> : <TrendingDown className="w-3 h-3 mr-1" />}
+                  {typeof stock.weekChangePercent === 'number'
+                    ? `${stock.weekChangePercent >= 0 ? '+' : ''}${stock.weekChangePercent.toFixed(1)}%`
+                    : '—'}
+                </span>
+                <span
+                  className={`hidden lg:flex items-center text-sm ${
+                    stock.isUpYtd ? 'text-green-400' : 'text-red-400'
+                  }`}
+                  title="YTD change"
+                >
+                  {stock.isUpYtd ? <TrendingUp className="w-3 h-3 mr-1" /> : <TrendingDown className="w-3 h-3 mr-1" />}
+                  {typeof stock.ytdChangePercent === 'number'
+                    ? `${stock.ytdChangePercent >= 0 ? '+' : ''}${stock.ytdChangePercent.toFixed(1)}%`
+                    : '—'}
+                </span>
+              </>
+            )}
           </div>
         ))}
       </div>
 
-      {/* Right-side portfolio summary */}
+      {/* Right-side portfolio performance capsule */}
       {!isLoading && hasPositions && portfolioSummary && (
         <div className="absolute right-4 top-0 h-full flex items-center bg-gray-950 pl-4 z-50">
-          <div className="flex items-center gap-4 text-sm">
+          <div className="flex items-center gap-3 text-sm">
+            {/* Total Value */}
             <div className="flex items-center gap-2 px-3 py-1 bg-gray-800 rounded">
-              <span className="text-gray-400">Portfolio:</span>
-              <span className={`font-medium ${portfolioSummary.periodChanges?.['1d']?.netWorthPercent >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                {portfolioSummary.periodChanges?.['1d']?.netWorthPercent >= 0 ? '+' : ''}
-                {portfolioSummary.periodChanges?.['1d']?.netWorthPercent?.toFixed(2) || '0.00'}% Today
+              <span className="text-gray-400">Total Value:</span>
+              <span className="font-semibold text-gray-200">
+                {totalValue != null ? formatCurrency(totalValue) : '—'}
               </span>
             </div>
+
+            {/* Multi-period chips */}
+            {renderChip('1D',  getPeriod('1d'))}
+            {renderChip('1W',  getPeriod('1w'))}
+            {renderChip('YTD', getPeriod('ytd'))}
+            {renderChip(
+              'Gain/Loss',
+              getPeriod('total'),
+              portfolioSummary?.totals?.totalGainLossAmt ?? null,
+              (typeof portfolioSummary?.totals?.totalGainLossPct === 'number'
+                ? portfolioSummary?.totals?.totalGainLossPct
+                : null)
+            )}
           </div>
         </div>
       )}
@@ -314,7 +419,7 @@ const Navbar = () => {
 
   return (
     <>
-      {/* Fixed header block: nav + ticker (z-40) */}
+      {/* Fixed header block: nav + ticker */}
       <div className="fixed top-0 left-0 right-0 z-40">
         <motion.nav
           initial={{ y: -100 }}

@@ -89,6 +89,12 @@ const Sidebar = () => {
       description: "Monitor your debts, loans, and obligations"
     },
     { 
+      href: "/mobile", 
+      label: "Mobile App", 
+      icon: <CreditCard className="w-5 h-5" />,
+      description: "Monitor your debts, loans, and obligations"
+    },
+    { 
       href: "/planning", 
       label: "Planning", 
       icon: <Target className="w-5 h-5" />,
