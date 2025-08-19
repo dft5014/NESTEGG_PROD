@@ -3,7 +3,7 @@ import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import {
   X, Check, CheckCircle, CheckSquare, CheckCheck, AlertCircle, AlertTriangle, Info, Clock, Loader2,
   ChevronRight, ChevronLeft, ArrowLeft, ArrowUpRight, ArrowDownRight, Eye, EyeOff,
-  Building2 as Landmark, DollarSign, Droplets, LineChart, Bell, Sparkles, Target, Trophy, FileText, FileCheck, RefreshCw, Percent
+  Building2 as Landmark, DollarSign, Droplets, LineChart, Bell, Sparkles, Target, Trophy, FileText, FileCheck, RefreshCw, Percent, Trash2
 } from 'lucide-react';
 
 // ====== External app hooks / API (unchanged signatures) ======
@@ -27,6 +27,17 @@ const getLogo = (name) => {
   const hit = popularBrokerages.find((b) => b.name.toLowerCase() === String(name).toLowerCase());
   return hit?.logo || null;
 };
+
+// ------- Keys (normalized across assets & liabilities) -------
+const makeKey = (kind, id) => `${kind}:${id}`;           // kind: 'asset' | 'liability'
+const parseKey = (key) => { const [kind, id] = String(key).split(':'); return { kind, id }; };
+
+// ------- Persistence namespaces (user-scoped) -------
+const NS = (userId) => `nestegg:v1:recon:${userId || 'anon'}`;
+const LS_DATA = (u) => `${NS(u)}:data`;
+const LS_HISTORY = (u) => `${NS(u)}:history`;
+const LS_DRAFT_PREFIX = (u) => `${NS(u)}:draft:`;
+const LS_SELECTED_INST = (u) => `${NS(u)}:selectedInstitution`;
 
 // ===== Shared, focus-stable, paste-friendly currency input =====
 export const CurrencyInput = React.memo(function CurrencyInput({
@@ -59,10 +70,8 @@ export const CurrencyInput = React.memo(function CurrencyInput({
   const handleChange = (e) => {
     const nextRaw = sanitize(e.target.value);
     setRaw(nextRaw);
-    // Direct update - no debouncing needed since we're not re-sorting
     onValueChange?.(Number(nextRaw || 0));
   };
-
 
   const handlePaste = (e) => {
     const txt = e.clipboardData.getData('text') || '';
@@ -104,10 +113,7 @@ export const CurrencyInput = React.memo(function CurrencyInput({
       onFocus={(e) => { 
         setFocused(true); 
         onFocus?.(e);
-        // Select all text on focus for easier editing
-        setTimeout(() => {
-          e.target.select();
-        }, 10);
+        setTimeout(() => { e.target.select(); }, 10);
       }}
       onBlur={(e) => { 
         setFocused(false); 
@@ -118,7 +124,7 @@ export const CurrencyInput = React.memo(function CurrencyInput({
       onKeyDown={handleKeyDown}
       placeholder="$0.00"
       aria-label={ariaLabel}
-      className={`${className} w-24 px-2 py-1 text-center rounded-lg border 
+      className={`${className} w-28 px-2 py-1 text-center rounded-lg border 
         bg-white dark:bg-zinc-900 
         text-gray-900 dark:text-white 
         placeholder-gray-400 dark:placeholder-zinc-500
@@ -129,17 +135,6 @@ export const CurrencyInput = React.memo(function CurrencyInput({
     />
   );
 });
-
-
-// ------- Keys (normalized across assets & liabilities) -------
-const makeKey = (kind, id) => `${kind}:${id}`;           // kind: 'asset' | 'liability'
-const parseKey = (key) => { const [kind, id] = String(key).split(':'); return { kind, id }; };
-
-// ------- Persistence namespaces (user-scoped) -------
-const NS = (userId) => `nestegg:v1:recon:${userId || 'anon'}`;
-const LS_DATA = (u) => `${NS(u)}:data`;
-const LS_HISTORY = (u) => `${NS(u)}:history`;
-const LS_DRAFT_PREFIX = (u) => `${NS(u)}:draft:`;
 
 // =================== Modal Shell (ARIA + Focus Trap + Dirty Guard) ===================
 function ModalShell({ isOpen, onRequestClose, onBeforeClose, children, titleId }) {
@@ -225,6 +220,71 @@ const ABS_TOLERANCE = 0.01; // cents-level
 const PCT_TOLERANCE = 0.001; // 0.1%
 const withinTolerance = (nest, stmt) => Math.abs(stmt - nest) < Math.max(ABS_TOLERANCE, Math.abs(nest) * PCT_TOLERANCE);
 
+// ===================== Shared Top Header (consistent across screens) =========
+function TopHeader({
+  title,
+  showValues,
+  setShowValues,
+  onRefresh,
+  onClearPending,
+  pending,
+}) {
+  return (
+    <div className="w-full border-b border-gray-200 dark:border-zinc-800 bg-white/95 dark:bg-zinc-900/95 backdrop-blur sticky top-0 z-[10]">
+      <div className="px-6 py-3 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+        <div className="flex items-center gap-3">
+          <h1 id="qr-title" className="text-xl md:text-2xl font-bold text-gray-900 dark:text-zinc-100">{title}</h1>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setShowValues(s=>!s)}
+              className="px-3 py-1.5 rounded-lg bg-gray-100 dark:bg-zinc-800 hover:bg-gray-200 dark:hover:bg-zinc-700 text-gray-700 dark:text-zinc-200 border border-gray-200 dark:border-zinc-700"
+              title={showValues ? 'Hide values' : 'Show values'}
+            >
+              {showValues ? <Eye className="w-5 h-5" /> : <EyeOff className="w-5 h-5" />}
+            </button>
+            <button
+              onClick={onRefresh}
+              className="px-3 py-1.5 rounded-lg bg-gray-100 dark:bg-zinc-800 hover:bg-gray-200 dark:hover:bg-zinc-700 text-gray-700 dark:text-zinc-200 border border-gray-200 dark:border-zinc-700"
+              title="Refresh"
+            >
+              <RefreshCw className={`w-4 h-4`} />
+            </button>
+            <button
+              onClick={onClearPending}
+              className="px-3 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-700 text-white border border-rose-700/30"
+              title="Clear pending changes"
+            >
+              <Trash2 className="w-4 h-4 inline -mt-0.5 mr-1" /> Clear Pending
+            </button>
+          </div>
+        </div>
+
+        {/* KPIs */}
+        <div className="grid grid-cols-4 gap-2">
+          <div className="rounded-lg bg-white dark:bg-zinc-900 px-4 py-2 border border-gray-200 dark:border-zinc-800 text-right">
+            <div className="text-xs text-gray-500 dark:text-zinc-400">Pending</div>
+            <div className="text-lg font-semibold text-gray-900 dark:text-zinc-100">{pending.count}</div>
+          </div>
+          <div className="rounded-lg bg-green-50 dark:bg-emerald-900/20 px-4 py-2 border border-green-200 dark:border-emerald-800 text-right">
+            <div className="text-xs text-green-700 dark:text-emerald-400">↑ {pending.posCount}</div>
+            <div className="text-sm font-semibold text-green-800 dark:text-emerald-300">{fmtUSD(pending.posAmt, !showValues)}</div>
+          </div>
+          <div className="rounded-lg bg-red-50 dark:bg-rose-900/20 px-4 py-2 border border-red-200 dark:border-rose-800 text-right">
+            <div className="text-xs text-red-700 dark:text-rose-400">↓ {pending.negCount}</div>
+            <div className="text-sm font-semibold text-red-800 dark:text-rose-300">{fmtUSD(pending.negAmt, !showValues)}</div>
+          </div>
+          <div className="rounded-lg bg-white dark:bg-zinc-900 px-4 py-2 border border-gray-200 dark:border-zinc-800 text-right">
+            <div className="text-xs text-gray-500 dark:text-zinc-400">Net Impact</div>
+            <div className={`text-lg font-semibold ${pending.net >= 0 ? 'text-green-700 dark:text-emerald-400' : 'text-red-700 dark:text-rose-400'}`}>
+              {fmtUSD(pending.net, !showValues)}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function QuickReconciliationModal({ isOpen, onClose }) {
   const { state, actions } = useDataStore();
   const userId = state?.user?.id || null;
@@ -258,6 +318,27 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
     setReconData(data);
     try { localStorage.setItem(LS_DATA(userId), JSON.stringify(data)); } catch {/* noop */}
   }, [userId]);
+
+  const clearPending = useCallback(() => {
+    if (!confirm('Clear all pending changes and history for Quick Reconciliation?')) return;
+    try {
+      // remove data & history
+      localStorage.removeItem(LS_DATA(userId));
+      localStorage.removeItem(LS_HISTORY(userId));
+      // remove drafts
+      const prefix = LS_DRAFT_PREFIX(userId);
+      const keys = [];
+      for (let i=0; i<localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (k && k.startsWith(prefix)) keys.push(k);
+      }
+      keys.forEach(k => localStorage.removeItem(k));
+    } catch {}
+    setReconData({});
+    setDrafts({});
+    showToast('success', 'Cleared pending changes');
+  }, [userId]);
+
   const pushHistory = useCallback(() => {
     try {
       const now = new Date().toISOString();
@@ -276,7 +357,7 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
     setScreen('welcome');
     setToast(null);
     setLocalLoading(false);
-    setTimeout(() => { // gently fetch latest if empty
+    setTimeout(() => {
       (async () => {
         if (!accounts.length || !rawPositions.length) {
           try {
@@ -306,14 +387,6 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
     });
   }, [rawPositions, accounts]);
 
-  // Derived: liquid cash-like assets
-  const liquidAssets = useMemo(() => {
-    return positionsNorm.filter((p) => {
-      const t = (p.type || '').toLowerCase();
-      return ['cash','checking','savings'].includes(t) || /checking|savings|cash/i.test(p.name || '');
-    });
-  }, [positionsNorm]);
-
   // Liabilities from store
   const { groupedLiabilities } = state;
   useEffect(() => {
@@ -323,11 +396,9 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
   }, [groupedLiabilities?.lastFetched, groupedLiabilities?.loading, actions]);
 
   const liabilities = useMemo(() => {
-    console.log('[QuickRecon] Raw liability data:', groupedLiabilities?.data?.[0]); // Debug first liability
     return (groupedLiabilities?.data || []).map((L) => {
       const id = L.item_id ?? L.liability_id ?? L.id ?? L.history_id;
       const t = (L.item_type || L.type || 'liability').toLowerCase();
-      // CRITICAL FIX: Use total_current_balance which is what the API returns
       const val = Number(
         L.total_current_balance ?? L.current_balance ?? L.current_value ?? L.balance ?? L.net_worth_value ?? L.principal_balance ?? L.amount ?? 0
       );
@@ -346,11 +417,9 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
   }, [groupedLiabilities?.data]);
 
   // ================= Dirty-State Tracking =================
-  // drafts map: key -> number (key = 'asset:<id>' | 'liability:<id>')
   const [drafts, setDrafts] = useState({});
   const draftKeyPrefix = LS_DRAFT_PREFIX(userId);
 
-  // persist drafts per selection scope, but also maintain a global merged store so the KPI is stable
   const saveDraftsScoped = useCallback((scopeKey, obj) => {
     try { localStorage.setItem(`${draftKeyPrefix}${scopeKey}`, JSON.stringify(obj)); } catch {/* noop */}
   }, [draftKeyPrefix]);
@@ -373,7 +442,7 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
   // Pending KPI (global)
   const pending = useMemo(() => {
     const rows = [
-      ...liquidAssets.map(p => ({ key: makeKey('asset', p.id), curr: Number(p.currentValue || 0) })),
+      ...positionsNorm.map(p => ({ key: makeKey('asset', p.id), curr: Number(p.currentValue || 0) })),
       ...liabilities.map(p => ({ key: makeKey('liability', p.id), curr: Number(p.currentValue || 0) })),
     ];
     let count=0, posC=0, posA=0, negC=0, negA=0;
@@ -387,17 +456,30 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
       else { negC += 1; negA += delta; }
     });
     return { count, posCount: posC, posAmt: posA, negCount: negC, negAmt: negA, net: posA + negA };
-  }, [liquidAssets, liabilities, drafts]);
+  }, [positionsNorm, liabilities, drafts]);
 
   // Dirty guard on close
   const hasUnsaved = pending.count > 0;
   const onBeforeClose = useCallback(async () => {
     if (!hasUnsaved) return true;
-    // simple confirm; replace with custom dialog if needed
     return confirm('You have pending edits that are not submitted yet. Close anyway?');
   }, [hasUnsaved]);
 
-  // ===================== Screens =====================
+  // ====== Shared edit-focus state (prevents input losing focus) ======
+  const [editingKey, setEditingKey] = useState(null);
+  const lastFocusedIdRef = useRef(null);
+  useEffect(() => {
+    // Restore focus after re-renders while editing
+    if (!editingKey && !lastFocusedIdRef.current) return;
+    const el = lastFocusedIdRef.current ? document.getElementById(lastFocusedIdRef.current) : null;
+    if (el && document.activeElement !== el) {
+      el.focus();
+      const end = el.value?.length ?? 0;
+      try { el.setSelectionRange(end, end); } catch {}
+    }
+  }, [editingKey, drafts]);
+
+  // ========== WELCOME ==========
   function WelcomeScreen() {
     // History streak (for motivation)
     const history = useMemo(() => {
@@ -414,146 +496,131 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
         return `${Math.floor(days/30)} months ago`;
       })();
 
-    // Institution preview: cash + liabilities grouped
+    // Institution preview grouped & split assets/liabilities
     const preview = useMemo(() => {
       const map = new Map();
-      const add = (inst) => { if (!map.has(inst)) map.set(inst, { institution: inst, rows: [], value: 0, drafted: 0, changed: 0, saved: 0 }); return map.get(inst); };
-      liquidAssets.forEach(p => {
-        const inst = p.institution || 'Unknown Institution'; const g = add(inst);
+      const add = (inst) => { if (!map.has(inst)) map.set(inst, {
+        institution: inst,
+        assets: [], liabilities: [],
+        assetsValue: 0, liabilitiesValue: 0,
+        drafted: 0, changed: 0
+      }); return map.get(inst); };
+      positionsNorm.forEach(p => {
+        const g = add(p.institution || 'Unknown Institution');
         const key = makeKey('asset', p.id); const curr = Number(p.currentValue||0); const d = drafts[key];
         const hasDraft = d !== undefined && Number.isFinite(d);
         const hasChange = hasDraft && d !== curr;
-        g.rows.push({ kind:'asset', key, curr, draft: d });
-        g.value += Math.abs(curr); g.drafted += hasDraft ? 1 : 0; g.changed += hasChange ? 1 : 0;
+        g.assets.push({ key, curr, draft: d });
+        g.assetsValue += Math.abs(curr); g.drafted += hasDraft ? 1 : 0; g.changed += hasChange ? 1 : 0;
       });
       liabilities.forEach(p => {
-        const inst = p.institution || 'Unknown Institution'; const g = add(inst);
+        const g = add(p.institution || 'Unknown Institution');
         const key = makeKey('liability', p.id); const curr = Number(p.currentValue||0); const d = drafts[key];
         const hasDraft = d !== undefined && Number.isFinite(d);
         const hasChange = hasDraft && d !== curr;
-        g.rows.push({ kind:'liability', key, curr, draft: d });
-        g.value += Math.abs(curr); g.drafted += hasDraft ? 1 : 0; g.changed += hasChange ? 1 : 0;
+        g.liabilities.push({ key, curr, draft: d });
+        g.liabilitiesValue += Math.abs(curr); g.drafted += hasDraft ? 1 : 0; g.changed += hasChange ? 1 : 0;
       });
-      // progress uses Changed (not just Drafted) to reflect true deltas
-      return Array.from(map.values()).sort((a,b)=>b.value-a.value).map(g => ({
-        ...g,
-        total: g.rows.length,
-        progressPct: g.total ? ((g.total - g.changed) / g.total) * 100 : 0
-      }));
-    }, [liquidAssets, liabilities, drafts]);
+      return Array.from(map.values()).map(g => {
+        const totalRows = g.assets.length + g.liabilities.length;
+        const totalValue = g.assetsValue + g.liabilitiesValue;
+        const progressPct = totalRows ? ((totalRows - g.changed) / totalRows) * 100 : 0;
+        return { ...g, totalRows, totalValue, progressPct };
+      }).sort((a,b)=>b.totalValue-a.totalValue);
+    }, [positionsNorm, liabilities, drafts]);
+
+    const onRefresh = useCallback(() => {
+      setLocalLoading(true);
+      Promise.all([refreshPositions?.(), refreshAccounts?.(), actions.fetchGroupedLiabilitiesData?.()])
+        .finally(()=>setLocalLoading(false));
+    }, [refreshPositions, refreshAccounts, actions]);
 
     return (
-      <div className="p-8 bg-gradient-to-br from-gray-50 to-gray-100 dark:from-zinc-950 dark:to-zinc-900">
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+      <div className="flex flex-col h-[80vh]">
+        <TopHeader
+          title="Quick Update & Reconcile"
+          showValues={showValues}
+          setShowValues={setShowValues}
+          onRefresh={onRefresh}
+          onClearPending={clearPending}
+          pending={pending}
+        />
+
+        <div className="p-6 flex-1 overflow-auto">
+          <p className="text-gray-600 dark:text-zinc-400 mb-4">
+            Paste or type balances for cash, cards, and loans; then verify investment accounts. Last full update: <span className="font-medium">{lastStr}</span>.
+          </p>
+
+          {/* CTAs */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+            <button
+              onClick={() => setScreen('liquid')}
+              className="group text-left p-6 bg-white dark:bg-zinc-900 rounded-xl border-2 border-blue-200 dark:border-blue-900/40 hover:border-blue-400 dark:hover:border-blue-600 transition-all hover:shadow-lg"
+            >
+              <div className="flex items-start gap-3">
+                <div className="p-3 rounded-lg bg-blue-100 dark:bg-blue-900/40">
+                  <Droplets className="text-blue-600 dark:text-blue-300" />
+                </div>
+                <div className="flex-1">
+                  <div className="font-semibold text-gray-900 dark:text-zinc-100">Quick Cash & Liabilities</div>
+                  <div className="text-sm text-gray-600 dark:text-zinc-400">Update checking, savings, credit cards, loans</div>
+                </div>
+                <ChevronRight className="w-5 h-5 text-gray-400 group-hover:translate-x-1 transition-transform" />
+              </div>
+            </button>
+
+            <button
+              onClick={() => setScreen('reconcile')}
+              className="group text-left p-6 bg-white dark:bg-zinc-900 rounded-xl border-2 border-green-200 dark:border-emerald-900/40 hover:border-green-400 dark:hover:border-emerald-600 transition-all hover:shadow-lg"
+            >
+              <div className="flex items-start gap-3">
+                <div className="p-3 rounded-lg bg-green-100 dark:bg-emerald-900/40">
+                  <CheckSquare className="text-green-600 dark:text-emerald-300" />
+                </div>
+                <div className="flex-1">
+                  <div className="font-semibold text-gray-900 dark:text-zinc-100">Investment & Liabilities Check‑In</div>
+                  <div className="text-sm text-gray-600 dark:text-zinc-400">Verify account totals match statements</div>
+                </div>
+                <ChevronRight className="w-5 h-5 text-gray-400 group-hover:translate-x-1 transition-transform" />
+              </div>
+            </button>
+
+            <button
+              onClick={() => { setScreen('liquid'); saveReconData((d)=>({ ...d, _next:'reconcile' })); }}
+              className="group text-left p-6 bg-white dark:bg-zinc-900 rounded-xl border-2 border-purple-200 dark:border-purple-900/40 hover:border-purple-400 dark:hover:border-purple-600 transition-all hover:shadow-lg"
+            >
+              <div className="flex items-start gap-3">
+                <div className="p-3 rounded-lg bg-purple-100 dark:bg-purple-900/40">
+                  <Target className="text-purple-600 dark:text-purple-300" />
+                </div>
+                <div className="flex-1">
+                  <div className="font-semibold text-gray-900 dark:text-zinc-100">Complete Sync</div>
+                  <div className="text-sm text-gray-600 dark:text-zinc-400">Refresh everything in one flow</div>
+                  <div className="mt-2 text-xs text-gray-500 dark:text-zinc-500">⚡ Fastest workflow</div>
+                </div>
+                <ChevronRight className="w-5 h-5 text-gray-400 group-hover:translate-x-1 transition-transform" />
+              </div>
+            </button>
+          </div>
+
+          {/* Institution Overview */}
           <div>
-            <h1 id="qr-title" className="text-3xl font-bold text-gray-900 dark:text-zinc-100">Quick Update & Reconcile</h1>
-            <p className="text-gray-600 dark:text-zinc-400 mt-1">
-              Paste or type balances for cash, cards, and loans; then verify investment accounts. Last full update: <span className="font-medium">{lastStr}</span>.
-            </p>
-          </div>
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-semibold text-gray-900 dark:text-zinc-100">Institutions Overview</h3>
+            </div>
 
-          {/* Summary KPIs (global) */}
-          <div className="grid grid-cols-4 gap-2">
-            <div className="rounded-lg bg-white dark:bg-zinc-900 px-4 py-2 border border-gray-200 dark:border-zinc-800 text-right">
-              <div className="text-xs text-gray-500 dark:text-zinc-400">Pending</div>
-              <div className="text-lg font-semibold text-gray-900 dark:text-zinc-100">{pending.count}</div>
-            </div>
-            <div className="rounded-lg bg-green-50 dark:bg-emerald-900/20 px-4 py-2 border border-green-200 dark:border-emerald-800 text-right">
-              <div className="text-xs text-green-700 dark:text-emerald-400">↑ {pending.posCount}</div>
-              <div className="text-sm font-semibold text-green-800 dark:text-emerald-300">{fmtUSD(pending.posAmt, !showValues)}</div>
-            </div>
-            <div className="rounded-lg bg-red-50 dark:bg-rose-900/20 px-4 py-2 border border-red-200 dark:border-rose-800 text-right">
-              <div className="text-xs text-red-700 dark:text-rose-400">↓ {pending.negCount}</div>
-              <div className="text-sm font-semibold text-red-800 dark:text-rose-300">{fmtUSD(pending.negAmt, !showValues)}</div>
-            </div>
-            <div className="rounded-lg bg-white dark:bg-zinc-900 px-4 py-2 border border-gray-200 dark:border-zinc-800 text-right">
-              <div className="text-xs text-gray-500 dark:text-zinc-400">Net Impact</div>
-              <div className={`text-lg font-semibold ${pending.net >= 0 ? 'text-green-700 dark:text-emerald-400' : 'text-red-700 dark:text-rose-400'}`}>
-                {fmtUSD(pending.net, !showValues)}
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* CTAs */}
-        <div className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-4">
-          <button
-            onClick={() => setScreen('liquid')}
-            className="group text-left p-6 bg-white dark:bg-zinc-900 rounded-xl border-2 border-blue-200 dark:border-blue-900/40 hover:border-blue-400 dark:hover:border-blue-600 transition-all hover:shadow-lg"
-          >
-            <div className="flex items-start gap-3">
-              <div className="p-3 rounded-lg bg-blue-100 dark:bg-blue-900/40">
-                <Droplets className="text-blue-600 dark:text-blue-300" />
-              </div>
-              <div className="flex-1">
-                <div className="font-semibold text-gray-900 dark:text-zinc-100">Quick Cash & Liabilities</div>
-                <div className="text-sm text-gray-600 dark:text-zinc-400">Update checking, savings, credit cards, loans</div>
-              </div>
-              <ChevronRight className="w-5 h-5 text-gray-400 group-hover:translate-x-1 transition-transform" />
-            </div>
-          </button>
-
-          <button
-            onClick={() => setScreen('reconcile')}
-            className="group text-left p-6 bg-white dark:bg-zinc-900 rounded-xl border-2 border-green-200 dark:border-emerald-900/40 hover:border-green-400 dark:hover:border-emerald-600 transition-all hover:shadow-lg"
-          >
-            <div className="flex items-start gap-3">
-              <div className="p-3 rounded-lg bg-green-100 dark:bg-emerald-900/40">
-                <CheckSquare className="text-green-600 dark:text-emerald-300" />
-              </div>
-              <div className="flex-1">
-                <div className="font-semibold text-gray-900 dark:text-zinc-100">Investment Check‑In</div>
-                <div className="text-sm text-gray-600 dark:text-zinc-400">Verify account totals match statements</div>
-              </div>
-              <ChevronRight className="w-5 h-5 text-gray-400 group-hover:translate-x-1 transition-transform" />
-            </div>
-          </button>
-
-          <button
-            onClick={() => { setScreen('liquid'); /* chain into reconcile on submit */ setReconData((d)=>({ ...d, _next:'reconcile' })); }}
-            className="group text-left p-6 bg-white dark:bg-zinc-900 rounded-xl border-2 border-purple-200 dark:border-purple-900/40 hover:border-purple-400 dark:hover:border-purple-600 transition-all hover:shadow-lg"
-          >
-            <div className="flex items-start gap-3">
-              <div className="p-3 rounded-lg bg-purple-100 dark:bg-purple-900/40">
-                <Target className="text-purple-600 dark:text-purple-300" />
-              </div>
-              <div className="flex-1">
-                <div className="font-semibold text-gray-900 dark:text-zinc-100">Complete Sync</div>
-                <div className="text-sm text-gray-600 dark:text-zinc-400">Refresh everything in one flow</div>
-                <div className="mt-2 text-xs text-gray-500 dark:text-zinc-500">⚡ Fastest workflow</div>
-              </div>
-              <ChevronRight className="w-5 h-5 text-gray-400 group-hover:translate-x-1 transition-transform" />
-            </div>
-          </button>
-        </div>
-
-        {/* Institution Overview */}
-        <div className="mt-8">
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="text-sm font-semibold text-gray-900 dark:text-zinc-100">Institutions Overview</h3>
-            <div className="text-xs text-gray-500 dark:text-zinc-400">
-              Values {showValues ? 'visible' : 'hidden'}
-              <button
-                onClick={()=>setShowValues(s=>!s)}
-                className="ml-2 inline-flex items-center gap-1 px-2 py-0.5 rounded bg-gray-100 dark:bg-zinc-800 text-gray-700 dark:text-zinc-300 hover:bg-gray-200 dark:hover:bg-zinc-700 border border-gray-200 dark:border-zinc-700"
-              >
-                {showValues ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />} Toggle
-              </button>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 max-h-[38vh] overflow-auto pr-1">
-            {(() => {
-              const list = preview;
-              if (!list.length) return <div className="text-sm text-gray-500 dark:text-zinc-400">Add accounts to get started.</div>;
-              return list.map((g) => {
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 max-h-[38vh] overflow-auto pr-1">
+              {preview.length === 0 ? (
+                <div className="text-sm text-gray-500 dark:text-zinc-400">Add accounts to get started.</div>
+              ) : preview.map((g) => {
                 const logo = getLogo(g.institution);
-                const done = g.total > 0 && g.changed === 0;
+                const changed = g.changed > 0;
+                const net = g.assetsValue - g.liabilitiesValue;
                 return (
                   <div
                     key={g.institution}
                     className={`rounded-xl border transition-all bg-white dark:bg-zinc-900 ${
-                      done ? 'border-green-200 dark:border-emerald-700/40' : 'border-gray-200 dark:border-zinc-800 hover:border-gray-300 dark:hover:border-zinc-700'
+                      changed ? 'border-amber-200 dark:border-amber-700/40' : 'border-gray-200 dark:border-zinc-800 hover:border-gray-300 dark:hover:border-zinc-700'
                     } p-4`}
                   >
                     <div className="flex items-center gap-3">
@@ -562,25 +629,27 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
                       ) : <Landmark className="w-8 h-8 text-gray-400" />}
                       <div className="flex-1">
                         <div className="font-semibold text-gray-900 dark:text-zinc-100">{g.institution}</div>
-                        <div className="text-xs text-gray-500 dark:text-zinc-400">{g.total} items • {fmtUSD(g.value, !showValues)}</div>
+                        <div className="text-xs text-gray-500 dark:text-zinc-400">
+                          {g.assets.length} assets • {g.liabilities.length} liabilities
+                        </div>
                       </div>
-                      {done
-                        ? <span className="inline-flex items-center text-green-700 dark:text-emerald-300 text-xs"><CheckCircle className="w-4 h-4 mr-1" /> Ready</span>
-                        : <span className="inline-flex items-center text-amber-700 dark:text-amber-300 text-xs"><AlertTriangle className="w-4 h-4 mr-1" /> Drafts</span>
+                      {changed
+                        ? <span className="inline-flex items-center text-amber-700 dark:text-amber-300 text-xs"><AlertTriangle className="w-4 h-4 mr-1" /> Drafts</span>
+                        : <span className="inline-flex items-center text-green-700 dark:text-emerald-300 text-xs"><CheckCircle className="w-4 h-4 mr-1" /> Ready</span>
                       }
                     </div>
-                    <div className="mt-3 h-1.5 bg-gray-100 dark:bg-zinc-800 rounded-full overflow-hidden">
-                      <div className={`${done ? 'bg-green-500' : 'bg-blue-500'} h-full transition-all`} style={{ width: `${clamp(g.progressPct,0,100)}%` }} />
-                    </div>
                     <div className="mt-3 grid grid-cols-3 gap-2 text-[11px]">
-                      <div className="text-gray-500 dark:text-zinc-400">Drafted: <span className="font-medium text-gray-700 dark:text-zinc-200">{g.drafted}</span></div>
-                      <div className="text-gray-500 dark:text-zinc-400">Changed: <span className="font-medium text-gray-700 dark:text-zinc-200">{g.changed}</span></div>
-                      <div className="text-gray-500 dark:text-zinc-400">Saved: <span className="font-medium text-gray-700 dark:text-zinc-200">{/* saved per-row if you track responses */}—</span></div>
+                      <div className="text-gray-500 dark:text-zinc-400">Assets: <span className="font-medium text-gray-700 dark:text-zinc-200">{fmtUSD(g.assetsValue, !showValues)}</span></div>
+                      <div className="text-gray-500 dark:text-zinc-400">Liabs: <span className="font-medium text-gray-700 dark:text-zinc-200">{fmtUSD(g.liabilitiesValue, !showValues)}</span></div>
+                      <div className="text-gray-500 dark:text-zinc-400">Net: <span className={`font-semibold ${net>=0 ? 'text-green-700 dark:text-emerald-300' : 'text-rose-600 dark:text-rose-300'}`}>{fmtUSD(net, !showValues)}</span></div>
+                    </div>
+                    <div className="mt-3 h-1.5 bg-gray-100 dark:bg-zinc-800 rounded-full overflow-hidden">
+                      <div className={`${changed ? 'bg-amber-500' : 'bg-green-500'} h-full transition-all`} style={{ width: `${clamp(g.progressPct,0,100)}%` }} />
                     </div>
                   </div>
                 );
-              });
-            })()}
+              })}
+            </div>
           </div>
         </div>
       </div>
@@ -589,7 +658,15 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
 
   // ================= Liquid Screen =================
   function LiquidScreen() {
-    const [selectedInstitution, setSelectedInstitution] = useState(null);
+    // persist / restore selected institution to prevent clearing on scroll/rerender
+    const [selectedInstitution, _setSelectedInstitution] = useState(() => {
+      try { return localStorage.getItem(LS_SELECTED_INST(userId)) || null; } catch { return null; }
+    });
+    const setSelectedInstitution = useCallback((inst) => {
+      _setSelectedInstitution(inst);
+      try { localStorage.setItem(LS_SELECTED_INST(userId), inst || ''); } catch {}
+    }, []);
+
     const [sortKey, setSortKey] = useState('nest'); // 'nest' | 'name' | 'diff'
     const [sortDir, setSortDir] = useState('desc');
     const [jumping, setJumping] = useState(false);
@@ -597,23 +674,24 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
     // build groups
     const groups = useMemo(() => {
       const map = new Map();
-      const add = (inst) => { if (!map.has(inst)) map.set(inst, { institution: inst, positions: [], liabilities: [], totalValue: 0 }); return map.get(inst); };
-      liquidAssets.forEach(p => { const g = add(p.institution || 'Unknown Institution'); g.positions.push(p); g.totalValue += Math.abs(Number(p.currentValue||0)); });
-      liabilities.forEach(p => { const g = add(p.institution || 'Unknown Institution'); g.liabilities.push(p); g.totalValue += Math.abs(Number(p.currentValue||0)); });
+      const add = (inst) => { if (!map.has(inst)) map.set(inst, { institution: inst, positions: [], liabilities: [], assetsValue: 0, liabilitiesValue: 0 }); return map.get(inst); };
+      positionsNorm.forEach(p => { const g = add(p.institution || 'Unknown Institution'); g.positions.push(p); g.assetsValue += Math.abs(Number(p.currentValue||0)); });
+      liabilities.forEach(p => { const g = add(p.institution || 'Unknown Institution'); g.liabilities.push(p); g.liabilitiesValue += Math.abs(Number(p.currentValue||0)); });
 
       const enriched = Array.from(map.values()).map((g) => {
         const totalRows = g.positions.length + g.liabilities.length;
         let drafted=0, changed=0;
         g.positions.forEach(p => { const key = makeKey('asset', p.id); const d = drafts[key]; if (d!==undefined) drafted+=1; if (d!==undefined && d!==Number(p.currentValue||0)) changed+=1; });
         g.liabilities.forEach(p => { const key = makeKey('liability', p.id); const d = drafts[key]; if (d!==undefined) drafted+=1; if (d!==undefined && d!==Number(p.currentValue||0)) changed+=1; });
-        return { ...g, totalRows, drafted, changed, progressPct: totalRows ? ((totalRows - changed) / totalRows)*100 : 0 };
+        return { ...g, totalRows, drafted, changed, totalValue: g.assetsValue + g.liabilitiesValue, progressPct: totalRows ? ((totalRows - changed) / totalRows)*100 : 0 };
       });
 
       return enriched.sort((a,b)=>b.totalValue-a.totalValue);
-    }, [liquidAssets, liabilities, drafts]);
+    }, [positionsNorm, liabilities, drafts]);
 
     useEffect(() => {
-      if (selectedInstitution && !groups.find(g=>g.institution===selectedInstitution)) setSelectedInstitution(null);
+      if (selectedInstitution && !groups.find(g=>g.institution===selectedInstitution)) _setSelectedInstitution(null);
+      // do not remove localStorage key here to preserve selection across refresh
     }, [groups, selectedInstitution]);
 
     const current = useMemo(()=>groups.find(g=>g.institution===selectedInstitution),[groups,selectedInstitution]);
@@ -622,33 +700,20 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
     const toggleSort = (key) => { if (sortKey===key) setSortDir(d=>d==='asc'?'desc':'asc'); else { setSortKey(key); setSortDir('desc'); } };
 
     const makeSorted = useCallback((rows, kind) => {
-      // First, sort the rows based on STABLE values (not drafts)
       const sorted = [...rows].sort((a, b) => {
         const dir = sortDir === 'asc' ? 1 : -1;
-        
-        // Sort by stable values that DON'T change during editing
-        if (sortKey === 'name') {
-          return a.name.localeCompare(b.name) * dir;
-        }
-        
-        // Always sort by the NESTEGG value, not the statement value
+        if (sortKey === 'name') return a.name.localeCompare(b.name) * dir;
         const aValue = Number(a.currentValue || 0);
         const bValue = Number(b.currentValue || 0);
-        
         if (sortKey === 'diff') {
-          // Even for diff, calculate based on stable NestEgg values for sorting
           const aDraft = drafts[makeKey(kind, a.id)];
           const bDraft = drafts[makeKey(kind, b.id)];
           const aDiff = aDraft !== undefined ? (Number(aDraft) - aValue) : 0;
           const bDiff = bDraft !== undefined ? (Number(bDraft) - bValue) : 0;
           return (aDiff - bDiff) * dir;
         }
-        
-        // Default: sort by NestEgg value
         return (aValue - bValue) * dir;
       });
-      
-      // Now add the calculated values for display
       return sorted.map((p) => {
         const key = makeKey(kind, p.id);
         const nest = Number(p.currentValue || 0);
@@ -659,15 +724,8 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
       });
     }, [sortKey, sortDir, drafts]);
 
-    const sortedPositions = useMemo(() => {
-      if (!current?.positions) return [];
-      return makeSorted(current.positions, 'asset');
-    }, [current?.positions, makeSorted]);
-
-    const sortedLiabilities = useMemo(() => {
-      if (!current?.liabilities) return [];
-      return makeSorted(current.liabilities, 'liability');
-    }, [current?.liabilities, makeSorted]);
+    const sortedPositions = useMemo(() => current?.positions ? makeSorted(current.positions, 'asset') : [], [current?.positions, makeSorted]);
+    const sortedLiabilities = useMemo(() => current?.liabilities ? makeSorted(current.liabilities, 'liability') : [], [current?.liabilities, makeSorted]);
 
     // bulk paste (CSV/TSV or column)
     const onBulkPaste = (e) => {
@@ -677,7 +735,7 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
       const hasTabs = txt.includes('\t');
       const lines = txt.trim().split(/\r?\n/).map(row => {
         if (hasTabs) return row.split('\t');
-        if (row.includes(',')) return row.split(','); // crude CSV; good enough for numeric paste
+        if (row.includes(',')) return row.split(',');
         return [row];
       });
       const flat = lines.flat().map(s=>toNum(String(s).trim())).filter(n=>Number.isFinite(n));
@@ -690,7 +748,6 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
       setDrafts(prev => {
         const next = { ...prev };
         for (let i=0;i<keys.length && i<flat.length;i+=1) next[keys[i]] = flat[i];
-        // persist scoped
         try { localStorage.setItem(`${LS_DRAFT_PREFIX(userId)}${scopeKey}`, JSON.stringify(Object.fromEntries(keys.map(k=>[k, next[k]])))); } catch {}
         return next;
       });
@@ -700,7 +757,6 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
     // Save selected institution
     const saveInstitution = async () => {
       if (!current) return;
-      // build changes
       const changes = [];
       current.positions.forEach(p => {
         const key = makeKey('asset', p.id);
@@ -713,13 +769,10 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
         const curr = Number(p.currentValue||0);
         const next = drafts[key]; 
         if (next === undefined || !Number.isFinite(next) || next === curr) return;
-        // Use the correct ID field for liabilities
-        const liabilityId = p.itemId ?? p.id;
-        changes.push({ kind: 'liability', id: liabilityId, value: next });
+        changes.push({ kind: 'liability', id: (p.itemId ?? p.id), value: next });
       });
       if (!changes.length) { showToast('info','No changes to apply'); return; }
 
-      // parallelize writes in small batches
       const chunks = (arr, n) => Array.from({length: Math.ceil(arr.length/n)}, (_,i)=>arr.slice(i*n,(i+1)*n));
       const batches = chunks(changes, 4);
       setLocalLoading(true);
@@ -736,13 +789,12 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
           const results = await Promise.allSettled(tasks);
           results.forEach((r, idx) => { if (r.status === 'rejected') failed.push(batch[idx]); });
         }
-        // refresh
         await Promise.all([
           refreshPositions?.(),
           actions?.fetchGroupedPositionsData?.(true),
           actions?.fetchPortfolioData?.(true),
+          actions?.fetchGroupedLiabilitiesData?.(true),
         ]);
-        // persist lastUpdated locally
         const nextData = { ...reconData };
         changes.forEach((c)=>{ nextData[`pos_${makeKey(c.kind==='liability'?'liability':'asset', c.id)}`] = { lastUpdated: new Date().toISOString(), value: Number(c.value) }; });
         saveReconData(nextData);
@@ -767,111 +819,64 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
       else { setSelectedInstitution(null); showToast('success','All institutions reviewed.'); if (reconData?._next==='reconcile') setScreen('reconcile'); }
     };
 
+    const onRefresh = useCallback(() => {
+      setLocalLoading(true);
+      Promise.all([refreshPositions?.(), refreshAccounts?.(), actions.fetchGroupedLiabilitiesData?.()])
+        .finally(()=>setLocalLoading(false));
+    }, [refreshPositions, refreshAccounts, actions]);
+
     return (
-      <div className="h-[80vh] px-6 pt-3 pb-6 border-t border-gray-200 dark:border-zinc-800" onPaste={onBulkPaste}>
-        <div className="grid grid-cols-12 gap-6 h-full">
-        {/* Left rail */}
-        <aside className="col-span-12 lg:col-span-4 xl:col-span-3 h-full overflow-hidden">
-          <div className="h-full flex flex-col">
-            <div className="bg-white dark:bg-zinc-900 rounded-xl border border-gray-200 dark:border-zinc-800 shadow-sm p-4 mb-4 flex-shrink-0">
-                <div className="flex items-center justify-between">
-                  <button
-                    onClick={() => setScreen('welcome')}
-                    className="inline-flex items-center px-3 py-1.5 rounded-lg bg-gray-100 dark:bg-zinc-800 hover:bg-gray-200 dark:hover:bg-zinc-700 text-gray-700 dark:text-zinc-200 transition-colors border border-gray-200 dark:border-zinc-700"
-                    title="Back to welcome"
-                  >
-                    <ArrowLeft className="w-4 h-4 mr-1" />
-                    Back
-                  </button>
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => setShowValues(s=>!s)}
-                      className="px-3 py-1.5 rounded-lg bg-gray-100 dark:bg-zinc-800 hover:bg-gray-200 dark:hover:bg-zinc-700 text-gray-700 dark:text-zinc-200 border border-gray-200 dark:border-zinc-700"
-                      title={showValues ? 'Hide values' : 'Show values'}
-                    >
-                      {showValues ? <Eye className="w-5 h-5" /> : <EyeOff className="w-5 h-5" />}
-                    </button>
-                    <button
-                      onClick={() => { setLocalLoading(true); Promise.all([refreshPositions?.(), refreshAccounts?.()]).finally(()=>setLocalLoading(false)); }}
-                      className="px-3 py-1.5 rounded-lg bg-gray-100 dark:bg-zinc-800 hover:bg-gray-200 dark:hover:bg-zinc-700 text-gray-700 dark:text-zinc-200 border border-gray-200 dark:border-zinc-700"
-                      title="Refresh data"
-                    >
-                      <RefreshCw className={`w-4 h-4 ${localLoading ? 'animate-spin' : ''}`} />
-                    </button>
-                  </div>
-                </div>
+      <div className="flex flex-col h-[80vh]" onPaste={onBulkPaste}>
+        <TopHeader
+          title="Quick Cash & Liabilities Update"
+          showValues={showValues}
+          setShowValues={setShowValues}
+          onRefresh={onRefresh}
+          onClearPending={clearPending}
+          pending={pending}
+        />
 
-                <div className="flex items-center gap-2 mt-3">
-                  <Droplets className="w-5 h-5 text-blue-600 dark:text-blue-300" />
-                  <h3 className="font-semibold text-gray-900 dark:text-zinc-100">Quick Cash & Liabilities Update</h3>
-                </div>
-                <p className="text-sm text-gray-600 dark:text-zinc-400 mt-1">
-                  Paste or type balances. Net impact updates in real time.
-                </p>
-
-                <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
-                  <div className="rounded-lg bg-gray-50 dark:bg-zinc-900 px-3 py-2 border border-gray-200 dark:border-zinc-800">
-                    <div className="text-gray-500 dark:text-zinc-400">Pending</div>
-                    <div className="font-semibold text-gray-900 dark:text-zinc-100">{pending.count}</div>
-                  </div>
-                  <div className="rounded-lg bg-gray-50 dark:bg-zinc-900 px-3 py-2 border border-gray-200 dark:border-zinc-800">
-                    <div className="text-gray-500 dark:text-zinc-400">Net Impact</div>
-                    <div className={`font-semibold ${pending.net >= 0 ? 'text-green-700 dark:text-emerald-400' : 'text-red-700 dark:text-rose-400'}`}>
-                      {fmtUSD(pending.net, !showValues)}
-                    </div>
-                  </div>
-                  <div className="rounded-lg bg-green-50 dark:bg-emerald-900/20 px-3 py-2 border border-green-200 dark:border-emerald-800">
-                    <div className="text-green-700 dark:text-emerald-300">↑ {pending.posCount} items</div>
-                    <div className="font-semibold text-green-800 dark:text-emerald-200">{fmtUSD(pending.posAmt, !showValues)}</div>
-                  </div>
-                  <div className="rounded-lg bg-red-50 dark:bg-rose-900/20 px-3 py-2 border border-red-200 dark:border-rose-800">
-                    <div className="text-red-700 dark:text-rose-300">↓ {pending.negCount} items</div>
-                    <div className="font-semibold text-red-800 dark:text-rose-200">{fmtUSD(pending.negAmt, !showValues)}</div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex-1 overflow-hidden rounded-xl border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900">
-                <div className="h-full overflow-y-auto reconciliation-sidebar">
+        <div className="grid grid-cols-12 gap-6 flex-1 min-h-0">
+          {/* Left rail */}
+          <aside className="col-span-12 lg:col-span-4 xl:col-span-3 h-full overflow-hidden">
+            <div className="h-full flex flex-col">
+              <div className="flex-1 overflow-auto rounded-2xl border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900">
+                <div className="h-full overflow-auto reconciliation-sidebar">
                   {groups.length === 0 ? (
-                  <div className="p-6 text-sm text-gray-500 dark:text-zinc-400">No cash or liabilities found.</div>
-                ) : (
-                  <ul className="divide-y divide-gray-100 dark:divide-zinc-800">
-                    {groups.map(g => {
-                      const isSel = g.institution === selectedInstitution;
-                      const logoSmall = getLogo(g.institution);
-                      const statusChip = g.changed > 0
-                        ? <span className="text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 px-2 py-0.5 rounded-full text-[11px]">Changed</span>
-                        : <span className="text-green-700 dark:text-emerald-300 bg-green-50 dark:bg-emerald-900/20 border border-green-200 dark:border-emerald-800 px-2 py-0.5 rounded-full text-[11px]">No changes</span>;
-
-                      return (
-                        <li key={g.institution}>
-                          <button
-                            onClick={() => setSelectedInstitution(g.institution)}
-                            className={`w-full text-left px-4 py-3 transition-colors flex items-center gap-3
-                              ${isSel ? 'bg-blue-50 dark:bg-blue-900/20' : 'hover:bg-gray-50 dark:hover:bg-zinc-800/60'}`}
-                          >
-                            {logoSmall ? <img src={logoSmall} alt={g.institution} className="w-7 h-7 rounded object-contain" /> : <Landmark className="w-6 h-6 text-gray-400" />}
-                            <div className="flex-1">
-                              <div className="flex items-center justify-between">
-                                <div className="font-medium text-gray-900 dark:text-zinc-100">{g.institution}</div>
-                                <div className="flex items-center gap-2">
-                                  {statusChip}
+                    <div className="p-6 text-sm text-gray-500 dark:text-zinc-400">No cash or liabilities found.</div>
+                  ) : (
+                    <ul className="divide-y divide-gray-100 dark:divide-zinc-800">
+                      {groups.map(g => {
+                        const isSel = g.institution === selectedInstitution;
+                        const logoSmall = getLogo(g.institution);
+                        const changed = g.changed > 0;
+                        return (
+                          <li key={g.institution}>
+                            <button
+                              onClick={() => setSelectedInstitution(g.institution)}
+                              className={`w-full text-left px-4 py-3 transition-colors flex items-center gap-3
+                                ${isSel ? 'bg-blue-50 dark:bg-blue-900/20' : 'hover:bg-gray-50 dark:hover:bg-zinc-800/60'}`}
+                            >
+                              {logoSmall ? <img src={logoSmall} alt={g.institution} className="w-7 h-7 rounded object-contain" /> : <Landmark className="w-6 h-6 text-gray-400" />}
+                              <div className="flex-1">
+                                <div className="flex items-center justify-between">
+                                  <div className="font-medium text-gray-900 dark:text-zinc-100">{g.institution}</div>
                                   <div className="text-[11px] text-gray-500 dark:text-zinc-400">{g.totalRows} items</div>
                                 </div>
+                                <div className="text-xs text-gray-500 dark:text-zinc-400">
+                                  {fmtUSD(g.assetsValue, !showValues)} assets • {fmtUSD(g.liabilitiesValue, !showValues)} liabs
+                                </div>
+                                <div className="mt-2 h-1.5 bg-gray-200/70 dark:bg-zinc-800 rounded-full overflow-hidden">
+                                  <div className={`${changed? 'bg-amber-500' : 'bg-blue-500'} h-full transition-all`} style={{ width: `${clamp(g.progressPct,0,100)}%` }} />
+                                </div>
                               </div>
-                              <div className="text-xs text-gray-500 dark:text-zinc-400">{fmtUSD(g.totalValue, !showValues)}</div>
-                              <div className="mt-2 h-1.5 bg-gray-200/70 dark:bg-zinc-800 rounded-full overflow-hidden">
-                                <div className={`${g.changed>0 ? 'bg-amber-500' : 'bg-blue-500'} h-full transition-all`} style={{ width: `${clamp(g.progressPct,0,100)}%` }} />
-                              </div>
-                            </div>
-                          </button>
-                            </li>
-                          );
-                        })}
-                      </ul>
-                      )}
-                      </div>
+                            </button>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  )}
+                </div>
               </div>
             </div>
           </aside>
@@ -889,20 +894,28 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
               </div>
             ) : (
               <div className={`h-full rounded-2xl border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 flex flex-col ${jumping ? 'ring-2 ring-blue-200 dark:ring-blue-900/40 transition' : ''}`}>
-                <div className="px-6 py-4 border-b border-gray-200 dark:border-zinc-800 flex items-center justify-between sticky top-0 bg-white dark:bg-zinc-900 z-[1]">
+                {/* Sub-header: institution summary with assets/liabs split */}
+                <div className="px-6 py-4 border-b border-gray-200 dark:border-zinc-800 flex items-center justify-between sticky top-0 bg-white dark:bg-zinc-900 z-[1] rounded-t-2xl">
                   <div className="flex items-center gap-3">
                     {getLogo(current.institution) ? (
                       <img src={getLogo(current.institution)} alt={current.institution} className="w-9 h-9 rounded object-contain" />
                     ) : <Landmark className="w-8 h-8 text-gray-400" />}
                     <div>
                       <div className="font-semibold text-gray-900 dark:text-zinc-100">{current.institution}</div>
-                      <div className="text-xs text-gray-500 dark:text-zinc-400">{current.positions.length} accounts • {current.liabilities.length} liabilities</div>
+                      <div className="text-xs text-gray-500 dark:text-zinc-400">
+                        {current.positions.length} assets • {current.liabilities.length} liabilities • Net{' '}
+                        <span className={`${(current.assetsValue-current.liabilitiesValue)>=0?'text-emerald-600':'text-rose-600'} font-semibold`}>
+                          {fmtUSD(current.assetsValue - current.liabilitiesValue, !showValues)}
+                        </span>
+                      </div>
                     </div>
                   </div>
                   <div className="flex items-center gap-3">
                     <div className="hidden sm:block text-right">
-                      <div className="text-xs text-gray-500 dark:text-zinc-400">Total</div>
-                      <div className="font-semibold text-gray-900 dark:text-zinc-100">{fmtUSD(current.totalValue, !showValues)}</div>
+                      <div className="text-xs text-gray-500 dark:text-zinc-400">Totals</div>
+                      <div className="text-[12px] text-gray-600 dark:text-zinc-300">
+                        A: {fmtUSD(current.assetsValue, !showValues)} • L: {fmtUSD(current.liabilitiesValue, !showValues)}
+                      </div>
                     </div>
                     <button
                       onClick={saveInstitution}
@@ -921,11 +934,14 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
                   </div>
                 </div>
 
+                {/* Tables area with H/V scroll */}
                 <div className="flex-1 overflow-auto">
-                  {/* Accounts & Cash */}
+                  {/* Assets & Cash */}
                   {sortedPositions.length > 0 && (
-                    <div className="min-w-[780px]">
-                      <div className="bg-gray-50 dark:bg-zinc-800 px-6 py-3 text-sm font-semibold text-gray-800 dark:text-zinc-200 sticky top-0 z-[1]">Accounts & Cash</div>
+                    <div className="min-w-[860px] overflow-auto">
+                      <div className="bg-gray-50 dark:bg-zinc-800 px-6 py-3 text-sm font-semibold text-gray-800 dark:text-zinc-200 sticky top-0 z-[1]">
+                        Assets & Cash
+                      </div>
                       <table className="w-full">
                         <thead className="bg-gray-50 dark:bg-zinc-800 sticky top-[44px] z-[1]">
                           <tr className="text-xs uppercase text-gray-500 dark:text-zinc-400">
@@ -947,7 +963,8 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
                         <tbody className="divide-y divide-gray-100 dark:divide-zinc-800">
                           {sortedPositions.map((pos, idx) => {
                             const c = pos._calc;
-                            const changed = drafts[makeKey('asset', pos.id)] !== undefined && Number(drafts[makeKey('asset', pos.id)]) !== c.nest;
+                            const k = makeKey('asset', pos.id);
+                            const changed = drafts[k] !== undefined && Number(drafts[k]) !== c.nest;
                             const nextId = sortedPositions[idx+1]?.name ? `Statement_balance_for_${sortedPositions[idx+1].name}`.replace(/\s+/g,'_') : undefined;
                             return (
                               <tr key={pos.id} className={changed ? 'bg-blue-50/50 dark:bg-blue-900/10' : ''}>
@@ -960,18 +977,20 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
                                 <td className="px-3 py-2 text-right text-gray-800 dark:text-zinc-100">
                                   {fmtUSD(c.nest, !showValues)}
                                 </td>
+                                <td className="px-3 py-2 text-center">
                                   <CurrencyInput
-                                    value={drafts[makeKey('asset', pos.id)] ?? c.nest}
+                                    value={drafts[k] ?? c.nest}
                                     onValueChange={(v) => {
-                                      setDrafts(prev => ({ 
-                                        ...prev, 
-                                        [makeKey('asset', pos.id)]: Number.isFinite(v) ? v : 0 
-                                      }));
+                                      if (editingKey !== k) setEditingKey(k);
+                                      setDrafts(prev => ({ ...prev, [k]: Number.isFinite(v) ? v : 0 }));
                                     }}
                                     nextFocusId={nextId}
+                                    onFocus={(e) => { setEditingKey(k); lastFocusedIdRef.current = e.target.id; }}
+                                    onBlur={() => { if (editingKey === k) setEditingKey(null); }}
                                     className={changed ? 'border-blue-400 ring-2 ring-blue-200 dark:ring-blue-400/40' : ''}
                                     aria-label={`Statement balance for ${pos.name}`}
                                   />
+                                </td>
                                 <td className={`px-3 py-2 text-right font-semibold ${c.diff > 0 ? 'text-green-600' : c.diff < 0 ? 'text-red-600' : 'text-gray-500 dark:text-zinc-400'}`}>
                                   {fmtUSD(c.diff, !showValues)}
                                 </td>
@@ -988,7 +1007,7 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
 
                   {/* Liabilities */}
                   {sortedLiabilities.length > 0 && (
-                    <div className="min-w-[780px] mt-8">
+                    <div className="min-w-[860px] mt-8 overflow-auto">
                       <div className="bg-gray-50 dark:bg-zinc-800 px-6 py-3 text-sm font-semibold text-gray-800 dark:text-zinc-200 sticky top-0 z-[1]">Liabilities</div>
                       <table className="w-full">
                         <thead className="bg-gray-50 dark:bg-zinc-800 sticky top-[44px] z-[1]">
@@ -1019,17 +1038,18 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
                                 <td className="px-3 py-2 text-sm text-gray-600 dark:text-zinc-300">{liab.type || '—'}</td>
                                 <td className="px-3 py-2 text-right text-gray-800 dark:text-zinc-100">{fmtUSD(c.nest, !showValues)}</td>
                                 <td className="px-3 py-2 text-center">
-                                    <CurrencyInput
-                                      value={drafts[key] ?? c.nest}
-                                      onValueChange={(v) =>
-                                        setDrafts(prev => ({ ...prev, [key]: Number.isFinite(v) ? v : 0 }))
-                                      }
-                                      nextFocusId={nextId}
-                                      onFocus={() => setEditingKey(key)}
-                                      onBlur={() => setEditingKey(null)}
-                                      className={`${changed ? 'border-blue-400 ring-2 ring-blue-200 dark:ring-blue-900/40 bg-white dark:bg-zinc-900' : ''}`}
-                                      aria-label={`Statement balance for ${liab.name}`}
-                                    />
+                                  <CurrencyInput
+                                    value={drafts[key] ?? c.nest}
+                                    onValueChange={(v) => {
+                                      if (editingKey !== key) setEditingKey(key);
+                                      setDrafts(prev => ({ ...prev, [key]: Number.isFinite(v) ? v : 0 }));
+                                    }}
+                                    nextFocusId={nextId}
+                                    onFocus={(e) => { setEditingKey(key); lastFocusedIdRef.current = e.target.id; }}
+                                    onBlur={() => { if (editingKey === key) setEditingKey(null); }}
+                                    className={`${changed ? 'border-blue-400 ring-2 ring-blue-200 dark:ring-blue-900/40 bg-white dark:bg-zinc-900' : ''}`}
+                                    aria-label={`Statement balance for ${liab.name}`}
+                                  />
                                 </td>
                                 <td className={`px-3 py-2 text-right font-semibold ${c.diff > 0 ? 'text-red-600' : c.diff < 0 ? 'text-green-600' : 'text-gray-500 dark:text-zinc-400'}`}>
                                   {fmtUSD(c.diff, !showValues)}
@@ -1057,37 +1077,72 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
     );
   }
 
-  // ================= Reconcile Screen =================
+  // ================= Reconcile Screen (includes liabilities) =================
   function ReconcileScreen() {
     const [selectedInstitution, setSelectedInstitution] = useState(null);
     const [selectedAccount, setSelectedAccount] = useState(null);
 
-    // group by institution
+    // group by institution (accounts + synthetic entries for liabilities)
     const groups = useMemo(() => {
-      const map = new Map();
+      // Build account list from accounts, plus pseudo-accounts for liabilities (grouped by institution)
+      const instMap = new Map();
+      const addInst = (inst) => { if (!instMap.has(inst)) instMap.set(inst, []); return instMap.get(inst); };
+
+      // Real investment/bank accounts
       (accounts || []).forEach((a) => {
         const inst = a.institution || 'Unknown Institution';
-        if (!map.has(inst)) map.set(inst, []);
-        map.get(inst).push(a);
+        const list = addInst(inst);
+        list.push({ ...a, _kind: 'account' });
       });
-      return Array.from(map.entries()).map(([institution, list]) => {
+
+      // Create “liability accounts” per institution so they appear in reconcile
+      const liabByInst = new Map();
+      liabilities.forEach(l => {
+        const inst = l.institution || 'Unknown Institution';
+        if (!liabByInst.has(inst)) liabByInst.set(inst, []);
+        liabByInst.get(inst).push(l);
+      });
+      Array.from(liabByInst.entries()).forEach(([inst, list]) => {
+        const totalValue = list.reduce((s, l) => s + Number(l.currentValue || 0), 0);
+        const synthetic = {
+          id: `liab:${inst}`,
+          institution: inst,
+          accountName: 'All Liabilities',
+          accountIdentifier: 'LIAB-GROUP',
+          accountCategory: 'Liabilities',
+          totalValue,
+          _kind: 'liab_group',
+          _items: list
+        };
+        addInst(inst).push(synthetic);
+      });
+
+      // summarize total and needs
+      return Array.from(instMap.entries()).map(([institution, list]) => {
         const totalValue = list.reduce((s,a)=>s+Number(a.totalValue||0),0);
-        // Needs = stale or mismatched
         let needs = 0;
         list.forEach(a=>{
-          const r = reconData[a.id];
-          const stmt = Number(r?.statementBalance ?? NaN);
-          const hasStmt = Number.isFinite(stmt);
-          const ne = Number(a.totalValue || 0);
-          const diff = hasStmt ? (stmt - ne) : 0;
-          const rec = r?.lastReconciled;
-          const stale = !rec || (Math.floor((Date.now() - new Date(rec).getTime())/86400000) > 7);
-          const mismatched = hasStmt && !withinTolerance(ne, stmt);
-          if (stale || mismatched) needs += 1;
+          if (a._kind === 'liab_group') {
+            const r = reconData[a.id];
+            const stmt = Number(r?.statementBalance ?? NaN);
+            const hasStmt = Number.isFinite(stmt);
+            const ne = Number(a.totalValue || 0);
+            const mismatched = hasStmt && !withinTolerance(ne, stmt);
+            const stale = !r?.lastReconciled || (Math.floor((Date.now() - new Date(r.lastReconciled).getTime())/86400000) > 7);
+            if (stale || mismatched) needs += 1;
+          } else {
+            const r = reconData[a.id];
+            const stmt = Number(r?.statementBalance ?? NaN);
+            const hasStmt = Number.isFinite(stmt);
+            const ne = Number(a.totalValue || 0);
+            const mismatched = hasStmt && !withinTolerance(ne, stmt);
+            const stale = !r?.lastReconciled || (Math.floor((Date.now() - new Date(r.lastReconciled).getTime())/86400000) > 7);
+            if (stale || mismatched) needs += 1;
+          }
         });
         return { institution, accounts: list, totalValue, needs };
       }).sort((a,b)=>b.totalValue-a.totalValue);
-    }, [accounts, reconData]);
+    }, [accounts, liabilities, reconData]);
 
     const current = useMemo(()=>groups.find(g=>g.institution===selectedInstitution),[groups,selectedInstitution]);
 
@@ -1127,9 +1182,19 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
 
     const onComplete = () => {
       pushHistory();
-      const results = (accounts||[]).filter(a=>reconData[a.id]?.statementBalance !== undefined).map(a=>{
-        const r = calc(a);
-        return { accountName: a.accountName || a.account_name || 'Account', institution: a.institution, finalBalance: r.stmt ?? 0, change: r.stmt !== null ? r.diff : 0 };
+      const results = [];
+      (groups || []).forEach(grp => {
+        (grp.accounts || []).forEach(a => {
+          const r = calc(a);
+          if (reconData[a.id]?.statementBalance !== undefined) {
+            results.push({
+              accountName: (a._kind === 'liab_group') ? 'All Liabilities' : (a.accountName || a.account_name || 'Account'),
+              institution: grp.institution,
+              finalBalance: r.stmt ?? 0,
+              change: r.stmt !== null ? r.diff : 0
+            });
+          }
+        });
       });
       setReconData((d)=>({ ...d, _summary: results }));
       setScreen('summary');
@@ -1137,89 +1202,78 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
 
     const positionsForAccount = useMemo(() => {
       if (!selectedAccount) return [];
+      if (selectedAccount._kind === 'liab_group') {
+        return (selectedAccount._items || []).map(p=>({
+          id: p.id, name: p.name || p.identifier || 'Liability', identifier: p.identifier || '', type: p.type || '', value: Number(p.currentValue||0),
+        })).sort((a,b)=>b.value-a.value);
+      }
       const id = selectedAccount.id;
       return positionsNorm.filter(p=>String(p.accountId)===String(id)).map(p=>({
         id: p.id, name: p.name || p.identifier || 'Position', identifier: p.identifier || '', type: p.type || '', value: Number(p.currentValue||0),
       })).sort((a,b)=>b.value-a.value);
     }, [selectedAccount, positionsNorm]);
 
-    return (
-      <div className="h-[80vh] px-6 pt-3 pb-6 border-t border-gray-200 dark:border-zinc-800">
-        <div className="grid grid-cols-12 gap-6 h-full">
-        {/* Left rail */}
-        <aside className="col-span-12 lg:col-span-4 xl:col-span-3 h-full overflow-hidden">
-          <div className="h-full flex flex-col">
-            <div className="bg-white dark:bg-zinc-900 rounded-xl border border-gray-200 dark:border-zinc-800 shadow-sm p-4 mb-4 flex-shrink-0">
-                <div className="flex items-center justify-between">
-                  <button
-                    onClick={() => setScreen('welcome')}
-                    className="inline-flex items-center px-3 py-1.5 rounded-lg bg-gray-100 dark:bg-zinc-800 hover:bg-gray-200 dark:hover:bg-zinc-700 text-gray-700 dark:text-zinc-200 transition-colors border border-gray-200 dark:border-zinc-700"
-                  >
-                    <ArrowLeft className="w-4 h-4 mr-1" />
-                    Back
-                  </button>
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => setShowValues(s=>!s)}
-                      className={`p-2 rounded-lg ${showValues ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-600'} dark:bg-zinc-800 dark:text-zinc-200`}
-                      title={showValues ? 'Hide values' : 'Show values'}
-                    >
-                      {showValues ? <Eye className="w-5 h-5" /> : <EyeOff className="w-5 h-5" />}
-                    </button>
-                    <button
-                      onClick={onComplete}
-                      className="px-3 py-1.5 rounded-lg bg-green-600 text-white font-semibold hover:bg-green-700 transition-colors"
-                    >
-                      <CheckCheck className="w-4 h-4 inline mr-1" />
-                      Complete
-                    </button>
-                  </div>
-                </div>
-                <p className="text-xs text-gray-600 dark:text-zinc-400 mt-3">
-                  Enter statement totals per investment account. We’ll flag differences and let you step through accounts quickly.
-                </p>
-                </div>
+    const onRefresh = useCallback(() => {
+      setLocalLoading(true);
+      Promise.all([refreshPositions?.(), refreshAccounts?.(), actions.fetchGroupedLiabilitiesData?.()])
+        .finally(()=>setLocalLoading(false));
+    }, [refreshPositions, refreshAccounts, actions]);
 
-                <div className="flex-1 overflow-hidden rounded-xl border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900">
-                  <div className="h-full overflow-y-auto reconciliation-sidebar">
-                    {groups.length === 0 ? (
-                      <div className="p-6 text-sm text-gray-500 dark:text-zinc-400">No investment accounts found.</div>
-                    ) : (
-                      <ul className="divide-y divide-gray-100 dark:divide-zinc-800">
-                    {groups.map(g=>{
-                      const isSel = g.institution === selectedInstitution;
-                      const logo = getLogo(g.institution);
-                      return (
-                        <li key={g.institution}>
-                          <button
-                            onClick={()=>{ setSelectedInstitution(g.institution); setSelectedAccount(null); }}
-                            className={`w-full text-left px-4 py-3 transition-colors flex items-center gap-3
-                              ${isSel ? 'bg-blue-50 dark:bg-blue-900/20' : 'hover:bg-gray-50 dark:hover:bg-zinc-800/60'}`}
-                          >
-                            {logo ? <img src={logo} alt={g.institution} className="w-7 h-7 rounded object-contain" /> : <Landmark className="w-6 h-6 text-gray-400" />}
-                            <div className="flex-1">
-                              <div className="flex items-center justify-between">
-                                <div className="font-medium text-gray-900 dark:text-zinc-100">{g.institution}</div>
-                                <div className="text-xs text-gray-500 dark:text-zinc-400">{g.accounts.length} accounts</div>
+    return (
+      <div className="flex flex-col h-[80vh]">
+        <TopHeader
+          title="Investment & Liabilities Check‑In"
+          showValues={showValues}
+          setShowValues={setShowValues}
+          onRefresh={onRefresh}
+          onClearPending={clearPending}
+          pending={pending}
+        />
+
+        <div className="grid grid-cols-12 gap-6 flex-1 min-h-0">
+          {/* Left rail */}
+          <aside className="col-span-12 lg:col-span-4 xl:col-span-3 h-full overflow-hidden">
+            <div className="h-full flex flex-col">
+              <div className="flex-1 overflow-auto rounded-2xl border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900">
+                <div className="h-full overflow-auto reconciliation-sidebar">
+                  {groups.length === 0 ? (
+                    <div className="p-6 text-sm text-gray-500 dark:text-zinc-400">No investment or liability groups found.</div>
+                  ) : (
+                    <ul className="divide-y divide-gray-100 dark:divide-zinc-800">
+                      {groups.map(g=>{
+                        const isSel = g.institution === selectedInstitution;
+                        const logo = getLogo(g.institution);
+                        return (
+                          <li key={g.institution}>
+                            <button
+                              onClick={()=>{ setSelectedInstitution(g.institution); setSelectedAccount(null); }}
+                              className={`w-full text-left px-4 py-3 transition-colors flex items-center gap-3
+                                ${isSel ? 'bg-blue-50 dark:bg-blue-900/20' : 'hover:bg-gray-50 dark:hover:bg-zinc-800/60'}`}
+                            >
+                              {logo ? <img src={logo} alt={g.institution} className="w-7 h-7 rounded object-contain" /> : <Landmark className="w-6 h-6 text-gray-400" />}
+                              <div className="flex-1">
+                                <div className="flex items-center justify-between">
+                                  <div className="font-medium text-gray-900 dark:text-zinc-100">{g.institution}</div>
+                                  <div className="text-xs text-gray-500 dark:text-zinc-400">{g.accounts.length} lines</div>
+                                </div>
+                                <div className="text-xs text-gray-500 dark:text-zinc-400">{fmtUSD(g.totalValue, !showValues)}</div>
+                                {g.needs > 0 ? (
+                                  <div className="mt-2 inline-flex items-center text-amber-700 dark:text-amber-300 text-xs">
+                                    <AlertTriangle className="w-4 h-4 mr-1" /> {g.needs} to review
+                                  </div>
+                                ) : (
+                                  <div className="mt-2 inline-flex items-center text-green-700 dark:text-emerald-300 text-xs">
+                                    <CheckCircle className="w-4 h-4 mr-1" /> Up to date
+                                  </div>
+                                )}
                               </div>
-                              <div className="text-xs text-gray-500 dark:text-zinc-400">{fmtUSD(g.totalValue, !showValues)}</div>
-                              {g.needs > 0 ? (
-                                <div className="mt-2 inline-flex items-center text-amber-700 dark:text-amber-300 text-xs">
-                                  <AlertTriangle className="w-4 h-4 mr-1" /> {g.needs} to review
-                                </div>
-                              ) : (
-                                <div className="mt-2 inline-flex items-center text-green-700 dark:text-emerald-300 text-xs">
-                                  <CheckCircle className="w-4 h-4 mr-1" /> Up to date
-                                </div>
-                              )}
-                            </div>
-                          </button>
-                        </li>
-                                );
-                              })}
-                            </ul>
-                          )}
-                    </div>
+                            </button>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  )}
+                </div>
               </div>
             </div>
           </aside>
@@ -1235,14 +1289,14 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
               </div>
             ) : (
               <div className="h-full rounded-2xl border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 flex flex-col">
-                <div className="px-6 py-4 border-b border-gray-200 dark:border-zinc-800 flex items-center justify-between sticky top-0 bg-white dark:bg-zinc-900 z-[1]">
+                <div className="px-6 py-4 border-b border-gray-200 dark:border-zinc-800 flex items-center justify-between sticky top-0 bg-white dark:bg-zinc-900 z-[1] rounded-t-2xl">
                   <div className="flex items-center gap-3">
                     {getLogo(current.institution) ? (
                       <img src={getLogo(current.institution)} alt={current.institution} className="w-9 h-9 rounded object-contain" />
                     ) : <Landmark className="w-8 h-8 text-gray-400" />}
                     <div>
                       <div className="font-semibold text-gray-900 dark:text-zinc-100">{current.institution}</div>
-                      <div className="text-xs text-gray-500 dark:text-zinc-400">{current.accounts.length} accounts</div>
+                      <div className="text-xs text-gray-500 dark:text-zinc-400">{current.accounts.length} lines</div>
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
@@ -1253,51 +1307,65 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
                     >
                       Continue <ChevronRight className="inline w-4 h-4 ml-1" />
                     </button>
+                    <button
+                      onClick={onComplete}
+                      className="px-3 py-2 rounded-lg bg-green-600 text-white font-semibold hover:bg-green-700 transition-colors"
+                    >
+                      <CheckCheck className="w-4 h-4 inline mr-1" />
+                      Complete
+                    </button>
                   </div>
                 </div>
 
                 <div className="flex-1 overflow-auto">
-                  <div className="min-w-[720px]">
+                  <div className="min-w-[760px] overflow-auto">
                     <div className="bg-gray-50 dark:bg-zinc-800 px-6 py-3 text-sm font-semibold text-gray-800 dark:text-zinc-200 sticky top-0 z-[1]">
-                      Accounts in {current.institution}
+                      Accounts & Liabilities in {current.institution}
                     </div>
                     <table className="w-full">
                       <thead className="bg-gray-50 dark:bg-zinc-800 sticky top-[44px] z-[1]">
                         <tr className="text-xs uppercase text-gray-500 dark:text-zinc-400">
-                          <th className="px-6 py-2 text-left">Account</th>
+                          <th className="px-6 py-2 text-left">Line</th>
                           <th className="px-3 py-2 text-left">Identifier</th>
                           <th className="px-3 py-2 text-left">Category</th>
                           <th className="px-3 py-2 text-right">NestEgg</th>
                           <th className="px-3 py-2 text-center">Statement</th>
                           <th className="px-3 py-2 text-right">Δ</th>
                           <th className="px-3 py-2 text-right">%</th>
-                          <th className="px-3 py-2 text-center">Positions</th>
+                          <th className="px-3 py-2 text-center">Positions / Items</th>
                           <th className="px-3 py-2 text-center">Actions</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-100 dark:divide-zinc-800">
-                        {current.accounts.map((a) => {
+                        {current.accounts.map((a, idx) => {
                           const r = calc(a);
-                          const posCount = positionsNorm.filter(p=>String(p.accountId)===String(a.id)).length;
                           const isSel = selectedAccount?.id === a.id;
                           const changed = r.stmt !== null && !withinTolerance(r.nest, r.stmt);
+                          const idLabel = (a._kind === 'liab_group') ? 'All Liabilities' : (a.accountName || a.account_name || 'Account');
+                          const nextId = current.accounts[idx+1]?.id ? `Statement_balance_for_${(current.accounts[idx+1]._kind==='liab_group'?'All Liabilities':(current.accounts[idx+1].accountName||'Account'))}`.replace(/\s+/g,'_') : undefined;
+
+                          const itemCount = (a._kind === 'liab_group')
+                            ? (a._items?.length || 0)
+                            : positionsNorm.filter(p=>String(p.accountId)===String(a.id)).length;
 
                           return (
                             <tr key={a.id} className={`${isSel ? 'bg-blue-50/40 dark:bg-blue-900/10' : ''}`}>
                               <td className="px-6 py-2">
-                                <div className="font-medium text-gray-900 dark:text-zinc-100">{a.accountName || a.account_name || 'Account'}</div>
-                                <div className="text-xs text-gray-500 dark:text-zinc-400">{a.accountType || a.type || '—'}</div>
+                                <div className="font-medium text-gray-900 dark:text-zinc-100">{idLabel}</div>
+                                <div className="text-xs text-gray-500 dark:text-zinc-400">{a._kind === 'liab_group' ? 'Liabilities' : (a.accountType || a.type || '—')}</div>
                               </td>
-                              <td className="px-3 py-2 text-sm text-gray-600 dark:text-zinc-300">{a.accountIdentifier || a.identifier || '—'}</td>
-                              <td className="px-3 py-2 text-sm text-gray-600 dark:text-zinc-300">{a.accountCategory || a.category || '—'}</td>
+                              <td className="px-3 py-2 text-sm text-gray-600 dark:text-zinc-300">{a.accountIdentifier || a.identifier || (a._kind === 'liab_group' ? 'LIAB-GROUP' : '—')}</td>
+                              <td className="px-3 py-2 text-sm text-gray-600 dark:text-zinc-300">{a.accountCategory || a.category || (a._kind === 'liab_group' ? 'Liabilities' : '—')}</td>
                               <td className="px-3 py-2 text-right text-gray-800 dark:text-zinc-100">{fmtUSD(r.nest, !showValues)}</td>
                               <td className="px-3 py-2 text-center">
-                                  <CurrencyInput
-                                    value={r.stmt ?? r.nest}
-                                    onValueChange={(v) => handleStatementChange(a.id, v)}
-                                    aria-label={`Statement balance for ${a.accountName || 'Account'}`}
-                                    className={`${changed ? 'border-blue-400 ring-2 ring-blue-200 dark:ring-blue-900/40 bg-white dark:bg-zinc-900' : ''}`}
-                                  />
+                                <CurrencyInput
+                                  value={r.stmt ?? r.nest}
+                                  onValueChange={(v) => handleStatementChange(a.id, v)}
+                                  aria-label={`Statement balance for ${idLabel}`}
+                                  className={`${changed ? 'border-blue-400 ring-2 ring-blue-200 dark:ring-blue-900/40 bg-white dark:bg-zinc-900' : ''}`}
+                                  nextFocusId={nextId}
+                                  onFocus={(e) => { lastFocusedIdRef.current = e.target.id; }}
+                                />
                               </td>
                               <td className={`px-3 py-2 text-right font-semibold ${r.diff > 0 ? 'text-green-600' : r.diff < 0 ? 'text-red-600' : 'text-gray-500 dark:text-zinc-400'}`}>
                                 {r.stmt === null ? '—' : fmtUSD(r.diff, !showValues)}
@@ -1307,7 +1375,7 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
                               </td>
                               <td className="px-3 py-2 text-center">
                                 <span className="inline-flex items-center text-xs text-gray-600 dark:text-zinc-300 bg-gray-100 dark:bg-zinc-800 px-2 py-0.5 rounded-full border border-gray-200 dark:border-zinc-700">
-                                  {posCount}
+                                  {itemCount}
                                 </span>
                               </td>
                               <td className="px-3 py-2 text-center">
@@ -1315,7 +1383,7 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
                                   <button
                                     onClick={()=>setSelectedAccount(a)}
                                     className="px-2 py-1 text-xs rounded bg-gray-100 dark:bg-zinc-800 hover:bg-gray-200 dark:hover:bg-zinc-700 text-gray-800 dark:text-zinc-200"
-                                    title="View positions"
+                                    title={a._kind === 'liab_group' ? 'View liabilities' : 'View positions'}
                                   >
                                     Details
                                   </button>
@@ -1334,15 +1402,15 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
                       </tbody>
                     </table>
 
-                    {/* Drilldown positions */}
+                    {/* Drilldown positions / liabilities */}
                     {selectedAccount && (
                       <div className="px-6 py-4 border-t border-gray-200 dark:border-zinc-800">
                         <div className="flex items-center justify-between mb-2">
                           <div>
                             <div className="font-semibold text-gray-900 dark:text-zinc-100">
-                              {selectedAccount.accountName || selectedAccount.account_name || 'Account'} • Positions
+                              {(selectedAccount._kind === 'liab_group') ? 'All Liabilities' : (selectedAccount.accountName || selectedAccount.account_name || 'Account')} • Details
                             </div>
-                            <div className="text-xs text-gray-500 dark:text-zinc-400">{positionsForAccount.length} positions</div>
+                            <div className="text-xs text-gray-500 dark:text-zinc-400">{positionsForAccount.length} items</div>
                           </div>
                           <button
                             onClick={continueToNext}
@@ -1372,7 +1440,7 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
                                 </tr>
                               ))}
                               {positionsForAccount.length===0 && (
-                                <tr><td className="px-4 py-3 text-sm text-gray-500 dark:text-zinc-400" colSpan={4}>No positions found for this account.</td></tr>
+                                <tr><td className="px-4 py-3 text-sm text-gray-500 dark:text-zinc-400" colSpan={4}>No items found.</td></tr>
                               )}
                             </tbody>
                           </table>
@@ -1393,86 +1461,103 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
   function SummaryScreen() {
     const results = reconData?._summary || [];
     const totalValue = results.reduce((s,r)=>s+Number(r.finalBalance||0),0);
-    const accuracy = 100; // placeholder; could compute from withinTolerance ratios if desired
+    const accuracy = 100; // placeholder
+
+    const onRefresh = useCallback(() => {
+      setLocalLoading(true);
+      Promise.all([refreshPositions?.(), refreshAccounts?.(), actions.fetchGroupedLiabilitiesData?.()])
+        .finally(()=>setLocalLoading(false));
+    }, [refreshPositions, refreshAccounts, actions]);
 
     return (
-      <div className="min-h-[70vh] bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 dark:from-zinc-950 dark:via-zinc-900 dark:to-zinc-900 p-8">
-        <div className="max-w-5xl mx-auto">
-          <div className="text-center mb-8">
-            <div className="inline-flex items-center justify-center w-24 h-24 bg-gradient-to-br from-green-400 to-emerald-500 rounded-full mb-6 shadow-2xl">
-              <Trophy className="w-12 h-12 text-white" />
-            </div>
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-zinc-100">Reconciliation Complete 🎉</h1>
-            <p className="text-gray-600 dark:text-zinc-400 mt-2">Nice work. Your data is up to date.</p>
-          </div>
+      <div className="flex flex-col min-h-[70vh]">
+        <TopHeader
+          title="Reconciliation Complete"
+          showValues={showValues}
+          setShowValues={setShowValues}
+          onRefresh={onRefresh}
+          onClearPending={clearPending}
+          pending={pending}
+        />
 
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-            <div className="bg-white dark:bg-zinc-900 rounded-2xl p-6 shadow border border-gray-100 dark:border-zinc-800">
-              <div className="flex items-center justify-between mb-3">
-                <CheckCircle className="w-7 h-7 text-green-600" />
-                <span className="text-3xl font-bold dark:text-zinc-100">{results.length}</span>
+        <div className="bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 dark:from-zinc-950 dark:via-zinc-900 dark:to-zinc-900 p-8 flex-1 overflow-auto">
+          <div className="max-w-5xl mx-auto">
+            <div className="text-center mb-8">
+              <div className="inline-flex items-center justify-center w-24 h-24 bg-gradient-to-br from-green-400 to-emerald-500 rounded-full mb-6 shadow-2xl">
+                <Trophy className="w-12 h-12 text-white" />
               </div>
-              <div className="text-gray-700 dark:text-zinc-300 font-semibold">Accounts Reconciled</div>
+              <h1 className="text-3xl font-bold text-gray-900 dark:text-zinc-100">Reconciliation Complete 🎉</h1>
+              <p className="text-gray-600 dark:text-zinc-400 mt-2">Nice work. Your data is up to date.</p>
             </div>
-            <div className="bg-white dark:bg-zinc-900 rounded-2xl p-6 shadow border border-gray-100 dark:border-zinc-800">
-              <div className="flex items-center justify-between mb-3">
-                <Droplets className="w-7 h-7 text-blue-600" />
-                <span className="text-3xl font-bold dark:text-zinc-100">—</span>
-              </div>
-              <div className="text-gray-700 dark:text-zinc-300 font-semibold">Liquid Positions</div>
-            </div>
-            <div className="bg-white dark:bg-zinc-900 rounded-2xl p-6 shadow border border-gray-100 dark:border-zinc-800">
-              <div className="flex items-center justify-between mb-3">
-                <DollarSign className="w-7 h-7 text-indigo-600" />
-                <span className="text-2xl font-bold dark:text-zinc-100">{fmtUSD(totalValue)}</span>
-              </div>
-              <div className="text-gray-700 dark:text-zinc-300 font-semibold">Total Value</div>
-            </div>
-            <div className="bg-white dark:bg-zinc-900 rounded-2xl p-6 shadow border border-gray-100 dark:border-zinc-800">
-              <div className="flex items-center justify-between mb-3">
-                <Percent className="w-7 h-7 text-purple-600" />
-                <span className="text-sm font-bold dark:text-zinc-100">{accuracy}%</span>
-              </div>
-              <div className="text-gray-700 dark:text-zinc-300 font-semibold">Accuracy</div>
-            </div>
-          </div>
 
-          {results.length > 0 && (
-            <div className="bg-white dark:bg-zinc-900 rounded-2xl p-6 shadow border border-gray-100 dark:border-zinc-800 mb-8">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-zinc-100 mb-3 flex items-center">
-                <FileText className="w-5 h-5 mr-2 text-gray-600 dark:text-zinc-400" />
-                Reconciliation Details
-              </h3>
-              <div className="space-y-3">
-                {results.map((r, i) => (
-                  <div key={i} className="flex items-center justify-between p-4 bg-gray-50 dark:bg-zinc-800 rounded-lg">
-                    <div>
-                      <div className="font-medium text-gray-900 dark:text-zinc-100">{r.accountName}</div>
-                      <div className="text-xs text-gray-500 dark:text-zinc-400">{r.institution}</div>
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+              <div className="bg-white dark:bg-zinc-900 rounded-2xl p-6 shadow border border-gray-100 dark:border-zinc-800">
+                <div className="flex items-center justify-between mb-3">
+                  <CheckCircle className="w-7 h-7 text-green-600" />
+                  <span className="text-3xl font-bold dark:text-zinc-100">{results.length}</span>
+                </div>
+                <div className="text-gray-700 dark:text-zinc-300 font-semibold">Lines Reconciled</div>
+              </div>
+              <div className="bg-white dark:bg-zinc-900 rounded-2xl p-6 shadow border border-gray-100 dark:border-zinc-800">
+                <div className="flex items-center justify-between mb-3">
+                  <Droplets className="w-7 h-7 text-blue-600" />
+                  <span className="text-3xl font-bold dark:text-zinc-100">—</span>
+                </div>
+                <div className="text-gray-700 dark:text-zinc-300 font-semibold">Quick Updates</div>
+              </div>
+              <div className="bg-white dark:bg-zinc-900 rounded-2xl p-6 shadow border border-gray-100 dark:border-zinc-800">
+                <div className="flex items-center justify-between mb-3">
+                  <DollarSign className="w-7 h-7 text-indigo-600" />
+                  <span className="text-2xl font-bold dark:text-zinc-100">{fmtUSD(totalValue)}</span>
+                </div>
+                <div className="text-gray-700 dark:text-zinc-300 font-semibold">Total Value</div>
+              </div>
+              <div className="bg-white dark:bg-zinc-900 rounded-2xl p-6 shadow border border-gray-100 dark:border-zinc-800">
+                <div className="flex items-center justify-between mb-3">
+                  <Percent className="w-7 h-7 text-purple-600" />
+                  <span className="text-sm font-bold dark:text-zinc-100">{accuracy}%</span>
+                </div>
+                <div className="text-gray-700 dark:text-zinc-300 font-semibold">Accuracy</div>
+              </div>
+            </div>
+
+            {results.length > 0 && (
+              <div className="bg-white dark:bg-zinc-900 rounded-2xl p-6 shadow border border-gray-100 dark:border-zinc-800 mb-8">
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-zinc-100 mb-3 flex items-center">
+                  <FileText className="w-5 h-5 mr-2 text-gray-600 dark:text-zinc-400" />
+                  Reconciliation Details
+                </h3>
+                <div className="space-y-3">
+                  {results.map((r, i) => (
+                    <div key={i} className="flex items-center justify-between p-4 bg-gray-50 dark:bg-zinc-800 rounded-lg">
+                      <div>
+                        <div className="font-medium text-gray-900 dark:text-zinc-100">{r.accountName}</div>
+                        <div className="text-xs text-gray-500 dark:text-zinc-400">{r.institution}</div>
+                      </div>
+                      <div className="text-right">
+                        <div className="font-semibold text-gray-900 dark:text-zinc-100">{fmtUSD(r.finalBalance)}</div>
+                        {r.change !== 0 && (
+                          <div className={`text-sm ${r.change > 0 ? 'text-green-600' : 'text-red-600'}`}>
+                            {r.change > 0 ? '+' : ''}{fmtUSD(r.change)}
+                          </div>
+                        )}
+                      </div>
                     </div>
-                    <div className="text-right">
-                      <div className="font-semibold text-gray-900 dark:text-zinc-100">{fmtUSD(r.finalBalance)}</div>
-                      {r.change !== 0 && (
-                        <div className={`text-sm ${r.change > 0 ? 'text-green-600' : 'text-red-600'}`}>
-                          {r.change > 0 ? '+' : ''}{fmtUSD(r.change)}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
-            </div>
-          )}
+            )}
 
-          <div className="bg-gradient-to-r from-blue-600 to-indigo-600 rounded-2xl p-6 text-white shadow">
-            <div className="grid md:grid-cols-3 gap-6">
-              <div className="flex items-start gap-3"><div className="p-2 bg-white/20 rounded"><Clock className="w-6 h-6" /></div><div><div className="font-semibold">Schedule weekly</div><div className="text-sm text-blue-100">Reconciling weekly keeps drift low</div></div></div>
-              <div className="flex items-start gap-3"><div className="p-2 bg-white/20 rounded"><LineChart className="w-6 h-6" /></div><div><div className="font-semibold">Track progress</div><div className="text-sm text-blue-100">Watch portfolio health trend</div></div></div>
-              <div className="flex items-start gap-3"><div className="p-2 bg-white/20 rounded"><Bell className="w-6 h-6" /></div><div><div className="font-semibold">Set alerts</div><div className="text-sm text-blue-100">Get pinged when data drifts</div></div></div>
-            </div>
-            <div className="mt-6 flex justify-center gap-3">
-              <button onClick={onClose} className="px-5 py-2.5 bg-white text-blue-700 rounded-lg hover:bg-gray-100 transition-colors">Back to Dashboard</button>
-              <button onClick={()=>setScreen('welcome')} className="px-5 py-2.5 bg-blue-700 rounded-lg hover:bg-blue-800 transition-colors">Start New Reconciliation</button>
+            <div className="bg-gradient-to-r from-blue-600 to-indigo-600 rounded-2xl p-6 text-white shadow">
+              <div className="grid md:grid-cols-3 gap-6">
+                <div className="flex items-start gap-3"><div className="p-2 bg-white/20 rounded"><Clock className="w-6 h-6" /></div><div><div className="font-semibold">Schedule weekly</div><div className="text-sm text-blue-100">Reconciling weekly keeps drift low</div></div></div>
+                <div className="flex items-start gap-3"><div className="p-2 bg-white/20 rounded"><LineChart className="w-6 h-6" /></div><div><div className="font-semibold">Track progress</div><div className="text-sm text-blue-100">Watch portfolio health trend</div></div></div>
+                <div className="flex items-start gap-3"><div className="p-2 bg-white/20 rounded"><Bell className="w-6 h-6" /></div><div><div className="font-semibold">Set alerts</div><div className="text-sm text-blue-100">Get pinged when data drifts</div></div></div>
+              </div>
+              <div className="mt-6 flex justify-center gap-3">
+                <button onClick={onClose} className="px-5 py-2.5 bg-white text-blue-700 rounded-lg hover:bg-gray-100 transition-colors">Back to Dashboard</button>
+                <button onClick={()=>setScreen('welcome')} className="px-5 py-2.5 bg-blue-700 rounded-lg hover:bg-blue-800 transition-colors">Start New Reconciliation</button>
+              </div>
             </div>
           </div>
         </div>
@@ -1482,6 +1567,12 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
 
   // ============== Render ==========================================
   const titleId = 'qr-title';
+
+  const onRefreshRoot = useCallback(() => {
+    setLocalLoading(true);
+    Promise.all([refreshPositions?.(), refreshAccounts?.(), actions.fetchGroupedLiabilitiesData?.()])
+      .finally(()=>setLocalLoading(false));
+  }, [refreshPositions, refreshAccounts, actions]);
 
   return (
     <ModalShell
