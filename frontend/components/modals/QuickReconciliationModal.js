@@ -3,7 +3,8 @@ import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import {
   X, Check, CheckCircle, CheckSquare, CheckCheck, AlertTriangle, Info, Clock, Loader2,
   ChevronRight, ArrowLeft, Eye, EyeOff, Landmark as Building2, DollarSign, Droplets, LineChart,
-  Bell, Target, Trophy, FileText, RefreshCw, Percent, Trash2, Filter as FilterIcon, Search
+  Bell, Target, Trophy, FileText, RefreshCw, Percent, Trash2, Filter as FilterIcon, Search,
+  List as ListIcon
 } from 'lucide-react';
 
 // ====== External app hooks / API (unchanged signatures) ======
@@ -182,7 +183,7 @@ function Toast({ type = 'info', text, onClose }) {
     <div className="fixed bottom-4 right-4 z-[10000]">
       <div className={`text-white ${tone} shadow-lg rounded-lg px-4 py-3 flex items-center gap-3`}>
         <span className="text-sm">{text}</span>
-        <button onClick={onClose} className="/ml-2 rounded hover:bg-white/10 p-1" aria-label="Close toast">
+        <button onClick={onClose} className="ml-2 rounded hover:bg-white/10 p-1" aria-label="Close toast">
           <X className="w-4 h-4" />
         </button>
       </div>
@@ -932,26 +933,6 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
         return { current_balance: next };
       };
 
-      const changes = [];
-
-      if (kind === 'asset') {
-        body = {
-          id,
-          current_balance: Number(value),
-          type: entity.type,
-        };
-      } else if (kind === 'liability') {
-        body = {
-          id,
-          liability_type: entity.type,   // e.g. credit_card, loan, mortgage
-          current_balance: Number(value),
-          // If loan/mortgage, also update remaining_principal
-          ...(entity.type === 'loan' || entity.type === 'mortgage'
-            ? { remaining_principal: Number(value) }
-            : {}),
-        };
-      }
-
       if (showAssets) {
         current.positions.forEach(p => {
           const key = makeKey('asset', p.id);
@@ -1023,6 +1004,15 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
 
         await Promise.all(pool);
 
+        try {
+          const keysToClear = [];
+          if (showAssets) current.positions.forEach(p => keysToClear.push(makeKey('asset', p.id)));
+          if (showLiabs)  current.liabilities.forEach(l => keysToClear.push(makeKey('liability', l.id)));
+          const afterClear = { ...drafts };
+          keysToClear.forEach(k => delete afterClear[k]);
+          persistDrafts(afterClear);
+        } catch {}
+
         await Promise.all([
           refreshPositions?.(),
           actions?.fetchGroupedPositionsData?.(true),
@@ -1074,7 +1064,7 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
           setShowValues={setShowValues}
           onRefresh={onRefresh}
           onClearPending={clearPending}
-          pending={pending}
+          pending={{ ...pending, onOpenQueue: () => setShowQueue(true) }}
           onBack={() => setScreen('welcome')}
           onClose={onClose}
         />
@@ -1406,7 +1396,6 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
 
       // summarize total and needs
       let grouped = Array.from(instMap.entries()).map(([institution, list]) => {
-        const raw = grouped; // keep an unfiltered copy for pinning the selection
         const totalValue = list.reduce((s,a)=>s+Number(a.totalValue||0),0);
         let needs = 0;
         list.forEach(a=>{
@@ -1421,20 +1410,22 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
         return { institution, accounts: list, totalValue, needs };
       });
 
+      const raw = grouped; // keep an unfiltered copy for pinning the selection
+
       if (filterText.trim()) {
         const s = filterText.trim().toLowerCase();
         grouped = grouped.filter(g => (g.institution || '').toLowerCase().includes(s));
       }
-
       if (showOnlyNeeding) grouped = grouped.filter(g => g.needs > 0);
 
-            // pin current selection so it remains visible after edit
+      // pin current selection so it remains visible after edit
       if (showOnlyNeeding && selectedInstitution) {
         const pinned = raw.find(g => g.institution === selectedInstitution);
         if (pinned && !grouped.find(g => g.institution === selectedInstitution)) {
           grouped = [pinned, ...grouped];
         }
       }
+
 
       return grouped.sort((a,b)=>b.totalValue-a.totalValue);
     }, [accounts, liabilities, reconData, filterText, showOnlyNeeding, selectedInstitution]);
@@ -1532,7 +1523,7 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
           setShowValues={setShowValues}
           onRefresh={onRefresh}
           onClearPending={clearPending}
-          pending={pending}
+          pending={{ ...pending, onOpenQueue: () => setShowQueue(true) }}
           onBack={() => setScreen('welcome')}
           onClose={onClose}
         />
@@ -1819,7 +1810,7 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
           setShowValues={setShowValues}
           onRefresh={onRefresh}
           onClearPending={clearPending}
-          pending={pending}
+          pending={{ ...pending, onOpenQueue: () => setShowQueue(true) }}
           onBack={() => setScreen('reconcile')}
           onClose={onClose}
         />
