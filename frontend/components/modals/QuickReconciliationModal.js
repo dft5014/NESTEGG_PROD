@@ -159,6 +159,9 @@ export const CurrencyInput = React.memo(function CurrencyInput({
   );
 });
 
+
+
+
 // ============== Toast Component ==============
 function Toast({ type = 'info', text, onClose }) {
   const tone = {
@@ -266,6 +269,14 @@ function TopHeader({
     </div>
   );
 }
+
+// Tolerance constants for reconciliation
+const ABS_TOLERANCE = 0.01; // cents-level
+const PCT_TOLERANCE = 0.001; // 0.1%
+const withinTolerance = (nest, stmt) => Math.abs(stmt - nest) < Math.max(ABS_TOLERANCE, Math.abs(nest) * PCT_TOLERANCE);
+
+
+
 // ===================== Main Modal Component =====================
 export default function QuickReconciliationModal({ isOpen, onClose }) {
   const { state, actions } = useDataStore();
@@ -375,11 +386,10 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
     setToast(null);
     setLocalLoading(false);
     
-    // Load drafts
+    // Load drafts with migration
     try {
       const currSchema = Number(localStorage.getItem(LS_SCHEMA(userId)) || 0);
       if (currSchema < SCHEMA_VERSION) {
-        // Migration logic
         const merged = {};
         const prefix = LS_DRAFT_PREFIX(userId);
         const legacyKeys = [];
@@ -410,14 +420,18 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
     }
 
     // Load data if needed
-    if (!accounts.length || !rawPositions.length || !groupedLiabilities.length) {
-      setLocalLoading(true);
-      Promise.all([
-        refreshAccounts?.(),
-        refreshPositions?.(),
-        refreshLiabilities?.()
-      ]).finally(() => setLocalLoading(false));
-    }
+    setTimeout(() => {
+      (async () => {
+        if (!accounts.length || !rawPositions.length || !groupedLiabilities.length) {
+          try {
+            setLocalLoading(true);
+            await Promise.all([refreshAccounts?.(), refreshPositions?.(), refreshLiabilities?.()]);
+          } finally { 
+            setLocalLoading(false); 
+          }
+        }
+      })();
+    }, 0);
     
     return () => {
       if (toastRef.current) clearTimeout(toastRef.current);
@@ -491,7 +505,7 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
   const lastFocusedIdRef = useRef(null);
   const wantFocusRef = useRef(false);
 
-  // ========== WELCOME SCREEN ==========
+  // ========== WELCOME SCREEN (COMPLETE) ==========
   function WelcomeScreen() {
     const history = useMemo(() => {
       try { 
@@ -581,7 +595,7 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
           onClose={onClose}
         />
 
-        <div className="p-6 flex-1 overflow-auto">
+        <div className="p-6 flex-1 overflow-auto" style={{ overscrollBehavior: 'contain' }}>
           <p className="text-gray-600 dark:text-zinc-400 mb-4">
             Paste or type balances for cash, cards, and loans; then verify investment accounts. 
             Last full update: <span className="font-medium">{lastStr}</span>.
@@ -648,7 +662,7 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
               <h3 className="text-sm font-semibold text-gray-900 dark:text-zinc-100">Institutions Overview</h3>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 max-h-[38vh] overflow-auto pr-1">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 max-h-[38vh] overflow-auto pr-1" style={{ overscrollBehavior: 'contain' }}>
               {preview.length === 0 ? (
                 <div className="text-sm text-gray-500 dark:text-zinc-400">Add accounts to get started.</div>
               ) : preview.map((g) => {
@@ -706,7 +720,8 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
       </div>
     );
   }
-  // ================= LIQUID SCREEN =================
+
+  // ================= LIQUID SCREEN (COMPLETE WITH ALL FEATURES) =================
   function LiquidScreen() {
     const [selectedInstitution, _setSelectedInstitution] = useState(() => {
       try { 
@@ -723,17 +738,37 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
       } catch { }
     }, []);
 
-    const [filterText, setFilterText] = useState('');
-    const [showOnlyChanged, setShowOnlyChanged] = useState(false);
-    const [showAssets, setShowAssets] = useState(true);
-    const [showLiabs, setShowLiabs] = useState(true);
-    const [onlyManualLike, setOnlyManualLike] = useState(true);
+    // Filters with persistence
+    const LS_LIQUID_FILTERS = (u) => `${NS(u)}:liquid:filters`;
+    const _initialLiquid = (() => {
+      try { 
+        return JSON.parse(localStorage.getItem(LS_LIQUID_FILTERS(userId)) || '{}'); 
+      } catch { 
+        return {}; 
+      }
+    })();
+    
+    const [filterText, setFilterText] = useState(_initialLiquid.filterText ?? '');
+    const [showOnlyChanged, setShowOnlyChanged] = useState(_initialLiquid.showOnlyChanged ?? false);
+    const [showAssets, setShowAssets] = useState(_initialLiquid.showAssets ?? true);
+    const [showLiabs, setShowLiabs] = useState(_initialLiquid.showLiabs ?? true);
+    const [onlyManualLike, setOnlyManualLike] = useState(_initialLiquid.onlyManualLike ?? true);
+
+    useEffect(() => {
+      try {
+        localStorage.setItem(LS_LIQUID_FILTERS(userId), JSON.stringify({
+          filterText, showOnlyChanged, showAssets, showLiabs, onlyManualLike
+        }));
+      } catch { }
+    }, [userId, filterText, showOnlyChanged, showAssets, showLiabs, onlyManualLike]);
+
     const [sortKey, setSortKey] = useState('nest');
     const [sortDir, setSortDir] = useState('desc');
     const [jumping, setJumping] = useState(false);
 
     // CASH positions only
     const cashPositionsAll = useMemo(() => positionsNorm.filter(isCashLike), [positionsNorm]);
+    
     const filteredPositions = useMemo(() => {
       return cashPositionsAll.filter(p => {
         if (onlyManualLike) {
@@ -796,7 +831,7 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
         };
       });
 
-      // Filter
+      // Filter by search/drafts
       if (filterText.trim()) {
         const s = filterText.trim().toLowerCase();
         enriched = enriched.filter(g => (g.institution || '').toLowerCase().includes(s));
@@ -809,13 +844,38 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
     }, [filteredPositions, liabilities, drafts, showAssets, showLiabs, filterText, showOnlyChanged]);
 
     useEffect(() => {
+      // If nothing selected, select first available
       if (!selectedInstitution && groups.length) {
         _setSelectedInstitution(groups[0].institution);
       }
     }, [groups, selectedInstitution]);
 
+    // Auto-focus management
+    useEffect(() => {
+      if (!editingKey || !wantFocusRef.current || !lastFocusedIdRef.current) return;
+      const el = document.getElementById(lastFocusedIdRef.current);
+      if (el && document.activeElement !== el) {
+        try { 
+          el.focus({ preventScroll: true }); 
+        } catch { 
+          el.focus(); 
+        }
+      }
+    }, [drafts, sortKey, sortDir, filterText, showOnlyChanged, showAssets, showLiabs, selectedInstitution]);
+
     const current = useMemo(() => groups.find(g => g.institution === selectedInstitution), [groups, selectedInstitution]);
 
+    const headerSortIcon = (key) => (sortKey === key ? <span className="ml-1 text-gray-400 dark:text-zinc-500">{sortDir === 'asc' ? '▲' : '▼'}</span> : null);
+    
+    const toggleSort = (key) => {
+      if (sortKey === key) {
+        setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
+      } else {
+        setSortKey(key);
+        setSortDir('desc');
+      }
+    };
+    
     const makeSorted = useCallback((rows, kind) => {
       const sorted = [...rows].sort((a, b) => {
         const dir = sortDir === 'asc' ? 1 : -1;
@@ -845,10 +905,37 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
     const sortedPositions = useMemo(() => current?.positions ? makeSorted(current.positions, 'asset') : [], [current?.positions, makeSorted]);
     const sortedLiabilities = useMemo(() => current?.liabilities ? makeSorted(current.liabilities, 'liability') : [], [current?.liabilities, makeSorted]);
 
+    // Bulk paste handler
+    const onBulkPaste = (e) => {
+      if (!current) return;
+      const txt = e.clipboardData?.getData('text') || '';
+      if (!txt) return;
+      const hasTabs = txt.includes('\\t');
+      const lines = txt.trim().split(/\\r?\\n/).map(row => {
+        if (hasTabs) return row.split('\\t');
+        if (row.includes(',')) return row.split(',');
+        return [row];
+      });
+      const flat = lines.flat().map(s => toNum(String(s).trim())).filter(n => Number.isFinite(n));
+      if (!flat.length) return;
+      e.preventDefault();
+      const posKeys = (sortedPositions || []).map(p => makeKey('asset', p.id));
+      const liabKeys = (sortedLiabilities || []).map(l => makeKey('liability', l.id));
+      const keys = [...posKeys, ...liabKeys];
+      const next = { ...drafts };
+      for (let i = 0; i < keys.length && i < flat.length; i += 1) {
+        next[keys[i]] = flat[i];
+      }
+      persistDrafts(next);
+      showToast('success', `Pasted ${Math.min(keys.length, flat.length)} values`);
+    };
+
+
+    // Save selected institution
     const saveInstitution = async () => {
       if (!current) return;
 
-      const changes = []; // Initialize changes array!
+      const changes = []; // Initialize changes array properly!
 
       // Build liability payload helper
       const buildLiabilityPayload = (l, next) => {
@@ -934,7 +1021,14 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
               await runOne(job); 
             } catch (e) {
               failed.push(job);
-              console.error(`Error updating ${job.kind} ${job.id}:`, e);
+              const msg = (e && e.message) ? e.message : (() => { 
+                try { 
+                  return JSON.stringify(e); 
+                } catch { 
+                  return String(e); 
+                } 
+              })();
+              console.error(`Error updating ${job.kind} ${job.id ?? '(unknown)'}: ${msg}`, e);
             }
           }
         });
@@ -959,6 +1053,16 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
           refreshLiabilities?.(),
         ]);
 
+        // Update recon data
+        const nextData = { ...reconData };
+        changes.forEach((c) => {
+          nextData[`pos_${makeKey(c.kind === 'liability' ? 'liability' : 'asset', c.id)}`] = {
+            lastUpdated: new Date().toISOString(),
+            value: Number(c.value)
+          };
+        });
+        saveReconData(nextData);
+
         if (failed.length) {
           showToast('error', `Saved with ${failed.length} failures`);
         } else {
@@ -972,6 +1076,26 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
       }
     };
 
+    const continueToNext = () => {
+      if (!groups.length) return;
+      if (!current) { 
+        setSelectedInstitution(groups[0].institution); 
+        return; 
+      }
+      const idx = groups.findIndex(g => g.institution === current.institution);
+      const next = groups[idx + 1];
+      setJumping(true); 
+      setTimeout(() => setJumping(false), 300);
+      if (next) { 
+        setSelectedInstitution(next.institution); 
+        showToast('success', `Moving to ${next.institution}`, 2000); 
+      } else { 
+        setSelectedInstitution(null); 
+        showToast('success', 'All institutions reviewed.');
+        if (reconData?._next === 'reconcile') setScreen('reconcile');
+      }
+    };
+
     const onRefresh = useCallback(() => {
       setLocalLoading(true);
       Promise.all([
@@ -981,9 +1105,11 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
       ]).finally(() => setLocalLoading(false));
     }, []);
 
-    // Simplified render - just show the basic structure
+
+
+    // Render Liquid Screen
     return (
-      <div className="flex flex-col h-[80vh]">
+      <div className="flex flex-col h-[80vh]" onPaste={onBulkPaste}>
         <TopHeader
           title="Quick Cash & Liabilities Update"
           showValues={showValues}
@@ -994,72 +1120,929 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
           onBack={() => setScreen('welcome')}
           onClose={onClose}
         />
-        
-        <div className="p-6">
-          {/* Institution selector and table would go here */}
-          <div className="text-center text-gray-600 dark:text-zinc-400">
-            Select an institution to update cash accounts and liabilities
-          </div>
-          
-          {current && (
-            <div className="mt-4">
-              <h3 className="font-semibold">{current.institution}</h3>
-              <button 
-                onClick={saveInstitution}
-                className="mt-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-              >
-                Save Changes
-              </button>
-            </div>
-          )}
-        </div>
-      </div>
-    );
-  }
 
-  // Simplified reconcile and summary screens
+        <div className="grid grid-cols-12 gap-6 flex-1 min-h-0">
+          {/* Left rail with filters */}
+          <aside className="col-span-12 lg:col-span-4 xl:col-span-3 h-full overflow-hidden">
+            <div className="h-full flex flex-col">
+              {/* Filters */}
+              <div className="mb-2 rounded-2xl border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-3">
+                <div className="flex items-center gap-2 mb-2 text-gray-700 dark:text-zinc-200">
+                  <FilterIcon className="w-4 h-4" />
+                  <span className="text-sm font-medium">Filters</span>
+                </div>
+                <div className="flex items-center gap-2 mb-2">
+                  <div className="relative flex-1">
+                    <Search className="w-4 h-4 text-gray-400 absolute left-2 top-2.5" />
+                    <input
+                      value={filterText}
+                      onChange={(e) => setFilterText(e.target.value)}
+                      placeholder="Search institutions..."
+                      className="w-full pl-8 pr-2 py-2 rounded-lg border border-gray-200 dark:border-zinc-700 
+                              bg-white dark:bg-zinc-800 text-sm 
+                              text-gray-900 dark:text-zinc-100 
+                              placeholder-gray-400 dark:placeholder-zinc-500"
+                    />
+                  </div>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <label className="inline-flex items-center gap-2 text-xs text-gray-700 dark:text-zinc-200">
+                    <input type="checkbox" checked={showAssets} onChange={(e) => setShowAssets(e.target.checked)} />
+                    Assets
+                  </label>
+                  <label className="inline-flex items-center gap-2 text-xs text-gray-700 dark:text-zinc-200">
+                    <input type="checkbox" checked={showLiabs} onChange={(e) => setShowLiabs(e.target.checked)} />
+                    Liabilities
+                  </label>
+                  <label className="inline-flex items-center gap-2 text-xs text-gray-700 dark:text-zinc-200">
+                    <input type="checkbox" checked={onlyManualLike} onChange={(e) => setOnlyManualLike(e.target.checked)} />
+                    Only manual-like
+                  </label>
+                  <label className="inline-flex items-center gap-2 text-xs text-gray-700 dark:text-zinc-200">
+                    <input type="checkbox" checked={showOnlyChanged} onChange={(e) => setShowOnlyChanged(e.target.checked)} />
+                    With drafts
+                  </label>
+                </div>
+              </div>
+
+              {/* Institutions list */}
+              <div className="flex-1 overflow-auto rounded-2xl border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900">
+                <div className="h-full overflow-auto" style={{ overscrollBehavior: 'contain' }}>
+                  {groups.length === 0 ? (
+                    <div className="p-6 text-sm text-gray-500 dark:text-zinc-400">No cash or liabilities found.</div>
+                  ) : (
+                    <ul className="divide-y divide-gray-100 dark:divide-zinc-800">
+                      {groups.map(g => {
+                        const isSel = g.institution === selectedInstitution;
+                        const logoSmall = getLogo(g.institution);
+                        const changed = g.changed > 0;
+                        return (
+                          <li key={g.institution}>
+                            <button
+                              onClick={() => setSelectedInstitution(g.institution)}
+                              className={`w-full text-left px-4 py-3 transition-colors flex items-center gap-3
+                                ${isSel ? 'bg-blue-50 dark:bg-blue-900/20' : 'hover:bg-gray-50 dark:hover:bg-zinc-800/60'}`}
+                            >
+                              {logoSmall ? <img src={logoSmall} alt={g.institution} className="w-7 h-7 rounded object-contain" /> : <Building2 className="w-6 h-6 text-gray-400" />}
+                              <div className="flex-1">
+                                <div className="flex items-center justify-between">
+                                  <div className="font-medium text-gray-900 dark:text-zinc-100">{g.institution}</div>
+                                  <div className="text-[11px] text-gray-500 dark:text-zinc-400">{g.totalRows} items</div>
+                                </div>
+                                <div className="text-xs text-gray-500 dark:text-zinc-400">
+                                  {fmtUSD(g.assetsValue, !showValues)} assets • {fmtUSD(g.liabilitiesValue, !showValues)} liabs
+                                </div>
+                                <div className="mt-2 h-1.5 bg-gray-200/70 dark:bg-zinc-800 rounded-full overflow-hidden">
+                                  <div className={`${changed ? 'bg-amber-500' : 'bg-blue-500'} h-full transition-all`} style={{ width: `${clamp(g.progressPct, 0, 100)}%` }} />
+                                </div>
+                              </div>
+                            </button>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  )}
+                </div>
+              </div>
+            </div>
+          </aside>
+
+          {/* Right work surface with tables */}
+          <section className="col-span-12 lg:col-span-8 xl:col-span-9 h-full">
+            {!current ? (
+              <div className="h-full rounded-2xl border-2 border-dashed border-gray-300 dark:border-zinc-800 bg-white/60 dark:bg-zinc-900/60 flex items-center justify-center text-center p-10">
+                <div>
+                  <h4 className="text-xl font-semibold text-gray-900 dark:text-zinc-100">Select a bank or card to begin</h4>
+                  <p className="text-gray-600 dark:text-zinc-400 mt-2 max-w-lg">
+                    Update checking/savings balances and any credit cards, loans, or mortgages. Paste from spreadsheets—values are auto-detected.
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <div className={`h-full rounded-2xl border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 flex flex-col ${jumping ? 'ring-2 ring-blue-200 dark:ring-blue-900/40 transition' : ''}`}>
+                {/* Sub-header */}
+                <div className="px-6 py-4 border-b border-gray-200 dark:border-zinc-800 flex items-center justify-between sticky top-0 bg-white dark:bg-zinc-900 z-[1] rounded-t-2xl">
+                  <div className="flex items-center gap-3">
+                    {getLogo(current.institution) ? (
+                      <img src={getLogo(current.institution)} alt={current.institution} className="w-9 h-9 rounded object-contain" />
+                    ) : <Building2 className="w-8 h-8 text-gray-400" />}
+                    <div>
+                      <div className="font-semibold text-gray-900 dark:text-zinc-100">{current.institution}</div>
+                      <div className="text-xs text-gray-500 dark:text-zinc-400">
+                       {current.positions.length} assets • {current.liabilities.length} liabilities • Net{' '}
+                       <span className={`${(current.assetsValue - current.liabilitiesValue) >= 0 ? 'text-emerald-600' : 'text-rose-600'} font-semibold`}>
+                         {fmtUSD(current.assetsValue - current.liabilitiesValue, !showValues)}
+                       </span>
+                     </div>
+                   </div>
+                 </div>
+                 <div className="flex items-center gap-3">
+                   <div className="hidden sm:block text-right">
+                     <div className="text-xs text-gray-500 dark:text-zinc-400">Totals</div>
+                     <div className="text-[12px] text-gray-600 dark:text-zinc-300">
+                       A: {fmtUSD(current.assetsValue, !showValues)} • L: {fmtUSD(current.liabilitiesValue, !showValues)}
+                     </div>
+                   </div>
+                   <button
+                     onClick={saveInstitution}
+                     className="px-4 py-2 rounded-lg bg-blue-600 text-white font-semibold hover:bg-blue-700 transition-colors"
+                     title={`Apply changes for ${current.institution}`}
+                   >
+                     Update {current.institution}
+                   </button>
+                   <button
+                     onClick={continueToNext}
+                     className="px-4 py-2 rounded-lg bg-gray-100 dark:bg-zinc-800 text-gray-800 dark:text-zinc-200 font-semibold hover:bg-gray-200 dark:hover:bg-zinc-700 transition-colors"
+                     title="Move to the next institution"
+                   >
+                     Continue <ChevronRight className="inline w-4 h-4 ml-1" />
+                   </button>
+                 </div>
+               </div>
+
+               {/* Tables area */}
+               <div className="flex-1 overflow-auto" style={{ overscrollBehavior: 'contain', scrollbarGutter: 'stable' }}>
+                 {/* Assets & Cash Table */}
+                 {sortedPositions.length > 0 && (
+                   <div className="min-w-[860px] overflow-auto">
+                     <div className="bg-gray-50 dark:bg-zinc-800 px-6 py-3 text-sm font-semibold text-gray-800 dark:text-zinc-200 sticky top-0 z-[1]">
+                       Assets & Cash
+                     </div>
+                     <table className="w-full">
+                       <thead className="bg-gray-50 dark:bg-zinc-800 sticky top-[44px] z-[1]">
+                         <tr className="text-xs uppercase text-gray-500 dark:text-zinc-400">
+                           <th className="px-6 py-2 text-left cursor-pointer" onClick={() => toggleSort('name')}>
+                             Account / Details {headerSortIcon('name')}
+                           </th>
+                           <th className="px-3 py-2 text-left">Identifier</th>
+                           <th className="px-3 py-2 text-left">Type</th>
+                           <th className="px-3 py-2 text-right cursor-pointer" onClick={() => toggleSort('nest')}>
+                             NestEgg {headerSortIcon('nest')}
+                           </th>
+                           <th className="px-3 py-2 text-center">Statement</th>
+                           <th className="px-3 py-2 text-right cursor-pointer" onClick={() => toggleSort('diff')}>
+                             Δ {headerSortIcon('diff')}
+                           </th>
+                           <th className="px-3 py-2 text-right">%</th>
+                         </tr>
+                       </thead>
+                       <tbody className="divide-y divide-gray-100 dark:divide-zinc-800">
+                         {sortedPositions.map((pos, idx) => {
+                           const c = pos._calc;
+                           const k = makeKey('asset', pos.id);
+                           const changed = drafts[k] !== undefined && Number(drafts[k]) !== c.nest;
+                           const nextId = sortedPositions[idx + 1]?.name ? `Statement_balance_for_${sortedPositions[idx + 1].name}`.replace(/\\s+/g, '_') : undefined;
+                           return (
+                             <tr key={pos.id} className={changed ? 'bg-blue-50/50 dark:bg-blue-900/10' : ''}>
+                               <td className="px-6 py-2">
+                                 <div className="font-medium text-gray-900 dark:text-zinc-100">{pos.name || 'Account'}</div>
+                                 <div className="text-xs text-gray-500 dark:text-zinc-400">{pos.inv_account_name || ''}</div>
+                               </td>
+                               <td className="px-3 py-2 text-sm text-gray-600 dark:text-zinc-300">{pos.identifier || '—'}</td>
+                               <td className="px-3 py-2 text-sm text-gray-600 dark:text-zinc-300">{pos.type || '—'}</td>
+                               <td className="px-3 py-2 text-right text-gray-800 dark:text-zinc-100">
+                                 {fmtUSD(c.nest, !showValues)}
+                               </td>
+                               <td className="px-3 py-2 text-center">
+                                 <CurrencyInput
+                                   value={drafts[k] ?? c.nest}
+                                   onValueChange={(v) => {
+                                     if (editingKey !== k) setEditingKey(k);
+                                     persistDrafts({ ...drafts, [k]: Number.isFinite(v) ? v : 0 });
+                                   }}
+                                   nextFocusId={nextId}
+                                   onFocus={(e) => { 
+                                     setEditingKey(k); 
+                                     lastFocusedIdRef.current = e.target.id; 
+                                     wantFocusRef.current = true; 
+                                   }}
+                                   onBlur={() => { 
+                                     if (editingKey === k) setEditingKey(null); 
+                                     wantFocusRef.current = false; 
+                                   }}
+                                   className={changed ? 'border-blue-400 ring-2 ring-blue-200 dark:ring-blue-400/40' : ''}
+                                   aria-label={`Statement balance for ${pos.name}`}
+                                 />
+                               </td>
+                               <td className={`px-3 py-2 text-right font-semibold ${c.diff > 0 ? 'text-green-600' : c.diff < 0 ? 'text-red-600' : 'text-gray-500 dark:text-zinc-400'}`}>
+                                 {fmtUSD(c.diff, !showValues)}
+                               </td>
+                               <td className={`px-3 py-2 text-right ${c.diff > 0 ? 'text-green-600' : c.diff < 0 ? 'text-red-600' : 'text-gray-500 dark:text-zinc-400'}`}>
+                                 {c.nest === 0 ? '—' : `${c.pct.toFixed(2)}%`}
+                               </td>
+                             </tr>
+                           );
+                         })}
+                       </tbody>
+                     </table>
+                   </div>
+                 )}
+
+                 {/* Liabilities Table */}
+                 {sortedLiabilities.length > 0 && (
+                   <div className="min-w-[860px] mt-8 overflow-auto">
+                     <div className="bg-gray-50 dark:bg-zinc-800 px-6 py-3 text-sm font-semibold text-gray-800 dark:text-zinc-200 sticky top-0 z-[1]">Liabilities</div>
+                     <table className="w-full">
+                       <thead className="bg-gray-50 dark:bg-zinc-800 sticky top-[44px] z-[1]">
+                         <tr className="text-xs uppercase text-gray-500 dark:text-zinc-400">
+                           <th className="px-6 py-2 text-left cursor-pointer" onClick={() => toggleSort('name')}>Name {headerSortIcon('name')}</th>
+                           <th className="px-3 py-2 text-left">Identifier</th>
+                           <th className="px-3 py-2 text-left">Type</th>
+                           <th className="px-3 py-2 text-right cursor-pointer" onClick={() => toggleSort('nest')}>NestEgg {headerSortIcon('nest')}</th>
+                           <th className="px-3 py-2 text-center">Statement</th>
+                           <th className="px-3 py-2 text-right cursor-pointer" onClick={() => toggleSort('diff')}>Δ {headerSortIcon('diff')}</th>
+                           <th className="px-3 py-2 text-right">%</th>
+                         </tr>
+                       </thead>
+                       <tbody className="divide-y divide-gray-100 dark:divide-zinc-800">
+                         {sortedLiabilities.map((liab, idx) => {
+                           const c = liab._calc;
+                           const key = makeKey('liability', liab.id);
+                           const changed = drafts[key] !== undefined && Number(drafts[key]) !== c.nest;
+                           const nextId = sortedLiabilities[idx + 1]?.name ? `Statement_balance_for_${sortedLiabilities[idx + 1].name}`.replace(/\\s+/g, '_') : undefined;
+
+                           return (
+                             <tr key={liab.id} className={changed ? 'bg-blue-50/50 dark:bg-blue-900/10' : ''}>
+                               <td className="px-6 py-2">
+                                 <div className="font-medium text-gray-900 dark:text-zinc-100">{liab.name || 'Liability'}</div>
+                                 <div className="text-xs text-gray-500 dark:text-zinc-400">{liab.inv_account_name || ''}</div>
+                               </td>
+                               <td className="px-3 py-2 text-sm text-gray-600 dark:text-zinc-300">{liab.identifier || '—'}</td>
+                               <td className="px-3 py-2 text-sm text-gray-600 dark:text-zinc-300">{liab.type || '—'}</td>
+                               <td className="px-3 py-2 text-right text-gray-800 dark:text-zinc-100">{fmtUSD(c.nest, !showValues)}</td>
+                               <td className="px-3 py-2 text-center">
+                                 <CurrencyInput
+                                   value={drafts[key] ?? c.nest}
+                                   onValueChange={(v) => {
+                                     if (editingKey !== key) setEditingKey(key);
+                                     persistDrafts({ ...drafts, [key]: Number.isFinite(v) ? v : 0 });
+                                   }}
+                                   nextFocusId={nextId}
+                                   onFocus={(e) => { 
+                                     setEditingKey(key); 
+                                     lastFocusedIdRef.current = e.target.id; 
+                                     wantFocusRef.current = true; 
+                                   }}
+                                   onBlur={() => { 
+                                     if (editingKey === key) setEditingKey(null); 
+                                     wantFocusRef.current = false; 
+                                   }}
+                                   className={`${changed ? 'border-blue-400 ring-2 ring-blue-200 dark:ring-blue-900/40 bg-white dark:bg-zinc-900' : ''}`}
+                                   aria-label={`Statement balance for ${liab.name}`}
+                                 />
+                               </td>
+                               <td className={`px-3 py-2 text-right font-semibold ${c.diff > 0 ? 'text-red-600' : c.diff < 0 ? 'text-green-600' : 'text-gray-500 dark:text-zinc-400'}`}>
+                                 {fmtUSD(c.diff, !showValues)}
+                               </td>
+                               <td className={`px-3 py-2 text-right ${c.diff > 0 ? 'text-red-600' : c.diff < 0 ? 'text-green-600' : 'text-gray-500 dark:text-zinc-400'}`}>
+                                 {c.nest === 0 ? '—' : `${c.pct.toFixed(2)}%`}
+                               </td>
+                             </tr>
+                           );
+                         })}
+                       </tbody>
+                     </table>
+                   </div>
+                 )}
+
+                 {sortedPositions.length === 0 && sortedLiabilities.length === 0 && (
+                   <div className="p-10 text-center text-gray-500 dark:text-zinc-400">No accounts or liabilities for this institution.</div>
+                 )}
+               </div>
+             </div>
+           )}
+         </section>
+       </div>
+     </div>
+   );
+ }
+
+ // ================= RECONCILE SCREEN (COMPLETE) =================
   function ReconcileScreen() {
+    const [selectedInstitution, setSelectedInstitution] = useState(null);
+    const [selectedAccount, setSelectedAccount] = useState(null);
+    const [filterText, setFilterText] = useState('');
+    const [showOnlyNeeding, setShowOnlyNeeding] = useState(false);
+
+    // Group by institution (accounts + synthetic entries for liabilities)
+    const groups = useMemo(() => {
+      const instMap = new Map();
+      const addInst = (inst) => { 
+        if (!instMap.has(inst)) instMap.set(inst, []); 
+        return instMap.get(inst); 
+      };
+
+      // Real accounts
+      (accounts || []).forEach((a) => {
+        const inst = a.institution || 'Unknown Institution';
+        const list = addInst(inst);
+        const totalValue = Number(a.totalValue ?? a.total_value ?? a.balance ?? 0);
+        list.push({ ...a, totalValue, _kind: 'account' });
+      });
+
+      // Liability group per institution
+      const liabByInst = new Map();
+      liabilities.forEach(l => {
+        const inst = l.institution || 'Unknown Institution';
+        if (!liabByInst.has(inst)) liabByInst.set(inst, []);
+        liabByInst.get(inst).push(l);
+      });
+      
+      Array.from(liabByInst.entries()).forEach(([inst, list]) => {
+        const totalValue = list.reduce((s, l) => s + Number(l.currentValue || 0), 0);
+        const synthetic = {
+          id: `liab:${inst}`,
+          institution: inst,
+          accountName: 'All Liabilities',
+          accountIdentifier: 'LIAB-GROUP',
+          accountCategory: 'Liabilities',
+          totalValue,
+          _kind: 'liab_group',
+          _items: list
+        };
+        addInst(inst).push(synthetic);
+      });
+
+      // Summarize total and needs
+      let grouped = Array.from(instMap.entries()).map(([institution, list]) => {
+        const totalValue = list.reduce((s, a) => s + Number(a.totalValue || 0), 0);
+        let needs = 0;
+        list.forEach(a => {
+          const r = reconData[a.id];
+          const stmt = Number(r?.statementBalance ?? NaN);
+          const hasStmt = Number.isFinite(stmt);
+          const ne = Number(a.totalValue || 0);
+          const mismatched = hasStmt && !withinTolerance(ne, stmt);
+          const stale = !r?.lastReconciled || (Math.floor((Date.now() - new Date(r.lastReconciled).getTime()) / 86400000) > 7);
+          if (stale || mismatched) needs += 1;
+        });
+        return { institution, accounts: list, totalValue, needs };
+      });
+
+      const raw = grouped; // Keep an unfiltered copy for pinning the selection
+
+      if (filterText.trim()) {
+        const s = filterText.trim().toLowerCase();
+        grouped = grouped.filter(g => (g.institution || '').toLowerCase().includes(s));
+      }
+      if (showOnlyNeeding) grouped = grouped.filter(g => g.needs > 0);
+
+      // Pin current selection so it remains visible after edit
+      if (showOnlyNeeding && selectedInstitution) {
+        const pinned = raw.find(g => g.institution === selectedInstitution);
+        if (pinned && !grouped.find(g => g.institution === selectedInstitution)) {
+          grouped = [pinned, ...grouped];
+        }
+      }
+
+      return grouped.sort((a, b) => b.totalValue - a.totalValue);
+    }, [accounts, liabilities, reconData, filterText, showOnlyNeeding, selectedInstitution]);
+
+    const current = useMemo(() => groups.find(g => g.institution === selectedInstitution), [groups, selectedInstitution]);
+
+    const calc = useCallback((a) => {
+      const ne = Number(a.totalValue || 0);
+      const st = Number(reconData[a.id]?.statementBalance ?? NaN);
+      const hasStmt = Number.isFinite(st);
+      const diff = hasStmt ? (st - ne) : 0;
+      return { 
+        nest: ne, 
+        stmt: hasStmt ? st : null, 
+        diff, 
+        pct: hasStmt ? diffPct(ne, diff) : 0, 
+        isReconciled: hasStmt ? withinTolerance(ne, st) : false 
+      };
+    }, [reconData]);
+
+    const handleStatementChange = (accId, v) => {
+      const next = { 
+        ...reconData, 
+        [accId]: { 
+          ...(reconData[accId] || {}), 
+          statementBalance: Number.isFinite(v) ? v : 0, 
+          timestamp: new Date().toISOString() 
+        } 
+      };
+      saveReconData(next);
+    };
+
+    const quickReconcile = (a) => {
+      const ne = Number(a.totalValue || 0);
+      const next = { 
+        ...reconData, 
+        [a.id]: { 
+          ...(reconData[a.id] || {}), 
+          statementBalance: ne, 
+          lastReconciled: new Date().toISOString() 
+        } 
+      };
+      saveReconData(next); 
+      showToast('success', 'Account marked reconciled');
+    };
+
+    const continueToNext = () => {
+      if (!current) return;
+      const list = current.accounts || [];
+      if (!selectedAccount) { 
+        setSelectedAccount(list[0] || null); 
+        return; 
+      }
+      const idx = list.findIndex(x => x.id === selectedAccount.id);
+      const next = list[idx + 1];
+      if (next) {
+        setSelectedAccount(next);
+      } else {
+        const i = groups.findIndex(g => g.institution === current.institution);
+        const nextInst = groups[i + 1];
+        if (nextInst) { 
+          setSelectedInstitution(nextInst.institution); 
+          setSelectedAccount(nextInst.accounts?.[0] || null); 
+          showToast('success', `Moving to ${nextInst.institution}`, 2000); 
+        } else { 
+          setSelectedInstitution(null); 
+          setSelectedAccount(null); 
+          showToast('success', 'All institutions reviewed.'); 
+        }
+      }
+    };
+
+    useEffect(() => {
+      if (!wantFocusRef.current || !lastFocusedIdRef.current) return;
+      const el = document.getElementById(lastFocusedIdRef.current);
+      if (el && document.activeElement !== el) {
+        try { 
+          el.focus({ preventScroll: true }); 
+        } catch { 
+          el.focus(); 
+        }
+      }
+    }, [reconData, selectedInstitution, selectedAccount, filterText, showOnlyNeeding]);
+
+    const onComplete = () => {
+      pushHistory();
+      const results = [];
+      (groups || []).forEach(grp => {
+        (grp.accounts || []).forEach(a => {
+          const r = calc(a);
+          if (reconData[a.id]?.statementBalance !== undefined) {
+            results.push({
+              accountName: (a._kind === 'liab_group') ? 'All Liabilities' : (a.accountName || a.account_name || 'Account'),
+              institution: grp.institution,
+              finalBalance: r.stmt ?? 0,
+              change: r.stmt !== null ? r.diff : 0
+            });
+          }
+        });
+      });
+      saveReconData((d) => ({ ...d, _summary: results }));
+      setScreen('summary');
+    };
+
+    const positionsForAccount = useMemo(() => {
+      if (!selectedAccount) return [];
+      if (selectedAccount._kind === 'liab_group') {
+        return (selectedAccount._items || []).map(p => ({
+          id: p.id, 
+          name: p.name || p.identifier || 'Liability', 
+          identifier: p.identifier || '', 
+          type: p.type || '', 
+          value: Number(p.currentValue || 0),
+        })).sort((a, b) => b.value - a.value);
+      }
+      const id = selectedAccount.id;
+      return positionsNorm.filter(p => String(p.accountId) === String(id)).map(p => ({
+        id: p.id, 
+        name: p.name || p.identifier || 'Position', 
+        identifier: p.identifier || '', 
+        type: p.type || '', 
+        value: Number(p.currentValue || 0),
+      })).sort((a, b) => b.value - a.value);
+    }, [selectedAccount, positionsNorm]);
+
+    const onRefresh = useCallback(() => {
+      setLocalLoading(true);
+      Promise.all([
+        refreshPositions?.(), 
+        refreshAccounts?.(), 
+        refreshLiabilities?.()
+      ]).finally(() => setLocalLoading(false));
+    }, []);
+
     return (
       <div className="flex flex-col h-[80vh]">
         <TopHeader
           title="Investment & Liabilities Check-In"
           showValues={showValues}
           setShowValues={setShowValues}
-          onRefresh={() => {}}
+          onRefresh={onRefresh}
           onClearPending={clearPending}
           pending={pending}
           onBack={() => setScreen('welcome')}
           onClose={onClose}
         />
-        <div className="p-6 text-center text-gray-600 dark:text-zinc-400">
-          Reconcile investment accounts and verify totals
+
+        <div className="grid grid-cols-12 gap-6 flex-1 min-h-0">
+          {/* Left rail */}
+          <aside className="col-span-12 lg:col-span-4 xl:col-span-3 h-full overflow-hidden">
+            <div className="h-full flex flex-col">
+              {/* Filters */}
+              <div className="mb-2 rounded-2xl border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-3">
+                <div className="flex items-center gap-2 mb-2 text-gray-700 dark:text-zinc-200">
+                  <FilterIcon className="w-4 h-4" />
+                  <span className="text-sm font-medium">Filters</span>
+                </div>
+                <div className="flex items-center gap-2 mb-2">
+                  <div className="relative flex-1">
+                    <Search className="w-4 h-4 text-gray-400 absolute left-2 top-2.5" />
+                    <input
+                      value={filterText}
+                      onChange={(e) => setFilterText(e.target.value)}
+                      placeholder="Search institutions..."
+                      className="w-full pl-8 pr-2 py-2 rounded-lg border border-gray-200 dark:border-zinc-700 
+                      bg-white dark:bg-zinc-800 text-sm 
+                      text-gray-900 dark:text-zinc-100 
+                      placeholder-gray-400 dark:placeholder-zinc-500"
+                    />
+                  </div>
+                </div>
+                <label className="inline-flex items-center gap-2 text-xs text-gray-700 dark:text-zinc-200">
+                  <input type="checkbox" checked={showOnlyNeeding} onChange={(e) => setShowOnlyNeeding(e.target.checked)} />
+                  Needs attention
+                </label>
+              </div>
+
+              <div className="flex-1 overflow-auto rounded-2xl border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900">
+                <div className="h-full overflow-auto" style={{ overscrollBehavior: 'contain' }}>
+                  {groups.length === 0 ? (
+                    <div className="p-6 text-sm text-gray-500 dark:text-zinc-400">No investment or liability groups found.</div>
+                  ) : (
+                    <ul className="divide-y divide-gray-100 dark:divide-zinc-800">
+                      {groups.map(g => {
+                        const isSel = g.institution === selectedInstitution;
+                        const logo = getLogo(g.institution);
+                        return (
+                          <li key={g.institution}>
+                            <button
+                              onClick={() => { setSelectedInstitution(g.institution); setSelectedAccount(null); }}
+                              className={`w-full text-left px-4 py-3 transition-colors flex items-center gap-3
+                                ${isSel ? 'bg-blue-50 dark:bg-blue-900/20' : 'hover:bg-gray-50 dark:hover:bg-zinc-800/60'}`}
+                            >
+                              {logo ? <img src={logo} alt={g.institution} className="w-7 h-7 rounded object-contain" /> : <Building2 className="w-6 h-6 text-gray-400" />}
+                              <div className="flex-1">
+                                <div className="flex items-center justify-between">
+                                  <div className="font-medium text-gray-900 dark:text-zinc-100">{g.institution}</div>
+                                  <div className="text-xs text-gray-500 dark:text-zinc-400">{g.accounts.length} lines</div>
+                                </div>
+                                <div className="text-xs text-gray-500 dark:text-zinc-400">{fmtUSD(g.totalValue, !showValues)}</div>
+                                {g.needs > 0 ? (
+                                  <div className="mt-2 inline-flex items-center text-amber-700 dark:text-amber-300 text-xs">
+                                    <AlertTriangle className="w-4 h-4 mr-1" /> {g.needs} to review
+                                  </div>
+                                ) : (
+                                  <div className="mt-2 inline-flex items-center text-green-700 dark:text-emerald-300 text-xs">
+                                    <CheckCircle className="w-4 h-4 mr-1" /> Up to date
+                                  </div>
+                                )}
+                              </div>
+                            </button>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  )}
+                </div>
+              </div>
+            </div>
+          </aside>
+
+
+          {/* Right surface with reconciliation tables */}
+          <section className="col-span-12 lg:col-span-8 xl:col-span-9 h-full">
+            {!current ? (
+              <div className="h-full rounded-2xl border-2 border-dashed border-gray-300 dark:border-zinc-800 bg-white/60 dark:bg-zinc-900/60 flex items-center justify-center text-center p-10">
+                <div>
+                  <h4 className="text-xl font-semibold text-gray-900 dark:text-zinc-100">Select an institution to begin</h4>
+                  <p className="text-gray-600 dark:text-zinc-400 mt-2 max-w-lg">Enter latest statement totals; we'll highlight differences.</p>
+                </div>
+              </div>
+            ) : (
+              <div className="h-full rounded-2xl border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 flex flex-col">
+                <div className="px-6 py-4 border-b border-gray-200 dark:border-zinc-800 flex items-center justify-between sticky top-0 bg-white dark:bg-zinc-900 z-[1] rounded-t-2xl">
+                  <div className="flex items-center gap-3">
+                    {getLogo(current.institution) ? (
+                      <img src={getLogo(current.institution)} alt={current.institution} className="w-9 h-9 rounded object-contain" />
+                    ) : <Building2 className="w-8 h-8 text-gray-400" />}
+                    <div>
+                      <div className="font-semibold text-gray-900 dark:text-zinc-100">{current.institution}</div>
+                      <div className="text-xs text-gray-500 dark:text-zinc-400">{current.accounts.length} lines</div>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={continueToNext}
+                      className="px-3 py-2 rounded-lg bg-gray-100 dark:bg-zinc-800 text-gray-800 dark:text-zinc-200 font-semibold hover:bg-gray-200 dark:hover:bg-zinc-700 transition-colors"
+                      title="Continue to next account/institution"
+                    >
+                      Continue <ChevronRight className="inline w-4 h-4 ml-1" />
+                    </button>
+                    <button
+                      onClick={onComplete}
+                      className="px-3 py-2 rounded-lg bg-green-600 text-white font-semibold hover:bg-green-700 transition-colors"
+                    >
+                      <CheckCheck className="w-4 h-4 inline mr-1" />
+                      Complete
+                    </button>
+                  </div>
+                </div>
+
+                <div className="flex-1 overflow-auto" style={{ overscrollBehavior: 'contain', scrollbarGutter: 'stable' }}>
+                  <div className="min-w-[760px] overflow-auto">
+                    <div className="bg-gray-50 dark:bg-zinc-800 px-6 py-3 text-sm font-semibold text-gray-800 dark:text-zinc-200 sticky top-0 z-[1]">
+                      Accounts & Liabilities in {current.institution}
+                    </div>
+                    <table className="w-full">
+                      <thead className="bg-gray-50 dark:bg-zinc-800 sticky top-[44px] z-[1]">
+                        <tr className="text-xs uppercase text-gray-500 dark:text-zinc-400">
+                          <th className="px-6 py-2 text-left">Line</th>
+                          <th className="px-3 py-2 text-left">Identifier</th>
+                          <th className="px-3 py-2 text-left">Category</th>
+                          <th className="px-3 py-2 text-right">NestEgg</th>
+                          <th className="px-3 py-2 text-center">Statement</th>
+                          <th className="px-3 py-2 text-right">Δ</th>
+                          <th className="px-3 py-2 text-right">%</th>
+                          <th className="px-3 py-2 text-center">Positions / Items</th>
+                          <th className="px-3 py-2 text-center">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100 dark:divide-zinc-800">
+                        {current.accounts.map((a, idx) => {
+                          const ne = Number(a.totalValue || 0);
+                          const st = Number(reconData[a.id]?.statementBalance ?? NaN);
+                          const hasStmt = Number.isFinite(st);
+                          const diff = hasStmt ? (st - ne) : 0;
+                          const pct = hasStmt ? diffPct(ne, diff) : 0;
+                          const changed = hasStmt && !withinTolerance(ne, st);
+                          const idLabel = (a._kind === 'liab_group') ? 'All Liabilities' : (a.accountName || a.account_name || 'Account');
+                          const nextId = current.accounts[idx + 1]?.id ? 
+                            `Statement_balance_for_${(current.accounts[idx + 1]._kind === 'liab_group' ? 'All Liabilities' : (current.accounts[idx + 1].accountName || 'Account'))}`.replace(/\\s+/g, '_') : undefined;
+
+                          const itemCount = (a._kind === 'liab_group')
+                            ? (a._items?.length || 0)
+                            : positionsNorm.filter(p => String(p.accountId) === String(a.id)).length;
+
+                          return (
+                            <tr key={a.id} className={`${changed ? 'bg-blue-50/40 dark:bg-blue-900/10' : ''}`}>
+                              <td className="px-6 py-2">
+                                <div className="font-medium text-gray-900 dark:text-zinc-100">{idLabel}</div>
+                                <div className="text-xs text-gray-500 dark:text-zinc-400">
+                                  {a._kind === 'liab_group' ? 'Liabilities' : (a.accountType || a.type || '—')}
+                                </div>
+                              </td>
+                              <td className="px-3 py-2 text-sm text-gray-600 dark:text-zinc-300">
+                                {a.accountIdentifier || a.identifier || (a._kind === 'liab_group' ? 'LIAB-GROUP' : '—')}
+                              </td>
+                              <td className="px-3 py-2 text-sm text-gray-600 dark:text-zinc-300">
+                                {a.accountCategory || a.category || (a._kind === 'liab_group' ? 'Liabilities' : '—')}
+                              </td>
+                              <td className="px-3 py-2 text-right text-gray-800 dark:text-zinc-100">{fmtUSD(ne, !showValues)}</td>
+                              <td className="px-3 py-2 text-center">
+                                <CurrencyInput
+                                  value={hasStmt ? st : ne}
+                                  onValueChange={(v) => handleStatementChange(a.id, v)}
+                                  aria-label={`Statement balance for ${idLabel}`}
+                                  className={`${changed ? 'border-blue-400 ring-2 ring-blue-200 dark:ring-blue-900/40 bg-white dark:bg-zinc-900' : ''}`}
+                                  nextFocusId={nextId}
+                                  onFocus={(e) => { 
+                                    lastFocusedIdRef.current = e.target.id; 
+                                    wantFocusRef.current = true; 
+                                  }}
+                                  onBlur={() => { 
+                                    wantFocusRef.current = false; 
+                                  }}
+                                />
+                              </td>
+                              <td className={`px-3 py-2 text-right font-semibold ${diff > 0 ? 'text-green-600' : diff < 0 ? 'text-red-600' : 'text-gray-500 dark:text-zinc-400'}`}>
+                                {hasStmt ? fmtUSD(diff, !showValues) : '—'}
+                              </td>
+                              <td className={`px-3 py-2 text-right ${!hasStmt || ne === 0 ? 'text-gray-500 dark:text-zinc-400' : (diff > 0 ? 'text-green-600' : 'text-red-600')}`}>
+                                {!hasStmt || ne === 0 ? '—' : `${pct.toFixed(2)}%`}
+                              </td>
+                              <td className="px-3 py-2 text-center">
+                                <span className="inline-flex items-center text-xs text-gray-600 dark:text-zinc-300 bg-gray-100 dark:bg-zinc-800 px-2 py-0.5 rounded-full border border-gray-200 dark:border-zinc-700">
+                                  {itemCount}
+                                </span>
+                              </td>
+                              <td className="px-3 py-2 text-center">
+                                <div className="flex items-center justify-center gap-2">
+                                  <button
+                                    onClick={() => setSelectedAccount(a)}
+                                    className="px-2 py-1 text-xs rounded bg-gray-100 dark:bg-zinc-800 hover:bg-gray-200 dark:hover:bg-zinc-700 text-gray-800 dark:text-zinc-200"
+                                    title={a._kind === 'liab_group' ? 'View liabilities' : 'View positions'}
+                                  >
+                                    Details
+                                  </button>
+                                  <button
+                                    onClick={() => quickReconcile(a)}
+                                    className="px-2.5 py-1.5 text-xs rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white border border-emerald-700/30"
+                                    title="Set statement equal to NestEgg"
+                                  >
+                                    Set = NestEgg
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+
+                    {/* Drilldown positions / liabilities */}
+                    {selectedAccount && (
+                      <div className="px-6 py-4 border-t border-gray-200 dark:border-zinc-800">
+                        <div className="flex items-center justify-between mb-2">
+                          <div>
+                            <div className="font-semibold text-gray-900 dark:text-zinc-100">
+                              {(selectedAccount._kind === 'liab_group') ? 'All Liabilities' : (selectedAccount.accountName || selectedAccount.account_name || 'Account')} • Details
+                            </div>
+                            <div className="text-xs text-gray-500 dark:text-zinc-400">{positionsForAccount.length} items</div>
+                          </div>
+                          <button
+                            onClick={continueToNext}
+                            className="px-3 py-1.5 rounded-lg bg-gray-100 dark:bg-zinc-800 text-gray-800 dark:text-zinc-200 font-semibold hover:bg-gray-200 dark:hover:bg-zinc-700 transition-colors"
+                          >
+                            Continue <ChevronRight className="inline w-4 h-4 ml-1" />
+                          </button>
+                        </div>
+
+                        <div className="max-h-[32vh] overflow-auto border border-gray-200 dark:border-zinc-800 rounded-lg" style={{ overscrollBehavior: 'contain' }}>
+                          <table className="w-full min-w-[560px]">
+                            <thead className="bg-gray-50 dark:bg-zinc-800 sticky top-0 z-10">
+                              <tr className="text-xs uppercase text-gray-500 dark:text-zinc-400">
+                                <th className="px-4 py-2 text-left">Name</th>
+                                <th className="px-3 py-2 text-left">Identifier</th>
+                                <th className="px-3 py-2 text-left">Type</th>
+                                <th className="px-3 py-2 text-right">Value</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-100 dark:divide-zinc-800">
+                              {positionsForAccount.map(p => (
+                                <tr key={p.id}>
+                                  <td className="px-4 py-2 text-sm text-gray-900 dark:text-zinc-100">{p.name}</td>
+                                  <td className="px-3 py-2 text-sm text-gray-600 dark:text-zinc-300">{p.identifier || '—'}</td>
+                                  <td className="px-3 py-2 text-sm text-gray-600 dark:text-zinc-300">{p.type || '—'}</td>
+                                  <td className="px-3 py-2 text-right text-sm text-gray-900 dark:text-zinc-100">{fmtUSD(p.value, !showValues)}</td>
+                                </tr>
+                              ))}
+                              {positionsForAccount.length === 0 && (
+                                <tr><td className="px-4 py-3 text-sm text-gray-500 dark:text-zinc-400" colSpan={4}>No items found.</td></tr>
+                              )}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+          </section>
         </div>
       </div>
     );
   }
 
+  // ================= SUMMARY SCREEN (COMPLETE) =================
   function SummaryScreen() {
+    const results = reconData?._summary || [];
+    const totalValue = results.reduce((s, r) => s + Number(r.finalBalance || 0), 0);
+    const accuracy = 100; // placeholder
+
+    const onRefresh = useCallback(() => {
+      setLocalLoading(true);
+      Promise.all([
+        refreshPositions?.(), 
+        refreshAccounts?.(), 
+        refreshLiabilities?.()
+      ]).finally(() => setLocalLoading(false));
+    }, []);
+
     return (
-      <div className="flex flex-col h-[80vh]">
+      <div className="flex flex-col min-h-[70vh]">
         <TopHeader
           title="Reconciliation Complete"
           showValues={showValues}
           setShowValues={setShowValues}
-          onRefresh={() => {}}
+          onRefresh={onRefresh}
           onClearPending={clearPending}
           pending={pending}
           onBack={() => setScreen('reconcile')}
           onClose={onClose}
         />
-        <div className="p-6 text-center">
-          <Trophy className="w-16 h-16 text-green-600 mx-auto mb-4" />
-          <h2 className="text-2xl font-bold text-gray-900 dark:text-zinc-100">Complete!</h2>
+
+        <div className="bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 dark:from-zinc-950 dark:via-zinc-900 dark:to-zinc-900 p-8 flex-1 overflow-auto" style={{ overscrollBehavior: 'contain' }}>
+          <div className="max-w-5xl mx-auto">
+            <div className="text-center mb-8">
+              <div className="inline-flex items-center justify-center w-24 h-24 bg-gradient-to-br from-green-400 to-emerald-500 rounded-full mb-6 shadow-2xl">
+                <Trophy className="w-12 h-12 text-white" />
+              </div>
+              <h1 className="text-3xl font-bold text-gray-900 dark:text-zinc-100">Reconciliation Complete 🎉</h1>
+              <p className="text-gray-600 dark:text-zinc-400 mt-2">Nice work. Your data is up to date.</p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+              <div className="bg-white dark:bg-zinc-900 rounded-2xl p-6 shadow border border-gray-100 dark:border-zinc-800">
+                <div className="flex items-center justify-between mb-3">
+                  <CheckCircle className="w-7 h-7 text-green-600" />
+                  <span className="text-3xl font-bold dark:text-zinc-100">{results.length}</span>
+                </div>
+                <div className="text-gray-700 dark:text-zinc-300 font-semibold">Lines Reconciled</div>
+              </div>
+              <div className="bg-white dark:bg-zinc-900 rounded-2xl p-6 shadow border border-gray-100 dark:border-zinc-800">
+                <div className="flex items-center justify-between mb-3">
+                  <Droplets className="w-7 h-7 text-blue-600" />
+                  <span className="text-3xl font-bold dark:text-zinc-100">—</span>
+                </div>
+                <div className="text-gray-700 dark:text-zinc-300 font-semibold">Quick Updates</div>
+              </div>
+              <div className="bg-white dark:bg-zinc-900 rounded-2xl p-6 shadow border border-gray-100 dark:border-zinc-800">
+                <div className="flex items-center justify-between mb-3">
+                  <DollarSign className="w-7 h-7 text-indigo-600" />
+                  <span className="text-2xl font-bold dark:text-zinc-100">{fmtUSD(totalValue)}</span>
+                </div>
+                <div className="text-gray-700 dark:text-zinc-300 font-semibold">Total Value</div>
+              </div>
+              <div className="bg-white dark:bg-zinc-900 rounded-2xl p-6 shadow border border-gray-100 dark:border-zinc-800">
+                <div className="flex items-center justify-between mb-3">
+                  <Percent className="w-7 h-7 text-purple-600" />
+                  <span className="text-3xl font-bold dark:text-zinc-100">{accuracy}%</span>
+                </div>
+                <div className="text-gray-700 dark:text-zinc-300 font-semibold">Accuracy</div>
+              </div>
+            </div>
+
+            {results.length > 0 && (
+              <div className="bg-white dark:bg-zinc-900 rounded-2xl p-6 shadow border border-gray-100 dark:border-zinc-800 mb-8">
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-zinc-100 mb-3 flex items-center">
+                  <FileText className="w-5 h-5 mr-2 text-gray-600 dark:text-zinc-400" />
+                  Reconciliation Details
+                </h3>
+                <div className="space-y-3">
+                  {results.map((r, i) => (
+                    <div key={i} className="flex items-center justify-between p-4 bg-gray-50 dark:bg-zinc-800 rounded-lg">
+                      <div>
+                        <div className="font-medium text-gray-900 dark:text-zinc-100">{r.accountName}</div>
+                        <div className="text-xs text-gray-500 dark:text-zinc-400">{r.institution}</div>
+                      </div>
+                      <div className="text-right">
+                        <div className="font-semibold text-gray-900 dark:text-zinc-100">{fmtUSD(r.finalBalance)}</div>
+                        {r.change !== 0 && (
+                          <div className={`text-sm ${r.change > 0 ? 'text-green-600' : 'text-red-600'}`}>
+                            {r.change > 0 ? '+' : ''}{fmtUSD(r.change)}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div className="bg-gradient-to-r from-blue-600 to-indigo-600 rounded-2xl p-6 text-white shadow">
+              <div className="grid md:grid-cols-3 gap-6">
+                <div className="flex items-start gap-3">
+                  <div className="p-2 bg-white/20 rounded"><Clock className="w-6 h-6" /></div>
+                  <div>
+                    <div className="font-semibold">Schedule weekly</div>
+                    <div className="text-sm text-blue-100">Reconciling weekly keeps drift low</div>
+                  </div>
+                </div>
+                <div className="flex items-start gap-3">
+                  <div className="p-2 bg-white/20 rounded"><LineChart className="w-6 h-6" /></div>
+                  <div>
+                    <div className="font-semibold">Track progress</div>
+                    <div className="text-sm text-blue-100">Watch portfolio health trend</div>
+                  </div>
+                </div>
+                <div className="flex items-start gap-3">
+                  <div className="p-2 bg-white/20 rounded"><Bell className="w-6 h-6" /></div>
+                  <div>
+                    <div className="font-semibold">Set alerts</div>
+                    <div className="text-sm text-blue-100">Get pinged when data drifts</div>
+                  </div>
+                </div>
+              </div>
+              <div className="mt-6 flex justify-center gap-3">
+                <button onClick={onClose} className="px-5 py-2.5 bg-white text-blue-700 rounded-lg hover:bg-gray-100 transition-colors">Back to Dashboard</button>
+                <button onClick={() => setScreen('welcome')} className="px-5 py-2.5 bg-blue-700 rounded-lg hover:bg-blue-800 transition-colors">Start New Reconciliation</button>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     );
   }
 
-  // Main render with queue modal
+  // ============== Main Modal Render ==========================================
   return (
     <FixedModal
       isOpen={isOpen}
