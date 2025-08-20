@@ -35,7 +35,12 @@ const makeKey = (kind, id) => `${kind}:${id}`;           // kind: 'asset' | 'lia
 const NS = (userId) => `nestegg:v1:recon:${userId || 'anon'}`;
 const LS_DATA = (u) => `${NS(u)}:data`;
 const LS_HISTORY = (u) => `${NS(u)}:history`;
-const LS_DRAFT_PREFIX = (u) => `${NS(u)}:draft:`;
+// v2 unified drafts store with schema versioning
+const SCHEMA_VERSION = 2;
+const LS_SCHEMA = (u) => `${NS(u)}:schemaVersion`;
+const LS_DRAFTS = (u) => `${NS(u)}:drafts:v2`;
+// legacy prefix (for migration only)
+const LS_DRAFT_PREFIX = (u) => `${NS(u)}:draft:`; 
 const LS_SELECTED_INST = (u) => `${NS(u)}:selectedInstitution`;
 
 // ===== Helpers for Quick Cash scope =====
@@ -143,9 +148,9 @@ export const CurrencyInput = React.memo(function CurrencyInput({
         placeholder-gray-400 dark:placeholder-zinc-500
         focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400
         border-gray-300 dark:border-zinc-700
-        font-medium`}
-      autoComplete="off"
-    />
+        font-medium
+        [font-variant-numeric:tabular-nums]`}
+      />
   );
 });
 
@@ -387,6 +392,10 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
         if (k && k.startsWith(prefix)) keys.push(k);
       }
       keys.forEach(k => localStorage.removeItem(k));
+      try {
+        localStorage.removeItem(LS_DRAFTS(userId));
+        localStorage.removeItem(LS_SCHEMA(userId));
+      } catch {}
     } catch {}
     setReconData({});
     setDrafts({});
@@ -472,22 +481,44 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
 
   // ================= Dirty-State Tracking =================
   const [drafts, setDrafts] = useState({});
-  const draftKeyPrefix = LS_DRAFT_PREFIX(userId);
 
-  const loadAllDrafts = useCallback(() => {
-    const out = {};
+  useEffect(() => {
+    if (!isOpen) return;
     try {
-      for (let i=0;i<localStorage.length;i+=1) {
-        const k = localStorage.key(i);
-        if (k && k.startsWith(draftKeyPrefix)) {
-          Object.assign(out, JSON.parse(localStorage.getItem(k) || '{}'));
+      const currSchema = Number(localStorage.getItem(LS_SCHEMA(userId)) || 0);
+      if (currSchema < SCHEMA_VERSION) {
+        const merged = {};
+        // sweep legacy per-institution draft keys
+        const prefix = LS_DRAFT_PREFIX(userId);
+        const legacyKeys = [];
+        for (let i = 0; i < localStorage.length; i += 1) {
+          const k = localStorage.key(i);
+          if (k && k.startsWith(prefix)) {
+            legacyKeys.push(k);
+            const v = JSON.parse(localStorage.getItem(k) || '{}');
+            Object.assign(merged, v);
+          }
         }
-      }
-    } catch {/* noop */}
-    return out;
-  }, [draftKeyPrefix]);
+        // overlay existing v2 if present
+        const v2Existing = JSON.parse(localStorage.getItem(LS_DRAFTS(userId)) || '{}');
+        Object.assign(merged, v2Existing);
 
-  useEffect(() => { if (isOpen) setDrafts(loadAllDrafts()); }, [isOpen, loadAllDrafts]);
+        localStorage.setItem(LS_DRAFTS(userId), JSON.stringify(merged));
+        legacyKeys.forEach(k => localStorage.removeItem(k));
+        localStorage.setItem(LS_SCHEMA(userId), String(SCHEMA_VERSION));
+      }
+      const v2 = JSON.parse(localStorage.getItem(LS_DRAFTS(userId)) || '{}');
+      setDrafts(v2);
+    } catch {
+      setDrafts({});
+    }
+  }, [isOpen, userId]);
+
+  const persistDrafts = useCallback((next) => {
+    setDrafts(next);
+    try { localStorage.setItem(LS_DRAFTS(userId), JSON.stringify(next)); } catch {}
+  }, [userId]);
+
 
   // Pending KPI (global)
   const pending = useMemo(() => {
@@ -764,7 +795,8 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
     }, [filteredPositions, liabilities, drafts, showAssets, showLiabs, filterText, showOnlyChanged]);
 
     useEffect(() => {
-      if (selectedInstitution && !groups.find(g=>g.institution===selectedInstitution)) _setSelectedInstitution(null);
+      // If nothing selected, select first available. Do not auto-clear when filtered.
+      if (!selectedInstitution && groups.length) _setSelectedInstitution(groups[0].institution);
     }, [groups, selectedInstitution]);
 
     const current = useMemo(()=>groups.find(g=>g.institution===selectedInstitution),[groups,selectedInstitution]);
@@ -821,7 +853,7 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
       setDrafts(prev => {
         const next = { ...prev };
         for (let i=0;i<keys.length && i<flat.length;i+=1) next[keys[i]] = flat[i];
-        try { localStorage.setItem(`${LS_DRAFT_PREFIX(userId)}${scopeKey}`, JSON.stringify(Object.fromEntries(keys.map(k=>[k, next[k]])))); } catch {}
+        persistDrafts(next);
         return next;
       });
       showToast('success', `Pasted ${Math.min(keys.length, flat.length)} values`);
@@ -830,52 +862,90 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
     // Save selected institution
     const saveInstitution = async () => {
       if (!current) return;
+
+      // build typed payloads
+      const buildLiabilityPayload = (l, next) => {
+        const t = String(l.type || '').toLowerCase();
+        if (t.includes('mortgage') || t.includes('loan')) return { principal_balance: next };
+        if (t.includes('credit')) return { current_balance: next };
+        return { current_balance: next };
+      };
+
       const changes = [];
+
       if (showAssets) {
         current.positions.forEach(p => {
           const key = makeKey('asset', p.id);
           const curr = Number(p.currentValue||0);
-          const next = drafts[key]; if (next===undefined || !Number.isFinite(next) || next===curr) return;
-          changes.push({ kind:'cash', id: p.itemId ?? p.id, value: next });
-        });
-      }
-      if (showLiabs) {
-        current.liabilities.forEach(p => {
-          const key = makeKey('liability', p.id);
-          const curr = Number(p.currentValue||0);
           const next = drafts[key];
           if (next === undefined || !Number.isFinite(next) || next === curr) return;
-          changes.push({ kind: 'liability', id: (p.itemId ?? p.id), value: next });
+          changes.push({ kind:'cash', id: p.itemId ?? p.id, value: Number(next), entity: p });
         });
       }
+
+      if (showLiabs) {
+        current.liabilities.forEach(l => {
+          const key = makeKey('liability', l.id);
+          const curr = Number(l.currentValue||0);
+          const next = drafts[key];
+          if (next === undefined || !Number.isFinite(next) || next === curr) return;
+          changes.push({ kind:'liability', id: l.itemId ?? l.liability_id ?? l.id, value: Number(next), entity: l });
+        });
+      }
+
       if (!changes.length) { showToast('info','No changes to apply'); return; }
 
-      const chunks = (arr, n) => Array.from({length: Math.ceil(arr.length/n)}, (_,i)=>arr.slice(i*n,(i+1)*n));
-      const batches = chunks(changes, 4);
-      setLocalLoading(true);
-      let failed = [];
-      try {
-        for (const batch of batches) {
-          const tasks = batch.map(b => {
-            const v = Number(b.value);
-            if (!Number.isFinite(v)) return Promise.resolve();
-            if (b.kind === 'cash') return updateCashPosition(b.id, { amount: v });
-            if (b.kind === 'liability') return updateLiability(b.id, { current_balance: v });
-            return updateOtherAsset(Number(b.id), { current_value: v });
-          });
-          const results = await Promise.allSettled(tasks);
-          results.forEach((r, idx) => { if (r.status === 'rejected') failed.push(batch[idx]); });
+      const maxConcurrent = 3;
+      const maxRetries = 2;
+      let idx = 0;
+      const failed = [];
+
+      const runOne = async (c) => {
+        const attempt = async () => {
+          const v = Number(c.value);
+          if (!Number.isFinite(v)) return;
+          if (c.kind === 'cash') return updateCashPosition(c.id, { amount: v });
+          if (c.kind === 'liability') return updateLiability(c.id, buildLiabilityPayload(c.entity, v));
+          return updateOtherAsset(Number(c.id), { current_value: v });
+        };
+        for (let tries = 0; tries <= maxRetries; tries += 1) {
+          try { await attempt(); return; }
+          catch (e) {
+            if (tries === maxRetries) throw e;
+            await new Promise(res => setTimeout(res, 350 * (tries + 1)));
+          }
         }
+      };
+
+      setLocalLoading(true);
+      try {
+        const pool = Array.from({ length: Math.min(maxConcurrent, changes.length) }, async function worker() {
+          while (idx < changes.length) {
+            const currentIdx = idx++;
+            const job = changes[currentIdx];
+            try { await runOne(job); }
+            catch { failed.push(job); }
+          }
+        });
+
+        await Promise.all(pool);
+
         await Promise.all([
           refreshPositions?.(),
           actions?.fetchGroupedPositionsData?.(true),
           actions?.fetchPortfolioData?.(true),
           actions?.fetchGroupedLiabilitiesData?.(true),
         ]);
+
         const nextData = { ...reconData };
-        changes.forEach((c)=>{ nextData[`pos_${makeKey(c.kind==='liability'?'liability':'asset', c.id)}`] = { lastUpdated: new Date().toISOString(), value: Number(c.value) }; });
+        changes.forEach((c)=>{
+          nextData[`pos_${makeKey(c.kind==='liability'?'liability':'asset', c.id)}`] = {
+            lastUpdated: new Date().toISOString(),
+            value: Number(c.value)
+          };
+        });
         saveReconData(nextData);
-        pushHistory();
+
         if (failed.length) showToast('error', `Saved with ${failed.length} failures`);
         else showToast('success', `Updated ${current.institution}`);
       } catch (e) {
@@ -885,6 +955,7 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
         setLocalLoading(false);
       }
     };
+
 
     const continueToNext = () => {
       if (!groups.length) return;
@@ -932,24 +1003,28 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
                       value={filterText}
                       onChange={(e)=>setFilterText(e.target.value)}
                       placeholder="Search institutions..."
-                      className="w-full pl-8 pr-2 py-2 rounded-lg border border-gray-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-sm"
+                      className="w-full pl-8 pr-2 py-2 rounded-lg border border-gray-200 dark:border-zinc-700 
+                              bg-white dark:bg-zinc-800 text-sm 
+                              text-gray-900 dark:text-zinc-100 
+                              placeholder-gray-400 dark:placeholder-zinc-500"
+
                     />
                   </div>
                 </div>
                 <div className="flex flex-wrap gap-2">
-                  <label className="inline-flex items-center gap-2 text-xs">
+                  <label className="inline-flex items-center gap-2 text-xs text-gray-700 dark:text-zinc-200">
                     <input type="checkbox" checked={showAssets} onChange={(e)=>setShowAssets(e.target.checked)} />
                     Assets
                   </label>
-                  <label className="inline-flex items-center gap-2 text-xs">
+                  <label className="inline-flex items-center gap-2 text-xs text-gray-700 dark:text-zinc-200">
                     <input type="checkbox" checked={showLiabs} onChange={(e)=>setShowLiabs(e.target.checked)} />
                     Liabilities
                   </label>
-                  <label className="inline-flex items-center gap-2 text-xs">
+                  <label className="inline-flex items-center gap-2 text-xs text-gray-700 dark:text-zinc-200">
                     <input type="checkbox" checked={onlyManualLike} onChange={(e)=>setOnlyManualLike(e.target.checked)} />
                     Only manual-like
                   </label>
-                  <label className="inline-flex items-center gap-2 text-xs">
+                  <label className="inline-flex items-center gap-2 text-xs text-gray-700 dark:text-zinc-200">
                     <input type="checkbox" checked={showOnlyChanged} onChange={(e)=>setShowOnlyChanged(e.target.checked)} />
                     With drafts
                   </label>
@@ -1256,7 +1331,16 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
         const s = filterText.trim().toLowerCase();
         grouped = grouped.filter(g => (g.institution || '').toLowerCase().includes(s));
       }
+
       if (showOnlyNeeding) grouped = grouped.filter(g => g.needs > 0);
+
+            // pin current selection so it remains visible after edit
+      if (showOnlyNeeding && selectedInstitution) {
+        const pinned = raw.find(g => g.institution === selectedInstitution);
+        if (pinned && !grouped.find(g => g.institution === selectedInstitution)) {
+          grouped = [pinned, ...grouped];
+        }
+      }
 
       return grouped.sort((a,b)=>b.totalValue-a.totalValue);
     }, [accounts, liabilities, reconData, filterText, showOnlyNeeding]);
@@ -1366,11 +1450,15 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
                       value={filterText}
                       onChange={(e)=>setFilterText(e.target.value)}
                       placeholder="Search institutions..."
-                      className="w-full pl-8 pr-2 py-2 rounded-lg border border-gray-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-sm"
+                      className="w-full pl-8 pr-2 py-2 rounded-lg border border-gray-200 dark:border-zinc-700 
+                      bg-white dark:bg-zinc-800 text-sm 
+                      text-gray-900 dark:text-zinc-100 
+                      placeholder-gray-400 dark:placeholder-zinc-500"
+
                     />
                   </div>
                 </div>
-                <label className="inline-flex items-center gap-2 text-xs">
+                <label className="inline-flex items-center gap-2 text-xs text-gray-700 dark:text-zinc-200">
                   <input type="checkbox" checked={showOnlyNeeding} onChange={(e)=>setShowOnlyNeeding(e.target.checked)} />
                   Needs attention
                 </label>
@@ -1537,10 +1625,10 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
                                   </button>
                                   <button
                                     onClick={()=>quickReconcile(a)}
-                                    className="px-2 py-1 text-xs rounded bg-green-600 hover:bg-green-700 text-white"
+                                    className="px-2.5 py-1.5 text-xs rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white border border-emerald-700/30"
                                     title="Set statement equal to NestEgg"
                                   >
-                                    Quick
+                                    Set = NestEgg
                                   </button>
                                 </div>
                               </td>
