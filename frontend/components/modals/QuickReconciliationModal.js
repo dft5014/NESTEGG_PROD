@@ -1,16 +1,21 @@
-// QuickReconciliationModal.js (LEAN VERSION)
-// - one screen, simple filters
-// - cash-like assets + liabilities in one table
-// - paste anywhere (tab/comma/newlines), fills visible rows top->bottom
-// - update button applies only changed rows (with small retry logic)
-// - minimal local state; no localStorage, no schema, no history
+// QuickReconciliationModal.js (LEAN+LIABS+INSTITUTION CHIPS)
+//
+// What’s new vs the lean version:
+// - pulls liabilities from your store (groupedLiabilities) via useDataStore()
+// - top “chips” per institution with logo + mini summary (Assets, Liabs, Net)
+// - chip click filters rows to that institution (plus a clear “All” chip)
+// - quick toggles to show/hide Assets or Liabilities
+//
+// External deps kept the same: updateCashPosition, updateLiability, updateOtherAsset
 
 import React, { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import {
-  X, RefreshCw, Search, Building2, ChevronRight, AlertTriangle, CheckCircle, Trash2, Eye, EyeOff, Loader2
+  X, RefreshCw, Building2, ChevronRight, AlertTriangle, CheckCircle,
+  Trash2, Eye, EyeOff, Loader2, ToggleLeft
 } from "lucide-react";
 
-// ===== External app hooks / API (keep signatures) =====
+// ===== External app hooks / API (same signatures you already have) =====
+import { useDataStore } from "@/store/DataStore";
 import { useAccounts } from "@/store/hooks/useAccounts";
 import { useDetailedPositions } from "@/store/hooks/useDetailedPositions";
 import { updateCashPosition, updateLiability, updateOtherAsset } from "@/utils/apimethods/positionMethods";
@@ -39,7 +44,7 @@ const isCashLike = (pos) => {
   return isCashLikeWord.test(n);
 };
 
-// ===== Simple currency input (robust paste, stable caret on paste) =====
+// ===== Currency input =====
 const CurrencyInput = React.memo(function CurrencyInput({
   id, value, onValueChange, onFocus, onBlur, nextFocusId, "aria-label": ariaLabel, className=""
 }) {
@@ -134,7 +139,7 @@ const CurrencyInput = React.memo(function CurrencyInput({
   );
 });
 
-// ===== Simple toast =====
+// ===== Toast =====
 function Toast({ type="info", text, onClose }) {
   const tone = { info:"bg-blue-600", success:"bg-emerald-600", error:"bg-rose-600", warning:"bg-amber-600" }[type] || "bg-blue-600";
   return (
@@ -149,8 +154,8 @@ function Toast({ type="info", text, onClose }) {
   );
 }
 
-// ===== Modal shell (very small) =====
-function ModalShell({ isOpen, onClose, title }) {
+// ===== Modal =====
+function ModalShell({ isOpen, onClose, title, children }) {
   if (!isOpen) return null;
   return (
     <div className="fixed inset-0 z-[9999]" aria-modal="true" role="dialog">
@@ -159,16 +164,11 @@ function ModalShell({ isOpen, onClose, title }) {
         <div className="rounded-2xl bg-white dark:bg-zinc-950 shadow-2xl overflow-hidden border border-gray-200 dark:border-zinc-800">
           <div className="flex items-center justify-between px-4 sm:px-6 py-3 border-b border-gray-200 dark:border-zinc-800 bg-white/95 dark:bg-zinc-900/95 sticky top-0">
             <h1 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-zinc-100">{title}</h1>
-            <div className="flex items-center gap-2">
-              <button onClick={onClose} className="p-2 rounded-lg bg-gray-100 dark:bg-zinc-800 hover:bg-gray-200 dark:hover:bg-zinc-700">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
+            <button onClick={onClose} className="p-2 rounded-lg bg-gray-100 dark:bg-zinc-800 hover:bg-gray-200 dark:hover:bg-zinc-700">
+              <X className="w-5 h-5" />
+            </button>
           </div>
-          <div className="p-4 sm:p-6">
-            {/* content slot via children */}
-            {arguments[0].children}
-          </div>
+          <div className="p-4 sm:p-6">{children}</div>
         </div>
       </div>
     </div>
@@ -177,13 +177,19 @@ function ModalShell({ isOpen, onClose, title }) {
 
 // ===== Main =====
 export default function QuickReconciliationModal({ isOpen, onClose }) {
+  const { state, actions } = useDataStore();
+  const { groupedLiabilities } = state || {};
+
   const { accounts = [], loading: accountsLoading, refresh: refreshAccounts } = useAccounts();
   const { positions: rawPositions = [], loading: positionsLoading, refresh: refreshPositions } = useDetailedPositions();
-  const loading = accountsLoading || positionsLoading;
+  const liabsLoading = groupedLiabilities?.loading;
+  const loading = accountsLoading || positionsLoading || liabsLoading;
 
   const [showValues, setShowValues] = useState(true);
-  const [instFilter, setInstFilter] = useState("");
-  const [onlyChanged, setOnlyChanged] = useState(false);
+  const [showAssets, setShowAssets] = useState(true);
+  const [showLiabs, setShowLiabs] = useState(true);
+  const [selectedInstitution, setSelectedInstitution] = useState(null);
+
   const [toast, setToast] = useState(null);
   const toastRef = useRef(null);
   const showToast = useCallback((type, text, ms=3000) => {
@@ -191,8 +197,14 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
     if (toastRef.current) clearTimeout(toastRef.current);
     if (ms>0) toastRef.current = setTimeout(()=>setToast(null), ms);
   }, []);
-
   useEffect(() => () => { if (toastRef.current) clearTimeout(toastRef.current); }, []);
+
+  // Kick off liabilities load (minimal)
+  useEffect(() => {
+    if (!groupedLiabilities?.lastFetched && !groupedLiabilities?.loading) {
+      actions?.fetchGroupedLiabilitiesData?.();
+    }
+  }, [groupedLiabilities?.lastFetched, groupedLiabilities?.loading, actions]);
 
   // Normalize positions (assets)
   const positions = useMemo(() => {
@@ -209,19 +221,31 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
     });
   }, [rawPositions]);
 
-  // Liabilities (flat list, already grouped on backend in your app)
-  // We'll treat all of them as editable lines here.
-  const [liabs, setLiabs] = useState([]);
-  useEffect(() => {
-    // Minimal: infer liabilities from positions input if you must; normally you'd have a hook.
-    // Here we assume liabilities are mixed in elsewhere; if not, leave empty and it still works for cash.
-    // If your app supplies groupedLiabilities elsewhere, you can wire that in here.
-  }, []);
+  // Normalize liabilities
+  const liabs = useMemo(() => {
+    const list = (groupedLiabilities?.data || []).map((L) => {
+      const id = L.item_id ?? L.liability_id ?? L.id ?? L.history_id;
+      const t = (L.item_type || L.type || "liability").toLowerCase();
+      const val = Number(
+        L.total_current_balance ?? L.current_balance ?? L.current_value ?? L.balance ?? L.net_worth_value ?? L.principal_balance ?? L.amount ?? 0
+      );
+      return {
+        id,
+        institution: L.institution || "Unknown Institution",
+        name: L.name || L.identifier || "Liability",
+        identifier: L.identifier || "",
+        type: t, // credit_card | loan | mortgage | liability...
+        currentValue: val,
+        inv_account_name: L.inv_account_name ?? L.account_name ?? "",
+      };
+    });
+    return list;
+  }, [groupedLiabilities?.data]);
 
-  // Cash-like asset rows
+  // Cash-like assets
   const cashAssets = useMemo(() => positions.filter(isCashLike), [positions]);
 
-  // Row model (assets + liabs)
+  // Row model
   const rows = useMemo(() => {
     const aRows = cashAssets.map(a => ({
       _kind: "asset",
@@ -233,7 +257,7 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
       type: a.type || "",
       nest: Number(a.currentValue || 0),
     }));
-    const lRows = (liabs || []).map(l => ({
+    const lRows = liabs.map(l => ({
       _kind: "liability",
       id: l.id,
       institution: l.institution || "Unknown Institution",
@@ -246,16 +270,33 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
     return [...aRows, ...lRows];
   }, [cashAssets, liabs]);
 
-  // Draft map (id-kind key → number)
+  // Institution aggregates for chips
+  const instChips = useMemo(() => {
+    const map = new Map();
+    const ensure = (inst) => {
+      if (!map.has(inst)) map.set(inst, { inst, assets: 0, liabs: 0, countA: 0, countL: 0 });
+      return map.get(inst);
+    };
+    rows.forEach(r => {
+      const g = ensure(r.institution);
+      if (r._kind === "asset") { g.assets += Math.abs(r.nest); g.countA += 1; }
+      else { g.liabs += Math.abs(r.nest); g.countL += 1; }
+    });
+    const arr = Array.from(map.values())
+      .map(g => ({ ...g, net: g.assets - g.liabs, totalAbs: g.assets + g.liabs }))
+      .sort((a,b) => b.totalAbs - a.totalAbs);
+    return arr;
+  }, [rows]);
+
+  // Filter toggles + computed list
+  const [onlyChanged, setOnlyChanged] = useState(false);
   const keyOf = (r) => `${r._kind}:${r.id}`;
   const [drafts, setDrafts] = useState({});
   const withCalc = useMemo(() => {
-    // filter before calculation
-    let list = rows;
-    if (instFilter.trim()) {
-      const s = instFilter.trim().toLowerCase();
-      list = list.filter(r => (r.institution || "").toLowerCase().includes(s));
-    }
+    // institution filter
+    let list = rows.filter(r => (showAssets ? r._kind !== "liability" : true) && (showLiabs ? r._kind !== "asset" : true));
+    if (selectedInstitution) list = list.filter(r => r.institution === selectedInstitution);
+
     // attach calc
     const out = list.map((r) => {
       const key = keyOf(r);
@@ -265,7 +306,7 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
       return { ...r, _key: key, stmt, diff, pct };
     });
     return onlyChanged ? out.filter(r => r.stmt !== r.nest) : out;
-  }, [rows, drafts, instFilter, onlyChanged]);
+  }, [rows, drafts, onlyChanged, selectedInstitution, showAssets, showLiabs]);
 
   // Bulk paste: fills visible rows top → bottom
   const onBulkPaste = (e) => {
@@ -312,11 +353,12 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
 
     const runOne = async (job) => {
       const attempt = async () => {
-        if (job._kind === "asset") return updateCashPosition(job.id, { amount: job.next }).catch(async () => {
-          // fallback for non-cash assets if backend expects other endpoint
-          return updateOtherAsset(Number(job.id), { current_value: job.next });
-        });
-        if (job._kind === "liability") return updateLiability(job.id, buildLiabilityPayload(job));
+        if (job._kind === "asset")
+          return updateCashPosition(job.id, { amount: job.next }).catch(async () =>
+            updateOtherAsset(Number(job.id), { current_value: job.next })
+          );
+        if (job._kind === "liability")
+          return updateLiability(job.id, buildLiabilityPayload(job));
       };
       for (let t = 0; t <= maxRetries; t++) {
         try { await attempt(); return; }
@@ -332,7 +374,11 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
         }
       });
       await Promise.all(pool);
-      await Promise.all([refreshPositions?.(), refreshAccounts?.()]);
+      await Promise.all([
+        refreshPositions?.(),
+        refreshAccounts?.(),
+        actions?.fetchGroupedLiabilitiesData?.(true),
+      ]);
 
       if (failed.length) showToast("warning", `Saved with ${failed.length} failure(s)`);
       else showToast("success", `Updated ${changes.length} line(s)`);
@@ -345,7 +391,7 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
   const clearDrafts = () => setDrafts({});
 
   return (
-    <ModalShell isOpen={isOpen} onClose={onClose} title="Quick Update">
+    <ModalShell isOpen={isOpen} onClose={onClose} title="Quick Update & Reconcile">
       <div
         className="flex flex-col gap-4"
         onPaste={(e) => {
@@ -354,18 +400,59 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
           onBulkPaste(e);
         }}
       >
+        {/* Institution chips */}
+        <div className="flex items-center gap-2 overflow-auto pb-1">
+          <button
+            onClick={() => setSelectedInstitution(null)}
+            className={`shrink-0 px-3 py-2 rounded-xl border text-sm ${
+              !selectedInstitution
+                ? "bg-blue-600 text-white border-blue-700"
+                : "bg-white dark:bg-zinc-900 text-gray-800 dark:text-zinc-100 border-gray-200 dark:border-zinc-800"
+            }`}
+            title="Show all"
+          >
+            All Institutions
+          </button>
+
+          {instChips.map((g) => {
+            const logo = getLogo(g.inst);
+            const selected = selectedInstitution === g.inst;
+            const net = g.net;
+            return (
+              <button
+                key={g.inst}
+                onClick={() => setSelectedInstitution(g.inst)}
+                className={`shrink-0 px-3 py-2 rounded-xl border text-left flex items-center gap-3 min-w-[14rem] ${
+                  selected
+                    ? "bg-blue-50 dark:bg-blue-900/20 border-blue-300 dark:border-blue-700/50"
+                    : "bg-white dark:bg-zinc-900 border-gray-200 dark:border-zinc-800 hover:bg-gray-50 dark:hover:bg-zinc-800/60"
+                }`}
+                title={g.inst}
+              >
+                {logo ? <img src={logo} alt={g.inst} className="w-6 h-6 rounded object-contain" /> : <Building2 className="w-5 h-5 text-gray-400" />}
+                <div className="flex-1">
+                  <div className="text-sm font-semibold leading-tight">{g.inst}</div>
+                  <div className="text-[11px] text-gray-600 dark:text-zinc-400">
+                    A: {fmtUSD(g.assets, !showValues)} • L: {fmtUSD(g.liabs, !showValues)} • Net:{" "}
+                    <span className={`${net >= 0 ? "text-emerald-600" : "text-rose-600"} font-semibold`}>{fmtUSD(net, !showValues)}</span>
+                  </div>
+                </div>
+                {selected ? <CheckCircle className="w-4 h-4 text-emerald-600" /> : null}
+              </button>
+            );
+          })}
+        </div>
+
         {/* Controls */}
         <div className="flex items-center gap-2 flex-wrap">
-          <div className="relative">
-            <Search className="w-4 h-4 text-gray-400 absolute left-2 top-2.5" />
-            <input
-              value={instFilter}
-              onChange={(e)=>setInstFilter(e.target.value)}
-              placeholder="Filter by institution…"
-              className="pl-8 pr-2 py-2 rounded-lg border border-gray-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-sm text-gray-900 dark:text-zinc-100 placeholder-gray-400 dark:placeholder-zinc-500"
-            />
-          </div>
-
+          <label className="inline-flex items-center gap-2 text-sm text-gray-700 dark:text-zinc-200">
+            <input type="checkbox" checked={showAssets} onChange={e=>setShowAssets(e.target.checked)} />
+            Assets
+          </label>
+          <label className="inline-flex items-center gap-2 text-sm text-gray-700 dark:text-zinc-200">
+            <input type="checkbox" checked={showLiabs} onChange={e=>setShowLiabs(e.target.checked)} />
+            Liabilities
+          </label>
           <label className="inline-flex items-center gap-2 text-sm text-gray-700 dark:text-zinc-200">
             <input type="checkbox" checked={onlyChanged} onChange={e=>setOnlyChanged(e.target.checked)} />
             Show only changed
@@ -391,7 +478,11 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
           <button
             onClick={async () => {
               try {
-                await Promise.all([refreshPositions?.(), refreshAccounts?.()]);
+                await Promise.all([
+                  refreshPositions?.(),
+                  refreshAccounts?.(),
+                  actions?.fetchGroupedLiabilitiesData?.(true),
+                ]);
                 showToast("success", "Refreshed");
               } catch {
                 showToast("error", "Refresh failed");
@@ -414,10 +505,10 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
         {/* Table */}
         <div className="border border-gray-200 dark:border-zinc-800 rounded-xl overflow-hidden">
           <div className="bg-gray-50 dark:bg-zinc-800 px-4 py-2 text-sm font-semibold text-gray-800 dark:text-zinc-200">
-            Cash-like Assets & Liabilities
+            {selectedInstitution ? `Lines in ${selectedInstitution}` : "Cash-like Assets & Liabilities"}
           </div>
           <div className="max-h-[60vh] overflow-auto">
-            <table className="w-full min-w-[840px]">
+            <table className="w-full min-w-[880px]">
               <thead className="bg-gray-50 dark:bg-zinc-800 sticky top-0 z-10">
                 <tr className="text-xs uppercase text-gray-500 dark:text-zinc-400">
                   <th className="px-4 py-2 text-left">Institution</th>
@@ -457,7 +548,7 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
                         {r.sub ? <div className="text-xs text-gray-500 dark:text-zinc-400">{r.sub}</div> : null}
                       </td>
                       <td className="px-3 py-2 text-sm text-gray-600 dark:text-zinc-300">{r.identifier || "—"}</td>
-                      <td className="px-3 py-2 text-sm text-gray-600 dark:text-zinc-300">{r.type || "—"}</td>
+                      <td className="px-3 py-2 text-sm text-gray-600 dark:text-zinc-300">{r.type || (r._kind === "liability" ? "liability" : "—")}</td>
                       <td className="px-3 py-2 text-right text-gray-800 dark:text-zinc-100">{fmtUSD(r.nest, !showValues)}</td>
                       <td className="px-3 py-2 text-center">
                         <CurrencyInput
@@ -485,7 +576,7 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
                 {!loading && withCalc.length === 0 && (
                   <tr>
                     <td className="px-4 py-6 text-sm text-gray-500 dark:text-zinc-400 text-center" colSpan={8}>
-                      No cash-like assets or liabilities found for this filter.
+                      No lines for this selection.
                     </td>
                   </tr>
                 )}
@@ -496,8 +587,8 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
 
         {/* Legend */}
         <div className="flex items-center gap-3 text-xs text-gray-500 dark:text-zinc-400">
-          <CheckCircle className="w-4 h-4 text-emerald-600" /> Unchanged rows will not be updated
-          <AlertTriangle className="w-4 h-4 text-amber-500 ml-4" /> Paste with tabs/commas/newlines to fill down the visible list
+          <CheckCircle className="w-4 h-4 text-emerald-600" /> Unchanged rows are skipped
+          <AlertTriangle className="w-4 h-4 text-amber-500 ml-4" /> Paste tabs/commas/newlines to fill the visible list
         </div>
       </div>
 
@@ -506,7 +597,7 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
   );
 }
 
-// Optional button (kept simple)
+// Optional button
 export function QuickReconciliationButton({ className = "", label = "Quick Update" }) {
   const [open, setOpen] = React.useState(false);
   return (
