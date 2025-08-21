@@ -747,6 +747,7 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
     // Filters
     const [filterText, setFilterText] = useState('');
     const [showOnlyChanged, setShowOnlyChanged] = useState(false);
+    const [showOnlyNeeding, setShowOnlyNeeding] = useState(false); 
     const [showAssets, setShowAssets] = useState(true);
     const [showLiabs, setShowLiabs] = useState(true);
     const [onlyManualLike, setOnlyManualLike] = useState(true); // heuristic
@@ -770,35 +771,89 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
 
     // build groups
     const groups = useMemo(() => {
-      const map = new Map();
-      const add = (inst) => { if (!map.has(inst)) map.set(inst, { institution: inst, positions: [], liabilities: [], assetsValue: 0, liabilitiesValue: 0 }); return map.get(inst); };
+      // institution → progress + rows used by the UI
+      const instMap = new Map();
+      const addInst = (inst) => {
+        if (!instMap.has(inst)) {
+          instMap.set(inst, {
+            institution: inst,
+            positions: [],       // cash-like asset positions (rows for the top table)
+            liabilities: [],     // liability rows (rows for the bottom table)
+            assetsValue: 0,
+            liabilitiesValue: 0,
+            totalRows: 0,
+            changed: 0,
+            progressPct: 0,
+          });
+        }
+        return instMap.get(inst);
+      };
 
-      if (showAssets) {
-        filteredPositions.forEach(p => { const g = add(p.institution || 'Unknown Institution'); g.positions.push(p); g.assetsValue += Math.abs(Number(p.currentValue||0)); });
-      }
-      if (showLiabs) {
-        liabilities.forEach(p => { const g = add(p.institution || 'Unknown Institution'); g.liabilities.push(p); g.liabilitiesValue += Math.abs(Number(p.currentValue||0)); });
-      }
+      // Cash-like assets
+      filteredPositions.forEach((p) => {
+        const inst = p.institution || 'Unknown Institution';
+        const g = addInst(inst);
+        const curr = Number(p.currentValue || 0);
+        const key = makeKey('asset', p.id);
+        const draft = drafts[key];
+        const hasDraft = draft !== undefined && Number.isFinite(draft);
+        const hasChange = hasDraft && draft !== curr;
 
-      let enriched = Array.from(map.values()).map((g) => {
-        const totalRows = g.positions.length + g.liabilities.length;
-        let drafted=0, changed=0;
-        g.positions.forEach(p => { const key = makeKey('asset', p.id); const d = drafts[key]; if (d!==undefined) drafted+=1; if (d!==undefined && d!==Number(p.currentValue||0)) changed+=1; });
-        g.liabilities.forEach(p => { const key = makeKey('liability', p.id); const d = drafts[key]; if (d!==undefined) drafted+=1; if (d!==undefined && d!==Number(p.currentValue||0)) changed+=1; });
-        return { ...g, totalRows, drafted, changed, totalValue: g.assetsValue + g.liabilitiesValue, progressPct: totalRows ? ((totalRows - changed) / totalRows)*100 : 0 };
+        g.positions.push(p);
+        g.assetsValue += Math.abs(curr);
+        g.totalRows += 1;
+        if (hasChange) g.changed += 1;
       });
 
-      // filter by search/drafts
+      // Liabilities
+      liabilities.forEach((L) => {
+        const inst = L.institution || 'Unknown Institution';
+        const g = addInst(inst);
+        const curr = Number(L.currentValue || 0);
+        const key = makeKey('liability', L.id);
+        const draft = drafts[key];
+        const hasDraft = draft !== undefined && Number.isFinite(draft);
+        const hasChange = hasDraft && draft !== curr;
+
+        g.liabilities.push(L);
+        g.liabilitiesValue += Math.abs(curr);
+        g.totalRows += 1;
+        if (hasChange) g.changed += 1;
+      });
+
+      // finalize + filters
+      let allGroups = Array.from(instMap.values()).map((g) => {
+        const doneRows = g.totalRows - g.changed;
+        const progressPct = g.totalRows ? (doneRows / g.totalRows) * 100 : 0;
+        return { ...g, progressPct };
+      });
+
+      // text filter
       if (filterText.trim()) {
         const s = filterText.trim().toLowerCase();
-        enriched = enriched.filter(g => (g.institution || '').toLowerCase().includes(s));
-      }
-      if (showOnlyChanged) {
-        enriched = enriched.filter(g => g.changed > 0);
+        allGroups = allGroups.filter((g) => (g.institution || '').toLowerCase().includes(s));
       }
 
-      return enriched.sort((a,b)=>b.totalValue-a.totalValue);
-    }, [filteredPositions, liabilities, drafts, showAssets, showLiabs, filterText, showOnlyChanged]);
+      // “Needs attention” = has any changed drafts
+      if (showOnlyNeeding) {
+        allGroups = allGroups.filter((g) => g.changed > 0);
+      }
+
+      // pin current selection if it was filtered out
+      if (showOnlyNeeding && selectedInstitution) {
+        const pinned = Array.from(instMap.values()).find((g) => g.institution === selectedInstitution);
+        if (pinned && !allGroups.find((g) => g.institution === selectedInstitution)) {
+          allGroups = [pinned, ...allGroups];
+        }
+      }
+
+      // keep existing behavior: sort by absolute scale
+      return allGroups.sort(
+        (a, b) => (b.assetsValue + b.liabilitiesValue) - (a.assetsValue + a.liabilitiesValue)
+      );
+    }, [filteredPositions, liabilities, drafts, filterText, showOnlyNeeding, selectedInstitution]);
+
+
 
     useEffect(() => {
       // If nothing selected, select first available. Do not auto-clear when filtered.
@@ -808,7 +863,10 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
     const current = useMemo(()=>groups.find(g=>g.institution===selectedInstitution),[groups,selectedInstitution]);
 
     const headerSortIcon = (key) => (sortKey === key ? <span className="ml-1 text-gray-400 dark:text-zinc-500">{sortDir === 'asc' ? '▲' : '▼'}</span> : null);
-    const toggleSort = (key) => { if (sortKey===key) setSortDir(d=>d==='asc'?'desc':'desc'); else { setSortKey(key); setSortDir('desc'); } };
+    const toggleSort = (key) => {
+        if (sortKey === key) setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
+        else { setSortKey(key); setSortDir('desc'); }
+      };
 
     const makeSorted = useCallback((rows, kind) => {
       const sorted = [...rows].sort((a, b) => {
@@ -835,8 +893,18 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
       });
     }, [sortKey, sortDir, drafts]);
 
-    const sortedPositions = useMemo(() => current?.positions ? makeSorted(current.positions, 'asset') : [], [current?.positions, makeSorted]);
-    const sortedLiabilities = useMemo(() => current?.liabilities ? makeSorted(current.liabilities, 'liability') : [], [current?.liabilities, makeSorted]);
+    const sortedPositions = useMemo(() => {
+      const rows = current?.positions ? makeSorted(current.positions, 'asset') : [];
+      if (!showOnlyChanged) return rows;
+      return rows.filter(r => drafts[r._key] !== undefined && Number(drafts[r._key]) !== r._calc.nest);
+    }, [current?.positions, makeSorted, showOnlyChanged, drafts]);
+
+    const sortedLiabilities = useMemo(() => {
+      const rows = current?.liabilities ? makeSorted(current.liabilities, 'liability') : [];
+      if (!showOnlyChanged) return rows;
+      return rows.filter(r => drafts[r._key] !== undefined && Number(drafts[r._key]) !== r._calc.nest);
+    }, [current?.liabilities, makeSorted, showOnlyChanged, drafts]);
+
 
     // bulk paste
     const onBulkPaste = (e) => {
@@ -855,7 +923,6 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
       const posKeys = (sortedPositions||[]).map(p=>makeKey('asset', p.id));
       const liabKeys = (sortedLiabilities||[]).map(l=>makeKey('liability', l.id));
       const keys = [...posKeys, ...liabKeys];
-      const scopeKey = selectedInstitution || 'all';
       setDrafts(prev => {
         const next = { ...prev };
         for (let i=0;i<keys.length && i<flat.length;i+=1) next[keys[i]] = flat[i];
@@ -979,6 +1046,9 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
         .finally(()=>setLocalLoading(false));
     }, [refreshPositions, refreshAccounts, actions]);
 
+
+    
+
     return (
       <div
           className="flex flex-col h-[80vh]"
@@ -1044,6 +1114,10 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
                   <label className="inline-flex items-center gap-2 text-xs text-gray-700 dark:text-zinc-200">
                     <input type="checkbox" checked={showOnlyChanged} onChange={(e)=>setShowOnlyChanged(e.target.checked)} />
                     With drafts
+                  </label>
+                  <label className="inline-flex items-center gap-2 text-xs text-gray-700 dark:text-zinc-200">
+                    <input type="checkbox" checked={showOnlyNeeding} onChange={(e)=>setShowOnlyNeeding(e.target.checked)} />
+                    Needs attention
                   </label>
                 </div>
               </div>
@@ -1174,7 +1248,10 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
                             const c = pos._calc;
                             const k = makeKey('asset', pos.id);
                             const changed = drafts[k] !== undefined && Number(drafts[k]) !== c.nest;
-                            const nextId = sortedPositions[idx+1]?.name ? `Statement_balance_for_${sortedPositions[idx+1].name}`.replace(/\s+/g,'_') : undefined;
+                            const thisId = inputIdFor('asset', pos.id);
+                            const nextId = sortedPositions[idx + 1]
+                              ? inputIdFor('asset', sortedPositions[idx + 1].id)
+                              : (sortedLiabilities[0] ? inputIdFor('liability', sortedLiabilities[0].id) : undefined);
                             return (
                               <tr key={pos.id} className={changed ? 'bg-blue-50/50 dark:bg-blue-900/10' : ''}>
                                 <td className="px-6 py-2">
@@ -1236,7 +1313,10 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
                             const c = liab._calc;
                             const key = makeKey('liability', liab.id);
                             const changed = drafts[key] !== undefined && Number(drafts[key]) !== c.nest;
-                            const nextId = sortedLiabilities[idx+1]?.name ? `Statement_balance_for_${sortedLiabilities[idx+1].name}`.replace(/\s+/g,'_') : undefined;
+                            const thisId = inputIdFor('liability', liab.id);
+                            const nextId = sortedLiabilities[idx + 1]
+                              ? inputIdFor('liability', sortedLiabilities[idx + 1].id)
+                              : undefined;
 
                             return (
                               <tr key={liab.id} className={changed ? 'bg-blue-50/50 dark:bg-blue-900/10' : ''}>
@@ -1249,6 +1329,7 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
                                 <td className="px-3 py-2 text-right text-gray-800 dark:text-zinc-100">{fmtUSD(c.nest, !showValues)}</td>
                                 <td className="px-3 py-2 text-center">
                                   <CurrencyInput
+                                    id={thisId}
                                     value={drafts[key] ?? c.nest}
                                     onValueChange={(v) => {
                                       if (editingKey !== key) setEditingKey(key);
@@ -1294,74 +1375,76 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
     const [filterText, setFilterText] = useState('');
     const [showOnlyNeeding, setShowOnlyNeeding] = useState(false);
 
-    // group by institution (accounts + synthetic entries for liabilities)
-    const groups = useMemo(() => {
-      const instMap = new Map();
-      const addInst = (inst) => { if (!instMap.has(inst)) instMap.set(inst, []); return instMap.get(inst); };
+  const groups = useMemo(() => {
+    // institution → list of "lines" to reconcile (accounts + a synthetic liabilities line)
+    const instMap = new Map();
+    const addInst = (inst) => { if (!instMap.has(inst)) instMap.set(inst, []); return instMap.get(inst); };
 
-      // Real accounts
-      (accounts || []).forEach((a) => {
-        const inst = a.institution || 'Unknown Institution';
-        const list = addInst(inst);
-        const totalValue = Number(a.totalValue ?? a.total_value ?? a.balance ?? 0);
-        list.push({ ...a, totalValue, _kind: 'account' });
-      });
+    // Real accounts (from useAccounts)
+    (accounts || []).forEach((a) => {
+      const inst = a.institution || 'Unknown Institution';
+      const list = addInst(inst);
+      const totalValue = Number(a.totalValue ?? a.total_value ?? a.balance ?? 0);
+      list.push({ ...a, totalValue, id: a.id, _kind: 'account' });
+    });
 
-      // Liability group per institution
-      const liabByInst = new Map();
-      liabilities.forEach(l => {
-        const inst = l.institution || 'Unknown Institution';
-        if (!liabByInst.has(inst)) liabByInst.set(inst, []);
-        liabByInst.get(inst).push(l);
+    // Synthetic "All Liabilities" line per institution
+    const liabByInst = new Map();
+    liabilities.forEach((l) => {
+      const inst = l.institution || 'Unknown Institution';
+      if (!liabByInst.has(inst)) liabByInst.set(inst, []);
+      liabByInst.get(inst).push(l);
+    });
+    Array.from(liabByInst.entries()).forEach(([inst, list]) => {
+      const totalValue = list.reduce((s, l) => s + Number(l.currentValue || 0), 0);
+      addInst(inst).push({
+        id: `liab:${inst}`,
+        institution: inst,
+        accountName: 'All Liabilities',
+        accountIdentifier: 'LIAB-GROUP',
+        accountCategory: 'Liabilities',
+        totalValue,
+        _kind: 'liab_group',
+        _items: list,
       });
-      Array.from(liabByInst.entries()).forEach(([inst, list]) => {
-        const totalValue = list.reduce((s, l) => s + Number(l.currentValue || 0), 0);
-        const synthetic = {
-          id: `liab:${inst}`,
-          institution: inst,
-          accountName: 'All Liabilities',
-          accountIdentifier: 'LIAB-GROUP',
-          accountCategory: 'Liabilities',
-          totalValue,
-          _kind: 'liab_group',
-          _items: list
-        };
-        addInst(inst).push(synthetic);
-      });
+    });
 
-      // summarize total and needs
-      let grouped = Array.from(instMap.entries()).map(([institution, list]) => {
-        const totalValue = list.reduce((s,a)=>s+Number(a.totalValue||0),0);
-        let needs = 0;
-        list.forEach(a=>{
-          const r = reconData[a.id];
-          const stmt = Number(r?.statementBalance ?? NaN);
-          const hasStmt = Number.isFinite(stmt);
-          const ne = Number(a.totalValue || 0);
-          const mismatched = hasStmt && !withinTolerance(ne, stmt);
-          const stale = !r?.lastReconciled || (Math.floor((Date.now() - new Date(r.lastReconciled).getTime())/86400000) > 7);
-          if (stale || mismatched) needs += 1;
-        });
-        return { institution, accounts: list, totalValue, needs };
+    // Build unfiltered snapshot to support "pinning"
+    const allGroups = Array.from(instMap.entries()).map(([institution, list]) => {
+      const totalValue = list.reduce((s, a) => s + Number(a.totalValue || 0), 0);
+      let needs = 0;
+      list.forEach((a) => {
+        const r = reconData[a.id];
+        const stmt = Number(r?.statementBalance ?? NaN);
+        const hasStmt = Number.isFinite(stmt);
+        const ne = Number(a.totalValue || 0);
+        const mismatched = hasStmt && !withinTolerance(ne, stmt);
+        const stale = !r?.lastReconciled || (Math.floor((Date.now() - new Date(r.lastReconciled).getTime()) / 86400000) > 7);
+        if (stale || mismatched) needs += 1;
       });
+      return { institution, accounts: list, totalValue, needs };
+    });
 
-      if (filterText.trim()) {
-        const s = filterText.trim().toLowerCase();
-        grouped = grouped.filter(g => (g.institution || '').toLowerCase().includes(s));
+    // Apply filters
+    let grouped = [...allGroups];
+    if (filterText.trim()) {
+      const s = filterText.trim().toLowerCase();
+      grouped = grouped.filter((g) => (g.institution || '').toLowerCase().includes(s));
+    }
+    if (showOnlyNeeding) grouped = grouped.filter((g) => g.needs > 0);
+
+    // Pin current selection if filtered out
+    if (showOnlyNeeding && selectedInstitution) {
+      const pinned = allGroups.find((g) => g.institution === selectedInstitution);
+      if (pinned && !grouped.find((g) => g.institution === selectedInstitution)) {
+        grouped = [pinned, ...grouped];
       }
+    }
 
-      if (showOnlyNeeding) grouped = grouped.filter(g => g.needs > 0);
+    return grouped.sort((a, b) => b.totalValue - a.totalValue);
+  }, [accounts, liabilities, reconData, filterText, showOnlyNeeding, selectedInstitution]);
 
-            // pin current selection so it remains visible after edit
-      if (showOnlyNeeding && selectedInstitution) {
-        const pinned = raw.find(g => g.institution === selectedInstitution);
-        if (pinned && !grouped.find(g => g.institution === selectedInstitution)) {
-          grouped = [pinned, ...grouped];
-        }
-      }
 
-      return grouped.sort((a,b)=>b.totalValue-a.totalValue);
-    }, [accounts, liabilities, reconData, filterText, showOnlyNeeding]);
 
     const current = useMemo(()=>groups.find(g=>g.institution===selectedInstitution),[groups,selectedInstitution]);
 
@@ -1593,7 +1676,10 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
                           const pct = hasStmt ? diffPct(ne, diff) : 0;
                           const changed = hasStmt && !withinTolerance(ne, st);
                           const idLabel = (a._kind === 'liab_group') ? 'All Liabilities' : (a.accountName || a.account_name || 'Account');
-                          const nextId = current.accounts[idx+1]?.id ? `Statement_balance_for_${(current.accounts[idx+1]._kind==='liab_group'?'All Liabilities':(current.accounts[idx+1].accountName||'Account'))}`.replace(/\s+/g,'_') : undefined;
+                          const thisId = inputIdFor('recon', a.id);
+                          const nextId = current.accounts[idx + 1]?.id
+                            ? inputIdFor('recon', current.accounts[idx + 1].id)
+                            : undefined;
 
                           const itemCount = (a._kind === 'liab_group')
                             ? (a._items?.length || 0)
@@ -1610,6 +1696,7 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
                               <td className="px-3 py-2 text-right text-gray-800 dark:text-zinc-100">{fmtUSD(ne, !showValues)}</td>
                               <td className="px-3 py-2 text-center">
                                 <CurrencyInput
+                                  id={thisId}
                                   value={hasStmt ? st : ne}
                                   onValueChange={(v) => {
                                     const next = { ...reconData, [a.id]: { ...(reconData[a.id]||{}), statementBalance: Number.isFinite(v) ? v : 0, timestamp: new Date().toISOString() } };
@@ -1858,6 +1945,8 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
     </ModalShell>
   );
 }
+
+// QuickReconciliationButton export
 export function QuickReconciliationButton({ className = '', label = 'Reconcile' }) {
   const [open, setOpen] = React.useState(false);
   return (
