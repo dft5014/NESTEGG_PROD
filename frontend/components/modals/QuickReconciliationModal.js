@@ -179,7 +179,7 @@ function ModalShell({ isOpen, onClose, title, children }) {
               <X className="w-5 h-5 text-zinc-900 dark:text-zinc-100" />
             </button>
           </div>
-          <div className="p-4 sm:p-6">{children}</div>
+          <div className="p-4 sm:p-6 max-h-[85vh] overflow-auto">{children}</div>
         </div>
       </div>
     </div>
@@ -270,9 +270,26 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
 
   const otherAssets = useMemo(() => {
     return allPositions
-      .filter(p => String(p.type||"") === "other" || (!p.institution && !isCashLike(p)))
-      .map(p => ({ ...p, institution: normalizeInstitution(p.institution, p.accountId, p.type) || OTHER_INST }));
-  }, [allPositions, normalizeInstitution]);
+      .map(p => ({ ...p, institution: normalizeInstitution(p.institution, p.accountId, p.type) || OTHER_INST }))
+      .filter(p => {
+        // keep only true "other" assets; exclude anything that smells like a liability
+        const t = String(p.type || "").toLowerCase();
+        const inst = (p.institution || "").toLowerCase();
+        const id = (p.identifier || "").toLowerCase();
+        const nm = (p.name || "").toLowerCase();
+
+        // not cash-like, not a clear liability, and labeled other/uncategorized
+        const notCash = !isCashLike(p);
+        const notLiabilityWord = !isLiabilityish.test(t) && !isLiabilityish.test(nm);
+        const isOtherish = t === "other" || !t;
+
+        // not present in our liability signatures
+        const notInLiabs = !liabilitySigSet.has(`${inst}::id::${id}`) && !liabilitySigSet.has(`${inst}::nm::${nm}`);
+
+        return notCash && notLiabilityWord && isOtherish && notInLiabs;
+      });
+  }, [allPositions, normalizeInstitution, liabilitySigSet]);
+
 
   // normalize liabilities
   const liabs = useMemo(() => {
@@ -296,6 +313,21 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
     });
     return list;
   }, [groupedLiabilities?.data, normalizeInstitution]);
+
+  // signatures for fast de-dupe against "other assets"
+  const liabilitySigSet = useMemo(() => {
+    const s = new Set();
+    for (const l of liabs) {
+      const inst = (l.institution || "").toLowerCase();
+      const id = (l.identifier || "").toLowerCase();
+      const nm = (l.name || "").toLowerCase();
+      if (inst && id) s.add(`${inst}::id::${id}`);
+      if (inst && nm) s.add(`${inst}::nm::${nm}`);
+    }
+    return s;
+  }, [liabs]);
+
+  const isLiabilityish = /(loan|mortgage|credit|debt|liab|card|payable)/i;
 
   // editable rows (cash + liabilities + other)
   const rows = useMemo(() => {
@@ -329,7 +361,12 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
       type: o.type || "other",
       nest: Number(o.currentValue || 0),
     }));
-    return [...aRows, ...lRows, ...oRows];
+    const uniq = new Map();
+      for (const r of [...aRows, ...lRows, ...oRows]) {
+        const key = `${r._kind}::${r.institution}::${r.identifier || r.name}`;
+        if (!uniq.has(key)) uniq.set(key, r);
+      }
+      return Array.from(uniq.values());
   }, [cashAssets, liabs, otherAssets]);
 
   // institution summaries (cards)
@@ -579,7 +616,7 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
   return (
     <ModalShell isOpen={isOpen} onClose={onClose} title="Quick Update & Reconcile">
       <div
-        className="flex flex-col gap-4"
+        className="flex flex-col gap-4 pb-28"
         onPaste={(e) => {
           const isField = e.target?.closest?.("input, textarea, [contenteditable='true']");
           if (isField && !(e.metaKey || e.altKey)) return; // bulk paste only outside inputs unless modifier
@@ -719,24 +756,29 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
 
         {/* KPIs */}
         <div className="flex flex-wrap items-center gap-3 text-sm">
-          <span className="px-2 py-1 rounded-lg bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700">
+          <span className="px-2 py-1 rounded-lg bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-zinc-900 dark:text-zinc-100">
             Visible: {kpis.count} rows
           </span>
-          <span className="px-2 py-1 rounded-lg bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700">
+          <span className="px-2 py-1 rounded-lg bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-zinc-900 dark:text-zinc-100">
             Assets: {fmtUSD(kpis.assets, !showValues)}
           </span>
-          <span className="px-2 py-1 rounded-lg bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700">
+          <span className="px-2 py-1 rounded-lg bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-zinc-900 dark:text-zinc-100">
             Liabs: {fmtUSD(kpis.liabilities, !showValues)}
           </span>
-          <span className="px-2 py-1 rounded-lg bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700">
+          <span className="px-2 py-1 rounded-lg bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-zinc-900 dark:text-zinc-100">
             Other: {fmtUSD(kpis.others, !showValues)}
           </span>
-          <span className={`px-2 py-1 rounded-lg border ${kpis.delta === 0 ? 'bg-zinc-100 dark:bg-zinc-800 border-zinc-200 dark:border-zinc-700' : 'bg-blue-50 dark:bg-blue-950/40 border-blue-200 dark:border-blue-900/50'}`}>
+          <span className={`px-2 py-1 rounded-lg border text-zinc-900 dark:text-zinc-100 ${
+            kpis.delta === 0
+              ? 'bg-zinc-100 dark:bg-zinc-800 border-zinc-200 dark:border-zinc-700'
+              : 'bg-blue-50 dark:bg-blue-950/40 border-blue-200 dark:border-blue-900/50'
+          }`}>
             Δ if saved: {fmtUSD(kpis.delta, !showValues)}
           </span>
-          <span className="px-2 py-1 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800">
+          <span className="px-2 py-1 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-200">
             Changed: {kpis.changed}
           </span>
+
         </div>
 
         {/* Editable table */}
