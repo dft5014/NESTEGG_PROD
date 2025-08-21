@@ -1,4 +1,4 @@
-// QuickReconciliationModal.js — positions fixed + dark contrast + 3-col institution grid
+// QuickReconciliationModal.js — fixed institution mismatch + editable rows + "Other Assets"
 import React, { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import {
   X, RefreshCw, Building2, ChevronRight, AlertTriangle, CheckCircle,
@@ -24,6 +24,7 @@ const getLogo = (name) => {
   const hit = popularBrokerages.find((b) => b.name.toLowerCase() === String(name).toLowerCase());
   return hit?.logo || null;
 };
+
 const isClearlySecurityWord = /(stock|equity|etf|fund|mutual|option|bond|crypto|security|shares?)/i;
 const isCashLikeWord = /(cash|checking|savings|mm|money\s?market|hysa|cd|certificate|sweep|settlement|brokerage\s?cash)/i;
 const isCashLike = (pos) => {
@@ -33,6 +34,8 @@ const isCashLike = (pos) => {
   if (["cash","checking","savings","money_market","mm","sweep","deposit"].includes(t)) return true;
   return isCashLikeWord.test(n);
 };
+
+const OTHER_INST = "Other Assets";
 
 // ---------- currency input ----------
 const CurrencyInput = React.memo(function CurrencyInput({
@@ -191,14 +194,31 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
   }, []);
   useEffect(() => () => { if (toastRef.current) clearTimeout(toastRef.current); }, []);
 
-  // kick liabilities fetch
+  // ensure liabilities are fetched
   useEffect(() => {
     if (!groupedLiabilities?.lastFetched && !groupedLiabilities?.loading) {
       actions?.fetchGroupedLiabilitiesData?.();
     }
   }, [groupedLiabilities?.lastFetched, groupedLiabilities?.loading, actions]);
 
-  // ---------- normalize ALL positions (securities + cash) ----------
+  // ---------- build account map for institution normalization ----------
+  const accountById = useMemo(() => {
+    const m = new Map();
+    (accounts || []).forEach(a => m.set(String(a.id), a));
+    return m;
+  }, [accounts]);
+
+  const normalizeInstitution = useCallback((rawInst, accountId, type) => {
+    // prefer the account's institution if present
+    const fromAcct = accountById.get(String(accountId))?.institution;
+    const base = (fromAcct || rawInst || "").trim();
+    if (base) return base;
+    // funnel stray or manual assets to "Other Assets"
+    if (!base || String(type||"").toLowerCase() === "other") return OTHER_INST;
+    return OTHER_INST;
+  }, [accountById]);
+
+  // ---------- normalize ALL positions (securities + cash + other) ----------
   const allPositions = useMemo(() => {
     return (rawPositions || []).map((p) => {
       const id = p.itemId ?? p.item_id ?? p.id;
@@ -206,17 +226,24 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
       const type = String(p.assetType ?? p.item_type ?? p.asset_type ?? p.position_type ?? "").toLowerCase();
       const name = p.name ?? p.identifier ?? "Unnamed";
       const currentValue = Number(p.currentValue ?? p.current_value ?? 0);
-      const institution = p.institution ?? "Unknown Institution";
+      const institution = normalizeInstitution(p.institution, accountId, type);
       const identifier = p.identifier ?? p.symbol ?? "";
       const inv_account_name = p.inv_account_name ?? p.accountName ?? p.account_name ?? "";
       return { id, accountId, institution, type, name, currentValue, identifier, inv_account_name };
     });
-  }, [rawPositions]);
+  }, [rawPositions, normalizeInstitution]);
 
-  // cash-like subset for editable table
+  // ---------- cash-like subset (editable) ----------
   const cashAssets = useMemo(() => allPositions.filter(isCashLike), [allPositions]);
 
-  // normalize liabilities
+  // ---------- "other assets" subset (editable via updateOtherAsset) ----------
+  const otherAssets = useMemo(() => {
+    return allPositions
+      .filter(p => String(p.type||"") === "other" || (!p.institution && !isCashLike(p)))
+      .map(p => ({ ...p, institution: normalizeInstitution(p.institution, p.accountId, p.type) || OTHER_INST }));
+  }, [allPositions, normalizeInstitution]);
+
+  // ---------- normalize liabilities ----------
   const liabs = useMemo(() => {
     const list = (groupedLiabilities?.data || []).map((L) => {
       const id = L.item_id ?? L.liability_id ?? L.id ?? L.history_id;
@@ -224,9 +251,12 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
       const val = Number(
         L.total_current_balance ?? L.current_balance ?? L.current_value ?? L.balance ?? L.net_worth_value ?? L.principal_balance ?? L.amount ?? 0
       );
+      // try to derive institution from related account if provided
+      const accountId = L.inv_account_id ?? L.account_id ?? null;
+      const inst = normalizeInstitution(L.institution, accountId, t);
       return {
         id,
-        institution: L.institution || "Unknown Institution",
+        institution: inst || OTHER_INST,
         name: L.name || L.identifier || "Liability",
         identifier: L.identifier || "",
         type: t,
@@ -235,14 +265,14 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
       };
     });
     return list;
-  }, [groupedLiabilities?.data]);
+  }, [groupedLiabilities?.data, normalizeInstitution]);
 
-  // ---------- rows for editable table (cash + liabilities) ----------
+  // ---------- rows for editable table (cash + liabilities + other assets) ----------
   const rows = useMemo(() => {
     const aRows = cashAssets.map(a => ({
       _kind: "asset",
       id: a.id,
-      institution: a.institution || "Unknown Institution",
+      institution: a.institution || OTHER_INST,
       name: a.name || "Account",
       sub: a.inv_account_name || "",
       identifier: a.identifier || "",
@@ -252,38 +282,49 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
     const lRows = liabs.map(l => ({
       _kind: "liability",
       id: l.id,
-      institution: l.institution || "Unknown Institution",
+      institution: l.institution || OTHER_INST,
       name: l.name || "Liability",
       sub: l.inv_account_name || "",
       identifier: l.identifier || "",
       type: String(l.type || ""),
       nest: Number(l.currentValue || 0),
     }));
-    return [...aRows, ...lRows];
-  }, [cashAssets, liabs]);
+    const oRows = otherAssets.map(o => ({
+      _kind: "other",
+      id: o.id,
+      institution: o.institution || OTHER_INST,
+      name: o.name || "Other Asset",
+      sub: o.inv_account_name || "",
+      identifier: o.identifier || "",
+      type: o.type || "other",
+      nest: Number(o.currentValue || 0),
+    }));
+    return [...aRows, ...lRows, ...oRows];
+  }, [cashAssets, liabs, otherAssets]);
 
-  // ---------- institution summaries (for grid) ----------
+  // ---------- institution summaries (chips) ----------
   const instChips = useMemo(() => {
     const map = new Map();
     const ensure = (inst) => {
-      if (!map.has(inst)) map.set(inst, { inst, assets: 0, liabs: 0, countA: 0, countL: 0 });
+      if (!map.has(inst)) map.set(inst, { inst, assets: 0, liabs: 0, others: 0, countA: 0, countL: 0, countO: 0 });
       return map.get(inst);
     };
     rows.forEach(r => {
       const g = ensure(r.institution);
       if (r._kind === "asset") { g.assets += Math.abs(r.nest); g.countA += 1; }
-      else { g.liabs += Math.abs(r.nest); g.countL += 1; }
+      else if (r._kind === "liability") { g.liabs += Math.abs(r.nest); g.countL += 1; }
+      else { g.others += Math.abs(r.nest); g.countO += 1; }
     });
     return Array.from(map.values())
-      .map(g => ({ ...g, net: g.assets - g.liabs, totalAbs: g.assets + g.liabs }))
+      .map(g => ({ ...g, net: g.assets + g.others - g.liabs, totalAbs: g.assets + g.others + g.liabs }))
       .sort((a,b) => b.totalAbs - a.totalAbs);
   }, [rows]);
 
-  // ---------- positions drilldown (FIX: show ALL positions by institution) ----------
+  // ---------- drilldown lists (all positions / liabilities per institution) ----------
   const positionsByInstitution = useMemo(() => {
     const map = new Map();
     allPositions.forEach(p => {
-      const inst = p.institution || "Unknown Institution";
+      const inst = p.institution || OTHER_INST;
       if (!map.has(inst)) map.set(inst, []);
       map.get(inst).push({
         id: p.id,
@@ -294,7 +335,6 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
         accountName: p.inv_account_name || "",
       });
     });
-    // stable sort largest first
     Array.from(map.values()).forEach(list => list.sort((a,b)=>Math.abs(b.value)-Math.abs(a.value)));
     return map;
   }, [allPositions]);
@@ -302,7 +342,7 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
   const liabilitiesByInstitution = useMemo(() => {
     const m = new Map();
     liabs.forEach(l => {
-      const inst = l.institution || "Unknown Institution";
+      const inst = l.institution || OTHER_INST;
       if (!m.has(inst)) m.set(inst, []);
       m.get(inst).push({
         id: l.id,
@@ -321,7 +361,8 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
   const [drafts, setDrafts] = useState({});
   const keyOf = (r) => `${r._kind}:${r.id}`;
   const visibleWithCalc = useMemo(() => {
-    let list = rows.filter(r => (showAssets ? r._kind !== "liability" : true) && (showLiabs ? r._kind !== "asset" : true));
+    let list = rows.filter(r => (showAssets ? true : r._kind !== "asset"))
+                    .filter(r => (showLiabs ? true : r._kind !== "liability"));
     if (selectedInstitution) list = list.filter(r => r.institution === selectedInstitution);
     const out = list.map((r) => {
       const key = keyOf(r);
@@ -384,6 +425,8 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
           );
         if (job._kind === "liability")
           return updateLiability(job.id, buildLiabilityPayload(job));
+        if (job._kind === "other")
+          return updateOtherAsset(Number(job.id), { current_value: job.next });
       };
       for (let t = 0; t <= maxRetries; t++) {
         try { await attempt(); return; }
@@ -437,7 +480,7 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
           >
             <div className="font-semibold">All Institutions</div>
             <div className={`${!selectedInstitution ? "text-blue-100" : "text-zinc-600 dark:text-zinc-300"} text-xs`}>
-              View every cash line & liability
+              View every cash line, liability & other asset
             </div>
           </button>
 
@@ -460,7 +503,7 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
                 <div className="flex-1">
                   <div className="text-sm font-semibold leading-tight text-zinc-900 dark:text-zinc-100">{g.inst}</div>
                   <div className="text-[11px] text-zinc-700 dark:text-zinc-300">
-                    A: {fmtUSD(g.assets, !showValues)} • L: {fmtUSD(g.liabs, !showValues)} • Net:{" "}
+                    A: {fmtUSD(g.assets, !showValues)} • L: {fmtUSD(g.liabs, !showValues)} • O: {fmtUSD(g.others, !showValues)} • Net:{" "}
                     <span className={`${net >= 0 ? "text-emerald-600" : "text-rose-500"} font-semibold`}>{fmtUSD(net, !showValues)}</span>
                   </div>
                 </div>
@@ -474,7 +517,7 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
         <div className="flex items-center gap-2 flex-wrap">
           <label className="inline-flex items-center gap-2 text-sm text-zinc-800 dark:text-zinc-100">
             <input type="checkbox" checked={showAssets} onChange={e=>setShowAssets(e.target.checked)} />
-            Assets
+            Assets (cash)
           </label>
           <label className="inline-flex items-center gap-2 text-sm text-zinc-800 dark:text-zinc-100">
             <input type="checkbox" checked={showLiabs} onChange={e=>setShowLiabs(e.target.checked)} />
@@ -529,13 +572,13 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
           </button>
         </div>
 
-        {/* Editable table (cash + liabilities) */}
+        {/* Editable table */}
         <div className="border border-zinc-200 dark:border-zinc-800 rounded-xl overflow-hidden">
           <div className="bg-zinc-50 dark:bg-zinc-800 px-4 py-2 text-sm font-semibold text-zinc-900 dark:text-zinc-100">
-            {selectedInstitution ? `Lines in ${selectedInstitution}` : "Cash-like Assets & Liabilities"}
+            {selectedInstitution ? `Lines in ${selectedInstitution}` : "Cash-like Assets, Liabilities & Other Assets"}
           </div>
           <div className="max-h-[54vh] overflow-auto">
-            <table className="w-full min-w-[880px]">
+            <table className="w-full min-w-[940px]">
               <thead className="bg-zinc-50 dark:bg-zinc-800 sticky top-0 z-10">
                 <tr className="text-xs uppercase text-zinc-600 dark:text-zinc-300">
                   <th className="px-4 py-2 text-left">Institution</th>
@@ -612,7 +655,7 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
           </div>
         </div>
 
-        {/* Positions drilldown (ALL positions; always visible when institution is picked) */}
+        {/* Positions drilldown */}
         {selectedInstitution && (
           <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 overflow-hidden">
             <div className="bg-zinc-50 dark:bg-zinc-800 px-4 py-2 flex items-center gap-2">
