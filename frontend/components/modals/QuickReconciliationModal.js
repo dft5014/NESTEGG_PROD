@@ -604,7 +604,7 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
           </button>
 
           {instCards.map((g) => {
-            const logo = getLogoFrom(useLogoMap(), g.inst); // tiny cache ok per card render
+            const logo = getLogoFrom(logoMap, g.inst); // ✅ uses top-level hook result
             const selected = selectedInstitution === g.inst;
             const net = g.net;
             return (
