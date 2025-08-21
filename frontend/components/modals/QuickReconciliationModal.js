@@ -28,22 +28,6 @@ const getLogo = (name) => {
   return hit?.logo || null;
 };
 
-// Robust liability id resolver (handles multiple shapes)
-const getLiabilityId = (L) => {
-  const cand =
-    L?.itemId ??
-    L?.item_id ??
-    L?.liability_id ??
-    L?.liabilityId ??
-    L?.liability_item_id ??
-    L?.liabilityItemId ??
-    L?.history_id ??
-    L?.id ??
-    L?.identifier;
-  const id = (cand == null ? '' : String(cand).trim());
-  return id || null;
-};
-
 // ------- Keys (normalized across assets & liabilities) -------
 const makeKey = (kind, id) => `${kind}:${id}`;           // kind: 'asset' | 'liability'
 
@@ -338,22 +322,20 @@ function TopHeader({
             <RefreshCw className="w-4 h-4" />
           </button>
           <button
-            onClick={() => pending.onOpenQueue?.()}
-            className="px-3 py-1.5 rounded-lg bg-white dark:bg-zinc-900 hover:bg-gray-100 dark:hover:bg-zinc-800
-                      text-gray-800 dark:text-zinc-200 border border-gray-200 dark:border-zinc-700"
-            title="View pending changes"
+            onClick={onClearPending}
+            className="px-3 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-700 text-white border border-rose-700/30"
+            title="Clear pending changes"
           >
-            <ListIcon className="w-4 h-4 inline -mt-0.5 mr-1" /> Queue
+            <Trash2 className="w-4 h-4 inline -mt-0.5 mr-1" /> Clear
           </button>
           {onClose && (
-          <button
-            onClick={onClose}
-            className="ml-1 p-2 rounded-lg bg-gray-100 dark:bg-zinc-800 hover:bg-gray-200 dark:hover:bg-zinc-700
-                      text-gray-700 dark:text-zinc-200"
-            title="Close"
-          >
-            <X className="w-5 h-5" />
-          </button>
+            <button
+              onClick={onClose}
+              className="ml-1 p-2 rounded-lg bg-gray-100 dark:bg-zinc-800 hover:bg-gray-200 dark:hover:bg-zinc-700"
+              title="Close"
+            >
+              <X className="w-5 h-5" />
+            </button>
           )}
         </div>
       </div>
@@ -384,18 +366,6 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
     if (toastRef.current) clearTimeout(toastRef.current);
     if (duration > 0) toastRef.current = setTimeout(() => setToast(null), duration);
   }, []);
-  const [showQueue, setShowQueue] = useState(false);
-
-  const removeDraftKey = useCallback((key) => {
-    const next = { ...drafts };
-    delete next[key];
-    persistDrafts(next);
-  }, [drafts, persistDrafts]);
-
-  const clearAllDraftsOnly = useCallback(() => {
-    persistDrafts({});
-    showToast('success','Cleared pending items');
-  }, [persistDrafts, showToast]);
 
   // LocalStorage helpers (user-scoped)
   const loadReconData = useCallback(() => {
@@ -490,14 +460,14 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
 
   const liabilities = useMemo(() => {
     return (groupedLiabilities?.data || []).map((L) => {
-      const resolvedId = getLiabilityId(L);
+      const id = L.item_id ?? L.liability_id ?? L.id ?? L.history_id;
       const t = (L.item_type || L.type || 'liability').toLowerCase();
       const val = Number(
         L.total_current_balance ?? L.current_balance ?? L.current_value ?? L.balance ?? L.net_worth_value ?? L.principal_balance ?? L.amount ?? 0
       );
       return {
-        id: resolvedId,
-        itemId: resolvedId,
+        id,
+        itemId: id,
         accountId: L.inv_account_id ?? L.account_id ?? null,
         institution: L.institution || 'Unknown Institution',
         name: L.name || L.identifier || 'Liability',
@@ -579,13 +549,12 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
   // Focus helpers
   const [editingKey, setEditingKey] = useState(null);
   const lastFocusedIdRef = useRef(null);
-  const wantFocusRef = useRef(false); // true while user is actively editing
 
   // ========== WELCOME ==========
   function WelcomeScreen() {
     const history = useMemo(() => {
       try { return JSON.parse(localStorage.getItem(LS_HISTORY(userId)) || '[]'); } catch { return []; }
-    }, [userId]);
+    }, []);
     const lastFull = history[0] ? new Date(history[0]) : null;
     const lastStr = !lastFull ? 'Never' :
       (() => {
@@ -644,7 +613,7 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
           setShowValues={setShowValues}
           onRefresh={onRefresh}
           onClearPending={clearPending}
-          pending={{ ...pending, onOpenQueue: () => setShowQueue(true) }}
+          pending={pending}
           onBack={onClose}
           onClose={onClose}
         />
@@ -770,24 +739,11 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
     }, []);
 
     // Filters
-    const LS_LIQUID_FILTERS = (u) => `${NS(u)}:liquid:filters`;
-    const _initialLiquid = (() => {
-      try { return JSON.parse(localStorage.getItem(LS_LIQUID_FILTERS(userId)) || '{}'); } catch { return {}; }
-    })();
-    const [filterText, setFilterText] = useState(_initialLiquid.filterText ?? '');
-    const [showOnlyChanged, setShowOnlyChanged] = useState(_initialLiquid.showOnlyChanged ?? false);
-    const [showAssets, setShowAssets] = useState(_initialLiquid.showAssets ?? true);
-    const [showLiabs, setShowLiabs] = useState(_initialLiquid.showLiabs ?? true);
-    const [onlyManualLike, setOnlyManualLike] = useState(_initialLiquid.onlyManualLike ?? true);
-
-    useEffect(() => {
-      try {
-        localStorage.setItem(LS_LIQUID_FILTERS(userId), JSON.stringify({
-          filterText, showOnlyChanged, showAssets, showLiabs, onlyManualLike
-        }));
-      } catch {}
-    }, [userId, filterText, showOnlyChanged, showAssets, showLiabs, onlyManualLike]);
-
+    const [filterText, setFilterText] = useState('');
+    const [showOnlyChanged, setShowOnlyChanged] = useState(false);
+    const [showAssets, setShowAssets] = useState(true);
+    const [showLiabs, setShowLiabs] = useState(true);
+    const [onlyManualLike, setOnlyManualLike] = useState(true); // heuristic
 
     const [sortKey, setSortKey] = useState('nest'); // 'nest' | 'name' | 'diff'
     const [sortDir, setSortDir] = useState('desc');
@@ -799,7 +755,7 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
     const filteredPositions = useMemo(() => {
       return cashPositionsAll.filter(p => {
         if (onlyManualLike) {
-          const manualish = !p.identifier; // heuristic: no identifier = likely manual-like
+          const manualish = !p.identifier || isCashLike(p);
           if (!manualish) return false;
         }
         return true;
@@ -843,28 +799,11 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
       if (!selectedInstitution && groups.length) _setSelectedInstitution(groups[0].institution);
     }, [groups, selectedInstitution]);
 
-    // (add below other hooks)
-    useEffect(() => {
-      if (!editingKey || !wantFocusRef.current || !lastFocusedIdRef.current) return;
-      const el = document.getElementById(lastFocusedIdRef.current);
-      if (el && document.activeElement !== el) {
-        try { el.focus({ preventScroll: true }); } catch { el.focus(); }
-      }
-      // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [drafts, sortKey, sortDir, filterText, showOnlyChanged, showAssets, showLiabs, selectedInstitution]);
-
-
     const current = useMemo(()=>groups.find(g=>g.institution===selectedInstitution),[groups,selectedInstitution]);
 
     const headerSortIcon = (key) => (sortKey === key ? <span className="ml-1 text-gray-400 dark:text-zinc-500">{sortDir === 'asc' ? '▲' : '▼'}</span> : null);
-    const toggleSort = (key) => {
-      if (sortKey === key) {
-        setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
-      } else {
-        setSortKey(key);
-        setSortDir('desc');
-      }
-    };
+    const toggleSort = (key) => { if (sortKey===key) setSortDir(d=>d==='asc'?'desc':'desc'); else { setSortKey(key); setSortDir('desc'); } };
+
     const makeSorted = useCallback((rows, kind) => {
       const sorted = [...rows].sort((a, b) => {
         const dir = sortDir === 'asc' ? 1 : -1;
@@ -934,24 +873,6 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
 
       const changes = [];
 
-      if (kind === 'asset') {
-        body = {
-          id,
-          current_balance: Number(value),
-          type: entity.type,
-        };
-      } else if (kind === 'liability') {
-        body = {
-          id,
-          liability_type: entity.type,   // e.g. credit_card, loan, mortgage
-          current_balance: Number(value),
-          // If loan/mortgage, also update remaining_principal
-          ...(entity.type === 'loan' || entity.type === 'mortgage'
-            ? { remaining_principal: Number(value) }
-            : {}),
-        };
-      }
-
       if (showAssets) {
         current.positions.forEach(p => {
           const key = makeKey('asset', p.id);
@@ -968,17 +889,7 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
           const curr = Number(l.currentValue||0);
           const next = drafts[key];
           if (next === undefined || !Number.isFinite(next) || next === curr) return;
-          const liabId = getLiabilityId(l);
-              if (!liabId) {
-                console.warn('[Reconcile] Skipping liability with missing ID:', l);
-              } else {
-                changes.push({
-                  kind:'liability',
-                  id: liabId,
-                  value: Number(next),
-                  entity: l
-                });
-}
+          changes.push({ kind:'liability', id: l.itemId ?? l.liability_id ?? l.id, value: Number(next), entity: l });
         });
       }
 
@@ -1013,11 +924,7 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
             const currentIdx = idx++;
             const job = changes[currentIdx];
             try { await runOne(job); }
-            catch (e) {
-              failed.push(job);
-              const msg = (e && e.message) ? e.message : (() => { try { return JSON.stringify(e); } catch { return String(e); } })();
-              console.error(`Error updating ${job.kind} ${job.id ?? '(unknown)'}: ${msg}`, e);
-            }
+            catch { failed.push(job); }
           }
         });
 
@@ -1270,8 +1177,8 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
                                       setDrafts(prev => ({ ...prev, [k]: Number.isFinite(v) ? v : 0 }));
                                     }}
                                     nextFocusId={nextId}
-                                    onFocus={(e) => { setEditingKey(k); lastFocusedIdRef.current = e.target.id; wantFocusRef.current = true; }}
-                                    onBlur={() => { if (editingKey === k) setEditingKey(null); wantFocusRef.current = false; }}
+                                    onFocus={(e) => { setEditingKey(k); lastFocusedIdRef.current = e.target.id; }}
+                                    onBlur={() => { if (editingKey === k) setEditingKey(null); }}
                                     className={changed ? 'border-blue-400 ring-2 ring-blue-200 dark:ring-blue-400/40' : ''}
                                     aria-label={`Statement balance for ${pos.name}`}
                                   />
@@ -1330,8 +1237,8 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
                                       setDrafts(prev => ({ ...prev, [key]: Number.isFinite(v) ? v : 0 }));
                                     }}
                                     nextFocusId={nextId}
-                                    onFocus={(e) => { setEditingKey(key); lastFocusedIdRef.current = e.target.id; wantFocusRef.current = true; }}
-                                    onBlur={() => { if (editingKey === key) setEditingKey(null); wantFocusRef.current = false; }}
+                                    onFocus={(e) => { setEditingKey(key); lastFocusedIdRef.current = e.target.id; }}
+                                    onBlur={() => { if (editingKey === key) setEditingKey(null); }}
                                     className={`${changed ? 'border-blue-400 ring-2 ring-blue-200 dark:ring-blue-900/40 bg-white dark:bg-zinc-900' : ''}`}
                                     aria-label={`Statement balance for ${liab.name}`}
                                   />
@@ -1406,7 +1313,6 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
 
       // summarize total and needs
       let grouped = Array.from(instMap.entries()).map(([institution, list]) => {
-        const raw = grouped; // keep an unfiltered copy for pinning the selection
         const totalValue = list.reduce((s,a)=>s+Number(a.totalValue||0),0);
         let needs = 0;
         list.forEach(a=>{
@@ -1437,8 +1343,7 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
       }
 
       return grouped.sort((a,b)=>b.totalValue-a.totalValue);
-    }, [accounts, liabilities, reconData, filterText, showOnlyNeeding, selectedInstitution]);
-
+    }, [accounts, liabilities, reconData, filterText, showOnlyNeeding]);
 
     const current = useMemo(()=>groups.find(g=>g.institution===selectedInstitution),[groups,selectedInstitution]);
 
@@ -1475,15 +1380,6 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
         else { setSelectedInstitution(null); setSelectedAccount(null); showToast('success','All institutions reviewed.'); }
       }
     };
-
-    useEffect(() => {
-      if (!wantFocusRef.current || !lastFocusedIdRef.current) return;
-      const el = document.getElementById(lastFocusedIdRef.current);
-      if (el && document.activeElement !== el) {
-        try { el.focus({ preventScroll: true }); } catch { el.focus(); }
-      }
-      // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [reconData, selectedInstitution, selectedAccount, filterText, showOnlyNeeding]);
 
     const onComplete = () => {
       pushHistory();
@@ -1704,9 +1600,7 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
                                   aria-label={`Statement balance for ${idLabel}`}
                                   className={`${changed ? 'border-blue-400 ring-2 ring-blue-200 dark:ring-blue-900/40 bg-white dark:bg-zinc-900' : ''}`}
                                   nextFocusId={nextId}
-                                  onFocus={(e) => { lastFocusedIdRef.current = e.target.id; wantFocusRef.current = true; }}
-                                  onBlur={() => { wantFocusRef.current = false; }}
-
+                                  onFocus={(e) => { lastFocusedIdRef.current = e.target.id; }}
                                 />
                               </td>
                               <td className={`px-3 py-2 text-right font-semibold ${diff > 0 ? 'text-green-600' : diff < 0 ? 'text-red-600' : 'text-gray-500 dark:text-zinc-400'}`}>
@@ -1746,7 +1640,7 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
 
                     {/* Drilldown positions / liabilities */}
                     {selectedAccount && (
-                      <div className="px-6 py-4 border-t border-gray-200 dark:border-zinc-800">
+                      <div className="px-6 py-4 border-top border-gray-200 dark:border-zinc-800">
                         <div className="flex items-center justify-between mb-2">
                           <div>
                             <div className="font-semibold text-gray-900 dark:text-zinc-100">
@@ -1940,73 +1834,6 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
           {screen === 'summary' && <SummaryScreen />}
         </>
       )}
-
-      
-      {showQueue && (
-        <div className="fixed inset-0 z-[10001] flex items-center justify-center">
-          <div className="absolute inset-0 bg-black/50" onClick={()=>setShowQueue(false)} />
-          <div className="relative bg-white dark:bg-zinc-950 rounded-xl shadow-2xl border border-gray-200 dark:border-zinc-800 w-full max-w-2xl p-4">
-            <div className="flex items-center justify-between mb-3">
-              <div className="text-lg font-semibold text-gray-900 dark:text-zinc-100">Pending Changes</div>
-              <button onClick={()=>setShowQueue(false)} className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-zinc-800">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            <div className="max-h-[50vh] overflow-auto">
-              <ul className="divide-y divide-gray-100 dark:divide-zinc-800">
-                {Object.entries(drafts || {}).filter(([,v])=>Number.isFinite(v)).length === 0 ? (
-                  <li className="p-4 text-sm text-gray-600 dark:text-zinc-300">No pending items.</li>
-                ) : Object.entries(drafts || {}).filter(([,v])=>Number.isFinite(v)).map(([k,v])=>{
-                  const [kind, id] = k.split(':'); // 'asset' | 'liability'
-                  const item = kind==='asset'
-                    ? positionsNorm.find(p => String(p.id) === String(id))
-                    : liabilities.find(l => String(l.id) === String(id));
-                  const name = item?.name || (kind==='asset' ? 'Asset' : 'Liability');
-                  const inst = item?.institution || 'Unknown';
-                  const curr = Number(item?.currentValue || 0);
-                  const next = Number(v);
-                  const delta = next - curr;
-                  return (
-                    <li key={k} className="p-3 flex items-center justify-between">
-                      <div className="min-w-0">
-                        <div className="text-sm font-medium text-gray-900 dark:text-zinc-100">{name}</div>
-                        <div className="text-xs text-gray-500 dark:text-zinc-400">{inst} • {kind}</div>
-                      </div>
-                      <div className="text-right">
-                        <div className="text-sm text-gray-700 dark:text-zinc-200">{fmtUSD(next, !showValues)}</div>
-                        <div className={`text-xs ${delta>=0?'text-emerald-600':'text-rose-600'}`}>
-                          {delta>=0?'+':''}{fmtUSD(delta, !showValues)}
-                        </div>
-                      </div>
-                      <button
-                        onClick={()=>removeDraftKey(k)}
-                        className="ml-3 px-2 py-1 text-xs rounded-lg bg-rose-600 hover:bg-rose-700 text-white"
-                      >
-                        Remove
-                      </button>
-                    </li>
-                  );
-                })}
-              </ul>
-            </div>
-            <div className="mt-3 flex items-center justify-between">
-              <div className="text-xs text-gray-500 dark:text-zinc-400">
-                {Object.entries(drafts || {}).filter(([,v])=>Number.isFinite(v)).length} pending
-              </div>
-              <div className="flex gap-2">
-                <button onClick={clearAllDraftsOnly} className="px-3 py-1.5 rounded-lg bg-gray-100 dark:bg-zinc-800 text-gray-800 dark:text-zinc-200 hover:bg-gray-200 dark:hover:bg-zinc-700">
-                  Clear All
-                </button>
-                <button onClick={()=>setShowQueue(false)} className="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white">
-                  Done
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-
 
       {/* Global toast */}
       {toast && <Toast type={toast.type} text={toast.text} onClose={() => setToast(null)} />}
