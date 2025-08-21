@@ -27,7 +27,7 @@ const getLogo = (name) => {
   const hit = popularBrokerages.find((b) => b.name.toLowerCase() === String(name).toLowerCase());
   return hit?.logo || null;
 };
-
+const inputIdFor = (kind, id) => `qr-input-${kind}-${String(id)}`;
 // ------- Keys (normalized across assets & liabilities) -------
 const makeKey = (kind, id) => `${kind}:${id}`;           // kind: 'asset' | 'liability'
 
@@ -56,6 +56,7 @@ const isCashLike = (pos) => {
 
 // ===== Shared, paste-friendly currency input (caret stays put) =====
 export const CurrencyInput = React.memo(function CurrencyInput({
+  id,
   value,
   onValueChange,
   className = '',
@@ -68,19 +69,23 @@ export const CurrencyInput = React.memo(function CurrencyInput({
   const [raw, setRaw] = React.useState(Number.isFinite(value) ? String(value) : '');
   const inputRef = React.useRef(null);
 
-  // Only accept external value updates when **not** focused
-  React.useEffect(() => {
+  // and don't clobber if the numeric value is unchanged.
+  useEffect(() => {
     if (!focused) {
-      setRaw(Number.isFinite(value) ? String(value) : '');
+      const next = Number.isFinite(value) ? String(value) : '';
+      if (toNum(raw) !== toNum(next)) setRaw(next);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [value, focused]);
 
   const sanitize = (s) => {
-    const cleaned = s.replace(/[^0-9.\-]/g, '');
+    // be permissive: allow $, commas, spaces; collapse to a single dot & one leading minus
+    const cleaned = String(s).replace(/[$,\s]/g, '').replace(/[^0-9.\-]/g, '');
     const parts = cleaned.split('.');
     const withOneDot = parts.length > 2 ? `${parts[0]}.${parts.slice(1).join('')}` : cleaned;
     return withOneDot.replace(/(?!^)-/g, '');
   };
+
 
   const handleChange = (e) => {
     const nextRaw = sanitize(e.target.value);
@@ -92,6 +97,7 @@ export const CurrencyInput = React.memo(function CurrencyInput({
     const txt = e.clipboardData.getData('text') || '';
     const cleaned = sanitize(txt);
     e.preventDefault();
+    e.stopPropagation(); // prevent bulk-paste handler from hijacking this
     setRaw(cleaned);
     onValueChange?.(Number(cleaned || 0));
     requestAnimationFrame(() => {
@@ -122,7 +128,7 @@ export const CurrencyInput = React.memo(function CurrencyInput({
   return (
     <input
       ref={inputRef}
-      id={ariaLabel?.replace(/\s+/g, '_')}
+      id={id}
       type="text"
       inputMode="decimal"
       value={focused ? raw : formatUSD(value)}
@@ -974,7 +980,18 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
     }, [refreshPositions, refreshAccounts, actions]);
 
     return (
-      <div className="flex flex-col h-[80vh]" onPaste={onBulkPaste}>
+      <div
+          className="flex flex-col h-[80vh]"
+          onPaste={(e) => {
+            const t = e.target;
+            const isField =
+              t?.closest?.('input, textarea, [contenteditable="true"]');
+            const hasBulkModifier = e.altKey || e.metaKey; // choose your policy
+
+            if (isField && !hasBulkModifier) return; // let the field handle it
+            onBulkPaste(e); // otherwise continue with the bulk flow
+          }}
+        >
         <TopHeader
           title="Quick Cash & Liabilities Update"
           showValues={showValues}
@@ -1171,6 +1188,7 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
                                 </td>
                                 <td className="px-3 py-2 text-center">
                                   <CurrencyInput
+                                    id={thisId}
                                     value={drafts[k] ?? c.nest}
                                     onValueChange={(v) => {
                                       if (editingKey !== k) setEditingKey(k);
