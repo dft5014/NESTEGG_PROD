@@ -1,27 +1,17 @@
-// QuickReconciliationModal.js (LEAN+LIABS+INSTITUTION CHIPS)
-//
-// What’s new vs the lean version:
-// - pulls liabilities from your store (groupedLiabilities) via useDataStore()
-// - top “chips” per institution with logo + mini summary (Assets, Liabs, Net)
-// - chip click filters rows to that institution (plus a clear “All” chip)
-// - quick toggles to show/hide Assets or Liabilities
-//
-// External deps kept the same: updateCashPosition, updateLiability, updateOtherAsset
-
+// QuickReconciliationModal.js — positions fixed + dark contrast + 3-col institution grid
 import React, { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import {
   X, RefreshCw, Building2, ChevronRight, AlertTriangle, CheckCircle,
-  Trash2, Eye, EyeOff, Loader2, ToggleLeft
+  Trash2, Eye, EyeOff, Loader2, Info
 } from "lucide-react";
 
-// ===== External app hooks / API (same signatures you already have) =====
 import { useDataStore } from "@/store/DataStore";
 import { useAccounts } from "@/store/hooks/useAccounts";
 import { useDetailedPositions } from "@/store/hooks/useDetailedPositions";
 import { updateCashPosition, updateLiability, updateOtherAsset } from "@/utils/apimethods/positionMethods";
 import { popularBrokerages } from "@/utils/constants";
 
-// ------- Utils -------
+// ---------- utils ----------
 const fmtUSD = (n, hide=false) =>
   hide ? "••••••" : Number(n ?? 0).toLocaleString(undefined, { style: "currency", currency: "USD", maximumFractionDigits: 2 });
 const toNum = (s) => {
@@ -44,7 +34,7 @@ const isCashLike = (pos) => {
   return isCashLikeWord.test(n);
 };
 
-// ===== Currency input =====
+// ---------- currency input ----------
 const CurrencyInput = React.memo(function CurrencyInput({
   id, value, onValueChange, onFocus, onBlur, nextFocusId, "aria-label": ariaLabel, className=""
 }) {
@@ -130,16 +120,16 @@ const CurrencyInput = React.memo(function CurrencyInput({
       aria-label={ariaLabel}
       className={`${className} w-28 px-2 py-1 text-center rounded-lg border
         bg-white dark:bg-zinc-900
-        text-gray-900 dark:text-white
-        placeholder-gray-400 dark:placeholder-zinc-500
+        text-zinc-900 dark:text-zinc-100
+        placeholder-zinc-400 dark:placeholder-zinc-500
         focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400
-        border-gray-300 dark:border-zinc-700
+        border-zinc-300 dark:border-zinc-700
         font-medium [font-variant-numeric:tabular-nums]`}
     />
   );
 });
 
-// ===== Toast =====
+// ---------- toast ----------
 function Toast({ type="info", text, onClose }) {
   const tone = { info:"bg-blue-600", success:"bg-emerald-600", error:"bg-rose-600", warning:"bg-amber-600" }[type] || "bg-blue-600";
   return (
@@ -154,18 +144,18 @@ function Toast({ type="info", text, onClose }) {
   );
 }
 
-// ===== Modal =====
+// ---------- modal ----------
 function ModalShell({ isOpen, onClose, title, children }) {
   if (!isOpen) return null;
   return (
     <div className="fixed inset-0 z-[9999]" aria-modal="true" role="dialog">
       <div className="absolute inset-0 bg-black/60" onClick={onClose} />
-      <div className="relative z-[10000] mx-auto my-6 w-full max-w-6xl">
-        <div className="rounded-2xl bg-white dark:bg-zinc-950 shadow-2xl overflow-hidden border border-gray-200 dark:border-zinc-800">
-          <div className="flex items-center justify-between px-4 sm:px-6 py-3 border-b border-gray-200 dark:border-zinc-800 bg-white/95 dark:bg-zinc-900/95 sticky top-0">
-            <h1 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-zinc-100">{title}</h1>
-            <button onClick={onClose} className="p-2 rounded-lg bg-gray-100 dark:bg-zinc-800 hover:bg-gray-200 dark:hover:bg-zinc-700">
-              <X className="w-5 h-5" />
+      <div className="relative z-[10000] mx-auto my-6 w-full max-w-7xl">
+        <div className="rounded-2xl bg-white dark:bg-zinc-950 shadow-2xl overflow-hidden border border-zinc-200 dark:border-zinc-800">
+          <div className="flex items-center justify-between px-4 sm:px-6 py-3 border-b border-zinc-200 dark:border-zinc-800 bg-white/95 dark:bg-zinc-900/95 sticky top-0">
+            <h1 className="text-lg sm:text-xl font-bold text-zinc-900 dark:text-zinc-100">{title}</h1>
+            <button onClick={onClose} className="p-2 rounded-lg bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700">
+              <X className="w-5 h-5 text-zinc-900 dark:text-zinc-100" />
             </button>
           </div>
           <div className="p-4 sm:p-6">{children}</div>
@@ -175,7 +165,7 @@ function ModalShell({ isOpen, onClose, title, children }) {
   );
 }
 
-// ===== Main =====
+// ---------- main ----------
 export default function QuickReconciliationModal({ isOpen, onClose }) {
   const { state, actions } = useDataStore();
   const { groupedLiabilities } = state || {};
@@ -185,9 +175,11 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
   const liabsLoading = groupedLiabilities?.loading;
   const loading = accountsLoading || positionsLoading || liabsLoading;
 
+  // UI state
   const [showValues, setShowValues] = useState(true);
   const [showAssets, setShowAssets] = useState(true);
   const [showLiabs, setShowLiabs] = useState(true);
+  const [onlyChanged, setOnlyChanged] = useState(false);
   const [selectedInstitution, setSelectedInstitution] = useState(null);
 
   const [toast, setToast] = useState(null);
@@ -199,15 +191,15 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
   }, []);
   useEffect(() => () => { if (toastRef.current) clearTimeout(toastRef.current); }, []);
 
-  // Kick off liabilities load (minimal)
+  // kick liabilities fetch
   useEffect(() => {
     if (!groupedLiabilities?.lastFetched && !groupedLiabilities?.loading) {
       actions?.fetchGroupedLiabilitiesData?.();
     }
   }, [groupedLiabilities?.lastFetched, groupedLiabilities?.loading, actions]);
 
-  // Normalize positions (assets)
-  const positions = useMemo(() => {
+  // ---------- normalize ALL positions (securities + cash) ----------
+  const allPositions = useMemo(() => {
     return (rawPositions || []).map((p) => {
       const id = p.itemId ?? p.item_id ?? p.id;
       const accountId = p.accountId ?? p.inv_account_id ?? p.account_id;
@@ -221,7 +213,10 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
     });
   }, [rawPositions]);
 
-  // Normalize liabilities
+  // cash-like subset for editable table
+  const cashAssets = useMemo(() => allPositions.filter(isCashLike), [allPositions]);
+
+  // normalize liabilities
   const liabs = useMemo(() => {
     const list = (groupedLiabilities?.data || []).map((L) => {
       const id = L.item_id ?? L.liability_id ?? L.id ?? L.history_id;
@@ -234,7 +229,7 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
         institution: L.institution || "Unknown Institution",
         name: L.name || L.identifier || "Liability",
         identifier: L.identifier || "",
-        type: t, // credit_card | loan | mortgage | liability...
+        type: t,
         currentValue: val,
         inv_account_name: L.inv_account_name ?? L.account_name ?? "",
       };
@@ -242,10 +237,7 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
     return list;
   }, [groupedLiabilities?.data]);
 
-  // Cash-like assets
-  const cashAssets = useMemo(() => positions.filter(isCashLike), [positions]);
-
-  // Row model
+  // ---------- rows for editable table (cash + liabilities) ----------
   const rows = useMemo(() => {
     const aRows = cashAssets.map(a => ({
       _kind: "asset",
@@ -270,7 +262,7 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
     return [...aRows, ...lRows];
   }, [cashAssets, liabs]);
 
-  // Institution aggregates for chips
+  // ---------- institution summaries (for grid) ----------
   const instChips = useMemo(() => {
     const map = new Map();
     const ensure = (inst) => {
@@ -282,22 +274,55 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
       if (r._kind === "asset") { g.assets += Math.abs(r.nest); g.countA += 1; }
       else { g.liabs += Math.abs(r.nest); g.countL += 1; }
     });
-    const arr = Array.from(map.values())
+    return Array.from(map.values())
       .map(g => ({ ...g, net: g.assets - g.liabs, totalAbs: g.assets + g.liabs }))
       .sort((a,b) => b.totalAbs - a.totalAbs);
-    return arr;
   }, [rows]);
 
-  // Filter toggles + computed list
-  const [onlyChanged, setOnlyChanged] = useState(false);
-  const keyOf = (r) => `${r._kind}:${r.id}`;
+  // ---------- positions drilldown (FIX: show ALL positions by institution) ----------
+  const positionsByInstitution = useMemo(() => {
+    const map = new Map();
+    allPositions.forEach(p => {
+      const inst = p.institution || "Unknown Institution";
+      if (!map.has(inst)) map.set(inst, []);
+      map.get(inst).push({
+        id: p.id,
+        name: p.name || p.identifier || "Position",
+        identifier: p.identifier || "",
+        type: p.type || "",
+        value: Number(p.currentValue || 0),
+        accountName: p.inv_account_name || "",
+      });
+    });
+    // stable sort largest first
+    Array.from(map.values()).forEach(list => list.sort((a,b)=>Math.abs(b.value)-Math.abs(a.value)));
+    return map;
+  }, [allPositions]);
+
+  const liabilitiesByInstitution = useMemo(() => {
+    const m = new Map();
+    liabs.forEach(l => {
+      const inst = l.institution || "Unknown Institution";
+      if (!m.has(inst)) m.set(inst, []);
+      m.get(inst).push({
+        id: l.id,
+        name: l.name || "Liability",
+        identifier: l.identifier || "",
+        type: l.type || "",
+        value: Number(l.currentValue || 0),
+        accountName: l.inv_account_name || "",
+      });
+    });
+    Array.from(m.values()).forEach(list => list.sort((a,b)=>Math.abs(b.value)-Math.abs(a.value)));
+    return m;
+  }, [liabs]);
+
+  // ---------- drafts & computed table ----------
   const [drafts, setDrafts] = useState({});
-  const withCalc = useMemo(() => {
-    // institution filter
+  const keyOf = (r) => `${r._kind}:${r.id}`;
+  const visibleWithCalc = useMemo(() => {
     let list = rows.filter(r => (showAssets ? r._kind !== "liability" : true) && (showLiabs ? r._kind !== "asset" : true));
     if (selectedInstitution) list = list.filter(r => r.institution === selectedInstitution);
-
-    // attach calc
     const out = list.map((r) => {
       const key = keyOf(r);
       const stmt = drafts[key] != null ? Number(drafts[key]) : r.nest;
@@ -308,7 +333,7 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
     return onlyChanged ? out.filter(r => r.stmt !== r.nest) : out;
   }, [rows, drafts, onlyChanged, selectedInstitution, showAssets, showLiabs]);
 
-  // Bulk paste: fills visible rows top → bottom
+  // ---------- bulk paste ----------
   const onBulkPaste = (e) => {
     const txt = e.clipboardData?.getData("text") || "";
     if (!txt) return;
@@ -317,7 +342,7 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
     const flat = lines.flat().map(s => toNum(String(s).trim())).filter(Number.isFinite);
     if (!flat.length) return;
     e.preventDefault();
-    const keys = withCalc.map(r => r._key);
+    const keys = visibleWithCalc.map(r => r._key);
     setDrafts(prev => {
       const next = { ...prev };
       for (let i = 0; i < keys.length && i < flat.length; i++) next[keys[i]] = flat[i];
@@ -326,7 +351,7 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
     showToast("success", `Pasted ${Math.min(keys.length, flat.length)} value(s)`);
   };
 
-  // Save: only changed lines
+  // ---------- save ----------
   const saveAll = async () => {
     const changes = rows
       .map(r => {
@@ -388,30 +413,32 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
     }
   };
 
-  const clearDrafts = () => setDrafts({});
-
+  // ---------- render ----------
   return (
     <ModalShell isOpen={isOpen} onClose={onClose} title="Quick Update & Reconcile">
       <div
         className="flex flex-col gap-4"
         onPaste={(e) => {
           const isField = e.target?.closest?.("input, textarea, [contenteditable='true']");
-          if (isField && !(e.metaKey || e.altKey)) return; // let field own the paste unless user holds a modifier
+          if (isField && !(e.metaKey || e.altKey)) return; // allow bulk paste only outside inputs unless modifier
           onBulkPaste(e);
         }}
       >
-        {/* Institution chips */}
-        <div className="flex items-center gap-2 overflow-auto pb-1">
+        {/* Institution grid (3 columns on xl) */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
           <button
             onClick={() => setSelectedInstitution(null)}
-            className={`shrink-0 px-3 py-2 rounded-xl border text-sm ${
+            className={`px-3 py-3 rounded-xl border text-left ${
               !selectedInstitution
                 ? "bg-blue-600 text-white border-blue-700"
-                : "bg-white dark:bg-zinc-900 text-gray-800 dark:text-zinc-100 border-gray-200 dark:border-zinc-800"
+                : "bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 border-zinc-200 dark:border-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-800"
             }`}
             title="Show all"
           >
-            All Institutions
+            <div className="font-semibold">All Institutions</div>
+            <div className={`${!selectedInstitution ? "text-blue-100" : "text-zinc-600 dark:text-zinc-300"} text-xs`}>
+              View every cash line & liability
+            </div>
           </button>
 
           {instChips.map((g) => {
@@ -422,19 +449,19 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
               <button
                 key={g.inst}
                 onClick={() => setSelectedInstitution(g.inst)}
-                className={`shrink-0 px-3 py-2 rounded-xl border text-left flex items-center gap-3 min-w-[14rem] ${
+                className={`px-3 py-3 rounded-xl border text-left flex items-start gap-3 ${
                   selected
                     ? "bg-blue-50 dark:bg-blue-900/20 border-blue-300 dark:border-blue-700/50"
-                    : "bg-white dark:bg-zinc-900 border-gray-200 dark:border-zinc-800 hover:bg-gray-50 dark:hover:bg-zinc-800/60"
+                    : "bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-800"
                 }`}
                 title={g.inst}
               >
-                {logo ? <img src={logo} alt={g.inst} className="w-6 h-6 rounded object-contain" /> : <Building2 className="w-5 h-5 text-gray-400" />}
+                {logo ? <img src={logo} alt={g.inst} className="w-7 h-7 rounded object-contain" /> : <Building2 className="w-6 h-6 text-zinc-400" />}
                 <div className="flex-1">
-                  <div className="text-sm font-semibold leading-tight">{g.inst}</div>
-                  <div className="text-[11px] text-gray-600 dark:text-zinc-400">
+                  <div className="text-sm font-semibold leading-tight text-zinc-900 dark:text-zinc-100">{g.inst}</div>
+                  <div className="text-[11px] text-zinc-700 dark:text-zinc-300">
                     A: {fmtUSD(g.assets, !showValues)} • L: {fmtUSD(g.liabs, !showValues)} • Net:{" "}
-                    <span className={`${net >= 0 ? "text-emerald-600" : "text-rose-600"} font-semibold`}>{fmtUSD(net, !showValues)}</span>
+                    <span className={`${net >= 0 ? "text-emerald-600" : "text-rose-500"} font-semibold`}>{fmtUSD(net, !showValues)}</span>
                   </div>
                 </div>
                 {selected ? <CheckCircle className="w-4 h-4 text-emerald-600" /> : null}
@@ -445,29 +472,29 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
 
         {/* Controls */}
         <div className="flex items-center gap-2 flex-wrap">
-          <label className="inline-flex items-center gap-2 text-sm text-gray-700 dark:text-zinc-200">
+          <label className="inline-flex items-center gap-2 text-sm text-zinc-800 dark:text-zinc-100">
             <input type="checkbox" checked={showAssets} onChange={e=>setShowAssets(e.target.checked)} />
             Assets
           </label>
-          <label className="inline-flex items-center gap-2 text-sm text-gray-700 dark:text-zinc-200">
+          <label className="inline-flex items-center gap-2 text-sm text-zinc-800 dark:text-zinc-100">
             <input type="checkbox" checked={showLiabs} onChange={e=>setShowLiabs(e.target.checked)} />
             Liabilities
           </label>
-          <label className="inline-flex items-center gap-2 text-sm text-gray-700 dark:text-zinc-200">
+          <label className="inline-flex items-center gap-2 text-sm text-zinc-800 dark:text-zinc-100">
             <input type="checkbox" checked={onlyChanged} onChange={e=>setOnlyChanged(e.target.checked)} />
             Show only changed
           </label>
 
           <button
             onClick={()=>setShowValues(s=>!s)}
-            className="px-3 py-1.5 rounded-lg bg-gray-100 dark:bg-zinc-800 hover:bg-gray-200 dark:hover:bg-zinc-700 text-gray-700 dark:text-zinc-200 border border-gray-200 dark:border-zinc-700"
+            className="px-3 py-1.5 rounded-lg bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-900 dark:text-zinc-100 border border-zinc-200 dark:border-zinc-700"
             title={showValues ? "Hide values" : "Show values"}
           >
             {showValues ? <Eye className="w-5 h-5" /> : <EyeOff className="w-5 h-5" />}
           </button>
 
           <button
-            onClick={clearDrafts}
+            onClick={()=>setDrafts({})}
             className="px-3 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-700 text-white border border-rose-700/30"
             title="Clear edits"
           >
@@ -488,10 +515,10 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
                 showToast("error", "Refresh failed");
               }
             }}
-            className="px-3 py-1.5 rounded-lg bg-gray-100 dark:bg-zinc-800 hover:bg-gray-200 dark:hover:bg-zinc-700"
+            className="px-3 py-1.5 rounded-lg bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700"
             title="Refresh"
           >
-            <RefreshCw className="w-4 h-4" />
+            <RefreshCw className="w-4 h-4 text-zinc-900 dark:text-zinc-100" />
           </button>
           <button
             onClick={saveAll}
@@ -502,15 +529,15 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
           </button>
         </div>
 
-        {/* Table */}
-        <div className="border border-gray-200 dark:border-zinc-800 rounded-xl overflow-hidden">
-          <div className="bg-gray-50 dark:bg-zinc-800 px-4 py-2 text-sm font-semibold text-gray-800 dark:text-zinc-200">
+        {/* Editable table (cash + liabilities) */}
+        <div className="border border-zinc-200 dark:border-zinc-800 rounded-xl overflow-hidden">
+          <div className="bg-zinc-50 dark:bg-zinc-800 px-4 py-2 text-sm font-semibold text-zinc-900 dark:text-zinc-100">
             {selectedInstitution ? `Lines in ${selectedInstitution}` : "Cash-like Assets & Liabilities"}
           </div>
-          <div className="max-h-[60vh] overflow-auto">
+          <div className="max-h-[54vh] overflow-auto">
             <table className="w-full min-w-[880px]">
-              <thead className="bg-gray-50 dark:bg-zinc-800 sticky top-0 z-10">
-                <tr className="text-xs uppercase text-gray-500 dark:text-zinc-400">
+              <thead className="bg-zinc-50 dark:bg-zinc-800 sticky top-0 z-10">
+                <tr className="text-xs uppercase text-zinc-600 dark:text-zinc-300">
                   <th className="px-4 py-2 text-left">Institution</th>
                   <th className="px-3 py-2 text-left">Name</th>
                   <th className="px-3 py-2 text-left">Identifier</th>
@@ -521,35 +548,35 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
                   <th className="px-3 py-2 text-right">%</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100 dark:divide-zinc-800">
-                {(loading ? Array.from({length: 6}).map((_,i)=>({ _loading:true, id:i })) : withCalc).map((r, idx) => {
+              <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
+                {(loading ? Array.from({length: 6}).map((_,i)=>({ _loading:true, id:i })) : visibleWithCalc).map((r, idx) => {
                   if (r._loading) {
                     return (
                       <tr key={`skeleton-${idx}`}>
                         <td className="px-4 py-3" colSpan={8}>
-                          <div className="flex items-center gap-2 text-gray-500"><Loader2 className="w-4 h-4 animate-spin" /> Loading…</div>
+                          <div className="flex items-center gap-2 text-zinc-600 dark:text-zinc-300"><Loader2 className="w-4 h-4 animate-spin" /> Loading…</div>
                         </td>
                       </tr>
                     );
                   }
                   const changed = r.stmt !== r.nest;
-                  const nextId = withCalc[idx+1]? `qr-input-${withCalc[idx+1]._key}` : undefined;
+                  const nextId = visibleWithCalc[idx+1]? `qr-input-${visibleWithCalc[idx+1]._key}` : undefined;
                   const logo = getLogo(r.institution);
                   return (
                     <tr key={r._key} className={changed ? "bg-blue-50/40 dark:bg-blue-900/10" : ""}>
                       <td className="px-4 py-2">
                         <div className="flex items-center gap-2">
-                          {logo ? <img src={logo} alt={r.institution} className="w-6 h-6 rounded object-contain" /> : <Building2 className="w-5 h-5 text-gray-400" />}
-                          <span className="text-sm font-medium text-gray-900 dark:text-zinc-100">{r.institution}</span>
+                          {logo ? <img src={logo} alt={r.institution} className="w-6 h-6 rounded object-contain" /> : <Building2 className="w-5 h-5 text-zinc-400" />}
+                          <span className="text-sm font-medium text-zinc-900 dark:text-zinc-100">{r.institution}</span>
                         </div>
                       </td>
-                      <td className="px-3 py-2 text-sm text-gray-900 dark:text-zinc-100">
+                      <td className="px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100">
                         {r.name}
-                        {r.sub ? <div className="text-xs text-gray-500 dark:text-zinc-400">{r.sub}</div> : null}
+                        {r.sub ? <div className="text-xs text-zinc-600 dark:text-zinc-300">{r.sub}</div> : null}
                       </td>
-                      <td className="px-3 py-2 text-sm text-gray-600 dark:text-zinc-300">{r.identifier || "—"}</td>
-                      <td className="px-3 py-2 text-sm text-gray-600 dark:text-zinc-300">{r.type || (r._kind === "liability" ? "liability" : "—")}</td>
-                      <td className="px-3 py-2 text-right text-gray-800 dark:text-zinc-100">{fmtUSD(r.nest, !showValues)}</td>
+                      <td className="px-3 py-2 text-sm text-zinc-700 dark:text-zinc-300">{r.identifier || "—"}</td>
+                      <td className="px-3 py-2 text-sm text-zinc-700 dark:text-zinc-300">{r.type || (r._kind === "liability" ? "liability" : "—")}</td>
+                      <td className="px-3 py-2 text-right text-zinc-900 dark:text-zinc-100">{fmtUSD(r.nest, !showValues)}</td>
                       <td className="px-3 py-2 text-center">
                         <CurrencyInput
                           id={`qr-input-${r._key}`}
@@ -561,21 +588,21 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
                         />
                       </td>
                       <td className={`px-3 py-2 text-right font-semibold ${
-                        r.diff > 0 ? "text-green-600" : r.diff < 0 ? "text-red-600" : "text-gray-500 dark:text-zinc-400"
+                        r.diff > 0 ? "text-emerald-600" : r.diff < 0 ? "text-rose-600" : "text-zinc-500 dark:text-zinc-400"
                       }`}>
                         {fmtUSD(r.diff, !showValues)}
                       </td>
                       <td className={`px-3 py-2 text-right ${
-                        r.nest === 0 ? "text-gray-500 dark:text-zinc-400" : (r.diff > 0 ? "text-green-600" : "text-red-600")
+                        r.nest === 0 ? "text-zinc-500 dark:text-zinc-400" : (r.diff > 0 ? "text-emerald-600" : "text-rose-600")
                       }`}>
                         {r.nest === 0 ? "—" : `${r.pct.toFixed(2)}%`}
                       </td>
                     </tr>
                   );
                 })}
-                {!loading && withCalc.length === 0 && (
+                {!loading && visibleWithCalc.length === 0 && (
                   <tr>
-                    <td className="px-4 py-6 text-sm text-gray-500 dark:text-zinc-400 text-center" colSpan={8}>
+                    <td className="px-4 py-6 text-sm text-zinc-600 dark:text-zinc-300 text-center" colSpan={8}>
                       No lines for this selection.
                     </td>
                   </tr>
@@ -585,8 +612,86 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
           </div>
         </div>
 
-        {/* Legend */}
-        <div className="flex items-center gap-3 text-xs text-gray-500 dark:text-zinc-400">
+        {/* Positions drilldown (ALL positions; always visible when institution is picked) */}
+        {selectedInstitution && (
+          <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 overflow-hidden">
+            <div className="bg-zinc-50 dark:bg-zinc-800 px-4 py-2 flex items-center gap-2">
+              <Info className="w-4 h-4 text-zinc-700 dark:text-zinc-200" />
+              <div className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+                Detailed positions in {selectedInstitution}
+              </div>
+              <div className="ml-auto text-xs text-zinc-700 dark:text-zinc-300">
+                {positionsByInstitution.get(selectedInstitution)?.length || 0} positions • {liabilitiesByInstitution.get(selectedInstitution)?.length || 0} liabilities
+              </div>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2">
+              <div className="border-r border-zinc-200 dark:border-zinc-800 min-h-[180px]">
+                <div className="px-4 py-2 text-xs uppercase text-zinc-600 dark:text-zinc-300 bg-white dark:bg-zinc-900 sticky top-0">Positions</div>
+                <div className="max-h-[32vh] overflow-auto">
+                  <table className="w-full min-w-[560px]">
+                    <thead className="bg-zinc-50 dark:bg-zinc-800 sticky top-0 z-10">
+                      <tr className="text-xs uppercase text-zinc-600 dark:text-zinc-300">
+                        <th className="px-4 py-2 text-left">Name</th>
+                        <th className="px-3 py-2 text-left">Identifier</th>
+                        <th className="px-3 py-2 text-left">Type</th>
+                        <th className="px-3 py-2 text-right">Value</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
+                      {(positionsByInstitution.get(selectedInstitution) || []).map(p => (
+                        <tr key={p.id}>
+                          <td className="px-4 py-2 text-sm text-zinc-900 dark:text-zinc-100">
+                            {p.name}
+                            {p.accountName ? <div className="text-xs text-zinc-600 dark:text-zinc-300">{p.accountName}</div> : null}
+                          </td>
+                          <td className="px-3 py-2 text-sm text-zinc-700 dark:text-zinc-300">{p.identifier || "—"}</td>
+                          <td className="px-3 py-2 text-sm text-zinc-700 dark:text-zinc-300">{p.type || "—"}</td>
+                          <td className="px-3 py-2 text-right text-sm text-zinc-900 dark:text-zinc-100">{fmtUSD(p.value, !showValues)}</td>
+                        </tr>
+                      ))}
+                      {(positionsByInstitution.get(selectedInstitution) || []).length === 0 && (
+                        <tr><td className="px-4 py-3 text-sm text-zinc-600 dark:text-zinc-300" colSpan={4}>No positions.</td></tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+              <div className="min-h-[180px]">
+                <div className="px-4 py-2 text-xs uppercase text-zinc-600 dark:text-zinc-300 bg-white dark:bg-zinc-900 sticky top-0">Liabilities</div>
+                <div className="max-h-[32vh] overflow-auto">
+                  <table className="w-full min-w-[520px]">
+                    <thead className="bg-zinc-50 dark:bg-zinc-800 sticky top-0 z-10">
+                      <tr className="text-xs uppercase text-zinc-600 dark:text-zinc-300">
+                        <th className="px-4 py-2 text-left">Name</th>
+                        <th className="px-3 py-2 text-left">Identifier</th>
+                        <th className="px-3 py-2 text-left">Type</th>
+                        <th className="px-3 py-2 text-right">Balance</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
+                      {(liabilitiesByInstitution.get(selectedInstitution) || []).map(l => (
+                        <tr key={l.id}>
+                          <td className="px-4 py-2 text-sm text-zinc-900 dark:text-zinc-100">
+                            {l.name}
+                            {l.accountName ? <div className="text-xs text-zinc-600 dark:text-zinc-300">{l.accountName}</div> : null}
+                          </td>
+                          <td className="px-3 py-2 text-sm text-zinc-700 dark:text-zinc-300">{l.identifier || "—"}</td>
+                          <td className="px-3 py-2 text-sm text-zinc-700 dark:text-zinc-300">{l.type || "—"}</td>
+                          <td className="px-3 py-2 text-right text-sm text-zinc-900 dark:text-zinc-100">{fmtUSD(l.value, !showValues)}</td>
+                        </tr>
+                      ))}
+                      {(liabilitiesByInstitution.get(selectedInstitution) || []).length === 0 && (
+                        <tr><td className="px-4 py-3 text-sm text-zinc-600 dark:text-zinc-300" colSpan={4}>No liabilities.</td></tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        <div className="flex items-center gap-3 text-xs text-zinc-600 dark:text-zinc-300">
           <CheckCircle className="w-4 h-4 text-emerald-600" /> Unchanged rows are skipped
           <AlertTriangle className="w-4 h-4 text-amber-500 ml-4" /> Paste tabs/commas/newlines to fill the visible list
         </div>
