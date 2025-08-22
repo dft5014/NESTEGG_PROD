@@ -268,30 +268,7 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
 
   const cashAssets = useMemo(() => allPositions.filter(isCashLike), [allPositions]);
 
-  const otherAssets = useMemo(() => {
-    return allPositions
-      .map(p => ({ ...p, institution: normalizeInstitution(p.institution, p.accountId, p.type) || OTHER_INST }))
-      .filter(p => {
-        // keep only true "other" assets; exclude anything that smells like a liability
-        const t = String(p.type || "").toLowerCase();
-        const inst = (p.institution || "").toLowerCase();
-        const id = (p.identifier || "").toLowerCase();
-        const nm = (p.name || "").toLowerCase();
-
-        // not cash-like, not a clear liability, and labeled other/uncategorized
-        const notCash = !isCashLike(p);
-        const notLiabilityWord = !isLiabilityish.test(t) && !isLiabilityish.test(nm);
-        const isOtherish = t === "other" || !t;
-
-        // not present in our liability signatures
-        const notInLiabs = !liabilitySigSet.has(`${inst}::id::${id}`) && !liabilitySigSet.has(`${inst}::nm::${nm}`);
-
-        return notCash && notLiabilityWord && isOtherish && notInLiabs;
-      });
-  }, [allPositions, normalizeInstitution, liabilitySigSet]);
-
-
-  // normalize liabilities
+  // normalize liabilities (moved up)
   const liabs = useMemo(() => {
     const list = (groupedLiabilities?.data || []).map((L) => {
       const id = L.item_id ?? L.liability_id ?? L.id ?? L.history_id;
@@ -314,7 +291,7 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
     return list;
   }, [groupedLiabilities?.data, normalizeInstitution]);
 
-  // signatures for fast de-dupe against "other assets"
+  // signatures for fast de-dupe (moved up)
   const liabilitySigSet = useMemo(() => {
     const s = new Set();
     for (const l of liabs) {
@@ -327,7 +304,30 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
     return s;
   }, [liabs]);
 
+  // guard to filter out liability-looking rows (moved up)
   const isLiabilityish = /(loan|mortgage|credit|debt|liab|card|payable)/i;
+
+  // "other assets" after helpers exist
+  const otherAssets = useMemo(() => {
+    return allPositions
+      .map(p => ({ ...p, institution: normalizeInstitution(p.institution, p.accountId, p.type) || OTHER_INST }))
+      .filter(p => {
+        const t = String(p.type || "").toLowerCase();
+        const inst = (p.institution || "").toLowerCase();
+        const id = (p.identifier || "").toLowerCase();
+        const nm = (p.name || "").toLowerCase();
+
+        const notCash = !isCashLike(p);
+        const notLiabilityWord = !isLiabilityish.test(t) && !isLiabilityish.test(nm);
+        const isOtherish = t === "other" || !t;
+
+        const notInLiabs =
+          !liabilitySigSet.has(`${inst}::id::${id}`) &&
+          !liabilitySigSet.has(`${inst}::nm::${nm}`);
+
+        return notCash && notLiabilityWord && isOtherish && notInLiabs;
+      });
+  }, [allPositions, normalizeInstitution, liabilitySigSet]);
 
   // editable rows (cash + liabilities + other)
   const rows = useMemo(() => {
@@ -362,11 +362,11 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
       nest: Number(o.currentValue || 0),
     }));
     const uniq = new Map();
-      for (const r of [...aRows, ...lRows, ...oRows]) {
-        const key = `${r._kind}::${r.institution}::${r.identifier || r.name}`;
-        if (!uniq.has(key)) uniq.set(key, r);
-      }
-      return Array.from(uniq.values());
+    for (const r of [...aRows, ...lRows, ...oRows]) {
+      const key = `${r._kind}::${(r.institution || '').toLowerCase()}::${((r.identifier || r.name) || '').toLowerCase()}`;
+      if (!uniq.has(key)) uniq.set(key, r);
+    }
+    return Array.from(uniq.values());
   }, [cashAssets, liabs, otherAssets]);
 
   // institution summaries (cards)
