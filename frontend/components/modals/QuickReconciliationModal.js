@@ -275,25 +275,39 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
   // normalize liabilities FIRST (so otherAssets can compare signatures safely)
   const liabs = useMemo(() => {
     const list = (groupedLiabilities?.data || []).map((L) => {
-      const id = L.item_id ?? L.liability_id ?? L.id ?? L.history_id;
-      const t = (L.item_type || L.type || "liability").toLowerCase();
+      const details = L.liability_details || {};
+      const id =
+        details.liability_id ||
+        details.item_id ||
+        L.item_id ||
+        L.liability_id ||
+        L.id ||
+        L.history_id;
+
+      const t = (L.liability_type || L.item_type || L.type || "liability").toLowerCase();
       const val = Number(
-        L.total_current_balance ?? L.current_balance ?? L.current_value ?? L.balance ?? L.net_worth_value ?? L.principal_balance ?? L.amount ?? 0
+        L.total_current_balance ??
+        L.current_balance ??
+        L.balance ??
+        0
       );
       const accountId = L.inv_account_id ?? L.account_id ?? null;
       const inst = normalizeInstitution(L.institution, accountId, t);
+
       return {
         id,
         institution: inst || OTHER_INST,
         name: L.name || L.identifier || "Liability",
         identifier: L.identifier || "",
-        type: t,
+        type: t,                    // keep for display
+        liability_type: t,          // keep for parity with QuickEditDelete
         currentValue: val,
         inv_account_name: L.inv_account_name ?? L.account_name ?? "",
       };
     });
     return list;
   }, [groupedLiabilities?.data, normalizeInstitution]);
+
 
   // signatures for fast de-dupe against "other assets"
   const liabilitySigSet = useMemo(() => {
@@ -510,12 +524,11 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
   };
 
   // save helpers
-  const liabilityPayloadFor = (row) => {
-    const t = String(row.type || "").toLowerCase();
-    if (/(mortgage|loan|auto|student|heloc|line\s*of\s*credit|loc)/i.test(t)) return { principal_balance: row.next };
-    if (/(credit|card|revolving|charge)/i.test(t)) return { current_balance: row.next };
-    return { current_balance: row.next };
-  };
+  const liabilityPayloadFor = (row) => ({
+    current_balance: row.next
+    // Optionally include type if you want parity with QED form:
+    // liability_type: row.liability_type || row.type
+  });
 
   const runOne = async (job) => {
     const attempt = async () => {
