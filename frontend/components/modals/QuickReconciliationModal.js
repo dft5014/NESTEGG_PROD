@@ -1,4 +1,4 @@
-// QuickReconciliationModal.js — merged best-of-both
+// QuickReconciliationModal.js — corrected & hardened
 // - Institution normalization (account→institution), handles "Other Assets"
 // - Cash-like assets + liabilities + other assets in one editable table
 // - Bulk paste top→bottom (tabs/commas/newlines), header-aware
@@ -24,20 +24,26 @@ import { popularBrokerages } from "@/utils/constants";
 // ---------- utils ----------
 const fmtUSD = (n, hide=false) =>
   hide ? "••••••" : Number(n ?? 0).toLocaleString(undefined, { style: "currency", currency: "USD", maximumFractionDigits: 2 });
+
 const toNum = (s) => {
   if (typeof s === "number") return Number.isFinite(s) ? s : 0;
   const n = Number(String(s ?? "").replace(/[^\d.-]/g, "").trim());
   return Number.isFinite(n) ? n : 0;
 };
-const isClearlySecurityWord = /(stock|equity|etf|fund|mutual|option|bond|crypto|security|shares?)/i;
+
+// broaden to include metals, keep this separate from cash-like
+const isSecurityish = /(stock|equity|etf|fund|mutual|option|bond|crypto|security|shares?|metal|gold|silver|bullion)/i;
 const isCashLikeWord = /(cash|checking|savings|mm|money\s?market|hysa|cd|certificate|sweep|settlement|brokerage\s?cash)/i;
+const isLiabilityish = /(loan|mortgage|credit|debt|liab|card|payable|auto|student|heloc|loc)/i;
+
 const isCashLike = (pos) => {
   const t = String(pos.type || "").toLowerCase();
   const n = `${pos.name || ""} ${pos.identifier || ""} ${pos.inv_account_name || ""}`.toLowerCase();
-  if (isClearlySecurityWord.test(n)) return false;
+  if (isSecurityish.test(n)) return false;
   if (["cash","checking","savings","money_market","mm","sweep","deposit"].includes(t)) return true;
   return isCashLikeWord.test(n);
 };
+
 const OTHER_INST = "Other Assets";
 
 // small logo cache
@@ -206,7 +212,7 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
   const [sortDir, setSortDir] = useState("asc"); // 'asc' | 'desc'
   const [selectedInstitution, setSelectedInstitution] = useState(null);
 
-  const [failedRows, setFailedRows] = useState([]); // row keys that failed to save
+  const [failedRows, setFailedRows] = useState([]);
   const [headerPasteWarn, setHeaderPasteWarn] = useState(false);
   const [toast, setToast] = useState(null);
   const toastRef = useRef(null);
@@ -266,9 +272,7 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
     });
   }, [rawPositions, normalizeInstitution]);
 
-  const cashAssets = useMemo(() => allPositions.filter(isCashLike), [allPositions]);
-
-  // normalize liabilities (moved up)
+  // normalize liabilities FIRST (so otherAssets can compare signatures safely)
   const liabs = useMemo(() => {
     const list = (groupedLiabilities?.data || []).map((L) => {
       const id = L.item_id ?? L.liability_id ?? L.id ?? L.history_id;
@@ -291,7 +295,7 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
     return list;
   }, [groupedLiabilities?.data, normalizeInstitution]);
 
-  // signatures for fast de-dupe (moved up)
+  // signatures for fast de-dupe against "other assets"
   const liabilitySigSet = useMemo(() => {
     const s = new Set();
     for (const l of liabs) {
@@ -304,10 +308,9 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
     return s;
   }, [liabs]);
 
-  // guard to filter out liability-looking rows (moved up)
-  const isLiabilityish = /(loan|mortgage|credit|debt|liab|card|payable)/i;
+  const cashAssets = useMemo(() => allPositions.filter(isCashLike), [allPositions]);
 
-  // "other assets" after helpers exist
+  // carefully determine "other" assets (not cash, not securityish, not known-liability, and either 'other' or missing type)
   const otherAssets = useMemo(() => {
     return allPositions
       .map(p => ({ ...p, institution: normalizeInstitution(p.institution, p.accountId, p.type) || OTHER_INST }))
@@ -318,18 +321,19 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
         const nm = (p.name || "").toLowerCase();
 
         const notCash = !isCashLike(p);
+        const notSecurity = !isSecurityish.test(`${nm} ${id}`);
         const notLiabilityWord = !isLiabilityish.test(t) && !isLiabilityish.test(nm);
         const isOtherish = t === "other" || !t;
+        const notInLiabs = !liabilitySigSet.has(`${inst}::id::${id}`) && !liabilitySigSet.has(`${inst}::nm::${nm}`);
 
-        const notInLiabs =
-          !liabilitySigSet.has(`${inst}::id::${id}`) &&
-          !liabilitySigSet.has(`${inst}::nm::${nm}`);
-
-        return notCash && notLiabilityWord && isOtherish && notInLiabs;
+        return notCash && notSecurity && notLiabilityWord && isOtherish && notInLiabs;
       });
   }, [allPositions, normalizeInstitution, liabilitySigSet]);
 
   // editable rows (cash + liabilities + other)
+  // Use strong, per-row keys so one edit doesn't leak to others
+  const makeRowKey = (r) => `${r._kind}:${r.id ?? r.identifier ?? r.name}:${r.institution}`;
+
   const rows = useMemo(() => {
     const aRows = cashAssets.map(a => ({
       _kind: "asset",
@@ -361,9 +365,10 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
       type: o.type || "other",
       nest: Number(o.currentValue || 0),
     }));
+
     const uniq = new Map();
     for (const r of [...aRows, ...lRows, ...oRows]) {
-      const key = `${r._kind}::${(r.institution || '').toLowerCase()}::${((r.identifier || r.name) || '').toLowerCase()}`;
+      const key = makeRowKey(r);
       if (!uniq.has(key)) uniq.set(key, r);
     }
     return Array.from(uniq.values());
@@ -387,11 +392,20 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
       .sort((a,b) => b.totalAbs - a.totalAbs);
   }, [rows]);
 
-  // drilldowns
+  // drilldowns (positions list limited to cash-like + other; exclude securities/crypto/metal)
   const positionsByInstitution = useMemo(() => {
     const map = new Map();
     allPositions.forEach(p => {
       const inst = p.institution || OTHER_INST;
+      const nameId = `${String(p.name||"").toLowerCase()} ${String(p.identifier||"").toLowerCase()}`;
+      const isOtherish = (p.type === "other" || !p.type);
+      const notInLiabs = !liabilitySigSet.has(`${String(inst).toLowerCase()}::id::${(p.identifier||"").toLowerCase()}`)
+                       && !liabilitySigSet.has(`${String(inst).toLowerCase()}::nm::${String(p.name||"").toLowerCase()}`);
+
+      // show only cash-like and valid "other" assets; exclude securityish
+      const include = (isCashLike(p) || (isOtherish && notInLiabs)) && !isSecurityish.test(nameId);
+      if (!include) return;
+
       if (!map.has(inst)) map.set(inst, []);
       map.get(inst).push({
         id: p.id, name: p.name || p.identifier || "Position",
@@ -401,7 +415,7 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
     });
     Array.from(map.values()).forEach(list => list.sort((a,b)=>Math.abs(b.value)-Math.abs(a.value)));
     return map;
-  }, [allPositions]);
+  }, [allPositions, liabilitySigSet]);
 
   const liabilitiesByInstitution = useMemo(() => {
     const m = new Map();
@@ -420,7 +434,8 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
 
   // drafts & computed table
   const [drafts, setDrafts] = useState({});
-  const keyOf = (r) => `${r._kind}:${r.id}`;
+  const keyOf = (r) => makeRowKey(r);
+
   const filteredCalc = useMemo(() => {
     let list = rows.filter(r => (showAssets ? true : r._kind !== "asset"))
                    .filter(r => (showLiabs ? true : r._kind !== "liability"));
@@ -495,11 +510,11 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
   };
 
   // save helpers
-  const buildLiabilityPayload = (r) => {
-    const t = String(r.type || "").toLowerCase();
-    if (t.includes("mortgage") || t.includes("loan")) return { principal_balance: r.next };
-    if (t.includes("credit")) return { current_balance: r.next };
-    return { current_balance: r.next };
+  const liabilityPayloadFor = (row) => {
+    const t = String(row.type || "").toLowerCase();
+    if (/(mortgage|loan|auto|student|heloc|line\s*of\s*credit|loc)/i.test(t)) return { principal_balance: row.next };
+    if (/(credit|card|revolving|charge)/i.test(t)) return { current_balance: row.next };
+    return { current_balance: row.next };
   };
 
   const runOne = async (job) => {
@@ -509,7 +524,7 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
           updateOtherAsset(Number(job.id), { current_value: job.next })
         );
       }
-      if (job._kind === "liability") return updateLiability(job.id, buildLiabilityPayload(job));
+      if (job._kind === "liability") return updateLiability(job.id, liabilityPayloadFor(job));
       if (job._kind === "other") return updateOtherAsset(Number(job.id), { current_value: job.next });
     };
     const maxRetries = 2;
@@ -641,7 +656,7 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
           </button>
 
           {instCards.map((g) => {
-            const logo = getLogoFrom(logoMap, g.inst); // ✅ uses top-level hook result
+            const logo = getLogoFrom(logoMap, g.inst);
             const selected = selectedInstitution === g.inst;
             const net = g.net;
             return (
@@ -778,7 +793,6 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
           <span className="px-2 py-1 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-200">
             Changed: {kpis.changed}
           </span>
-
         </div>
 
         {/* Editable table */}
@@ -786,7 +800,7 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
           <div className="bg-zinc-50 dark:bg-zinc-800 px-4 py-2 text-sm font-semibold text-zinc-900 dark:text-zinc-100">
             {selectedInstitution ? `Lines in ${selectedInstitution}` : "Cash-like Assets, Liabilities & Other Assets"}
           </div>
-          <div className="max-h-[54vh] overflow-auto">
+          <div className="max-h=[54vh] max-h-[54vh] overflow-auto">
             <table className="w-full min-w-[940px]">
               <thead className="bg-zinc-50 dark:bg-zinc-800 sticky top-0 z-10">
                 <tr className="text-xs uppercase text-zinc-600 dark:text-zinc-300">
@@ -817,6 +831,10 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
                   const logo = getLogoFrom(logoMap, r.institution);
                   const failed = failedRows.includes(r._key);
 
+                  const kindBadge = r._kind === "asset" ? "bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800"
+                                   : r._kind === "liability" ? "bg-rose-100 dark:bg-rose-900/30 text-rose-700 dark:text-rose-300 border-rose-200 dark:border-rose-800"
+                                   : "bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 border-indigo-200 dark:border-indigo-800";
+
                   return (
                     <tr
                       key={r._key}
@@ -842,14 +860,21 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
                         {r.sub ? <div className="text-xs text-zinc-600 dark:text-zinc-300">{r.sub}</div> : null}
                       </td>
                       <td className="px-3 py-2 text-sm text-zinc-700 dark:text-zinc-300">{r.identifier || "—"}</td>
-                      <td className="px-3 py-2 text-sm text-zinc-700 dark:text-zinc-300">{r._kind || "—"}</td>
+                      <td className="px-3 py-2 text-sm text-zinc-700 dark:text-zinc-300">
+                        <div className="flex items-center gap-2">
+                          <span>{r.type || "—"}</span>
+                          <span className={`text-[10px] px-1.5 py-0.5 rounded border ${kindBadge}`}>
+                            {r._kind === "asset" ? "Asset" : r._kind === "liability" ? "Liability" : "Other"}
+                          </span>
+                        </div>
+                      </td>
                       <td className="px-3 py-2 text-right text-zinc-900 dark:text-zinc-100">{fmtUSD(r.nest, !showValues)}</td>
                       <td className="px-3 py-2 text-center">
                         <CurrencyInput
                           id={`qr-input-${r._key}`}
                           value={r.stmt}
                           onValueChange={(v) => setDrafts(prev => ({ ...prev, [r._key]: Number.isFinite(v) ? v : 0 }))}
-                          nextFocusId={nextId} // ✅ fixed: no double prefix
+                          nextFocusId={nextId}
                           aria-label={`Statement for ${r.name}`}
                           className={changed ? "border-blue-500 ring-2 ring-blue-200 dark:ring-blue-900/60" : ""}
                         />
@@ -888,7 +913,7 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
                 Detailed positions in {selectedInstitution}
               </div>
               <div className="ml-auto text-xs text-zinc-700 dark:text-zinc-300">
-                {positionsByInstitution.get(selectedInstitution)?.length || 0} positions • {liabilitiesByInstitution.get(selectedInstitution)?.length || 0} liabilities
+                {(positionsByInstitution.get(selectedInstitution)?.length || 0)} positions • {(liabilitiesByInstitution.get(selectedInstitution)?.length || 0)} liabilities
               </div>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2">
