@@ -4,7 +4,8 @@ import { motion, AnimatePresence, useAnimation } from 'framer-motion';
 const EggMascot = ({ 
   portfolioValue = 0, 
   userTenureDays = 0,
-  isDoingCartwheel = false 
+  isDoingCartwheel = false, 
+  variant = "floating" // "floating" (default bottom-right) or "navbar"
 }) => {
   // Evolution stages based on portfolio value and tenure
   const getEvolutionStage = () => {
@@ -232,7 +233,9 @@ const EggMascot = ({
 
   return (
     <motion.div 
-      className="fixed bottom-8 right-8 z-50"
+      className={`z-50 ${variant === "floating" 
+        ? "fixed bottom-8 right-8" 
+        : "relative w-12 h-12 flex items-center justify-center"}`}
       initial={{ scale: 0, rotate: -360 }}
       animate={{ scale: currentTraits.size, rotate: 0 }}
       transition={{ type: "spring", stiffness: 100, damping: 15, duration: 1 }}

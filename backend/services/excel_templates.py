@@ -1,31 +1,25 @@
-# backend/services/excel_templates.py
-# (If your folder is spelled "servics", keep the old path but update imports accordingly.)
 import io
 from datetime import datetime
 from typing import List, Dict, Any
 
-import openpyxl
 from openpyxl import Workbook
 from openpyxl.styles import PatternFill, Font, Alignment, Border, Side
 from openpyxl.utils import get_column_letter
 from openpyxl.worksheet.worksheet import Worksheet
 from openpyxl.worksheet.datavalidation import DataValidation
 
-# Import your existing constants
-# Make sure ACCOUNT_TYPES_BY_CATEGORY exists in backend.utils.constants
+# Ensure these exist in backend.utils.constants
 from backend.utils.constants import (
     INSTITUTION_LIST,
-    ACCOUNT_TYPES,
+    ACCOUNT_TYPES,             # kept for compatibility
     ACCOUNT_CATEGORIES,
-    ACCOUNT_TYPES_BY_CATEGORY,  # <- ensure this exists
+    ACCOUNT_TYPES_BY_CATEGORY, # dict[str, list[str]]
 )
-
 
 class ExcelTemplateService:
     """Service for generating Excel import templates (Accounts + Positions)."""
 
     def __init__(self):
-        # Styles
         self.header_font = Font(bold=True, color="FFFFFF", size=12)
         self.header_fill = PatternFill(start_color="2C3E50", end_color="2C3E50", fill_type="solid")
         self.header_alignment = Alignment(horizontal="center", vertical="center")
@@ -40,43 +34,25 @@ class ExcelTemplateService:
             bottom=Side(style="thin", color="DDDDDD"),
         )
 
-        # Will be populated by _create_validation_lists_sheet
-        self.lookup_ranges = {
-            "institutions": None,        # e.g., Lookups!$A$2:$A$50
-            "categories": None,          # e.g., Lookups!$C$2:$C$10
-            "types_flat": None,          # e.g., Lookups!$E$2:$E$30
-        }
+        self.lookup_ranges = {"institutions": None, "categories": None, "types_flat": None}
 
     # =========================
     # PUBLIC: ACCOUNTS TEMPLATE
     # =========================
     def create_accounts_template(self) -> io.BytesIO:
-        """
-        Creates the accounts import template and returns it as BytesIO.
-        Sheets:
-          - Instructions
-          - Accounts (data entry)
-          - Lookups (institutions, categories, flat account types)
-          - Category-Type Reference (optional helper)
-        """
         wb = Workbook()
-        # Remove default
         wb.remove(wb.active)
 
-        # Create sheets
         self._create_instructions_sheet(wb)
         accounts_ws = self._create_accounts_sheet(wb)
-        self._create_validation_lists_sheet(wb)  # populates self.lookup_ranges
+        self._create_validation_lists_sheet(wb)
 
-        # Add data validations to Accounts sheet
         self._add_institution_validation_named_range(accounts_ws)
         self._add_category_validation_named_range(accounts_ws)
-        self._add_account_type_validation_with_message(accounts_ws)
+        self._add_account_type_validation(accounts_ws)
 
-        # Optional helper sheet showing valid combinations
         self._create_category_type_reference(wb)
 
-        # Serialize workbook
         output = io.BytesIO()
         wb.save(output)
         output.seek(0)
@@ -86,13 +62,11 @@ class ExcelTemplateService:
         ws = wb.create_sheet("Instructions", 0)
         ws.sheet_properties.tabColor = "1976D2"
 
-        # Title
         ws.merge_cells("A1:F1")
         ws["A1"] = "NestEgg Account Import Instructions"
         ws["A1"].font = Font(bold=True, size=16, color="2C3E50")
         ws["A1"].alignment = Alignment(horizontal="center")
 
-        # Content
         lines = [
             "",
             "Step-by-Step Guide:",
@@ -124,10 +98,7 @@ class ExcelTemplateService:
         row = 3
         for text in lines:
             ws[f"A{row}"] = text
-            if text.endswith(":"):
-                ws[f"A{row}"].font = Font(bold=True, size=12, color="2C3E50")
-            else:
-                ws[f"A{row}"].font = Font(size=11)
+            ws[f"A{row}"].font = Font(bold=True, size=12, color="2C3E50") if text.endswith(":") else Font(size=11)
             row += 1
 
         ws.column_dimensions["A"].width = 100
@@ -137,7 +108,6 @@ class ExcelTemplateService:
         ws = wb.create_sheet("Accounts", 1)
         ws.sheet_properties.tabColor = "4CAF50"
 
-        # Headers (Category before Type to mirror your UI)
         headers = ["Account Name*", "Institution*", "Account Category*", "Account Type*", "Notes"]
         for col, header in enumerate(headers, start=1):
             cell = ws.cell(row=1, column=col, value=header)
@@ -146,7 +116,6 @@ class ExcelTemplateService:
             cell.alignment = self.header_alignment
             cell.border = self.border
 
-        # Sample rows
         samples = [
             ["My 401k", "Fidelity", "retirement", "401(k)", ""],
             ["Joint Brokerage", "Vanguard", "brokerage", "Joint", ""],
@@ -159,23 +128,19 @@ class ExcelTemplateService:
                 cell.border = self.border
                 cell.fill = self.sample_fill
 
-        # Empty input rows (required highlights on cols A-D)
-        for r in range(6, 250):  # generous room for input
-            for c in range(1, 6):
+        for r in range(6, 250):
+            for c in range(1, 5+1):
                 cell = ws.cell(row=r, column=c, value="")
                 cell.border = self.border
                 if c <= 4:
                     cell.fill = self.required_fill
 
-        # Column widths
         widths = {"A": 30, "B": 25, "C": 22, "D": 25, "E": 40}
         for col, w in widths.items():
             ws.column_dimensions[col].width = w
 
-        # Freeze header
         ws.freeze_panes = "A2"
 
-        # Footer notes
         note_row = 252
         ws.merge_cells(f"A{note_row}:E{note_row}")
         ws[f"A{note_row}"] = "Note: Yellow cells are required. First rows show examples—you can delete or modify them."
@@ -191,16 +156,8 @@ class ExcelTemplateService:
         return ws
 
     def _create_validation_lists_sheet(self, wb: Workbook) -> Worksheet:
-        """
-        Lookups sheet with:
-          - Column A: Institutions
-          - Column C: Account Categories
-          - Column E: Flat list of ALL account types across categories
-        Also updates self.lookup_ranges with the absolute ranges for validation.
-        """
         ws = wb.create_sheet("Lookups", 2)
 
-        # Institutions (A)
         ws["A1"] = "Institutions"
         ws["A1"].font = self.header_font
         for i, inst in enumerate(INSTITUTION_LIST, start=2):
@@ -209,7 +166,6 @@ class ExcelTemplateService:
         if INSTITUTION_LIST:
             self.lookup_ranges["institutions"] = f"=Lookups!$A$2:$A${1 + len(INSTITUTION_LIST)}"
 
-        # Categories (C)
         ws["C1"] = "Account Categories"
         ws["C1"].font = self.header_font
         for i, cat in enumerate(ACCOUNT_CATEGORIES, start=2):
@@ -218,32 +174,31 @@ class ExcelTemplateService:
         if ACCOUNT_CATEGORIES:
             self.lookup_ranges["categories"] = f"=Lookups!$C$2:$C${1 + len(ACCOUNT_CATEGORIES)}"
 
-        # Flat Account Types (E)
         ws["E1"] = "Account Types (All)"
         ws["E1"].font = self.header_font
-        flat_types = []
-        for lst in ACCOUNT_TYPES_BY_CATEGORY.values():
-            flat_types.extend(lst)
-        # Dedupe while preserving order
         seen = set()
-        all_types = [t for t in flat_types if not (t in seen or seen.add(t))]
-        for i, t in enumerate(all_types, start=2):
+        flat_types: List[str] = []
+        for lst in ACCOUNT_TYPES_BY_CATEGORY.values():
+            for t in lst:
+                if t not in seen:
+                    seen.add(t)
+                    flat_types.append(t)
+        for i, t in enumerate(flat_types, start=2):
             ws.cell(row=i, column=5, value=t).border = self.border
         ws.column_dimensions["E"].width = 26
-        if all_types:
-            self.lookup_ranges["types_flat"] = f"=Lookups!$E$2:$E${1 + len(all_types)}"
+        if flat_types:
+            self.lookup_ranges["types_flat"] = f"=Lookups!$E$2:$E${1 + len(flat_types)}"
 
         return ws
 
     def _add_institution_validation_named_range(self, ws: Worksheet) -> None:
-        """Validate column B (Institution) using Lookups range (allows custom values if you prefer)."""
         rng = self.lookup_ranges.get("institutions")
         if not rng:
             return
         dv = DataValidation(
             type="list",
             formula1=rng,
-            allow_blank=True,  # allow typing custom institutions
+            allow_blank=True,   # allow typing custom institutions
             showDropDown=True,
             errorTitle="Invalid Institution",
             error="Choose an institution from the list or type your own.",
@@ -252,7 +207,6 @@ class ExcelTemplateService:
         dv.add("B2:B5000")
 
     def _add_category_validation_named_range(self, ws: Worksheet) -> None:
-        """Validate column C (Account Category) using Lookups range (required)."""
         rng = self.lookup_ranges.get("categories")
         if not rng:
             return
@@ -267,11 +221,7 @@ class ExcelTemplateService:
         ws.add_data_validation(dv)
         dv.add("C2:C5000")
 
-    def _add_account_type_validation_with_message(self, ws: Worksheet) -> None:
-        """
-        Validate column D (Account Type) against a flat list of all types.
-        NOTE: This is a simple global list; dependent dropdown by category would require named ranges per category.
-        """
+    def _add_account_type_validation(self, ws: Worksheet) -> None:
         rng = self.lookup_ranges.get("types_flat")
         if not rng:
             return
@@ -280,9 +230,6 @@ class ExcelTemplateService:
             formula1=rng,
             allow_blank=False,
             showDropDown=True,
-            showInputMessage=True,
-            inputTitle="Select Account Type",
-            inputMessage="Choose a type that matches your selected category. See 'Category-Type Reference' tab.",
             errorTitle="Invalid Account Type",
             error="Please select a valid account type.",
         )
@@ -290,7 +237,6 @@ class ExcelTemplateService:
         dv.add("D2:D5000")
 
     def _create_category_type_reference(self, wb: Workbook) -> Worksheet:
-        """Reference sheet showing valid type combinations per category."""
         ws = wb.create_sheet("Category-Type Reference", 3)
         ws.sheet_properties.tabColor = "FFC107"
 
@@ -301,20 +247,16 @@ class ExcelTemplateService:
 
         row = 3
         for category, types in ACCOUNT_TYPES_BY_CATEGORY.items():
-            # Category header
             ws.merge_cells(f"A{row}:C{row}")
             ws.cell(row=row, column=1, value=category.replace("_", " ").title())
             ws.cell(row=row, column=1).font = Font(bold=True, size=12, color="FFFFFF")
             ws.cell(row=row, column=1).fill = PatternFill(start_color="34495E", end_color="34495E", fill_type="solid")
-
-            # Types
             for t in types:
                 row += 1
                 ws.cell(row=row, column=2, value=t).border = self.border
                 ws.cell(row=row, column=3, value="✓").font = Font(color="27AE60", bold=True)
                 ws.cell(row=row, column=3).alignment = Alignment(horizontal="center")
-
-            row += 2  # gap
+            row += 2
 
         ws.column_dimensions["A"].width = 25
         ws.column_dimensions["B"].width = 30
@@ -324,14 +266,9 @@ class ExcelTemplateService:
 
     # ==========================
     # PUBLIC: POSITIONS TEMPLATE
-    # (basic scaffold; Step 2)
+    # (simple scaffold; Step 2)
     # ==========================
     async def create_positions_template(self, user_id: Any, database) -> io.BytesIO:
-        """
-        Creates a simple positions template customized with user's accounts.
-        You can expand this in Step 2, but this will stream a valid file now.
-        """
-        # Fetch user's accounts
         query = """
             SELECT id, account_name, type, account_category
             FROM accounts
@@ -345,10 +282,8 @@ class ExcelTemplateService:
         wb = Workbook()
         wb.remove(wb.active)
 
-        # Reference sheet
         self._create_accounts_reference_sheet(wb, accounts)
 
-        # Simplified Positions sheet (single sheet; you can split by asset later)
         ws = wb.create_sheet("Positions", 1)
         ws.sheet_properties.tabColor = "4CAF50"
 
@@ -365,9 +300,7 @@ class ExcelTemplateService:
             cell.border = self.border
             ws.column_dimensions[get_column_letter(c)].width = 18
 
-        # Example rows
         examples = [
-            # Operation, PosID, AcctID, AcctName, AssetType, Symbol, Name, Qty, Price, CostBasis, AsOf, Curr, Notes
             ["create", "", accounts[0]["id"], accounts[0]["account_name"], "security", "AAPL", "", 10, "", 1500, datetime.now().strftime("%Y-%m-%d"), "USD", ""],
             ["update", "", accounts[0]["id"], accounts[0]["account_name"], "cash", "", "Checking Balance", "", "", 5000, datetime.now().strftime("%Y-%m-%d"), "USD", ""],
         ]
@@ -378,10 +311,8 @@ class ExcelTemplateService:
                 if r_idx < 6:
                     cell.fill = self.sample_fill
 
-        # Freeze header
         ws.freeze_panes = "A2"
 
-        # Serialize
         output = io.BytesIO()
         wb.save(output)
         output.seek(0)
