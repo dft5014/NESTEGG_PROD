@@ -11,7 +11,7 @@ import AddPositionButton from '@/components/AddPositionButton';
 import AddAccountButton from '@/components/AddAccountButton';
 import UpdateStatusIndicator from '@/components/UpdateStatusIndicator';
 
-import EggMascot from '@/components/eggmascot';
+import EggMascot from '@/components/EggMascot';
 
 import { AuthContext } from '@/context/AuthContext';
 import { fetchAccounts } from '@/utils/apimethods/accountMethods';
