@@ -54,7 +54,6 @@ import {
     Repeat
 } from 'lucide-react';
 import { fetchWithAuth } from '@/utils/api';
-import * as XLSX from 'xlsx';
 import { popularBrokerages } from '@/utils/constants';
 import ReactDOM from 'react-dom';
 import { useAccounts } from '@/store/hooks/useAccounts';
@@ -651,6 +650,7 @@ const QuickStartModal = ({ isOpen, onClose }) => {
 
     const parseAccountsExcel = async (file) => {
     const buf = await readFileAsArrayBuffer(file);
+    const XLSX = await import('xlsx');
     const wb = XLSX.read(buf, { type: 'array' });
     const sheetName = wb.SheetNames.find(n => normalizeHeader(n) === 'accounts') || wb.SheetNames[0];
     const sheet = wb.Sheets[sheetName];
