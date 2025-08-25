@@ -11,8 +11,6 @@ import AddPositionButton from '@/components/AddPositionButton';
 import AddAccountButton from '@/components/AddAccountButton';
 import UpdateStatusIndicator from '@/components/UpdateStatusIndicator';
 
-import EggMascot from '@/components/EggMascot';
-
 import { AuthContext } from '@/context/AuthContext';
 import { fetchAccounts } from '@/utils/apimethods/accountMethods';
 
@@ -367,9 +365,6 @@ const Navbar = () => {
   const { logout, user } = useContext(AuthContext);
   const router = useRouter();
 
-
-  const { summary: navPortfolioSummary } = usePortfolioSummary();
-
   // Toggle scrolled with rAF throttling
   useRafScroll(() => {
     setScrolled(window.scrollY > 10);
@@ -439,15 +434,6 @@ const Navbar = () => {
         >
           {/* Top bar (64px) */}
           <div className="h-16 px-4 flex items-center justify-between">
-
-              {/* Left side - Eggbert Mascot */}
-              <div className="flex items-center gap-3">
-                <Link href="/" aria-label="Home">
-                  <motion.div whileHover={{ scale: 1.1, rotate: -2 }}>
-                    <EggMascot variant="navbar" portfolioValue={navPortfolioSummary?.netWorth ?? 0} userTenureDays={user?.tenure_days ?? 0} />
-                  </motion.div>
-                </Link>
-              </div>
             {/* Center-aligned Quick Actions */}
             <div className="flex-1 flex justify-center">
               <div className="flex items-center gap-2 ml-20">
