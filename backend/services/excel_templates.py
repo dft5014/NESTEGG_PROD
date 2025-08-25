@@ -77,8 +77,8 @@ class ExcelTemplateService:
             "5. Upload to NestEgg using the 'Import Accounts' feature",
             "",
             "Important Notes:",
-            "• Required fields are highlighted in YELLOW and marked with *",
-            "• If your institution isn't listed, you can type a custom name",
+            "• Required fields are highlighted in YELLOW",
+            "• Institution, Account Category, and Account Type must be selected from the dropdowns",
             "• Account names should be unique (avoid duplicates)",
             "• Don't modify the column headers",
             "• Leave cells empty rather than typing 'N/A'",
@@ -108,7 +108,7 @@ class ExcelTemplateService:
         ws = wb.create_sheet("Accounts", 1)
         ws.sheet_properties.tabColor = "4CAF50"
 
-        headers = ["Account Name*", "Institution*", "Account Category*", "Account Type*", "Notes"]
+        headers = ["Account Name", "Institution", "Account Category", "Account Type", "Notes"]
         for col, header in enumerate(headers, start=1):
             cell = ws.cell(row=1, column=col, value=header)
             cell.font = self.header_font
@@ -140,18 +140,6 @@ class ExcelTemplateService:
             ws.column_dimensions[col].width = w
 
         ws.freeze_panes = "A2"
-
-        note_row = 252
-        ws.merge_cells(f"A{note_row}:E{note_row}")
-        ws[f"A{note_row}"] = "Note: Yellow cells are required. First rows show examples—you can delete or modify them."
-        ws[f"A{note_row}"].font = Font(italic=True, size=10, color="666666")
-        ws[f"A{note_row}"].alignment = Alignment(horizontal="center")
-
-        note_row2 = note_row + 2
-        ws.merge_cells(f"A{note_row2}:E{note_row2}")
-        ws[f"A{note_row2}"] = "Account Type options depend on Category. See 'Category-Type Reference' tab for valid combinations."
-        ws[f"A{note_row2}"].font = Font(italic=True, size=10, color="CC0000")
-        ws[f"A{note_row2}"].alignment = Alignment(horizontal="center")
 
         return ws
 
@@ -195,13 +183,14 @@ class ExcelTemplateService:
         rng = self.lookup_ranges.get("institutions")
         if not rng:
             return
+
         dv = DataValidation(
             type="list",
             formula1=rng,
-            allow_blank=True,   # allow typing custom institutions
+            allow_blank=False,   # must pick from dropdown
             showDropDown=True,
             errorTitle="Invalid Institution",
-            error="Choose an institution from the list or type your own.",
+            error="Please choose a valid institution from the list.",
         )
         ws.add_data_validation(dv)
         dv.add("B2:B5000")
