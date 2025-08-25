@@ -3,7 +3,7 @@ import Link from 'next/link';
 import { 
   LayoutGrid, TrendingUp, Wallet, Coins, CreditCard, 
   Settings, LogOut, Plus, Target, BarChart3, Menu, X,
-  Search, Bell, Moon, Sun
+  Search, Bell, Moon, Sun, Smartphone
 } from 'lucide-react';
 import { useContext, useState, useEffect, useRef } from 'react';
 import { AuthContext } from '@/context/AuthContext';
@@ -91,8 +91,8 @@ const Sidebar = () => {
     { 
       href: "/mobile", 
       label: "Mobile App", 
-      icon: <CreditCard className="w-5 h-5" />,
-      description: "Monitor your debts, loans, and obligations"
+      icon: <Smartphone className="w-5 h-5" />,
+      description: "iOS/Android setup, features, and install"
     },
     { 
       href: "/planning", 
@@ -119,7 +119,7 @@ const Sidebar = () => {
 
     useEffect(() => {
       setIsSpinning(!sidebarCollapsed);
-    }, []);
+    }, [sidebarCollapsed]);
 
     return (
       <motion.div 
