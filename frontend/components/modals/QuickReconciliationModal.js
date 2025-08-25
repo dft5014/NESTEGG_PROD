@@ -36,6 +36,29 @@ const isSecurityish = /(stock|equity|etf|fund|mutual|option|bond|crypto|security
 const isCashLikeWord = /(cash|checking|savings|mm|money\s?market|hysa|cd|certificate|sweep|settlement|brokerage\s?cash)/i;
 const isLiabilityish = /(loan|mortgage|credit|debt|liab|card|payable|auto|student|heloc|loc)/i;
 
+// UTC → safe Date helpers
+const ensureUtcZ = (s) => (s && !/Z$/i.test(s) ? `${s}Z` : s);
+
+const formatLocalDateTime = (ts) => {
+  if (!ts) return "—";
+  const d = new Date(ensureUtcZ(ts));
+  return d.toLocaleString(undefined, { hour12: true, timeZoneName: "short" });
+};
+
+const formatAge = (ts) => {
+  if (!ts) return "—";
+  const t = new Date(ensureUtcZ(ts)).getTime();
+  if (Number.isNaN(t)) return "—";
+  const diff = Date.now() - t;
+  if (diff < 0) return "0m";
+  const mins = Math.floor(diff / 60000);
+  if (mins < 60) return `${mins}m`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 48) return `${hrs}h`;
+  const days = Math.floor(hrs / 24);
+  return `${days}d`;
+};
+
 const isCashLike = (pos) => {
   const t = String(pos.type || "").toLowerCase();
   const n = `${pos.name || ""} ${pos.identifier || ""} ${pos.inv_account_name || ""}`.toLowerCase();
@@ -268,7 +291,12 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
       const institution = normalizeInstitution(p.institution, accountId, type);
       const identifier = p.identifier ?? p.symbol ?? "";
       const inv_account_name = p.inv_account_name ?? p.accountName ?? p.account_name ?? "";
-      return { id, accountId, institution, type, name, currentValue, identifier, inv_account_name };
+      const last_update =
+          p.balance_last_updated ??
+          p.last_update ??
+          p.balanceLastUpdated ??
+          null;
+      return { id, accountId, institution, type, name, currentValue, identifier, inv_account_name, last_update };
     });
   }, [rawPositions, normalizeInstitution]);
 
@@ -285,28 +313,32 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
         L.history_id;
 
       const t = (L.liability_type || L.item_type || L.type || "liability").toLowerCase();
-      const val = Number(
-        L.total_current_balance ??
-        L.current_balance ??
-        L.balance ??
-        0
-      );
+      const val = Number(L.total_current_balance ?? L.current_balance ?? L.balance ?? 0);
       const accountId = L.inv_account_id ?? L.account_id ?? null;
       const inst = normalizeInstitution(L.institution, accountId, t);
+
+      const last_update =
+        L.balance_last_updated ??
+        details.balance_last_updated ??
+        L.last_update ??
+        L.updated_at ??
+        null;
 
       return {
         id,
         institution: inst || OTHER_INST,
         name: L.name || L.identifier || "Liability",
         identifier: L.identifier || "",
-        type: t,                    // keep for display
-        liability_type: t,          // keep for parity with QuickEditDelete
+        type: t,
+        liability_type: t,
         currentValue: val,
         inv_account_name: L.inv_account_name ?? L.account_name ?? "",
+        last_update,
       };
     });
     return list;
   }, [groupedLiabilities?.data, normalizeInstitution]);
+
 
 
   // signatures for fast de-dupe against "other assets"
@@ -358,6 +390,7 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
       identifier: a.identifier || "",
       type: a.type || "",
       nest: Number(a.currentValue || 0),
+      last_update: a.last_update ?? null,
     }));
     const lRows = liabs.map(l => ({
       _kind: "liability",
@@ -368,6 +401,7 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
       identifier: l.identifier || "",
       type: String(l.type || ""),
       nest: Number(l.currentValue || 0),
+      last_update: l.last_update ?? null,
     }));
     const oRows = otherAssets.map(o => ({
       _kind: "other",
@@ -378,6 +412,7 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
       identifier: o.identifier || "",
       type: o.type || "other",
       nest: Number(o.currentValue || 0),
+      last_update: o.last_update ?? null, 
     }));
 
     const uniq = new Map();
@@ -476,6 +511,11 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
         case "delta": return (a.diff - b.diff) * dir;
         case "pct": return (a.pct - b.pct) * dir;
         case "kind": return ((a._kind > b._kind) - (a._kind < b._kind)) * dir;
+        case "updated": {
+          const ta = a.last_update ? new Date(ensureUtcZ(a.last_update)).getTime() : -Infinity;
+          const tb = b.last_update ? new Date(ensureUtcZ(b.last_update)).getTime() : -Infinity;
+          return (ta - tb) * dir;
+           }
         case "institution":
         default:
           return ((a.institution > b.institution) - (a.institution < b.institution)) * dir;
@@ -726,7 +766,7 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
               <span className="text-sm">Sort: {sortBy} ({sortDir})</span>
             </button>
             <div className="flex gap-1 mt-1">
-              {["institution","delta","pct","kind"].map(k => (
+              {["institution","delta","pct","kind","updated"].map(k => (
                 <button
                   key={k}
                   onClick={()=>{ setSortBy(k); setSortDir("asc"); }}
@@ -814,13 +854,15 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
             {selectedInstitution ? `Lines in ${selectedInstitution}` : "Cash-like Assets, Liabilities & Other Assets"}
           </div>
           <div className="max-h=[54vh] max-h-[54vh] overflow-auto">
-            <table className="w-full min-w-[940px]">
+            <table className="w-full min-w-[1120px]">
               <thead className="bg-zinc-50 dark:bg-zinc-800 sticky top-0 z-10">
                 <tr className="text-xs uppercase text-zinc-600 dark:text-zinc-300">
                   <th className="px-4 py-2 text-left cursor-pointer" onClick={()=>toggleSort('institution')}>Institution</th>
                   <th className="px-3 py-2 text-left">Name</th>
                   <th className="px-3 py-2 text-left">Identifier</th>
                   <th className="px-3 py-2 text-left cursor-pointer" onClick={()=>toggleSort('kind')}>Type</th>
+                  <th className="px-3 py-2 text-left cursor-pointer" onClick={()=>toggleSort('updated')}>Last Update</th>
+                  <th className="px-3 py-2 text-left">Age</th>
                   <th className="px-3 py-2 text-right">Nest</th>
                   <th className="px-3 py-2 text-center">Statement</th>
                   <th className="px-3 py-2 text-right cursor-pointer" onClick={()=>toggleSort('delta')}>Δ</th>
@@ -832,7 +874,7 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
                   if (r._loading) {
                     return (
                       <tr key={`skeleton-${idx}`}>
-                        <td className="px-4 py-3" colSpan={8}>
+                        <td className="px-4 py-3" colSpan={10}>
                           <div className="flex items-center gap-2 text-zinc-600 dark:text-zinc-300"><Loader2 className="w-4 h-4 animate-spin" /> Loading…</div>
                         </td>
                       </tr>
@@ -879,6 +921,16 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
                           <span className={`text-[10px] px-1.5 py-0.5 rounded border ${kindBadge}`}>
                             {r._kind === "asset" ? "Asset" : r._kind === "liability" ? "Liability" : "Other"}
                           </span>
+                          <td className="px-3 py-2 text-sm text-zinc-700 dark:text-zinc-300">
+                              {r.last_update ? (
+                                <time dateTime={ensureUtcZ(r.last_update)} title={`${r.last_update} (UTC)`}>
+                                  {formatLocalDateTime(r.last_update)}
+                                </time>
+                              ) : "—"}
+                            </td>
+                            <td className="px-3 py-2 text-sm text-zinc-500 dark:text-zinc-400">
+                              {formatAge(r.last_update)}
+                            </td>
                         </div>
                       </td>
                       <td className="px-3 py-2 text-right text-zinc-900 dark:text-zinc-100">{fmtUSD(r.nest, !showValues)}</td>
@@ -907,7 +959,7 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
                 })}
                 {!loading && filteredCalc.length === 0 && (
                   <tr>
-                    <td className="px-4 py-6 text-sm text-zinc-600 dark:text-zinc-300 text-center" colSpan={8}>
+                    <td className="px-4 py-6 text-sm text-zinc-600 dark:text-zinc-300 text-center" colSpan={10}>
                       No lines for this selection.
                     </td>
                   </tr>
