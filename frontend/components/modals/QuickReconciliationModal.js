@@ -618,39 +618,43 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
   });
 
   const runOne = async (job) => {
-    const asId = (v) => {
+    const asIntIfNumeric = (v) => {
       if (typeof v === "number") return v;
       const s = String(v ?? "");
-      // If it’s a pure integer string, cast; otherwise leave as-is (e.g., UUID).
       return /^\s*-?\d+\s*$/.test(s) ? parseInt(s, 10) : s;
     };
-    const asNum = (v) => {
+    const asNumber = (v) => {
       const n = typeof v === "number" ? v : Number(String(v).replace(/[^\d.-]/g, ""));
       return Number.isFinite(n) ? n : 0;
     };
 
     const attempt = async () => {
       if (job._kind === "asset") {
-        return updateCashPosition(asId(job.id), { amount: asNum(job.next) });
+        // keep your existing cash flow; safe numeric payload
+        return updateCashPosition(asIntIfNumeric(job.id), { amount: asNumber(job.next) })
+          .catch(() => updateOtherAsset(asIntIfNumeric(job.id), { current_value: asNumber(job.next) }));
       }
       if (job._kind === "liability") {
-        return updateLiability(asId(job.id), { current_balance: asNum(job.next) });
+        return updateLiability(asIntIfNumeric(job.id), { current_balance: asNumber(job.next) });
       }
       if (job._kind === "other") {
-        const oid = asId(job.id); // will be a number for "19"
-        return updateOtherAsset(oid, { id: oid, current_value: asNum(job.next) });
+        // IMPORTANT: send id as an integer in the PATH and do NOT include id in the body
+        const oid = asIntIfNumeric(job.id);        // e.g., 19 (number), not "19"
+        const body = { current_value: asNumber(job.next) };
+        return updateOtherAsset(oid, body);
       }
     };
 
     const maxRetries = 2;
     for (let t = 0; t <= maxRetries; t++) {
       try { await attempt(); return; }
-      catch (e) {
-        if (t === maxRetries) throw e;
-        await new Promise(res => setTimeout(res, 300 * (t + 1)));
-      }
+      catch (e) { if (t === maxRetries) throw e; await new Promise(res => setTimeout(res, 300 * (t + 1))); }
     }
   };
+
+
+
+
   const collectChangesFrom = (sourceRows) => {
     return sourceRows
       .map(r => {

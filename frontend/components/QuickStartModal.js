@@ -54,6 +54,7 @@ import {
     Repeat
 } from 'lucide-react';
 import { fetchWithAuth } from '@/utils/api';
+import * as XLSX from 'xlsx';
 import { popularBrokerages } from '@/utils/constants';
 import ReactDOM from 'react-dom';
 import { useAccounts } from '@/store/hooks/useAccounts';
@@ -634,30 +635,123 @@ const QuickStartModal = ({ isOpen, onClose }) => {
         }
     }, []);
 
-    const handleFileSelect = (file) => {
-        if (file.type === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' || 
-            file.type === 'application/vnd.ms-excel') {
-            setUploadedFile(file);
-            simulateValidation();
-        } else {
-            alert('Please upload an Excel file (.xlsx or .xls)');
-        }
+    // --- Excel → UI staging (ACCOUNTS ONLY for Step 1) ---
+    const REQUIRED_ACCOUNT_HEADERS = ['Account Name', 'Institution', 'Account Category', 'Account Type'];
+
+    const readFileAsArrayBuffer = (file) =>
+    new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = (e) => resolve(e.target.result);
+        reader.onerror = reject;
+        reader.readAsArrayBuffer(file);
+    });
+
+    // lenient header matcher: case/space-insensitive
+    const normalizeHeader = (h) => String(h || '').trim().toLowerCase().replace(/\s+/g, ' ');
+
+    const parseAccountsExcel = async (file) => {
+    const buf = await readFileAsArrayBuffer(file);
+    const wb = XLSX.read(buf, { type: 'array' });
+    const sheetName = wb.SheetNames.find(n => normalizeHeader(n) === 'accounts') || wb.SheetNames[0];
+    const sheet = wb.Sheets[sheetName];
+    const rows = XLSX.utils.sheet_to_json(sheet, { defval: '' });
+
+    if (!rows.length) return [];
+
+    // Build a case-insensitive header map using the first row's keys
+    const headerKeys = Object.keys(rows[0]);
+    const headerMap = {};
+    for (const k of headerKeys) headerMap[normalizeHeader(k)] = k;
+
+    // Verify required headers exist (leniently)
+    const missing = REQUIRED_ACCOUNT_HEADERS.filter(req => !(normalizeHeader(req) in headerMap));
+    if (missing.length) {
+        throw new Error(`Missing required column(s): ${missing.join(', ')}`);
+    }
+
+    const mapVal = (row, label) => String(row[headerMap[normalizeHeader(label)]] ?? '').trim();
+
+    // Build UI-shape accounts array your table already expects
+    const parsed = rows
+        .map((r) => {
+        const accountName = mapVal(r, 'Account Name');
+        const institution = mapVal(r, 'Institution');
+        const accountCategory = mapVal(r, 'Account Category'); // expect values like "brokerage", "retirement", etc. (or labels)
+        const accountType = mapVal(r, 'Account Type');         // "Individual", "Roth IRA", etc.
+        const hasAnyValue = [accountName, institution, accountCategory, accountType]
+            .some(v => v && v.length > 0);
+
+        if (!hasAnyValue) return null; // skip fully empty rows
+
+        return {
+            tempId: Date.now() + Math.random(),
+            accountName,
+            institution,
+            accountCategory,
+            accountType,
+            isNew: true,
+        };
+        })
+        .filter(Boolean);
+
+    // Optional: simple category normalization if user typed labels that match your UI ids
+    // If you strictly need id values (brokerage/retirement/cash/cryptocurrency/metals),
+    // we can translate labels to ids here using ACCOUNT_CATEGORIES.
+    const categoryNames = new Map(ACCOUNT_CATEGORIES.map(c => [c.name.toLowerCase(), c.id]));
+    parsed.forEach(a => {
+        const raw = String(a.accountCategory || '');
+        const lowered = raw.toLowerCase();
+        if (categoryNames.has(lowered)) a.accountCategory = categoryNames.get(lowered);
+        // leave as-is if already id-like
+    });
+
+    return parsed;
     };
 
-    const simulateValidation = () => {
+    const handleFileSelect = async (file) => {
+    const allowedTypes = [
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'application/vnd.ms-excel',
+        'text/csv',
+        'application/vnd.ms-excel.sheet.macroEnabled.12'
+    ];
+    if (!allowedTypes.includes(file.type) && !file.name.match(/\.(xlsx|xls|csv)$/i)) {
+        alert('Please upload an Excel file (.xlsx/.xls) or CSV');
+        return;
+    }
+
+    try {
+        setUploadedFile(file);
         setValidationStatus('validating');
-        let progress = 0;
-        const interval = setInterval(() => {
-            progress += 10;
-            setUploadProgress(progress);
-            if (progress >= 100) {
-                clearInterval(interval);
-                setTimeout(() => {
-                    setValidationStatus('valid');
-                }, 500);
-            }
-        }, 200);
+        setUploadProgress(10);
+
+        // Parse → stage into UI state
+        const parsedAccounts = await parseAccountsExcel(file);
+
+        // Fake a gentle progress animation while parsing
+        setUploadProgress(60);
+
+        if (!parsedAccounts.length) {
+        setValidationStatus(null);
+        setUploadProgress(0);
+        alert('No rows found. Make sure you filled in the "Accounts" sheet and saved the file.');
+        return;
+        }
+
+        // Drop parsed rows straight into your existing UI state
+        setAccounts(parsedAccounts);
+
+        // Finish progress & mark as valid
+        setUploadProgress(100);
+        setTimeout(() => setValidationStatus('valid'), 300);
+    } catch (err) {
+        console.error('Excel parse error:', err);
+        setValidationStatus(null);
+        setUploadProgress(0);
+        alert(`Failed to read file: ${err.message || err.toString()}`);
+    }
     };
+
 
 
 
@@ -2024,13 +2118,13 @@ const QuickStartModal = ({ isOpen, onClose }) => {
                onDragLeave={handleDragLeave}
                onDrop={handleDrop}
            >
-               <input
-                   ref={fileInputRef}
-                   type="file"
-                   accept=".xlsx,.xls"
-                   onChange={(e) => handleFileSelect(e.target.files[0])}
-                   className="hidden"
-               />
+                <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept=".xlsx,.xls,.csv"
+                    onChange={(e) => handleFileSelect(e.target.files[0])}
+                    className="hidden"
+                />
 
                {!uploadedFile ? (
                    <>
@@ -2046,7 +2140,7 @@ const QuickStartModal = ({ isOpen, onClose }) => {
                            <FolderOpen className="w-4 h-4 mr-2 text-gray-500 group-hover:text-gray-700" />
                            Browse Files
                        </button>
-                       <p className="text-xs text-gray-500 mt-4">Supported formats: .xlsx, .xls</p>
+                       <p className="text-xs text-gray-500 mt-4">Supported formats: .xlsx, .xls, .csv</p>
                    </>
                ) : (
                    <div className="space-y-4">
@@ -2072,17 +2166,24 @@ const QuickStartModal = ({ isOpen, onClose }) => {
                                </div>
                            </div>
                        )}
-                       {validationStatus === 'valid' && (
-                          <div className="space-y-3">
-                              <div className="flex items-center justify-center text-green-600">
-                                  <CheckCircle className="w-5 h-5 mr-2" />
-                                  <span className="font-medium">File validated successfully!</span>
-                              </div>
-                              <button className="w-full px-4 py-2 bg-gradient-to-r from-green-600 to-green-700 text-white font-medium rounded-lg hover:from-green-700 hover:to-green-800 transition-all duration-200 transform hover:scale-[1.02]">
-                                  Import Data
-                              </button>
-                          </div>
-                      )}
+                        {validationStatus === 'valid' && (
+                        <div className="space-y-3">
+                            <div className="flex items-center justify-center text-green-600">
+                            <CheckCircle className="w-5 h-5 mr-2" />
+                            <span className="font-medium">File validated successfully!</span>
+                            </div>
+                            <button
+                            onClick={() => {
+                                // For Step 1 (Accounts): jump straight into the accounts UI with staged rows
+                                setImportMethod('ui');
+                                setActiveTab('accounts');
+                            }}
+                            className="w-full px-4 py-2 bg-gradient-to-r from-green-600 to-green-700 text-white font-medium rounded-lg hover:from-green-700 hover:to-green-800 transition-all duration-200 transform hover:scale-[1.02]"
+                            >
+                            Review & Add Accounts
+                            </button>
+                        </div>
+                        )}
                       
                       <button
                           onClick={() => {
