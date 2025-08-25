@@ -36,20 +36,45 @@ const isSecurityish = /(stock|equity|etf|fund|mutual|option|bond|crypto|security
 const isCashLikeWord = /(cash|checking|savings|mm|money\s?market|hysa|cd|certificate|sweep|settlement|brokerage\s?cash)/i;
 const isLiabilityish = /(loan|mortgage|credit|debt|liab|card|payable|auto|student|heloc|loc)/i;
 
-// UTC → safe Date helpers
-const ensureUtcZ = (s) => (s && !/Z$/i.test(s) ? `${s}Z` : s);
+// ── Timestamp helpers (robust to: space vs T, extra microseconds, missing Z, epoch sec/ms) ──
+const parseUTC = (ts) => {
+  if (!ts) return null;
+  if (ts instanceof Date) return isNaN(ts.getTime()) ? null : ts;
+
+  // numbers: epoch seconds or ms
+  if (typeof ts === "number") {
+    const ms = ts > 1e12 ? ts : ts * 1000;
+    const d = new Date(ms);
+    return isNaN(d.getTime()) ? null : d;
+  }
+
+  let s = String(ts).trim();
+  if (!s) return null;
+
+  // allow "YYYY-MM-DD HH:mm:ss(.ffffff)" → "YYYY-MM-DDTHH:mm:ss(.fff)"
+  s = s.replace(" ", "T").replace(/(\.\d{3})\d+/, "$1"); // strip microseconds > 3
+
+  // add Z if no timezone indicated
+  if (!/[zZ]|[+\-]\d{2}:\d{2}$/.test(s)) s += "Z";
+
+  const d = new Date(s);
+  return isNaN(d.getTime()) ? null : d;
+};
+
+const toIsoAttr = (ts) => {
+  const d = parseUTC(ts);
+  return d ? d.toISOString() : undefined;
+};
 
 const formatLocalDateTime = (ts) => {
-  if (!ts) return "—";
-  const d = new Date(ensureUtcZ(ts));
-  return d.toLocaleString(undefined, { hour12: true, timeZoneName: "short" });
+  const d = parseUTC(ts);
+  return d ? d.toLocaleString(undefined, { hour12: true, timeZoneName: "short" }) : "—";
 };
 
 const formatAge = (ts) => {
-  if (!ts) return "—";
-  const t = new Date(ensureUtcZ(ts)).getTime();
-  if (Number.isNaN(t)) return "—";
-  const diff = Date.now() - t;
+  const d = parseUTC(ts);
+  if (!d) return "—";
+  const diff = Date.now() - d.getTime();
   if (diff < 0) return "0m";
   const mins = Math.floor(diff / 60000);
   if (mins < 60) return `${mins}m`;
@@ -58,6 +83,7 @@ const formatAge = (ts) => {
   const days = Math.floor(hrs / 24);
   return `${days}d`;
 };
+
 
 const isCashLike = (pos) => {
   const t = String(pos.type || "").toLowerCase();
@@ -291,11 +317,7 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
       const institution = normalizeInstitution(p.institution, accountId, type);
       const identifier = p.identifier ?? p.symbol ?? "";
       const inv_account_name = p.inv_account_name ?? p.accountName ?? p.account_name ?? "";
-      const last_update =
-          p.balance_last_updated ??
-          p.last_update ??
-          p.balanceLastUpdated ??
-          null;
+      const last_update = p.balance_last_updated ?? p.last_update ?? p.balanceLastUpdated ?? null;
       return { id, accountId, institution, type, name, currentValue, identifier, inv_account_name, last_update };
     });
   }, [rawPositions, normalizeInstitution]);
@@ -318,12 +340,7 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
       const inst = normalizeInstitution(L.institution, accountId, t);
 
       const last_update =
-        L.balance_last_updated ??
-        details.balance_last_updated ??
-        L.last_update ??
-        L.updated_at ??
-        null;
-
+         L.balance_last_updated ?? details.balance_last_updated ?? L.last_update ?? L.updated_at ?? null;
       return {
         id,
         institution: inst || OTHER_INST,
@@ -921,17 +938,18 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
                           <span className={`text-[10px] px-1.5 py-0.5 rounded border ${kindBadge}`}>
                             {r._kind === "asset" ? "Asset" : r._kind === "liability" ? "Liability" : "Other"}
                           </span>
-                          <td className="px-3 py-2 text-sm text-zinc-700 dark:text-zinc-300">
-                              {r.last_update ? (
-                                <time dateTime={ensureUtcZ(r.last_update)} title={`${r.last_update} (UTC)`}>
-                                  {formatLocalDateTime(r.last_update)}
-                                </time>
-                              ) : "—"}
-                            </td>
-                            <td className="px-3 py-2 text-sm text-zinc-500 dark:text-zinc-400">
-                              {formatAge(r.last_update)}
-                            </td>
                         </div>
+                      </td>
+                      <td className="px-3 py-2 text-sm text-zinc-700 dark:text-zinc-300">
+                        {r.last_update ? (
+                          <time dateTime={toIsoAttr(r.last_update)} title={`${r.last_update} (UTC)`}>
+                            {formatLocalDateTime(r.last_update)}
+                          </time>
+                        ) : "—"}
+                      </td>
+
+                      <td className="px-3 py-2 text-sm text-zinc-500 dark:text-zinc-400">
+                        {formatAge(r.last_update)}
                       </td>
                       <td className="px-3 py-2 text-right text-zinc-900 dark:text-zinc-100">{fmtUSD(r.nest, !showValues)}</td>
                       <td className="px-3 py-2 text-center">
