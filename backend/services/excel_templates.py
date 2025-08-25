@@ -7,6 +7,7 @@ from openpyxl.styles import PatternFill, Font, Alignment, Border, Side
 from openpyxl.utils import get_column_letter
 from openpyxl.worksheet.worksheet import Worksheet
 from openpyxl.worksheet.datavalidation import DataValidation
+from openpyxl.workbook.defined_name import DefinedName
 
 # Ensure these exist in backend.utils.constants
 from backend.utils.constants import (
@@ -35,7 +36,11 @@ class ExcelTemplateService:
         )
 
         self.lookup_ranges = {"institutions": None, "categories": None, "types_flat": None}
-
+        self.named_ranges = {
+            "institutions": "InstitutionsList",
+            "categories": "AccountCategoriesList",
+            "types_flat": "AccountTypesList",
+        }
     # =========================
     # PUBLIC: ACCOUNTS TEMPLATE
     # =========================
@@ -73,8 +78,9 @@ class ExcelTemplateService:
             "1. Go to the 'Accounts' tab",
             "2. Fill in your account information (yellow cells are required)",
             "3. Use the dropdown menus for Institution, Account Type, and Category",
-            "4. Save this file",
-            "5. Upload to NestEgg using the 'Import Accounts' feature",
+            "4. Delete the example rows on the 'Accounts' sheet (rows 2–5) before importing",
+            "5. Save this file",
+            "6. Upload to NestEgg using the 'Import Accounts' feature",
             "",
             "Important Notes:",
             "• Required fields are highlighted in YELLOW",
@@ -139,9 +145,17 @@ class ExcelTemplateService:
         for col, w in widths.items():
             ws.column_dimensions[col].width = w
 
+        note_row = 6
+        ws.merge_cells(f"A{note_row}:E{note_row}")
+        ws[f"A{note_row}"] = "Important: Delete the example rows (2–5) before uploading."
+        ws[f"A{note_row}"].font = Font(bold=True, color="9C6500")
+        ws[f"A{note_row}"].fill = PatternFill(start_color="FFF2CC", end_color="FFF2CC", fill_type="solid")
+        ws[f"A{note_row}"].alignment = Alignment(horizontal="center")
+
         ws.freeze_panes = "A2"
 
         return ws
+
 
     def _create_validation_lists_sheet(self, wb: Workbook) -> Worksheet:
         ws = wb.create_sheet("Lookups", 2)
@@ -152,7 +166,9 @@ class ExcelTemplateService:
             ws.cell(row=i, column=1, value=inst).border = self.border
         ws.column_dimensions["A"].width = 32
         if INSTITUTION_LIST:
-            self.lookup_ranges["institutions"] = f"=Lookups!$A$2:$A${1 + len(INSTITUTION_LIST)}"
+            inst_addr = f"Lookups!$A$2:$A${1 + len(INSTITUTION_LIST)}"
+            self.lookup_ranges["institutions"] = f"={inst_addr}"
+            wb.defined_names.append(DefinedName(name=self.named_ranges["institutions"], attr_text=inst_addr))
 
         ws["C1"] = "Account Categories"
         ws["C1"].font = self.header_font
@@ -160,7 +176,9 @@ class ExcelTemplateService:
             ws.cell(row=i, column=3, value=cat).border = self.border
         ws.column_dimensions["C"].width = 22
         if ACCOUNT_CATEGORIES:
-            self.lookup_ranges["categories"] = f"=Lookups!$C$2:$C${1 + len(ACCOUNT_CATEGORIES)}"
+            cat_addr = f"Lookups!$C$2:$C${1 + len(ACCOUNT_CATEGORIES)}"
+            self.lookup_ranges["categories"] = f"={cat_addr}"
+            wb.defined_names.append(DefinedName(name=self.named_ranges["categories"], attr_text=cat_addr))
 
         ws["E1"] = "Account Types (All)"
         ws["E1"].font = self.header_font
@@ -175,7 +193,10 @@ class ExcelTemplateService:
             ws.cell(row=i, column=5, value=t).border = self.border
         ws.column_dimensions["E"].width = 26
         if flat_types:
-            self.lookup_ranges["types_flat"] = f"=Lookups!$E$2:$E${1 + len(flat_types)}"
+            types_addr = f"Lookups!$E$2:$E${1 + len(flat_types)}"
+            self.lookup_ranges["types_flat"] = f"={types_addr}"
+            wb.defined_names.append(DefinedName(name=self.named_ranges["types_flat"], attr_text=types_addr))
+
 
         return ws
 
@@ -186,7 +207,7 @@ class ExcelTemplateService:
 
         dv = DataValidation(
             type="list",
-            formula1=rng,
+            formula1=f"={self.named_ranges['institutions']}",
             allow_blank=False,   # must pick from dropdown
             showDropDown=True,
             errorTitle="Invalid Institution",
@@ -201,7 +222,7 @@ class ExcelTemplateService:
             return
         dv = DataValidation(
             type="list",
-            formula1=rng,
+            formula1=f"={self.named_ranges['categories']}",
             allow_blank=False,
             showDropDown=True,
             errorTitle="Invalid Category",
@@ -216,7 +237,7 @@ class ExcelTemplateService:
             return
         dv = DataValidation(
             type="list",
-            formula1=rng,
+            formula1=f"={self.named_ranges['types_flat']}",
             allow_blank=False,
             showDropDown=True,
             errorTitle="Invalid Account Type",
@@ -271,8 +292,46 @@ class ExcelTemplateService:
         wb = Workbook()
         wb.remove(wb.active)
 
+        # Instructions - Positions
+        inst = wb.create_sheet("Instructions - Positions", 0)
+        inst.sheet_properties.tabColor = "9B59B6"
+        inst.merge_cells("A1:F1")
+        inst["A1"] = "NestEgg Positions Import Instructions"
+        inst["A1"].font = Font(bold=True, size=16, color="2C3E50")
+        inst["A1"].alignment = Alignment(horizontal="center")
+
+        pos_lines = [
+            "",
+            "Step-by-Step Guide:",
+            "1. Go to the 'Positions' tab",
+            "2. Choose your Account from the dropdown",
+            "3. Select Asset Type (cash, crypto, metal)",
+            "4. Fill Identifier/Ticker, Quantity, Purchase Price, and Purchase Date",
+            "5. Delete the example rows before importing",
+            "",
+            "Important Notes:",
+            "• Accounts must already exist (import accounts first)",
+            "• Required fields are highlighted in YELLOW",
+            "• Purchase Date format: YYYY-MM-DD",
+            "",
+            "Field Descriptions:",
+            "• Account: The account that will hold this position",
+            "• Asset Type: cash, crypto, or metal",
+            "• Identifier / Ticker: e.g., BTC, Gold; leave empty for cash",
+            "• Quantity: shares/units/ounces/amount",
+            "• Purchase Price per Share: unit cost paid",
+            "• Purchase Date: date of acquisition",
+        ]
+        r = 3
+        for t in pos_lines:
+            inst[f"A{r}"] = t
+            inst[f"A{r}"].font = Font(bold=True, size=12, color="2C3E50") if t.endswith(":") else Font(size=11)
+            r += 1
+        inst.column_dimensions["A"].width = 100
+
         # Lookups sheet
-        lookups = wb.create_sheet("Lookups", 0)
+        lookups = wb.create_sheet("Lookups", 1)
+
         lookups["A1"] = "Account Name"
         for i, acc in enumerate(accounts, start=2):
             lookups.cell(row=i, column=1, value=acc["account_name"]).border = self.border

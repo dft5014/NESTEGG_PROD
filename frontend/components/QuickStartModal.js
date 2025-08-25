@@ -634,8 +634,10 @@ const QuickStartModal = ({ isOpen, onClose }) => {
         }
     }, []);
 
-    // --- Excel → UI staging (ACCOUNTS ONLY for Step 1) ---
+    // --- Excel → UI staging (auto-detect Accounts vs Positions) ---
     const REQUIRED_ACCOUNT_HEADERS = ['Account Name', 'Institution', 'Account Category', 'Account Type'];
+    const REQUIRED_POSITION_HEADERS = ['Account', 'Asset Type', 'Identifier / Ticker', 'Quantity', 'Purchase Price per Share', 'Purchase Date'];
+
 
     const readFileAsArrayBuffer = (file) =>
     new Promise((resolve, reject) => {
@@ -708,49 +710,92 @@ const QuickStartModal = ({ isOpen, onClose }) => {
     return parsed;
     };
 
-    const handleFileSelect = async (file) => {
-    const allowedTypes = [
-        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-        'application/vnd.ms-excel',
-        'text/csv',
-        'application/vnd.ms-excel.sheet.macroEnabled.12'
-    ];
-    if (!allowedTypes.includes(file.type) && !file.name.match(/\.(xlsx|xls|csv)$/i)) {
-        alert('Please upload an Excel file (.xlsx/.xls) or CSV');
-        return;
-    }
+    // Detect which template (by sheet name or headers)
+    const detectTemplateType = async (file) => {
+        const buf = await readFileAsArrayBuffer(file);
+        const XLSX = await import('xlsx');
+        const wb = XLSX.read(buf, { type: 'array' });
 
-    try {
-        setUploadedFile(file);
-        setValidationStatus('validating');
-        setUploadProgress(10);
+        // Prefer sheet name
+        const sheetNamesNorm = wb.SheetNames.map(n => (n || '').toLowerCase());
+        if (sheetNamesNorm.some(n => n.includes('positions'))) return { kind: 'positions', wb };
+        if (sheetNamesNorm.some(n => n.includes('accounts'))) return { kind: 'accounts', wb };
 
-        // Parse → stage into UI state
-        const parsedAccounts = await parseAccountsExcel(file);
+        // Fallback: header sniffing on first sheet
+        const first = wb.Sheets[wb.SheetNames[0]];
+        const rows = XLSX.utils.sheet_to_json(first, { defval: '' });
+        if (!rows.length) return { kind: 'unknown', wb };
+        const normalizeHeader = (h) => String(h || '').trim().toLowerCase().replace(/\s+/g, ' ');
+        const keys = Object.keys(rows[0]).map(k => normalizeHeader(k));
+        const hasAll = (req) => req.every(r => keys.includes(normalizeHeader(r)));
+        if (hasAll(REQUIRED_POSITION_HEADERS)) return { kind: 'positions', wb };
+        if (hasAll(REQUIRED_ACCOUNT_HEADERS)) return { kind: 'accounts', wb };
+        return { kind: 'unknown', wb };
+        };
 
-        // Fake a gentle progress animation while parsing
-        setUploadProgress(60);
+    const handleFileSelect = async (file) => 
 
-        if (!parsedAccounts.length) {
-        setValidationStatus(null);
-        setUploadProgress(0);
-        alert('No rows found. Make sure you filled in the "Accounts" sheet and saved the file.');
-        return;
+    {
+        const allowedTypes = [
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'application/vnd.ms-excel',
+            'text/csv',
+            'application/vnd.ms-excel.sheet.macroEnabled.12'
+        ];
+        if (!allowedTypes.includes(file.type) && !file.name.match(/\.(xlsx|xls|csv)$/i)) {
+            alert('Please upload an Excel file (.xlsx/.xls) or CSV');
+            return;
         }
 
-        // Drop parsed rows straight into your existing UI state
-        setAccounts(parsedAccounts);
+        try {
+            setUploadedFile(file);
+            setValidationStatus('validating');
+            setUploadProgress(10);
 
-        // Finish progress & mark as valid
-        setUploadProgress(100);
-        setTimeout(() => setValidationStatus('valid'), 300);
-    } catch (err) {
-        console.error('Excel parse error:', err);
-        setValidationStatus(null);
-        setUploadProgress(0);
-        alert(`Failed to read file: ${err.message || err.toString()}`);
-    }
-    };
+            // Detect which template was uploaded
+            const { kind } = await detectTemplateType(file);
+
+            if (kind === 'positions') {
+            // Simplest UX: route directly to Positions Quick Add flow (no separate parser needed)
+            setUploadProgress(60);
+            setValidationStatus('valid');
+            setUploadProgress(100);
+            setTimeout(() => {
+                setActiveTab('positions');
+                setImportMethod('ui');
+            }, 250);
+            return;
+            }
+
+            if (kind === 'accounts') {
+            // Parse Accounts as before
+            const parsedAccounts = await parseAccountsExcel(file);
+            setUploadProgress(60);
+
+            if (!parsedAccounts.length) {
+                setValidationStatus(null);
+                setUploadProgress(0);
+                alert('No rows found. Make sure you filled in the "Accounts" sheet and saved the file.');
+                return;
+            }
+
+            setAccounts(parsedAccounts);
+            setUploadProgress(100);
+            setTimeout(() => setValidationStatus('valid'), 300);
+            return;
+            }
+
+            // Unknown/unsupported
+            setValidationStatus(null);
+            setUploadProgress(0);
+            alert('Could not detect template type. Please use the NestEgg Accounts or Positions template.');
+        } catch (err) {
+            console.error('Excel parse error:', err);
+            setValidationStatus(null);
+            setUploadProgress(0);
+            alert(`Failed to read file: ${err.message || err.toString()}`);
+        }
+        }
 
 
 
