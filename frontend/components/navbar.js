@@ -367,6 +367,9 @@ const Navbar = () => {
   const { logout, user } = useContext(AuthContext);
   const router = useRouter();
 
+
+  const { summary: navPortfolioSummary } = usePortfolioSummary();
+
   // Toggle scrolled with rAF throttling
   useRafScroll(() => {
     setScrolled(window.scrollY > 10);
@@ -441,7 +444,7 @@ const Navbar = () => {
               <div className="flex items-center gap-3">
                 <Link href="/" aria-label="Home">
                   <motion.div whileHover={{ scale: 1.1, rotate: -2 }}>
-                    <EggMascot variant="navbar" portfolioValue={portfolioSummary?.netWorth ?? 0} userTenureDays={user?.tenure_days ?? 0} />
+                    <EggMascot variant="navbar" portfolioValue={navPortfolioSummary?.netWorth ?? 0} userTenureDays={user?.tenure_days ?? 0} />
                   </motion.div>
                 </Link>
               </div>

@@ -6,6 +6,7 @@ import { useRouter } from 'next/router';
 import { useDataStore } from '@/store/DataStore';
 import { useAccounts } from '@/store/hooks/useAccounts';
 import { useDetailedPositions } from '@/store/hooks/useDetailedPositions';
+import { usePortfolioSummary } from '@/store/hooks/usePortfolioSummary';
 
 
 import { motion, AnimatePresence, useAnimation } from 'framer-motion';
