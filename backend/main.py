@@ -5596,7 +5596,7 @@ async def add_other_asset(
 # Update an other asset
 @app.put("/other-assets/{asset_id}")
 async def update_other_asset(
-    asset_id: str, 
+    asset_id: int, 
     asset: OtherAssetUpdate, 
     current_user: dict = Depends(get_current_user)
 ):
@@ -5675,7 +5675,7 @@ async def update_other_asset(
 # Update just the value of an other asset (simplified workflow)
 @app.put("/other-assets/{asset_id}/value")
 async def update_other_asset_value(
-    asset_id: str,
+    asset_id: int,
     value_update: dict,  # {"current_value": 750000}
     current_user: dict = Depends(get_current_user)
 ):
@@ -5766,7 +5766,7 @@ async def delete_other_asset(
         update_query = """
         UPDATE other_assets 
         SET is_active = FALSE, updated_at = :updated_at
-        WHERE id = :asset_id
+        WHERE id = :asset_id 
         """
         
         await database.execute(
