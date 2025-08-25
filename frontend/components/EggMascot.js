@@ -302,8 +302,8 @@ const EggMascot = ({
               </radialGradient>
               
               <radialGradient id="shadowGradient">
-                <stop offset="0%" stopColor="rgba(0,0,0,0.3)" />
-                <stop offset="100%" stopColor="rgba(0,0,0,0)" />
+                <stop offset="0%" stopColor="#000000" stopOpacity="0.3" />
+                <stop offset="100%" stopColor="#000000" stopOpacity="0" />
               </radialGradient>
 
               <filter id="softGlow">
@@ -386,25 +386,31 @@ const EggMascot = ({
                   <path d={getEyePath(true)} stroke="#1A202C" strokeWidth="3" fill="none" />
                 ) : (
                   <g>
-                    <circle
-                      cx={safeLeftEyeX}
-                      cy={safeLeftEyeY}
-                      r={mood === 'curious' ? currentTraits.eyeSize * 1.2 : currentTraits.eyeSize}
-                      fill="white"
-                      stroke="#1A202C"
-                      strokeWidth="2"
-                    />
-                    <motion.circle
-                      cx={safeLeftEyeX}
-                      cy={safeLeftEyeY}
-                      r={currentTraits.pupilSize}
-                      fill="#1A202C"
-                      animate={{
-                        cx: mood === 'curious' ? [safeLeftEyeX, safeLeftEyeX + 2, safeLeftEyeX] : safeLeftEyeX,
-                        cy: mood === 'curious' ? [safeLeftEyeY, safeLeftEyeY - 2, safeLeftEyeY] : safeLeftEyeY
-                      }}
-                      transition={{ duration: 2, repeat: Infinity }}
-                    />
+                          {/* Left eye (transform-based pupil animation) */}
+                          <circle
+                            cx={safeLeftEyeX}
+                            cy={safeLeftEyeY}
+                            r={Number(mood === 'curious' ? (currentTraits.eyeSize * 1.2) : currentTraits.eyeSize) || 10}
+                            fill="white"
+                            stroke="#1A202C"
+                            strokeWidth="2"
+                          />
+                          <motion.g
+                            initial={{ x: 0, y: 0 }}
+                            animate={{
+                              x: mood === 'curious' ? [0, 2, 0] : 0,
+                              y: mood === 'curious' ? [0, -2, 0] : 0,
+                            }}
+                            transition={{ duration: 2, repeat: Infinity }}
+                          >
+                            <circle
+                              cx={safeLeftEyeX}
+                              cy={safeLeftEyeY}
+                              r={Number(currentTraits.pupilSize) || 6}
+                              fill="#1A202C"
+                          />
+                          </motion.g>
+
                     {/* Eye sparkles - with safe rendering */}
                     {currentTraits.eyeSparkles > 0 && [...Array(currentTraits.eyeSparkles)].map((_, i) => (
                       <circle
@@ -424,25 +430,31 @@ const EggMascot = ({
                   <path d={getEyePath(false)} stroke="#1A202C" strokeWidth="3" fill="none" />
                 ) : (
                   <g>
+                  {/* Right eye (transform-based pupil animation) */}
+                  <circle
+                    cx={safeRightEyeX}
+                    cy={safeRightEyeY}
+                    r={Number(mood === 'curious' ? (currentTraits.eyeSize * 1.2) : currentTraits.eyeSize) || 10}
+                    fill="white"
+                    stroke="#1A202C"
+                    strokeWidth="2"
+                  />
+                  <motion.g
+                    initial={{ x: 0, y: 0 }}
+                    animate={{
+                      x: mood === 'curious' ? [0, -2, 0] : 0,
+                      y: mood === 'curious' ? [0, -2, 0] : 0,
+                    }}
+                    transition={{ duration: 2, repeat: Infinity }}
+                  >
                     <circle
                       cx={safeRightEyeX}
                       cy={safeRightEyeY}
-                      r={mood === 'curious' ? currentTraits.eyeSize * 1.2 : currentTraits.eyeSize}
-                      fill="white"
-                      stroke="#1A202C"
-                      strokeWidth="2"
-                    />
-                    <motion.circle
-                      cx={safeRightEyeX}
-                      cy={safeRightEyeY}
-                      r={currentTraits.pupilSize}
+                      r={Number(currentTraits.pupilSize) || 6}
                       fill="#1A202C"
-                      animate={{
-                        cx: mood === 'curious' ? [safeRightEyeX, safeRightEyeX - 2, safeRightEyeX] : safeRightEyeX,
-                        cy: mood === 'curious' ? [safeRightEyeY, safeRightEyeY - 2, safeRightEyeY] : safeRightEyeY
-                      }}
-                      transition={{ duration: 2, repeat: Infinity }}
-                    />
+                  />
+                  </motion.g>
+
                     {/* Eye sparkles - with safe rendering */}
                     {currentTraits.eyeSparkles > 0 && [...Array(currentTraits.eyeSparkles)].map((_, i) => (
                       <circle
@@ -515,14 +527,14 @@ const EggMascot = ({
               <circle
                 cx="25"
                 cy="65"
-                r={currentTraits.cheekSize}
+                r={Number(currentTraits.cheekSize) || 4}
                 fill="#FFB6C1"
                 opacity="0.6"
               />
               <circle
                 cx="95"
                 cy="65"
-                r={currentTraits.cheekSize}
+                r={Number(currentTraits.cheekSize) || 4}
                 fill="#FFB6C1"
                 opacity="0.6"
               />

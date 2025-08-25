@@ -618,18 +618,30 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
   });
 
   const runOne = async (job) => {
+    const asId = (v) => {
+      if (typeof v === "number") return v;
+      const s = String(v ?? "");
+      // If it’s a pure integer string, cast; otherwise leave as-is (e.g., UUID).
+      return /^\s*-?\d+\s*$/.test(s) ? parseInt(s, 10) : s;
+    };
+    const asNum = (v) => {
+      const n = typeof v === "number" ? v : Number(String(v).replace(/[^\d.-]/g, ""));
+      return Number.isFinite(n) ? n : 0;
+    };
+
     const attempt = async () => {
       if (job._kind === "asset") {
-        // cash-only path
-        return updateCashPosition(job.id, { amount: job.next });
+        return updateCashPosition(asId(job.id), { amount: asNum(job.next) });
       }
       if (job._kind === "liability") {
-        return updateLiability(job.id, liabilityPayloadFor(job));
+        return updateLiability(asId(job.id), { current_balance: asNum(job.next) });
       }
       if (job._kind === "other") {
-        return updateOtherAsset(Number(job.id), { current_value: job.next });
+        const oid = asId(job.id); // will be a number for "19"
+        return updateOtherAsset(oid, { id: oid, current_value: asNum(job.next) });
       }
     };
+
     const maxRetries = 2;
     for (let t = 0; t <= maxRetries; t++) {
       try { await attempt(); return; }
@@ -639,7 +651,6 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
       }
     }
   };
-
   const collectChangesFrom = (sourceRows) => {
     return sourceRows
       .map(r => {
