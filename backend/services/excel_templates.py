@@ -259,46 +259,63 @@ class ExcelTemplateService:
     # ==========================
     async def create_positions_template(self, user_id: Any, database) -> io.BytesIO:
         query = """
-            SELECT id, account_name, type, account_category
+            SELECT id, account_name
             FROM accounts
             WHERE user_id = :user_id
             ORDER BY account_name
         """
-        accounts: List[Dict[str, Any]] = await database.fetch_all(query=query, values={"user_id": user_id})
+        accounts = await database.fetch_all(query=query, values={"user_id": user_id})
         if not accounts:
             raise ValueError("No accounts found. Please create accounts before downloading positions template.")
 
         wb = Workbook()
         wb.remove(wb.active)
 
-        self._create_accounts_reference_sheet(wb, accounts)
+        # Lookups sheet
+        lookups = wb.create_sheet("Lookups", 0)
+        lookups["A1"] = "Account Name"
+        for i, acc in enumerate(accounts, start=2):
+            lookups.cell(row=i, column=1, value=acc["account_name"]).border = self.border
+        acc_range = f"=Lookups!$A$2:$A${1+len(accounts)}"
 
+        # Asset types
+        lookups["C1"] = "Asset Types"
+        for i, t in enumerate(["cash", "crypto", "metal"], start=2):
+            lookups.cell(row=i, column=3, value=t).border = self.border
+        type_range = "=Lookups!$C$2:$C$4"
+
+        # Positions sheet
         ws = wb.create_sheet("Positions", 1)
         ws.sheet_properties.tabColor = "4CAF50"
-
-        headers = [
-            "Operation", "Position ID", "Account ID", "Account Name",
-            "Asset Type", "Symbol", "Name", "Quantity", "Price",
-            "Cost Basis", "As Of Date (YYYY-MM-DD)", "Currency", "Notes",
-        ]
+        headers = ["Account", "Asset Type", "Identifier / Ticker", "Quantity", "Purchase Price per Share", "Purchase Date"]
         for c, h in enumerate(headers, start=1):
             cell = ws.cell(row=1, column=c, value=h)
             cell.font = self.header_font
             cell.fill = self.header_fill
             cell.alignment = Alignment(horizontal="center", vertical="center")
             cell.border = self.border
-            ws.column_dimensions[get_column_letter(c)].width = 18
+            ws.column_dimensions[get_column_letter(c)].width = 22
 
+        # Dropdowns
+        dv_acc = DataValidation(type="list", formula1=acc_range, allow_blank=False)
+        ws.add_data_validation(dv_acc)
+        dv_acc.add("A2:A5000")
+
+        dv_type = DataValidation(type="list", formula1=type_range, allow_blank=False)
+        ws.add_data_validation(dv_type)
+        dv_type.add("B2:B5000")
+
+        # Example rows
         examples = [
-            ["create", "", accounts[0]["id"], accounts[0]["account_name"], "security", "AAPL", "", 10, "", 1500, datetime.now().strftime("%Y-%m-%d"), "USD", ""],
-            ["update", "", accounts[0]["id"], accounts[0]["account_name"], "cash", "", "Checking Balance", "", "", 5000, datetime.now().strftime("%Y-%m-%d"), "USD", ""],
+            [accounts[0]["account_name"], "cash", "", "", "", ""],
+            [accounts[0]["account_name"], "crypto", "BTC", "0.5", "20000", "2024-01-01"],
+            [accounts[0]["account_name"], "metal", "Gold", "2", "1800", "2023-10-15"],
         ]
         for r_idx, row in enumerate(examples, start=2):
             for c_idx, val in enumerate(row, start=1):
-                cell = ws.cell(row=r_idx, column=c_idx, value=val)
-                cell.border = self.border
+                ws.cell(row=r_idx, column=c_idx, value=val).border = self.border
                 if r_idx < 6:
-                    cell.fill = self.sample_fill
+                    ws.cell(row=r_idx, column=c_idx).fill = self.sample_fill
 
         ws.freeze_panes = "A2"
 
@@ -306,6 +323,7 @@ class ExcelTemplateService:
         wb.save(output)
         output.seek(0)
         return output
+
 
     def _create_accounts_reference_sheet(self, wb: Workbook, accounts: List[Dict[str, Any]]) -> Worksheet:
         ws = wb.create_sheet("Your Accounts (Reference)", 0)
