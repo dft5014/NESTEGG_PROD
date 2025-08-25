@@ -2,13 +2,7 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import Head from 'next/head';
 import { useRouter } from 'next/router';
-// DataStore-powered (no direct API calls here)
-import { useDataStore } from '@/store/DataStore';
-import { useAccounts } from '@/store/hooks/useAccounts';
-import { useDetailedPositions } from '@/store/hooks/useDetailedPositions';
-import { useSnapshots } from '@/store/hooks/useSnapshots';
-
-
+import { fetchWithAuth } from '@/utils/api';
 import { motion, AnimatePresence, useAnimation } from 'framer-motion';
 import { 
   AreaChart, Area, BarChart, Bar, LineChart, Line, PieChart, Pie, Cell,
@@ -19,196 +13,49 @@ import {
 } from 'recharts';
 
 // Custom hooks for data management
-// DataStore-native loader that preserves the exact shape your UI expects
-// Custom hooks for data management
-// DataStore-powered loader that preserves the exact shape your UI expects
 const usePortfolioData = () => {
-  const { state, actions } = useDataStore();
-  
-  // Use all DataStore hooks
-  const { summary: portfolioSummary, loading: summaryLoading, error: summaryError, refresh: refreshSummary } = usePortfolioSummary();
-  const { accounts, loading: accountsLoading, refresh: refreshAccounts } = useAccounts();
-  const { positions: detailedPositions, loading: positionsLoading, refresh: refreshPositions } = useDetailedPositions();
-  const { 
-    snapshots: snapshotsData, 
-    snapshotsByDate, 
-    dates: snapshotDates,
-    isLoading: snapshotsLoading, 
-    refetch: refreshSnapshots 
-  } = useSnapshots();
-  
+  const [rawData, setRawData] = useState(null);
+  const [unifiedPositions, setUnifiedPositions] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [dataAge, setDataAge] = useState(null);
 
-  // Initial data load - only fetch if we don't have data
-  useEffect(() => {
-    if (!portfolioSummary && !summaryLoading) {
-      refreshSummary();
-    }
-    if (!accounts?.length && !accountsLoading) {
-      refreshAccounts();
-    }
-    if (!detailedPositions?.length && !positionsLoading) {
-      refreshPositions();
-    }
-    // Fetch historical snapshots for comparisons (365 days)
-    if (!snapshotsData && !snapshotsLoading) {
-      refreshSnapshots(365);
+  const fetchData = useCallback(async (days = 90) => {
+    setIsLoading(true);
+    setError(null);
+    
+    try {
+      const [snapResponse, unifiedResponse] = await Promise.all([
+        fetchWithAuth(`/portfolio/snapshots/raw?days=${days}`),
+        fetchWithAuth('/positions/unified')
+      ]);
+
+      if (!snapResponse.ok || !unifiedResponse.ok) {
+        throw new Error('Failed to fetch data');
+      }
+
+      const [snapData, unifiedData] = await Promise.all([
+        snapResponse.json(),
+        unifiedResponse.json()
+      ]);
+
+      setRawData(snapData);
+      setUnifiedPositions(unifiedData.positions || []);
+      setDataAge(new Date());
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setIsLoading(false);
     }
   }, []);
 
-  // Calculate data age from portfolio summary timestamp
+  // THIS IS THE FIX - Call fetchData when the component mounts
   useEffect(() => {
-    if (portfolioSummary?.timestamp) {
-      const now = new Date();
-      const dataTime = new Date(portfolioSummary.timestamp);
-      const ageInMinutes = Math.floor((now - dataTime) / 60000);
-      setDataAge(ageInMinutes);
-    }
-  }, [portfolioSummary?.timestamp]);
+    fetchData();
+  }, [fetchData]);
 
-  // Transform DataStore data to match expected shape for UI
-  const rawData = useMemo(() => {
-    if (!snapshotsByDate || !snapshotDates || snapshotDates.length === 0) return null;
-
-    // Build the structure the UI expects
-    const transformedSnapshots = {};
-    
-    // Process each date's snapshot data
-    Object.entries(snapshotsByDate).forEach(([date, dateData]) => {
-      transformedSnapshots[date] = {
-        snapshot_date: date,
-        total_value: dateData.totalValue || 0,
-        total_cost_basis: dateData.totalCostBasis || 0,
-        total_gain_loss: dateData.totalGainLoss || 0,
-        positions: {}
-      };
-
-      // Transform positions for this date
-      if (dateData.positions && Array.isArray(dateData.positions)) {
-        dateData.positions.forEach(pos => {
-          const posKey = pos.unified_id || pos.position_id || pos.identifier;
-          transformedSnapshots[date].positions[posKey] = {
-            position_id: pos.position_id,
-            unified_id: pos.unified_id || pos.position_id,
-            identifier: pos.identifier,
-            name: pos.name,
-            asset_type: pos.item_type || pos.asset_type,
-            quantity: parseFloat(pos.quantity || 0),
-            price: parseFloat(pos.price_per_unit || 0),
-            value: parseFloat(pos.current_value || 0),
-            cost_basis: parseFloat(pos.cost_basis || 0),
-            gain_loss: parseFloat(pos.gain_loss_amt || 0),
-            gain_loss_pct: parseFloat(pos.gain_loss_pct || 0),
-            account_id: pos.account_id,
-            account_name: pos.account_name,
-            institution: pos.institution,
-            sector: pos.sector
-          };
-        });
-      }
-    });
-
-    // Get unique positions and asset types
-    const allPositions = new Set();
-    const assetTypes = new Set();
-    
-    Object.values(transformedSnapshots).forEach(snapshot => {
-      Object.values(snapshot.positions || {}).forEach(pos => {
-        if (pos.identifier) allPositions.add(pos.identifier);
-        if (pos.asset_type) assetTypes.add(pos.asset_type);
-      });
-    });
-
-    return {
-      summary: {
-        dates: snapshotDates,
-        total_dates: snapshotDates.length,
-        unique_positions: allPositions.size,
-        asset_types: Array.from(assetTypes),
-        accounts: accounts.map(acc => ({
-          id: acc.id,
-          name: acc.name,
-          institution: acc.institution
-        })),
-        // Add portfolio summary data
-        latest_net_worth: portfolioSummary?.netWorth,
-        latest_total_assets: portfolioSummary?.totalAssets,
-        latest_total_liabilities: portfolioSummary?.totalLiabilities
-      },
-      snapshots_by_date: transformedSnapshots,
-      all_positions: Array.from(allPositions)
-    };
-  }, [snapshotsByDate, snapshotDates, accounts, portfolioSummary]);
-
-  // Transform detailed positions to unified positions format expected by UI
-  const unifiedPositions = useMemo(() => {
-    if (!detailedPositions || detailedPositions.length === 0) return [];
-
-    return detailedPositions.map(position => ({
-      // Core identifiers - map to what UI expects
-      position_id: position.itemId || position.id,
-      unified_id: position.unifiedId || position.id,
-      original_id: position.unifiedId || position.id,
-      identifier: position.identifier,
-      ticker: position.identifier, // UI uses 'ticker' in some places
-      name: position.name,
-      asset_type: position.assetType || 'unknown',
-      
-      // Values
-      quantity: position.quantity || 0,
-      price: position.currentPrice || 0,
-      current_price: position.currentPrice || 0,
-      value: position.currentValue || 0,
-      current_value: position.currentValue || 0,
-      cost_basis: position.costBasis || 0,
-      gain_loss: position.gainLoss || 0,
-      gain_loss_pct: position.gainLossPercent || 0,
-      
-      // Account info
-      account_id: position.accountId,
-      account_name: position.accountName,
-      institution: position.institution,
-      account_type: position.accountType,
-      account_category: position.accountCategory,
-      
-      // Additional info
-      sector: position.sector,
-      industry: position.industry,
-      purchase_date: position.purchaseDate,
-      snapshot_date: position.snapshotDate,
-      holding_term: position.holdingTerm,
-      
-      // Keep all raw data for any other UI needs
-      ...position
-    }));
-  }, [detailedPositions]);
-
-  // Combined loading state
-  const isLoading = summaryLoading || accountsLoading || positionsLoading || snapshotsLoading;
-  
-  // Combined error state
-  const error = summaryError || state.accounts?.error || state.detailedPositions?.error || state.snapshots?.error;
-
-  // Refresh all data
-  const refetch = useCallback(async () => {
-    await Promise.all([
-      refreshSummary(),
-      refreshAccounts(),
-      refreshPositions(),
-      refreshSnapshots(365)
-    ]);
-  }, [refreshSummary, refreshAccounts, refreshPositions, refreshSnapshots]);
-
-  return {
-    rawData,
-    unifiedPositions,
-    isLoading,
-    error,
-    dataAge,
-    refetch
-  };
+  return { rawData, unifiedPositions, isLoading, error, dataAge, refetch: fetchData };
 };
-
 
 // Advanced animation variants
 const pageVariants = {

@@ -1,4 +1,5 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
+import * as XLSX from 'xlsx';
 import { useDataStore } from '@/store/DataStore';
 import { 
     FileSpreadsheet, 
@@ -57,6 +58,7 @@ import { fetchWithAuth } from '@/utils/api';
 import { popularBrokerages } from '@/utils/constants';
 import ReactDOM from 'react-dom';
 import { useAccounts } from '@/store/hooks/useAccounts';
+
 import { AddQuickPositionModal } from '@/components/modals/AddQuickPositionModal';
 import { AddLiabilitiesModal } from '@/components/modals/AddLiabilitiesModal';
 
@@ -113,6 +115,41 @@ const ACCOUNT_TYPES_BY_CATEGORY = {
         { value: "Unallocated Storage", label: "Unallocated Storage" },
         { value: "Other Metals", label: "Other Metals" }
     ]
+};
+
+const normalizeHeader = (h) =>
+  String(h || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[*:_-]/g, ' ')
+    .replace(/[^a-z0-9 ]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+const detectTemplateKind = (wb) => {
+  const names = wb.SheetNames.map((n) => normalizeHeader(n));
+  if (names.includes('positions')) return 'positions';
+  if (names.includes('accounts')) return 'accounts';
+
+  // fallback: inspect first sheet headers
+  const ws = wb.Sheets[wb.SheetNames[0]];
+  const rows = XLSX.utils.sheet_to_json(ws, { header: 1, raw: false });
+  const headers = (rows[0] || []).map(normalizeHeader);
+
+  const accountsReq = ['account name', 'institution', 'account category', 'account type'];
+  const positionsReq = [
+    'account name',
+    'asset type',
+    'identifier  ticker',
+    'quantity',
+    'purchase price per unit',
+    'purchase date yyyy mm dd',
+  ];
+
+  const hasAll = (req, cols) => req.every((r) => cols.includes(r));
+  if (hasAll(accountsReq, headers)) return 'accounts';
+  if (hasAll(positionsReq, headers)) return 'positions';
+  return 'unknown';
 };
 
 // Component for animated numbers with spring physics
@@ -708,49 +745,65 @@ const QuickStartModal = ({ isOpen, onClose }) => {
     return parsed;
     };
 
-    const handleFileSelect = async (file) => {
-    const allowedTypes = [
-        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-        'application/vnd.ms-excel',
-        'text/csv',
-        'application/vnd.ms-excel.sheet.macroEnabled.12'
-    ];
-    if (!allowedTypes.includes(file.type) && !file.name.match(/\.(xlsx|xls|csv)$/i)) {
-        alert('Please upload an Excel file (.xlsx/.xls) or CSV');
+    const handleAccountsFileSelect = async (file) => {
+    if (!file) return;
+    if (
+        file.type !== 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' &&
+        file.type !== 'application/vnd.ms-excel'
+    ) {
+        alert('Please upload an Excel file (.xlsx or .xls)');
         return;
     }
-
     try {
-        setUploadedFile(file);
-        setValidationStatus('validating');
-        setUploadProgress(10);
-
-        // Parse → stage into UI state
-        const parsedAccounts = await parseAccountsExcel(file);
-
-        // Fake a gentle progress animation while parsing
-        setUploadProgress(60);
-
-        if (!parsedAccounts.length) {
-        setValidationStatus(null);
-        setUploadProgress(0);
-        alert('No rows found. Make sure you filled in the "Accounts" sheet and saved the file.');
+        const buf = await file.arrayBuffer();
+        const wb = XLSX.read(buf, { type: 'array' });
+        const kind = detectTemplateKind(wb);
+        if (kind === 'positions') {
+        // Wrong drop zone — gently route the user
+        alert('This looks like a Positions template. Please use the Positions importer.');
         return;
         }
-
-        // Drop parsed rows straight into your existing UI state
-        setAccounts(parsedAccounts);
-
-        // Finish progress & mark as valid
-        setUploadProgress(100);
-        setTimeout(() => setValidationStatus('valid'), 300);
-    } catch (err) {
-        console.error('Excel parse error:', err);
-        setValidationStatus(null);
-        setUploadProgress(0);
-        alert(`Failed to read file: ${err.message || err.toString()}`);
+        if (kind === 'unknown') {
+        alert('Could not detect template type. Check headers and try again.');
+        return;
+        }
+        setUploadedFile(file);
+        simulateValidation();
+    } catch (e) {
+        console.error('Excel parse error:', e);
+        alert('Failed to read this Excel file.');
     }
     };
+
+    const handlePositionsFileSelect = async (file) => {
+    if (!file) return;
+    if (
+        file.type !== 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' &&
+        file.type !== 'application/vnd.ms-excel'
+    ) {
+        alert('Please upload an Excel file (.xlsx or .xls)');
+        return;
+    }
+    try {
+        const buf = await file.arrayBuffer();
+        const wb = XLSX.read(buf, { type: 'array' });
+        const kind = detectTemplateKind(wb);
+        if (kind === 'accounts') {
+        alert('This looks like an Accounts template. Please use the Accounts importer.');
+        return;
+        }
+        if (kind === 'unknown') {
+        alert('Could not detect template type. Check headers and try again.');
+        return;
+        }
+        setUploadedFile(file);
+        simulateValidation();
+    } catch (e) {
+        console.error('Excel parse error:', e);
+        alert('Failed to read this Excel file.');
+    }
+    };
+
 
 
 
@@ -2116,14 +2169,21 @@ const QuickStartModal = ({ isOpen, onClose }) => {
                onDragEnter={handleDragEnter}
                onDragOver={handleDragOver}
                onDragLeave={handleDragLeave}
-               onDrop={handleDrop}
+               onDrop={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setIsDragging(false);
+                const f = e.dataTransfer?.files?.[0];
+                if (!f) return;
+                return isAccounts ? handleAccountsFileSelect(f) : handlePositionsFileSelect(f);
+                }}
            >
                 <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept=".xlsx,.xls,.csv"
-                    onChange={(e) => handleFileSelect(e.target.files[0])}
-                    className="hidden"
+                ref={fileInputRef}
+                type="file"
+                accept=".xlsx,.xls"
+                onChange={(e) => (isAccounts ? handleAccountsFileSelect(e.target.files[0]) : handlePositionsFileSelect(e.target.files[0]))}
+                className="hidden"
                 />
 
                {!uploadedFile ? (
@@ -2273,6 +2333,15 @@ const QuickStartModal = ({ isOpen, onClose }) => {
                        {activeTab === 'positions' && !importMethod && renderPositionImportChoice()}
                        {activeTab === 'positions' && importMethod === 'ui' && <QuickPositionWrapper />}
                        {activeTab === 'positions' && importMethod === 'excel' && renderTemplateSection('positions')}
+                        {!isAccounts && (
+                            <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
+                                <p className="text-sm text-purple-900">
+                                Fill only: <strong>Account Name</strong>, <strong>Asset Type</strong> (cash/crypto/metal/security),
+                                <strong> Identifier / Ticker</strong>, <strong>Quantity</strong>, <strong>Purchase Price Per Unit</strong>,
+                                <strong> Purchase Date</strong>. Pricing tool fills everything else.
+                                </p>
+                            </div>
+                            )}
                        {activeTab === 'liabilities' && <QuickLiabilityWrapper />}
                       {activeTab === 'upload' && renderUploadSection()}
                       {activeTab === 'success' && renderSuccessScreen()}
