@@ -6,7 +6,7 @@ import { useRouter } from 'next/router';
 import { useDataStore } from '@/store/DataStore';
 import { useAccounts } from '@/store/hooks/useAccounts';
 import { useDetailedPositions } from '@/store/hooks/useDetailedPositions';
-import { usePortfolioSummary } from '@/store/hooks/usePortfolioSummary';
+import { useSnapshots } from '@/store/hooks/useSnapshots';
 
 
 import { motion, AnimatePresence, useAnimation } from 'framer-motion';
@@ -20,102 +20,193 @@ import {
 
 // Custom hooks for data management
 // DataStore-native loader that preserves the exact shape your UI expects
+// Custom hooks for data management
+// DataStore-powered loader that preserves the exact shape your UI expects
 const usePortfolioData = () => {
   const { state, actions } = useDataStore();
-
-  // Accounts for filter chips
+  
+  // Use all DataStore hooks
+  const { summary: portfolioSummary, loading: summaryLoading, error: summaryError, refresh: refreshSummary } = usePortfolioSummary();
   const { accounts, loading: accountsLoading, refresh: refreshAccounts } = useAccounts();
-
-  // Latest detailed positions → will serve as our "unifiedPositions"
-  const { positions: latestPositions, loading: positionsLoading, refresh: refreshPositions } = useDetailedPositions();
-
-  const [error, setError] = useState(null);
+  const { positions: detailedPositions, loading: positionsLoading, refresh: refreshPositions } = useDetailedPositions();
+  const { 
+    snapshots: snapshotsData, 
+    snapshotsByDate, 
+    dates: snapshotDates,
+    isLoading: snapshotsLoading, 
+    refetch: refreshSnapshots 
+  } = useSnapshots();
+  
   const [dataAge, setDataAge] = useState(null);
 
-  // Kick loads (snapshots for history/compare, accounts for filters, latest positions for recon)
+  // Initial data load - only fetch if we don't have data
   useEffect(() => {
-    try {
-      actions.fetchSnapshotsData?.(365);
-      if (!accounts?.length && !accountsLoading) refreshAccounts?.();
-      if (!latestPositions?.length && !positionsLoading) refreshPositions?.();
-    } catch (e) {
-      setError(e?.message || 'Failed initializing data');
+    if (!portfolioSummary && !summaryLoading) {
+      refreshSummary();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    if (!accounts?.length && !accountsLoading) {
+      refreshAccounts();
+    }
+    if (!detailedPositions?.length && !positionsLoading) {
+      refreshPositions();
+    }
+    // Fetch historical snapshots for comparisons (365 days)
+    if (!snapshotsData && !snapshotsLoading) {
+      refreshSnapshots(365);
+    }
   }, []);
 
-  // Assemble snapshots into the same shape your UI uses:
-  //   rawData = { summary: { dates, accounts }, snapshots_by_date: { [date]: { ... , positions: {...} } } }
-  const snapshotsByDateNormalized = useMemo(() => {
-    const src = state.snapshots?.byDate || {};
-    const out = {};
-    for (const [date, snap] of Object.entries(src)) {
-      const newPositions = {};
-      const srcPositions = snap?.positions || {};
-      for (const [k, pos] of Object.entries(srcPositions)) {
-        // Ensure `asset_type` exists (your UI reads position.asset_type)
-        newPositions[k] = { ...pos, asset_type: pos.asset_type || pos.item_type };
-      }
-      out[date] = { ...snap, positions: newPositions };
+  // Calculate data age from portfolio summary timestamp
+  useEffect(() => {
+    if (portfolioSummary?.timestamp) {
+      const now = new Date();
+      const dataTime = new Date(portfolioSummary.timestamp);
+      const ageInMinutes = Math.floor((now - dataTime) / 60000);
+      setDataAge(ageInMinutes);
     }
-    return out;
-  }, [state.snapshots?.byDate]);
+  }, [portfolioSummary?.timestamp]);
 
+  // Transform DataStore data to match expected shape for UI
   const rawData = useMemo(() => {
-    if (!state.snapshots?.dates?.length) return null;
+    if (!snapshotsByDate || !snapshotDates || snapshotDates.length === 0) return null;
+
+    // Build the structure the UI expects
+    const transformedSnapshots = {};
+    
+    // Process each date's snapshot data
+    Object.entries(snapshotsByDate).forEach(([date, dateData]) => {
+      transformedSnapshots[date] = {
+        snapshot_date: date,
+        total_value: dateData.totalValue || 0,
+        total_cost_basis: dateData.totalCostBasis || 0,
+        total_gain_loss: dateData.totalGainLoss || 0,
+        positions: {}
+      };
+
+      // Transform positions for this date
+      if (dateData.positions && Array.isArray(dateData.positions)) {
+        dateData.positions.forEach(pos => {
+          const posKey = pos.unified_id || pos.position_id || pos.identifier;
+          transformedSnapshots[date].positions[posKey] = {
+            position_id: pos.position_id,
+            unified_id: pos.unified_id || pos.position_id,
+            identifier: pos.identifier,
+            name: pos.name,
+            asset_type: pos.item_type || pos.asset_type,
+            quantity: parseFloat(pos.quantity || 0),
+            price: parseFloat(pos.price_per_unit || 0),
+            value: parseFloat(pos.current_value || 0),
+            cost_basis: parseFloat(pos.cost_basis || 0),
+            gain_loss: parseFloat(pos.gain_loss_amt || 0),
+            gain_loss_pct: parseFloat(pos.gain_loss_pct || 0),
+            account_id: pos.account_id,
+            account_name: pos.account_name,
+            institution: pos.institution,
+            sector: pos.sector
+          };
+        });
+      }
+    });
+
+    // Get unique positions and asset types
+    const allPositions = new Set();
+    const assetTypes = new Set();
+    
+    Object.values(transformedSnapshots).forEach(snapshot => {
+      Object.values(snapshot.positions || {}).forEach(pos => {
+        if (pos.identifier) allPositions.add(pos.identifier);
+        if (pos.asset_type) assetTypes.add(pos.asset_type);
+      });
+    });
+
     return {
       summary: {
-        dates: state.snapshots.dates,
-        accounts: (accounts || []).map(a => ({ id: a.id, name: a.name }))
+        dates: snapshotDates,
+        total_dates: snapshotDates.length,
+        unique_positions: allPositions.size,
+        asset_types: Array.from(assetTypes),
+        accounts: accounts.map(acc => ({
+          id: acc.id,
+          name: acc.name,
+          institution: acc.institution
+        })),
+        // Add portfolio summary data
+        latest_net_worth: portfolioSummary?.netWorth,
+        latest_total_assets: portfolioSummary?.totalAssets,
+        latest_total_liabilities: portfolioSummary?.totalLiabilities
       },
-      snapshots_by_date: snapshotsByDateNormalized
+      snapshots_by_date: transformedSnapshots,
+      all_positions: Array.from(allPositions)
     };
-  }, [state.snapshots?.dates, snapshotsByDateNormalized, accounts]);
+  }, [snapshotsByDate, snapshotDates, accounts, portfolioSummary]);
 
-  // Map latest detailed positions into the structure your recon/compare code expects as "unifiedPositions"
+  // Transform detailed positions to unified positions format expected by UI
   const unifiedPositions = useMemo(() => {
-    const rows = Array.isArray(latestPositions) ? latestPositions : [];
-    return rows.map(p => ({
-      // keys used across the file
-      original_id: p.unifiedId || p.id,
-      asset_type: (p.assetType || p.item_type || '').toLowerCase(),
-      ticker: p.identifier,
-      identifier: p.identifier,
-      name: p.name,
-      account_id: p.accountId,
-      account_name: p.accountName,
-      institution: p.institution,
+    if (!detailedPositions || detailedPositions.length === 0) return [];
 
-      // numeric fields consumed by reconciliation/summary bits
-      current_value: p.currentValue ?? 0,
-      quantity: p.quantity ?? 0,
-      current_price: p.currentPrice ?? 0
+    return detailedPositions.map(position => ({
+      // Core identifiers - map to what UI expects
+      position_id: position.itemId || position.id,
+      unified_id: position.unifiedId || position.id,
+      original_id: position.unifiedId || position.id,
+      identifier: position.identifier,
+      ticker: position.identifier, // UI uses 'ticker' in some places
+      name: position.name,
+      asset_type: position.assetType || 'unknown',
+      
+      // Values
+      quantity: position.quantity || 0,
+      price: position.currentPrice || 0,
+      current_price: position.currentPrice || 0,
+      value: position.currentValue || 0,
+      current_value: position.currentValue || 0,
+      cost_basis: position.costBasis || 0,
+      gain_loss: position.gainLoss || 0,
+      gain_loss_pct: position.gainLossPercent || 0,
+      
+      // Account info
+      account_id: position.accountId,
+      account_name: position.accountName,
+      institution: position.institution,
+      account_type: position.accountType,
+      account_category: position.accountCategory,
+      
+      // Additional info
+      sector: position.sector,
+      industry: position.industry,
+      purchase_date: position.purchaseDate,
+      snapshot_date: position.snapshotDate,
+      holding_term: position.holdingTerm,
+      
+      // Keep all raw data for any other UI needs
+      ...position
     }));
-  }, [latestPositions]);
+  }, [detailedPositions]);
 
-  // Loading state mirrors your previous hook’s purpose
-  const isLoading =
-    state.snapshots?.loading ||
-    accountsLoading ||
-    positionsLoading ||
-    !state.snapshots?.dates?.length;
+  // Combined loading state
+  const isLoading = summaryLoading || accountsLoading || positionsLoading || snapshotsLoading;
+  
+  // Combined error state
+  const error = summaryError || state.accounts?.error || state.detailedPositions?.error || state.snapshots?.error;
 
-  // “Refetch” button compatibility
-  const refetch = useCallback((days = 365) => {
-    actions.fetchSnapshotsData?.(days, true);
-    refreshAccounts?.(true);
-    refreshPositions?.(true);
-    setDataAge(new Date());
-  }, [actions, refreshAccounts, refreshPositions]);
+  // Refresh all data
+  const refetch = useCallback(async () => {
+    await Promise.all([
+      refreshSummary(),
+      refreshAccounts(),
+      refreshPositions(),
+      refreshSnapshots(365)
+    ]);
+  }, [refreshSummary, refreshAccounts, refreshPositions, refreshSnapshots]);
 
-  // Track last fetched for display
-  useEffect(() => {
-    if (state.snapshots?.lastFetched) {
-      setDataAge(new Date(state.snapshots.lastFetched));
-    }
-  }, [state.snapshots?.lastFetched]);
-
-  return { rawData, unifiedPositions, isLoading, error, dataAge, refetch };
+  return {
+    rawData,
+    unifiedPositions,
+    isLoading,
+    error,
+    dataAge,
+    refetch
+  };
 };
 
 

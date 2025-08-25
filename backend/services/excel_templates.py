@@ -187,7 +187,7 @@ class ExcelTemplateService:
         dv = DataValidation(
             type="list",
             formula1=rng,
-            allow_blank=False,   # must pick from dropdown
+            allow_blank=False,
             showDropDown=True,
             errorTitle="Invalid Institution",
             error="Please choose a valid institution from the list.",
@@ -258,64 +258,85 @@ class ExcelTemplateService:
     # (simple scaffold; Step 2)
     # ==========================
     async def create_positions_template(self, user_id: Any, database) -> io.BytesIO:
+        """
+        Simplified Positions template + clear instructions.
+        Columns:
+        Account Name (dropdown), Asset Type (dropdown: cash|crypto|metal|security),
+        Identifier / Ticker, Quantity, Purchase Price Per Unit, Purchase Date (YYYY-MM-DD),
+        Currency (optional), Notes (optional)
+        """
         query = """
-            SELECT id, account_name
+            SELECT id, account_name, type, account_category
             FROM accounts
             WHERE user_id = :user_id
             ORDER BY account_name
         """
-        accounts = await database.fetch_all(query=query, values={"user_id": user_id})
+        accounts: List[Dict[str, Any]] = await database.fetch_all(query=query, values={"user_id": user_id})
         if not accounts:
             raise ValueError("No accounts found. Please create accounts before downloading positions template.")
 
         wb = Workbook()
         wb.remove(wb.active)
 
-        # Lookups sheet
-        lookups = wb.create_sheet("Lookups", 0)
-        lookups["A1"] = "Account Name"
-        for i, acc in enumerate(accounts, start=2):
-            lookups.cell(row=i, column=1, value=acc["account_name"]).border = self.border
-        acc_range = f"=Lookups!$A$2:$A${1+len(accounts)}"
+        # NEW: Instructions sheet for positions
+        self._create_positions_instructions_sheet(wb)
 
-        # Asset types
-        lookups["C1"] = "Asset Types"
-        for i, t in enumerate(["cash", "crypto", "metal"], start=2):
-            lookups.cell(row=i, column=3, value=t).border = self.border
-        type_range = "=Lookups!$C$2:$C$4"
+        # Human-friendly reference (unchanged)
+        self._create_accounts_reference_sheet(wb, accounts)
+
+        # Lookups for dropdowns (includes 'security' now)
+        self._create_positions_validation_lookups_simple(wb, accounts)
 
         # Positions sheet
-        ws = wb.create_sheet("Positions", 1)
+        ws = wb.create_sheet("Positions", 2)
         ws.sheet_properties.tabColor = "4CAF50"
-        headers = ["Account", "Asset Type", "Identifier / Ticker", "Quantity", "Purchase Price per Share", "Purchase Date"]
+
+        headers = [
+            "Account Name",
+            "Asset Type",
+            "Identifier / Ticker",
+            "Quantity",
+            "Purchase Price Per Unit",
+            "Purchase Date (YYYY-MM-DD)",
+            "Currency (optional)",
+            "Notes (optional)",
+        ]
         for c, h in enumerate(headers, start=1):
             cell = ws.cell(row=1, column=c, value=h)
             cell.font = self.header_font
             cell.fill = self.header_fill
             cell.alignment = Alignment(horizontal="center", vertical="center")
             cell.border = self.border
-            ws.column_dimensions[get_column_letter(c)].width = 22
 
-        # Dropdowns
-        dv_acc = DataValidation(type="list", formula1=acc_range, allow_blank=False)
-        ws.add_data_validation(dv_acc)
-        dv_acc.add("A2:A5000")
+        widths = [34, 18, 24, 14, 22, 26, 16, 36]
+        for idx, w in enumerate(widths, start=1):
+            ws.column_dimensions[get_column_letter(idx)].width = w
 
-        dv_type = DataValidation(type="list", formula1=type_range, allow_blank=False)
-        ws.add_data_validation(dv_type)
-        dv_type.add("B2:B5000")
+        # Apply validations (dropdowns + numeric/date checks)
+        self._add_positions_simple_validations(ws)
 
-        # Example rows
+        # Examples
+        ex_date = datetime.now().strftime("%Y-%m-%d")
+        first_name = accounts[0]["account_name"]
         examples = [
-            [accounts[0]["account_name"], "cash", "", "", "", ""],
-            [accounts[0]["account_name"], "crypto", "BTC", "0.5", "20000", "2024-01-01"],
-            [accounts[0]["account_name"], "metal", "Gold", "2", "1800", "2023-10-15"],
+            [first_name, "cash",   "",      "",   "",   ex_date, "USD", "Cash balance update"],
+            [first_name, "crypto", "BTC",   0.25, "",   ex_date, "USD", "BTC purchase"],
+            [first_name, "metal",  "XAU",   1.5,  1950, ex_date, "USD", "Gold ounces"],
+            [first_name, "security","AAPL", 10,   150,  ex_date, "USD", "Equity example"],
         ]
         for r_idx, row in enumerate(examples, start=2):
             for c_idx, val in enumerate(row, start=1):
-                ws.cell(row=r_idx, column=c_idx, value=val).border = self.border
-                if r_idx < 6:
-                    ws.cell(row=r_idx, column=c_idx).fill = self.sample_fill
+                cell = ws.cell(row=r_idx, column=c_idx, value=val)
+                cell.border = self.border
+                if r_idx < 8:
+                    cell.fill = self.sample_fill
+
+        # Precreate blank rows
+        for r in range(8, 600):
+            for c in range(1, len(headers) + 1):
+                if ws.cell(row=r, column=c).value is None:
+                    ws.cell(row=r, column=c, value="")
+                ws.cell(row=r, column=c).border = self.border
 
         ws.freeze_panes = "A2"
 
@@ -323,6 +344,42 @@ class ExcelTemplateService:
         wb.save(output)
         output.seek(0)
         return output
+
+    def _create_positions_instructions_sheet(self, wb: Workbook) -> Worksheet:
+        ws = wb.create_sheet("Positions Instructions", 0)
+        ws.sheet_properties.tabColor = "8BC34A"
+
+        ws.merge_cells("A1:F1")
+        ws["A1"] = "NestEgg Positions Import Instructions"
+        ws["A1"].font = Font(bold=True, size=16, color="2C3E50")
+        ws["A1"].alignment = Alignment(horizontal="center")
+
+        lines = [
+            "",
+            "What you need to fill:",
+            "• Account Name: Select from dropdown (your accounts).",
+            "• Asset Type: Choose from dropdown (cash, crypto, metal, security).",
+            "• Identifier / Ticker: e.g., BTC, XAU, AAPL (leave blank for cash).",
+            "• Quantity: Number of units (≥ 0).",
+            "• Purchase Price Per Unit: The unit cost (≥ 0).",
+            "• Purchase Date (YYYY-MM-DD): The buy date.",
+            "• Currency (optional): e.g., USD.",
+            "• Notes (optional): Any comment.",
+            "",
+            "Notes:",
+            "• Excel Desktop shows dropdowns; Google Sheets/Numbers may not show validations.",
+            "• Market price, value, and P/L are populated by the Pricing tool—no need to fill.",
+            "• Keep the column headers exactly as-is.",
+        ]
+
+        row = 3
+        for text in lines:
+            ws[f"A{row}"] = text
+            ws[f"A{row}"].font = Font(bold=True, size=12, color="2C3E50") if text.endswith(":") else Font(size=11)
+            row += 1
+
+        ws.column_dimensions["A"].width = 100
+        return ws
 
 
     def _create_accounts_reference_sheet(self, wb: Workbook, accounts: List[Dict[str, Any]]) -> Worksheet:
