@@ -667,6 +667,32 @@ export const DataStoreProvider = ({ children }) => {
   const phase2Timeout = useRef(null);
   const phase3Timeout = useRef(null);
 
+  // Listen for logout events to clear the store
+  useEffect(() => {
+    const handleLogout = () => {
+      console.log('[DataStore] Clearing store on logout');
+      dispatch({ type: ActionTypes.RESET_STORE });
+      hasInitialized.current = false; // Reset initialization flag
+    };
+
+    // Listen for the custom logout event
+    window.addEventListener('auth-logout', handleLogout);
+
+    // Also listen for storage events (in case logout happens in another tab)
+    const handleStorageChange = (e) => {
+      if (e.key === 'token' && e.newValue === null) {
+        console.log('[DataStore] Token removed, clearing store');
+        handleLogout();
+      }
+    };
+    window.addEventListener('storage', handleStorageChange);
+
+    return () => {
+      window.removeEventListener('auth-logout', handleLogout);
+      window.removeEventListener('storage', handleStorageChange);
+    };
+  }, []);
+
   // Fetch portfolio data
   const fetchPortfolioData = useCallback(async (force = false) => {
     // Skip if already loading (prevent duplicate fetches)

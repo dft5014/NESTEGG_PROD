@@ -78,6 +78,13 @@ export const AuthProvider = ({ children }) => {
   const logout = () => {
     localStorage.removeItem("token");
     setUser(null);
+    
+    // Clear DataStore to prevent data leakage between users
+    // Dispatch a custom event that DataStore can listen to
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('auth-logout'));
+    }
+    
     router.push("/login");
   };
 

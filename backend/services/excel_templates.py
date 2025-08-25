@@ -168,7 +168,7 @@ class ExcelTemplateService:
         if INSTITUTION_LIST:
             inst_addr = f"Lookups!$A$2:$A${1 + len(INSTITUTION_LIST)}"
             self.lookup_ranges["institutions"] = f"={inst_addr}"
-            wb.defined_names.append(DefinedName(name=self.named_ranges["institutions"], attr_text=inst_addr))
+            wb.defined_names.add(DefinedName(name=self.named_ranges["institutions"], attr_text=inst_addr))
 
         ws["C1"] = "Account Categories"
         ws["C1"].font = self.header_font
@@ -178,7 +178,7 @@ class ExcelTemplateService:
         if ACCOUNT_CATEGORIES:
             cat_addr = f"Lookups!$C$2:$C${1 + len(ACCOUNT_CATEGORIES)}"
             self.lookup_ranges["categories"] = f"={cat_addr}"
-            wb.defined_names.append(DefinedName(name=self.named_ranges["categories"], attr_text=cat_addr))
+            wb.defined_names.add(DefinedName(name=self.named_ranges["categories"], attr_text=cat_addr))
 
         ws["E1"] = "Account Types (All)"
         ws["E1"].font = self.header_font
@@ -195,7 +195,7 @@ class ExcelTemplateService:
         if flat_types:
             types_addr = f"Lookups!$E$2:$E${1 + len(flat_types)}"
             self.lookup_ranges["types_flat"] = f"={types_addr}"
-            wb.defined_names.append(DefinedName(name=self.named_ranges["types_flat"], attr_text=types_addr))
+            wb.defined_names.add(DefinedName(name=self.named_ranges["types_flat"], attr_text=types_addr))
 
 
         return ws
