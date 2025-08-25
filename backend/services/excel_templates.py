@@ -187,7 +187,7 @@ class ExcelTemplateService:
         dv = DataValidation(
             type="list",
             formula1=rng,
-            allow_blank=False,
+            allow_blank=False,   # must pick from dropdown
             showDropDown=True,
             errorTitle="Invalid Institution",
             error="Please choose a valid institution from the list.",
@@ -211,50 +211,19 @@ class ExcelTemplateService:
         dv.add("C2:C5000")
 
     def _add_account_type_validation(self, ws: Worksheet) -> None:
-        """
-        Dependent validation: Account Type (col D) depends on Account Category (col C).
-        We create named ranges in Lookups for each category and use:
-            =INDIRECT("Lookups!" & MATCHED_RANGE_NAME)
-        but simpler: name each category range with a safe Excel name, then:
-            =INDIRECT("Lookups!" & C2_sanitized)
-        We’ll store a mapping table in Lookups col G:H for safety and use a helper UDF-ish approach:
-        In practice, Excel’s INDIRECT needs a named range; so we:
-          1) Create a NamedRange per category on Lookups (e.g., _NR_brokerage)
-          2) Use =INDIRECT("_NR_" & SUBSTITUTE(LOWER(C2)," ","_"))
-        """
-        # Build a per-row DV with a formula using INDIRECT to point to the right named range.
-        # Note: openpyxl adds named ranges via workbook.defined_names.
-
-        wb = ws.parent
-        lookups = wb["Lookups"]
-
-        # Ensure we created per-category blocks and Named Ranges
-        # Create a compact vertical block starting at, say, column H onward.
-        start_col_idx = 8  # Column H
-        row_ptr = 2
-
-        # Sanitize helper
-        def safe_name(s: str) -> str:
-            # Lowercase, remove non-alnum, replace spaces with underscores, and ensure starts with letter/_.
-            base = "".join(ch if ch.isalnum() else "_" for ch in s.strip().lower())
-            base = "_"+base if not base or not (base[0].isalpha() or base[0] == "_") else base
-            # Excel named range length/char constraints are generous; keep as-is after collapse:
-            while "__" in base:
-                base = base.replace("__", "_")
-            return base
-
-        # Lay out each category’s types in Lookups and define a named range per category
-        for cat, types in ACCOUNT_TYPES_BY_CATEGORY.items():
-            safe = safe_name(cat)
-            col_letter = get_column_letter(start_col_idx)
-            start_row = row_ptr
-            for i, t in enumerate(types, start=start_row):
-                lookups.cell(row=i, column=start_col_idx, value=t).border = self.border
-            end_row = start_row + max(0, len(types) - 1)
-            # Define the workbook named range (scoped globally)
-            ref = f"Lookups!${col_letter}${start_row}:${col_letter}${end_row if end_row >= start_row else start_row}"
-            wb.defined_n_
-
+        rng = self.lookup_ranges.get("types_flat")
+        if not rng:
+            return
+        dv = DataValidation(
+            type="list",
+            formula1=rng,
+            allow_blank=False,
+            showDropDown=True,
+            errorTitle="Invalid Account Type",
+            error="Please select a valid account type.",
+        )
+        ws.add_data_validation(dv)
+        dv.add("D2:D5000")
 
     def _create_category_type_reference(self, wb: Workbook) -> Worksheet:
         ws = wb.create_sheet("Category-Type Reference", 3)
@@ -289,85 +258,64 @@ class ExcelTemplateService:
     # (simple scaffold; Step 2)
     # ==========================
     async def create_positions_template(self, user_id: Any, database) -> io.BytesIO:
-        """
-        Simplified Positions template + clear instructions.
-        Columns:
-        Account Name (dropdown), Asset Type (dropdown: cash|crypto|metal|security),
-        Identifier / Ticker, Quantity, Purchase Price Per Unit, Purchase Date (YYYY-MM-DD),
-        Currency (optional), Notes (optional)
-        """
         query = """
-            SELECT id, account_name, type, account_category
+            SELECT id, account_name
             FROM accounts
             WHERE user_id = :user_id
             ORDER BY account_name
         """
-        accounts: List[Dict[str, Any]] = await database.fetch_all(query=query, values={"user_id": user_id})
+        accounts = await database.fetch_all(query=query, values={"user_id": user_id})
         if not accounts:
             raise ValueError("No accounts found. Please create accounts before downloading positions template.")
 
         wb = Workbook()
         wb.remove(wb.active)
 
-        # NEW: Instructions sheet for positions
-        self._create_positions_instructions_sheet(wb)
+        # Lookups sheet
+        lookups = wb.create_sheet("Lookups", 0)
+        lookups["A1"] = "Account Name"
+        for i, acc in enumerate(accounts, start=2):
+            lookups.cell(row=i, column=1, value=acc["account_name"]).border = self.border
+        acc_range = f"=Lookups!$A$2:$A${1+len(accounts)}"
 
-        # Human-friendly reference (unchanged)
-        self._create_accounts_reference_sheet(wb, accounts)
-
-        # Lookups for dropdowns (includes 'security' now)
-        self._create_positions_validation_lookups_simple(wb, accounts)
+        # Asset types
+        lookups["C1"] = "Asset Types"
+        for i, t in enumerate(["cash", "crypto", "metal"], start=2):
+            lookups.cell(row=i, column=3, value=t).border = self.border
+        type_range = "=Lookups!$C$2:$C$4"
 
         # Positions sheet
-        ws = wb.create_sheet("Positions", 2)
+        ws = wb.create_sheet("Positions", 1)
         ws.sheet_properties.tabColor = "4CAF50"
-
-        headers = [
-            "Account Name",
-            "Asset Type",
-            "Identifier / Ticker",
-            "Quantity",
-            "Purchase Price Per Unit",
-            "Purchase Date (YYYY-MM-DD)",
-            "Currency (optional)",
-            "Notes (optional)",
-        ]
+        headers = ["Account", "Asset Type", "Identifier / Ticker", "Quantity", "Purchase Price per Share", "Purchase Date"]
         for c, h in enumerate(headers, start=1):
             cell = ws.cell(row=1, column=c, value=h)
             cell.font = self.header_font
             cell.fill = self.header_fill
             cell.alignment = Alignment(horizontal="center", vertical="center")
             cell.border = self.border
+            ws.column_dimensions[get_column_letter(c)].width = 22
 
-        widths = [34, 18, 24, 14, 22, 26, 16, 36]
-        for idx, w in enumerate(widths, start=1):
-            ws.column_dimensions[get_column_letter(idx)].width = w
+        # Dropdowns
+        dv_acc = DataValidation(type="list", formula1=acc_range, allow_blank=False)
+        ws.add_data_validation(dv_acc)
+        dv_acc.add("A2:A5000")
 
-        # Apply validations (dropdowns + numeric/date checks)
-        self._add_positions_simple_validations(ws)
+        dv_type = DataValidation(type="list", formula1=type_range, allow_blank=False)
+        ws.add_data_validation(dv_type)
+        dv_type.add("B2:B5000")
 
-        # Examples
-        ex_date = datetime.now().strftime("%Y-%m-%d")
-        first_name = accounts[0]["account_name"]
+        # Example rows
         examples = [
-            [first_name, "cash",   "",      "",   "",   ex_date, "USD", "Cash balance update"],
-            [first_name, "crypto", "BTC",   0.25, "",   ex_date, "USD", "BTC purchase"],
-            [first_name, "metal",  "XAU",   1.5,  1950, ex_date, "USD", "Gold ounces"],
-            [first_name, "security","AAPL", 10,   150,  ex_date, "USD", "Equity example"],
+            [accounts[0]["account_name"], "cash", "", "", "", ""],
+            [accounts[0]["account_name"], "crypto", "BTC", "0.5", "20000", "2024-01-01"],
+            [accounts[0]["account_name"], "metal", "Gold", "2", "1800", "2023-10-15"],
         ]
         for r_idx, row in enumerate(examples, start=2):
             for c_idx, val in enumerate(row, start=1):
-                cell = ws.cell(row=r_idx, column=c_idx, value=val)
-                cell.border = self.border
-                if r_idx < 8:
-                    cell.fill = self.sample_fill
-
-        # Precreate blank rows
-        for r in range(8, 600):
-            for c in range(1, len(headers) + 1):
-                if ws.cell(row=r, column=c).value is None:
-                    ws.cell(row=r, column=c, value="")
-                ws.cell(row=r, column=c).border = self.border
+                ws.cell(row=r_idx, column=c_idx, value=val).border = self.border
+                if r_idx < 6:
+                    ws.cell(row=r_idx, column=c_idx).fill = self.sample_fill
 
         ws.freeze_panes = "A2"
 
@@ -375,42 +323,6 @@ class ExcelTemplateService:
         wb.save(output)
         output.seek(0)
         return output
-
-    def _create_positions_instructions_sheet(self, wb: Workbook) -> Worksheet:
-        ws = wb.create_sheet("Positions Instructions", 0)
-        ws.sheet_properties.tabColor = "8BC34A"
-
-        ws.merge_cells("A1:F1")
-        ws["A1"] = "NestEgg Positions Import Instructions"
-        ws["A1"].font = Font(bold=True, size=16, color="2C3E50")
-        ws["A1"].alignment = Alignment(horizontal="center")
-
-        lines = [
-            "",
-            "What you need to fill:",
-            "• Account Name: Select from dropdown (your accounts).",
-            "• Asset Type: Choose from dropdown (cash, crypto, metal, security).",
-            "• Identifier / Ticker: e.g., BTC, XAU, AAPL (leave blank for cash).",
-            "• Quantity: Number of units (≥ 0).",
-            "• Purchase Price Per Unit: The unit cost (≥ 0).",
-            "• Purchase Date (YYYY-MM-DD): The buy date.",
-            "• Currency (optional): e.g., USD.",
-            "• Notes (optional): Any comment.",
-            "",
-            "Notes:",
-            "• Excel Desktop shows dropdowns; Google Sheets/Numbers may not show validations.",
-            "• Market price, value, and P/L are populated by the Pricing tool—no need to fill.",
-            "• Keep the column headers exactly as-is.",
-        ]
-
-        row = 3
-        for text in lines:
-            ws[f"A{row}"] = text
-            ws[f"A{row}"].font = Font(bold=True, size=12, color="2C3E50") if text.endswith(":") else Font(size=11)
-            row += 1
-
-        ws.column_dimensions["A"].width = 100
-        return ws
 
 
     def _create_accounts_reference_sheet(self, wb: Workbook, accounts: List[Dict[str, Any]]) -> Worksheet:
