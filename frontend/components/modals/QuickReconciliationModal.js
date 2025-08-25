@@ -306,9 +306,32 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
     return OTHER_INST;
   }, [accountById]);
 
+  const OTHER_ITEM_TYPES = new Set([
+    "other",
+    "vehicle",
+    "real_estate",
+    "collectible",
+    "art",
+    "jewelry",
+    "business",
+  ]);
+
+  const isOtherAsset = (p) => {
+    const t  = String(p.type || "").toLowerCase();
+    const ds = String(p.data_source || "").toLowerCase();
+    if (ds === "other_asset") return true;            // explicit pipe wins
+    if (OTHER_ITEM_TYPES.has(t)) return true;         // curated “other” types only
+
+    // avoid sweeping unknown-type securities/crypto/metals into “other”
+    const nm = `${p.name || ""} ${p.identifier || ""}`.toLowerCase();
+    if (!t && !isSecurityish.test(nm)) return true;   // allow truly generic manual assets
+    return false;
+  };
+
   // normalize ALL positions
   const allPositions = useMemo(() => {
     return (rawPositions || []).map((p) => {
+      const data_source = p.data_source ?? p.source ?? p.dataSource ?? null;
       const id = p.itemId ?? p.item_id ?? p.id;
       const accountId = p.accountId ?? p.inv_account_id ?? p.account_id;
       const type = String(p.assetType ?? p.item_type ?? p.asset_type ?? p.position_type ?? "").toLowerCase();
@@ -318,7 +341,7 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
       const identifier = p.identifier ?? p.symbol ?? "";
       const inv_account_name = p.inv_account_name ?? p.accountName ?? p.account_name ?? "";
       const last_update = p.balance_last_updated ?? p.last_update ?? p.balanceLastUpdated ?? null;
-      return { id, accountId, institution, type, name, currentValue, identifier, inv_account_name, last_update };
+      return { id, accountId, institution, type, name, currentValue, identifier, inv_account_name, last_update, data_source };
     });
   }, [rawPositions, normalizeInstitution]);
 
@@ -378,20 +401,25 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
     return allPositions
       .map(p => ({ ...p, institution: normalizeInstitution(p.institution, p.accountId, p.type) || OTHER_INST }))
       .filter(p => {
-        const t = String(p.type || "").toLowerCase();
         const inst = (p.institution || "").toLowerCase();
         const id = (p.identifier || "").toLowerCase();
         const nm = (p.name || "").toLowerCase();
 
-        const notCash = !isCashLike(p);
-        const notSecurity = !isSecurityish.test(`${nm} ${id}`);
-        const notLiabilityWord = !isLiabilityish.test(t) && !isLiabilityish.test(nm);
-        const isOtherish = t === "other" || !t;
-        const notInLiabs = !liabilitySigSet.has(`${inst}::id::${id}`) && !liabilitySigSet.has(`${inst}::nm::${nm}`);
+        const notInLiabs =
+          !liabilitySigSet.has(`${inst}::id::${id}`) &&
+          !liabilitySigSet.has(`${inst}::nm::${nm}`);
 
-        return notCash && notSecurity && notLiabilityWord && isOtherish && notInLiabs;
+        if (!isOtherAsset(p)) return false;                               // curated “other”
+        if (!notInLiabs) return false;
+        if (isLiabilityish.test(nm) || isLiabilityish.test(String(p.type || ""))) return false;
+
+        // exclude security/crypto/metal entirely from this page
+        if (isSecurityish.test(nm) || isSecurityish.test(id)) return false;
+
+        return true;
       });
   }, [allPositions, normalizeInstitution, liabilitySigSet]);
+
 
   // editable rows (cash + liabilities + other)
   // Use strong, per-row keys so one edit doesn't leak to others
@@ -469,7 +497,7 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
                        && !liabilitySigSet.has(`${String(inst).toLowerCase()}::nm::${String(p.name||"").toLowerCase()}`);
 
       // show only cash-like and valid "other" assets; exclude securityish
-      const include = (isCashLike(p) || (isOtherish && notInLiabs)) && !isSecurityish.test(nameId);
+      const include = isCashLike(p) || (isOtherAsset(p) && notInLiabs); 
       if (!include) return;
 
       if (!map.has(inst)) map.set(inst, []);
@@ -592,12 +620,15 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
   const runOne = async (job) => {
     const attempt = async () => {
       if (job._kind === "asset") {
-        return updateCashPosition(job.id, { amount: job.next }).catch(async () =>
-          updateOtherAsset(Number(job.id), { current_value: job.next })
-        );
+        // cash-only path
+        return updateCashPosition(job.id, { amount: job.next });
       }
-      if (job._kind === "liability") return updateLiability(job.id, liabilityPayloadFor(job));
-      if (job._kind === "other") return updateOtherAsset(Number(job.id), { current_value: job.next });
+      if (job._kind === "liability") {
+        return updateLiability(job.id, liabilityPayloadFor(job));
+      }
+      if (job._kind === "other") {
+        return updateOtherAsset(Number(job.id), { current_value: job.next });
+      }
     };
     const maxRetries = 2;
     for (let t = 0; t <= maxRetries; t++) {
