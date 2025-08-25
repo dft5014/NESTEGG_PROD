@@ -529,10 +529,12 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
         case "pct": return (a.pct - b.pct) * dir;
         case "kind": return ((a._kind > b._kind) - (a._kind < b._kind)) * dir;
         case "updated": {
-          const ta = a.last_update ? new Date(ensureUtcZ(a.last_update)).getTime() : -Infinity;
-          const tb = b.last_update ? new Date(ensureUtcZ(b.last_update)).getTime() : -Infinity;
-          return (ta - tb) * dir;
-           }
+          const ts = (x) => {
+            const d = parseUTC(x?.last_update);
+            return d ? d.getTime() : -Infinity;
+          };
+          return (ts(a) - ts(b)) * dir;
+        }
         case "institution":
         default:
           return ((a.institution > b.institution) - (a.institution < b.institution)) * dir;
@@ -870,7 +872,7 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
           <div className="bg-zinc-50 dark:bg-zinc-800 px-4 py-2 text-sm font-semibold text-zinc-900 dark:text-zinc-100">
             {selectedInstitution ? `Lines in ${selectedInstitution}` : "Cash-like Assets, Liabilities & Other Assets"}
           </div>
-          <div className="max-h=[54vh] max-h-[54vh] overflow-auto">
+            <div className="max-h-[54vh] overflow-auto">
             <table className="w-full min-w-[1120px]">
               <thead className="bg-zinc-50 dark:bg-zinc-800 sticky top-0 z-10">
                 <tr className="text-xs uppercase text-zinc-600 dark:text-zinc-300">
@@ -942,9 +944,9 @@ export default function QuickReconciliationModal({ isOpen, onClose }) {
                       </td>
                       <td className="px-3 py-2 text-sm text-zinc-700 dark:text-zinc-300">
                         {r.last_update ? (
-                          <time dateTime={toIsoAttr(r.last_update)} title={`${r.last_update} (UTC)`}>
-                            {formatLocalDateTime(r.last_update)}
-                          </time>
+                        <time dateTime={toIsoAttr(r.last_update)} title={toIsoAttr(r.last_update)}>
+                          {formatLocalDateTime(r.last_update)}
+                        </time>
                         ) : "—"}
                       </td>
 
