@@ -211,19 +211,50 @@ class ExcelTemplateService:
         dv.add("C2:C5000")
 
     def _add_account_type_validation(self, ws: Worksheet) -> None:
-        rng = self.lookup_ranges.get("types_flat")
-        if not rng:
-            return
-        dv = DataValidation(
-            type="list",
-            formula1=rng,
-            allow_blank=False,
-            showDropDown=True,
-            errorTitle="Invalid Account Type",
-            error="Please select a valid account type.",
-        )
-        ws.add_data_validation(dv)
-        dv.add("D2:D5000")
+        """
+        Dependent validation: Account Type (col D) depends on Account Category (col C).
+        We create named ranges in Lookups for each category and use:
+            =INDIRECT("Lookups!" & MATCHED_RANGE_NAME)
+        but simpler: name each category range with a safe Excel name, then:
+            =INDIRECT("Lookups!" & C2_sanitized)
+        We’ll store a mapping table in Lookups col G:H for safety and use a helper UDF-ish approach:
+        In practice, Excel’s INDIRECT needs a named range; so we:
+          1) Create a NamedRange per category on Lookups (e.g., _NR_brokerage)
+          2) Use =INDIRECT("_NR_" & SUBSTITUTE(LOWER(C2)," ","_"))
+        """
+        # Build a per-row DV with a formula using INDIRECT to point to the right named range.
+        # Note: openpyxl adds named ranges via workbook.defined_names.
+
+        wb = ws.parent
+        lookups = wb["Lookups"]
+
+        # Ensure we created per-category blocks and Named Ranges
+        # Create a compact vertical block starting at, say, column H onward.
+        start_col_idx = 8  # Column H
+        row_ptr = 2
+
+        # Sanitize helper
+        def safe_name(s: str) -> str:
+            # Lowercase, remove non-alnum, replace spaces with underscores, and ensure starts with letter/_.
+            base = "".join(ch if ch.isalnum() else "_" for ch in s.strip().lower())
+            base = "_"+base if not base or not (base[0].isalpha() or base[0] == "_") else base
+            # Excel named range length/char constraints are generous; keep as-is after collapse:
+            while "__" in base:
+                base = base.replace("__", "_")
+            return base
+
+        # Lay out each category’s types in Lookups and define a named range per category
+        for cat, types in ACCOUNT_TYPES_BY_CATEGORY.items():
+            safe = safe_name(cat)
+            col_letter = get_column_letter(start_col_idx)
+            start_row = row_ptr
+            for i, t in enumerate(types, start=start_row):
+                lookups.cell(row=i, column=start_col_idx, value=t).border = self.border
+            end_row = start_row + max(0, len(types) - 1)
+            # Define the workbook named range (scoped globally)
+            ref = f"Lookups!${col_letter}${start_row}:${col_letter}${end_row if end_row >= start_row else start_row}"
+            wb.defined_n_
+
 
     def _create_category_type_reference(self, wb: Workbook) -> Worksheet:
         ws = wb.create_sheet("Category-Type Reference", 3)
