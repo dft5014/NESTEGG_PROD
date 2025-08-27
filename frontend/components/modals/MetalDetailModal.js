@@ -1,6 +1,6 @@
 // components/modals/MetalDetailModal.js
 import React from 'react';
-import { X, Settings, Trash, Tag, Box, Warehouse, Scale, Gem, Percent } from 'lucide-react'; // Add relevant icons
+import { X, Settings, Trash, Tag, Box, Warehouse, Scale, Gem, Percent, Building, FileText } from 'lucide-react'; // Add relevant icons
 import { formatCurrency, formatDate, formatNumber } from '@/utils/formatters';
 
 const MetalDetailModal = ({ isOpen, onClose, position, onEdit, onDelete }) => {

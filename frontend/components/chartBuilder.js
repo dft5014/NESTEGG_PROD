@@ -6,7 +6,7 @@ import {
 } from 'recharts';
 import { 
   LineChart as LineChartIcon, BarChart2, Activity, PieChart as PieChartIcon,
-  Save, Download, RefreshCw, Info, Settings, Eye, CheckSquare, Square
+  Save, Download, RefreshCw, Info, Settings, Eye, CheckSquare, Square, Percent
 } from 'lucide-react';
 import { formatCurrency, formatPercentage, assetColors } from '@/utils/reportUtils';
 

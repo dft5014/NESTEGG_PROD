@@ -735,30 +735,30 @@ export default function HomePage() {
              <div>
                <h4 className="font-semibold mb-4">Product</h4>
                <ul className="space-y-2 text-gray-400">
-                 <li><a href="/features" className="hover:text-white transition-colors">Features</a></li>
-                 <li><a href="/pricing" className="hover:text-white transition-colors">Pricing</a></li>
-                 <li><a href="/security" className="hover:text-white transition-colors">Security</a></li>
-                 <li><a href="/roadmap" className="hover:text-white transition-colors">Roadmap</a></li>
+                    <li><Link href="/features" className="hover:text-white transition-colors">Features</Link></li>
+                    <li><Link href="/pricing" className="hover:text-white transition-colors">Pricing</Link></li>
+                    <li><Link href="/security" className="hover:text-white transition-colors">Security</Link></li>
+                    <li><Link href="/roadmap" className="hover:text-white transition-colors">Roadmap</Link></li>
                </ul>
              </div>
              
              <div>
                <h4 className="font-semibold mb-4">Resources</h4>
                <ul className="space-y-2 text-gray-400">
-                 <li><a href="/blog" className="hover:text-white transition-colors">Blog</a></li>
-                 <li><a href="/guides" className="hover:text-white transition-colors">Guides</a></li>
-                 <li><a href="/calculator" className="hover:text-white transition-colors">Calculators</a></li>
-                 <li><a href="/api" className="hover:text-white transition-colors">API</a></li>
+                      <li><Link href="/blog" className="hover:text-white transition-colors">Blog</Link></li>
+                      <li><Link href="/guides" className="hover:text-white transition-colors">Guides</Link></li>
+                      <li><Link href="/calculator" className="hover:text-white transition-colors">Calculators</Link></li>
+                      <li><Link href="/api" className="hover:text-white transition-colors">API</Link></li>
                </ul>
              </div>
              
              <div>
                <h4 className="font-semibold mb-4">Company</h4>
                <ul className="space-y-2 text-gray-400">
-                 <li><a href="/about" className="hover:text-white transition-colors">About</a></li>
-                 <li><a href="/contact" className="hover:text-white transition-colors">Contact</a></li>
-                 <li><a href="/privacy" className="hover:text-white transition-colors">Privacy</a></li>
-                 <li><a href="/terms" className="hover:text-white transition-colors">Terms</a></li>
+                      <li><Link href="/about" className="hover:text-white transition-colors">About</Link></li>
+                      <li><Link href="/contact" className="hover:text-white transition-colors">Contact</Link></li>
+                      <li><Link href="/privacy" className="hover:text-white transition-colors">Privacy</Link></li>
+                      <li><Link href="/terms" className="hover:text-white transition-colors">Terms</Link></li>
                </ul>
              </div>
            </div>
