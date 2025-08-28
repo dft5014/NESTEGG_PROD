@@ -7,31 +7,33 @@ export default function ForceKindeTest() {
   const forceKindeRedirect = (action) => {
     setLoading(true);
     
-    // Manually construct the Kinde OAuth URL based on your actual settings
     const kindeBaseUrl = 'https://nestegg.kinde.com';
     const clientId = '45c2efde450c402783a146d939ee4b27';
     const redirectUri = 'https://nestegg-prod.vercel.app/api/auth/kinde_callback';
     
     const params = new URLSearchParams({
-      client_id: clientId,
-      redirect_uri: redirectUri,
-      response_type: 'code',
-      scope: 'openid profile email',
-      state: Math.random().toString(36).substring(7),
+        client_id: clientId,
+        redirect_uri: redirectUri,
+        response_type: 'code',
+        scope: 'openid profile email',
+        state: Math.random().toString(36).substring(7),
     });
 
-    // Use the correct Kinde OAuth endpoints
-    const endpoint = action === 'register' ? 'register' : 'authorize';
-    const authUrl = `${kindeBaseUrl}/oauth/${endpoint}?${params.toString()}`;
+    // Use standard authorize endpoint, add hint for registration
+    if (action === 'register') {
+        params.append('sign_up_hint', 'true');
+        params.append('prompt', 'create');
+    }
+
+    const authUrl = `${kindeBaseUrl}/oauth/authorize?${params.toString()}`;
     
     setDebugInfo(`Redirecting to: ${authUrl}`);
-    console.log(`🚀 Manual redirect to: ${authUrl}`);
+    console.log(`Manual redirect to: ${authUrl}`);
     
-    // Small delay to see the debug info, then redirect
     setTimeout(() => {
-      window.location.href = authUrl;
+        window.location.href = authUrl;
     }, 1000);
-  };
+    };
 
   // Test if we can reach Kinde's domain
   const testKindeConnection = async () => {
