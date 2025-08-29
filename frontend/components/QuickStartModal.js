@@ -436,6 +436,16 @@ const QuickStartModal = ({ isOpen, onClose }) => {
         return grouped;
     }, [existingAccounts]);
 
+    // NEW: map account name → id for Excel rows (case-insensitive)
+    const accountNameToId = useMemo(() => {
+        const map = new Map();
+        (Array.isArray(existingAccounts) ? existingAccounts : []).forEach(acc => {
+            const key = String(acc?.account_name || acc?.name || '').trim().toLowerCase();
+            if (key) map.set(key, acc.id);
+        });
+        return map;
+    }, [existingAccounts]);
+
     // Initialize with one empty account
     useEffect(() => {
         if (activeTab === 'accounts' && importMethod === 'ui' && accounts.length === 0) {
@@ -650,6 +660,168 @@ const QuickStartModal = ({ isOpen, onClose }) => {
     // lenient header matcher: case/space-insensitive
     const normalizeHeader = (h) => String(h || '').trim().toLowerCase().replace(/\s+/g, ' ');
 
+    // NEW — helpers for Positions parsing
+    const norm = (v) => String(v ?? '').trim();
+    const normLower = (v) => norm(v).toLowerCase();
+
+    const toNumber = (v) => {
+        if (v === null || v === undefined || v === '') return undefined;
+        const s = String(v).replace(/,/g, '');
+        const n = Number(s);
+        return Number.isFinite(n) ? n : undefined;
+    };
+
+    const toDateString = (v) => {
+        const raw = norm(v);
+        if (!raw) return undefined;
+        // Already YYYY-MM-DD
+        if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
+        // Try Date parse and format
+        const d = new Date(raw);
+        if (Number.isFinite(d.getTime())) return d.toISOString().split('T')[0];
+        return undefined;
+    };
+
+    const seedRow = (type, data) => ({
+        id: Date.now() + Math.random(),
+        type,
+        data,
+        errors: {},
+        isNew: true,
+        animateIn: true
+    });
+
+    // NEW — parse the Positions template tabs into QuickAdd shape
+    const parsePositionsExcel = async (file) => {
+        const buf = await readFileAsArrayBuffer(file);
+        const XLSX = await import('xlsx');
+        const wb = XLSX.read(buf, { type: 'array' });
+
+        const findSheet = (part) =>
+            wb.SheetNames.find(n => normLower(n).includes(part));
+
+        const result = { security: [], cash: [], crypto: [], metal: [] };
+
+        const accountIdFor = (name) => {
+            const key = normLower(name);
+            return accountNameToId.get(key);
+        };
+
+        // --- SECURITIES ---
+        const secSheetName = findSheet('secur'); // matches "📈 SECURITIES"
+        if (secSheetName) {
+            const rows = XLSX.utils.sheet_to_json(wb.Sheets[secSheetName], { defval: '' });
+            rows.forEach(r => {
+                const account = r['Account*'] ?? r['Account'] ?? r['account'];
+                const ticker  = r['Ticker*'] ?? r['Ticker'] ?? r['Symbol'] ?? r['symbol'];
+                const name    = r['Name'] ?? r['Company'] ?? '';
+                const shares  = r['Shares*'] ?? r['Shares'];
+                const cost    = r['Cost Basis*'] ?? r['Cost Basis'] ?? r['Purchase Price'] ?? r['Price'];
+                const date    = r['Purchase Date*'] ?? r['Purchase Date'] ?? r['Acquired Date (YYYY-MM-DD)'];
+                if (!account && !ticker) return;
+
+                result.security.push(
+                    seedRow('security', {
+                        account_id: accountIdFor(account),
+                        account_name: norm(account),
+                        ticker: norm(ticker),
+                        name: norm(name),
+                        shares: toNumber(shares),
+                        cost_basis: toNumber(cost),
+                        purchase_date: toDateString(date)
+                    })
+                );
+            });
+        }
+
+        // --- CASH ---
+        const cashSheetName = findSheet('cash'); // matches "💵 CASH"
+        if (cashSheetName) {
+            const rows = XLSX.utils.sheet_to_json(wb.Sheets[cashSheetName], { defval: '' });
+            rows.forEach(r => {
+                const account = r['Account*'] ?? r['Account'] ?? r['account'];
+                const cashType = r['Cash Type*'] ?? r['Cash Type'] ?? r['Type'];
+                const amount = r['Amount*'] ?? r['Amount'];
+                const rate = r['Interest Rate (%)'] ?? r['Interest Rate'] ?? r['Rate'];
+                const maturity = r['Maturity Date'] ?? r['Maturity'];
+
+                // Skip obvious blank lines
+                if (!account && !cashType && !amount) return;
+
+                result.cash.push(
+                    seedRow('cash', {
+                        account_id: accountIdFor(account),
+                        account_name: norm(account),
+                        cash_type: norm(cashType),
+                        amount: toNumber(amount),
+                        interest_rate: toNumber(rate),
+                        maturity_date: toDateString(maturity)
+                    })
+                );
+            });
+        }
+
+        // --- CRYPTO ---
+        const cryptoSheetName = findSheet('crypto'); // matches "🪙 CRYPTO"
+        if (cryptoSheetName) {
+            const rows = XLSX.utils.sheet_to_json(wb.Sheets[cryptoSheetName], { defval: '' });
+            rows.forEach(r => {
+                const account = r['Account*'] ?? r['Account'] ?? r['account'];
+                const symbol  = r['Symbol*'] ?? r['Symbol'];
+                const name    = r['Name'] ?? '';
+                const qty     = r['Quantity*'] ?? r['Quantity'];
+                const price   = r['Purchase Price*'] ?? r['Purchase Price'];
+                const date    = r['Purchase Date*'] ?? r['Purchase Date'];
+                if (!account && !symbol) return;
+
+                result.crypto.push(
+                    seedRow('crypto', {
+                        account_id: accountIdFor(account),
+                        account_name: norm(account),
+                        symbol: norm(symbol),
+                        name: norm(name),
+                        quantity: toNumber(qty),
+                        purchase_price: toNumber(price),
+                        purchase_date: toDateString(date)
+                    })
+                );
+            });
+        }
+
+        // --- METALS ---
+        const metalSheetName = findSheet('metal'); // matches "🥇 METALS"
+        if (metalSheetName) {
+            const rows = XLSX.utils.sheet_to_json(wb.Sheets[metalSheetName], { defval: '' });
+            rows.forEach(r => {
+                const account = r['Account*'] ?? r['Account'] ?? r['account'];
+                const mtype   = r['Metal Type*'] ?? r['Metal Type'] ?? r['Metal'];
+                const qty     = r['Quantity (oz)*'] ?? r['Quantity (oz)'] ?? r['Quantity'];
+                const price   = r['Purchase Price/oz*'] ?? r['Purchase Price/oz'] ?? r['Price/Unit'];
+                const date    = r['Purchase Date*'] ?? r['Purchase Date'];
+                const storage = r['Storage Location'] ?? r['Storage'];
+                if (!account && !mtype) return;
+
+                result.metal.push(
+                    seedRow('metal', {
+                        account_id: accountIdFor(account),
+                        account_name: norm(account),
+                        metal_type: norm(mtype),
+                        symbol: '', // optional; UI auto-fills from metal_type
+                        name: '',   // optional; UI auto-fills from metal_type
+                        quantity: toNumber(qty),
+                        unit: 'oz',
+                        purchase_price: toNumber(price),
+                        purchase_date: toDateString(date),
+                        storage_location: norm(storage)
+                    })
+                );
+            });
+        }
+
+        return result;
+    };
+
+
     const parseAccountsExcel = async (file) => {
     const buf = await readFileAsArrayBuffer(file);
     const XLSX = await import('xlsx');
@@ -756,16 +928,35 @@ const QuickStartModal = ({ isOpen, onClose }) => {
             const { kind } = await detectTemplateType(file);
 
             if (kind === 'positions') {
-            // Simplest UX: route directly to Positions Quick Add flow (no separate parser needed)
-            setUploadProgress(60);
-            setValidationStatus('valid');
-            setUploadProgress(100);
-            setTimeout(() => {
-                setActiveTab('positions');
-                setImportMethod('ui');
-            }, 250);
-            return;
+                setUploadProgress(40);
+                const parsed = await parsePositionsExcel(file);
+
+                const total =
+                    (parsed.security?.length || 0) +
+                    (parsed.cash?.length || 0) +
+                    (parsed.crypto?.length || 0) +
+                    (parsed.metal?.length || 0);
+
+                if (!total) {
+                    setValidationStatus(null);
+                    setUploadProgress(0);
+                    alert('No rows found. Make sure you filled the SECURITIES / CASH / CRYPTO / METALS tabs and saved the file.');
+                    return;
+                }
+
+                setImportedPositionsData(parsed);
+                setImportedPositions(total);
+                setUploadProgress(100);
+                setValidationStatus('valid');
+
+                // Route to Quick Add Positions with prefilled rows
+                setTimeout(() => {
+                    setActiveTab('positions');
+                    setImportMethod('ui');
+                }, 250);
+                return;
             }
+
 
             if (kind === 'accounts') {
             // Parse Accounts as before
@@ -1222,6 +1413,7 @@ const QuickStartModal = ({ isOpen, onClose }) => {
             <div className="relative">
                 <AddQuickPositionModal
                     isOpen={true}
+                    seedPositions={importedPositionsData}
                     onClose={() => {
                         setImportMethod(null);
                         // Optionally refresh data or show success

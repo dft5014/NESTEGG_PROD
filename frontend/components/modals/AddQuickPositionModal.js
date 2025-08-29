@@ -622,7 +622,7 @@ const QueueModal = ({ isOpen, onClose, positions, assetTypes, accounts, onClearC
   }
 };
 
-const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved }) => {
+const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPositions }) => {
   // Core state
   const [accounts, setAccounts] = useState([]);
   const [positions, setPositions] = useState({
@@ -901,29 +901,44 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved }) => {
     []
   );
 
-  // Initialize and cleanup
-  useEffect(() => {
-    if (isOpen) {
-      loadAccounts();
-      setPositions({
-        security: [],
-        cash: [],
-        crypto: [],
-        metal: [],
-        otherAssets: []
-      });
-      setExpandedSections({});
-      setAccountExpandedSections({});
-      setMessage({ type: '', text: '', details: [] });
-      setActiveFilter('all');
-      setSearchResults({});
-      setSelectedSecurities({});
-      
-      setShowKeyboardShortcuts(true);
-      setTimeout(() => setShowKeyboardShortcuts(false), 3000);
-    }
-    
-    return () => {
+      useEffect(() => {
+        if (isOpen) {
+          loadAccounts();
+
+          // If we were given seeded rows (from Excel), use them; otherwise start empty
+          const hasSeeds =
+            seedPositions &&
+            (seedPositions.security?.length ||
+            seedPositions.cash?.length ||
+            seedPositions.crypto?.length ||
+            seedPositions.metal?.length);
+
+          setPositions(hasSeeds ? {
+            security: seedPositions.security ?? [],
+            cash:     seedPositions.cash ?? [],
+            crypto:   seedPositions.crypto ?? [],
+            metal:    seedPositions.metal ?? [],
+            otherAssets: []
+          } : {
+            security: [],
+            cash: [],
+            crypto: [],
+            metal: [],
+            otherAssets: []
+          });
+
+          setExpandedSections({});
+          setAccountExpandedSections({});
+          setMessage({ type: '', text: '', details: [] });
+          setActiveFilter('all');
+          setSearchResults({});
+          setSelectedSecurities({});
+          
+          setShowKeyboardShortcuts(true);
+          setTimeout(() => setShowKeyboardShortcuts(false), 3000);
+        }
+        
+        return () => {
       if (messageTimeoutRef.current) {
         clearTimeout(messageTimeoutRef.current);
       }
