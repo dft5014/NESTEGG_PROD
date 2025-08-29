@@ -53,18 +53,60 @@ class ExcelTemplateService:
         accounts_ws = self._create_accounts_sheet(wb)
         lookups_ws = self._create_validation_lists_sheet(wb)
         
-        # Add validations AFTER creating lookups sheet
+        # Add validations AFTER creating lookups sheet with the workbook context
         self._add_institution_validation_named_range(accounts_ws)
         self._add_category_validation_named_range(accounts_ws)
-        self._add_account_type_validation(accounts_ws)
+        self._add_account_type_validation_with_indirect(accounts_ws, wb)
         
-        # Optional reference sheet (hidden)
-        # self._create_category_type_reference(wb)  # Comment out if not needed
-
         output = io.BytesIO()
         wb.save(output)
         output.seek(0)
         return output
+
+    def _add_account_type_validation_with_indirect(self, ws: Worksheet, wb: Workbook) -> None:
+        """
+        Add account type validation that dynamically changes based on category selection.
+        Uses INDIRECT formula to reference the appropriate named range.
+        """
+        # Create a helper column in Lookups sheet for the mapping
+        lookups_ws = wb["Lookups"]
+        
+        # Add mapping table starting at column M (column 13)
+        lookups_ws["M1"] = "Category Display"
+        lookups_ws["N1"] = "Range Name"
+        lookups_ws["M1"].font = self.header_font
+        lookups_ws["N1"].font = self.header_font
+        
+        mappings = [
+            ("Brokerage", "Types_Brokerage"),
+            ("Retirement", "Types_Retirement"),
+            ("Cash / Banking", "Types_CashBanking"),
+            ("Cryptocurrency", "Types_Cryptocurrency"),
+            ("Metals", "Types_Metals")
+        ]
+        
+        for i, (display, range_name) in enumerate(mappings, start=2):
+            lookups_ws.cell(row=i, column=13, value=display).border = self.border
+            lookups_ws.cell(row=i, column=14, value=range_name).border = self.border
+        
+        # Use VLOOKUP with INDIRECT to get the right list
+        # This formula looks up the category name and gets the corresponding range name
+        indirect_formula = 'INDIRECT(VLOOKUP(C2,Lookups!$M$2:$N$6,2,FALSE))'
+        
+        dv = DataValidation(
+            type="list",
+            formula1=indirect_formula,
+            allow_blank=True,
+            showDropDown=True,
+            errorTitle="Select Category First",
+            error="Please select an Account Category first, then choose the Account Type.",
+            showErrorMessage=True,
+            showInputMessage=True,
+            promptTitle="Account Type",
+            prompt="Select a type based on your chosen category"
+        )
+        ws.add_data_validation(dv)
+        dv.add("D2:D5000")
 
     def _create_instructions_sheet(self, wb: Workbook) -> Worksheet:
         ws = wb.create_sheet("Instructions", 0)
@@ -98,7 +140,7 @@ class ExcelTemplateService:
             "• Account Category: General grouping (retirement, cash, brokerage, etc.)",
             "• Account Type: Specific type within the category (e.g., 'Roth IRA', 'Checking')",
             "",
-            "Need Help?",
+            "Need Help?:",
             "• Missing an institution? Contact support@nesteggfinapp.com",
             "• For account type questions, refer to the Category-Type Reference tab",
             "",
@@ -162,7 +204,6 @@ class ExcelTemplateService:
 
         return ws
 
-
     def _create_validation_lists_sheet(self, wb: Workbook) -> Worksheet:
         ws = wb.create_sheet("Lookups", 2)
         # Hide this sheet from users
@@ -178,73 +219,66 @@ class ExcelTemplateService:
         # Account Categories column
         ws["C1"] = "Account Categories"
         ws["C1"].font = self.header_font
+        category_display_names = []
         for i, cat in enumerate(ACCOUNT_CATEGORIES, start=2):
+            if cat == "real_estate":
+                continue
             # Display user-friendly names
             display_name = cat.replace("_", " ").title()
             if cat == "cash":
                 display_name = "Cash / Banking"
             elif cat == "cryptocurrency":
                 display_name = "Cryptocurrency"
+            category_display_names.append((cat, display_name))
             ws.cell(row=i, column=3, value=display_name).border = self.border
         ws.column_dimensions["C"].width = 22
         
-        # Account Types (All) column - for now, until we implement dynamic dropdowns
-        ws["E1"] = "Account Types (All)"
-        ws["E1"].font = self.header_font
-        
-        # Flatten types but exclude real_estate types
-        seen = set()
-        flat_types: List[str] = []
-        for category, lst in ACCOUNT_TYPES_BY_CATEGORY.items():
-            if category != "real_estate":  # Exclude real estate
-                for t in lst:
-                    if t not in seen:
-                        seen.add(t)
-                        flat_types.append(t)
-        
-        for i, t in enumerate(flat_types, start=2):
-            ws.cell(row=i, column=5, value=t).border = self.border
-        ws.column_dimensions["E"].width = 26
-        
         # Create dynamic category-type mapping columns for INDIRECT formula use
-        col_index = 7  # Start at column G
-        for category, types in ACCOUNT_TYPES_BY_CATEGORY.items():
+        col_index = 5  # Start at column E
+        for category, display_name in category_display_names:
             if category == "real_estate":
                 continue  # Skip real estate
                 
+            types = ACCOUNT_TYPES_BY_CATEGORY.get(category, [])
+            
             # Header for this category's types
-            display_cat = category.replace("_", " ").title()
-            if category == "cash":
-                display_cat = "Cash / Banking"
-            elif category == "cryptocurrency":
-                display_cat = "Cryptocurrency"
-                
-            ws.cell(row=1, column=col_index, value=display_cat).font = self.header_font
+            ws.cell(row=1, column=col_index, value=display_name).font = self.header_font
             
             # List types for this category
             for i, t in enumerate(types, start=2):
                 ws.cell(row=i, column=col_index, value=t).border = self.border
             
             # Define named range for this category's types
+            # The named range should match what INDIRECT will look for
+            # Remove spaces and special chars from the display name for the range name
+            clean_name = display_name.replace(" / ", "").replace(" ", "")
             cat_range_addr = f"Lookups!${get_column_letter(col_index)}$2:${get_column_letter(col_index)}${1 + len(types)}"
-            cat_range_name = f"Types_{category.replace('_', '')}"
-            wb.defined_names.add(DefinedName(name=cat_range_name, attr_text=cat_range_addr))
+            cat_range_name = f"Types_{clean_name}"
             
+            # Create the defined name
+            defined_name = DefinedName(name=cat_range_name, attr_text=cat_range_addr)
+            wb.defined_names.add(defined_name)
+            
+            ws.column_dimensions[get_column_letter(col_index)].width = 26
             col_index += 1
 
         return ws
 
     def _add_institution_validation_named_range(self, ws: Worksheet) -> None:
         # Use direct range reference like positions template does
-        inst_range = f"=Lookups!$A$2:$A${1 + len(INSTITUTION_LIST)}"
+        inst_range = f"Lookups!$A$2:$A${1 + len(INSTITUTION_LIST)}"
         
         dv = DataValidation(
             type="list",
             formula1=inst_range,
-            allow_blank=True,   # Allow blank for better UX
-            showDropDown=True,
+            allow_blank=True,   # This sets "Ignore blank" checkbox
+            showDropDown=True,  # This ensures dropdown arrow is visible
             errorTitle="Invalid Institution",
             error="Please choose a valid institution from the list or type a custom name.",
+            showErrorMessage=True,
+            showInputMessage=True,
+            promptTitle="Institution",
+            prompt="Select from the list or type a custom name"
         )
         ws.add_data_validation(dv)
         dv.add("B2:B5000")
@@ -252,32 +286,39 @@ class ExcelTemplateService:
     def _add_category_validation_named_range(self, ws: Worksheet) -> None:
         # Use direct range reference
         cat_count = len([c for c in ACCOUNT_CATEGORIES if c != "real_estate"])
-        cat_range = f"=Lookups!$C$2:$C${1 + cat_count}"
+        cat_range = f"Lookups!$C$2:$C${1 + cat_count}"
         
         dv = DataValidation(
             type="list",
             formula1=cat_range,
-            allow_blank=False,
-            showDropDown=True,
+            allow_blank=True,   # Set to True for "Ignore blank"
+            showDropDown=True,  # Ensure dropdown arrow shows
             errorTitle="Invalid Category",
             error="Choose a valid account category from the list.",
+            showErrorMessage=True,
+            showInputMessage=True,
+            promptTitle="Account Category",
+            prompt="Select the category that best fits this account"
         )
         ws.add_data_validation(dv)
         dv.add("C2:C5000")
 
     def _add_account_type_validation(self, ws: Worksheet) -> None:
-        # For now, use the flat list - dynamic dropdowns would require VBA or more complex formulas
-        # Count non-real-estate types
-        flat_types_count = sum(len(types) for cat, types in ACCOUNT_TYPES_BY_CATEGORY.items() if cat != "real_estate")
-        types_range = f"=Lookups!$E$2:$E${1 + flat_types_count}"
+        # Use INDIRECT formula to dynamically reference the category's type list
+        # This formula will look up the named range based on the category selected in column C
+        indirect_formula = 'INDIRECT("Types_" & SUBSTITUTE(SUBSTITUTE(C2," ","")," / ",""))'
         
         dv = DataValidation(
             type="list",
-            formula1=types_range,
-            allow_blank=False,
-            showDropDown=True,
+            formula1=indirect_formula,
+            allow_blank=True,   # Set to True for "Ignore blank"
+            showDropDown=True,  # Ensure dropdown arrow shows
             errorTitle="Invalid Account Type",
             error="Please select a valid account type for your chosen category.",
+            showErrorMessage=True,
+            showInputMessage=True,
+            promptTitle="Account Type",
+            prompt="Select a type based on your chosen category"
         )
         ws.add_data_validation(dv)
         dv.add("D2:D5000")
