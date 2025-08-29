@@ -48,15 +48,18 @@ class ExcelTemplateService:
         wb = Workbook()
         wb.remove(wb.active)
 
+        # Create sheets in order
         self._create_instructions_sheet(wb)
         accounts_ws = self._create_accounts_sheet(wb)
-        self._create_validation_lists_sheet(wb)
-
+        lookups_ws = self._create_validation_lists_sheet(wb)
+        
+        # Add validations AFTER creating lookups sheet
         self._add_institution_validation_named_range(accounts_ws)
         self._add_category_validation_named_range(accounts_ws)
         self._add_account_type_validation(accounts_ws)
-
-        self._create_category_type_reference(wb)
+        
+        # Optional reference sheet (hidden)
+        # self._create_category_type_reference(wb)  # Comment out if not needed
 
         output = io.BytesIO()
         wb.save(output)
@@ -93,12 +96,15 @@ class ExcelTemplateService:
             "• Account Name: Your chosen name for the account (e.g., 'My 401k', 'Joint Savings')",
             "• Institution: The financial institution where the account is held",
             "• Account Category: General grouping (retirement, cash, brokerage, etc.)",
-            "• Account Type: Specific type within the category (e.g., 401(k), Roth IRA, Checking)",
-            "• Notes: Optional info about the account",
+            "• Account Type: Specific type within the category (e.g., 'Roth IRA', 'Checking')",
+            "",
+            "Need Help?",
+            "• Missing an institution? Contact support@nesteggfinapp.com",
+            "• For account type questions, refer to the Category-Type Reference tab",
             "",
             "After importing accounts, you can:",
             "• Download a customized Positions template with your account names",
-            "• Add securities, cash, crypto, metals, and real estate to your accounts",
+            "• Add securities, cash, crypto, and metals to your accounts",
         ]
 
         row = 3
@@ -159,70 +165,98 @@ class ExcelTemplateService:
 
     def _create_validation_lists_sheet(self, wb: Workbook) -> Worksheet:
         ws = wb.create_sheet("Lookups", 2)
+        # Hide this sheet from users
+        ws.sheet_state = 'hidden'
 
+        # Institutions column
         ws["A1"] = "Institutions"
         ws["A1"].font = self.header_font
         for i, inst in enumerate(INSTITUTION_LIST, start=2):
             ws.cell(row=i, column=1, value=inst).border = self.border
         ws.column_dimensions["A"].width = 32
-        if INSTITUTION_LIST:
-            inst_addr = f"Lookups!$A$2:$A${1 + len(INSTITUTION_LIST)}"
-            self.lookup_ranges["institutions"] = f"={inst_addr}"
-            wb.defined_names.add(DefinedName(name=self.named_ranges["institutions"], attr_text=inst_addr))
-
+        
+        # Account Categories column
         ws["C1"] = "Account Categories"
         ws["C1"].font = self.header_font
         for i, cat in enumerate(ACCOUNT_CATEGORIES, start=2):
-            ws.cell(row=i, column=3, value=cat).border = self.border
+            # Display user-friendly names
+            display_name = cat.replace("_", " ").title()
+            if cat == "cash":
+                display_name = "Cash / Banking"
+            elif cat == "cryptocurrency":
+                display_name = "Cryptocurrency"
+            ws.cell(row=i, column=3, value=display_name).border = self.border
         ws.column_dimensions["C"].width = 22
-        if ACCOUNT_CATEGORIES:
-            cat_addr = f"Lookups!$C$2:$C${1 + len(ACCOUNT_CATEGORIES)}"
-            self.lookup_ranges["categories"] = f"={cat_addr}"
-            wb.defined_names.add(DefinedName(name=self.named_ranges["categories"], attr_text=cat_addr))
-
+        
+        # Account Types (All) column - for now, until we implement dynamic dropdowns
         ws["E1"] = "Account Types (All)"
         ws["E1"].font = self.header_font
+        
+        # Flatten types but exclude real_estate types
         seen = set()
         flat_types: List[str] = []
-        for lst in ACCOUNT_TYPES_BY_CATEGORY.values():
-            for t in lst:
-                if t not in seen:
-                    seen.add(t)
-                    flat_types.append(t)
+        for category, lst in ACCOUNT_TYPES_BY_CATEGORY.items():
+            if category != "real_estate":  # Exclude real estate
+                for t in lst:
+                    if t not in seen:
+                        seen.add(t)
+                        flat_types.append(t)
+        
         for i, t in enumerate(flat_types, start=2):
             ws.cell(row=i, column=5, value=t).border = self.border
         ws.column_dimensions["E"].width = 26
-        if flat_types:
-            types_addr = f"Lookups!$E$2:$E${1 + len(flat_types)}"
-            self.lookup_ranges["types_flat"] = f"={types_addr}"
-            wb.defined_names.add(DefinedName(name=self.named_ranges["types_flat"], attr_text=types_addr))
-
+        
+        # Create dynamic category-type mapping columns for INDIRECT formula use
+        col_index = 7  # Start at column G
+        for category, types in ACCOUNT_TYPES_BY_CATEGORY.items():
+            if category == "real_estate":
+                continue  # Skip real estate
+                
+            # Header for this category's types
+            display_cat = category.replace("_", " ").title()
+            if category == "cash":
+                display_cat = "Cash / Banking"
+            elif category == "cryptocurrency":
+                display_cat = "Cryptocurrency"
+                
+            ws.cell(row=1, column=col_index, value=display_cat).font = self.header_font
+            
+            # List types for this category
+            for i, t in enumerate(types, start=2):
+                ws.cell(row=i, column=col_index, value=t).border = self.border
+            
+            # Define named range for this category's types
+            cat_range_addr = f"Lookups!${get_column_letter(col_index)}$2:${get_column_letter(col_index)}${1 + len(types)}"
+            cat_range_name = f"Types_{category.replace('_', '')}"
+            wb.defined_names.add(DefinedName(name=cat_range_name, attr_text=cat_range_addr))
+            
+            col_index += 1
 
         return ws
 
     def _add_institution_validation_named_range(self, ws: Worksheet) -> None:
-        rng = self.lookup_ranges.get("institutions")
-        if not rng:
-            return
-
+        # Use direct range reference like positions template does
+        inst_range = f"=Lookups!$A$2:$A${1 + len(INSTITUTION_LIST)}"
+        
         dv = DataValidation(
             type="list",
-            formula1=f"={self.named_ranges['institutions']}",
-            allow_blank=False,   # must pick from dropdown
+            formula1=inst_range,
+            allow_blank=True,   # Allow blank for better UX
             showDropDown=True,
             errorTitle="Invalid Institution",
-            error="Please choose a valid institution from the list.",
+            error="Please choose a valid institution from the list or type a custom name.",
         )
         ws.add_data_validation(dv)
         dv.add("B2:B5000")
 
     def _add_category_validation_named_range(self, ws: Worksheet) -> None:
-        rng = self.lookup_ranges.get("categories")
-        if not rng:
-            return
+        # Use direct range reference
+        cat_count = len([c for c in ACCOUNT_CATEGORIES if c != "real_estate"])
+        cat_range = f"=Lookups!$C$2:$C${1 + cat_count}"
+        
         dv = DataValidation(
             type="list",
-            formula1=f"={self.named_ranges['categories']}",
+            formula1=cat_range,
             allow_blank=False,
             showDropDown=True,
             errorTitle="Invalid Category",
@@ -232,16 +266,18 @@ class ExcelTemplateService:
         dv.add("C2:C5000")
 
     def _add_account_type_validation(self, ws: Worksheet) -> None:
-        rng = self.lookup_ranges.get("types_flat")
-        if not rng:
-            return
+        # For now, use the flat list - dynamic dropdowns would require VBA or more complex formulas
+        # Count non-real-estate types
+        flat_types_count = sum(len(types) for cat, types in ACCOUNT_TYPES_BY_CATEGORY.items() if cat != "real_estate")
+        types_range = f"=Lookups!$E$2:$E${1 + flat_types_count}"
+        
         dv = DataValidation(
             type="list",
-            formula1=f"={self.named_ranges['types_flat']}",
+            formula1=types_range,
             allow_blank=False,
             showDropDown=True,
             errorTitle="Invalid Account Type",
-            error="Please select a valid account type.",
+            error="Please select a valid account type for your chosen category.",
         )
         ws.add_data_validation(dv)
         dv.add("D2:D5000")
@@ -249,6 +285,8 @@ class ExcelTemplateService:
     def _create_category_type_reference(self, wb: Workbook) -> Worksheet:
         ws = wb.create_sheet("Category-Type Reference", 3)
         ws.sheet_properties.tabColor = "FFC107"
+        # Hide this reference sheet from users
+        ws.sheet_state = 'hidden'
 
         ws.merge_cells("A1:C1")
         ws["A1"] = "Valid Account Types by Category"

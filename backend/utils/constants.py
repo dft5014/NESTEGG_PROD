@@ -91,8 +91,7 @@ ACCOUNT_CATEGORIES = [
     "retirement", 
     "cash",
     "cryptocurrency",
-    "metals",
-    "real_estate"
+    "metals"
 ]
 
 # Account types by category - must match QuickStartModal exactly
