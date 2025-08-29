@@ -364,132 +364,569 @@ class ExcelTemplateService:
     # PUBLIC: POSITIONS TEMPLATE
     # (simple scaffold; Step 2)
     # ==========================
+
     async def create_positions_template(self, user_id: Any, database) -> io.BytesIO:
-        query = """
-            SELECT id, account_name
+        # Get user's accounts
+        accounts_query = """
+            SELECT id, account_name, institution
             FROM accounts
             WHERE user_id = :user_id
             ORDER BY account_name
         """
-        accounts = await database.fetch_all(query=query, values={"user_id": user_id})
+        accounts = await database.fetch_all(query=accounts_query, values={"user_id": user_id})
         if not accounts:
             raise ValueError("No accounts found. Please create accounts before downloading positions template.")
+        
+        # Get securities (stocks/ETFs only)
+        securities_query = """
+            SELECT ticker, company_name
+            FROM securities
+            WHERE asset_type IN ('security', 'index')
+            AND on_yfinance = true
+            ORDER BY ticker
+            LIMIT 5000  -- Reasonable limit for Excel dropdown
+        """
+        securities = await database.fetch_all(query=securities_query)
+        
+        # Get crypto assets
+        crypto_query = """
+            SELECT ticker, company_name
+            FROM securities
+            WHERE asset_type = 'crypto'
+            ORDER BY ticker
+            LIMIT 500
+        """
+        cryptos = await database.fetch_all(query=crypto_query)
+        
+        # Get metal futures
+        metals_query = """
+            SELECT 
+                CASE 
+                    WHEN ticker = 'GC=F' THEN 'Gold'
+                    WHEN ticker = 'SI=F' THEN 'Silver'
+                    WHEN ticker = 'PL=F' THEN 'Platinum'
+                    WHEN ticker = 'PA=F' THEN 'Palladium'
+                    WHEN ticker = 'HG=F' THEN 'Copper'
+                END as metal_type,
+                ticker,
+                company_name,
+                current_price
+            FROM securities
+            WHERE ticker IN ('GC=F', 'SI=F', 'PL=F', 'PA=F', 'HG=F')
+            ORDER BY metal_type
+        """
+        metals = await database.fetch_all(query=metals_query)
 
         wb = Workbook()
         wb.remove(wb.active)
-
-        # Instructions - Positions
-        inst = wb.create_sheet("Instructions - Positions", 0)
-        inst.sheet_properties.tabColor = "9B59B6"
-        inst.merge_cells("A1:F1")
-        inst["A1"] = "NestEgg Positions Import Instructions"
-        inst["A1"].font = Font(bold=True, size=16, color="2C3E50")
-        inst["A1"].alignment = Alignment(horizontal="center")
-
-        pos_lines = [
-            "",
-            "Step-by-Step Guide:",
-            "1. Go to the 'Positions' tab",
-            "2. Choose your Account from the dropdown",
-            "3. Select Asset Type (cash, crypto, metal)",
-            "4. Fill Identifier/Ticker, Quantity, Purchase Price, and Purchase Date",
-            "5. Delete the example rows before importing",
-            "",
-            "Important Notes:",
-            "• Accounts must already exist (import accounts first)",
-            "• Required fields are highlighted in YELLOW",
-            "• Purchase Date format: YYYY-MM-DD",
-            "",
-            "Field Descriptions:",
-            "• Account: The account that will hold this position",
-            "• Asset Type: cash, crypto, or metal",
-            "• Identifier / Ticker: e.g., BTC, Gold; leave empty for cash",
-            "• Quantity: shares/units/ounces/amount",
-            "• Purchase Price per Share: unit cost paid",
-            "• Purchase Date: date of acquisition",
-        ]
-        r = 3
-        for t in pos_lines:
-            inst[f"A{r}"] = t
-            inst[f"A{r}"].font = Font(bold=True, size=12, color="2C3E50") if t.endswith(":") else Font(size=11)
-            r += 1
-        inst.column_dimensions["A"].width = 100
-
-        # Lookups sheet
-        lookups = wb.create_sheet("Lookups", 1)
-
-        lookups["A1"] = "Account Name"
-        for i, acc in enumerate(accounts, start=2):
-            lookups.cell(row=i, column=1, value=acc["account_name"]).border = self.border
-        acc_range = f"=Lookups!$A$2:$A${1+len(accounts)}"
-
-        # Asset types
-        lookups["C1"] = "Asset Types"
-        for i, t in enumerate(["cash", "crypto", "metal"], start=2):
-            lookups.cell(row=i, column=3, value=t).border = self.border
-        type_range = "=Lookups!$C$2:$C$4"
-
-        # Positions sheet
-        ws = wb.create_sheet("Positions", 1)
-        ws.sheet_properties.tabColor = "4CAF50"
-        headers = ["Account", "Asset Type", "Identifier / Ticker", "Quantity", "Purchase Price per Share", "Purchase Date"]
-        for c, h in enumerate(headers, start=1):
-            cell = ws.cell(row=1, column=c, value=h)
-            cell.font = self.header_font
-            cell.fill = self.header_fill
-            cell.alignment = Alignment(horizontal="center", vertical="center")
-            cell.border = self.border
-            ws.column_dimensions[get_column_letter(c)].width = 22
-
-        # Dropdowns
-        dv_acc = DataValidation(type="list", formula1=acc_range, allow_blank=False)
-        ws.add_data_validation(dv_acc)
-        dv_acc.add("A2:A5000")
-
-        dv_type = DataValidation(type="list", formula1=type_range, allow_blank=False)
-        ws.add_data_validation(dv_type)
-        dv_type.add("B2:B5000")
-
-        # Example rows
-        examples = [
-            [accounts[0]["account_name"], "cash", "", "", "", ""],
-            [accounts[0]["account_name"], "crypto", "BTC", "0.5", "20000", "2024-01-01"],
-            [accounts[0]["account_name"], "metal", "Gold", "2", "1800", "2023-10-15"],
-        ]
-        for r_idx, row in enumerate(examples, start=2):
-            for c_idx, val in enumerate(row, start=1):
-                ws.cell(row=r_idx, column=c_idx, value=val).border = self.border
-                if r_idx < 6:
-                    ws.cell(row=r_idx, column=c_idx).fill = self.sample_fill
-
-        ws.freeze_panes = "A2"
-
+        
+        # Create comprehensive instructions
+        self._create_master_instructions_sheet(wb)
+        
+        # Create hidden lookups sheet
+        lookups = self._create_lookups_sheet(wb, accounts, securities, cryptos, metals)
+        
+        # Create position entry sheets with clear labeling
+        self._create_securities_positions_sheet(wb, accounts, securities)
+        self._create_cash_positions_sheet(wb, accounts)
+        self._create_crypto_positions_sheet(wb, accounts, cryptos)
+        self._create_metal_positions_sheet(wb, accounts, metals)
+        
         output = io.BytesIO()
         wb.save(output)
         output.seek(0)
         return output
 
+    def _create_master_instructions_sheet(self, wb: Workbook) -> Worksheet:
+        ws = wb.create_sheet("📋 START HERE - Instructions", 0)
+        ws.sheet_properties.tabColor = "FF0000"  # Red to draw attention
+        
+        # Title
+        ws.merge_cells("A1:H1")
+        ws["A1"] = "NestEgg Position Import Template"
+        ws["A1"].font = Font(bold=True, size=18, color="2C3E50")
+        ws["A1"].alignment = Alignment(horizontal="center")
+        
+        # Overview
+        ws.merge_cells("A3:H3")
+        ws["A3"] = "HOW TO USE THIS TEMPLATE"
+        ws["A3"].font = Font(bold=True, size=14, color="FFFFFF")
+        ws["A3"].fill = PatternFill(start_color="2C3E50", end_color="2C3E50", fill_type="solid")
+        ws["A3"].alignment = Alignment(horizontal="center")
+        
+        # Tab descriptions
+        instructions = [
+            "",
+            "This workbook contains 4 position type tabs. Fill in ONLY the tabs for positions you want to import:",
+            "",
+            "📈 Tab 1: SECURITIES (Blue) - For stocks, ETFs, mutual funds",
+            "   • Required: Account, Ticker, Shares, Cost Basis, Purchase Date",
+            "   • Ticker dropdown includes all tracked securities",
+            "   • Company name auto-fills based on ticker selection",
+            "",
+            "💵 Tab 2: CASH (Purple) - For savings, checking, money market, CDs",
+            "   • Required: Account, Cash Type, Amount",
+            "   • Optional: Interest rate, maturity date",
+            "",
+            "🪙 Tab 3: CRYPTO (Orange) - For cryptocurrency holdings",
+            "   • Required: Account, Symbol, Quantity, Purchase Price, Purchase Date",
+            "   • Symbol dropdown includes tracked cryptocurrencies",
+            "",
+            "🥇 Tab 4: METALS (Gold) - For precious metal holdings",
+            "   • Required: Account, Metal Type, Quantity (oz), Purchase Price, Purchase Date",
+            "   • Metal type dropdown includes Gold, Silver, Platinum, etc.",
+            "   • Current prices auto-update from futures markets",
+            "",
+            "⚠️ IMPORTANT RULES:",
+            "1. Each tab works independently - you can use any combination",
+            "2. Delete ALL example rows (highlighted in blue) before importing",
+            "3. Yellow cells are REQUIRED fields",
+            "4. Use dropdowns where provided to ensure data accuracy",
+            "5. Dates must be in YYYY-MM-DD format",
+            "6. Save as .xlsx format before uploading",
+            "",
+            "❌ COMMON MISTAKES TO AVOID:",
+            "• Don't modify column headers",
+            "• Don't add data to the Lookups tab (it's for reference only)",
+            "• Don't type tickers manually if dropdown is available",
+            "• Don't leave required fields empty",
+            "• Don't include positions for accounts that don't exist",
+            "",
+            "📧 SUPPORT:",
+            "• Can't find your ticker? Email support@nesteggfinapp.com",
+            "• Import errors? Check that all required fields are filled",
+            "• Account missing? Create it in NestEgg first, then re-download template"
+        ]
+        
+        row = 5
+        for line in instructions:
+            ws[f"A{row}"] = line
+            if line.startswith("📈") or line.startswith("💵") or line.startswith("🪙") or line.startswith("🥇"):
+                ws[f"A{row}"].font = Font(bold=True, size=12, color="2C3E50")
+                ws.merge_cells(f"A{row}:H{row}")
+            elif line.startswith("⚠️") or line.startswith("❌") or line.startswith("📧"):
+                ws[f"A{row}"].font = Font(bold=True, size=12, color="C00000")
+                ws.merge_cells(f"A{row}:H{row}")
+            elif line.startswith("   •"):
+                ws[f"A{row}"].font = Font(size=10, color="666666")
+                ws.merge_cells(f"A{row}:H{row}")
+            else:
+                ws[f"A{row}"].font = Font(size=11)
+                ws.merge_cells(f"A{row}:H{row}")
+            row += 1
+        
+        ws.column_dimensions["A"].width = 100
+        return ws
 
-    def _create_accounts_reference_sheet(self, wb: Workbook, accounts: List[Dict[str, Any]]) -> Worksheet:
-        ws = wb.create_sheet("Your Accounts (Reference)", 0)
-        ws.sheet_properties.tabColor = "FF9800"
+    def _create_lookups_sheet(self, wb: Workbook, accounts: list, securities: list, cryptos: list, metals: list) -> Worksheet:
+        ws = wb.create_sheet("Lookups", 1)
+        ws.sheet_state = 'hidden'
+        
+        # Accounts column
+        ws["A1"] = "Accounts"
+        ws["A1"].font = self.header_font
+        for i, acc in enumerate(accounts, start=2):
+            ws.cell(row=i, column=1, value=acc["account_name"]).border = self.border
+        
+        # Securities column (ticker and company name)
+        ws["C1"] = "Ticker"
+        ws["D1"] = "Company"
+        ws["C1"].font = self.header_font
+        ws["D1"].font = self.header_font
+        for i, sec in enumerate(securities, start=2):
+            ws.cell(row=i, column=3, value=sec["ticker"]).border = self.border
+            ws.cell(row=i, column=4, value=sec["company_name"]).border = self.border
+        
+        # Crypto column
+        ws["F1"] = "Crypto Symbol"
+        ws["G1"] = "Crypto Name"
+        ws["F1"].font = self.header_font
+        ws["G1"].font = self.header_font
+        for i, crypto in enumerate(cryptos, start=2):
+            ws.cell(row=i, column=6, value=crypto["ticker"]).border = self.border
+            ws.cell(row=i, column=7, value=crypto["company_name"]).border = self.border
+        
+        # Metals column
+        ws["I1"] = "Metal Type"
+        ws["J1"] = "Metal Ticker"
+        ws["I1"].font = self.header_font
+        ws["J1"].font = self.header_font
+        if metals:
+            for i, metal in enumerate(metals, start=2):
+                ws.cell(row=i, column=9, value=metal["metal_type"]).border = self.border
+                ws.cell(row=i, column=10, value=metal["ticker"]).border = self.border
+        
+        # Cash types
+        ws["L1"] = "Cash Types"
+        ws["L1"].font = self.header_font
+        cash_types = ["Savings", "Checking", "Money Market", "CD"]
+        for i, cash_type in enumerate(cash_types, start=2):
+            ws.cell(row=i, column=12, value=cash_type).border = self.border
+        
+        return ws
 
-        headers = ["Account Name", "Type", "Category", "Account ID"]
-        for c, h in enumerate(headers, start=1):
-            cell = ws.cell(row=1, column=c, value=h)
+    def _create_securities_positions_sheet(self, wb: Workbook, accounts: list, securities: list) -> Worksheet:
+        ws = wb.create_sheet("📈 SECURITIES", 2)
+        ws.sheet_properties.tabColor = "0066CC"
+        
+        # Add a header banner
+        ws.merge_cells("A1:G1")
+        ws["A1"] = "SECURITIES POSITIONS - Stocks, ETFs, Mutual Funds"
+        ws["A1"].font = Font(bold=True, size=12, color="FFFFFF")
+        ws["A1"].fill = PatternFill(start_color="0066CC", end_color="0066CC", fill_type="solid")
+        ws["A1"].alignment = Alignment(horizontal="center")
+        
+        # Column headers (row 2)
+        headers = ["Account*", "Ticker*", "Company Name", "Shares*", "Cost Basis*", "Purchase Date*", "Notes"]
+        for col, header in enumerate(headers, start=1):
+            cell = ws.cell(row=2, column=col, value=header)
             cell.font = self.header_font
             cell.fill = self.header_fill
-            cell.alignment = Alignment(horizontal="center", vertical="center")
+            cell.alignment = self.header_alignment
             cell.border = self.border
-
-        for r, acc in enumerate(accounts, start=2):
-            ws.cell(row=r, column=1, value=acc["account_name"]).border = self.border
-            ws.cell(row=r, column=2, value=acc["type"]).border = self.border
-            ws.cell(row=r, column=3, value=acc["account_category"]).border = self.border
-            ws.cell(row=r, column=4, value=acc["id"]).border = self.border
-
-        for col in ["A", "B", "C", "D"]:
-            ws.column_dimensions[col].width = 24
-
-        ws.freeze_panes = "A2"
+        
+        # Set column widths
+        widths = {"A": 25, "B": 15, "C": 35, "D": 15, "E": 15, "F": 15, "G": 30}
+        for col, width in widths.items():
+            ws.column_dimensions[col].width = width
+        
+        # Add account dropdown validation
+        if accounts:
+            acc_range = f"Lookups!$A$2:$A${1+len(accounts)}"
+            dv_acc = DataValidation(
+                type="list",
+                formula1=acc_range,
+                allow_blank=False,
+                errorTitle="Invalid Account",
+                error="Please select an account from the list"
+            )
+            dv_acc.showDropDown = False
+            ws.add_data_validation(dv_acc)
+            dv_acc.add("A3:A1000")
+        
+        # Add ticker dropdown validation
+        if securities:
+            sec_range = f"Lookups!$C$2:$C${1+len(securities)}"
+            dv_ticker = DataValidation(
+                type="list",
+                formula1=sec_range,
+                allow_blank=False,
+                errorTitle="Invalid Ticker",
+                error="Please select a valid ticker"
+            )
+            dv_ticker.showDropDown = False
+            ws.add_data_validation(dv_ticker)
+            dv_ticker.add("B3:B1000")
+        
+        # Add numeric validation for shares
+        dv_shares = DataValidation(
+            type="decimal",
+            operator="greaterThan",
+            formula1=0,
+            allow_blank=False,
+            errorTitle="Invalid Shares",
+            error="Shares must be greater than 0"
+        )
+        ws.add_data_validation(dv_shares)
+        dv_shares.add("D3:D1000")
+        
+        # Add numeric validation for cost basis
+        dv_cost = DataValidation(
+            type="decimal",
+            operator="greaterThanOrEqual",
+            formula1=0,
+            allow_blank=False,
+            errorTitle="Invalid Cost",
+            error="Cost basis must be 0 or greater"
+        )
+        ws.add_data_validation(dv_cost)
+        dv_cost.add("E3:E1000")
+        
+        # Add date validation
+        dv_date = DataValidation(
+            type="date",
+            operator="between",
+            formula1=datetime(1900, 1, 1),
+            formula2=datetime.now(),
+            allow_blank=False,
+            errorTitle="Invalid Date",
+            error="Please enter a valid date (YYYY-MM-DD)"
+        )
+        ws.add_data_validation(dv_date)
+        dv_date.add("F3:F1000")
+        
+        # Add example rows
+        examples = [
+            ["Select Account", "AAPL", "=IFERROR(VLOOKUP(B3,Lookups!$C:$D,2,FALSE),\"\")", "100", "150.00", "2024-01-15", "Long-term hold"],
+            ["Select Account", "VOO", "=IFERROR(VLOOKUP(B4,Lookups!$C:$D,2,FALSE),\"\")", "50", "425.00", "2024-02-01", "S&P 500 ETF"]
+        ]
+        
+        for r_idx, row_data in enumerate(examples, start=3):
+            for c_idx, value in enumerate(row_data, start=1):
+                cell = ws.cell(row=r_idx, column=c_idx, value=value)
+                cell.border = self.border
+                cell.fill = self.sample_fill
+        
+        # Required field highlighting for empty rows
+        for row in range(5, 50):
+            for col in [1, 2, 4, 5, 6]:  # Required columns
+                ws.cell(row=row, column=col).fill = self.required_fill
+        
+        # Add instruction row
+        ws.merge_cells("A7:G7")
+        ws["A7"] = "⚠️ Delete example rows (3-4) before importing. All fields marked with * are required."
+        ws["A7"].font = Font(bold=True, italic=True, color="FF0000", size=10)
+        ws["A7"].alignment = Alignment(horizontal="center")
+        
         return ws
+
+    def _create_cash_positions_sheet(self, wb: Workbook, accounts: list) -> Worksheet:
+        ws = wb.create_sheet("💵 CASH", 3)
+        ws.sheet_properties.tabColor = "663399"
+        
+        # Header banner
+        ws.merge_cells("A1:F1")
+        ws["A1"] = "CASH POSITIONS - Savings, Checking, Money Market, CDs"
+        ws["A1"].font = Font(bold=True, size=12, color="FFFFFF")
+        ws["A1"].fill = PatternFill(start_color="663399", end_color="663399", fill_type="solid")
+        ws["A1"].alignment = Alignment(horizontal="center")
+        
+        # Headers
+        headers = ["Account*", "Cash Type*", "Amount*", "Interest Rate (%)", "Maturity Date", "Notes"]
+        for col, header in enumerate(headers, start=1):
+            cell = ws.cell(row=2, column=col, value=header)
+            cell.font = self.header_font
+            cell.fill = self.header_fill
+            cell.alignment = self.header_alignment
+            cell.border = self.border
+        
+        # Column widths
+        widths = {"A": 25, "B": 20, "C": 15, "D": 15, "E": 15, "F": 30}
+        for col, width in widths.items():
+            ws.column_dimensions[col].width = width
+        
+        # Account validation
+        if accounts:
+            acc_range = f"Lookups!$A$2:$A${1+len(accounts)}"
+            dv_acc = DataValidation(type="list", formula1=acc_range, allow_blank=False)
+            dv_acc.showDropDown = False
+            ws.add_data_validation(dv_acc)
+            dv_acc.add("A3:A1000")
+        
+        # Cash type validation
+        cash_range = "Lookups!$L$2:$L$5"
+        dv_type = DataValidation(type="list", formula1=cash_range, allow_blank=False)
+        dv_type.showDropDown = False
+        ws.add_data_validation(dv_type)
+        dv_type.add("B3:B1000")
+        
+        # Amount validation
+        dv_amount = DataValidation(
+            type="decimal",
+            operator="greaterThanOrEqual",
+            formula1=0,
+            allow_blank=False
+        )
+        ws.add_data_validation(dv_amount)
+        dv_amount.add("C3:C1000")
+        
+        # Example rows
+        examples = [
+            ["Select Account", "Savings", "10000", "4.5", "", "Emergency fund"],
+            ["Select Account", "CD", "25000", "5.0", "2025-06-30", "6-month CD"]
+        ]
+        
+        for r_idx, row_data in enumerate(examples, start=3):
+            for c_idx, value in enumerate(row_data, start=1):
+                cell = ws.cell(row=r_idx, column=c_idx, value=value)
+                cell.border = self.border
+                cell.fill = self.sample_fill
+        
+        # Required fields highlighting
+        for row in range(5, 50):
+            for col in [1, 2, 3]:  # Required columns
+                ws.cell(row=row, column=col).fill = self.required_fill
+        
+        return ws
+
+    def _create_crypto_positions_sheet(self, wb: Workbook, accounts: list, cryptos: list) -> Worksheet:
+        ws = wb.create_sheet("🪙 CRYPTO", 4)
+        ws.sheet_properties.tabColor = "FF9900"
+        
+        # Header banner
+        ws.merge_cells("A1:G1")
+        ws["A1"] = "CRYPTOCURRENCY POSITIONS"
+        ws["A1"].font = Font(bold=True, size=12, color="FFFFFF")
+        ws["A1"].fill = PatternFill(start_color="FF9900", end_color="FF9900", fill_type="solid")
+        ws["A1"].alignment = Alignment(horizontal="center")
+        
+        # Headers
+        headers = ["Account*", "Symbol*", "Name", "Quantity*", "Purchase Price*", "Purchase Date*", "Storage Type"]
+        for col, header in enumerate(headers, start=1):
+            cell = ws.cell(row=2, column=col, value=header)
+            cell.font = self.header_font
+            cell.fill = self.header_fill
+            cell.alignment = self.header_alignment
+            cell.border = self.border
+        
+        # Column widths
+        widths = {"A": 25, "B": 15, "C": 35, "D": 20, "E": 20, "F": 15, "G": 20}
+        for col, width in widths.items():
+            ws.column_dimensions[col].width = width
+        
+        # Account validation
+        if accounts:
+            acc_range = f"Lookups!$A$2:$A${1+len(accounts)}"
+            dv_acc = DataValidation(type="list", formula1=acc_range, allow_blank=False)
+            dv_acc.showDropDown = False
+            ws.add_data_validation(dv_acc)
+            dv_acc.add("A3:A1000")
+        
+        # Crypto symbol validation
+        if cryptos:
+            crypto_range = f"Lookups!$F$2:$F${1+len(cryptos)}"
+            dv_crypto = DataValidation(type="list", formula1=crypto_range, allow_blank=False)
+            dv_crypto.showDropDown = False
+            ws.add_data_validation(dv_crypto)
+            dv_crypto.add("B3:B1000")
+        
+        # Quantity validation
+        dv_qty = DataValidation(
+            type="decimal",
+            operator="greaterThan",
+            formula1=0,
+            allow_blank=False
+        )
+        ws.add_data_validation(dv_qty)
+        dv_qty.add("D3:D1000")
+        
+        # Price validation
+        dv_price = DataValidation(
+            type="decimal",
+            operator="greaterThanOrEqual",
+            formula1=0,
+            allow_blank=False
+        )
+        ws.add_data_validation(dv_price)
+        dv_price.add("E3:E1000")
+        
+        # Date validation
+        dv_date = DataValidation(
+            type="date",
+            operator="between",
+            formula1=datetime(1900, 1, 1),
+            formula2=datetime.now(),
+            allow_blank=False
+        )
+        ws.add_data_validation(dv_date)
+        dv_date.add("F3:F1000")
+        
+        # Example rows
+        examples = [
+            ["Select Account", "BTC", "=IFERROR(VLOOKUP(B3,Lookups!$F:$G,2,FALSE),\"\")", "0.5", "45000", "2024-01-15", "Exchange"],
+            ["Select Account", "ETH", "=IFERROR(VLOOKUP(B4,Lookups!$F:$G,2,FALSE),\"\")", "2.0", "2500", "2024-02-01", "Cold Wallet"]
+        ]
+        
+        for r_idx, row_data in enumerate(examples, start=3):
+            for c_idx, value in enumerate(row_data, start=1):
+                cell = ws.cell(row=r_idx, column=c_idx, value=value)
+                cell.border = self.border
+                cell.fill = self.sample_fill
+        
+        # Required fields highlighting
+        for row in range(5, 50):
+            for col in [1, 2, 4, 5, 6]:  # Required columns
+                ws.cell(row=row, column=col).fill = self.required_fill
+        
+        return ws
+
+    def _create_metal_positions_sheet(self, wb: Workbook, accounts: list, metals: list) -> Worksheet:
+        ws = wb.create_sheet("🥇 METALS", 5)
+        ws.sheet_properties.tabColor = "FFD700"
+        
+        # Header banner
+        ws.merge_cells("A1:G1")
+        ws["A1"] = "PRECIOUS METALS POSITIONS"
+        ws["A1"].font = Font(bold=True, size=12, color="FFFFFF")
+        ws["A1"].fill = PatternFill(start_color="FFD700", end_color="FFD700", fill_type="solid")
+        ws["A1"].alignment = Alignment(horizontal="center")
+        
+        # Headers
+        headers = ["Account*", "Metal Type*", "Quantity (oz)*", "Purchase Price/oz*", "Purchase Date*", "Storage Location", "Notes"]
+        for col, header in enumerate(headers, start=1):
+            cell = ws.cell(row=2, column=col, value=header)
+            cell.font = self.header_font
+            cell.fill = self.header_fill
+            cell.alignment = self.header_alignment
+            cell.border = self.border
+        
+        # Column widths
+        widths = {"A": 25, "B": 15, "C": 18, "D": 20, "E": 15, "F": 25, "G": 30}
+        for col, width in widths.items():
+            ws.column_dimensions[col].width = width
+        
+        # Account validation
+        if accounts:
+            acc_range = f"Lookups!$A$2:$A${1+len(accounts)}"
+            dv_acc = DataValidation(type="list", formula1=acc_range, allow_blank=False)
+            dv_acc.showDropDown = False
+            ws.add_data_validation(dv_acc)
+            dv_acc.add("A3:A1000")
+        
+        # Metal type validation
+        if metals:
+            metal_range = f"Lookups!$I$2:$I${1+len(metals)}"
+            dv_metal = DataValidation(type="list", formula1=metal_range, allow_blank=False)
+            dv_metal.showDropDown = False
+            ws.add_data_validation(dv_metal)
+            dv_metal.add("B3:B1000")
+        
+        # Quantity validation
+        dv_qty = DataValidation(
+            type="decimal",
+            operator="greaterThan",
+            formula1=0,
+            allow_blank=False
+        )
+        ws.add_data_validation(dv_qty)
+        dv_qty.add("C3:C1000")
+        
+        # Price validation
+        dv_price = DataValidation(
+            type="decimal",
+            operator="greaterThanOrEqual",
+            formula1=0,
+            allow_blank=False
+        )
+        ws.add_data_validation(dv_price)
+        dv_price.add("D3:D1000")
+        
+        # Date validation
+        dv_date = DataValidation(
+            type="date",
+            operator="between",
+            formula1=datetime(1900, 1, 1),
+            formula2=datetime.now(),
+            allow_blank=False
+        )
+        ws.add_data_validation(dv_date)
+        dv_date.add("E3:E1000")
+        
+        # Example rows
+        examples = [
+            ["Select Account", "Gold", "10", "1800", "2024-01-15", "Safe Deposit Box", "Physical bars"],
+            ["Select Account", "Silver", "100", "25", "2024-02-01", "Home Safe", "Coins"]
+        ]
+        
+        for r_idx, row_data in enumerate(examples, start=3):
+            for c_idx, value in enumerate(row_data, start=1):
+                cell = ws.cell(row=r_idx, column=c_idx, value=value)
+                cell.border = self.border
+                cell.fill = self.sample_fill
+        
+        # Required fields highlighting
+        for row in range(5, 50):
+            for col in [1, 2, 3, 4, 5]:  # Required columns
+                ws.cell(row=row, column=col).fill = self.required_fill
+        
+        return ws    
