@@ -15,8 +15,17 @@ from backend.utils.constants import (
     ACCOUNT_TYPES,             # kept for compatibility
     ACCOUNT_CATEGORIES,
     ACCOUNT_TYPES_BY_CATEGORY, # dict[str, list[str]]
-    CASH_ACCOUNT_TYPES,        # list[str] like ["Checking","Savings","Money Market","CD"]
 )
+
+# CASH_ACCOUNT_TYPES may not exist in your constants; provide a safe default.
+try:
+    from backend.utils import constants as _NE_CONST
+    CASH_ACCOUNT_TYPES = getattr(
+        _NE_CONST, "CASH_ACCOUNT_TYPES",
+        ["Checking", "Savings", "Money Market", "CD"]
+    )
+except Exception:
+    CASH_ACCOUNT_TYPES = ["Checking", "Savings", "Money Market", "CD"]
 
 class ExcelTemplateService:
     """
