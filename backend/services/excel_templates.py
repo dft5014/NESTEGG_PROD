@@ -171,10 +171,10 @@ class ExcelTemplateService:
             cell.border = self.border
 
         samples = [
-            ["My 401k", "Fidelity", "retirement", "401(k)", ""],
-            ["Joint Brokerage", "Vanguard", "brokerage", "Joint", ""],
-            ["Emergency Fund", "Ally Bank", "cash", "High Yield Savings", ""],
-            ["Bitcoin Wallet", "Coinbase", "cryptocurrency", "Exchange Account", ""],
+            ["My 401k", "Fidelity", "Retirement", "401(k)", ""],
+            ["Joint Brokerage", "Vanguard", "Brokerage", "Joint", ""],
+            ["Emergency Fund", "Ally Bank", "Cash / Banking", "High Yield Savings", ""],
+            ["Bitcoin Wallet", "Coinbase", "Cryptocurrency", "Exchange Account", ""],
         ]
         for r_idx, row_vals in enumerate(samples, start=2):
             for c_idx, val in enumerate(row_vals, start=1):
@@ -220,7 +220,8 @@ class ExcelTemplateService:
         ws["C1"] = "Account Categories"
         ws["C1"].font = self.header_font
         category_display_names = []
-        for i, cat in enumerate(ACCOUNT_CATEGORIES, start=2):
+        row_idx = 2  # Start at row 2
+        for cat in ACCOUNT_CATEGORIES:
             if cat == "real_estate":
                 continue
             # Display user-friendly names
@@ -230,7 +231,8 @@ class ExcelTemplateService:
             elif cat == "cryptocurrency":
                 display_name = "Cryptocurrency"
             category_display_names.append((cat, display_name))
-            ws.cell(row=i, column=3, value=display_name).border = self.border
+            ws.cell(row=row_idx, column=3, value=display_name).border = self.border
+            row_idx += 1  # Increment row for next category
         ws.column_dimensions["C"].width = 22
         
         # Create dynamic category-type mapping columns for INDIRECT formula use
@@ -271,8 +273,7 @@ class ExcelTemplateService:
         dv = DataValidation(
             type="list",
             formula1=inst_range,
-            allow_blank=True,   # This sets "Ignore blank" checkbox
-            showDropDown=True,  # This ensures dropdown arrow is visible
+            allow_blank=True,
             errorTitle="Invalid Institution",
             error="Please choose a valid institution from the list or type a custom name.",
             showErrorMessage=True,
@@ -280,19 +281,21 @@ class ExcelTemplateService:
             promptTitle="Institution",
             prompt="Select from the list or type a custom name"
         )
+        # Explicitly set showDropDown to ensure in-cell dropdown appears
+        dv.showDropDown = False  # This is counterintuitive but correct for openpyxl
         ws.add_data_validation(dv)
         dv.add("B2:B5000")
 
     def _add_category_validation_named_range(self, ws: Worksheet) -> None:
         # Use direct range reference
+        # Count actual categories excluding real_estate
         cat_count = len([c for c in ACCOUNT_CATEGORIES if c != "real_estate"])
         cat_range = f"Lookups!$C$2:$C${1 + cat_count}"
         
         dv = DataValidation(
             type="list",
             formula1=cat_range,
-            allow_blank=True,   # Set to True for "Ignore blank"
-            showDropDown=True,  # Ensure dropdown arrow shows
+            allow_blank=True,
             errorTitle="Invalid Category",
             error="Choose a valid account category from the list.",
             showErrorMessage=True,
@@ -300,6 +303,8 @@ class ExcelTemplateService:
             promptTitle="Account Category",
             prompt="Select the category that best fits this account"
         )
+        # Explicitly set showDropDown to ensure in-cell dropdown appears
+        dv.showDropDown = False  # This is counterintuitive but correct for openpyxl
         ws.add_data_validation(dv)
         dv.add("C2:C5000")
 
@@ -311,15 +316,16 @@ class ExcelTemplateService:
         dv = DataValidation(
             type="list",
             formula1=indirect_formula,
-            allow_blank=True,   # Set to True for "Ignore blank"
-            showDropDown=True,  # Ensure dropdown arrow shows
-            errorTitle="Invalid Account Type",
-            error="Please select a valid account type for your chosen category.",
+            allow_blank=True,
+            errorTitle="Select Category First",
+            error="Please select an Account Category first, then choose the Account Type.",
             showErrorMessage=True,
             showInputMessage=True,
             promptTitle="Account Type",
             prompt="Select a type based on your chosen category"
         )
+        # Explicitly set showDropDown to ensure in-cell dropdown appears
+        dv.showDropDown = False  # This is counterintuitive but correct for openpyxl
         ws.add_data_validation(dv)
         dv.add("D2:D5000")
 
