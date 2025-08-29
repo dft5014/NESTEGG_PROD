@@ -543,9 +543,11 @@ class ExcelTemplateService:
             ws.cell(row=i, column=3, value=sec["ticker"]).border = self.border
             ws.cell(row=i, column=4, value=sec["company_name"]).border = self.border
         
-        # Create named range for securities
-        if securities:
-            sec_range = f"Lookups!$C$2:$C${1+len(securities)}"
+        # Create named range for securities - always create even if empty
+        if securities and len(securities) > 0:
+                sec_range = f"Lookups!$C$2:$C${1+len(securities)}"
+            else:
+                sec_range = "Lookups!$C$2:$C$2"  # Single cell range if empty
             defined_name = DefinedName(name="SecuritiesList", attr_text=sec_range)
             wb.defined_names.add(defined_name)
         
@@ -558,13 +560,16 @@ class ExcelTemplateService:
             ws.cell(row=i, column=6, value=crypto["ticker"]).border = self.border
             ws.cell(row=i, column=7, value=crypto["company_name"]).border = self.border
         
-        # Create named range for cryptos
-        if cryptos:
+        # Create named range for cryptos - always create even if empty
+        if cryptos and len(cryptos) > 0:
             crypto_range = f"Lookups!$F$2:$F${1+len(cryptos)}"
-            defined_name = DefinedName(name="CryptoList", attr_text=crypto_range)
-            wb.defined_names.add(defined_name)
+        else:
+            crypto_range = "Lookups!$F$2:$F$2"  # Single cell range if empty
+        defined_name = DefinedName(name="CryptoList", attr_text=crypto_range)
+        wb.defined_names.add(defined_name)
         
         # Metals column
+# Metals column
         ws["I1"] = "Metal Type"
         ws["J1"] = "Metal Ticker"
         ws["I1"].font = self.header_font
@@ -573,9 +578,12 @@ class ExcelTemplateService:
             for i, metal in enumerate(metals, start=2):
                 ws.cell(row=i, column=9, value=metal["metal_type"]).border = self.border
                 ws.cell(row=i, column=10, value=metal["ticker"]).border = self.border
-            
-            # Create named range for metals
-            metal_range = f"Lookups!$I$2:$I${1+len(metals)}"
+        
+            # Create named range for metals - always create even if empty
+            if metals and len(metals) > 0:
+                metal_range = f"Lookups!$I$2:$I${1+len(metals)}"
+            else:
+                metal_range = "Lookups!$I$2:$I$2"  # Single cell range if empty
             defined_name = DefinedName(name="MetalsList", attr_text=metal_range)
             wb.defined_names.add(defined_name)
         
@@ -620,24 +628,22 @@ class ExcelTemplateService:
         
         # Add account dropdown validation
         if accounts:
+            acc_range = f"Lookups!$A$2:$A${1+len(accounts)}"
             dv_acc = DataValidation(
                 type="list",
-                formula1="AccountsList",  # Use named range
-                allow_blank=False,
-                errorTitle="Invalid Account",
-                error="Please select an account from the list"
+                formula1=acc_range,
+                allow_blank=False
             )
             ws.add_data_validation(dv_acc)
             dv_acc.add("A3:A1000")
 
         # Add ticker dropdown validation  
         if securities:
+            sec_range = f"Lookups!$C$2:$C${1+len(securities)}"
             dv_ticker = DataValidation(
                 type="list",
-                formula1="SecuritiesList",  # Use named range
-                allow_blank=False,
-                errorTitle="Invalid Ticker",
-                error="Please select a valid ticker"
+                formula1=sec_range,
+                allow_blank=False
             )
             ws.add_data_validation(dv_ticker)
             dv_ticker.add("B3:B1000")
@@ -647,9 +653,7 @@ class ExcelTemplateService:
             type="decimal",
             operator="greaterThan",
             formula1=0,
-            allow_blank=False,
-            errorTitle="Invalid Shares",
-            error="Shares must be greater than 0"
+            allow_blank=False
         )
         ws.add_data_validation(dv_shares)
         dv_shares.add("D3:D1000")
@@ -659,9 +663,7 @@ class ExcelTemplateService:
             type="decimal",
             operator="greaterThanOrEqual",
             formula1=0,
-            allow_blank=False,
-            errorTitle="Invalid Cost",
-            error="Cost basis must be 0 or greater"
+            allow_blank=False
         )
         ws.add_data_validation(dv_cost)
         dv_cost.add("E3:E1000")
@@ -672,9 +674,7 @@ class ExcelTemplateService:
             operator="between",
             formula1=datetime(1900, 1, 1),
             formula2=datetime.now(),
-            allow_blank=False,
-            errorTitle="Invalid Date",
-            error="Please enter a valid date (YYYY-MM-DD)"
+            allow_blank=False
         )
         ws.add_data_validation(dv_date)
         dv_date.add("F3:F1000")
@@ -805,9 +805,10 @@ class ExcelTemplateService:
         
         # Account validation
         if accounts:
+            acc_range = f"Lookups!$A$2:$A${1+len(accounts)}"
             dv_acc = DataValidation(
                 type="list", 
-                formula1="AccountsList",  # Use named range
+                formula1=acc_range,
                 allow_blank=False
             )
             ws.add_data_validation(dv_acc)
@@ -815,14 +816,15 @@ class ExcelTemplateService:
 
         # Crypto symbol validation
         if cryptos:
+            crypto_range = f"Lookups!$F$2:$F${1+len(cryptos)}"
             dv_crypto = DataValidation(
                 type="list", 
-                formula1="CryptoList",  # Use named range
+                formula1=crypto_range,
                 allow_blank=False
             )
             ws.add_data_validation(dv_crypto)
             dv_crypto.add("B3:B1000")
-        
+
         # Quantity validation
         dv_qty = DataValidation(
             type="decimal",
@@ -900,9 +902,10 @@ class ExcelTemplateService:
         
         # Account validation
         if accounts:
+            acc_range = f"Lookups!$A$2:$A${1+len(accounts)}"
             dv_acc = DataValidation(
                 type="list", 
-                formula1="AccountsList",  # Use named range
+                formula1=acc_range,
                 allow_blank=False
             )
             ws.add_data_validation(dv_acc)
@@ -910,9 +913,10 @@ class ExcelTemplateService:
 
         # Metal type validation
         if metals:
+            metal_range = f"Lookups!$I$2:$I${1+len(metals)}"
             dv_metal = DataValidation(
                 type="list", 
-                formula1="MetalsList",  # Use named range
+                formula1=metal_range,
                 allow_blank=False
             )
             ws.add_data_validation(dv_metal)
