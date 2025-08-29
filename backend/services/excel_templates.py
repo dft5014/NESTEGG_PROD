@@ -543,13 +543,10 @@ class ExcelTemplateService:
             ws.cell(row=i, column=3, value=sec["ticker"]).border = self.border
             ws.cell(row=i, column=4, value=sec["company_name"]).border = self.border
         
-        # Create named range for securities - always create even if empty
-        if securities and len(securities) > 0:
-                sec_range = f"Lookups!$C$2:$C${1+len(securities)}"
-            else:
-                sec_range = "Lookups!$C$2:$C$2"  # Single cell range if empty
-            defined_name = DefinedName(name="SecuritiesList", attr_text=sec_range)
-            wb.defined_names.add(defined_name)
+        # ALWAYS create named range for securities
+        sec_last = 1 + max(len(securities), 1)
+        sec_range = f"Lookups!$C$2:$C${sec_last}"
+        wb.defined_names.add(DefinedName(name="SecuritiesList", attr_text=sec_range))
         
         # Crypto column
         ws["F1"] = "Crypto Symbol"
@@ -560,16 +557,12 @@ class ExcelTemplateService:
             ws.cell(row=i, column=6, value=crypto["ticker"]).border = self.border
             ws.cell(row=i, column=7, value=crypto["company_name"]).border = self.border
         
-        # Create named range for cryptos - always create even if empty
-        if cryptos and len(cryptos) > 0:
-            crypto_range = f"Lookups!$F$2:$F${1+len(cryptos)}"
-        else:
-            crypto_range = "Lookups!$F$2:$F$2"  # Single cell range if empty
-        defined_name = DefinedName(name="CryptoList", attr_text=crypto_range)
-        wb.defined_names.add(defined_name)
+        # ALWAYS create named range for cryptos
+        crypto_last = 1 + max(len(cryptos), 1)
+        crypto_range = f"Lookups!$F$2:$F${crypto_last}"
+        wb.defined_names.add(DefinedName(name="CryptoList", attr_text=crypto_range))
         
         # Metals column
-# Metals column
         ws["I1"] = "Metal Type"
         ws["J1"] = "Metal Ticker"
         ws["I1"].font = self.header_font
@@ -579,13 +572,10 @@ class ExcelTemplateService:
                 ws.cell(row=i, column=9, value=metal["metal_type"]).border = self.border
                 ws.cell(row=i, column=10, value=metal["ticker"]).border = self.border
         
-            # Create named range for metals - always create even if empty
-            if metals and len(metals) > 0:
-                metal_range = f"Lookups!$I$2:$I${1+len(metals)}"
-            else:
-                metal_range = "Lookups!$I$2:$I$2"  # Single cell range if empty
-            defined_name = DefinedName(name="MetalsList", attr_text=metal_range)
-            wb.defined_names.add(defined_name)
+        # ALWAYS create named range for metals
+        metal_last = 1 + max(len(metals), 1)
+        metal_range = f"Lookups!$I$2:$I${metal_last}"
+        wb.defined_names.add(DefinedName(name="MetalsList", attr_text=metal_range))
         
         # Cash types
         ws["L1"] = "Cash Types"
@@ -628,23 +618,23 @@ class ExcelTemplateService:
         
         # Add account dropdown validation
         if accounts:
-            acc_range = f"Lookups!$A$2:$A${1+len(accounts)}"
             dv_acc = DataValidation(
                 type="list",
-                formula1=acc_range,
+                formula1="AccountsList",
                 allow_blank=False
             )
+            dv_acc.showDropDown = False  # Force dropdown arrow to appear
             ws.add_data_validation(dv_acc)
             dv_acc.add("A3:A1000")
 
         # Add ticker dropdown validation  
         if securities:
-            sec_range = f"Lookups!$C$2:$C${1+len(securities)}"
             dv_ticker = DataValidation(
                 type="list",
-                formula1=sec_range,
+                formula1="SecuritiesList",
                 allow_blank=False
             )
+            dv_ticker.showDropDown = False  # Force dropdown arrow to appear
             ws.add_data_validation(dv_ticker)
             dv_ticker.add("B3:B1000")
         
@@ -737,6 +727,7 @@ class ExcelTemplateService:
                 formula1="AccountsList",  # Use named range
                 allow_blank=False
             )
+            dv_acc.showDropDown = False
             ws.add_data_validation(dv_acc)
             dv_acc.add("A3:A1000")
 
@@ -756,6 +747,7 @@ class ExcelTemplateService:
             formula1=0,
             allow_blank=False
         )
+        dv_type.showDropDown = False 
         ws.add_data_validation(dv_amount)
         dv_amount.add("C3:C1000")
         
@@ -811,6 +803,7 @@ class ExcelTemplateService:
                 formula1=acc_range,
                 allow_blank=False
             )
+            dv_acc.showDropDown = False
             ws.add_data_validation(dv_acc)
             dv_acc.add("A3:A1000")
 
@@ -822,6 +815,7 @@ class ExcelTemplateService:
                 formula1=crypto_range,
                 allow_blank=False
             )
+            dv_crypto.showDropDown = False
             ws.add_data_validation(dv_crypto)
             dv_crypto.add("B3:B1000")
 
@@ -908,6 +902,7 @@ class ExcelTemplateService:
                 formula1=acc_range,
                 allow_blank=False
             )
+            dv_acc.showDropDown = False
             ws.add_data_validation(dv_acc)
             dv_acc.add("A3:A1000")
 
@@ -919,6 +914,7 @@ class ExcelTemplateService:
                 formula1=metal_range,
                 allow_blank=False
             )
+            dv_metal.showDropDown = False 
             ws.add_data_validation(dv_metal)
             dv_metal.add("B3:B1000")
         
