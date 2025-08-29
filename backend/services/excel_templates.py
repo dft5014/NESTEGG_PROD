@@ -97,7 +97,6 @@ class ExcelTemplateService:
             type="list",
             formula1=indirect_formula,
             allow_blank=True,
-            showDropDown=True,
             errorTitle="Select Category First",
             error="Please select an Account Category first, then choose the Account Type.",
             showErrorMessage=True,
@@ -105,6 +104,8 @@ class ExcelTemplateService:
             promptTitle="Account Type",
             prompt="Select a type based on your chosen category"
         )
+        # Explicitly set showDropDown to False to ensure in-cell dropdown appears
+        dv.showDropDown = False  # This is counterintuitive but correct for openpyxl
         ws.add_data_validation(dv)
         dv.add("D2:D5000")
 
