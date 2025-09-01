@@ -662,8 +662,8 @@ class ExcelTemplateService:
         dv_date = DataValidation(
             type="date",
             operator="between",
-            formula1=datetime(1900, 1, 1),
-            formula2=datetime.now(),
+            formula1="DATE(1900,1,1)",
+            formula2="TODAY()",
             allow_blank=False
         )
         ws.add_data_validation(dv_date)
@@ -798,11 +798,7 @@ class ExcelTemplateService:
         
         # Account validation (use named range for consistency)
         if accounts:
-            dv_acc = DataValidation(
-                type="list", 
-                formula1="=AccountsList",
-                allow_blank=False
-            )
+            dv_acc = DataValidation(type="list", formula1="=AccountsList", allow_blank=False)
             dv_acc.showDropDown = False
             ws.add_data_validation(dv_acc)
             dv_acc.add("A3:A1000")
@@ -837,12 +833,11 @@ class ExcelTemplateService:
         ws.add_data_validation(dv_price)
         dv_price.add("E3:E1000")
         
-        # Date validation
         dv_date = DataValidation(
             type="date",
             operator="between",
-            formula1=datetime(1900, 1, 1),
-            formula2=datetime.now(),
+            formula1="DATE(1900,1,1)",
+            formula2="TODAY()",
             allow_blank=False
         )
         ws.add_data_validation(dv_date)
@@ -937,8 +932,8 @@ class ExcelTemplateService:
         dv_date = DataValidation(
             type="date",
             operator="between",
-            formula1=datetime(1900, 1, 1),
-            formula2=datetime.now(),
+            formula1="DATE(1900,1,1)",
+            formula2="TODAY()",
             allow_blank=False
         )
         ws.add_data_validation(dv_date)
