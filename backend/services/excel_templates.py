@@ -91,7 +91,7 @@ class ExcelTemplateService:
         
         # Use VLOOKUP with INDIRECT to get the right list
         # This formula looks up the category name and gets the corresponding range name
-        indirect_formula = 'INDIRECT(VLOOKUP(C2,Lookups!$M$2:$N$6,2,FALSE))'
+        indirect_formula = '=INDIRECT(VLOOKUP(C2,Lookups!$M$2:$N$6,2,FALSE))'
         
         dv = DataValidation(
             type="list",
@@ -269,7 +269,7 @@ class ExcelTemplateService:
 
     def _add_institution_validation_named_range(self, ws: Worksheet) -> None:
         # Use direct range reference like positions template does
-        inst_range = f"Lookups!$A$2:$A${1 + len(INSTITUTION_LIST)}"
+        inst_range = f"=Lookups!$A$2:$A${1 + len(INSTITUTION_LIST)}"
         
         dv = DataValidation(
             type="list",
@@ -291,7 +291,7 @@ class ExcelTemplateService:
         # Use direct range reference
         # Count actual categories excluding real_estate
         cat_count = len([c for c in ACCOUNT_CATEGORIES if c != "real_estate"])
-        cat_range = f"Lookups!$C$2:$C${1 + cat_count}"
+        cat_range = f"=Lookups!$C$2:$C${1 + cat_count}"
         
         dv = DataValidation(
             type="list",
@@ -312,7 +312,7 @@ class ExcelTemplateService:
     def _add_account_type_validation(self, ws: Worksheet) -> None:
         # Use INDIRECT formula to dynamically reference the category's type list
         # This formula will look up the named range based on the category selected in column C
-        indirect_formula = 'INDIRECT("Types_" & SUBSTITUTE(SUBSTITUTE(C2," ","")," / ",""))'
+        indirect_formula = '=INDIRECT("Types_" & SUBSTITUTE(SUBSTITUTE(C2," ","")," / ",""))'
         
         dv = DataValidation(
             type="list",
@@ -533,7 +533,7 @@ class ExcelTemplateService:
             acc_range = f"Lookups!$A$2:$A${1+len(accounts)}"
             defined_name = DefinedName(name="AccountsList", attr_text=acc_range)
             wb.defined_names.add(defined_name)
-        
+            
         # Securities column (ticker and company name)
         ws["C1"] = "Ticker"
         ws["D1"] = "Company"
@@ -620,7 +620,7 @@ class ExcelTemplateService:
         if accounts:
             dv_acc = DataValidation(
                 type="list",
-                formula1="AccountsList",
+                formula1="=AccountsList",
                 allow_blank=False
             )
             dv_acc.showDropDown = False  # Force dropdown arrow to appear
@@ -631,7 +631,7 @@ class ExcelTemplateService:
         if securities:
             dv_ticker = DataValidation(
                 type="list",
-                formula1="SecuritiesList",
+                formula1="=SecuritiesList",
                 allow_blank=False
             )
             dv_ticker.showDropDown = False  # Force dropdown arrow to appear
@@ -724,7 +724,7 @@ class ExcelTemplateService:
         if accounts:
             dv_acc = DataValidation(
                 type="list", 
-                formula1="AccountsList",  # Use named range
+                formula1="=AccountsList",  # Use named range
                 allow_blank=False
             )
             dv_acc.showDropDown = False
@@ -734,12 +734,13 @@ class ExcelTemplateService:
         # Cash type validation
         dv_type = DataValidation(
             type="list", 
-            formula1="CashTypesList",  # Use named range
+            formula1="=CashTypesList",  # Use named range
             allow_blank=False
         )
+        dv_type.showDropDown = False  # ensure in-cell dropdown shows
         ws.add_data_validation(dv_type)
         dv_type.add("B3:B1000")
-        
+
         # Amount validation
         dv_amount = DataValidation(
             type="decimal",
@@ -747,9 +748,9 @@ class ExcelTemplateService:
             formula1=0,
             allow_blank=False
         )
-        dv_type.showDropDown = False 
         ws.add_data_validation(dv_amount)
         dv_amount.add("C3:C1000")
+
         
         # Example rows
         examples = [
@@ -795,29 +796,26 @@ class ExcelTemplateService:
         for col, width in widths.items():
             ws.column_dimensions[col].width = width
         
-        # Account validation
+        # Account validation (use named range for consistency)
         if accounts:
-            acc_range = f"Lookups!$A$2:$A${1+len(accounts)}"
             dv_acc = DataValidation(
                 type="list", 
-                formula1=acc_range,
+                formula1="=AccountsList",
                 allow_blank=False
             )
             dv_acc.showDropDown = False
             ws.add_data_validation(dv_acc)
             dv_acc.add("A3:A1000")
 
-        # Crypto symbol validation
-        if cryptos:
-            crypto_range = f"Lookups!$F$2:$F${1+len(cryptos)}"
-            dv_crypto = DataValidation(
-                type="list", 
-                formula1=crypto_range,
-                allow_blank=False
-            )
-            dv_crypto.showDropDown = False
-            ws.add_data_validation(dv_crypto)
-            dv_crypto.add("B3:B1000")
+        # Crypto symbol validation (always add; named range exists even if empty)
+        dv_crypto = DataValidation(
+            type="list", 
+            formula1="=CryptoList",
+            allow_blank=False
+        )
+        dv_crypto.showDropDown = False
+        ws.add_data_validation(dv_crypto)
+        dv_crypto.add("B3:B1000")
 
         # Quantity validation
         dv_qty = DataValidation(
@@ -894,29 +892,26 @@ class ExcelTemplateService:
         for col, width in widths.items():
             ws.column_dimensions[col].width = width
         
-        # Account validation
+        # Account validation (named range)
         if accounts:
-            acc_range = f"Lookups!$A$2:$A${1+len(accounts)}"
             dv_acc = DataValidation(
                 type="list", 
-                formula1=acc_range,
+                formula1="=AccountsList",
                 allow_blank=False
             )
             dv_acc.showDropDown = False
             ws.add_data_validation(dv_acc)
             dv_acc.add("A3:A1000")
 
-        # Metal type validation
-        if metals:
-            metal_range = f"Lookups!$I$2:$I${1+len(metals)}"
-            dv_metal = DataValidation(
-                type="list", 
-                formula1=metal_range,
-                allow_blank=False
-            )
-            dv_metal.showDropDown = False 
-            ws.add_data_validation(dv_metal)
-            dv_metal.add("B3:B1000")
+        # Metal type validation (always add; named range exists even if empty)
+        dv_metal = DataValidation(
+            type="list", 
+            formula1="=MetalsList",
+            allow_blank=False
+        )
+        dv_metal.showDropDown = False 
+        ws.add_data_validation(dv_metal)
+        dv_metal.add("B3:B1000")
         
         # Quantity validation
         dv_qty = DataValidation(
