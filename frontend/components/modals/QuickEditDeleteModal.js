@@ -1623,20 +1623,7 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
     const [positions, setPositions] = useState([]);
     const [liabilities, setLiabilities] = useState([]);
 
-    useEffect(() => {
-      if (!isOpen) return; // Only check when modal is actually opened
-      
-      // Safety check when modal opens
-      if (!dataStoreAccounts?.length && !accountsLoading) {
-        refreshAccounts();
-      }
-      if (!dataStorePositions?.length && !positionsLoading) {
-        refreshPositions();
-      }
-      if (!dataStoreLiabilities?.length && !liabilitiesLoading) {
-        refreshLiabilities();
-      }
-    }, [isOpen]); // Run when modal opens
+
 
     
     const [filteredAccounts, setFilteredAccounts] = useState([]);

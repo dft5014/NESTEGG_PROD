@@ -737,7 +737,11 @@ export const DataStoreProvider = ({ children }) => {
 
   // Fetch accounts data
   const fetchAccountsData = useCallback(async (force = false) => {
-    if (state.accounts.loading && !force) return;
+    // Prevent duplicate fetches during initial load
+    if (state.accounts.loading && !force) {
+      console.log('[DataStore] Skipping accounts fetch - already loading');
+      return Promise.resolve();
+    }
 
     const oneMinuteAgo = Date.now() - 60000;
     if (!force && 
