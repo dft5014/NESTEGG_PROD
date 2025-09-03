@@ -418,6 +418,13 @@ const QuickStartModal = ({ isOpen, onClose }) => {
         refresh: refreshAccounts 
     } = useAccounts();
 
+    // Ensure accounts exist if user opens this quickly after login
+    useEffect(() => {
+    if (!isLoadingAccounts && (!Array.isArray(existingAccounts) || existingAccounts.length === 0)) {
+        refreshAccounts();
+    }
+    }, [isLoadingAccounts, existingAccounts, refreshAccounts]);
+
 
 
 

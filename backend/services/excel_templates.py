@@ -603,7 +603,7 @@ class ExcelTemplateService:
         ws["A1"].alignment = Alignment(horizontal="center")
         
         # Column headers (row 2)
-        headers = ["Account*", "Ticker*", "Company Name", "Shares*", "Cost Basis*", "Purchase Date*", "Notes"]
+        headers = ["Account", "Ticker", "Company Name", "Shares", "Cost Basis", "Purchase Date"]
         for col, header in enumerate(headers, start=1):
             cell = ws.cell(row=2, column=col, value=header)
             cell.font = self.header_font
@@ -637,6 +637,10 @@ class ExcelTemplateService:
             dv_ticker.showDropDown = False  # Force dropdown arrow to appear
             ws.add_data_validation(dv_ticker)
             dv_ticker.add("B3:B1000")
+            # Auto-fill Company Name for ALL editable rows with a VLOOKUP on the ticker
+            for r in range(3, 1001):
+                ws.cell(row=r, column=3, value=f'=IFERROR(VLOOKUP(B{r},Lookups!$C:$D,2,FALSE),"")').border = self.border
+
         
         # Add numeric validation for shares
         dv_shares = DataValidation(
@@ -686,11 +690,11 @@ class ExcelTemplateService:
             for col in [1, 2, 4, 5, 6]:  # Required columns
                 ws.cell(row=row, column=col).fill = self.required_fill
         
-        # Add instruction row
-        ws.merge_cells("A7:G7")
-        ws["A7"] = "⚠️ Delete example rows (3-4) before importing. All fields marked with * are required."
-        ws["A7"].font = Font(bold=True, italic=True, color="FF0000", size=10)
-        ws["A7"].alignment = Alignment(horizontal="center")
+        # Add instruction row — put directly under examples on row 5, and remove '*' language
+        ws.merge_cells("A5:F5")
+        ws["A5"] = "⚠️ Delete example rows (3–4) before importing."
+        ws["A5"].font = Font(bold=True, italic=True, color="FF0000", size=10)
+        ws["A5"].alignment = Alignment(horizontal="center")
         
         return ws
 
@@ -812,6 +816,11 @@ class ExcelTemplateService:
         dv_crypto.showDropDown = False
         ws.add_data_validation(dv_crypto)
         dv_crypto.add("B3:B1000")
+        for r in range(3, 1001):
+            ws.cell(row=r, column=3, value=f'=IFERROR(VLOOKUP(B{r},Lookups!$I:$J,2,FALSE),"")').border = self.border
+
+
+
 
         # Quantity validation
         dv_qty = DataValidation(
@@ -874,7 +883,7 @@ class ExcelTemplateService:
         ws["A1"].alignment = Alignment(horizontal="center")
         
         # Headers
-        headers = ["Account*", "Metal Type*", "Quantity (oz)*", "Purchase Price/oz*", "Purchase Date*", "Storage Location", "Notes"]
+        headers = ["Account", "Metal Type", "Metal Code", "Quantity (oz)", "Purchase Price/oz", "Purchase Date"]
         for col, header in enumerate(headers, start=1):
             cell = ws.cell(row=2, column=col, value=header)
             cell.font = self.header_font

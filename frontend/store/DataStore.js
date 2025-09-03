@@ -1068,16 +1068,19 @@ export const DataStoreProvider = ({ children }) => {
         console.log('[DataStore] Phase 1: Fetching grouped positions for navbar ticker');
         fetchGroupedPositionsData();  // THIS IS CRITICAL FOR THE TICKER
       }
+
+        // NEW: fetch accounts immediately so QuickStartModal has data on first open
+      if (!state.accounts.data && !state.accounts.loading) {
+        fetchAccountsData();
+      }
+
     }, 100);
     
     // Phase 2: Likely needed soon (1 second delay)
     phase2Timeout.current = setTimeout(() => {
       console.log('[DataStore] Phase 2: Pre-fetching likely needed data...');
       
-      // Quick modals might need these
-      if (!state.accounts.data && !state.accounts.loading) {
-        fetchAccountsData();
-      }
+
       if (!state.groupedLiabilities.data && !state.groupedLiabilities.loading) {
         fetchGroupedLiabilitiesData();
       }

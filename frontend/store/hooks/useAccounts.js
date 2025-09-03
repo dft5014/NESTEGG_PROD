@@ -5,20 +5,14 @@ export const useAccounts = () => {
   const { state, actions } = useDataStore();
   const { accounts } = state;
 
-  // DISABLED - DataStore handles initial fetch in Phase 2
-  // useEffect(() => {
-  //   if (!accounts.data && !accounts.lastFetched && !accounts.loading) {
-  //     console.log('[useAccounts] Auto-fetching accounts data');
-  //     actions.fetchAccountsData();
-  //   }
-  // }, []);
-
-  // Auto-refresh when stale
+  // Auto-fetch once on first mount if we truly have nothing (StrictMode safe)
   useEffect(() => {
-    if (accounts.isStale && !accounts.loading) {
+    if (!accounts?.data && !accounts?.lastFetched && !accounts?.loading) {
+      console.log('[useAccounts] Auto-fetching accounts data (first mount)');
       actions.fetchAccountsData();
     }
-  }, [accounts.isStale, accounts.loading]);
+    // deps are fine; condition prevents loops
+  }, [accounts?.data, accounts?.lastFetched, accounts?.loading, actions]);
 
   // Process accounts data
   const processedAccounts = useMemo(() => {
