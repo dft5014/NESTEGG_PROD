@@ -944,6 +944,8 @@ const QuickStartModal = ({ isOpen, onClose }) => {
                     (parsed.crypto?.length || 0) +
                     (parsed.metal?.length || 0);
 
+                    
+
                 if (!total) {
                     setValidationStatus(null);
                     setUploadProgress(0);
@@ -958,8 +960,8 @@ const QuickStartModal = ({ isOpen, onClose }) => {
 
                 // Route to Quick Add Positions with prefilled rows
                 setTimeout(() => {
-                    setActiveTab('positions');
-                    setImportMethod('ui');
+                setActiveTab('positions');
+                setImportMethod('ui');
                 }, 250);
                 return;
             }
@@ -2515,8 +2517,8 @@ const QuickStartModal = ({ isOpen, onClose }) => {
                       {activeTab === 'accounts' && importMethod === 'ui' && renderUIAccountCreation()}
                       {activeTab === 'accounts' && importMethod === 'excel' && renderTemplateSection('accounts')}
                        {activeTab === 'positions' && !importMethod && renderPositionImportChoice()}
-                       {activeTab === 'positions' && importMethod === 'ui' && <QuickPositionWrapper />}
-                       {activeTab === 'positions' && importMethod === 'excel' && renderTemplateSection('positions')}
+                        {activeTab === 'positions' && importMethod === 'ui' && <QuickPositionWrapper />}
+                        {activeTab === 'positions' && importMethod === 'excel' && renderTemplateSection('positions')}
                        {activeTab === 'liabilities' && <QuickLiabilityWrapper />}
                       {activeTab === 'upload' && renderUploadSection()}
                       {activeTab === 'success' && renderSuccessScreen()}

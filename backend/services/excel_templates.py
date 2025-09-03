@@ -675,8 +675,8 @@ class ExcelTemplateService:
         
         # Add example rows
         examples = [
-            ["Select Account", "AAPL", "=IFERROR(VLOOKUP(B3,Lookups!$C:$D,2,FALSE),\"\")", "100", "150.00", "2024-01-15", "Long-term hold"],
-            ["Select Account", "VOO", "=IFERROR(VLOOKUP(B4,Lookups!$C:$D,2,FALSE),\"\")", "50", "425.00", "2024-02-01", "S&P 500 ETF"]
+            ["Select Account", "AAPL", "=IFERROR(VLOOKUP(B3,Lookups!$C:$D,2,FALSE),\"\")", "100", "150.00", "2024-01-15"],
+            ["Select Account", "VOO", "=IFERROR(VLOOKUP(B4,Lookups!$C:$D,2,FALSE),\"\")", "50", "425.00", "2024-02-01"]
         ]
         
         for r_idx, row_data in enumerate(examples, start=3):
@@ -772,6 +772,12 @@ class ExcelTemplateService:
         for row in range(5, 50):
             for col in [1, 2, 3]:  # Required columns
                 ws.cell(row=row, column=col).fill = self.required_fill
+
+        # Add instruction row — put directly under examples on row 5, and remove '*' language
+        ws.merge_cells("A5:F5")
+        ws["A5"] = "⚠️ Delete example rows (3–4) before importing."
+        ws["A5"].font = Font(bold=True, italic=True, color="FF0000", size=10)
+        ws["A5"].alignment = Alignment(horizontal="center")
         
         return ws
 
@@ -787,7 +793,7 @@ class ExcelTemplateService:
         ws["A1"].alignment = Alignment(horizontal="center")
         
         # Headers
-        headers = ["Account*", "Symbol*", "Name", "Quantity*", "Purchase Price*", "Purchase Date*", "Storage Type"]
+        headers = ["Account", "Symbol", "Name", "Quantity", "Purchase Price", "Purchase Date"]
         for col, header in enumerate(headers, start=1):
             cell = ws.cell(row=2, column=col, value=header)
             cell.font = self.header_font
@@ -817,7 +823,7 @@ class ExcelTemplateService:
         ws.add_data_validation(dv_crypto)
         dv_crypto.add("B3:B1000")
         for r in range(3, 1001):
-            ws.cell(row=r, column=3, value=f'=IFERROR(VLOOKUP(B{r},Lookups!$I:$J,2,FALSE),"")').border = self.border
+            ws.cell(row=r, column=3, value=f'=IFERROR(VLOOKUP(B{r},Lookups!$F:$G,2,FALSE),"")').border = self.border
 
 
 
@@ -854,8 +860,8 @@ class ExcelTemplateService:
         
         # Example rows
         examples = [
-            ["Select Account", "BTC", "=IFERROR(VLOOKUP(B3,Lookups!$F:$G,2,FALSE),\"\")", "0.5", "45000", "2024-01-15", "Exchange"],
-            ["Select Account", "ETH", "=IFERROR(VLOOKUP(B4,Lookups!$F:$G,2,FALSE),\"\")", "2.0", "2500", "2024-02-01", "Cold Wallet"]
+            ["Select Account", "BTC", "=IFERROR(VLOOKUP(B3,Lookups!$F:$G,2,FALSE),\"\")", "0.5", "45000", "2024-01-15"],
+            ["Select Account", "ETH", "=IFERROR(VLOOKUP(B4,Lookups!$F:$G,2,FALSE),\"\")", "2.0", "2500", "2024-02-01"]
         ]
         
         for r_idx, row_data in enumerate(examples, start=3):
@@ -868,6 +874,12 @@ class ExcelTemplateService:
         for row in range(5, 50):
             for col in [1, 2, 4, 5, 6]:  # Required columns
                 ws.cell(row=row, column=col).fill = self.required_fill
+
+        # Add instruction row — put directly under examples on row 5, and remove '*' language
+        ws.merge_cells("A5:F5")
+        ws["A5"] = "⚠️ Delete example rows (3–4) before importing."
+        ws["A5"].font = Font(bold=True, italic=True, color="FF0000", size=10)
+        ws["A5"].alignment = Alignment(horizontal="center")
         
         return ws
 
@@ -916,6 +928,8 @@ class ExcelTemplateService:
         dv_metal.showDropDown = False 
         ws.add_data_validation(dv_metal)
         dv_metal.add("B3:B1000")
+        for r in range(3, 1001):
+            ws.cell(row=r, column=3, value=f'=IFERROR(VLOOKUP(B{r},Lookups!$I:$J,2,FALSE),"")').border = self.border
         
         # Quantity validation
         dv_qty = DataValidation(
@@ -950,8 +964,8 @@ class ExcelTemplateService:
         
         # Example rows
         examples = [
-            ["Select Account", "Gold", "10", "1800", "2024-01-15", "Safe Deposit Box", "Physical bars"],
-            ["Select Account", "Silver", "100", "25", "2024-02-01", "Home Safe", "Coins"]
+            ["Select Account", "Gold", "=IFERROR(VLOOKUP(B3,Lookups!$I:$J,2,FALSE)", "10", "1800", "2024-01-15"],
+            ["Select Account", "Silver", "=IFERROR(VLOOKUP(B4,Lookups!$I:$J,2,FALSE)", "100", "25", "2024-02-01"]
         ]
         
         for r_idx, row_data in enumerate(examples, start=3):
@@ -964,5 +978,11 @@ class ExcelTemplateService:
         for row in range(5, 50):
             for col in [1, 2, 3, 4, 5]:  # Required columns
                 ws.cell(row=row, column=col).fill = self.required_fill
+
+        # Add instruction row — put directly under examples on row 5, and remove '*' language
+        ws.merge_cells("A5:F5")
+        ws["A5"] = "⚠️ Delete example rows (3–4) before importing."
+        ws["A5"].font = Font(bold=True, italic=True, color="FF0000", size=10)
+        ws["A5"].alignment = Alignment(horizontal="center")
         
         return ws    
