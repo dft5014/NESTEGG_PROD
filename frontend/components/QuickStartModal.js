@@ -717,113 +717,173 @@ const QuickStartModal = ({ isOpen, onClose }) => {
         // --- SECURITIES ---
         const secSheetName = findSheet('secur'); // matches "📈 SECURITIES"
         if (secSheetName) {
-            const rows = XLSX.utils.sheet_to_json(wb.Sheets[secSheetName], { defval: '' });
-            rows.forEach(r => {
-                const account = r['Account*'] ?? r['Account'] ?? r['account'];
-                const ticker  = r['Ticker*'] ?? r['Ticker'] ?? r['Symbol'] ?? r['symbol'];
-                const name    = r['Name'] ?? r['Company'] ?? '';
-                const shares  = r['Shares*'] ?? r['Shares'];
-                const cost    = r['Cost Basis*'] ?? r['Cost Basis'] ?? r['Purchase Price'] ?? r['Price'];
-                const date    = r['Purchase Date*'] ?? r['Purchase Date'] ?? r['Acquired Date (YYYY-MM-DD)'];
-                if (!account && !ticker) return;
+        const rows = XLSX.utils.sheet_to_json(
+            wb.Sheets[secSheetName],
+            { defval: '', range: 1 } // start at row 2: header row is on row 2
+        );
 
-                result.security.push(
-                    seedRow('security', {
-                        account_id: accountIdFor(account),
-                        account_name: norm(account),
-                        ticker: norm(ticker),
-                        name: norm(name),
-                        shares: toNumber(shares),
-                        cost_basis: toNumber(cost),
-                        purchase_date: toDateString(date)
-                    })
-                );
-            });
+        rows.forEach(r => {
+            const account = r['Account'] ?? r['Account'] ?? r['account'];
+            const ticker  = r['Ticker'] ?? r['Ticker'] ?? r['Symbol'] ?? r['symbol'];
+            const name    = r['Company Name'] ?? r['Name'] ?? r['Company'] ?? '';
+            const shares  = r['Shares'] ?? r['Shares'];
+            const cost    = r['Cost Basis*'] ?? r['Cost Basis'] ?? r['Purchase Price'] ?? r['Price'];
+            const date    = r['Purchase Date*'] ?? r['Purchase Date'] ?? r['Acquired Date (YYYY-MM-DD)'];
+
+            const acctNorm = norm(account);
+            const tickNorm = norm(ticker);
+
+            // Skip the instruction row and the example placeholder rows
+            const isInstruction = acctNorm.startsWith('⚠');
+            const isPlaceholder = /^select account/i.test(acctNorm);
+            const isEmptyRow =
+            !acctNorm && !tickNorm && !toNumber(shares) && !toNumber(cost) && !toDateString(date);
+
+            if (isInstruction || isPlaceholder || isEmptyRow) return;
+
+            // Require both Account and Ticker to push a row
+            if (!acctNorm || !tickNorm) return;
+
+            result.security.push(
+            seedRow('security', {
+                account_id: accountIdFor(account),
+                account_name: acctNorm,
+                ticker: tickNorm,
+                name: norm(name),
+                shares: toNumber(shares),
+                cost_basis: toNumber(cost),
+                purchase_date: toDateString(date),
+            })
+            );
+        });
         }
 
         // --- CASH ---
         const cashSheetName = findSheet('cash'); // matches "💵 CASH"
         if (cashSheetName) {
-            const rows = XLSX.utils.sheet_to_json(wb.Sheets[cashSheetName], { defval: '' });
-            rows.forEach(r => {
-                const account = r['Account*'] ?? r['Account'] ?? r['account'];
-                const cashType = r['Cash Type*'] ?? r['Cash Type'] ?? r['Type'];
-                const amount = r['Amount*'] ?? r['Amount'];
-                const rate = r['Interest Rate (%)'] ?? r['Interest Rate'] ?? r['Rate'];
-                const maturity = r['Maturity Date'] ?? r['Maturity'];
+        const rows = XLSX.utils.sheet_to_json(
+            wb.Sheets[cashSheetName],
+            { defval: '', range: 1 } // start at row 2 (row 1 is banner)
+        );
 
-                // Skip obvious blank lines
-                if (!account && !cashType && !amount) return;
+        rows.forEach(r => {
+            const account = r['Account'] ?? r['Account*'] ?? r['account'];
+            const cashType = r['Cash Type'] ?? r['Cash Type*'] ?? r['Type'];
+            const amount   = r['Amount'] ?? r['Amount*'];
+            const rate     = r['Interest Rate (%)'] ?? r['Interest Rate'] ?? r['Rate'];
+            const maturity = r['Maturity Date'] ?? r['Maturity'];
 
-                result.cash.push(
-                    seedRow('cash', {
-                        account_id: accountIdFor(account),
-                        account_name: norm(account),
-                        cash_type: norm(cashType),
-                        amount: toNumber(amount),
-                        interest_rate: toNumber(rate),
-                        maturity_date: toDateString(maturity)
-                    })
-                );
-            });
+            const acctNorm = norm(account);
+            const typeNorm = norm(cashType);
+
+            const isInstruction = acctNorm.startsWith('⚠');
+            const isPlaceholder = /^select account/i.test(acctNorm);
+            const isEmptyRow = !acctNorm && !typeNorm && !toNumber(amount);
+
+            if (isInstruction || isPlaceholder || isEmptyRow) return;
+
+            // Required for CASH: Account + Cash Type + Amount
+            if (!acctNorm || !typeNorm || !toNumber(amount)) return;
+
+            result.cash.push(
+            seedRow('cash', {
+                account_id: accountIdFor(account),
+                account_name: acctNorm,
+                cash_type: typeNorm,
+                amount: toNumber(amount),
+                interest_rate: toNumber(rate),
+                maturity_date: toDateString(maturity)
+            })
+            );
+        });
         }
 
         // --- CRYPTO ---
         const cryptoSheetName = findSheet('crypto'); // matches "🪙 CRYPTO"
         if (cryptoSheetName) {
-            const rows = XLSX.utils.sheet_to_json(wb.Sheets[cryptoSheetName], { defval: '' });
-            rows.forEach(r => {
-                const account = r['Account*'] ?? r['Account'] ?? r['account'];
-                const symbol  = r['Symbol*'] ?? r['Symbol'];
-                const name    = r['Name'] ?? '';
-                const qty     = r['Quantity*'] ?? r['Quantity'];
-                const price   = r['Purchase Price*'] ?? r['Purchase Price'];
-                const date    = r['Purchase Date*'] ?? r['Purchase Date'];
-                if (!account && !symbol) return;
+        const rows = XLSX.utils.sheet_to_json(
+            wb.Sheets[cryptoSheetName],
+            { defval: '', range: 1 } // start at row 2
+        );
 
-                result.crypto.push(
-                    seedRow('crypto', {
-                        account_id: accountIdFor(account),
-                        account_name: norm(account),
-                        symbol: norm(symbol),
-                        name: norm(name),
-                        quantity: toNumber(qty),
-                        purchase_price: toNumber(price),
-                        purchase_date: toDateString(date)
-                    })
-                );
-            });
+        rows.forEach(r => {
+            const account = r['Account'] ?? r['Account*'] ?? r['account'];
+            const symbol  = r['Symbol'] ?? r['Symbol*'];
+            const name    = r['Name'] ?? '';
+            const qty     = r['Quantity'] ?? r['Quantity*'];
+            const price   = r['Purchase Price'] ?? r['Purchase Price*'];
+            const date    = r['Purchase Date'] ?? r['Purchase Date*'];
+
+            const acctNorm = norm(account);
+            const symNorm  = norm(symbol);
+
+            const isInstruction = acctNorm.startsWith('⚠');
+            const isPlaceholder = /^select account/i.test(acctNorm);
+            const isEmptyRow = !acctNorm && !symNorm && !toNumber(qty) && !toNumber(price);
+
+            if (isInstruction || isPlaceholder || isEmptyRow) return;
+
+            // Require Account + Symbol
+            if (!acctNorm || !symNorm) return;
+
+            result.crypto.push(
+            seedRow('crypto', {
+                account_id: accountIdFor(account),
+                account_name: acctNorm,
+                symbol: symNorm,
+                name: norm(name),
+                quantity: toNumber(qty),
+                purchase_price: toNumber(price),
+                purchase_date: toDateString(date)
+            })
+            );
+        });
         }
-
+        
         // --- METALS ---
         const metalSheetName = findSheet('metal'); // matches "🥇 METALS"
         if (metalSheetName) {
-            const rows = XLSX.utils.sheet_to_json(wb.Sheets[metalSheetName], { defval: '' });
-            rows.forEach(r => {
-                const account = r['Account*'] ?? r['Account'] ?? r['account'];
-                const mtype   = r['Metal Type*'] ?? r['Metal Type'] ?? r['Metal'];
-                const qty     = r['Quantity (oz)*'] ?? r['Quantity (oz)'] ?? r['Quantity'];
-                const price   = r['Purchase Price/oz*'] ?? r['Purchase Price/oz'] ?? r['Price/Unit'];
-                const date    = r['Purchase Date*'] ?? r['Purchase Date'];
-                const storage = r['Storage Location'] ?? r['Storage'];
-                if (!account && !mtype) return;
+        const rows = XLSX.utils.sheet_to_json(
+            wb.Sheets[metalSheetName],
+            { defval: '', range: 1 } // start at row 2
+        );
 
-                result.metal.push(
-                    seedRow('metal', {
-                        account_id: accountIdFor(account),
-                        account_name: norm(account),
-                        metal_type: norm(mtype),
-                        symbol: '', // optional; UI auto-fills from metal_type
-                        name: '',   // optional; UI auto-fills from metal_type
-                        quantity: toNumber(qty),
-                        unit: 'oz',
-                        purchase_price: toNumber(price),
-                        purchase_date: toDateString(date),
-                        storage_location: norm(storage)
-                    })
-                );
-            });
+        rows.forEach(r => {
+            const account = r['Account'] ?? r['Account*'] ?? r['account'];
+            const mtype   = r['Metal Type'] ?? r['Metal Type*'] ?? r['Metal'];
+            const code    = r['Metal Code'] ?? r['Symbol'] ?? r['Ticker'] ?? ''; // auto-fill exists, but use if present
+            const qty     = r['Quantity (oz)'] ?? r['Quantity (oz)*'] ?? r['Quantity'];
+            const price   = r['Purchase Price/oz'] ?? r['Purchase Price/oz*'] ?? r['Price/Unit'] ?? r['Purchase Price'];
+            const date    = r['Purchase Date'] ?? r['Purchase Date*'];
+
+            const acctNorm = norm(account);
+            const typeNorm = norm(mtype);
+
+            const isInstruction = acctNorm.startsWith('⚠');
+            const isPlaceholder = /^select account/i.test(acctNorm);
+            const isEmptyRow = !acctNorm && !typeNorm && !toNumber(qty) && !toNumber(price);
+
+            if (isInstruction || isPlaceholder || isEmptyRow) return;
+
+            // Require Account + Metal Type (code can be blank; UI/Excel VLOOKUP fills it)
+            if (!acctNorm || !typeNorm) return;
+
+            result.metal.push(
+            seedRow('metal', {
+                account_id: accountIdFor(account),
+                account_name: acctNorm,
+                metal_type: typeNorm,
+                symbol: norm(code),     // ok if '', UI can derive
+                name: '',               // not needed for metals
+                quantity: toNumber(qty),
+                unit: 'oz',
+                purchase_price: toNumber(price),
+                purchase_date: toDateString(date)
+            })
+            );
+        });
         }
+
 
         return result;
     };
