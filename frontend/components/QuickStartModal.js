@@ -1093,9 +1093,6 @@ const QuickStartModal = ({ isOpen, onClose }) => {
         }
         }
 
-
-
-
     const renderOverview = () => (
         <div className="space-y-6 animate-fadeIn">
             <div className="text-center">
@@ -2426,25 +2423,43 @@ const QuickStartModal = ({ isOpen, onClose }) => {
                    </div>
                </div>
 
-               <div className="flex justify-center">
-                   <button
-                       onClick={() => downloadTemplate(type)}
-                       disabled={isDownloading}
-                       className={`inline-flex items-center px-6 py-3 bg-gradient-to-r from-${color}-600 to-${color}-700 text-white font-medium rounded-lg hover:from-${color}-700 hover:to-${color}-800 transition-all duration-200 transform hover:scale-105 hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none`}
-                   >
-                       {isDownloading ? (
-                           <>
-                               <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                               Downloading<LoadingDots />
-                           </>
-                       ) : (
-                           <>
-                               <Download className="w-5 h-5 mr-2" />
-                               Download {isAccounts ? 'Accounts' : 'Positions'} Template
-                           </>
-                       )}
-                   </button>
-               </div>
+                <div className="flex flex-col items-center gap-3">
+                <button
+                    onClick={() => downloadTemplate(type)}
+                    disabled={isDownloading}
+                    className={`inline-flex items-center px-6 py-3 bg-gradient-to-r from-${color}-600 to-${color}-700 text-white font-medium rounded-lg hover:from-${color}-700 hover:to-${color}-800 transition-all duration-200 transform hover:scale-105 hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none`}
+                >
+                    {isDownloading ? (
+                    <>
+                        <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                        Downloading<LoadingDots />
+                    </>
+                    ) : (
+                    <>
+                        <Download className="w-5 h-5 mr-2" />
+                        Download {isAccounts ? 'Accounts' : 'Positions'} Template
+                    </>
+                    )}
+                </button>
+
+                {/* New: let users jump straight to upload */}
+                {!isAccounts && (
+                    <button
+                    type="button"
+                    onClick={() => {
+                        setSelectedTemplate('positions');
+                        setActiveTab('upload');
+                        setValidationStatus(null);
+                        setUploadProgress(0);
+                        setUploadedFile(null);
+                    }}
+                    className="text-sm font-medium text-purple-700 hover:text-purple-800 underline"
+                    >
+                    I already have a filled template — Upload now
+                    </button>
+                )}
+                </div>
+
            </div>
        );
    };
@@ -2505,19 +2520,20 @@ const QuickStartModal = ({ isOpen, onClose }) => {
                     Selected: <span className="font-medium">{uploadedFile.name}</span>
                 </span>
                     <div className="flex items-center gap-3">
-                    <button
+                        <button
                         type="button"
                         onClick={() => {
-                        // trigger system picker; ensure same-name re-select works
-                        if (fileInputRef.current) {
-                            fileInputRef.current.value = '';
-                            fileInputRef.current.click();
-                        }
+                            // clear and trigger re-pick (re-import), preserving same-filename reselect
+                            setUploadedFile(null);
+                            setValidationStatus(null);
+                            setUploadProgress(0);
+                            if (fileInputRef.current) fileInputRef.current.value = '';
+                            fileInputRef.current?.click();
                         }}
                         className="text-sm text-blue-600 hover:text-blue-700 underline"
-                    >
+                        >
                         Replace file
-                    </button>
+                        </button>
                     <button
                         type="button"
                         onClick={() => {

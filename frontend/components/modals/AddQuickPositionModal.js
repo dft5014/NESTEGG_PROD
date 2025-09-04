@@ -901,49 +901,62 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
     []
   );
 
-      useEffect(() => {
-        if (isOpen) {
-          loadAccounts();
+    useEffect(() => {
+      if (!isOpen) return;
 
-          // If we were given seeded rows (from Excel), use them; otherwise start empty
-          const hasSeeds =
-            seedPositions &&
-            (seedPositions.security?.length ||
-            seedPositions.cash?.length ||
-            seedPositions.crypto?.length ||
-            seedPositions.metal?.length);
+      loadAccounts();
 
-          setPositions(hasSeeds ? {
-            security: seedPositions.security ?? [],
-            cash:     seedPositions.cash ?? [],
-            crypto:   seedPositions.crypto ?? [],
-            metal:    seedPositions.metal ?? [],
-            otherAssets: []
-          } : {
-            security: [],
-            cash: [],
-            crypto: [],
-            metal: [],
-            otherAssets: []
-          });
+      // ensure every row has the expected shape + an id
+      const castSeed = (rows, type) =>
+        (rows ?? []).map((r) => ({
+          id: r?.id ?? (Date.now() + Math.random()),
+          type: type,
+          data: r?.data ?? r,          // accept plain objects or {data}
+          errors: r?.errors ?? {},
+          isNew: true,
+          animateIn: true
+        }));
 
-          setExpandedSections({});
-          setAccountExpandedSections({});
-          setMessage({ type: '', text: '', details: [] });
-          setActiveFilter('all');
-          setSearchResults({});
-          setSelectedSecurities({});
-          
-          setShowKeyboardShortcuts(true);
-          setTimeout(() => setShowKeyboardShortcuts(false), 3000);
-        }
-        
-        return () => {
-      if (messageTimeoutRef.current) {
-        clearTimeout(messageTimeoutRef.current);
-      }
-    };
-  }, [isOpen]);
+      const hasSeeds = !!(
+        seedPositions &&
+        (seedPositions.security?.length ||
+        seedPositions.cash?.length ||
+        seedPositions.crypto?.length ||
+        seedPositions.metal?.length)
+      );
+
+      setPositions(
+        hasSeeds
+          ? {
+              security: castSeed(seedPositions.security, 'security'),
+              cash:     castSeed(seedPositions.cash, 'cash'),
+              crypto:   castSeed(seedPositions.crypto, 'crypto'),
+              metal:    castSeed(seedPositions.metal, 'metal'),
+              otherAssets: []
+            }
+          : { security: [], cash: [], crypto: [], metal: [], otherAssets: [] }
+      );
+
+      // reset UI chrome
+      setExpandedSections({});
+      setAccountExpandedSections({});
+      setMessage({ type: '', text: '', details: [] });
+      setActiveFilter('all');
+      setSearchResults({});
+      setSelectedSecurities({});
+      setShowKeyboardShortcuts(true);
+      setTimeout(() => setShowKeyboardShortcuts(false), 3000);
+
+      // 🔑 trigger price hydration after seeds land
+      setTimeout(() => {
+        try { autoHydrateSeededPrices(); } catch (e) { console.error(e); }
+      }, 0);
+
+      return () => {
+        if (messageTimeoutRef.current) clearTimeout(messageTimeoutRef.current);
+      };
+    }, [isOpen, seedPositions, autoHydrateSeededPrices]);
+
 
   // Load accounts
   const loadAccounts = async () => {
