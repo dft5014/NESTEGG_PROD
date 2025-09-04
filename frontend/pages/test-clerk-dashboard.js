@@ -1,13 +1,14 @@
 // pages/test-clerk-dashboard.js
-import { useUser, UserButton, useAuth } from "@clerk/nextjs";
+import { ClerkProvider, useUser, UserButton, useAuth } from "@clerk/nextjs";
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { 
   CheckCircle, XCircle, Info, Code, User, Mail, 
-  Shield, Clock, ArrowLeft, Sparkles, Key, Database 
+  Shield, Clock, ArrowLeft, Sparkles, Key, Database,
+  Loader
 } from 'lucide-react';
 
-export default function TestClerkDashboard() {
+function DashboardContent() {
   const { isLoaded, isSignedIn, user } = useUser();
   const { userId, sessionId, getToken } = useAuth();
   const [token, setToken] = useState(null);
@@ -16,8 +17,10 @@ export default function TestClerkDashboard() {
   useEffect(() => {
     const fetchToken = async () => {
       try {
-        const jwt = await getToken();
-        setToken(jwt);
+        if (isSignedIn && getToken) {
+          const jwt = await getToken();
+          setToken(jwt);
+        }
       } catch (err) {
         setTokenError(err.message);
       }
@@ -29,9 +32,14 @@ export default function TestClerkDashboard() {
   }, [isSignedIn, getToken]);
 
   if (!isLoaded) {
-    return <div className="min-h-screen bg-gray-950 flex items-center justify-center">
-      <div className="text-white">Loading...</div>
-    </div>;
+    return (
+      <div className="min-h-screen bg-gray-950 flex items-center justify-center">
+        <div className="text-center">
+          <Loader className="h-8 w-8 text-blue-500 animate-spin mx-auto mb-4" />
+          <div className="text-white">Loading Clerk...</div>
+        </div>
+      </div>
+    );
   }
 
   if (!isSignedIn) {
@@ -88,19 +96,19 @@ export default function TestClerkDashboard() {
             <div className="space-y-3">
               <div className="flex justify-between">
                 <span className="text-gray-400">User ID:</span>
-                <span className="text-white font-mono text-sm">{userId}</span>
+                <span className="text-white font-mono text-sm">{userId || 'N/A'}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-gray-400">Email:</span>
-                <span className="text-white">{user.primaryEmailAddress?.emailAddress}</span>
+                <span className="text-white">{user?.primaryEmailAddress?.emailAddress || 'N/A'}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-gray-400">Name:</span>
-                <span className="text-white">{user.fullName || 'Not provided'}</span>
+                <span className="text-white">{user?.fullName || 'Not provided'}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-gray-400">Username:</span>
-                <span className="text-white">{user.username || 'Not set'}</span>
+                <span className="text-white">{user?.username || 'Not set'}</span>
               </div>
             </div>
           </div>
@@ -114,7 +122,9 @@ export default function TestClerkDashboard() {
             <div className="space-y-3">
               <div className="flex justify-between">
                 <span className="text-gray-400">Session ID:</span>
-                <span className="text-white font-mono text-sm">{sessionId?.slice(0, 20)}...</span>
+                <span className="text-white font-mono text-sm">
+                  {sessionId ? `${sessionId.slice(0, 20)}...` : 'N/A'}
+                </span>
               </div>
               <div className="flex justify-between">
                 <span className="text-gray-400">Auth Status:</span>
@@ -122,11 +132,13 @@ export default function TestClerkDashboard() {
               </div>
               <div className="flex justify-between">
                 <span className="text-gray-400">Created:</span>
-                <span className="text-white">{user.createdAt ? new Date(user.createdAt).toLocaleDateString() : 'N/A'}</span>
+                <span className="text-white">
+                  {user?.createdAt ? new Date(user.createdAt).toLocaleDateString() : 'N/A'}
+                </span>
               </div>
               <div className="flex justify-between">
                 <span className="text-gray-400">MFA Enabled:</span>
-                <span className="text-white">{user.twoFactorEnabled ? 'Yes' : 'No'}</span>
+                <span className="text-white">{user?.twoFactorEnabled ? 'Yes' : 'No'}</span>
               </div>
             </div>
           </div>
@@ -185,4 +197,29 @@ export default function TestClerkDashboard() {
       </div>
     </div>
   );
+}
+
+export default function TestClerkDashboard() {
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  if (!mounted) {
+    return null; // Prevent hydration mismatch
+  }
+
+  return (
+    <ClerkProvider publishableKey={process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY}>
+      <DashboardContent />
+    </ClerkProvider>
+  );
+}
+
+// Skip static generation for this page
+export async function getServerSideProps() {
+  return {
+    props: {},
+  };
 }
