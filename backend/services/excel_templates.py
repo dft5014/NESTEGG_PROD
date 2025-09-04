@@ -710,7 +710,7 @@ class ExcelTemplateService:
         ws["A1"].alignment = Alignment(horizontal="center")
         
         # Headers
-        headers = ["Account*", "Cash Type*", "Amount*", "Interest Rate (%)", "Maturity Date", "Notes"]
+        headers = ["Account", "Cash Type", "Amount", "Interest Rate (%)", "Maturity Date", "Notes"]
         for col, header in enumerate(headers, start=1):
             cell = ws.cell(row=2, column=col, value=header)
             cell.font = self.header_font
@@ -932,41 +932,28 @@ class ExcelTemplateService:
             ws.cell(row=r, column=3, value=f'=IFERROR(VLOOKUP(B{r},Lookups!$I:$J,2,FALSE),"")').border = self.border
         
         # Quantity validation
-        dv_qty = DataValidation(
-            type="decimal",
-            operator="greaterThan",
-            formula1=0,
-            allow_blank=False
-        )
+        dv_qty = DataValidation(type="decimal", operator="greaterThan", formula1=0, allow_blank=False)
         ws.add_data_validation(dv_qty)
-        dv_qty.add("C3:C1000")
+        dv_qty.add("D3:D1000")
+
         
-        # Price validation
-        dv_price = DataValidation(
-            type="decimal",
-            operator="greaterThanOrEqual",
-            formula1=0,
-            allow_blank=False
-        )
+        # Price validation       
+        dv_price = DataValidation(type="decimal", operator="greaterThanOrEqual", formula1=0, allow_blank=False)
         ws.add_data_validation(dv_price)
-        dv_price.add("D3:D1000")
-        
-        # Date validation
-        dv_date = DataValidation(
-            type="date",
-            operator="between",
-            formula1="DATE(1900,1,1)",
-            formula2="TODAY()",
-            allow_blank=False
-        )
+        dv_price.add("E3:E1000")
+
+
+        # Date validation      
+        dv_date = DataValidation(type="date", operator="between", formula1="DATE(1900,1,1)", formula2="TODAY()", allow_blank=False)
         ws.add_data_validation(dv_date)
-        dv_date.add("E3:E1000")
-        
+        dv_date.add("F3:F1000")
+
         # Example rows
         examples = [
-            ["Select Account", "Gold", "=IFERROR(VLOOKUP(B3,Lookups!$I:$J,2,FALSE)", "10", "1800", "2024-01-15"],
-            ["Select Account", "Silver", "=IFERROR(VLOOKUP(B4,Lookups!$I:$J,2,FALSE)", "100", "25", "2024-02-01"]
+            ["Select Account", "Gold",  '=IFERROR(VLOOKUP(B3,Lookups!$I:$J,2,FALSE),"")',  "10",  "1800", "2024-01-15"],
+            ["Select Account", "Silver",'=IFERROR(VLOOKUP(B4,Lookups!$I:$J,2,FALSE),"")', "100",  "25",   "2024-02-01"]
         ]
+
         
         for r_idx, row_data in enumerate(examples, start=3):
             for c_idx, value in enumerate(row_data, start=1):
