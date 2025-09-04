@@ -949,13 +949,13 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
 
       // 🔑 trigger price hydration after seeds land
       setTimeout(() => {
-        try { autoHydrateSeededPrices(); } catch (e) { console.error(e); }
+        try { autoHydrateSeededPrices?.(); } catch (e) { console.error(e); }
       }, 0);
 
       return () => {
         if (messageTimeoutRef.current) clearTimeout(messageTimeoutRef.current);
       };
-    }, [isOpen, seedPositions, autoHydrateSeededPrices]);
+      }, [isOpen, seedPositions]); // ← remove autoHydrateSeededPrices to avoid TDZ
 
 
   // Load accounts
