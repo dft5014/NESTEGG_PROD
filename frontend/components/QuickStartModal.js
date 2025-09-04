@@ -2449,102 +2449,234 @@ const QuickStartModal = ({ isOpen, onClose }) => {
        );
    };
 
-    const renderUploadSection = () => (
-        <div className="space-y-6 animate-fadeIn">
+    // Enhanced renderUploadSection with quick-import, paste support, smarter routing, and better UX
+    const renderUploadSection = () => {
+        // Helper: map template → target tab for the post-validation route
+        const tabByTemplate = useMemo(
+            () => ({
+            Accounts: "accounts",
+            Account: "accounts",
+            // Positions universe routes to the positions workspace
+            Positions: "positions",
+            Securities: "positions",
+            Crypto: "positions",
+            Metals: "positions",
+            Cash: "positions",
+            }),
+            []
+        );
+
+        // Helper: jump to appropriate tab after successful validation
+        const routeAfterValidation = useCallback(() => {
+            const tab = tabByTemplate[selectedTemplate] || "positions";
+            setImportMethod("ui");
+            setActiveTab(tab);
+        }, [selectedTemplate, tabByTemplate, setImportMethod, setActiveTab]);
+
+        // Allow clicking anywhere in the dropzone to open picker
+        const handleZoneClick = useCallback(() => {
+            fileInputRef.current?.click();
+        }, []);
+
+        // Support quick CSV paste: user copies rows from Excel/Sheets and pastes here
+        const handlePaste = useCallback(
+            async (e) => {
+            if (!e.clipboardData) return;
+            const text = e.clipboardData.getData("text/plain");
+            if (!text || text.trim().length < 5) return; // ignore tiny/accidental pastes
+            // Turn pasted text into a Blob/File so we can reuse the same pipeline
+            const blob = new Blob([text], { type: "text/csv;charset=utf-8" });
+            const f = new File([blob], `pasted_${selectedTemplate.toLowerCase()}.csv`, {
+                type: "text/csv",
+            });
+            handleFileSelect(f);
+            },
+            [selectedTemplate, handleFileSelect]
+        );
+
+        // Keep last uploaded file around for quick re-import
+        const lastFileRef = useRef(null);
+        useEffect(() => {
+            if (uploadedFile) lastFileRef.current = uploadedFile;
+        }, [uploadedFile]);
+
+        return (
+            <div className="space-y-6 animate-fadeIn">
+            {/* Header */}
             <div className="text-center">
-            <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-purple-500 to-purple-600 rounded-full mb-4">
-                <Upload className="w-8 h-8 text-white" />
-            </div>
-            <h3 className="text-2xl font-bold text-gray-900 mb-2">Upload Completed Template</h3>
-            <p className="text-gray-600 max-w-md mx-auto">
-                Upload your filled positions template for validation
-            </p>
+                <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-green-500 to-green-600 rounded-full mb-4 shadow-sm">
+                <Upload className="w-8 h-8 text-white" aria-hidden="true" />
+                </div>
+                <h3 className="text-2xl font-bold text-gray-900 mb-2">
+                Upload Completed Template
+                </h3>
+                <p className="text-gray-600">
+                Upload your filled {selectedTemplate} template for validation
+                </p>
+
+                {/* Quick actions row */}
+                <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
+                {/* New: “Import without downloading template” */}
+                <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-800 shadow-sm hover:bg-gray-50 active:scale-[0.99] transition"
+                    title="Choose a file and import directly"
+                >
+                    <FolderOpen className="h-4 w-4 text-gray-500" />
+                    Import without downloading template
+                </button>
+
+                {/* Re-import last file if user wants a quick retry */}
+                {lastFileRef.current && !uploadedFile && (
+                    <button
+                    type="button"
+                    onClick={() => handleFileSelect(lastFileRef.current)}
+                    className="inline-flex items-center gap-2 rounded-lg border border-blue-300 bg-blue-50 px-3 py-1.5 text-sm font-medium text-blue-800 hover:bg-blue-100 active:scale-[0.99] transition"
+                    title="Re-import the last file you used"
+                    >
+                    <RefreshCw className="h-4 w-4" />
+                    Re-import last file
+                    </button>
+                )}
+                </div>
             </div>
 
             {/* Dropzone */}
             <div
-            onDragEnter={handleDragEnter}
-            onDragLeave={handleDragLeave}
-            onDragOver={handleDragOver}
-            onDrop={handleDrop}
-            className={`border-2 border-dashed rounded-xl p-8 text-center transition-colors ${
-                isDragging ? 'border-purple-400 bg-purple-50' : 'border-gray-300'
-            }`}
+                role="button"
+                tabIndex={0}
+                className={`
+                group relative border-2 border-dashed rounded-xl p-8 text-center
+                transition-all duration-300 outline-none
+                ${isDragging
+                    ? "border-blue-500 bg-blue-50 scale-[1.02]"
+                    : uploadedFile
+                    ? "border-green-500 bg-green-50"
+                    : "border-gray-300 hover:border-gray-400 bg-gray-50"
+                }`}
+                onClick={handleZoneClick}
+                onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && handleZoneClick()}
+                onDragEnter={handleDragEnter}
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+                onDrop={handleDrop}
+                onPaste={handlePaste}
+                aria-label="Upload area. Click, drag & drop, or paste CSV data."
             >
-            <div className="mb-4">
-                <Upload className="w-8 h-8 text-gray-400 inline-block" />
-            </div>
-            <p className="text-gray-700 mb-2">Drag and drop your Excel file</p>
-            <p className="text-xs text-gray-500 mb-4">.xlsx, .xls, or .csv</p>
-
-            <input
+                <input
                 ref={fileInputRef}
                 type="file"
                 accept=".xlsx,.xls,.csv"
-                hidden
-                onChange={(e) => {
-                const file = e.target.files?.[0];
-                if (file) handleFileSelect(file);
-                }}
-            />
-            <button
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                className="inline-flex items-center px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
-            >
-                <FolderOpen className="w-4 h-4 mr-2" />
-                Browse Files
-            </button>
+                onChange={(e) => handleFileSelect(e.target.files[0])}
+                className="hidden"
+                />
 
-            {/* Show selected file + Replace */}
-            {uploadedFile && (
-                <div className="mt-4 flex items-center justify-center space-x-3">
-                <span className="text-sm text-gray-700">
-                    Selected: <span className="font-medium">{uploadedFile.name}</span>
-                </span>
-                <button
-                    type="button"
-                    onClick={() => {
-                    // clear and trigger re-pick (re-import)
-                    setUploadedFile(null);
-                    setValidationStatus(null);
-                    setUploadProgress(0);
-                    fileInputRef.current?.click();
-                    }}
-                    className="text-sm text-blue-600 hover:text-blue-700 underline"
-                >
-                    Replace file
-                </button>
-                <button
-                    type="button"
-                    onClick={() => {
-                    // allow switching back to Positions / Accounts choices if desired
-                    setActiveTab('positions'); // or 'accounts' depending on flow
-                    setImportMethod(null);
-                    setSelectedTemplate(null);
-                    setUploadedFile(null);
-                    setValidationStatus(null);
-                    setUploadProgress(0);
-                    }}
-                    className="text-sm text-gray-500 hover:text-gray-700 underline"
-                >
-                    Back
-                </button>
-                </div>
-            )}
+                {!uploadedFile ? (
+                <>
+                    <Upload
+                    className={`w-12 h-12 mx-auto mb-4 transition ${
+                        isDragging
+                        ? "text-blue-600 animate-bounce"
+                        : "text-gray-400 group-hover:text-gray-500"
+                    }`}
+                    aria-hidden="true"
+                    />
+                    <p className="text-lg font-medium text-gray-900 mb-2">
+                    {isDragging ? "Drop your file here" : "Drag & drop your file or click to browse"}
+                    </p>
+                    <p className="text-sm text-gray-600 mb-4">
+                    Tip: You can also <span className="font-semibold">paste</span> CSV rows from Excel/Sheets directly.
+                    </p>
+                    <p className="text-xs text-gray-500">
+                    Supported formats: .xlsx, .xls, .csv
+                    </p>
+                </>
+                ) : (
+                <div className="space-y-4">
+                    <FileCheck className="w-12 h-12 mx-auto text-green-600" aria-hidden="true" />
+                    <div>
+                    <p className="text-lg font-medium text-gray-900">{uploadedFile.name}</p>
+                    <p className="text-sm text-gray-600">
+                        {((uploadedFile.size || 0) / 1024).toFixed(2)} KB
+                    </p>
+                    </div>
 
-            {/* Progress / Status */}
-            {validationStatus === 'validating' && (
-                <div className="mt-4 text-sm text-gray-600">
-                Validating… {uploadProgress}%
+                    {validationStatus === "validating" && (
+                    <div className="space-y-2">
+                        <div className="flex items-center justify-center text-blue-600">
+                        <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                        <span className="text-sm">
+                            Validating file
+                            <LoadingDots />
+                        </span>
+                        </div>
+                        <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
+                        <div
+                            className="bg-gradient-to-r from-blue-500 to-blue-600 h-2 rounded-full transition-all duration-300 relative"
+                            style={{ width: `${uploadProgress}%` }}
+                        >
+                            <div className="absolute inset-0 bg-white/20 animate-pulse" />
+                        </div>
+                        </div>
+                    </div>
+                    )}
+
+                    {validationStatus === "valid" && (
+                    <div className="space-y-3">
+                        <div className="flex items-center justify-center text-green-600">
+                        <CheckCircle className="w-5 h-5 mr-2" />
+                        <span className="font-medium">File validated successfully!</span>
+                        </div>
+
+                        {/* Smarter route: template → correct tab */}
+                        <button
+                        type="button"
+                        onClick={routeAfterValidation}
+                        className="w-full px-4 py-2 bg-gradient-to-r from-green-600 to-green-700 text-white font-medium rounded-lg hover:from-green-700 hover:to-green-800 transition-all duration-200 transform hover:scale-[1.02]"
+                        >
+                        Review & Add {tabByTemplate[selectedTemplate] === "accounts" ? "Accounts" : "Positions"}
+                        </button>
+
+                        {/* Secondary: choose another file */}
+                        <button
+                        type="button"
+                        onClick={() => {
+                            setUploadedFile(null);
+                            setValidationStatus(null);
+                            setUploadProgress(0);
+                            // Keep lastFileRef for quick “Re-import last file”
+                        }}
+                        className="w-full inline-flex items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 active:scale-[0.99] transition"
+                        >
+                        <RefreshCw className="w-4 h-4" />
+                        Upload a different file
+                        </button>
+                    </div>
+                    )}
                 </div>
-            )}
+                )}
             </div>
-        </div>
+
+            {/* Tips */}
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <div className="flex items-start">
+                <Info className="w-5 h-5 text-blue-600 mt-0.5 mr-3 flex-shrink-0" aria-hidden="true" />
+                <div className="text-sm text-blue-900">
+                    <p className="font-medium mb-1">Tips for successful import:</p>
+                    <ul className="list-disc list-inside text-blue-700 space-y-1">
+                    <li>Don’t modify the column headers</li>
+                    <li>Use the dropdown options where provided</li>
+                    <li>Leave cells empty rather than using “N/A”</li>
+                    <li>Save as Excel (.xlsx) or paste CSV rows directly</li>
+                    </ul>
+                </div>
+                </div>
+            </div>
+            </div>
         );
+        };
 
-
-  if (!isOpen) return null;
 
   return (
       <div className="fixed inset-0 z-[100000] overflow-y-auto quickstart-modal-overlay">
