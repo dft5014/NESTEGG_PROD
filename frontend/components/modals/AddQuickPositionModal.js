@@ -1216,7 +1216,76 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
       ...prev,
       [searchKey]: []
     }));
-  };
+    };
+
+    // --- NEW: auto-hydrate current prices for seeded rows after Excel import ---
+    const metalSymbolByType = {
+      Gold: 'GC=F',
+      Silver: 'SI=F',
+      Platinum: 'PL=F',
+      Copper: 'HG=F',
+      Palladium: 'PA=F',
+    };
+
+    const autoHydrateSeededPrices = useCallback(async () => {
+      const work = [];
+
+      // Use current positions state so we have the generated IDs
+      positions.security.forEach(p => {
+        const q = p?.data?.ticker || p?.data?.symbol;
+        if (q && !p?.data?.price) work.push({ type: 'security', id: p.id, q });
+      });
+      positions.crypto.forEach(p => {
+        const q = p?.data?.symbol || p?.data?.ticker;
+        if (q && !p?.data?.current_price) work.push({ type: 'crypto', id: p.id, q });
+      });
+      positions.metal.forEach(p => {
+        const q = p?.data?.symbol || metalSymbolByType[p?.data?.metal_type];
+        if (q && !p?.data?.current_price_per_unit) work.push({ type: 'metal', id: p.id, q });
+      });
+
+      for (const item of work) {
+        try {
+          const results = await searchSecurities(item.q);
+          let filtered = results;
+          if (item.type === 'security') {
+            filtered = results.filter(r => r.asset_type === 'security' || r.asset_type === 'index');
+          } else if (item.type === 'crypto') {
+            filtered = results.filter(r => r.asset_type === 'crypto');
+          }
+          // Prefer exact ticker match; otherwise first result
+          const exact = filtered.find(r => String(r.ticker || '').toUpperCase() === String(item.q).toUpperCase());
+          const chosen = exact || filtered[0];
+          if (chosen) {
+            handleSelectSecurity(item.type, item.id, chosen);
+          }
+        } catch (e) {
+          console.warn('Auto-hydrate price failed for', item, e);
+        }
+      }
+      // done
+    }, [positions, handleSelectSecurity]);
+
+    const hydratedRef = useRef(false);
+    useEffect(() => {
+      if (!isOpen || hydratedRef.current) return;
+
+      const hasSeeds =
+        (seedPositions?.security?.length || 0) +
+        (seedPositions?.crypto?.length || 0) +
+        (seedPositions?.metal?.length || 0) > 0;
+
+      if (!hasSeeds) return;
+
+      // wait one tick so the positions state is populated by the existing isOpen effect
+      const t = setTimeout(() => {
+        autoHydrateSeededPrices();
+        hydratedRef.current = true;
+      }, 0);
+
+      return () => clearTimeout(t);
+    }, [isOpen, seedPositions, autoHydrateSeededPrices]);
+
 
   // Update position with search trigger
   const updatePosition = (assetType, positionId, field, value) => {

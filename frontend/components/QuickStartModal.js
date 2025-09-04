@@ -2477,16 +2477,18 @@ const QuickStartModal = ({ isOpen, onClose }) => {
             <p className="text-gray-700 mb-2">Drag and drop your Excel file</p>
             <p className="text-xs text-gray-500 mb-4">.xlsx, .xls, or .csv</p>
 
-            <input
+                <input
                 ref={fileInputRef}
                 type="file"
                 accept=".xlsx,.xls,.csv"
                 hidden
                 onChange={(e) => {
-                const file = e.target.files?.[0];
-                if (file) handleFileSelect(file);
+                    const file = e.target.files?.[0];
+                    if (file) handleFileSelect(file);
+                    // allow re-uploading the same file name
+                    if (e.target) e.target.value = '';
                 }}
-            />
+                />
             <button
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
@@ -2502,19 +2504,34 @@ const QuickStartModal = ({ isOpen, onClose }) => {
                 <span className="text-sm text-gray-700">
                     Selected: <span className="font-medium">{uploadedFile.name}</span>
                 </span>
-                <button
-                    type="button"
-                    onClick={() => {
-                    // clear and trigger re-pick (re-import)
-                    setUploadedFile(null);
-                    setValidationStatus(null);
-                    setUploadProgress(0);
-                    fileInputRef.current?.click();
-                    }}
-                    className="text-sm text-blue-600 hover:text-blue-700 underline"
-                >
-                    Replace file
-                </button>
+                    <div className="flex items-center gap-3">
+                    <button
+                        type="button"
+                        onClick={() => {
+                        // trigger system picker; ensure same-name re-select works
+                        if (fileInputRef.current) {
+                            fileInputRef.current.value = '';
+                            fileInputRef.current.click();
+                        }
+                        }}
+                        className="text-sm text-blue-600 hover:text-blue-700 underline"
+                    >
+                        Replace file
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => {
+                        // clear current selection and state
+                        setUploadedFile(null);
+                        setValidationStatus(null);
+                        setUploadProgress(0);
+                        if (fileInputRef.current) fileInputRef.current.value = '';
+                        }}
+                        className="text-sm text-gray-600 hover:text-gray-800 underline"
+                    >
+                        Remove file
+                    </button>
+                    </div>
                 <button
                     type="button"
                     onClick={() => {

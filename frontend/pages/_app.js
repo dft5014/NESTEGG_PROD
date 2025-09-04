@@ -20,8 +20,8 @@ function LayoutWrapper({ children }) {
   const [mounted, setMounted] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
   
-  const noAuthRequired = ["/", "/login", "/signup", "/kindelogin", "/force-kinde-test", "/debug-kinde-flow", "/kinde-debug"];
-  const hideNavigation = ["/", "/login", "/signup", "/kindelogin", "/force-kinde-test", "/debug-kinde-flow", "/kinde-debug"];
+  const noAuthRequired = ["/", "/login", "/signup"];
+  const hideNavigation = ["/", "/login", "/signup"];
 
   useEffect(() => {
     setMounted(true);
