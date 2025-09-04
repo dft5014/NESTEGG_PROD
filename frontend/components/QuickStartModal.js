@@ -1377,20 +1377,7 @@ const QuickStartModal = ({ isOpen, onClose }) => {
                     className="md:col-span-5 group relative bg-gradient-to-br from-green-50 to-green-100 p-6 rounded-xl cursor-pointer hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1"
                     onClick={() => setImportMethod('excel')}
                 >
-                    {/* Direct upload path — skip downloading */}
-                <div className="mt-4">
-                <button
-                    type="button"
-                    onClick={(e) => {
-                    e.stopPropagation(); // don't trigger card onClick
-                    setSelectedTemplate('positions');
-                    setActiveTab('upload');     // go straight to upload screen
-                    }}
-                    className="text-sm font-medium text-green-700 hover:text-green-800 underline"
-                >
-                    I already have a filled template — Upload now
-                </button>
-                </div>
+
                     <div className="absolute inset-0 bg-gradient-to-br from-green-600 to-green-700 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
                     <div className="relative z-10">
                         <div className="flex items-center justify-center w-12 h-12 bg-green-200 rounded-full mb-4 group-hover:bg-white/20 transition-colors">
@@ -2447,6 +2434,7 @@ const QuickStartModal = ({ isOpen, onClose }) => {
                     <button
                     type="button"
                     onClick={() => {
+                        setImportMethod('excel');             // <-- add this
                         setSelectedTemplate('positions');
                         setActiveTab('upload');
                         setValidationStatus(null);
@@ -2548,21 +2536,21 @@ const QuickStartModal = ({ isOpen, onClose }) => {
                         Remove file
                     </button>
                     </div>
-                <button
-                    type="button"
-                    onClick={() => {
-                    // allow switching back to Positions / Accounts choices if desired
-                    setActiveTab('positions'); // or 'accounts' depending on flow
-                    setImportMethod(null);
-                    setSelectedTemplate(null);
-                    setUploadedFile(null);
-                    setValidationStatus(null);
-                    setUploadProgress(0);
-                    }}
-                    className="text-sm text-gray-500 hover:text-gray-700 underline"
-                >
-                    Back
-                </button>
+                        <button
+                        type="button"
+                        onClick={() => {
+                            // go back to the template step (preserve which template was chosen)
+                            setActiveTab('template');
+                            setImportMethod(null);
+                            // keep selectedTemplate so the template page stays on Positions
+                            setUploadedFile(null);
+                            setValidationStatus(null);
+                            setUploadProgress(0);
+                        }}
+                        className="text-sm text-gray-500 hover:text-gray-700 underline"
+                        >
+                        Back
+                        </button>
                 </div>
             )}
 

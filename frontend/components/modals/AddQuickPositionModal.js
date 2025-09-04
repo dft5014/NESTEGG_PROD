@@ -1280,21 +1280,21 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
     }, [positions, handleSelectSecurity]);
 
     const hydratedRef = useRef(false);
-    useEffect(() => {
-      if (!isOpen || hydratedRef.current) return;
+      useEffect(() => {
+        if (!isOpen || hydratedRef.current) return;
 
-      const hasSeeds =
-        (seedPositions?.security?.length || 0) +
-        (seedPositions?.crypto?.length || 0) +
-        (seedPositions?.metal?.length || 0) > 0;
+        const hasSeeds =
+          (seedPositions?.security?.length || 0) +
+          (seedPositions?.crypto?.length || 0) +
+          (seedPositions?.metal?.length || 0) > 0;
 
-      if (!hasSeeds) return;
+        if (!hasSeeds) return;
 
-      // wait one tick so the positions state is populated by the existing isOpen effect
-      const t = setTimeout(() => {
-        autoHydrateSeededPrices();
-        hydratedRef.current = true;
-      }, 0);
+        // wait one tick so the positions state is populated by the existing isOpen effect
+        const t = setTimeout(() => {
+          autoHydrateSeededPrices();
+          hydratedRef.current = true;
+        }, 0);
 
       return () => clearTimeout(t);
     }, [isOpen, seedPositions, autoHydrateSeededPrices]);
