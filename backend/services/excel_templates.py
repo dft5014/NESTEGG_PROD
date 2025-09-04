@@ -872,7 +872,7 @@ class ExcelTemplateService:
         
         # Required fields highlighting
         for row in range(5, 50):
-            for col in [1, 2, 4, 5, 6]:  # Required columns
+            for col in [1, 2, 4, 5, 6]:
                 ws.cell(row=row, column=col).fill = self.required_fill
 
         # Add instruction row — put directly under examples on row 5, and remove '*' language

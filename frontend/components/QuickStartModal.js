@@ -895,20 +895,56 @@ const QuickStartModal = ({ isOpen, onClose }) => {
         const XLSX = await import('xlsx');
         const wb = XLSX.read(buf, { type: 'array' });
 
-        // Prefer sheet name
+        // 1) Quick sheet-name heuristic
         const sheetNamesNorm = wb.SheetNames.map(n => (n || '').toLowerCase());
-        if (sheetNamesNorm.some(n => n.includes('positions'))) return { kind: 'positions', wb };
         if (sheetNamesNorm.some(n => n.includes('accounts'))) return { kind: 'accounts', wb };
 
-        // Fallback: header sniffing on first sheet
-        const first = wb.Sheets[wb.SheetNames[0]];
-        const rows = XLSX.utils.sheet_to_json(first, { defval: '' });
-        if (!rows.length) return { kind: 'unknown', wb };
-        const normalizeHeader = (h) => String(h || '').trim().toLowerCase().replace(/\s+/g, ' ');
-        const keys = Object.keys(rows[0]).map(k => normalizeHeader(k));
-        const hasAll = (req) => req.every(r => keys.includes(normalizeHeader(r)));
-        if (hasAll(REQUIRED_POSITION_HEADERS)) return { kind: 'positions', wb };
-        if (hasAll(REQUIRED_ACCOUNT_HEADERS)) return { kind: 'accounts', wb };
+        // Positions template has per-tab sheets like "📈 SECURITIES", "💵 CASH", "🪙 CRYPTO", "🥇 METALS"
+        const looksLikePositionsByName = sheetNamesNorm.some(n =>
+            n.includes('secur') || n.includes('cash') || n.includes('crypto') || n.includes('metal')
+        );
+        if (looksLikePositionsByName) return { kind: 'positions', wb };
+
+        // 2) Header sniff across ALL sheets (not just the first)
+        const normH = (h) => String(h || '').trim().toLowerCase().replace(/\s+/g, ' ');
+
+        // Accounts template expected headers
+        const ACC_HEADERS = ['account name', 'institution', 'account category', 'account type'];
+
+        // Positions template per-tab expected header sets (lenient)
+        const POS_HEADER_SETS = [
+            // SECURITIES
+            ['account', 'ticker', 'company name', 'shares', 'cost basis', 'purchase date'],
+            // CRYPTO
+            ['account', 'symbol', 'name', 'quantity', 'purchase price', 'purchase date'],
+            // CASH (only first three are required)
+            ['account', 'cash type', 'amount'],
+            // METALS
+            ['account', 'metal type', 'metal code', 'quantity (oz)', 'purchase price/oz', 'purchase date'],
+        ];
+
+        const sheetHasHeaders = (sheet, requiredHeaders) => {
+            const rows = XLSX.utils.sheet_to_json(sheet, { defval: '' });
+            if (!rows.length) return false;
+            const keys = Object.keys(rows[0]).map(k => normH(k));
+            return requiredHeaders.every(h => keys.includes(normH(h)));
+        };
+
+        // Try to detect Accounts
+        for (const name of wb.SheetNames) {
+            if (sheetHasHeaders(wb.Sheets[name], ACC_HEADERS)) {
+            return { kind: 'accounts', wb };
+            }
+        }
+
+        // Try to detect Positions if ANY per-tab header set matches on ANY sheet
+        for (const name of wb.SheetNames) {
+            const sheet = wb.Sheets[name];
+            if (POS_HEADER_SETS.some(set => sheetHasHeaders(sheet, set))) {
+            return { kind: 'positions', wb };
+            }
+        }
+
         return { kind: 'unknown', wb };
         };
 
