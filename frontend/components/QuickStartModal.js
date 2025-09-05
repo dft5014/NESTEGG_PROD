@@ -678,64 +678,87 @@ const QuickStartModal = ({ isOpen, onClose }) => {
         return Number.isFinite(n) ? n : undefined;
     };
 
-    // Excel serial (1900 date system) → YYYY-MM-DD
+    // Excel (1900 system) day serial -> YYYY-MM-DD
     const excelSerialToISO = (n) => {
-    if (!Number.isFinite(n)) return undefined;
-    // Excel day 1 = 1899-12-31 (with 1900 leap bug). This base works for modern dates.
-    const baseUTC = Date.UTC(1899, 11, 30);
-    const d = new Date(baseUTC + Math.round(n * 86400000));
-    const y = d.getUTCFullYear();
-    const m = String(d.getUTCMonth() + 1).padStart(2, '0');
-    const day = String(d.getUTCDate()).padStart(2, '0');
-    return `${y}-${m}-${day}`;
-    };
+        if (!Number.isFinite(n)) return undefined;
+        // Excel day 1 = 1899-12-31 (with 1900 leap bug). Using 1899-12-30 works well in practice.
+        const baseUTC = Date.UTC(1899, 11, 30);
+        const d = new Date(baseUTC + Math.round(n) * 86400000);
+        const y = d.getUTCFullYear();
+        const m = String(d.getUTCMonth() + 1).padStart(2, '0');
+        const day = String(d.getUTCDate()).padStart(2, '0');
+        return (y >= 1000 && y <= 9999) ? `${y}-${m}-${day}` : undefined;
+        };
 
-    const toDateString = (v) => {
-    if (v == null || v === '') return undefined;
+    // Final guard to only allow values the <input type="date"> will accept
+    const toDateInputValue = (s) => {
+        if (!s) return '';
+        const m = String(s).match(/^(\d{4})-(\d{2})-(\d{2})$/);
+        return m ? s : '';
+        };
 
-    // Already a Date object (when cellDates:true)
-    if (v instanceof Date && Number.isFinite(v.getTime())) {
-        const y = v.getFullYear();
-        const m = String(v.getMonth() + 1).padStart(2, '0');
-        const d = String(v.getDate()).padStart(2, '0');
-        return `${y}-${m}-${d}`;
-    }
+        // Normalizer for anything coming from XLSX: Date | number | string -> YYYY-MM-DD
+        const toDateString = (v) => {
+        if (v == null || v === '') return undefined;
 
-    // Excel serial number (common in xlsx)
-    if (typeof v === 'number') {
-        return excelSerialToISO(v);
-    }
+        // JS Date object
+        if (v instanceof Date && Number.isFinite(v.getTime())) {
+            const y = v.getFullYear();
+            const m = String(v.getMonth() + 1).padStart(2, '0');
+            const d = String(v.getDate()).padStart(2, '0');
+            return (y >= 1000 && y <= 9999) ? `${y}-${m}-${d}` : undefined;
+        }
 
-    // String handling
-    const raw = String(v).trim();
-    if (!raw) return undefined;
+        // Excel serial number
+        if (typeof v === 'number') {
+            return excelSerialToISO(v);
+        }
 
-    // ISO-ish: YYYY-M-D → zero-pad to YYYY-MM-DD
-    const isoLoose = raw.match(/^(\d{4})[-\/](\d{1,2})[-\/](\d{1,2})$/);
-    if (isoLoose) {
-        const [, y, m, d] = isoLoose;
-        return `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-    }
+        const raw = String(v).trim();
+        if (!raw) return undefined;
 
-    // US-style M/D/YYYY or M-D-YYYY → YYYY-MM-DD
-    const us = raw.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{2,4})$/);
-    if (us) {
-        let [, mm, dd, yy] = us;
-        if (yy.length === 2) yy = String(2000 + parseInt(yy, 10)); // naive 2-digit → 20xx
-        return `${yy}-${String(mm).padStart(2, '0')}-${String(dd).padStart(2, '0')}`;
-    }
+        // If someone upstream already produced a 5+ digit "year-01-01" (e.g., "43831-01-01"),
+        // treat the leading number as an Excel serial and re-convert.
+        const serialish = raw.match(/^(\d{5,})-0?1-0?1$/);
+        if (serialish) {
+            const n = Number(serialish[1]);
+            const iso = excelSerialToISO(n);
+            if (iso) return iso;
+        }
 
-    // Last-chance Date parse (locale-dependent)
-    const d = new Date(raw);
-    if (Number.isFinite(d.getTime())) {
-        const y = d.getFullYear();
-        const m = String(d.getMonth() + 1).padStart(2, '0');
-        const dd = String(d.getDate()).padStart(2, '0');
-        return `${y}-${m}-${dd}`;
-    }
+        // ISO(-ish) YYYY-M-D or YYYY/MM/DD -> pad to YYYY-MM-DD
+        const isoLoose = raw.match(/^(\d{4})[-\/](\d{1,2})[-\/](\d{1,2})$/);
+        if (isoLoose) {
+            const y = Number(isoLoose[1]);
+            const m = String(isoLoose[2]).padStart(2, '0');
+            const d = String(isoLoose[3]).padStart(2, '0');
+            return (y >= 1000 && y <= 9999) ? `${y}-${m}-${d}` : undefined;
+        }
 
-    return undefined;
-    };
+        // US M/D/YYYY or M-D-YYYY
+        const us = raw.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{2,4})$/);
+        if (us) {
+            let y = Number(us[3]);
+            if (us[3].length === 2) y = 2000 + y; // naive 2-digit year
+            const m = String(us[1]).padStart(2, '0');
+            const d = String(us[2]).padStart(2, '0');
+            return (y >= 1000 && y <= 9999) ? `${y}-${m}-${d}` : undefined;
+        }
+
+        // Last-chance Date parse
+        const d = new Date(raw);
+        if (Number.isFinite(d.getTime())) {
+            const y = d.getFullYear();
+            const m = String(d.getMonth() + 1).padStart(2, '0');
+            const dd = String(d.getDate()).padStart(2, '0');
+            return (y >= 1000 && y <= 9999) ? `${y}-${m}-${dd}` : undefined;
+        }
+
+        return undefined;
+        };
+
+
+        };
 
 
     const seedRow = (type, data) => ({
@@ -748,13 +771,19 @@ const QuickStartModal = ({ isOpen, onClose }) => {
     });
 
     // NEW — parse the Positions template tabs into QuickAdd shape
+// --- Robust Positions parser (handles Date/serial/strings) ---
     const parsePositionsExcel = async (file) => {
         const buf = await readFileAsArrayBuffer(file);
         const XLSX = await import('xlsx');
+
+        // Critical: enable Date objects when cells are true dates
         const wb = XLSX.read(buf, { type: 'array', cellDates: true });
 
-        const findSheet = (part) =>
-            wb.SheetNames.find(n => normLower(n).includes(part));
+        const normH = (h) => String(h || '').trim().toLowerCase().replace(/\s+/g, ' ');
+        const findSheet = (part) => wb.SheetNames.find((n) => normLower(n).includes(part));
+
+        const toRows = (sheetName) =>
+            XLSX.utils.sheet_to_json(wb.Sheets[sheetName], { defval: '', raw: false });
 
         const result = { security: [], cash: [], crypto: [], metal: [] };
 
@@ -763,35 +792,29 @@ const QuickStartModal = ({ isOpen, onClose }) => {
             return accountNameToId.get(key);
         };
 
-        // --- SECURITIES ---
+  // -------------- SECURITIES --------------
         const secSheetName = findSheet('secur'); // matches "📈 SECURITIES"
         if (secSheetName) {
-        const rows = XLSX.utils.sheet_to_json(wb.Sheets[secSheetName], { defval: '', raw: false })
-
-        rows.forEach(r => {
-            const account = r['Account'] ?? r['Account'] ?? r['account'];
-            const ticker  = r['Ticker'] ?? r['Ticker'] ?? r['Symbol'] ?? r['symbol'];
+            const rows = toRows(secSheetName);
+            rows.forEach((r) => {
+            const account = r['Account'] ?? r['Account*'] ?? r['account'];
+            const ticker  = r['Ticker'] ?? r['Identifier / Ticker'] ?? r['Symbol'] ?? r['symbol'];
             const name    = r['Company Name'] ?? r['Name'] ?? r['Company'] ?? '';
-            const shares  = r['Shares'] ?? r['Shares'];
-            const cost    = r['Cost Basis*'] ?? r['Cost Basis'] ?? r['Purchase Price'] ?? r['Price'];
+            const shares  = r['Shares'] ?? r['Quantity'];
+            const cost    = r['Cost Basis*'] ?? r['Cost Basis'] ?? r['Purchase Price per Share'] ?? r['Price'];
             const date    = r['Purchase Date*'] ?? r['Purchase Date'] ?? r['Acquired Date (YYYY-MM-DD)'];
 
             const acctNorm = norm(account);
             const tickNorm = norm(ticker);
 
-            // Skip the instruction row and the example placeholder rows
             const isInstruction = acctNorm.startsWith('⚠');
             const isPlaceholder = /^select account/i.test(acctNorm);
-            const isEmptyRow =
-            !acctNorm && !tickNorm && !toNumber(shares) && !toNumber(cost) && !toDateString(date);
-
+            const isEmptyRow = !acctNorm && !tickNorm && !toNumber(shares) && !toNumber(cost) && !toDateString(date);
             if (isInstruction || isPlaceholder || isEmptyRow) return;
-
-            // Require both Account and Ticker to push a row
-            if (!acctNorm || !tickNorm) return;
+            if (!acctNorm || !tickNorm) return; // require account+ticker
 
             result.security.push(
-            seedRow('security', {
+                seedRow('security', {
                 account_id: accountIdFor(account),
                 account_name: acctNorm,
                 ticker: tickNorm,
@@ -799,19 +822,17 @@ const QuickStartModal = ({ isOpen, onClose }) => {
                 shares: toNumber(shares),
                 cost_basis: toNumber(cost),
                 purchase_date: toDateString(date),
-            })
+                })
             );
-        });
+            });
         }
 
-        // --- CASH ---
+        // -------------- CASH --------------
         const cashSheetName = findSheet('cash'); // matches "💵 CASH"
         if (cashSheetName) {
-        const rows = XLSX.utils.sheet_to_json(wb.Sheets[cashSheetName], { defval: '', raw: false })        
-        );
-
-        rows.forEach(r => {
-            const account = r['Account'] ?? r['Account*'] ?? r['account'];
+            const rows = toRows(cashSheetName);
+            rows.forEach((r) => {
+            const account  = r['Account'] ?? r['Account*'] ?? r['account'];
             const cashType = r['Cash Type'] ?? r['Cash Type*'] ?? r['Type'];
             const amount   = r['Amount'] ?? r['Amount*'];
             const rate     = r['Interest Rate (%)'] ?? r['Interest Rate'] ?? r['Rate'];
@@ -823,35 +844,29 @@ const QuickStartModal = ({ isOpen, onClose }) => {
             const isInstruction = acctNorm.startsWith('⚠');
             const isPlaceholder = /^select account/i.test(acctNorm);
             const isEmptyRow = !acctNorm && !typeNorm && !toNumber(amount);
-
             if (isInstruction || isPlaceholder || isEmptyRow) return;
-
-            // Required for CASH: Account + Cash Type + Amount
             if (!acctNorm || !typeNorm || !toNumber(amount)) return;
 
             result.cash.push(
-            seedRow('cash', {
+                seedRow('cash', {
                 account_id: accountIdFor(account),
                 account_name: acctNorm,
                 cash_type: typeNorm,
                 amount: toNumber(amount),
                 interest_rate: toNumber(rate),
-                maturity_date: toDateString(maturity)
-            })
+                maturity_date: toDateString(maturity),
+                })
             );
-        });
+            });
         }
 
-        // --- CRYPTO ---
+        // -------------- CRYPTO --------------
         const cryptoSheetName = findSheet('crypto'); // matches "🪙 CRYPTO"
         if (cryptoSheetName) {
-        const rows = XLSX.utils.sheet_to_json(wb.Sheets[cryptoSheetName], { defval: '', raw: false })
-        
-        );
-
-        rows.forEach(r => {
+            const rows = toRows(cryptoSheetName);
+            rows.forEach((r) => {
             const account = r['Account'] ?? r['Account*'] ?? r['account'];
-            const symbol  = r['Symbol'] ?? r['Symbol*'];
+            const symbol  = r['Symbol'] ?? r['Symbol*'] ?? r['Ticker'];
             const name    = r['Name'] ?? '';
             const qty     = r['Quantity'] ?? r['Quantity*'];
             const price   = r['Purchase Price'] ?? r['Purchase Price*'];
@@ -863,36 +878,31 @@ const QuickStartModal = ({ isOpen, onClose }) => {
             const isInstruction = acctNorm.startsWith('⚠');
             const isPlaceholder = /^select account/i.test(acctNorm);
             const isEmptyRow = !acctNorm && !symNorm && !toNumber(qty) && !toNumber(price);
-
             if (isInstruction || isPlaceholder || isEmptyRow) return;
-
-            // Require Account + Symbol
             if (!acctNorm || !symNorm) return;
 
             result.crypto.push(
-            seedRow('crypto', {
+                seedRow('crypto', {
                 account_id: accountIdFor(account),
                 account_name: acctNorm,
                 symbol: symNorm,
                 name: norm(name),
                 quantity: toNumber(qty),
                 purchase_price: toNumber(price),
-                purchase_date: toDateString(date)
-            })
+                purchase_date: toDateString(date),
+                })
             );
-        });
+            });
         }
 
-        // --- METALS ---
+        // -------------- METALS --------------
         const metalSheetName = findSheet('metal'); // matches "🥇 METALS"
         if (metalSheetName) {
-        const rows = XLSX.utils.sheet_to_json(wb.Sheets[metalSheetName], { defval: '', raw: false })
-        );
-
-        rows.forEach(r => {
+            const rows = toRows(metalSheetName);
+            rows.forEach((r) => {
             const account = r['Account'] ?? r['Account*'] ?? r['account'];
             const mtype   = r['Metal Type'] ?? r['Metal Type*'] ?? r['Metal'];
-            const code    = r['Metal Code'] ?? r['Symbol'] ?? r['Ticker'] ?? ''; // auto-fill exists, but use if present
+            const code    = r['Metal Code'] ?? r['Symbol'] ?? r['Ticker'] ?? ''; // may be blank; UI can derive
             const qty     = r['Quantity (oz)'] ?? r['Quantity (oz)*'] ?? r['Quantity'];
             const price   = r['Purchase Price/oz'] ?? r['Purchase Price/oz*'] ?? r['Price/Unit'] ?? r['Purchase Price'];
             const date    = r['Purchase Date'] ?? r['Purchase Date*'];
@@ -903,31 +913,28 @@ const QuickStartModal = ({ isOpen, onClose }) => {
             const isInstruction = acctNorm.startsWith('⚠');
             const isPlaceholder = /^select account/i.test(acctNorm);
             const isEmptyRow = !acctNorm && !typeNorm && !toNumber(qty) && !toNumber(price);
-
             if (isInstruction || isPlaceholder || isEmptyRow) return;
-
-            // Require Account + Metal Type (code can be blank; UI/Excel VLOOKUP fills it)
             if (!acctNorm || !typeNorm) return;
 
             result.metal.push(
-            seedRow('metal', {
+                seedRow('metal', {
                 account_id: accountIdFor(account),
                 account_name: acctNorm,
                 metal_type: typeNorm,
-                symbol: norm(code),     // ok if '', UI can derive
-                name: '',               // not needed for metals
+                symbol: norm(code),
+                name: '',
                 quantity: toNumber(qty),
                 unit: 'oz',
                 purchase_price: toNumber(price),
-                purchase_date: toDateString(date)
-            })
+                purchase_date: toDateString(date),
+                })
             );
-        });
+            });
         }
 
-
         return result;
-    };
+        };
+
 
 
     const parseAccountsExcel = async (file) => {
@@ -936,7 +943,7 @@ const QuickStartModal = ({ isOpen, onClose }) => {
     const wb = XLSX.read(buf, { type: 'array', cellDates: true });
     const sheetName = wb.SheetNames.find(n => normalizeHeader(n) === 'accounts') || wb.SheetNames[0];
     const sheet = wb.Sheets[sheetName];
-    const rows = XLSX.utils.sheet_to_json(sheet, { defval: '' });
+    const rows = XLSX.utils.sheet_to_json(sheet, { defval: '', raw: false });
 
     if (!rows.length) return [];
 
@@ -994,7 +1001,7 @@ const QuickStartModal = ({ isOpen, onClose }) => {
     const detectTemplateType = async (file) => {
         const buf = await readFileAsArrayBuffer(file);
         const XLSX = await import('xlsx');
-        const wb = XLSX.read(buf, { type: 'array' });
+        const wb = XLSX.read(buf, { type: 'array', cellDates: true });
 
         // 1) Quick sheet-name heuristic
         const sheetNamesNorm = wb.SheetNames.map(n => (n || '').toLowerCase());
