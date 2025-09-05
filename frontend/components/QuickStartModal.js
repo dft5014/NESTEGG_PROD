@@ -1144,7 +1144,6 @@ const QuickStartModal = ({ isOpen, onClose }) => {
 
 
             if (kind === 'accounts') {
-            // Parse Accounts as before
             const parsedAccounts = await parseAccountsExcel(file);
             setUploadProgress(60);
 
@@ -1157,7 +1156,12 @@ const QuickStartModal = ({ isOpen, onClose }) => {
 
             setAccounts(parsedAccounts);
             setUploadProgress(100);
-            setTimeout(() => setValidationStatus('valid'), 300);
+            setValidationStatus('valid');
+
+            // ✅ Route to the Accounts Quick Add UI (same UX as positions)
+            setSelectedTemplate('accounts');
+            setActiveTab('accounts');
+            setImportMethod('ui');
             return;
             }
 
@@ -1457,6 +1461,25 @@ const QuickStartModal = ({ isOpen, onClose }) => {
                     className="md:col-span-5 group relative bg-gradient-to-br from-green-50 to-green-100 p-6 rounded-xl cursor-pointer hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1"
                     onClick={() => setImportMethod('excel')}
                 >
+
+                    {/* Direct upload path — skip downloading */}
+                    <div className="mt-2">
+                    <button
+                        type="button"
+                        onClick={(e) => {
+                        e.stopPropagation(); // don’t trigger card onClick
+                        setSelectedTemplate('accounts');
+                        setImportMethod('excel');
+                        setActiveTab('upload');     // go straight to upload screen
+                        setValidationStatus(null);
+                        setUploadProgress(0);
+                        setUploadedFile(null);
+                        }}
+                        className="text-sm font-medium text-green-700 hover:text-green-800 underline"
+                    >
+                        I already have a filled template — Upload now
+                    </button>
+                    </div>
 
                     <div className="absolute inset-0 bg-gradient-to-br from-green-600 to-green-700 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
                     <div className="relative z-10">
@@ -2511,17 +2534,18 @@ const QuickStartModal = ({ isOpen, onClose }) => {
 
                 {/* New: let users jump straight to upload */}
                 {!isAccounts && (
+                    {/* New: let users jump straight to upload (both Accounts & Positions) */}
                     <button
                     type="button"
                     onClick={() => {
-                        setImportMethod('excel');             // <-- add this
-                        setSelectedTemplate('positions');
+                        setImportMethod('excel');
+                        setSelectedTemplate(isAccounts ? 'accounts' : 'positions');
                         setActiveTab('upload');
                         setValidationStatus(null);
                         setUploadProgress(0);
                         setUploadedFile(null);
                     }}
-                    className="text-sm font-medium text-purple-700 hover:text-purple-800 underline"
+                    className={`text-sm font-medium text-${color}-700 hover:text-${color}-800 underline`}
                     >
                     I already have a filled template — Upload now
                     </button>
@@ -2621,8 +2645,7 @@ const QuickStartModal = ({ isOpen, onClose }) => {
                         onClick={() => {
                             // go back to the template step (preserve which template was chosen)
                             setActiveTab(selectedTemplate === 'accounts' ? 'accounts' : 'positions');
-                            setImportMethod(null);
-                            // keep selectedTemplate so the template page stays on Positions
+                            setImportMethod('excel'); // stay in the excel import flow on the template step
                             setUploadedFile(null);
                             setValidationStatus(null);
                             setUploadProgress(0);
