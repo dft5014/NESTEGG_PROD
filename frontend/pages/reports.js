@@ -285,6 +285,8 @@ export default function Portfolio() {
     }));
   }, [topPositions]);
 
+  
+
   // Loading / Error -------------------------------------------------------------
   if (isLoading && !summary) {
     return (
@@ -711,6 +713,15 @@ export default function Portfolio() {
               <p className="text-[11px] text-gray-500 mt-2">Tip: hover a row for a sparkline • click rows with <Expand className="inline h-3 w-3 mx-1" /> to open full-screen.</p>
             </Section>
 
+            {/* Net Worth Breakdown */}
+            <div className="lg:col-span-4 space-y-6">
+              <NetWorthWidget
+                assets={totalAssets}
+                liabilities={totalLiabilities}
+                netWorth={netWorth}
+                showInThousands={showInThousands}
+              />
+
             {/* Liquidity Analysis */}
             {liquidAssets > 0 && (
               <Section title="Liquidity Analysis" icon={<Droplet className="h-5 w-5 text-blue-300" />}>
@@ -845,6 +856,7 @@ export default function Portfolio() {
               </Section>
             )}
           </div>
+          </div>
         </div>
       </main>
 
@@ -963,6 +975,55 @@ function Row({ label, value }) {
     </div>
   );
 }
+
+function NetWorthWidget({ assets=0, liabilities=0, netWorth=0, showInThousands=false }) {
+  const total = Math.max(assets + Math.max(liabilities, 0), 1); // avoid /0
+  const assetsPct = Math.min((assets / total) * 100, 100);
+  const liabsPct = Math.min((Math.max(liabilities,0) / total) * 100, 100);
+
+  return (
+    <Section title="Net Worth" icon={<DollarSign className="h-5 w-5 text-indigo-300" />}>
+      {/* headline numbers */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="p-4 rounded-xl bg-gray-900/70 border border-gray-800">
+          <p className="text-xs text-gray-400">Total Assets</p>
+          <p className="mt-1 text-xl font-semibold text-emerald-300">{formatCurrency(assets, showInThousands)}</p>
+        </div>
+        <div className="p-4 rounded-xl bg-gray-900/70 border border-gray-800">
+          <p className="text-xs text-gray-400">Total Liabilities</p>
+          <p className="mt-1 text-xl font-semibold text-rose-300">-{formatCurrency(Math.abs(liabilities), showInThousands)}</p>
+        </div>
+        <div className="p-4 rounded-xl bg-gray-900/70 border border-gray-800">
+          <p className="text-xs text-gray-400">Net Worth</p>
+          <p className="mt-1 text-2xl font-bold">{formatCurrency(netWorth, showInThousands)}</p>
+        </div>
+      </div>
+
+      {/* simple stacked bar for visual context */}
+      <div className="mt-4">
+        <div className="flex items-center justify-between text-xs text-gray-400 mb-1">
+          <span>Composition</span>
+          <span>{assetsPct.toFixed(0)}% assets • {liabsPct.toFixed(0)}% liabilities</span>
+        </div>
+        <div className="w-full h-3 rounded-full bg-gray-800 overflow-hidden border border-gray-800">
+          <div className="h-full" style={{ width: `${assetsPct}%`, background: 'linear-gradient(90deg,#10b981,#34d399)' }} />
+          <div className="h-full" style={{ width: `${liabsPct}%`, background: 'linear-gradient(90deg,#f43f5e,#fb7185)', marginTop: '-0.75rem' }} />
+        </div>
+        <div className="mt-2 grid grid-cols-2 gap-3 text-[11px] text-gray-400">
+          <div className="flex items-center gap-2">
+            <span className="inline-block w-2.5 h-2.5 rounded-full" style={{background:'#10b981'}}></span>
+            Assets include cash & investments
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="inline-block w-2.5 h-2.5 rounded-full" style={{background:'#f43f5e'}}></span>
+            Liabilities include loans & cards
+          </div>
+        </div>
+      </div>
+    </Section>
+  );
+}
+
 
 function InvestedRow({ label, color, market = 0, cost = 0, gain = null, gainPct = null, showInThousands, sparkData = null, onClick }) {
   const hasPL = gain !== null && gainPct !== null && gainPct !== undefined;

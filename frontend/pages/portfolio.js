@@ -1,2581 +1,1148 @@
-// pages/portfolio2.js
-import { useState, useEffect, useMemo } from 'react';
+// pages/nestegg.js
+import { useMemo, useState } from 'react';
 import Head from 'next/head';
-import { useRouter } from 'next/router';
-import { useDataStore } from '@/store/DataStore';
-import { 
-  AreaChart, Area, BarChart, Bar, PieChart, Pie, LineChart, Line,
-  XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell, ReferenceLine
-} from 'recharts';
-import { motion, AnimatePresence } from 'framer-motion';
 import {
-  TrendingUp, TrendingDown, DollarSign, 
-  Activity, Calendar, Info, ArrowRight, BarChart2, Settings,
-  Briefcase, X, AlertCircle, ChevronRight, CreditCard, Droplet, 
-  Diamond, Cpu, Landmark, Layers, Shield, Database, Percent, 
-  Eye, Gift, Clock, ArrowUp, ArrowDown, Calculator,
-  Banknote, Coins, Package, Home, Building2, BarChart3, Sparkles, 
-  Wallet, FileText, MessageCircle, Zap, Target, PieChart as PieChartIcon,
-  TrendingDownIcon, Gauge, AlertTriangle, DollarSignIcon, MinusCircle, RefreshCw
+  AreaChart, Area, LineChart, Line,
+  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine,
+  PieChart as RechartsPieChart, Pie, Cell,
+} from 'recharts';
+import { motion } from 'framer-motion';
+import {
+  RefreshCw, DollarSign, ArrowUpRight, ArrowDownRight, TrendingUp,
+  Wallet, Gift, Droplet, Shield, Home, Building2, BarChart3,
+  Banknote, Coins, Package, MinusCircle, Layers, Gauge, Activity, PieChart as PieChartIcon,
+  Expand, X
 } from 'lucide-react';
 
-// Import data store hooks
+import { useDataStore } from '@/store/DataStore';
 import { usePortfolioSummary, usePortfolioTrends } from '@/store/hooks';
 
-// Time period options for charts
+// -----------------------------------------------------------------------------
+// Constants
+// -----------------------------------------------------------------------------
 const timeframeOptions = [
-  { id: '1w', label: '1W' },
-  { id: '1m', label: '1M' },
-  { id: '3m', label: '3M' },
-  { id: '6m', label: '6M' },
-  { id: 'ytd', label: 'YTD' },
-  { id: '1y', label: '1Y' },
-  { id: 'all', label: 'All' }
+  { id: '1w', label: '1W' }, { id: '1m', label: '1M' }, { id: '3m', label: '3M' },
+  { id: '6m', label: '6M' }, { id: 'ytd', label: 'YTD' }, { id: '1y', label: '1Y' }, { id: 'all', label: 'All' },
 ];
 
-// Enhanced color palettes
 const assetColors = {
-  securities: '#4f46e5', // Indigo
-  security: '#4f46e5', // Indigo
-  cash: '#10b981',    // Emerald
-  crypto: '#8b5cf6',  // Purple
-  bond: '#ec4899',    // Pink
-  metal: '#f59e0b',   // Amber
-  metals: '#f59e0b',   // Amber
-  currency: '#3b82f6', // Blue
-  real_estate: '#14b8a6', // Teal
-  other: '#6b7280',   // Gray
-  other_assets: '#6b7280' // Gray
-};
-
-const liabilityColors = {
-  credit_card: '#dc2626',
-  mortgage: '#7c2d12',
-  auto_loan: '#f97316',
-  personal_loan: '#ea580c',
-  student_loan: '#fb923c',
-  home_equity: '#fed7aa',
-  other: '#fbbf24'
+  securities: '#4f46e5', security: '#4f46e5',
+  cash: '#10b981', crypto: '#8b5cf6', bond: '#ec4899',
+  metal: '#f59e0b', metals: '#f59e0b', currency: '#3b82f6',
+  real_estate: '#14b8a6', other: '#6b7280', other_assets: '#6b7280',
 };
 
 const sectorColors = {
-  'Technology': '#6366f1',
-  'Financial Services': '#0ea5e9',
-  'Healthcare': '#10b981',
-  'Consumer Cyclical': '#f59e0b',
-  'Communication Services': '#8b5cf6',
-  'Industrials': '#64748b',
-  'Consumer Defensive': '#14b8a6',
-  'Energy': '#f97316',
-  'Basic Materials': '#f43f5e',
-  'Real Estate': '#84cc16',
-  'Utilities': '#0284c7',
-  'Unknown': '#9ca3af',
-  'Other': '#9ca3af'
+  Technology: '#6366f1', 'Financial Services': '#0ea5e9', Healthcare: '#10b981',
+  'Consumer Cyclical': '#f59e0b', 'Communication Services': '#8b5cf6', Industrials: '#64748b',
+  'Consumer Defensive': '#14b8a6', Energy: '#f97316', 'Basic Materials': '#f43f5e',
+  'Real Estate': '#84cc16', Utilities: '#0284c7', Unknown: '#9ca3af', Other: '#9ca3af',
 };
 
-// Main Dashboard Component
-export default function Dashboard() {
-  // State management
-  const [selectedTimeframe, setSelectedTimeframe] = useState('1m');
-  const [showWelcomeBanner, setShowWelcomeBanner] = useState(true);
+// -----------------------------------------------------------------------------
+// Utilities
+// -----------------------------------------------------------------------------
+const formatCurrency = (value, inThousands = false) => {
+  if (value === null || value === undefined) return '—';
+  const v = Number(value) || 0;
+  if (inThousands) {
+    return `$${(v / 1_000).toLocaleString('en-US', {
+      minimumFractionDigits: 1, maximumFractionDigits: 1,
+    })}k`;
+  }
+  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(v);
+};
+
+const formatPct = (v, sign = true, digits = 2) => {
+  if (v === null || v === undefined || isNaN(v)) return '0%';
+  const val = Number(v);
+  return `${sign && val > 0 ? '+' : ''}${val.toFixed(digits)}%`;
+};
+
+const axisMoney = (v) => {
+  v = Number(v) || 0;
+  if (Math.abs(v) >= 1_000_000) return `$${(v / 1_000_000).toFixed(1)}M`;
+  if (Math.abs(v) >= 1_000) return `$${(v / 1_000).toFixed(0)}k`;
+  return `$${v.toLocaleString()}`;
+};
+
+// -----------------------------------------------------------------------------
+// Tiny Primitives
+// -----------------------------------------------------------------------------
+const Section = ({ title, icon, right, children }) => (
+  <div className="bg-gray-900/70 border border-gray-800 rounded-2xl p-5">
+    <div className="flex items-center justify-between mb-4">
+      <div className="flex items-center gap-2">
+        {icon}
+        <h3 className="text-lg font-semibold">{title}</h3>
+      </div>
+      {right}
+    </div>
+    {children}
+  </div>
+);
+
+const Delta = ({ value, className = '' }) => {
+  if (value === null || value === undefined) return <span className={`text-gray-400 ${className}`}>—</span>;
+  const up = value > 0, down = value < 0;
+  return (
+    <span className={`inline-flex items-center text-sm font-medium ${up ? 'text-emerald-400' : down ? 'text-rose-400' : 'text-gray-400'} ${className}`}>
+      {up && <ArrowUpRight className="h-4 w-4 mr-1" />}
+      {down && <ArrowDownRight className="h-4 w-4 mr-1" />}
+      {formatPct(value * 100)}
+    </span>
+  );
+};
+
+const TimeframeSelector = ({ selected, onChange }) => (
+  <div className="flex p-1 bg-gray-800 rounded-xl">
+    {timeframeOptions.map((t) => (
+      <motion.button
+        key={t.id}
+        whileHover={{ scale: 1.03 }}
+        whileTap={{ scale: 0.97 }}
+        onClick={() => onChange(t.id)}
+        className={`px-3 py-1.5 text-sm rounded-lg ${selected === t.id ? 'bg-gray-700 text-white' : 'text-gray-300 hover:text-white hover:bg-gray-700/60'}`}
+      >
+        {t.label}
+      </motion.button>
+    ))}
+  </div>
+);
+
+const FullscreenModal = ({ open, title, onClose, children }) => {
+  if (!open) return null;
+  return (
+    <div className="fixed inset-0 z-[100]">
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
+      <div className="absolute inset-4 md:inset-10 rounded-2xl bg-gray-950 border border-gray-800 shadow-2xl flex flex-col">
+        <div className="px-5 py-3 border-b border-gray-800 flex items-center justify-between">
+          <h4 className="text-base font-semibold">{title}</h4>
+          <button aria-label="Close" onClick={onClose} className="p-2 rounded-lg hover:bg-gray-800"><X className="h-5 w-5" /></button>
+        </div>
+        <div className="flex-1 p-4 overflow-hidden">{children}</div>
+      </div>
+    </div>
+  );
+};
+
+const Sparkline = ({ data, dataKey = 'value' }) => (
+  <div className="h-10 w-28">
+    <ResponsiveContainer width="100%" height="100%">
+      <AreaChart data={data}>
+        <defs>
+          <linearGradient id="sp" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="5%" stopColor="#4f46e5" stopOpacity={0.35} />
+            <stop offset="95%" stopColor="#4f46e5" stopOpacity={0} />
+          </linearGradient>
+        </defs>
+        <XAxis dataKey="date" hide />
+        <YAxis hide />
+        <Area type="monotone" dataKey={dataKey} stroke="#6366f1" strokeWidth={2} fill="url(#sp)" />
+      </AreaChart>
+    </ResponsiveContainer>
+  </div>
+);
+
+function Bar({ label, value = 0, total = 0, color = '#6366f1' }) {
+  const pct = total > 0 ? Math.min(100, Math.max(0, (value / total) * 100)) : 0;
+  return (
+    <div>
+      <div className="flex items-center justify-between text-sm mb-1">
+        <span className="text-gray-300">{label}</span>
+        <span className="text-gray-100">{formatCurrency(value)}</span>
+      </div>
+      <div className="h-2 w-full bg-gray-800 rounded">
+        <div className="h-2 rounded" style={{ width: `${pct}%`, background: color }} />
+      </div>
+    </div>
+  );
+}
+
+// -----------------------------------------------------------------------------
+// Page
+// -----------------------------------------------------------------------------
+export default function Portfolio() {
+  // initialize global store (fetches/syncs)
+  useDataStore();
+
+  const [timeframe, setTimeframe] = useState('1m');
   const [showInThousands, setShowInThousands] = useState(true);
-  const router = useRouter();
-  const { state } = useDataStore();
-  
-  // Get data from the store
+
+  const [modalOpen, setModalOpen] = useState(false);
+  const [modalAssetKey, setModalAssetKey] = useState(null);
+  const [cashflowOpen, setCashflowOpen] = useState(false);
+
   const {
     summary,
     topPositions,
-    topPerformersAmount,  // Add this
-    topPerformersPercent, // Add this
-    accountDiversification,
-    assetPerformance,     // This is assetPerformanceDetail from the store
+    topPerformersAmount,
+    topPerformersPercent,
+    assetPerformance,
     sectorAllocation: rawSectorAllocation,
     institutionAllocation: rawInstitutionAllocation,
     riskMetrics,
     concentrationMetrics,
     dividendMetrics,
-    taxEfficiencyMetrics, // Add this if you want to use it
     netCashBasisMetrics,
     history,
     loading: isLoading,
     error,
     refresh: refreshData,
     lastFetched,
-    isStale,             // Add this
-    markStale            // Add this
+    isStale,
   } = usePortfolioSummary();
 
-
-
-  // Get trend data
   const { trends } = usePortfolioTrends();
-  
-  // Process chart data for visualization
+
+  // Timeseries ------------------------------------------------------------------
   const chartData = useMemo(() => {
-    if (!trends?.chartData || !Array.isArray(trends.chartData)) return [];
-    
-    return trends.chartData.map(day => ({
-      date: new Date(day.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-      value: day.netWorth,
-      totalAssets: day.totalAssets,
-      totalLiabilities: day.totalLiabilities,
+    if (!trends?.chartData?.length) return [];
+    return trends.chartData.map((d) => ({
+      date: new Date(d.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+      value: d.netWorth,
+      totalAssets: d.totalAssets,
+      totalLiabilities: d.totalLiabilities,
       costBasis: summary?.totalCostBasis || 0,
-      liquidAssets: day.liquidAssets,
-      altLiquidNetWorth: day.altLiquidNetWorth || 0,
-      altRetirementAssets: day.altRetirementAssets || 0,
-      altIlliquidNetWorth: day.altIlliquidNetWorth || 0
+      altLiquidNetWorth: d.altLiquidNetWorth || 0,
+      altRetirementAssets: d.altRetirementAssets || 0,
+      altIlliquidNetWorth: d.altIlliquidNetWorth || 0,
     }));
-  }, [trends?.chartData, summary]);
-  
+  }, [trends?.chartData, summary?.totalCostBasis]);
+
+  const slicedChart = useMemo(() => {
+    if (!chartData.length) return [];
+    const mapDays = { '1w': 7, '1m': 30, '3m': 90, '6m': 180, '1y': 365 };
+    if (timeframe === 'ytd' || timeframe === 'all') return chartData;
+    const n = mapDays[timeframe] || 30;
+    return chartData.slice(-n);
+  }, [chartData, timeframe]);
+
   const cashFlowTrendData = useMemo(() => {
-    if (!history || history.length === 0) {
-      return [];
-    }
-    
-    const filteredData = history
-      .filter(item => {
-        return item.net_cash_basis_metrics?.net_cash_position !== null && 
-              item.net_cash_basis_metrics?.net_cash_position !== undefined;
-      })
-      .map(item => {
-        // Parse the date string properly
-        const dateStr = item.date || item.snapshot_date;
-        const [year, month, day] = dateStr.split('-').map(num => parseInt(num));
-        const dateObj = new Date(year, month - 1, day); // month is 0-indexed in JS
-        
-        return {
-          date: dateStr,
-          displayDate: dateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-          netCashPosition: item.net_cash_basis_metrics.net_cash_position,
-          change: item.net_cash_basis_metrics.cash_flow_1d || 0,
-          changePercent: item.net_cash_basis_metrics.cash_flow_1d_pct || 0
-        };
+    if (!history?.length) return [];
+    const rows = history
+      .filter((h) => h?.net_cash_basis_metrics?.net_cash_position !== undefined && h?.net_cash_basis_metrics?.net_cash_position !== null)
+      .map((h) => {
+        const dateStr = h.date || h.snapshot_date;
+        const [y, m, d] = (dateStr || '').split('-').map((n) => parseInt(n));
+        const dt = new Date(y, (m || 1) - 1, d || 1);
+        return { date: dateStr, displayDate: dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }), netCashPosition: h.net_cash_basis_metrics.net_cash_position };
       })
       .sort((a, b) => new Date(a.date) - new Date(b.date));
-    
-    return filteredData;
+    return rows;
   }, [history]);
 
-  // Process Net Worth Mix data
+  // Map optional timeseries by class for invested-amount modal
+  const byClassTS = useMemo(() => {
+    const ts = assetPerformance?.timeseries_by_class || {};
+    return {
+      securities: ts.security || ts.securities || null,
+      crypto: ts.crypto || null,
+      metals: ts.metal || ts.metals || null,
+      otherAssets: ts.other_assets || null,
+      cash: ts.cash || null,
+    };
+  }, [assetPerformance?.timeseries_by_class]);
+
+  // Derived tables --------------------------------------------------------------
   const netWorthMixData = useMemo(() => {
     if (!summary) return [];
-    
-    const mixData = [
-      {
-        name: 'Securities',
-        value: summary.assetAllocation.securities.value,
-        percentage: summary.netWorthMix.securities * 100,
-        color: assetColors.securities
-      },
-      {
-        name: 'Net Cash',
-        value: summary.altNetWorth.netCash,
-        percentage: summary.netWorthMix.netCash * 100,
-        color: assetColors.cash
-      },
-      {
-        name: 'Crypto',
-        value: summary.assetAllocation.crypto.value,
-        percentage: summary.netWorthMix.crypto * 100,
-        color: assetColors.crypto
-      },
-      {
-        name: 'Metals',
-        value: summary.assetAllocation.metals.value,
-        percentage: summary.netWorthMix.metals * 100,
-        color: assetColors.metals
-      },
-      {
-        name: 'Real Estate',
-        value: summary.altNetWorth.realEstate,
-        percentage: summary.netWorthMix.realEstateEquity * 100,
-        color: assetColors.real_estate
-      },
-      {
-        name: 'Other Assets',
-        value: summary.altNetWorth.netOtherAssets,
-        percentage: summary.netWorthMix.netOtherAssets * 100,
-        color: assetColors.other
-      }
-    ].filter(item => item.value > 0 || item.percentage > 0);
-    
-    return mixData;
+    return [
+      { key: 'securities', name: 'Securities', value: summary.assetAllocation.securities.value, pct: (summary.netWorthMix.securities || 0) * 100, color: assetColors.securities },
+      { key: 'netCash', name: 'Net Cash', value: summary.altNetWorth.netCash, pct: (summary.netWorthMix.netCash || 0) * 100, color: assetColors.cash },
+      { key: 'crypto', name: 'Crypto', value: summary.assetAllocation.crypto.value, pct: (summary.netWorthMix.crypto || 0) * 100, color: assetColors.crypto },
+      { key: 'metals', name: 'Metals', value: summary.assetAllocation.metals.value, pct: (summary.netWorthMix.metals || 0) * 100, color: assetColors.metals },
+      { key: 'realEstate', name: 'Real Estate', value: summary.altNetWorth.realEstate, pct: (summary.netWorthMix.realEstateEquity || 0) * 100, color: assetColors.real_estate },
+      { key: 'other', name: 'Other Assets', value: summary.altNetWorth.netOtherAssets, pct: (summary.netWorthMix.netOtherAssets || 0) * 100, color: assetColors.other },
+    ].filter((x) => (x.value || 0) > 0 || (x.pct || 0) > 0);
   }, [summary]);
-  
-  // Process sector allocation data
+
   const sectorAllocationData = useMemo(() => {
-    if (!rawSectorAllocation || typeof rawSectorAllocation !== 'object') return [];
-    
+    if (!rawSectorAllocation) return [];
     return Object.entries(rawSectorAllocation)
-      .filter(([sector, data]) => data && data.value > 0)
-      .map(([sector, data]) => ({
-        name: sector || 'Unknown',
-        value: data.value,
-        percentage: (data.percentage || 0) * 100,
-        positionCount: data.position_count || 0
-      }))
+      .filter(([, d]) => d?.value > 0)
+      .map(([name, d]) => ({ name: name || 'Unknown', value: d.value, percentage: (d.percentage || 0) * 100, positionCount: d.position_count || 0 }))
       .sort((a, b) => b.value - a.value);
   }, [rawSectorAllocation]);
 
-  // Process institution mix data
   const institutionMixData = useMemo(() => {
-    if (!rawInstitutionAllocation || !Array.isArray(rawInstitutionAllocation)) return [];
-    
+    if (!rawInstitutionAllocation?.length) return [];
     return rawInstitutionAllocation
-      .filter(inst => inst && inst.value > 0)
-      .map(inst => ({
-        name: inst.institution,
-        value: inst.value,
-        percentage: inst.percentage || 0,
-        accountCount: inst.account_count || 0,
-        positionCount: inst.position_count || 0,
-        color: inst.primary_color || '#6B7280'
-      }))
+      .filter((r) => r?.value > 0)
+      .map((inst) => ({ name: inst.institution, value: inst.value, percentage: inst.percentage || 0, accountCount: inst.account_count || 0, positionCount: inst.position_count || 0, color: inst.primary_color || '#6B7280' }))
       .sort((a, b) => b.value - a.value)
       .slice(0, 5);
   }, [rawInstitutionAllocation]);
 
-  // Process top positions data
   const topPositionsData = useMemo(() => {
-    if (!topPositions || !Array.isArray(topPositions)) return [];
-    
-    return topPositions
-      .slice(0, 5)
-      .map(pos => ({
-        name: pos.name || pos.identifier,
-        identifier: pos.identifier,
-        value: pos.current_value || pos.value,
-        gainLoss: pos.gain_loss || 0,
-        gainLossPercent: pos.gain_loss_percent || 0,
-        accountName: pos.account_name,
-        assetType: pos.asset_type || 'security',
-        percentage: pos.percentage || 0
-      }));
+    if (!topPositions?.length) return [];
+    return topPositions.slice(0, 5).map((p) => ({
+      name: p.name || p.identifier,
+      value: p.current_value || p.value,
+      gainLossPercent: p.gain_loss_percent || 0,
+      accountName: p.account_name,
+      assetType: p.asset_type || 'security',
+    }));
   }, [topPositions]);
+
   
-  // Format utilities
-  const formatCurrency = (value, inThousands = false) => {
-    if (value === null || value === undefined) return '-';
-    
-    if (inThousands) {
-      const thousands = value / 1000;
-      return `$${thousands.toLocaleString('en-US', {
-        minimumFractionDigits: 1,
-        maximumFractionDigits: 1
-      })}k`;
-    }
-    
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-      useGrouping: true 
-    }).format(value);
-  };
-  
-  const formatPercentage = (value) => {
-    if (value === null || value === undefined || isNaN(value)) return '0%';
-    return `${value > 0 ? '+' : ''}${value.toFixed(2)}%`;
-  };
-  
-  // Render trend indicator component
-  const TrendIndicator = ({ value, size = 'md' }) => {
-    if (value === null || value === undefined) return <span className="text-gray-500">-</span>;
-    
-    const sizeClasses = {
-      sm: 'h-3 w-3',
-      md: 'h-4 w-4',
-      lg: 'h-5 w-5'
-    };
-    
-    if (value > 0) {
-      return (
-        <motion.div 
-          className="flex items-center text-green-500"
-          initial={{ opacity: 0, x: -10 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ duration: 0.3 }}
-        >
-          <TrendingUp className={`${sizeClasses[size]} mr-1`} />
-          <span>{formatPercentage(value)}</span>
-        </motion.div>
-      );
-    } else if (value < 0) {
-      return (
-        <motion.div 
-          className="flex items-center text-red-500"
-          initial={{ opacity: 0, x: -10 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ duration: 0.3 }}
-        >
-          <TrendingDown className={`${sizeClasses[size]} mr-1`} />
-          <span>{formatPercentage(value)}</span>
-        </motion.div>
-      );
-    } else {
-      return <span className="text-gray-500">0.00%</span>;
-    }
-  };
-  
-  // Timeframe Selector Component
-  const TimeframeSelector = ({ options, selected, onChange, className = "" }) => {
+
+  // Loading / Error -------------------------------------------------------------
+  if (isLoading && !summary) {
     return (
-      <div className={`flex p-1 space-x-1 bg-gray-700 dark:bg-gray-800 rounded-lg ${className}`}>
-        {options.map((option) => (
-          <motion.button
-            key={option.id}
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-            className={`
-              px-3 py-1.5 text-sm font-medium rounded-md transition-all duration-200
-              ${selected === option.id 
-                ? 'bg-gray-600 dark:bg-gray-700 text-white shadow-sm' 
-                : 'text-gray-300 dark:text-gray-400 hover:text-white dark:hover:text-white hover:bg-gray-600/50 dark:hover:bg-gray-700/50'
-              }
-            `}
-            onClick={() => onChange(option.id)}
-          >
-            {option.label}
-          </motion.button>
+      <div className="min-h-screen grid place-items-center bg-gradient-to-br from-gray-900 to-gray-950">
+        <div className="flex flex-col items-center">
+          <motion.div animate={{ rotate: 360 }} transition={{ duration: 1, repeat: Infinity, ease: 'linear' }} className="w-12 h-12 border-4 border-indigo-500 border-t-transparent rounded-full" />
+          <p className="mt-4 text-gray-300">Loading your dashboard…</p>
+        </div>
+      </div>
+    );
+  }
+  if (error && !summary) {
+    return (
+      <div className="min-h-screen grid place-items-center bg-gradient-to-br from-gray-900 to-gray-950 p-4">
+        <div className="max-w-md text-center">
+          <div className="text-rose-400 mb-3">⚠️</div>
+          <h1 className="text-xl font-semibold mb-2">Unable to load</h1>
+          <p className="text-gray-300 mb-4">{String(error)}</p>
+          <button onClick={refreshData} className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 rounded-lg">Retry</button>
+        </div>
+      </div>
+    );
+  }
+
+  // Shorthands ------------------------------------------------------------------
+  const totalAssets = summary?.totalAssets || 0;
+  const totalLiabilities = summary?.liabilities?.total || 0;
+  const netWorth = summary?.netWorth || 0;
+  const unrealizedGain = summary?.unrealizedGain || 0;
+  const unrealizedGainPct = summary?.unrealizedGainPercent || 0;
+  const annualIncome = summary?.income?.annual || 0;
+  const yieldPct = summary?.income?.yield || 0;
+  const liquidAssets = summary?.liquidAssets || 0;
+  const otherAssets = summary?.otherAssets || 0;
+  const periodChanges = summary?.periodChanges || {};
+
+  // Tooltips --------------------------------------------------------------------
+  const NetWorthTooltip = ({ active, payload, label }) => {
+    if (!active || !payload?.length) return null;
+    const assets = payload.find((p) => p.dataKey === 'totalAssets')?.value ?? null;
+    const liabs = payload.find((p) => p.dataKey === 'totalLiabilities')?.value ?? null;
+    return (
+      <div className="bg-gray-900 border border-gray-800 rounded-lg p-3 text-sm">
+        <p className="font-medium">{label}</p>
+        <p className="text-indigo-300 mt-1">Net Worth: {formatCurrency(payload[0].value)}</p>
+        {assets !== null && <p className="text-emerald-400">Assets: {formatCurrency(assets)}</p>}
+        {liabs !== null && liabs > 0 && <p className="text-rose-400">Liabilities: {formatCurrency(liabs)}</p>}
+      </div>
+    );
+  };
+
+  const ComponentsTooltip = ({ active, payload, label }) => {
+    if (!active || !payload?.length) return null;
+    const labelMap = { altLiquidNetWorth: 'Liquid Net Worth', altRetirementAssets: 'Retirement Assets', altIlliquidNetWorth: 'Illiquid Net Worth' };
+    return (
+      <div className="bg-gray-900 border border-gray-800 rounded-lg p-3 text-sm">
+        <p className="font-medium mb-2">{label}</p>
+        {payload.map((e, i) => (
+          <div key={i} className="flex justify-between gap-6">
+            <span className="text-gray-300">{labelMap[e.dataKey] || e.dataKey}</span>
+            <span>{formatCurrency(e.value)}</span>
+          </div>
         ))}
       </div>
     );
   };
-  
-  // Custom tooltip for charts
-  const CustomTooltip = ({ active, payload, label }) => {
-    if (active && payload && payload.length) {
-      return (
-        <motion.div 
-          initial={{ opacity: 0, scale: 0.9 }}
-          animate={{ opacity: 1, scale: 1 }}
-          className="bg-gray-800 dark:bg-gray-800 p-3 border border-gray-700 dark:border-gray-700 rounded-lg shadow-lg text-white"
-        >
-          <p className="font-medium text-white">{label}</p>
-          <div className="mt-2 space-y-1">
-            <p className="text-sm text-indigo-400 dark:text-indigo-400">
-              <span className="font-medium">Net Worth: </span> 
-              {formatCurrency(payload[0].value)}
-            </p>
-            {payload.find(p => p.dataKey === 'totalAssets') && (
-              <p className="text-sm text-green-400 dark:text-green-400">
-                <span className="font-medium">Assets: </span> 
-                {formatCurrency(payload.find(p => p.dataKey === 'totalAssets').value)}
-              </p>
-            )}
-            {payload.find(p => p.dataKey === 'totalLiabilities') && payload.find(p => p.dataKey === 'totalLiabilities').value > 0 && (
-              <p className="text-sm text-red-400 dark:text-red-400">
-                <span className="font-medium">Liabilities: </span> 
-                {formatCurrency(payload.find(p => p.dataKey === 'totalLiabilities').value)}
-              </p>
-            )}
-          </div>
-        </motion.div>
-      );
-    }
-    return null;
-  };
-  
-  // Custom tooltip for asset chart
-  const AssetTooltip = ({ active, payload, label }) => {
-    if (active && payload && payload.length) {
-      const assetValue = payload.find(p => p.dataKey === 'totalAssets')?.value || 0;
-      const costBasis = payload.find(p => p.dataKey === 'costBasis')?.value || 0;
-      const unrealizedGain = assetValue - costBasis;
-      const unrealizedGainPercent = costBasis > 0 ? ((unrealizedGain / costBasis) * 100) : 0;
 
-      return (
-        <motion.div 
-          initial={{ opacity: 0, scale: 0.9 }}
-          animate={{ opacity: 1, scale: 1 }}
-          className="bg-gray-800 dark:bg-gray-800 p-3 border border-gray-700 dark:border-gray-700 rounded-lg shadow-lg text-white"
-        >
-          <p className="font-medium text-white mb-2">{label}</p>
-          <div className="space-y-1">
-            <p className="text-sm text-indigo-400 dark:text-indigo-400">
-              <span className="font-medium">Asset Value: </span> 
-              {formatCurrency(assetValue)}
-            </p>
-            <p className="text-sm text-emerald-400 dark:text-emerald-400">
-              <span className="font-medium">Cost Basis: </span> 
-              {formatCurrency(costBasis)}
-            </p>
-            <div className="border-t border-gray-600 mt-2 pt-2">
-              <p className={`text-sm font-medium ${unrealizedGain >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                <span>Unrealized: </span> 
-                {formatCurrency(unrealizedGain)} ({formatPercentage(unrealizedGainPercent)})
-              </p>
-            </div>
-          </div>
-        </motion.div>
-      );
-    }
-    return null;
-  };
-
-
-  // Allocation Chart Tooltip
   const AllocationTooltip = ({ active, payload }) => {
-    if (active && payload && payload.length) {
-      const data = payload[0].payload;
-      return (
-        <motion.div 
-          initial={{ opacity: 0, scale: 0.9 }}
-          animate={{ opacity: 1, scale: 1 }}
-          className="bg-gray-800 dark:bg-gray-800 p-3 shadow-lg rounded-lg border border-gray-700 dark:border-gray-700 text-white"
-        >
-          <p className="font-medium">{data.name}</p>
-          <p className="text-indigo-400 dark:text-indigo-400">{data.percentage.toFixed(1)}%</p>
-          <p className="text-gray-300 dark:text-gray-400">{formatCurrency(data.value)}</p>
-          {data.count !== undefined && (
-            <p className="text-gray-400 text-xs mt-1">{data.count} positions</p>
+    if (!active || !payload?.length) return null;
+    const d = payload[0].payload;
+    const detail = computeMixBreakdown(summary, d.key);
+    return (
+      <div className="bg-gray-900 border border-gray-800 rounded-lg p-3 text-sm">
+        <p className="font-medium">{d.name}</p>
+        <p className="text-indigo-300">{(d.pct || 0).toFixed(1)}% of net worth</p>
+        <div className="mt-2 space-y-1">
+          <Row label="Net" value={formatCurrency(d.value)} />
+          {detail && (
+            <>
+              <Row label="Assets" value={formatCurrency(detail.assets)} />
+              <Row label="Liabilities" value={formatCurrency(detail.liabilities)} />
+            </>
           )}
-        </motion.div>
-      );
-    }
-    return null;
-  };
-
-  // Net Worth Components Tooltip
-  const NetWorthComponentsTooltip = ({ active, payload, label }) => {
-    if (active && payload && payload.length) {
-      return (
-        <motion.div 
-          initial={{ opacity: 0, scale: 0.9 }}
-          animate={{ opacity: 1, scale: 1 }}
-          className="bg-gray-800 dark:bg-gray-800 p-4 shadow-lg rounded-lg border border-gray-700 dark:border-gray-700"
-        >
-          <p className="text-white font-medium mb-2">{label}</p>
-          <div className="space-y-2">
-            {payload.map((entry, index) => {
-              const labelMap = {
-                altLiquidNetWorth: 'Liquid Net Worth',
-                altRetirementAssets: 'Retirement Assets',
-                altIlliquidNetWorth: 'Illiquid Net Worth'
-              };
-              return (
-                <div key={index} className="flex justify-between items-center">
-                  <div className="flex items-center">
-                    <div 
-                      className="w-3 h-3 rounded-full mr-2" 
-                      style={{ backgroundColor: entry.color }}
-                    />
-                    <span className="text-gray-300 text-sm">{labelMap[entry.dataKey]}:</span>
-                  </div>
-                  <span className="text-white font-medium ml-4">
-                    {formatCurrency(entry.value)}
-                  </span>
-                </div>
-              );
-            })}
-          </div>
-        </motion.div>
-      );
-    }
-    return null;
-  };
-
-  // Asset class card component
-  const AssetClassCard = ({ type, data, icon, colorClass }) => {
-    // Get performance data for different periods
-      const performanceData = {
-        '1D': data.daily?.percent_change || 0,
-        '1W': data.weekly?.percent_change || 0,
-        '1M': data.monthly?.percent_change || 0,
-        'YTD': data.ytd?.percent_change || 0,
-        
-      };
-
-    return (
-      <motion.div 
-        whileHover={{ scale: 1.02, boxShadow: '0 8px 30px rgba(0,0,0,0.3)' }}
-        className="bg-gray-800/70 backdrop-blur-sm rounded-xl p-4 border border-gray-700 relative overflow-hidden hover:border-gray-600 transition-all duration-300"
-      >
-        <div className={`absolute top-0 right-0 w-24 h-24 rounded-full ${colorClass}/10 -mr-10 -mt-10`}></div>
-        <div className="flex justify-between items-start">
-          <div className="flex-1">
-            <div className="flex items-center mb-2">
-              <motion.div 
-                whileHover={{ rotate: 360 }}
-                transition={{ duration: 0.5 }}
-                className={`${colorClass}/20 p-2 rounded-lg mr-3`}
-              >
-                {icon}
-              </motion.div>
-              <h3 className="text-lg font-semibold text-white">{data.name}</h3>
-            </div>
-            <div className="space-y-2">
-              <div>
-                <p className="text-sm text-gray-400">
-                  {type === 'liability' ? 'Outstanding Balance' : 'Market Value'}
-                </p>
-                <p className="text-xl font-bold text-white">
-                  {type === 'liability' ? '-' : ''}{formatCurrency(Math.abs(data.value))}
-                </p>
-                <p className="text-xs text-gray-500">
-                  {data.percentage > 0 ? `${formatPercentage(data.percentage * 100)} of ${type === 'liability' ? 'liabilities' : 'portfolio'}` : 'No holdings'}
-                </p>
-              </div>
-              
-              {/* Show cost basis for assets and liabilities */}
-              {(type !== 'cash' || type === 'liability') && data.costBasis !== undefined && (
-                <div>
-                  <p className="text-sm text-gray-400">
-                    {type === 'liability' ? 'Original Amount' : 'Cost Basis'}
-                  </p>
-                  <p className="text-lg font-semibold text-white">{formatCurrency(data.costBasis)}</p>
-                </div>
-              )}
-              
-              {/* Show performance for non-cash assets */}
-              {type !== 'cash' && type !== 'liability' && data.gainLoss !== undefined && (
-                <div>
-                  <p className="text-sm text-gray-400">Gain or Loss</p>
-                  <p className={`text-lg font-semibold ${data.gainLoss >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                    {data.gainLoss >= 0 ? '+' : ''}{formatCurrency(data.gainLoss)}
-                    {data.gainLossPercent !== undefined && (
-                      <span className="text-sm ml-1">
-                        ({formatPercentage(data.gainLossPercent * 100)})
-                      </span>
-                    )}
-                  </p>
-                </div>
-              )}
-              
-              {/* Show count if available */}
-              {data.count !== undefined && data.count > 0 && (
-                <p className="text-xs text-gray-500 mt-1">
-                  {data.count} {type === 'liability' ? 'liabilities' : 'positions'}
-                </p>
-              )}
-            </div>
-          </div>
-
-
-
-        </div>
-
-                  {/* New Horizontal Performance Section */}
-          {type !== 'liability' && (
-            <div className="mt-4 pt-3 border-t border-gray-700">
-              <div className="grid grid-cols-4 gap-2">
-                {Object.entries(performanceData).map(([period, value]) => (
-                  <motion.div 
-                    key={period}
-                    whileHover={{ scale: 1.05 }}
-                    className="text-center"
-                  >
-                    <p className="text-xs text-gray-500 mb-1">{period}</p>
-                    <motion.div
-                      whileHover={{ scale: 1.1 }}
-                      className={`text-xs font-medium px-1.5 py-0.5 rounded ${
-                        value > 0 
-                          ? 'bg-green-500/20 text-green-400' 
-                          : value < 0 
-                          ? 'bg-red-500/20 text-red-400' 
-                          : 'bg-gray-600/20 text-gray-400'
-                      }`}
-                    >
-                      {value > 0 ? '+' : ''}{value.toFixed(1)}%
-                    </motion.div>
-                  </motion.div>
-                ))}
-              </div>
-            </div>
-          )}
-          
-      </motion.div>
-    );
-  };
-  
-  // Dashboard Display Component
-  const DashboardContent = () => {
-    if (!summary) return null;
-    
-    // Extract data from processed summary
-    const totalAssets = summary.totalAssets;
-    const totalLiabilities = summary.liabilities.total;
-    const netWorth = summary.netWorth;
-    const totalCostBasis = summary.totalCostBasis;
-    const unrealizedGain = summary.unrealizedGain;
-    const unrealizedGainPercent = summary.unrealizedGainPercent;
-    const annualIncome = summary.income.annual;
-    const yieldPercentage = summary.income.yield;
-    const liquidAssets = summary.liquidAssets;
-    const otherAssets = summary.otherAssets;
-    
-    // Get period changes
-    const periodChanges = summary.periodChanges;
-    
-    // Time period badge component
-    const TimePeriodBadge = ({ label, change, changePercent }) => (
-      <motion.div 
-        whileHover={{ scale: 1.02, y: -2 }}
-        whileTap={{ scale: 0.98 }}
-        className="flex flex-col p-3 rounded-lg bg-gray-700 dark:bg-gray-750 hover:bg-gray-650 transition-all duration-200 cursor-pointer"
-      >
-        <span className="text-xs text-gray-300 dark:text-gray-400 mb-1">{label}</span>
-        <div className="flex items-center justify-between">
-          <span className="font-medium text-white dark:text-white">{formatCurrency(change?.netWorth || 0)}</span>
-          <span className={`text-xs flex items-center ${(changePercent?.netWorthPercent || 0) > 0 ? 'text-green-500' : (changePercent?.netWorthPercent || 0) < 0 ? 'text-red-500' : 'text-gray-400'}`}>
-            {(changePercent?.netWorthPercent || 0) > 0 ? (
-              <ArrowUp className="h-3 w-3 mr-1" />
-            ) : (changePercent?.netWorthPercent || 0) < 0 ? (
-              <ArrowDown className="h-3 w-3 mr-1" />
-            ) : null}
-            {formatPercentage((changePercent?.netWorthPercent || 0) * 100)}
-          </span>
-        </div>
-      </motion.div>
-    );
-
-    return (
-      <div className="bg-gray-900 dark:bg-gray-900 py-4 rounded-xl mb-8">
-        {/* Main dashboard grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 px-4">
-          {/* Left column - Summary */}
-          <div className="lg:col-span-8 space-y-4">
-            {/* Main metrics */}
-            <motion.div 
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5 }}
-              className="bg-gray-800 dark:bg-gray-900 rounded-xl shadow-md p-5"
-            >
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
-                {/* Net Worth */}
-                <div>
-                  <div className="flex items-center space-x-2">
-                    <DollarSign className="h-5 w-5 text-indigo-400" />
-                    <p className="text-sm text-gray-300">Net Worth</p>
-                  </div>
-                  <h3 className="text-2xl font-bold mt-1 text-white">{formatCurrency(netWorth)}</h3>
-                    <div className="flex items-center mt-1">
-                      {(periodChanges['1d']?.netWorthPercent || 0) > 0 ? (
-                        <ArrowUp className="h-4 w-4 text-green-500" />
-                      ) : (periodChanges['1d']?.netWorthPercent || 0) < 0 ? (
-                        <ArrowDown className="h-4 w-4 text-red-500" />
-                      ) : null}
-                      <span className={`text-sm ml-1 ${(periodChanges['1d']?.netWorthPercent || 0) > 0 ? 'text-green-500' : (periodChanges['1d']?.netWorthPercent || 0) < 0 ? 'text-red-500' : 'text-gray-400'}`}>
-                        {periodChanges['1d']?.netWorthPercent !== null && periodChanges['1d']?.netWorthPercent !== undefined 
-                          ? formatPercentage(periodChanges['1d'].netWorthPercent * 100)
-                          : 'N/A'
-                        } Today
-                      </span>
-                    </div>
-                </div>
-                
-                {/* Total Assets */}
-                <div>
-                  <div className="flex items-center space-x-2">
-                    <Wallet className="h-5 w-5 text-green-400" />
-                    <p className="text-sm text-gray-300">Total Assets</p>
-                  </div>
-                  <h3 className="text-2xl font-bold mt-1 text-white">{formatCurrency(totalAssets)}</h3>
-                  <div className="flex items-center mt-1">
-                    <span className="text-xs text-gray-400">
-                      {formatCurrency(liquidAssets)} liquid
-                    </span>
-                  </div>
-                </div>
-                
-                {/* Unrealized Gain */}
-                <div>
-                  <div className="flex items-center space-x-2">
-                    <Activity className="h-5 w-5 text-emerald-400" />
-                    <p className="text-sm text-gray-300">Unrealized Gain</p>
-                  </div>
-                  <h3 className="text-2xl font-bold mt-1 text-white">{formatCurrency(unrealizedGain)}</h3>
-                  <div className="flex items-center mt-1">
-                    {unrealizedGainPercent > 0 ? (
-                      <ArrowUp className="h-4 w-4 text-green-500" />
-                    ) : (
-                      <ArrowDown className="h-4 w-4 text-red-500" />
-                    )}
-                    <span className={`text-sm ml-1 ${unrealizedGainPercent > 0 ? 'text-green-500' : 'text-red-500'}`}>
-                      {formatPercentage(unrealizedGainPercent * 100)}
-                    </span>
-                  </div>
-                </div>
-                
-                {/* Annual Income */}
-                <div>
-                  <div className="flex items-center space-x-2">
-                    <Gift className="h-5 w-5 text-amber-400" />
-                    <p className="text-sm text-gray-300">Annual Income</p>
-                  </div>
-                  <h3 className="text-2xl font-bold mt-1 text-white">{formatCurrency(annualIncome)}</h3>
-                  <div className="flex items-center mt-1">
-                    <Percent className="h-4 w-4 text-gray-400" />
-                    <span className="text-sm ml-1 text-gray-400">
-                      {formatPercentage(yieldPercentage * 100)} yield
-                    </span>
-                  </div>
-                </div>
-              </div>
-            </motion.div>
-            
-                      {/* New KPI Row - Net Worth Components */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mt-4">
-                  {/* Liquid Net Worth KPI */}
-                  <motion.div 
-                    whileHover={{ scale: 1.02 }}
-                    className="bg-gray-800/70 backdrop-blur-sm rounded-xl p-4 border border-gray-700 hover:border-gray-600 transition-all duration-300"
-                  >
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="flex items-center">
-                        <div className="bg-blue-500/20 p-2 rounded-lg mr-3">
-                          <Droplet className="h-5 w-5 text-blue-400" />
-                        </div>
-                        <h4 className="text-sm font-medium text-gray-300">Liquid Net Worth</h4>
-                      </div>
-                    </div>
-                    <p className="text-2xl font-bold text-white">
-                      {formatCurrency(summary.altLiquidNetWorth)}
-                    </p>
-                    <div className="flex items-center mt-2 text-sm">
-                      <span className={`flex items-center ${summary.altLiquidNetWorthYTDChange >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                        {summary.altLiquidNetWorthYTDChange >= 0 ? <ArrowUp className="h-4 w-4 mr-1" /> : <ArrowDown className="h-4 w-4 mr-1" />}
-                        {formatCurrency(Math.abs(summary.altLiquidNetWorthYTDChange))}
-                        <span className="ml-1">({formatPercentage(summary.altLiquidNetWorthYTDChangePercent * 100)})</span>
-                      </span>
-                      <span className="text-gray-500 ml-2">YTD</span>
-                    </div>
-                  </motion.div>
-
-                  {/* Retirement Assets KPI */}
-                  <motion.div 
-                    whileHover={{ scale: 1.02 }}
-                    className="bg-gray-800/70 backdrop-blur-sm rounded-xl p-4 border border-gray-700 hover:border-gray-600 transition-all duration-300"
-                  >
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="flex items-center">
-                        <div className="bg-green-500/20 p-2 rounded-lg mr-3">
-                          <Shield className="h-5 w-5 text-green-400" />
-                        </div>
-                        <h4 className="text-sm font-medium text-gray-300">Retirement Assets</h4>
-                      </div>
-                    </div>
-                    <p className="text-2xl font-bold text-white">
-                      {formatCurrency(summary.altRetirementAssets)}
-                    </p>
-                    <div className="flex items-center mt-2 text-sm">
-                      <span className={`flex items-center ${summary.altRetirementAssetsYTDChange >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                        {summary.altRetirementAssetsYTDChange >= 0 ? <ArrowUp className="h-4 w-4 mr-1" /> : <ArrowDown className="h-4 w-4 mr-1" />}
-                        {formatCurrency(Math.abs(summary.altRetirementAssetsYTDChange))}
-                        <span className="ml-1">({formatPercentage(summary.altRetirementAssetsYTDChangePercent * 100)})</span>
-                      </span>
-                      <span className="text-gray-500 ml-2">YTD</span>
-                    </div>
-                  </motion.div>
-
-                  {/* Illiquid Net Worth KPI */}
-                  <motion.div 
-                    whileHover={{ scale: 1.02 }}
-                    className="bg-gray-800/70 backdrop-blur-sm rounded-xl p-4 border border-gray-700 hover:border-gray-600 transition-all duration-300"
-                  >
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="flex items-center">
-                        <div className="bg-purple-500/20 p-2 rounded-lg mr-3">
-                          <Home className="h-5 w-5 text-purple-400" />
-                        </div>
-                        <h4 className="text-sm font-medium text-gray-300">Illiquid Net Worth</h4>
-                      </div>
-                    </div>
-                    <p className="text-2xl font-bold text-white">
-                      {formatCurrency(summary.altIlliquidNetWorth)}
-                    </p>
-                    <div className="flex items-center mt-2 text-sm">
-                      <span className={`flex items-center ${summary.altIlliquidNetWorthYTDChange >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                        {summary.altIlliquidNetWorthYTDChange >= 0 ? <ArrowUp className="h-4 w-4 mr-1" /> : <ArrowDown className="h-4 w-4 mr-1" />}
-                        {formatCurrency(Math.abs(summary.altIlliquidNetWorthYTDChange))}
-                        <span className="ml-1">({formatPercentage(summary.altIlliquidNetWorthYTDChangePercent * 100)})</span>
-                      </span>
-                      <span className="text-gray-500 ml-2">YTD</span>
-                    </div>
-                  </motion.div>
-
-                  {/* Total Liabilities KPI */}
-                  <motion.div 
-                    whileHover={{ scale: 1.02 }}
-                    className="bg-gray-800/70 backdrop-blur-sm rounded-xl p-4 border border-gray-700 hover:border-gray-600 transition-all duration-300"
-                  >
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="flex items-center">
-                        <div className="bg-red-500/20 p-2 rounded-lg mr-3">
-                          <CreditCard className="h-5 w-5 text-red-400" />
-                        </div>
-                        <h4 className="text-sm font-medium text-gray-300">Total Liabilities</h4>
-                      </div>
-                    </div>
-                    <p className="text-2xl font-bold text-white">
-                      -{formatCurrency(summary.totalLiabilities)}
-                    </p>
-                    <div className="flex items-center mt-2 text-sm">
-                      <span className={`flex items-center ${summary.totalLiabilitiesYTDChange <= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                        {summary.totalLiabilitiesYTDChange <= 0 ? <ArrowDown className="h-4 w-4 mr-1" /> : <ArrowUp className="h-4 w-4 mr-1" />}
-                        {formatCurrency(Math.abs(summary.totalLiabilitiesYTDChange))}
-                        <span className="ml-1">({formatPercentage(Math.abs(summary.totalLiabilitiesYTDChangePercent * 100))})</span>
-                      </span>
-                      <span className="text-gray-500 ml-2">YTD</span>
-                    </div>
-                  </motion.div>
-                </div>
-
-
-
-
-
-            {/* Time period performance metrics */}
-            <motion.div 
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5, delay: 0.1 }}
-              className="bg-gray-800 dark:bg-gray-900 rounded-xl shadow-md p-5"
-            >
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold text-white">Performance Over Time</h3>
-                <span className="text-sm text-gray-400">Net Worth Change</span>
-              </div>
-              
-              <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
-                <TimePeriodBadge 
-                  label="1 Day" 
-                  change={periodChanges['1d']} 
-                  changePercent={periodChanges['1d']} 
-                />
-                <TimePeriodBadge 
-                  label="1 Week" 
-                  change={periodChanges['1w']} 
-                  changePercent={periodChanges['1w']} 
-                />
-                <TimePeriodBadge 
-                  label="1 Month" 
-                  change={periodChanges['1m']} 
-                  changePercent={periodChanges['1m']} 
-                />
-                <TimePeriodBadge 
-                  label="YTD" 
-                  change={periodChanges['ytd']} 
-                  changePercent={periodChanges['ytd']} 
-                />
-                <TimePeriodBadge 
-                  label="1 Year" 
-                  change={periodChanges['1y']} 
-                  changePercent={periodChanges['1y']} 
-                />
-              </div>
-            </motion.div>
-            
-            {/* Performance chart */}
-            <motion.div 
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5, delay: 0.2 }}
-              className="bg-gray-800 dark:bg-gray-900 rounded-xl shadow-md p-5"
-            >
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold text-white">Trended Net Worth</h3>
-                <div className="text-sm text-gray-400">
-                  {selectedTimeframe.toUpperCase()}
-                </div>
-              </div>
-
-
-              <div className="h-72">
-                <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart
-                    data={chartData}
-                    margin={{ top: 5, right: 5, left: 5, bottom: 5 }}
-                  >
-                    <defs>
-                      <linearGradient id="colorValue" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#4f46e5" stopOpacity={0.3} />
-                        <stop offset="95%" stopColor="#4f46e5" stopOpacity={0} />
-                      </linearGradient>
-                      <linearGradient id="colorCost" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#10b981" stopOpacity={0.3} />
-                        <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
-                      </linearGradient>
-                    </defs>
-                    <XAxis 
-                      dataKey="date" 
-                      tick={{ fill: '#6b7280' }} 
-                      axisLine={{ stroke: '#374151' }}
-                      tickLine={false}
-                      dy={10}
-                    />
-                    <YAxis 
-                      tick={{ fill: '#6b7280' }}
-                      axisLine={false}
-                      tickLine={false}
-                      tickFormatter={(value) => {
-                            if (value >= 1000000) {
-                              return `$${(value / 1000000).toFixed(1)}M`;
-                            } else if (value >= 1000) {
-                              return `$${(value / 1000).toFixed(0)}k`;
-                            }
-                            return `$${value.toLocaleString()}`;
-                          }}
-                      dx={-10}
-                    />
-                    <Tooltip content={<CustomTooltip />} />
-                    <CartesianGrid vertical={false} stroke="#374151" strokeDasharray="3 3" />
-                    <Area 
-                      type="monotone" 
-                      dataKey="value" 
-                      stroke="#4f46e5" 
-                      fill="url(#colorValue)" 
-                      strokeWidth={2}
-                      activeDot={{ r: 6, strokeWidth: 0, fill: '#4f46e5' }}
-                    />
-                    <ReferenceLine 
-                      y={chartData[0]?.value || 0} 
-                      stroke="#374151" 
-                      strokeDasharray="3 3" 
-                    />
-                  </AreaChart>
-                </ResponsiveContainer>
-              </div>
-            </motion.div>
-            
-            {/* Alternative Net Worth Components Chart */}
-            <motion.div 
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5, delay: 0.3 }}
-              className="bg-gray-800 dark:bg-gray-900 rounded-xl shadow-md p-5"
-            >
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold text-white">Net Worth Components</h3>
-                <div className="flex items-center space-x-2">
-                  <div className="flex items-center space-x-4 text-xs">
-                    <div className="flex items-center space-x-1">
-                      <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
-                      <span className="text-gray-400">Liquid Net Worth</span>
-                    </div>
-                    <div className="flex items-center space-x-1">
-                      <div className="w-3 h-3 bg-green-500 rounded-full"></div>
-                      <span className="text-gray-400">Retirement Assets</span>
-                    </div>
-                    <div className="flex items-center space-x-1">
-                      <div className="w-3 h-3 bg-purple-500 rounded-full"></div>
-                      <span className="text-gray-400">Illiquid Net Worth</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-              
-              <div className="h-80">
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={chartData}>
-                    <defs>
-                      <linearGradient id="colorLiquid" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.8}/>
-                        <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
-                      </linearGradient>
-                      <linearGradient id="colorRetirement" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#10b981" stopOpacity={0.8}/>
-                        <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
-                      </linearGradient>
-                      <linearGradient id="colorIlliquid" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.8}/>
-                        <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0}/>
-                      </linearGradient>
-                    </defs>
-                    <XAxis 
-                      dataKey="date" 
-                      tick={{ fill: '#6b7280' }} 
-                      axisLine={{ stroke: '#374151' }}
-                      tickLine={false}
-                      dy={10}
-                    />
-                    <YAxis 
-                      tick={{ fill: '#6b7280' }}
-                      axisLine={false}
-                      tickLine={false}
-                      tickFormatter={(value) => {
-                          if (value >= 1000000) {
-                            return `$${(value / 1000000).toFixed(1)}M`;
-                          } else if (value >= 1000) {
-                            return `$${(value / 1000).toFixed(0)}k`;
-                          }
-                          return `$${value.toLocaleString()}`;
-                        }}
-                      dx={-10}
-                    />
-                    <Tooltip content={<NetWorthComponentsTooltip />} />
-                    <CartesianGrid vertical={false} stroke="#374151" strokeDasharray="3 3" />
-                    <Line 
-                      type="monotone" 
-                      dataKey="altLiquidNetWorth" 
-                      stroke="#3b82f6" 
-                      strokeWidth={2}
-                      dot={false}
-                      activeDot={{ r: 6, strokeWidth: 0, fill: '#3b82f6' }}
-                    />
-                    <Line 
-                      type="monotone" 
-                      dataKey="altRetirementAssets" 
-                      stroke="#10b981" 
-                      strokeWidth={2}
-                      dot={false}
-                      activeDot={{ r: 6, strokeWidth: 0, fill: '#10b981' }}
-                    />
-                    <Line 
-                      type="monotone" 
-                      dataKey="altIlliquidNetWorth" 
-                      stroke="#8b5cf6" 
-                      strokeWidth={2}
-                      dot={false}
-                      activeDot={{ r: 6, strokeWidth: 0, fill: '#8b5cf6' }}
-                    />
-                  </LineChart>
-                </ResponsiveContainer>
-              </div>
-              
-              {/* Summary metrics below chart */}
-              <div className="mt-4 grid grid-cols-3 gap-4">
-                <div className="text-center">
-                  <p className="text-xs text-gray-400">Liquid Net Worth</p>
-                  <p className="text-lg font-semibold text-white">{formatCurrency(summary.altLiquidNetWorth)}</p>
-                </div>
-                <div className="text-center">
-                  <p className="text-xs text-gray-400">Retirement Assets</p>
-                  <p className="text-lg font-semibold text-white">{formatCurrency(summary.altRetirementAssets)}</p>
-                </div>
-                <div className="text-center">
-                  <p className="text-xs text-gray-400">Illiquid Net Worth</p>
-                  <p className="text-lg font-semibold text-white">{formatCurrency(summary.altIlliquidNetWorth)}</p>
-                </div>
-              </div>
-            </motion.div>
-
-
-
-            {/* Asset Value Chart - NEW */}
-            <motion.div 
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5, delay: 0.25 }}
-              className="bg-gray-800 dark:bg-gray-900 rounded-xl shadow-md p-5"
-            >
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold text-white">Asset Value & Cost Basis</h3>
-                <div className="flex items-center space-x-2">
-                  <div className="flex items-center space-x-4 text-xs">
-                    <div className="flex items-center">
-                      <div className="w-3 h-3 rounded-full bg-indigo-500 mr-1"></div>
-                      <span className="text-gray-400">Asset Value</span>
-                    </div>
-                    <div className="flex items-center">
-                      <div className="w-3 h-3 rounded-full bg-emerald-500 mr-1"></div>
-                      <span className="text-gray-400">Cost Basis</span>
-                    </div>
-                  </div>
-                  <div className="text-sm text-gray-400">
-                    {selectedTimeframe.toUpperCase()}
-                  </div>
-                </div>
-              </div>
-              <div className="h-72">
-                <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart
-                    data={chartData}
-                    margin={{ top: 5, right: 5, left: 5, bottom: 5 }}
-                  >
-                    <defs>
-                      <linearGradient id="colorAssets" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#4f46e5" stopOpacity={0.3} />
-                        <stop offset="95%" stopColor="#4f46e5" stopOpacity={0} />
-                      </linearGradient>
-                      <linearGradient id="colorBasis" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#10b981" stopOpacity={0.3} />
-                        <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
-                      </linearGradient>
-                    </defs>
-                    <XAxis 
-                      dataKey="date" 
-                      tick={{ fill: '#6b7280' }} 
-                      axisLine={{ stroke: '#374151' }}
-                      tickLine={false}
-                      dy={10}
-                    />
-                    <YAxis 
-                      tick={{ fill: '#6b7280' }}
-                      axisLine={false}
-                      tickLine={false}
-                      tickFormatter={(value) => {
-                          if (value >= 1000000) {
-                            return `$${(value / 1000000).toFixed(1)}M`;
-                          } else if (value >= 1000) {
-                            return `$${(value / 1000).toFixed(0)}k`;
-                          }
-                          return `$${value.toLocaleString()}`;
-                        }}
-                      dx={-10}
-                    />
-                    <Tooltip content={<AssetTooltip />} />
-                    <CartesianGrid vertical={false} stroke="#374151" strokeDasharray="3 3" />
-                    <Area 
-                      type="monotone" 
-                      dataKey="totalAssets" 
-                      stroke="#4f46e5" 
-                      fill="url(#colorAssets)" 
-                      strokeWidth={2}
-                      activeDot={{ r: 6, strokeWidth: 0, fill: '#4f46e5' }}
-                    />
-                    <Area 
-                      type="monotone" 
-                      dataKey="costBasis" 
-                      stroke="#10b981" 
-                      fill="url(#colorBasis)" 
-                      strokeWidth={2}
-                      strokeDasharray="5 5"
-                    />
-                    {/* Reference line for starting asset value */}
-                    <ReferenceLine 
-                      y={chartData[0]?.totalAssets || 0} 
-                      stroke="#374151" 
-                      strokeDasharray="3 3" 
-                    />
-                  </AreaChart>
-                </ResponsiveContainer>
-              </div>
-              
-              {/* Summary metrics below chart */}
-              <div className="mt-4 grid grid-cols-3 gap-4">
-                <div className="text-center">
-                  <p className="text-xs text-gray-400">Current Assets</p>
-                  <p className="text-lg font-semibold text-white">{formatCurrency(summary.totalAssets)}</p>
-                </div>
-                <div className="text-center">
-                  <p className="text-xs text-gray-400">Total Cost Basis</p>
-                  <p className="text-lg font-semibold text-white">{formatCurrency(summary.totalCostBasis)}</p>
-                </div>
-                <div className="text-center">
-                  <p className="text-xs text-gray-400">Unrealized Gain</p>
-                  <p className={`text-lg font-semibold ${summary.unrealizedGain >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                    {formatCurrency(summary.unrealizedGain)}
-                    <span className="text-xs ml-1">({formatPercentage(summary.unrealizedGainPercent * 100)})</span>
-                  </p>
-                </div>
-              </div>
-            </motion.div>
-
-
-            {/* Asset Class Allocation Section */}
-            <motion.div 
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5, delay: 0.3 }}
-              className="bg-gray-800 dark:bg-gray-900 rounded-xl shadow-md p-5"
-            >
-              <h2 className="text-lg font-semibold mb-4 text-white">Asset Allocation</h2>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                {/* Securities - Always show */}
-                <AssetClassCard
-                  type="security"
-                  data={{
-                    ...summary.assetAllocation.securities,
-                    name: 'Securities',
-                    ...assetPerformance?.security
-                  }}
-                  icon={<LineChart className="h-5 w-5 text-blue-400" />}
-                  colorClass="bg-blue-500"
-                />
-                
-                {/* Cash - Always show */}
-                <AssetClassCard
-                  type="cash"
-                  data={{
-                    ...summary.assetAllocation.cash,
-                    name: 'Cash'
-                  }}
-                  icon={<Banknote className="h-5 w-5 text-green-400" />}
-                  colorClass="bg-green-500"
-                />
-
-                {/* Crypto - Always show */}
-                <AssetClassCard
-                  type="crypto"
-                  data={{
-                    ...summary.assetAllocation.crypto,
-                    name: 'Crypto',
-                    ...assetPerformance?.crypto
-                  }}
-                  icon={<Coins className="h-5 w-5 text-purple-400" />}
-                  colorClass="bg-purple-500"
-                />
-                {/* Metals - Always show */}
-                <AssetClassCard
-                  type="metal"
-                  data={{
-                    ...summary.assetAllocation.metals,
-                    name: 'Metals',
-                    ...assetPerformance?.metal
-                  }}
-                  icon={<Package className="h-5 w-5 text-amber-400" />}
-                  colorClass="bg-amber-500"
-                />
-
-                {/* Other Assets - Always show */}
-                <AssetClassCard
-                  type="other"
-                  data={{
-                    ...summary.assetAllocation.otherAssets,
-                    name: 'Other Assets',
-                    ...assetPerformance?.other_assets
-                  }}
-                  icon={<Home className="h-5 w-5 text-red-400" />}
-                  colorClass="bg-red-500"
-                />
-
-                {/* Liabilities - Show as a card if any exist */}
-                {summary.liabilities.total > 0 && (
-                  <AssetClassCard
-                    type="liability"
-                    data={{
-                      value: summary.liabilities.total,
-                      percentage: summary.ratios.debtToAssetRatio,
-                      costBasis: summary.liabilities.total,
-                      count: summary.liabilities.counts.total,
-                      name: 'Total Liabilities'
-                    }}
-                    icon={<MinusCircle className="h-5 w-5 text-red-400" />}
-                    colorClass="bg-red-500"
-                  />
-                )}
-              </div>
-            </motion.div>
-
-            {/* Personal Cash Flow - ADD THIS ENTIRE SECTION */}
-            {netCashBasisMetrics && (
-              <motion.div 
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.5, delay: 0.3 }}
-                className="rounded-xl bg-gray-800 dark:bg-gray-800 p-6 shadow-xl backdrop-blur-sm bg-opacity-90 hover:shadow-2xl transition-all duration-300"
-              >
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-lg font-semibold text-white dark:text-white flex items-center">
-                    <Wallet className="w-5 h-5 mr-2 text-green-400" />
-                    Personal Cash Flow
-                  </h3>
-                  <span className="text-2xl font-bold text-white">
-                    {formatCurrency(netCashBasisMetrics.net_cash_position)}
-                  </span>
-                </div>
-                
-                <div className="grid grid-cols-3 gap-4">
-                  {[
-                    { label: 'Day', flow: netCashBasisMetrics.cash_flow_1d, pct: netCashBasisMetrics.cash_flow_1d_pct },
-                    { label: 'Week', flow: netCashBasisMetrics.cash_flow_1w, pct: netCashBasisMetrics.cash_flow_1w_pct },
-                    { label: 'Month', flow: netCashBasisMetrics.cash_flow_1m, pct: netCashBasisMetrics.cash_flow_1m_pct, highlight: true }
-                  ].map(({ label, flow, pct, highlight }) => (
-                    <div key={label} className={`p-3 rounded-lg ${highlight ? 'bg-gray-700/50 ring-1 ring-gray-600' : 'bg-gray-700/30'}`}>
-                      <p className="text-xs text-gray-400 mb-1">{label}</p>
-                      <p className={`text-sm font-semibold flex items-center ${
-                        flow > 0 ? 'text-green-400' : flow < 0 ? 'text-red-400' : 'text-gray-400'
-                      }`}>
-                        {flow !== 0 && (flow > 0 ? <ArrowUp className="w-3 h-3 mr-1" /> : <ArrowDown className="w-3 h-3 mr-1" />)}
-                        {formatCurrency(flow)}
-                      </p>
-                      <p className={`text-xs ${
-                        pct > 0 ? 'text-green-400' : pct < 0 ? 'text-red-400' : 'text-gray-500'
-                      }`}>
-                        {pct ? `${pct > 0 ? '+' : ''}${(pct * 100).toFixed(1)}%` : '-'}
-                      </p>
-                    </div>
-                  ))}
-                </div>
-                
-                <div className="mt-4 pt-4 border-t border-gray-700">
-                  <div className="grid grid-cols-3 gap-4 text-center">
-                    {[
-                      { label: 'YTD', flow: netCashBasisMetrics.cash_flow_ytd },
-                      { label: '1 Year', flow: netCashBasisMetrics.cash_flow_1y },
-                      { label: '3 Years', flow: netCashBasisMetrics.cash_flow_3y }
-                    ].map(({ label, flow }) => (
-                      <div key={label}>
-                        <p className="text-xs text-gray-500">{label}</p>
-                        <p className={`text-sm font-medium ${
-                          flow > 0 ? 'text-green-400' : flow < 0 ? 'text-red-400' : 'text-gray-400'
-                        }`}>
-                          {formatCurrency(flow)}
-                        </p>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </motion.div>
-            )}
-
-            {/* Cash Flow Trend */}
-            {cashFlowTrendData && cashFlowTrendData.length > 0 && (
-              <motion.div 
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.5, delay: 0.4 }}
-                className="rounded-xl bg-gray-800 dark:bg-gray-800 p-6 shadow-xl backdrop-blur-sm bg-opacity-90 hover:shadow-2xl transition-all duration-300"
-              >
-                <div className="flex items-center justify-between mb-6">
-                  <h3 className="text-lg font-semibold text-white dark:text-white flex items-center">
-                    <Activity className="w-5 h-5 mr-2 text-green-400" />
-                    Cash Flow Trend
-                  </h3>
-                </div>
-                
-                <div className="h-64">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={cashFlowTrendData}>
-                      <defs>
-                        <linearGradient id="cashFlowGradient" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#10b981" stopOpacity={0.3}/>
-                          <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
-                        </linearGradient>
-                      </defs>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-                      <XAxis 
-                        dataKey="displayDate" 
-                        stroke="#9ca3af"
-                        tick={{ fill: '#9ca3af', fontSize: 12 }}
-                      />
-                      <YAxis 
-                        stroke="#9ca3af"
-                        tick={{ fill: '#9ca3af', fontSize: 12 }}
-                        tickFormatter={(value) => {
-                            if (value >= 1000000) {
-                              return `$${(value / 1000000).toFixed(1)}M`;
-                            } else if (value >= 1000) {
-                              return `$${(value / 1000).toFixed(0)}k`;
-                            }
-                            return `$${value.toLocaleString()}`;
-                          }}
-                      />
-                      <Tooltip 
-                        contentStyle={{ 
-                          backgroundColor: '#1f2937', 
-                          border: '1px solid #374151',
-                          borderRadius: '0.5rem',
-                          color: '#e5e7eb'
-                        }}
-                        formatter={(value) => [`$${value.toLocaleString()}`, 'Net Cash Position']}
-                        labelStyle={{ color: '#9ca3af' }}
-                      />
-                      <Area
-                        type="monotone"
-                        dataKey="netCashPosition"
-                        stroke="#10b981"
-                        strokeWidth={2}
-                        fillOpacity={1}
-                        fill="url(#cashFlowGradient)"
-                      />
-                    </AreaChart>
-                  </ResponsiveContainer>
-                </div>
-                
-                <div className="mt-4 grid grid-cols-3 gap-4 text-center">
-                  <div>
-                    <p className="text-xs text-gray-500">Start</p>
-                    <p className="text-sm font-medium text-gray-300">
-                      {cashFlowTrendData[0] && formatCurrency(cashFlowTrendData[0].netCashPosition)}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-gray-500">Current</p>
-                    <p className="text-sm font-medium text-gray-300">
-                      {cashFlowTrendData[cashFlowTrendData.length - 1] && 
-                        formatCurrency(cashFlowTrendData[cashFlowTrendData.length - 1].netCashPosition)}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-gray-500">Change</p>
-                    <p className={`text-sm font-medium ${
-                      cashFlowTrendData[0] && cashFlowTrendData[cashFlowTrendData.length - 1] &&
-                      (cashFlowTrendData[cashFlowTrendData.length - 1].netCashPosition - cashFlowTrendData[0].netCashPosition) > 0
-                        ? 'text-green-400' : 'text-red-400'
-                    }`}>
-                      {cashFlowTrendData[0] && cashFlowTrendData[cashFlowTrendData.length - 1] &&
-                        formatCurrency(cashFlowTrendData[cashFlowTrendData.length - 1].netCashPosition - cashFlowTrendData[0].netCashPosition)}
-                    </p>
-                  </div>
-                </div>
-              </motion.div>
-            )}
-
-            {/* Portfolio Insights with Risk Metrics */}
-            <motion.div 
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5, delay: 0.5 }}
-              className="bg-gray-800 dark:bg-gray-900 rounded-xl shadow-md p-5"
-            >
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold text-white">Portfolio Insights</h3>
-                <Shield className="h-5 w-5 text-indigo-400" />
-              </div>
-              
-              <div className="grid grid-cols-2 gap-4">
-                {/* Left column - stats */}
-                <div className="space-y-4">
-                  <div className="flex justify-between items-center p-3 rounded-lg bg-gray-700 dark:bg-gray-750">
-                    <div>
-                      <span className="text-xs text-gray-300 dark:text-gray-400">Total Positions</span>
-                      <p className="font-medium text-white dark:text-white">{summary.positionStats.totalCount}</p>
-                    </div>
-                    <Layers className="h-5 w-5 text-indigo-400" />
-                  </div>
-                  
-                  <div className="flex justify-between items-center p-3 rounded-lg bg-gray-700 dark:bg-gray-750">
-                    <div>
-                      <span className="text-xs text-gray-300 dark:text-gray-400">Active Accounts</span>
-                      <p className="font-medium text-white dark:text-white">{summary.positionStats.activeAccountCount}</p>
-                    </div>
-                    <Briefcase className="h-5 w-5 text-indigo-400" />
-                  </div>
-                  
-                  <div className="flex justify-between items-center p-3 rounded-lg bg-gray-700 dark:bg-gray-750">
-                    <div>
-                      <span className="text-xs text-gray-300 dark:text-gray-400">Liquidity Ratio</span>
-                      <p className="font-medium text-white dark:text-white">
-                        {formatPercentage((riskMetrics?.liquidity_ratio || 0) * 100)}
-                      </p>
-                    </div>
-                    <Droplet className="h-5 w-5 text-indigo-400" />
-                  </div>
-                </div>
-                
-                {/* Right column - risk metrics */}
-                <div className="space-y-4">
-                  <div className="p-3 rounded-lg bg-gray-700 dark:bg-gray-750">
-                    <div className="flex items-center space-x-2 mb-1">
-                      <Gauge className="h-4 w-4 text-yellow-500" />
-                      <span className="text-sm font-medium text-white dark:text-white">Concentration Risk</span>
-                    </div>
-                    <div className="space-y-1">
-                      <div className="flex justify-between text-sm">
-                        <span className="text-gray-300 dark:text-gray-300">Top 5 Positions</span>
-                        <span className={`${(concentrationMetrics?.top_5_concentration || 0) > 0.5 ? 'text-yellow-400' : 'text-green-400'}`}>
-                          {formatPercentage((concentrationMetrics?.top_5_concentration || 0) * 100)}
-                        </span>
-                      </div>
-                      <div className="flex justify-between text-sm">
-                        <span className="text-gray-300 dark:text-gray-300">Largest Position</span>
-                        <span className={`${(concentrationMetrics?.largest_position_weight || 0) > 0.2 ? 'text-yellow-400' : 'text-green-400'}`}>
-                          {formatPercentage((concentrationMetrics?.largest_position_weight || 0) * 100)}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                  
-                  <div className="p-3 rounded-lg bg-gray-700 dark:bg-gray-750">
-                    <div className="flex items-center space-x-2 mb-1">
-                      <Activity className="h-4 w-4 text-indigo-400" />
-                      <span className="text-sm font-medium text-white dark:text-white">Risk Metrics</span>
-                    </div>
-                    <div className="space-y-1">
-                      <div className="flex justify-between text-sm">
-                        <span className="text-gray-300 dark:text-gray-300">Portfolio Beta</span>
-                        <span className="text-gray-300">{(riskMetrics?.portfolio_beta || 1).toFixed(2)}</span>
-                      </div>
-                      <div className="flex justify-between text-sm">
-                        <span className="text-gray-300 dark:text-gray-300">Est. Volatility</span>
-                        <span className="text-gray-300">{formatPercentage((riskMetrics?.volatility_estimate || 0) * 100)}</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </motion.div>
-          </div>
-          
-          {/* Right column - Allocation & Details */}
-          <div className="lg:col-span-4 space-y-4">
-           
-          {/* Net Worth Mix */}
-          <motion.div 
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ duration: 0.5 }}
-            className="bg-gray-800 dark:bg-gray-900 rounded-xl shadow-md p-5"
-          >
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-white">Net Worth Mix</h3>
-              <PieChartIcon className="h-5 w-5 text-indigo-400" />
-            </div>
-            
-            {/* Donut chart */}
-            <div className="h-64">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={netWorthMixData}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={60}
-                    outerRadius={80}
-                    paddingAngle={3}
-                    dataKey="value"
-                  >
-                    {netWorthMixData.map((entry, index) => (
-                      <Cell 
-                        key={`cell-${index}`} 
-                        fill={entry.color} 
-                        stroke="none"
-                      />
-                    ))}
-                  </Pie>
-                  <Tooltip content={<AllocationTooltip />} />
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
-            
-            {/* Enhanced Legend with Asset/Liability Breakdown */}
-            <div className="mt-4 space-y-1">
-              {/* Format Toggle and Label */}
-              <div className="flex items-center justify-between mb-3">
-                <span className="text-xs text-gray-400">
-                  Values in {showInThousands ? 'thousands (k)' : 'dollars ($)'}
-                </span>
-                <motion.button
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
-                  onClick={() => setShowInThousands(!showInThousands)}
-                  className="text-xs px-2 py-1 rounded bg-gray-700 hover:bg-gray-600 text-gray-300 transition-colors duration-200"
-                >
-                  {showInThousands ? 'Show $' : 'Show k'}
-                </motion.button>
-              </div>
-
-              {/* Header Row */}
-              <div className="grid grid-cols-12 gap-2 px-2 py-2 text-xs font-medium text-gray-400 border-b border-gray-700">
-                <div className="col-span-3">Category</div>
-                <div className="col-span-3 text-right">% of Net Worth</div>
-                <div className="col-span-2 text-right">Net Worth</div>
-                <div className="col-span-2 text-right">Assets</div>
-                <div className="col-span-2 text-right">Liabilities</div>
-              </div>
-
-              {/* Securities Row */}
-              <motion.div 
-                className="grid grid-cols-12 gap-2 px-2 py-2 hover:bg-gray-700/50 rounded transition-all cursor-pointer group"
-                whileHover={{ x: 2 }}
-              >
-                <div className="col-span-3 flex items-center">
-                  <div className="w-3 h-3 rounded-full mr-2 bg-blue-500" />
-                  <span className="text-sm text-white font-medium">Securities</span>
-                </div>
-                <div className="col-span-3 text-right">
-                  <span className="text-sm font-semibold text-blue-400">
-                    {(summary.netWorthMix.securities * 100).toFixed(1)}%
-                  </span>
-                </div>
-                <div className="col-span-2 text-right">
-                  <span className="text-sm text-white">
-                    {formatCurrency(summary.assetAllocation.securities.value, showInThousands)}
-                  </span>
-                </div>
-                <div className="col-span-2 text-right">
-                  <span className="text-sm text-green-400">
-                    {formatCurrency(summary.assetAllocation.securities.value, showInThousands)}
-                  </span>
-                </div>
-                <div className="col-span-2 text-right">
-                  <span className="text-sm text-gray-500">$0</span>
-                </div>
-              </motion.div>
-
-              {/* Net Cash Row */}
-              <motion.div 
-                className="grid grid-cols-12 gap-2 px-2 py-2 hover:bg-gray-700/50 rounded transition-all cursor-pointer group"
-                whileHover={{ x: 2 }}
-              >
-                <div className="col-span-3 flex items-center">
-                  <div className="w-3 h-3 rounded-full mr-2 bg-green-500" />
-                  <span className="text-sm text-white font-medium">Net Cash</span>
-                </div>
-                <div className="col-span-3 text-right">
-                  <span className="text-sm font-semibold text-green-400">
-                    {(summary.netWorthMix.netCash * 100).toFixed(1)}%
-                  </span>
-                </div>
-                <div className="col-span-2 text-right">
-                  <span className="text-sm text-white">
-                    {formatCurrency(summary.altNetWorth.netCash, showInThousands)}
-                  </span>
-                </div>
-                <div className="col-span-2 text-right">
-                  <span className="text-sm text-green-400">
-                    {formatCurrency(summary.assetAllocation.cash.value, showInThousands)}
-                  </span>
-                </div>
-                <div className="col-span-2 text-right">
-                  <span className="text-sm text-red-400">
-                    {summary.liabilities.creditCard > 0 
-                      ? `-${formatCurrency(summary.liabilities.creditCard, showInThousands).substring(1)}`
-                      : '$0'
-                    }
-                  </span>
-                </div>
-              </motion.div>
-
-              {/* Crypto Row */}
-              <motion.div 
-                className="grid grid-cols-12 gap-2 px-2 py-2 hover:bg-gray-700/50 rounded transition-all cursor-pointer group"
-                whileHover={{ x: 2 }}
-              >
-                <div className="col-span-3 flex items-center">
-                  <div className="w-3 h-3 rounded-full mr-2 bg-purple-500" />
-                  <span className="text-sm text-white font-medium">Crypto</span>
-                </div>
-                <div className="col-span-3 text-right">
-                  <span className="text-sm font-semibold text-purple-400">
-                    {(summary.netWorthMix.crypto * 100).toFixed(1)}%
-                  </span>
-                </div>
-                <div className="col-span-2 text-right">
-                  <span className="text-sm text-white">
-                    {formatCurrency(summary.assetAllocation.crypto.value, showInThousands)}
-                  </span>
-                </div>
-                <div className="col-span-2 text-right">
-                  <span className="text-sm text-purple-400">
-                    {formatCurrency(summary.assetAllocation.crypto.value, showInThousands)}
-                  </span>
-                </div>
-                <div className="col-span-2 text-right">
-                  <span className="text-sm text-gray-500">$0</span>
-                </div>
-              </motion.div>
-
-              {/* Metals Row */}
-              <motion.div 
-                className="grid grid-cols-12 gap-2 px-2 py-2 hover:bg-gray-700/50 rounded transition-all cursor-pointer group"
-                whileHover={{ x: 2 }}
-              >
-                <div className="col-span-3 flex items-center">
-                  <div className="w-3 h-3 rounded-full mr-2 bg-amber-500" />
-                  <span className="text-sm text-white font-medium">Metals</span>
-                </div>
-                <div className="col-span-3 text-right">
-                  <span className="text-sm font-semibold text-amber-400">
-                    {(summary.netWorthMix.metals * 100).toFixed(1)}%
-                  </span>
-                </div>
-                <div className="col-span-2 text-right">
-                  <span className="text-sm text-white">
-                    {formatCurrency(summary.assetAllocation.metals.value, showInThousands)}
-                  </span>
-                </div>
-                <div className="col-span-2 text-right">
-                  <span className="text-sm text-amber-400">
-                    {formatCurrency(summary.assetAllocation.metals.value, showInThousands)}
-                  </span>
-                </div>
-                <div className="col-span-2 text-right">
-                  <span className="text-sm text-gray-500">$0</span>
-                </div>
-              </motion.div>
-
-              {/* Real Estate Row - Changed color from red to teal */}
-              <motion.div 
-                className="grid grid-cols-12 gap-2 px-2 py-2 hover:bg-gray-700/50 rounded transition-all cursor-pointer group"
-                whileHover={{ x: 2 }}
-              >
-                <div className="col-span-3 flex items-center">
-                  <div className="w-3 h-3 rounded-full mr-2 bg-teal-500" />
-                  <span className="text-sm text-white font-medium">Real Estate</span>
-                </div>
-                <div className="col-span-3 text-right">
-                  <span className="text-sm font-semibold text-teal-400">
-                    {(summary.netWorthMix.realEstateEquity * 100).toFixed(1)}%
-                  </span>
-                </div>
-                <div className="col-span-2 text-right">
-                  <span className="text-sm text-white">
-                    {formatCurrency(summary.altNetWorth.realEstate, showInThousands)}
-                  </span>
-                </div>
-                <div className="col-span-2 text-right">
-                  <span className="text-sm text-teal-400">
-                    {formatCurrency((summary.altNetWorth.realEstate || 0) + (summary.liabilities.mortgage || 0), showInThousands)}
-                  </span>
-                </div>
-                <div className="col-span-2 text-right">
-                  <span className="text-sm text-red-400">
-                    {summary.liabilities.mortgage > 0 
-                      ? `-${formatCurrency(summary.liabilities.mortgage, showInThousands).substring(1)}`
-                      : '$0'
-                    }
-                  </span>
-                </div>
-              </motion.div>
-
-              {/* Net Other Assets Row - Updated logic */}
-              <motion.div 
-                className="grid grid-cols-12 gap-2 px-2 py-2 hover:bg-gray-700/50 rounded transition-all cursor-pointer group"
-                whileHover={{ x: 2 }}
-              >
-                <div className="col-span-3 flex items-center">
-                  <div className="w-3 h-3 rounded-full mr-2 bg-gray-500" />
-                  <span className="text-sm text-white font-medium">Net Other Assets</span>
-                </div>
-                <div className="col-span-3 text-right">
-                  <span className="text-sm font-semibold text-gray-400">
-                    {(summary.netWorthMix.netOtherAssets * 100).toFixed(1)}%
-                  </span>
-                </div>
-                <div className="col-span-2 text-right">
-                  <span className="text-sm text-white">
-                    {formatCurrency(summary.altNetWorth.netOtherAssets, showInThousands)}
-                  </span>
-                </div>
-                <div className="col-span-2 text-right">
-                  <span className="text-sm text-gray-400">
-                    {/* Other Assets minus Real Estate assets to avoid double counting */}
-                    {formatCurrency(
-                          (summary.assetAllocation.otherAssets.value || 0) - 
-                          ((summary.altNetWorth.realEstate || 0) + (summary.liabilities.mortgage || 0))
-                        , showInThousands)}
-                  </span>
-                </div>
-                <div className="col-span-2 text-right">
-                  <span className="text-sm text-red-400">
-                    {/* Other liabilities = total liabilities - credit card - mortgage */}
-                    {(() => {
-                      const otherLiabilities = (summary.liabilities.total || 0) - 
-                                            (summary.liabilities.creditCard || 0) - 
-                                            (summary.liabilities.mortgage || 0);
-                      return otherLiabilities > 0 
-                        ? (`-${formatCurrency(otherLiabilities, showInThousands)}`)
-                        : '$0';
-                    })()}
-                  </span>
-                </div>
-              </motion.div>
-
-              {/* Totals Row */}
-              <div className="border-t border-gray-600 mt-2 pt-2">
-                <motion.div 
-                  className="grid grid-cols-12 gap-2 px-2 py-2 bg-gray-700/30 rounded"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  transition={{ delay: 0.3 }}
-                >
-                  <div className="col-span-3 flex items-center">
-                    <span className="text-sm text-white font-bold">Total</span>
-                  </div>
-                  <div className="col-span-3 text-right">
-                    <span className="text-sm font-bold text-indigo-400">100.0%</span>
-                  </div>
-                  <div className="col-span-2 text-right">
-                    <span className="text-sm font-bold text-indigo-400">
-                      {formatCurrency(summary.netWorth, showInThousands)}
-                      
-                    </span>
-                  </div>
-                  <div className="col-span-2 text-right">
-                    <span className="text-sm font-bold text-green-400">
-                      {formatCurrency(summary.totalAssets, showInThousands)}
-                      
-                    </span>
-                  </div>
-                  <div className="col-span-2 text-right">
-                    <span className="text-sm font-bold text-red-400">
-                      {summary.liabilities.total > 0 
-                        ? `-${formatCurrency(summary.liabilities.total, showInThousands).substring(1)}`
-                        : '$0'
-                      }
-                    </span>
-                  </div>
-                </motion.div>
-              </div>
-
-              {/* Interactive hover hint */}
-              <div className="mt-3 text-center">
-                <p className="text-xs text-gray-500 italic">Hover over rows to see detailed breakdown</p>
-              </div>
-            </div>
-          </motion.div>
-
-          {/* NEW: Invested Amount Section */}
-          <motion.div 
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ duration: 0.5, delay: 0.15 }}
-            className="bg-gray-800 dark:bg-gray-900 rounded-xl shadow-md p-5 mt-4"
-          >
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-white">Invested Amount</h3>
-              <Calculator className="h-5 w-5 text-indigo-400" />
-            </div>
-            
-            <div className="space-y-1">
-              {/* Format Toggle */}
-              <div className="flex items-center justify-between mb-3">
-                <span className="text-xs text-gray-400">
-                  Values in {showInThousands ? 'thousands (k)' : 'dollars ($)'}
-                </span>
-              </div>
-
-              {/* Header Row */}
-              <div className="grid grid-cols-12 gap-2 px-2 py-2 text-xs font-medium text-gray-400 border-b border-gray-700">
-                <div className="col-span-3">Asset Class</div>
-                <div className="col-span-3 text-right">Market Value</div>
-                <div className="col-span-3 text-right">Cost Basis</div>
-                <div className="col-span-3 text-right">Gain/Loss</div>
-              </div>
-
-              {/* Securities Row */}
-              <motion.div 
-                className="grid grid-cols-12 gap-2 px-2 py-2 hover:bg-gray-700/50 rounded transition-all cursor-pointer"
-                whileHover={{ x: 2 }}
-              >
-                <div className="col-span-3 flex items-center">
-                  <div className="w-3 h-3 rounded-full mr-2 bg-blue-500" />
-                  <span className="text-sm text-white font-medium">Securities</span>
-                </div>
-                <div className="col-span-3 text-right">
-                  <span className="text-sm text-white">
-                    {formatCurrency(summary.assetAllocation.securities.value, showInThousands)}
-                  </span>
-                </div>
-                <div className="col-span-3 text-right">
-                  <span className="text-sm text-gray-300">
-                    {formatCurrency(summary.assetAllocation.securities.costBasis, showInThousands)}
-                  </span>
-                </div>
-                <div className="col-span-3 text-right">
-                  <span className={`text-sm ${summary.assetAllocation.securities.gainLoss >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                    {formatCurrency(summary.assetAllocation.securities.gainLoss, showInThousands)}
-                    <span className="text-xs ml-1">
-                      ({(summary.assetAllocation.securities.gainLossPercent * 100).toFixed(1)}%)
-                    </span>
-                  </span>
-                </div>
-              </motion.div>
-
-              {/* Cash Row */}
-              <motion.div 
-                className="grid grid-cols-12 gap-2 px-2 py-2 hover:bg-gray-700/50 rounded transition-all cursor-pointer"
-                whileHover={{ x: 2 }}
-              >
-                <div className="col-span-3 flex items-center">
-                  <div className="w-3 h-3 rounded-full mr-2 bg-green-500" />
-                  <span className="text-sm text-white font-medium">Cash</span>
-                </div>
-                <div className="col-span-3 text-right">
-                  <span className="text-sm text-white">
-                    {formatCurrency(summary.assetAllocation.cash.value, showInThousands)}
-                  </span>
-                </div>
-                <div className="col-span-3 text-right">
-                  <span className="text-sm text-gray-300">
-                    {formatCurrency(summary.assetAllocation.cash.costBasis, showInThousands)}
-                  </span>
-                </div>
-                <div className="col-span-3 text-right">
-                  <span className="text-sm text-gray-400">-</span>
-                </div>
-              </motion.div>
-
-              {/* Crypto Row */}
-              <motion.div 
-                className="grid grid-cols-12 gap-2 px-2 py-2 hover:bg-gray-700/50 rounded transition-all cursor-pointer"
-                whileHover={{ x: 2 }}
-              >
-                <div className="col-span-3 flex items-center">
-                  <div className="w-3 h-3 rounded-full mr-2 bg-purple-500" />
-                  <span className="text-sm text-white font-medium">Crypto</span>
-                </div>
-                <div className="col-span-3 text-right">
-                  <span className="text-sm text-white">
-                    {formatCurrency(summary.assetAllocation.crypto.value, showInThousands)}
-                  </span>
-                </div>
-                <div className="col-span-3 text-right">
-                  <span className="text-sm text-gray-300">
-                    {formatCurrency(summary.assetAllocation.crypto.costBasis, showInThousands)}
-                  </span>
-                </div>
-                <div className="col-span-3 text-right">
-                  <span className={`text-sm ${summary.assetAllocation.crypto.gainLoss >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                    {formatCurrency(summary.assetAllocation.crypto.gainLoss, showInThousands)}
-                    <span className="text-xs ml-1">
-                      ({(summary.assetAllocation.crypto.gainLossPercent * 100).toFixed(1)}%)
-                    </span>
-                  </span>
-                </div>
-              </motion.div>
-
-              {/* Metals Row */}
-              <motion.div 
-                className="grid grid-cols-12 gap-2 px-2 py-2 hover:bg-gray-700/50 rounded transition-all cursor-pointer"
-                whileHover={{ x: 2 }}
-              >
-                <div className="col-span-3 flex items-center">
-                  <div className="w-3 h-3 rounded-full mr-2 bg-amber-500" />
-                  <span className="text-sm text-white font-medium">Metals</span>
-                </div>
-                <div className="col-span-3 text-right">
-                  <span className="text-sm text-white">
-                    {formatCurrency(summary.assetAllocation.metals.value, showInThousands)}
-                  </span>
-                </div>
-                <div className="col-span-3 text-right">
-                  <span className="text-sm text-gray-300">
-                    {formatCurrency(summary.assetAllocation.metals.costBasis, showInThousands)}
-                  </span>
-                </div>
-                <div className="col-span-3 text-right">
-                  <span className={`text-sm ${summary.assetAllocation.metals.gainLoss >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                    {formatCurrency(summary.assetAllocation.metals.gainLoss, showInThousands)}
-                    <span className="text-xs ml-1">
-                      ({(summary.assetAllocation.metals.gainLossPercent * 100).toFixed(1)}%)
-                    </span>
-                  </span>
-                </div>
-              </motion.div>
-
-              {/* Other Assets Row */}
-              <motion.div 
-                className="grid grid-cols-12 gap-2 px-2 py-2 hover:bg-gray-700/50 rounded transition-all cursor-pointer"
-                whileHover={{ x: 2 }}
-              >
-                <div className="col-span-3 flex items-center">
-                  <div className="w-3 h-3 rounded-full mr-2 bg-gray-500" />
-                  <span className="text-sm text-white font-medium">Other Assets</span>
-                </div>
-                <div className="col-span-3 text-right">
-                  <span className="text-sm text-white">
-                    {formatCurrency(summary.assetAllocation.otherAssets.value, showInThousands)}
-                    
-                  </span>
-                </div>
-                <div className="col-span-3 text-right">
-                  <span className="text-sm text-gray-300">
-                    {formatCurrency(summary.assetAllocation.otherAssets.costBasis, showInThousands)}
-                    
-                  </span>
-                </div>
-                <div className="col-span-3 text-right">
-                  <span className={`text-sm ${summary.assetAllocation.otherAssets.gainLoss >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                    {summary.assetAllocation.otherAssets.gainLoss !== null 
-                      ? (
-                        <>
-                          {formatCurrency(summary.assetAllocation.otherAssets.gainLoss, showInThousands)}
-                          <span className="text-xs ml-1">
-                            ({(summary.assetAllocation.otherAssets.gainLossPercent * 100).toFixed(1)}%)
-                          </span>
-                        </>
-                      )
-                      : '-'
-                    }
-                  </span>
-                </div>
-              </motion.div>
-
-              {/* Totals Row */}
-              <div className="border-t border-gray-600 mt-2 pt-2">
-                <motion.div 
-                  className="grid grid-cols-12 gap-2 px-2 py-2 bg-gray-700/30 rounded"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  transition={{ delay: 0.3 }}
-                >
-                  <div className="col-span-3 flex items-center">
-                    <span className="text-sm text-white font-bold">Total</span>
-                  </div>
-                  <div className="col-span-3 text-right">
-                    <span className="text-sm font-bold text-indigo-400">
-                      {formatCurrency(summary.totalAssets, showInThousands)}
-                    </span>
-                  </div>
-                  <div className="col-span-3 text-right">
-                    <span className="text-sm font-bold text-gray-300">
-                      {formatCurrency(summary.totalCostBasis, showInThousands)}
-                    </span>
-                  </div>
-                  <div className="col-span-3 text-right">
-                    <span className={`text-sm font-bold ${summary.unrealizedGain >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                      {formatCurrency(summary.unrealizedGain, showInThousands)}
-                      <span className="text-xs ml-1">
-                        ({(summary.unrealizedGainPercent * 100).toFixed(1)}%)
-                      </span>
-                    </span>
-                  </div>
-                </motion.div>
-              </div>
-            </div>
-          </motion.div>
-
-
-
-            
-            {/* Net worth breakdown */}
-            <motion.div 
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ duration: 0.5, delay: 0.1 }}
-              className="bg-gray-800 dark:bg-gray-900 rounded-xl shadow-md p-5"
-            >
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold text-white">Net Worth</h3>
-                <div className="h-8 px-3 rounded-md bg-indigo-900 dark:bg-indigo-900 flex items-center">
-                  <span className="text-sm font-medium text-indigo-300 dark:text-indigo-300">
-                    {formatCurrency(netWorth)}
-                  </span>
-                </div>
-              </div>
-              
-              <div className="space-y-4">
-                <div>
-                  <div className="flex justify-between text-sm mb-1">
-                    <span className="text-gray-400 dark:text-gray-400">Total Assets</span>
-                    <span className="font-medium text-white">{formatCurrency(totalAssets)}</span>
-                  </div>
-                  <div className="h-2 bg-gray-700 dark:bg-gray-700 rounded-full overflow-hidden">
-                    <motion.div 
-                      initial={{ width: 0 }}
-                      animate={{ width: '100%' }}
-                      transition={{ duration: 1, ease: "easeOut" }}
-                      className="h-full bg-indigo-500 rounded-full"
-                    />
-                  </div>
-                </div>
-                
-                {totalLiabilities > 0 && (
-                  <div>
-                    <div className="flex justify-between text-sm mb-1">
-                      <span className="text-gray-400 dark:text-gray-400">Liabilities</span>
-                      <span className="font-medium text-white">{formatCurrency(totalLiabilities)}</span>
-                    </div>
-                    <div className="h-2 bg-gray-700 dark:bg-gray-700 rounded-full overflow-hidden">
-                      <motion.div 
-                        initial={{ width: 0 }}
-                        animate={{ width: `${Math.min((totalLiabilities / totalAssets) * 100, 100)}%` }}
-                        transition={{ duration: 1, ease: "easeOut", delay: 0.2 }}
-                        className="h-full bg-red-500 rounded-full"
-                      />
-                    </div>
-                  </div>
-                )}
-                
-                <div className="pt-2 mt-2 border-t border-gray-700 dark:border-gray-700">
-                  <div className="flex justify-between">
-                    <span className="font-medium text-white">Net Worth</span>
-                    <span className="font-bold text-indigo-400 dark:text-indigo-400">{formatCurrency(netWorth)}</span>
-                  </div>
-                </div>
-              </div>
-            </motion.div>
-            
-            {/* Liquid vs Illiquid */}
-            {liquidAssets > 0 && (
-              <motion.div 
-                initial={{ opacity: 0, x: 20 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ duration: 0.5, delay: 0.2 }}
-                className="bg-gray-800 dark:bg-gray-900 rounded-xl shadow-md p-5"
-              >
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-lg font-semibold text-white">Liquidity Analysis</h3>
-                  <Droplet className="h-5 w-5 text-blue-400" />
-                </div>
-                
-                {/* Total Assets Summary - New Addition */}
-                <div className="mb-4 p-3 bg-gray-700/50 rounded-lg">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium text-gray-300">Total Assets</span>
-                    <span className="text-xl font-bold text-white">{formatCurrency(totalAssets)}</span>
-                  </div>
-                </div>
-                
-                <div className="space-y-3">
-                  <div className="flex justify-between text-sm">
-                    <span className="text-gray-400">Liquid Assets</span>
-                    <span className="font-medium text-white">{formatCurrency(liquidAssets)}</span>
-                  </div>
-                  
-                  <div className="h-3 bg-gray-700 rounded-full overflow-hidden">
-                    <motion.div 
-                      initial={{ width: 0 }}
-                      animate={{ width: `${(liquidAssets / totalAssets) * 100}%` }}
-                      transition={{ duration: 1, ease: "easeOut" }}
-                      className="h-full bg-blue-500 rounded-full"
-                    />
-                  </div>
-                  
-                  {otherAssets > 0 && (
-                    <>
-                      <div className="flex justify-between text-sm">
-                        <span className="text-gray-400">Illiquid Assets</span>
-                        <span className="font-medium text-white">{formatCurrency(otherAssets)}</span>
-                      </div>
-                      
-                      <div className="h-3 bg-gray-700 rounded-full overflow-hidden">
-                        <motion.div 
-                          initial={{ width: 0 }}
-                          animate={{ width: `${(otherAssets / totalAssets) * 100}%` }}
-                          transition={{ duration: 1, ease: "easeOut", delay: 0.2 }}
-                          className="h-full bg-gray-500 rounded-full"
-                        />
-                      </div>
-                    </>
-                  )}
-                  
-                  <div className="pt-2 mt-2 border-t border-gray-700">
-                    <p className="text-xs text-gray-500">
-                      {formatPercentage((liquidAssets / totalAssets) * 100)} of assets are liquid
-                    </p>
-                  </div>
-                </div>
-              </motion.div>
-            )}
-
-            {/* Top Positions Card */}
-            <motion.div 
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ duration: 0.5, delay: 0.3 }}
-              className="bg-gray-800 dark:bg-gray-900 rounded-xl shadow-md p-5 relative"
-            >
-              <div className="absolute top-0 right-0 w-24 h-24 rounded-full bg-rose-500/10 -mr-10 -mt-10"></div>
-              <div className="flex items-center mb-3">
-                <div className="bg-rose-500/20 p-2 rounded-lg mr-3">
-                  <BarChart3 className="h-5 w-5 text-rose-400" />
-                </div>
-                <h3 className="text-lg font-semibold text-white">Top Individual Positions</h3>
-              </div>
-              
-              <div className="space-y-3">
-                {topPositionsData && topPositionsData.length > 0 ? (
-                  topPositionsData.map((position, index) => (
-                    <motion.div 
-                      key={index} 
-                      className="flex items-center justify-between hover:bg-gray-700/50 p-1 rounded transition-colors"
-                      whileHover={{ x: 2 }}
-                    >
-                      <div className="flex items-center flex-1 min-w-0">
-                        <div 
-                          className="h-3 w-3 rounded-full mr-2 flex-shrink-0"
-                          style={{ backgroundColor: assetColors[position.assetType] || assetColors.other }}
-                        />
-                        <div className="min-w-0">
-                          <p className="text-sm text-gray-300 truncate">{position.name || position.identifier}</p>
-                          <p className="text-xs text-gray-500">{position.accountName}</p>
-                        </div>
-                      </div>
-                      <div className="text-right ml-2">
-                        <p className="text-sm font-medium text-white">{formatCurrency(position.value)}</p>
-                        <p className={`text-xs ${position.gainLossPercent >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                          {formatPercentage(position.gainLossPercent * 100)}
-                        </p>
-                      </div>
-                    </motion.div>
-                  ))
-                ) : (
-                  <div className="text-center py-2 text-gray-400">No position data available</div>
-                )}
-              </div>
-            </motion.div>
-            
-            {/* Top Institutions Card */}
-            <motion.div 
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ duration: 0.5, delay: 0.4 }}
-              className="bg-gray-800 dark:bg-gray-900 rounded-xl shadow-md p-5 relative"
-            >
-              <div className="absolute top-0 right-0 w-24 h-24 rounded-full bg-indigo-500/10 -mr-10 -mt-10"></div>
-              <div className="flex items-center mb-3">
-                <div className="bg-indigo-500/20 p-2 rounded-lg mr-3">
-                  <Building2 className="h-5 w-5 text-indigo-400" />
-                </div>
-                <h3 className="text-lg font-semibold text-white">Top Institutions</h3>
-              </div>
-              
-              <div className="space-y-3">
-                {institutionMixData && institutionMixData.length > 0 ? (
-                  institutionMixData.map((institution, index) => (
-                    <motion.div 
-                      key={index} 
-                      className="flex items-center justify-between hover:bg-gray-700/50 p-1 rounded transition-colors"
-                      whileHover={{ x: 2 }}
-                    >
-                      <div className="flex items-center">
-                        <div 
-                          className="h-3 w-3 rounded-full mr-2"
-                          style={{ backgroundColor: institution.color }}
-                        />
-                        <div>
-                          <p className="text-sm text-gray-300">{institution.name}</p>
-                          <p className="text-xs text-gray-500">
-                            {institution.accountCount} {institution.accountCount === 1 ? 'account' : 'accounts'} • {institution.positionCount} positions
-                          </p>
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-sm font-medium text-white">{formatPercentage(institution.percentage * 100)}</p>
-                      </div>
-                    </motion.div>
-                  ))
-                ) : (
-                  <div className="text-center py-2 text-gray-400">No institution data available</div>
-                )}
-              </div>
-            </motion.div>
-
-            {/* Dividend Metrics */}
-            {dividendMetrics && annualIncome > 0 && (
-              <motion.div 
-                initial={{ opacity: 0, x: 20 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ duration: 0.5, delay: 0.5 }}
-                className="bg-gray-800 dark:bg-gray-900 rounded-xl shadow-md p-5"
-              >
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-lg font-semibold text-white">Income Analysis</h3>
-                  <Gift className="h-5 w-5 text-amber-400" />
-                </div>
-                
-                <div className="space-y-3">
-                  <div className="flex justify-between">
-                    <span className="text-sm text-gray-400">Annual Income</span>
-                    <span className="font-medium text-white">{formatCurrency(annualIncome)}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-sm text-gray-400">Quarterly Income</span>
-                    <span className="font-medium text-white">{formatCurrency(dividendMetrics.quarterly_income)}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-sm text-gray-400">Dividend Yield</span>
-                    <span className="font-medium text-amber-400">{formatPercentage(yieldPercentage * 100)}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-sm text-gray-400">Income Positions</span>
-                    <span className="font-medium text-white">{dividendMetrics.dividend_count}</span>
-                  </div>
-                </div>
-              </motion.div>
-            )}
-
-            {/* Sector Allocation */}
-            {sectorAllocationData.length > 0 && (
-              <motion.div 
-                initial={{ opacity: 0, x: 20 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ duration: 0.5, delay: 0.6 }}
-                className="bg-gray-800 dark:bg-gray-900 rounded-xl shadow-md p-5"
-              >
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-lg font-semibold text-white">Sector Breakdown</h3>
-                  <PieChartIcon className="h-5 w-5 text-indigo-400" />
-                </div>
-                
-                <div className="space-y-2">
-                  {sectorAllocationData.map((sector, index) => (
-                    <motion.div 
-                      key={index} 
-                      className="flex items-center justify-between hover:bg-gray-700/50 p-1 rounded transition-colors"
-                      whileHover={{ x: 2 }}
-                    >
-                      <div className="flex items-center flex-1">
-                        <div 
-                          className="h-2 w-2 rounded-full mr-2" 
-                          style={{ backgroundColor: sectorColors[sector.name] || sectorColors.Other }}
-                        />
-                        <span className="text-xs text-gray-300">{sector.name}</span>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <span className="text-xs text-gray-500">{sector.positionCount} pos</span>
-                        <span className="text-xs font-medium text-white w-12 text-right">
-                          {sector.percentage.toFixed(1)}%
-                        </span>
-                      </div>
-                    </motion.div>
-                  ))}
-                </div>
-              </motion.div>
-            )}
-          </div>
         </div>
       </div>
     );
   };
 
-  // Loading State
-  if (isLoading && !summary) {
-    return (
-      <div className="min-h-screen flex flex-col justify-center items-center bg-gradient-to-br from-gray-900 to-gray-800 dark:from-gray-900 dark:to-gray-800">
-        <motion.div
-          animate={{ rotate: 360 }}
-          transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-          className="w-16 h-16 border-4 border-indigo-500 border-t-transparent rounded-full"
-        />
-        <motion.p 
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.5 }}
-          className="mt-4 text-gray-300 dark:text-gray-300"
-        >
-          Loading your financial dashboard...
-        </motion.p>
-      </div>
-    );
-  }
-  
-  // Error State
-  if (error && !summary) {
-    return (
-      <div className="min-h-screen flex flex-col justify-center items-center bg-gradient-to-br from-gray-900 to-gray-800 dark:from-gray-900 dark:to-gray-800 p-4">
-        <motion.div 
-          initial={{ scale: 0 }}
-          animate={{ scale: 1 }}
-          transition={{ type: "spring", stiffness: 260, damping: 20 }}
-          className="text-red-500 dark:text-red-400 mb-4"
-        >
-          <AlertCircle size={48} />
-        </motion.div>
-        <h1 className="text-2xl font-bold text-white dark:text-white mb-2">Unable to Load Dashboard</h1>
-        <p className="text-gray-300 dark:text-gray-300 mb-6 text-center max-w-md">{error}</p>
-        <motion.button 
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
-          onClick={refreshData}
-          className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
-        >
-          Retry
-        </motion.button>
-      </div>
-    );
-  }
-  
+  // ---------------------------------------------------------------------------
+  // Render
+  // ---------------------------------------------------------------------------
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 to-blue-900 text-white transition-colors duration-200">
+    <div className="min-h-screen bg-gradient-to-br from-gray-950 to-slate-900 text-white">
       <Head>
-        <title>NestEgg | Financial Dashboard</title>
-        <meta name="description" content="Your personal financial dashboard" />
-        <link rel="icon" href="/favicon.ico" />
+        <title>NestEgg | Portfolio</title>
+        <meta name="description" content="Your financial command center" />
       </Head>
 
       <main className="container mx-auto px-4 py-8">
-        {/* Welcome Banner */}
-        <AnimatePresence>
-          {showWelcomeBanner && (
-            <motion.div 
-              initial={{ opacity: 0, y: -20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-              className="relative bg-gradient-to-r from-indigo-500 to-blue-600 rounded-2xl p-0.5 mb-6 shadow-2xl"
+        {/* Header */}
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight">Portfolio</h1>
+            <div className="flex items-center gap-2 text-sm text-gray-400">
+              <span>Last updated: {lastFetched ? new Date(lastFetched).toLocaleString() : '—'}</span>
+              {isStale && <span className="inline-flex items-center px-2 py-0.5 rounded-lg bg-amber-500/10 text-amber-300 border border-amber-500/20">Data may be stale</span>}
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <div className="hidden sm:block"><TimeframeSelector selected={timeframe} onChange={setTimeframe} /></div>
+            <button
+              aria-label="Refresh"
+              onClick={refreshData}
+              className={`inline-flex items-center gap-2 rounded-xl px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 transition ${isLoading ? 'opacity-70 cursor-not-allowed' : ''}`}
+              disabled={isLoading}
             >
-              <div className="bg-gray-900 rounded-2xl p-4 md:p-5 relative overflow-hidden">
-                {/* Animated background pattern */}
-                <div className="absolute inset-0 opacity-10">
-                  <div className="absolute inset-0 bg-gradient-to-r from-blue-500/20 via-purple-500/20 to-blue-500/20"></div>
+              <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
+              <span>{isLoading ? 'Refreshing…' : 'Refresh'}</span>
+            </button>
+          </div>
+        </div>
+
+        {/* KPI Row */}
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 mb-6">
+          <KPI label="Net Worth" value={formatCurrency(netWorth)} delta={<Delta value={periodChanges?.['1d']?.netWorthPercent} className="mt-1" />} icon={<DollarSign className="h-5 w-5" />} />
+          <KPI label="Total Assets" value={formatCurrency(totalAssets)} delta={<span className="text-xs text-gray-400 mt-1 block">{formatCurrency(liquidAssets)} liquid</span>} icon={<Wallet className="h-5 w-5" />} />
+          <KPI label="Unrealized Gain" value={formatCurrency(unrealizedGain)} delta={<Delta value={unrealizedGainPct} className="mt-1" />} icon={<TrendingUp className="h-5 w-5" />} />
+          <KPI label="Annual Income" value={formatCurrency(annualIncome)} delta={<span className="text-xs text-amber-300 mt-1 block">{formatPct((yieldPct || 0) * 100)} yield</span>} icon={<Gift className="h-5 w-5" />} />
+        </div>
+
+        {/* Performance Over Time KPIs (rail) */}
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-8">
+          {[
+            { id: '1d', label: '1 Day' },
+            { id: '1w', label: '1 Week' },
+            { id: '1m', label: '1 Month' },
+            { id: 'ytd', label: 'YTD' },
+            { id: '1y', label: '1 Year' },
+          ].map(({ id, label }) => {
+            const p = periodChanges?.[id] || {};
+            const mini = id === '1d' ? chartData.slice(-2) : (id === 'ytd' ? chartData : (() => {
+              const map = { '1w': '1w', '1m': '1m', '3m': '3m', '6m': '6m', '1y': '1y' };
+              const tf = map[id] || '1m';
+              const mapDays = { '1w': 7, '1m': 30, '3m': 90, '6m': 180, '1y': 365 };
+              return chartData.slice(-(mapDays[tf] || 30));
+            })());
+            return (
+              <motion.div key={id} whileHover={{ y: -2 }} className="bg-gray-900/70 border border-gray-800 rounded-2xl p-3 flex items-center justify-between">
+                <div>
+                  <p className="text-xs text-gray-400">{label}</p>
+                  <p className="text-sm font-semibold">{formatCurrency(p?.netWorth || 0)}</p>
+                  <Delta value={p?.netWorthPercent} />
                 </div>
-                
-                {/* Close button in top right */}
-                <button 
-                  onClick={() => setShowWelcomeBanner(false)}
-                  className="absolute top-3 right-3 z-10 p-1.5 bg-gray-800/80 rounded-lg text-gray-400 hover:text-white hover:bg-gray-700/80 transition-all duration-200"
-                >
-                  <X size={16} />
+                <Sparkline data={mini} dataKey="value" />
+              </motion.div>
+            );
+          })}
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+          {/* LEFT: Charts & Deep Metrics */}
+          <div className="lg:col-span-8 space-y-6">
+            <Section title="Trended Net Worth" icon={<BarChart3 className="h-5 w-5 text-indigo-300" />} right={<span className="text-sm text-gray-400">{timeframe.toUpperCase()}</span>}>
+              <div className="h-72">
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={slicedChart} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+                    <defs>
+                      <linearGradient id="nw" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#4f46e5" stopOpacity={0.35} />
+                        <stop offset="95%" stopColor="#4f46e5" stopOpacity={0} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid vertical={false} stroke="#1f2937" />
+                    <XAxis dataKey="date" tick={{ fill: '#9ca3af' }} axisLine={false} tickLine={false} />
+                    <YAxis tick={{ fill: '#9ca3af' }} axisLine={false} tickLine={false} tickFormatter={axisMoney} />
+                    <Tooltip content={<NetWorthTooltip />} />
+                    <Area type="monotone" dataKey="value" stroke="#6366f1" strokeWidth={2} fill="url(#nw)" activeDot={{ r: 5 }} />
+                    <ReferenceLine y={slicedChart?.[0]?.value || 0} stroke="#334155" strokeDasharray="3 3" />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </div>
+            </Section>
+
+            <Section title="Net Worth Components" icon={<Layers className="h-5 w-5 text-indigo-300" />}
+              right={<LegendDots items={[['#3b82f6', 'Liquid'], ['#10b981', 'Retirement'], ['#8b5cf6', 'Illiquid']]} />}>
+              <div className="h-80">
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={slicedChart} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+                    <CartesianGrid vertical={false} stroke="#1f2937" />
+                    <XAxis dataKey="date" tick={{ fill: '#9ca3af' }} axisLine={false} tickLine={false} />
+                    <YAxis tick={{ fill: '#9ca3af' }} axisLine={false} tickLine={false} tickFormatter={axisMoney} />
+                    <Tooltip content={<ComponentsTooltip />} />
+                    <Line type="monotone" dataKey="altLiquidNetWorth" stroke="#3b82f6" strokeWidth={2} dot={false} />
+                    <Line type="monotone" dataKey="altRetirementAssets" stroke="#10b981" strokeWidth={2} dot={false} />
+                    <Line type="monotone" dataKey="altIlliquidNetWorth" stroke="#8b5cf6" strokeWidth={2} dot={false} />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+            </Section>
+
+            {/* Asset Value vs Cost Basis */}
+            <Section title="Asset Value & Cost Basis" icon={<BarChart3 className="h-5 w-5 text-indigo-300" />}>
+              <div className="h-72">
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={slicedChart} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+                    <defs>
+                      <linearGradient id="av" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#4f46e5" stopOpacity={0.3} />
+                        <stop offset="95%" stopColor="#4f46e5" stopOpacity={0} />
+                      </linearGradient>
+                      <linearGradient id="cb" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#10b981" stopOpacity={0.3} />
+                        <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid vertical={false} stroke="#1f2937" />
+                    <XAxis dataKey="date" tick={{ fill: '#9ca3af' }} axisLine={false} tickLine={false} />
+                    <YAxis tick={{ fill: '#9ca3af' }} axisLine={false} tickLine={false} tickFormatter={axisMoney} />
+                    <Tooltip content={({ active, payload, label }) => {
+                      if (!active || !payload?.length) return null;
+                      const assetValue = payload.find((p) => p.dataKey === 'totalAssets')?.value || 0;
+                      const costBasis = payload.find((p) => p.dataKey === 'costBasis')?.value || 0;
+                      const unrealized = assetValue - costBasis;
+                      const pct = costBasis > 0 ? (unrealized / costBasis) * 100 : 0;
+                      return (
+                        <div className="bg-gray-900 border border-gray-800 rounded-lg p-3 text-sm">
+                          <p className="font-medium mb-1">{label}</p>
+                          <p className="text-indigo-300">Asset Value: {formatCurrency(assetValue)}</p>
+                          <p className="text-emerald-300">Cost Basis: {formatCurrency(costBasis)}</p>
+                          <p className={`${unrealized >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>Unrealized: {formatCurrency(unrealized)} ({formatPct(pct)})</p>
+                        </div>
+                      );
+                    }} />
+                    <Area type="monotone" dataKey="totalAssets" stroke="#6366f1" strokeWidth={2} fill="url(#av)" />
+                    <Area type="monotone" dataKey="costBasis" stroke="#10b981" strokeWidth={2} fill="url(#cb)" strokeDasharray="5 5" />
+                    <ReferenceLine y={slicedChart?.[0]?.totalAssets || 0} stroke="#334155" strokeDasharray="3 3" />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </div>
+              <div className="mt-4 grid grid-cols-3 gap-4">
+                <div className="text-center"><p className="text-xs text-gray-400">Current Assets</p><p className="text-lg font-semibold">{formatCurrency(totalAssets)}</p></div>
+                <div className="text-center"><p className="text-xs text-gray-400">Total Cost Basis</p><p className="text-lg font-semibold">{formatCurrency(summary?.totalCostBasis || 0)}</p></div>
+                <div className="text-center"><p className="text-xs text-gray-400">Unrealized Gain</p><p className={`text-lg font-semibold ${unrealizedGain >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>{formatCurrency(unrealizedGain)} <span className="text-xs">({formatPct((unrealizedGainPct || 0) * 100)})</span></p></div>
+              </div>
+            </Section>
+
+            {/* Asset Allocation cards */}
+            <Section title="Asset Allocation" icon={<PieChartIcon className="h-5 w-5 text-indigo-300" />}>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                <AssetClassCard
+                  type="security"
+                  data={{ ...summary?.assetAllocation?.securities, name: 'Securities', ...assetPerformance?.security }}
+                  icon={<BarChart3 className="h-5 w-5 text-blue-400" />}
+                />
+                <AssetClassCard type="cash" data={{ ...summary?.assetAllocation?.cash, name: 'Cash' }} icon={<Banknote className="h-5 w-5 text-emerald-400" />} />
+                <AssetClassCard type="crypto" data={{ ...summary?.assetAllocation?.crypto, name: 'Crypto', ...assetPerformance?.crypto }} icon={<Coins className="h-5 w-5 text-purple-400" />} />
+                <AssetClassCard type="metal" data={{ ...summary?.assetAllocation?.metals, name: 'Metals', ...assetPerformance?.metal }} icon={<Package className="h-5 w-5 text-amber-400" />} />
+                <AssetClassCard type="other" data={{ ...summary?.assetAllocation?.otherAssets, name: 'Other Assets', ...assetPerformance?.other_assets }} icon={<Home className="h-5 w-5 text-slate-300" />} />
+                {(summary?.liabilities?.total || 0) > 0 && (
+                  <AssetClassCard type="liability" data={{ value: summary?.liabilities?.total, count: summary?.liabilities?.counts?.total, name: 'Total Liabilities' }} icon={<MinusCircle className="h-5 w-5 text-rose-400" />} />
+                )}
+              </div>
+            </Section>
+
+            {/* Portfolio Insights */}
+            {(riskMetrics || concentrationMetrics || summary?.positionStats) && (
+              <Section title="Portfolio Insights" icon={<Shield className="h-5 w-5 text-indigo-300" />}>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="p-4 rounded-xl bg-gray-900/70 border border-gray-800">
+                    <div className="flex items-center gap-2 mb-2"><Gauge className="h-4 w-4 text-yellow-400" /><span className="text-sm font-medium">Concentration</span></div>
+                    <div className="space-y-1 text-sm">
+                      <Row label="Top 5 Positions" value={formatPct(((concentrationMetrics?.top_5_concentration) || 0) * 100)} />
+                      <Row label="Largest Position" value={formatPct(((concentrationMetrics?.largest_position_weight) || 0) * 100)} />
+                    </div>
+                  </div>
+                  <div className="p-4 rounded-xl bg-gray-900/70 border border-gray-800">
+                    <div className="flex items-center gap-2 mb-2"><Activity className="h-4 w-4 text-indigo-400" /><span className="text-sm font-medium">Risk</span></div>
+                    <div className="space-y-1 text-sm">
+                      <Row label="Portfolio Beta" value={(riskMetrics?.portfolio_beta ?? 1).toFixed(2)} />
+                      <Row label="Est. Volatility" value={formatPct(((riskMetrics?.volatility_estimate) || 0) * 100)} />
+                      {typeof riskMetrics?.liquidity_ratio === 'number' && <Row label="Liquidity Ratio" value={formatPct(((riskMetrics?.liquidity_ratio) || 0) * 100)} />}
+                    </div>
+                  </div>
+                  {summary?.positionStats && (
+                    <div className="p-4 rounded-xl bg-gray-900/70 border border-gray-800 md:col-span-2">
+                      <div className="flex items-center gap-2 mb-2"><Layers className="h-4 w-4 text-indigo-400" /><span className="text-sm font-medium">Positions & Accounts</span></div>
+                      <div className="grid grid-cols-2 gap-4 text-sm">
+                        <Row label="Total Positions" value={`${summary?.positionStats?.totalCount ?? '—'}`} />
+                        <Row label="Active Accounts" value={`${summary?.positionStats?.activeAccountCount ?? '—'}`} />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </Section>
+            )}
+
+            {/* Income / Dividends */}
+            {(dividendMetrics && annualIncome > 0) && (
+              <Section title="Income Analysis" icon={<Gift className="h-5 w-5 text-amber-300" />}>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                  <Row label="Annual Income" value={formatCurrency(annualIncome)} />
+                  <Row label="Quarterly Income" value={formatCurrency(dividendMetrics?.quarterly_income || 0)} />
+                  <Row label="Dividend Yield" value={formatPct((yieldPct || 0) * 100)} />
+                  <Row label="Income Positions" value={`${dividendMetrics?.dividend_count ?? 0}`} />
+                </div>
+              </Section>
+            )}
+          </div>
+
+          {/* RIGHT: Mix, Tables & Lists */}
+          <div className="lg:col-span-4 space-y-6">
+            {/* NET WORTH MIX with donut + table */}
+            <Section
+              title="Net Worth Mix"
+              icon={<PieChartIcon className="h-5 w-5 text-indigo-300" />}
+              right={
+                <button onClick={() => setShowInThousands((s) => !s)} className="text-xs px-2 py-1 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-300">
+                  {showInThousands ? 'Show $' : 'Show k'}
                 </button>
-                
-                <div className="relative z-10">
-                  <div className="flex items-center space-x-3 mb-3">
-                    <motion.div
-                      animate={{ rotate: [0, 10, -10, 0] }}
-                      transition={{ duration: 4, repeat: Infinity }}
-                      className="p-2 bg-gradient-to-br from-blue-400 to-indigo-600 rounded-xl shadow-lg"
-                    >
-                      <Sparkles className="w-5 h-5 text-white" />
-                    </motion.div>
-                    <div className="pr-8">
-                      <h1 className="text-lg md:text-xl font-bold text-white">
-                       Welcome to NestEgg - Your Financial Command Center 🚀
-                     </h1>
-                     <p className="text-gray-400 text-sm mt-0.5">
-                       Track net worth, analyze performance, and optimize your portfolio.
-                     </p>
-                   </div>
-                 </div>
-                 
-                 <div className="grid grid-cols-5 gap-2">
-                   <motion.button 
-                     whileHover={{ y: -2, scale: 1.05 }}
-                     whileTap={{ scale: 0.95 }}
-                     className="group relative bg-gray-800/50 hover:bg-gray-700/70 rounded-xl p-3 transition-all duration-200 border border-gray-700 hover:border-blue-500 overflow-hidden"
-                     onClick={() => router.push('/positions')}
-                   >
-                     <div className="absolute inset-0 bg-gradient-to-br from-blue-500/0 to-blue-500/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
-                     <div className="relative z-10">
-                       <TrendingUp className="w-4 h-4 text-blue-400 mb-1.5 mx-auto" />
-                       <div className="text-white font-medium text-sm">Positions</div>
-                       <div className="text-gray-400 text-xs">View holdings</div>
-                     </div>
-                   </motion.button>
-                   
-                   <motion.button 
-                     whileHover={{ y: -2, scale: 1.05 }}
-                     whileTap={{ scale: 0.95 }}
-                     className="group relative bg-gray-800/50 hover:bg-gray-700/70 rounded-xl p-3 transition-all duration-200 border border-gray-700 hover:border-green-500 overflow-hidden"
-                     onClick={() => router.push('/accounts')}
-                   >
-                     <div className="absolute inset-0 bg-gradient-to-br from-green-500/0 to-green-500/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
-                     <div className="relative z-10">
-                       <Wallet className="w-4 h-4 text-green-400 mb-1.5 mx-auto" />
-                       <div className="text-white font-medium text-sm">Accounts</div>
-                       <div className="text-gray-400 text-xs">Manage funds</div>
-                     </div>
-                   </motion.button>
-                   
-                   <motion.button 
-                     whileHover={{ y: -2, scale: 1.05 }}
-                     whileTap={{ scale: 0.95 }}
-                     className="group relative bg-gray-800/50 hover:bg-gray-700/70 rounded-xl p-3 transition-all duration-200 border border-gray-700 hover:border-purple-500 overflow-hidden"
-                     onClick={() => router.push('/portfolio-command-center')}
-                   >
-                     <div className="absolute inset-0 bg-gradient-to-br from-purple-500/0 to-purple-500/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
-                     <div className="relative z-10">
-                       <BarChart3 className="w-4 h-4 text-purple-400 mb-1.5 mx-auto" />
-                       <div className="text-white font-medium text-sm">Analytics</div>
-                       <div className="text-gray-400 text-xs">Deep insights</div>
-                     </div>
-                   </motion.button>
-                   
-                   <motion.button 
-                     whileHover={{ y: -2, scale: 1.05 }}
-                     whileTap={{ scale: 0.95 }}
-                     className="group relative bg-gray-800/50 hover:bg-gray-700/70 rounded-xl p-3 transition-all duration-200 border border-gray-700 hover:border-orange-500 overflow-hidden"
-                     onClick={() => router.push('/reports')}
-                   >
-                     <div className="absolute inset-0 bg-gradient-to-br from-orange-500/0 to-orange-500/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
-                     <div className="relative z-10">
-                       <FileText className="w-4 h-4 text-orange-400 mb-1.5 mx-auto" />
-                       <div className="text-white font-medium text-sm">Reports</div>
-                       <div className="text-gray-400 text-xs">Performance</div>
-                     </div>
-                   </motion.button>
+              }>
+              <div className="h-56">
+                <ResponsiveContainer width="100%" height="100%">
+                  <RechartsPieChart>
+                    <Pie data={netWorthMixData} cx="50%" cy="50%" innerRadius={56} outerRadius={82} paddingAngle={3} dataKey="value">
+                      {netWorthMixData.map((e, i) => (<Cell key={i} fill={e.color} stroke="none" />))}
+                    </Pie>
+                    <Tooltip content={<AllocationTooltip />} />
+                  </RechartsPieChart>
+                </ResponsiveContainer>
+              </div>
 
-                   <motion.button 
-                     whileHover={{ y: -2, scale: 1.05 }}
-                     whileTap={{ scale: 0.95 }}
-                     className="group relative bg-gray-800/50 hover:bg-gray-700/70 rounded-xl p-3 transition-all duration-200 border border-gray-700 hover:border-pink-500 overflow-hidden"
-                     onClick={() => router.push('/overview')}
-                   >
-                     <div className="absolute inset-0 bg-gradient-to-br from-pink-500/0 to-pink-500/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
-                     <div className="relative z-10">
-                       <MessageCircle className="w-4 h-4 text-pink-400 mb-1.5 mx-auto" />
-                       <div className="text-white font-medium text-sm">Overview</div>
-                       <div className="text-gray-400 text-xs">How it works</div>
-                     </div>
-                   </motion.button>
-                 </div>
-                 
-                 {/* Animated dots indicator */}
-                 <div className="mt-3 flex justify-center">
-                   <div className="flex space-x-1">
-                     {[0, 1, 2, 3, 4].map((i) => (
-                       <motion.div
-                         key={i}
-                         animate={{ opacity: [0.3, 1, 0.3] }}
-                         transition={{ duration: 2, delay: i * 0.2, repeat: Infinity }}
-                         className="w-1 h-1 bg-gray-600 rounded-full"
-                       />
-                     ))}
-                   </div>
-                 </div>
-               </div>
-             </div>
-           </motion.div>
-         )}
-       </AnimatePresence>
+              {/* Table */}
+              <div className="mt-4">
+                <div className="grid grid-cols-12 gap-2 px-2 py-2 text-[11px] font-medium text-gray-400 border-b border-gray-800">
+                  <div className="col-span-4">Category</div>
+                  <div className="col-span-2 text-right">% NW</div>
+                  <div className="col-span-2 text-right">Net</div>
+                  <div className="col-span-2 text-right">Assets</div>
+                  <div className="col-span-2 text-right">Liabilities</div>
+                </div>
+                {netWorthMixData.map((row, i) => {
+                  const d = computeMixBreakdown(summary, row.key);
+                  return (
+                    <div key={i} className="grid grid-cols-12 gap-2 px-2 py-2 rounded hover:bg-gray-800/40">
+                      <div className="col-span-4 flex items-center gap-2"><span className="inline-block w-2.5 h-2.5 rounded-full" style={{ background: row.color }} /> <span className="text-sm text-gray-200">{row.name}</span></div>
+                      <div className="col-span-2 text-right text-indigo-300 text-sm">{row.pct.toFixed(1)}%</div>
+                      <div className="col-span-2 text-right text-white text-sm">{formatCurrency(row.value, showInThousands)}</div>
+                      <div className="col-span-2 text-right text-emerald-300 text-sm">{formatCurrency(d?.assets || 0, showInThousands)}</div>
+                      <div className="col-span-2 text-right text-rose-300 text-sm">{formatCurrency(d?.liabilities || 0, showInThousands)}</div>
+                    </div>
+                  );
+                })}
+                <div className="border-t border-gray-800 mt-2 pt-2 grid grid-cols-12 gap-2 px-2 text-sm">
+                  <div className="col-span-4 font-semibold">Total</div>
+                  <div className="col-span-2 text-right text-indigo-300">100%</div>
+                  <div className="col-span-2 text-right text-white">{formatCurrency(netWorth, showInThousands)}</div>
+                  <div className="col-span-2 text-right text-emerald-300">{formatCurrency(totalAssets, showInThousands)}</div>
+                  <div className="col-span-2 text-right text-rose-300">{formatCurrency(totalLiabilities, showInThousands)}</div>
+                </div>
+              </div>
+            </Section>
 
-       {/* Portfolio Summary */}
-       <div className="mb-8">
-         <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6">
-           <div>
-             <h2 className="text-3xl font-bold text-white mb-1">Portfolio Overview</h2>
-             <p className="text-gray-400">
-               Last updated: {lastFetched ? new Date(lastFetched).toLocaleString() : 'Not available'}
-             </p>
-           </div>
-           <div className="flex space-x-4 items-center mt-4 md:mt-0">
-             <motion.button
-               whileHover={{ scale: 1.05 }}
-               whileTap={{ scale: 0.95 }}
-               onClick={refreshData}
-               disabled={isLoading}
-               className={`px-4 py-2 bg-indigo-600 text-white rounded-lg transition-all flex items-center space-x-2 ${
-                 isLoading ? 'opacity-50 cursor-not-allowed' : 'hover:bg-indigo-700'
-               }`}
-             >
-               <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
-               <span>{isLoading ? 'Refreshing...' : 'Refresh'}</span>
-             </motion.button>
-             <TimeframeSelector
-               options={timeframeOptions}
-               selected={selectedTimeframe}
-               onChange={setSelectedTimeframe}
-             />
-           </div>
-         </div>
+            {/* INVESTED AMOUNT with hover spark + fullscreen modal */}
+            <Section title="Invested Amount" icon={<BarChart3 className="h-5 w-5 text-indigo-300" />}>
+              <div className="grid grid-cols-12 text-xs text-gray-400 px-2 pb-2">
+                <div className="col-span-4">Asset Class</div>
+                <div className="col-span-3 text-right">Market</div>
+                <div className="col-span-3 text-right">Cost</div>
+                <div className="col-span-2 text-right">P/L</div>
+              </div>
+              {[
+                {
+                  key: 'securities', label: 'Securities', color: '#4f46e5',
+                  market: summary?.assetAllocation?.securities?.value,
+                  cost: summary?.assetAllocation?.securities?.costBasis,
+                  gain: summary?.assetAllocation?.securities?.gainLoss,
+                  gainPct: summary?.assetAllocation?.securities?.gainLossPercent
+                },
+                {
+                  key: 'cash', label: 'Cash', color: '#10b981',
+                  market: summary?.assetAllocation?.cash?.value,
+                  cost: summary?.assetAllocation?.cash?.costBasis
+                },
+                {
+                  key: 'crypto', label: 'Crypto', color: '#8b5cf6',
+                  market: summary?.assetAllocation?.crypto?.value,
+                  cost: summary?.assetAllocation?.crypto?.costBasis,
+                  gain: summary?.assetAllocation?.crypto?.gainLoss,
+                  gainPct: summary?.assetAllocation?.crypto?.gainLossPercent
+                },
+                {
+                  key: 'metals', label: 'Metals', color: '#f59e0b',
+                  market: summary?.assetAllocation?.metals?.value,
+                  cost: summary?.assetAllocation?.metals?.costBasis,
+                  gain: summary?.assetAllocation?.metals?.gainLoss,
+                  gainPct: summary?.assetAllocation?.metals?.gainLossPercent
+                },
+                {
+                  key: 'otherAssets', label: 'Other Assets', color: '#6b7280',
+                  market: summary?.assetAllocation?.otherAssets?.value,
+                  cost: summary?.assetAllocation?.otherAssets?.costBasis,
+                  gain: summary?.assetAllocation?.otherAssets?.gainLoss,
+                  gainPct: summary?.assetAllocation?.otherAssets?.gainLossPercent
+                },
+              ].map((r) => (
+                <InvestedRow
+                  key={r.key}
+                  {...r}
+                  showInThousands={showInThousands}
+                  sparkData={byClassTS[r.key] || null}
+                  onClick={() => { if (byClassTS[r.key]) { setModalAssetKey(r.key); setModalOpen(true); } }}
+                />
+              ))}
+              <div className="border-t border-gray-800 mt-2 pt-2 grid grid-cols-12 px-2 text-sm">
+                <div className="col-span-4 font-semibold">Total</div>
+                <div className="col-span-3 text-right text-indigo-300">{formatCurrency(summary?.totalAssets || 0, showInThousands)}</div>
+                <div className="col-span-3 text-right text-gray-300">{formatCurrency(summary?.totalCostBasis || 0, showInThousands)}</div>
+                <div className="col-span-2 text-right">
+                  <span className={`${(summary?.unrealizedGain || 0) >= 0 ? 'text-emerald-400' : 'text-rose-400'} font-medium`}>
+                    {formatCurrency(summary?.unrealizedGain || 0, showInThousands)} <span className="text-xs">({((summary?.unrealizedGainPercent || 0) * 100).toFixed(1)}%)</span>
+                  </span>
+                </div>
+              </div>
+              <p className="text-[11px] text-gray-500 mt-2">Tip: hover a row for a sparkline • click rows with <Expand className="inline h-3 w-3 mx-1" /> to open full-screen.</p>
+            </Section>
 
-         {/* Dashboard Content */}
-         <DashboardContent />
-       </div>
+            {/* Net Worth Breakdown */}
+            <div className="lg:col-span-4 space-y-6">
+              <NetWorthWidget
+                assets={totalAssets}
+                liabilities={totalLiabilities}
+                netWorth={netWorth}
+                showInThousands={showInThousands}
+              />
 
-       {/* Quick Actions Footer */}
-       <div className="mt-8 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-         <motion.button 
-           whileHover={{ scale: 1.02, y: -2 }}
-           whileTap={{ scale: 0.98 }}
-           onClick={() => router.push('/accounts')}
-           className="flex items-center justify-center space-x-2 p-4 bg-gradient-to-r from-indigo-500 to-blue-500 text-white rounded-xl hover:from-indigo-600 hover:to-blue-600 transition-all shadow-md hover:shadow-lg"
-         >
-           <Briefcase className="h-5 w-5" />
-           <span>Manage Accounts</span>
-         </motion.button>
-         
-         <motion.button 
-           whileHover={{ scale: 1.02, y: -2 }}
-           whileTap={{ scale: 0.98 }}
-           onClick={() => router.push('/positions')}  
-           className="flex items-center justify-center space-x-2 p-4 bg-gradient-to-r from-emerald-500 to-teal-500 text-white rounded-xl hover:from-emerald-600 hover:to-teal-600 transition-all shadow-md hover:shadow-lg"
-         >
-           <DollarSign className="h-5 w-5" />
-           <span>View Positions</span> 
-         </motion.button>
-         
-         <motion.button 
-           whileHover={{ scale: 1.02, y: -2 }}
-           whileTap={{ scale: 0.98 }}
-           onClick={() => router.push('/reports')}
-           className="flex items-center justify-center space-x-2 p-4 bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-xl hover:from-amber-600 hover:to-orange-600 transition-all shadow-md hover:shadow-lg"
-         >
-           <BarChart2 className="h-5 w-5" />
-           <span>View Reports</span>
-         </motion.button>
-         
-         <motion.button 
-           whileHover={{ scale: 1.02, y: -2 }}
-           whileTap={{ scale: 0.98 }}
-           onClick={() => router.push('/settings')}
-           className="flex items-center justify-center space-x-2 p-4 bg-gradient-to-r from-gray-500 to-gray-600 text-white rounded-xl hover:from-gray-600 hover:to-gray-700 transition-all shadow-md hover:shadow-lg"
-         >
-           <Settings className="h-5 w-5" />
-           <span>Settings</span>
-         </motion.button>
-       </div>
+            {/* Liquidity Analysis */}
+            {liquidAssets > 0 && (
+              <Section title="Liquidity Analysis" icon={<Droplet className="h-5 w-5 text-blue-300" />}>
+                <div className="mb-3 p-3 bg-gray-900/60 rounded-lg border border-gray-800 flex items-center justify-between">
+                  <span className="text-sm text-gray-300">Total Assets</span>
+                  <span className="text-lg font-semibold">{formatCurrency(totalAssets)}</span>
+                </div>
+                <div className="space-y-3">
+                  <Bar label="Liquid Assets" value={liquidAssets} total={totalAssets} color="#3b82f6" />
+                  {otherAssets > 0 && <Bar label="Illiquid Assets" value={otherAssets} total={totalAssets} color="#6b7280" />}
+                  <div className="pt-2 mt-2 border-t border-gray-800 text-xs text-gray-400">
+                    {formatPct(((riskMetrics?.liquidity_ratio ?? (totalAssets ? (liquidAssets / totalAssets) : 0)) * 100))} of assets are liquid
+                  </div>
+                </div>
+              </Section>
+            )}
+
+            {/* Top Positions */}
+            <Section title="Top Individual Positions" icon={<BarChart3 className="h-5 w-5 text-rose-300" />}>
+              <div className="space-y-2">
+                {topPositionsData?.length ? topPositionsData.map((p, i) => (
+                  <motion.div key={i} whileHover={{ x: 2 }} className="flex items-center justify-between px-2 py-2 rounded-lg hover:bg-gray-800/60">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ background: assetColors[p.assetType] || assetColors.other }} />
+                      <div className="min-w-0">
+                        <p className="text-sm text-gray-200 truncate">{p.name}</p>
+                        <p className="text-xs text-gray-500">{p.accountName}</p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-sm font-medium">{formatCurrency(p.value)}</p>
+                      <p className={`text-xs ${p.gainLossPercent >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>{formatPct(p.gainLossPercent * 100)}</p>
+                    </div>
+                  </motion.div>
+                )) : <p className="text-sm text-gray-400">No position data.</p>}
+              </div>
+            </Section>
+
+            {/* Top Institutions */}
+            <Section title="Top Institutions" icon={<Building2 className="h-5 w-5 text-indigo-300" />}>
+              <div className="space-y-2">
+                {institutionMixData?.length ? institutionMixData.map((inst, i) => (
+                  <motion.div key={i} whileHover={{ x: 2 }} className="flex items-center justify-between px-2 py-2 rounded-lg hover:bg-gray-800/60">
+                    <div className="flex items-center gap-3">
+                      <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ background: inst.color }} />
+                      <div>
+                        <p className="text-sm text-gray-200">{inst.name}</p>
+                        <p className="text-xs text-gray-500">{inst.accountCount} acct • {inst.positionCount} pos</p>
+                      </div>
+                    </div>
+                    <span className="text-sm font-medium">{formatPct(inst.percentage * 100)}</span>
+                  </motion.div>
+                )) : <p className="text-sm text-gray-400">No institution data.</p>}
+              </div>
+            </Section>
+
+            {/* Personal Cash Flow Peek */}
+            {netCashBasisMetrics && (
+              <Section
+                title="Personal Cash Flow"
+                icon={<Activity className="h-5 w-5 text-emerald-300" />}
+                right={
+                  <div className="flex items-center gap-2">
+                    <button className="text-xs px-2 py-1 rounded-lg bg-gray-800 text-gray-300 cursor-default">
+                      Net: {formatCurrency(netCashBasisMetrics.net_cash_position)}
+                    </button>
+                    <button onClick={() => setCashflowOpen(true)} className="text-xs px-2 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-700 flex items-center gap-1">
+                      <Expand className="h-3.5 w-3.5" /> Open
+                    </button>
+                  </div>
+                }
+              >
+                <div className="grid grid-cols-3 gap-3">
+                  {[
+                    ['Day', netCashBasisMetrics?.cash_flow_1d, netCashBasisMetrics?.cash_flow_1d_pct],
+                    ['Week', netCashBasisMetrics?.cash_flow_1w, netCashBasisMetrics?.cash_flow_1w_pct],
+                    ['Month', netCashBasisMetrics?.cash_flow_1m, netCashBasisMetrics?.cash_flow_1m_pct],
+                  ].map(([label, flow, pct]) => (
+                    <div key={label} className="bg-gray-900/70 border border-gray-800 rounded-xl p-3 text-center">
+                      <p className="text-xs text-gray-400">{label}</p>
+                      <p className={`text-sm font-semibold ${flow > 0 ? 'text-emerald-400' : flow < 0 ? 'text-rose-400' : 'text-gray-300'}`}>{formatCurrency(flow || 0)}</p>
+                      <p className={`text-[11px] ${pct > 0 ? 'text-emerald-400' : pct < 0 ? 'text-rose-400' : 'text-gray-500'}`}>{pct ? formatPct((pct || 0) * 100) : '—'}</p>
+                    </div>
+                  ))}
+                </div>
+                <div className="grid grid-cols-3 gap-3 text-center mt-3">
+                  {[
+                    ['YTD', netCashBasisMetrics?.cash_flow_ytd],
+                    ['1 Year', netCashBasisMetrics?.cash_flow_1y],
+                    ['3 Years', netCashBasisMetrics?.cash_flow_3y],
+                  ].map(([label, flow]) => (
+                    <div key={label} className="bg-gray-900/50 border border-gray-800 rounded-xl p-2">
+                      <p className="text-[11px] text-gray-500">{label}</p>
+                      <p className={`text-sm font-medium ${flow > 0 ? 'text-emerald-400' : flow < 0 ? 'text-rose-400' : 'text-gray-300'}`}>{formatCurrency(flow || 0)}</p>
+                    </div>
+                  ))}
+                </div>
+              </Section>
+            )}
+
+            {/* Top Movers */}
+            {(topPerformersAmount?.length || topPerformersPercent?.length) && (
+              <Section title="Top Movers" icon={<BarChart3 className="h-5 w-5 text-indigo-300" />}>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {topPerformersAmount?.length ? (
+                    <div>
+                      <p className="text-sm text-gray-400 mb-2">By Amount</p>
+                      <div className="space-y-2">
+                        {topPerformersAmount.slice(0, 5).map((p, i) => (
+                          <div key={i} className="flex items-center justify-between text-sm px-2 py-1 rounded hover:bg-gray-800/50">
+                            <span className="truncate text-gray-200">{p.name || p.identifier}</span>
+                            <span className={`${(p.delta || 0) >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>{formatCurrency(p.delta)}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}
+                  {topPerformersPercent?.length ? (
+                    <div>
+                      <p className="text-sm text-gray-400 mb-2">By %</p>
+                      <div className="space-y-2">
+                        {topPerformersPercent.slice(0, 5).map((p, i) => (
+                          <div key={i} className="flex items-center justify-between text-sm px-2 py-1 rounded hover:bg-gray-800/50">
+                            <span className="truncate text-gray-200">{p.name || p.identifier}</span>
+                            <span className={`${(p.delta || 0) >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>{formatPct((p.percent || 0) * 100)}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}
+                </div>
+              </Section>
+            )}
+          </div>
+          </div>
+        </div>
+      </main>
+
+      {/* Fullscreen modal: Invested Amount row */}
+      <FullscreenModal
+        open={modalOpen}
+        title={`Performance — ${modalAssetKey || ''}`}
+        onClose={() => { setModalOpen(false); setModalAssetKey(null); }}
+      >
+        {modalAssetKey && byClassTS[modalAssetKey]?.length ? (
+          <div className="h-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={byClassTS[modalAssetKey].map((d) => ({
+                date: new Date(d.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+                value: d.pl ?? d.value ?? 0
+              }))}>
+                <defs>
+                  <linearGradient id="pl" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#4f46e5" stopOpacity={0.35} />
+                    <stop offset="95%" stopColor="#4f46e5" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
+                <XAxis dataKey="date" tick={{ fill: '#9ca3af' }} />
+                <YAxis tick={{ fill: '#9ca3af' }} tickFormatter={axisMoney} />
+                <Tooltip
+                  contentStyle={{ background: '#0b1220', border: '1px solid #1f2937', borderRadius: 8, color: '#e5e7eb' }}
+                  formatter={(v) => [formatCurrency(v), 'P/L']}
+                />
+                <Area type="monotone" dataKey="value" stroke="#6366f1" strokeWidth={2} fill="url(#pl)" />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+        ) : (
+          <div className="h-full grid place-items-center text-gray-400 text-sm">No time-series available for this asset class.</div>
+        )}
+      </FullscreenModal>
+
+      {/* Fullscreen modal: Cash Flow */}
+      <FullscreenModal open={cashflowOpen} title="Personal Cash Flow" onClose={() => setCashflowOpen(false)}>
+        <div className="h-full flex flex-col gap-4">
+          <div className="h-3/4">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={cashFlowTrendData}>
+                <defs>
+                  <linearGradient id="cf" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#10b981" stopOpacity={0.35} />
+                    <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
+                <XAxis dataKey="displayDate" tick={{ fill: '#9ca3af' }} />
+                <YAxis tick={{ fill: '#9ca3af' }} tickFormatter={axisMoney} />
+                <Tooltip
+                  contentStyle={{ background: '#0b1220', border: '1px solid #1f2937', borderRadius: 8, color: '#e5e7eb' }}
+                  formatter={(v) => [formatCurrency(v), 'Net Cash Position']}
+                />
+                <Area type="monotone" dataKey="netCashPosition" stroke="#10b981" strokeWidth={2} fill="url(#cf)" />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+          <div className="grid grid-cols-3 gap-3 text-center">
+            {[
+              ['Day', summary?.netCashBasisMetrics?.cash_flow_1d, summary?.netCashBasisMetrics?.cash_flow_1d_pct],
+              ['Week', summary?.netCashBasisMetrics?.cash_flow_1w, summary?.netCashBasisMetrics?.cash_flow_1w_pct],
+              ['Month', summary?.netCashBasisMetrics?.cash_flow_1m, summary?.netCashBasisMetrics?.cash_flow_1m_pct],
+            ].map(([label, flow, pct]) => (
+              <div key={label} className="bg-gray-900/70 border border-gray-800 rounded-xl p-3">
+                <p className="text-xs text-gray-400">{label}</p>
+                <p className={`text-sm font-semibold ${flow > 0 ? 'text-emerald-400' : flow < 0 ? 'text-rose-400' : 'text-gray-300'}`}>{formatCurrency(flow || 0)}</p>
+                <p className={`text-[11px] ${pct > 0 ? 'text-emerald-400' : pct < 0 ? 'text-rose-400' : 'text-gray-500'}`}>{pct ? formatPct((pct || 0) * 100) : '—'}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </FullscreenModal>
+    </div>
+  );
+}
+
+// -----------------------------------------------------------------------------
+// Reusable bits
+// -----------------------------------------------------------------------------
+function KPI({ label, value, delta, icon }) {
+  return (
+    <div className="bg-gray-900/70 border border-gray-800 rounded-2xl p-4">
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="text-xs text-gray-400">{label}</p>
+          <p className="text-2xl font-bold mt-1">{value}</p>
+          {delta}
+        </div>
+        <div className="p-2 bg-gray-800 rounded-xl text-indigo-300">{icon}</div>
+      </div>
+    </div>
+  );
+}
+
+function LegendDots({ items = [] }) {
+  return (
+    <div className="flex items-center gap-4 text-xs text-gray-400">
+      {items.map(([color, label]) => (
+        <div key={label} className="flex items-center gap-1">
+          <span className="inline-block w-3 h-3 rounded-full" style={{ background: color }} />
+          {label}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function Row({ label, value }) {
+  return (
+    <div className="flex items-center justify-between text-sm">
+      <span className="text-gray-300">{label}</span><span className="text-white">{value}</span>
+    </div>
+  );
+}
+
+function NetWorthWidget({ assets=0, liabilities=0, netWorth=0, showInThousands=false }) {
+  const total = Math.max(assets + Math.max(liabilities, 0), 1); // avoid /0
+  const assetsPct = Math.min((assets / total) * 100, 100);
+  const liabsPct = Math.min((Math.max(liabilities,0) / total) * 100, 100);
+
+  return (
+    <Section title="Net Worth" icon={<DollarSign className="h-5 w-5 text-indigo-300" />}>
+      {/* headline numbers */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="p-4 rounded-xl bg-gray-900/70 border border-gray-800">
+          <p className="text-xs text-gray-400">Total Assets</p>
+          <p className="mt-1 text-xl font-semibold text-emerald-300">{formatCurrency(assets, showInThousands)}</p>
+        </div>
+        <div className="p-4 rounded-xl bg-gray-900/70 border border-gray-800">
+          <p className="text-xs text-gray-400">Total Liabilities</p>
+          <p className="mt-1 text-xl font-semibold text-rose-300">-{formatCurrency(Math.abs(liabilities), showInThousands)}</p>
+        </div>
+        <div className="p-4 rounded-xl bg-gray-900/70 border border-gray-800">
+          <p className="text-xs text-gray-400">Net Worth</p>
+          <p className="mt-1 text-2xl font-bold">{formatCurrency(netWorth, showInThousands)}</p>
+        </div>
+      </div>
+
+      {/* simple stacked bar for visual context */}
+      <div className="mt-4">
+        <div className="flex items-center justify-between text-xs text-gray-400 mb-1">
+          <span>Composition</span>
+          <span>{assetsPct.toFixed(0)}% assets • {liabsPct.toFixed(0)}% liabilities</span>
+        </div>
+        <div className="w-full h-3 rounded-full bg-gray-800 overflow-hidden border border-gray-800">
+          <div className="h-full" style={{ width: `${assetsPct}%`, background: 'linear-gradient(90deg,#10b981,#34d399)' }} />
+          <div className="h-full" style={{ width: `${liabsPct}%`, background: 'linear-gradient(90deg,#f43f5e,#fb7185)', marginTop: '-0.75rem' }} />
+        </div>
+        <div className="mt-2 grid grid-cols-2 gap-3 text-[11px] text-gray-400">
+          <div className="flex items-center gap-2">
+            <span className="inline-block w-2.5 h-2.5 rounded-full" style={{background:'#10b981'}}></span>
+            Assets include cash & investments
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="inline-block w-2.5 h-2.5 rounded-full" style={{background:'#f43f5e'}}></span>
+            Liabilities include loans & cards
+          </div>
+        </div>
+      </div>
+    </Section>
+  );
+}
 
 
-     </main>
-   </div>
- );
+function InvestedRow({ label, color, market = 0, cost = 0, gain = null, gainPct = null, showInThousands, sparkData = null, onClick }) {
+  const hasPL = gain !== null && gainPct !== null && gainPct !== undefined;
+  const up = (gain || 0) >= 0;
+  return (
+    <div
+      className={`group relative grid grid-cols-12 px-2 py-2 rounded-lg hover:bg-gray-800/50 ${sparkData ? 'cursor-pointer' : ''}`}
+      onClick={sparkData ? onClick : undefined}
+    >
+      <div className="col-span-4 flex items-center gap-2">
+        <span className="inline-block w-2.5 h-2.5 rounded-full" style={{ background: color }} />
+        <span className="text-sm text-gray-200">{label}</span>
+      </div>
+      <div className="col-span-3 text-right text-gray-100">{formatCurrency(market || 0, showInThousands)}</div>
+      <div className="col-span-3 text-right text-gray-300">{formatCurrency(cost || 0, showInThousands)}</div>
+      <div className="col-span-2 text-right">
+        {hasPL ? (
+          <span className={`${up ? 'text-emerald-400' : 'text-rose-400'} text-sm font-medium`}>
+            {formatCurrency(gain || 0, showInThousands)} <span className="text-xs">({((gainPct || 0) * 100).toFixed(1)}%)</span>
+          </span>
+        ) : <span className="text-gray-500 text-sm">—</span>}
+      </div>
+
+      {/* hover sparkline */}
+      {sparkData?.length ? (
+        <div className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 pointer-events-none group-hover:opacity-100 transition">
+          <div className="flex items-center gap-1 bg-gray-900 border border-gray-800 rounded-lg p-2">
+            <Sparkline data={sparkData.map(d => ({ date: new Date(d.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }), value: d.pl ?? d.value ?? 0 }))} />
+            <Expand className="h-4 w-4 text-gray-400" />
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function AssetClassCard({ type, data = {}, icon }) {
+  const perf = {
+    '1D': data?.daily?.percent_change || 0,
+    '1W': data?.weekly?.percent_change || 0,
+    '1M': data?.monthly?.percent_change || 0,
+    'YTD': data?.ytd?.percent_change || 0,
+  };
+  const pl = Number(data?.gainLoss) || 0;
+  const plPct = (data?.gainLossPercent || 0) * 100;
+  const count = data?.count ?? undefined;
+
+  return (
+    <motion.div whileHover={{ y: -2 }} className="group relative bg-gray-900/70 border border-gray-800 rounded-2xl p-4">
+      {/* positions hover badge */}
+      {typeof count === 'number' && count > 0 && (
+        <div className="absolute top-3 right-3">
+          <div className="opacity-0 group-hover:opacity-100 transition bg-gray-900 border border-gray-800 rounded-lg px-2 py-1 text-xs text-gray-300">
+            {count} {type === 'liability' ? 'liabilities' : 'positions'}
+          </div>
+        </div>
+      )}
+
+      <div className="flex items-start justify-between">
+        <div className="flex items-center gap-3">
+          <div className="p-2 rounded-xl bg-gray-800">{icon}</div>
+          <div>
+            <h4 className="text-sm font-semibold">{data?.name || '—'}</h4>
+            <p className="text-xs text-gray-400">{type === 'liability' ? 'Outstanding Balance' : 'Market Value'}</p>
+            <p className="text-xl font-bold mt-1">{type === 'liability' ? `-${formatCurrency(Math.abs(data?.value || 0))}` : formatCurrency(data?.value || 0)}</p>
+            {type !== 'cash' && type !== 'liability' && data?.gainLoss !== undefined && (
+              <p className={`text-sm mt-1 ${pl >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                {pl >= 0 ? '+' : ''}{formatCurrency(pl)} <span className="text-xs">({formatPct(plPct, false, 1)})</span>
+              </p>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {type !== 'liability' && (
+        <div className="mt-4 grid grid-cols-4 gap-2">
+          {Object.entries(perf).map(([k, v]) => (
+            <div key={k} className="text-center">
+              <p className="text-[10px] text-gray-500">{k}</p>
+              <span className={`inline-block text-xs px-1.5 py-0.5 rounded ${v > 0 ? 'bg-emerald-500/10 text-emerald-400' : v < 0 ? 'bg-rose-500/10 text-rose-400' : 'bg-gray-700/40 text-gray-400'}`}>
+                {v > 0 ? '+' : ''}{v.toFixed(1)}%
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+    </motion.div>
+  );
+}
+
+// -----------------------------------------------------------------------------
+// Logic: compute Assets/Liabilities breakdown for Mix hover
+// -----------------------------------------------------------------------------
+function computeMixBreakdown(summary, key) {
+  if (!summary) return null;
+  switch (key) {
+    case 'securities':
+      return { assets: summary.assetAllocation.securities.value || 0, liabilities: 0 };
+    case 'netCash':
+      return {
+        assets: summary.assetAllocation.cash.value || 0,
+        liabilities: summary.liabilities.creditCard || 0
+      };
+    case 'crypto':
+      return { assets: summary.assetAllocation.crypto.value || 0, liabilities: 0 };
+    case 'metals':
+      return { assets: summary.assetAllocation.metals.value || 0, liabilities: 0 };
+    case 'realEstate':
+      return {
+        assets: (summary.altNetWorth.realEstate || 0) + (summary.liabilities.mortgage || 0),
+        liabilities: summary.liabilities.mortgage || 0
+      };
+    case 'other': {
+      const otherLiabs = (summary.liabilities.total || 0) - (summary.liabilities.creditCard || 0) - (summary.liabilities.mortgage || 0);
+      const realEstateAssets = (summary.altNetWorth.realEstate || 0) + (summary.liabilities.mortgage || 0);
+      const otherAssetsVal = (summary.assetAllocation.otherAssets.value || 0) - realEstateAssets;
+      return { assets: Math.max(otherAssetsVal, 0), liabilities: Math.max(otherLiabs, 0) };
+    }
+    default:
+      return null;
+  }
 }
