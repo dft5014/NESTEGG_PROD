@@ -5,7 +5,7 @@ import Link from "next/link";
 import { 
   CheckCircle, XCircle, Info, Code, User, Mail, 
   Shield, Clock, ArrowLeft, Sparkles, Key, Database,
-  Loader
+  Loader, Copy, ExternalLink
 } from 'lucide-react';
 
 function DashboardContent() {
@@ -13,6 +13,7 @@ function DashboardContent() {
   const { userId, sessionId, getToken } = useAuth();
   const [token, setToken] = useState(null);
   const [tokenError, setTokenError] = useState(null);
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     const fetchToken = async () => {
@@ -30,6 +31,14 @@ function DashboardContent() {
       fetchToken();
     }
   }, [isSignedIn, getToken]);
+
+  const copyToken = () => {
+    if (token) {
+      navigator.clipboard.writeText(token);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
+  };
 
   if (!isLoaded) {
     return (
@@ -73,11 +82,14 @@ function DashboardContent() {
             <div className="flex items-center space-x-4">
               <Link 
                 href="/signup" 
-                className="px-4 py-2 bg-gray-800 text-white rounded-lg hover:bg-gray-700"
+                className="px-4 py-2 bg-gray-800 text-white rounded-lg hover:bg-gray-700 transition-colors"
               >
                 Regular App →
               </Link>
-              <UserButton afterSignOutUrl="/test-clerk-login" />
+              <UserButton 
+                afterSignOutUrl="/test-clerk-login"
+                signInUrl="/test-clerk-login"
+              />
             </div>
           </div>
         </div>
@@ -110,6 +122,12 @@ function DashboardContent() {
                 <span className="text-gray-400">Username:</span>
                 <span className="text-white">{user?.username || 'Not set'}</span>
               </div>
+              <div className="flex justify-between">
+                <span className="text-gray-400">Verified:</span>
+                <span className="text-white">
+                  {user?.primaryEmailAddress?.verification?.status === 'verified' ? '✓ Yes' : 'No'}
+                </span>
+              </div>
             </div>
           </div>
 
@@ -137,6 +155,12 @@ function DashboardContent() {
                 </span>
               </div>
               <div className="flex justify-between">
+                <span className="text-gray-400">Last Updated:</span>
+                <span className="text-white">
+                  {user?.updatedAt ? new Date(user.updatedAt).toLocaleDateString() : 'N/A'}
+                </span>
+              </div>
+              <div className="flex justify-between">
                 <span className="text-gray-400">MFA Enabled:</span>
                 <span className="text-white">{user?.twoFactorEnabled ? 'Yes' : 'No'}</span>
               </div>
@@ -151,8 +175,19 @@ function DashboardContent() {
             </h2>
             {token ? (
               <div>
-                <div className="bg-gray-950 rounded-lg p-4 font-mono text-xs text-gray-400 break-all">
+                <div className="bg-gray-950 rounded-lg p-4 font-mono text-xs text-gray-400 break-all relative">
                   {token.substring(0, 100)}...
+                  <button
+                    onClick={copyToken}
+                    className="absolute top-2 right-2 p-2 bg-gray-800 hover:bg-gray-700 rounded transition-colors"
+                    title="Copy token"
+                  >
+                    {copied ? (
+                      <Check className="h-4 w-4 text-green-500" />
+                    ) : (
+                      <Copy className="h-4 w-4 text-gray-400" />
+                    )}
+                  </button>
                 </div>
                 <p className="text-sm text-gray-500 mt-2">
                   ✓ This token can be used to authenticate with your backend API
@@ -179,6 +214,7 @@ function DashboardContent() {
                   <li>• Social login providers</li>
                   <li>• Session management</li>
                   <li>• JWT token generation</li>
+                  <li>• Email verification</li>
                 </ul>
               </div>
               <div className="space-y-2">
@@ -188,7 +224,39 @@ function DashboardContent() {
                   <li>• Sync Clerk users with database</li>
                   <li>• Update AuthContext to use Clerk</li>
                   <li>• Migrate existing users (optional)</li>
+                  <li>• Switch to production keys</li>
                 </ul>
+              </div>
+            </div>
+            
+            {/* Helpful Links */}
+            <div className="mt-6 pt-6 border-t border-gray-800">
+              <h3 className="text-white font-medium mb-3">📚 Helpful Resources:</h3>
+              <div className="flex flex-wrap gap-3">
+                <a 
+                  href="https://clerk.com/docs" 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="flex items-center text-blue-400 hover:text-blue-300 text-sm"
+                >
+                  Clerk Docs <ExternalLink className="h-3 w-3 ml-1" />
+                </a>
+                <a 
+                  href="https://dashboard.clerk.com" 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="flex items-center text-blue-400 hover:text-blue-300 text-sm"
+                >
+                  Clerk Dashboard <ExternalLink className="h-3 w-3 ml-1" />
+                </a>
+                <a 
+                  href="https://clerk.com/docs/backend-requests/handling/manual-jwt" 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="flex items-center text-blue-400 hover:text-blue-300 text-sm"
+                >
+                  JWT Verification Guide <ExternalLink className="h-3 w-3 ml-1" />
+                </a>
               </div>
             </div>
           </div>

@@ -678,16 +678,65 @@ const QuickStartModal = ({ isOpen, onClose }) => {
         return Number.isFinite(n) ? n : undefined;
     };
 
-    const toDateString = (v) => {
-        const raw = norm(v);
-        if (!raw) return undefined;
-        // Already YYYY-MM-DD
-        if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
-        // Try Date parse and format
-        const d = new Date(raw);
-        if (Number.isFinite(d.getTime())) return d.toISOString().split('T')[0];
-        return undefined;
+    // Excel serial (1900 date system) → YYYY-MM-DD
+    const excelSerialToISO = (n) => {
+    if (!Number.isFinite(n)) return undefined;
+    // Excel day 1 = 1899-12-31 (with 1900 leap bug). This base works for modern dates.
+    const baseUTC = Date.UTC(1899, 11, 30);
+    const d = new Date(baseUTC + Math.round(n * 86400000));
+    const y = d.getUTCFullYear();
+    const m = String(d.getUTCMonth() + 1).padStart(2, '0');
+    const day = String(d.getUTCDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
     };
+
+    const toDateString = (v) => {
+    if (v == null || v === '') return undefined;
+
+    // Already a Date object (when cellDates:true)
+    if (v instanceof Date && Number.isFinite(v.getTime())) {
+        const y = v.getFullYear();
+        const m = String(v.getMonth() + 1).padStart(2, '0');
+        const d = String(v.getDate()).padStart(2, '0');
+        return `${y}-${m}-${d}`;
+    }
+
+    // Excel serial number (common in xlsx)
+    if (typeof v === 'number') {
+        return excelSerialToISO(v);
+    }
+
+    // String handling
+    const raw = String(v).trim();
+    if (!raw) return undefined;
+
+    // ISO-ish: YYYY-M-D → zero-pad to YYYY-MM-DD
+    const isoLoose = raw.match(/^(\d{4})[-\/](\d{1,2})[-\/](\d{1,2})$/);
+    if (isoLoose) {
+        const [, y, m, d] = isoLoose;
+        return `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+    }
+
+    // US-style M/D/YYYY or M-D-YYYY → YYYY-MM-DD
+    const us = raw.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{2,4})$/);
+    if (us) {
+        let [, mm, dd, yy] = us;
+        if (yy.length === 2) yy = String(2000 + parseInt(yy, 10)); // naive 2-digit → 20xx
+        return `${yy}-${String(mm).padStart(2, '0')}-${String(dd).padStart(2, '0')}`;
+    }
+
+    // Last-chance Date parse (locale-dependent)
+    const d = new Date(raw);
+    if (Number.isFinite(d.getTime())) {
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, '0');
+        const dd = String(d.getDate()).padStart(2, '0');
+        return `${y}-${m}-${dd}`;
+    }
+
+    return undefined;
+    };
+
 
     const seedRow = (type, data) => ({
         id: Date.now() + Math.random(),
@@ -702,7 +751,7 @@ const QuickStartModal = ({ isOpen, onClose }) => {
     const parsePositionsExcel = async (file) => {
         const buf = await readFileAsArrayBuffer(file);
         const XLSX = await import('xlsx');
-        const wb = XLSX.read(buf, { type: 'array' });
+        const wb = XLSX.read(buf, { type: 'array', cellDates: true });
 
         const findSheet = (part) =>
             wb.SheetNames.find(n => normLower(n).includes(part));
@@ -717,10 +766,7 @@ const QuickStartModal = ({ isOpen, onClose }) => {
         // --- SECURITIES ---
         const secSheetName = findSheet('secur'); // matches "📈 SECURITIES"
         if (secSheetName) {
-        const rows = XLSX.utils.sheet_to_json(
-            wb.Sheets[secSheetName],
-            { defval: '', range: 1 } // start at row 2: header row is on row 2
-        );
+        const rows = XLSX.utils.sheet_to_json(wb.Sheets[secSheetName], { defval: '', raw: false })
 
         rows.forEach(r => {
             const account = r['Account'] ?? r['Account'] ?? r['account'];
@@ -761,9 +807,7 @@ const QuickStartModal = ({ isOpen, onClose }) => {
         // --- CASH ---
         const cashSheetName = findSheet('cash'); // matches "💵 CASH"
         if (cashSheetName) {
-        const rows = XLSX.utils.sheet_to_json(
-            wb.Sheets[cashSheetName],
-            { defval: '', range: 1 } // start at row 2 (row 1 is banner)
+        const rows = XLSX.utils.sheet_to_json(wb.Sheets[cashSheetName], { defval: '', raw: false })        
         );
 
         rows.forEach(r => {
@@ -801,9 +845,8 @@ const QuickStartModal = ({ isOpen, onClose }) => {
         // --- CRYPTO ---
         const cryptoSheetName = findSheet('crypto'); // matches "🪙 CRYPTO"
         if (cryptoSheetName) {
-        const rows = XLSX.utils.sheet_to_json(
-            wb.Sheets[cryptoSheetName],
-            { defval: '', range: 1 } // start at row 2
+        const rows = XLSX.utils.sheet_to_json(wb.Sheets[cryptoSheetName], { defval: '', raw: false })
+        
         );
 
         rows.forEach(r => {
@@ -843,9 +886,7 @@ const QuickStartModal = ({ isOpen, onClose }) => {
         // --- METALS ---
         const metalSheetName = findSheet('metal'); // matches "🥇 METALS"
         if (metalSheetName) {
-        const rows = XLSX.utils.sheet_to_json(
-            wb.Sheets[metalSheetName],
-            { defval: '', range: 1 } // start at row 2
+        const rows = XLSX.utils.sheet_to_json(wb.Sheets[metalSheetName], { defval: '', raw: false })
         );
 
         rows.forEach(r => {
@@ -892,7 +933,7 @@ const QuickStartModal = ({ isOpen, onClose }) => {
     const parseAccountsExcel = async (file) => {
     const buf = await readFileAsArrayBuffer(file);
     const XLSX = await import('xlsx');
-    const wb = XLSX.read(buf, { type: 'array' });
+    const wb = XLSX.read(buf, { type: 'array', cellDates: true });
     const sheetName = wb.SheetNames.find(n => normalizeHeader(n) === 'accounts') || wb.SheetNames[0];
     const sheet = wb.Sheets[sheetName];
     const rows = XLSX.utils.sheet_to_json(sheet, { defval: '' });
