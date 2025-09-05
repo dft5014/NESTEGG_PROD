@@ -678,10 +678,10 @@ const QuickStartModal = ({ isOpen, onClose }) => {
         return Number.isFinite(n) ? n : undefined;
     };
 
-    // Excel (1900 system) day serial -> YYYY-MM-DD
+        // Excel (1900 system) day serial -> YYYY-MM-DD
     const excelSerialToISO = (n) => {
         if (!Number.isFinite(n)) return undefined;
-        // Excel day 1 = 1899-12-31 (with 1900 leap bug). Using 1899-12-30 works well in practice.
+        // Excel day 1 = 1899-12-31 (1900 leap bug). Using 1899-12-30 works well in practice.
         const baseUTC = Date.UTC(1899, 11, 30);
         const d = new Date(baseUTC + Math.round(n) * 86400000);
         const y = d.getUTCFullYear();
@@ -690,14 +690,13 @@ const QuickStartModal = ({ isOpen, onClose }) => {
         return (y >= 1000 && y <= 9999) ? `${y}-${m}-${day}` : undefined;
         };
 
-    // Final guard to only allow values the <input type="date"> will accept
+        // Final guard for <input type="date">
     const toDateInputValue = (s) => {
         if (!s) return '';
-        const m = String(s).match(/^(\d{4})-(\d{2})-(\d{2})$/);
-        return m ? s : '';
+        return /^(\d{4})-(\d{2})-(\d{2})$/.test(String(s)) ? s : '';
         };
 
-        // Normalizer for anything coming from XLSX: Date | number | string -> YYYY-MM-DD
+        // Normalize XLSX values (Date | number | string) → YYYY-MM-DD
         const toDateString = (v) => {
         if (v == null || v === '') return undefined;
 
@@ -717,16 +716,15 @@ const QuickStartModal = ({ isOpen, onClose }) => {
         const raw = String(v).trim();
         if (!raw) return undefined;
 
-        // If someone upstream already produced a 5+ digit "year-01-01" (e.g., "43831-01-01"),
-        // treat the leading number as an Excel serial and re-convert.
-        const serialish = raw.match(/^(\d{5,})-0?1-0?1$/);
+        // Handle "+043831-01-01" / "043831-01-01" by treating leading number as serial
+        const serialish = raw.match(/^[+]?0*(\d{5,})-0?1-0?1$/);
         if (serialish) {
             const n = Number(serialish[1]);
             const iso = excelSerialToISO(n);
             if (iso) return iso;
         }
 
-        // ISO(-ish) YYYY-M-D or YYYY/MM/DD -> pad to YYYY-MM-DD
+        // ISO-ish: YYYY-M-D or YYYY/M/D -> zero-pad
         const isoLoose = raw.match(/^(\d{4})[-\/](\d{1,2})[-\/](\d{1,2})$/);
         if (isoLoose) {
             const y = Number(isoLoose[1]);
@@ -735,7 +733,7 @@ const QuickStartModal = ({ isOpen, onClose }) => {
             return (y >= 1000 && y <= 9999) ? `${y}-${m}-${d}` : undefined;
         }
 
-        // US M/D/YYYY or M-D-YYYY
+        // US-style M/D/YYYY or M-D-YYYY
         const us = raw.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{2,4})$/);
         if (us) {
             let y = Number(us[3]);
@@ -745,7 +743,7 @@ const QuickStartModal = ({ isOpen, onClose }) => {
             return (y >= 1000 && y <= 9999) ? `${y}-${m}-${d}` : undefined;
         }
 
-        // Last-chance Date parse
+        // Last-chance parse
         const d = new Date(raw);
         if (Number.isFinite(d.getTime())) {
             const y = d.getFullYear();
@@ -758,9 +756,6 @@ const QuickStartModal = ({ isOpen, onClose }) => {
         };
 
 
-        };
-
-
     const seedRow = (type, data) => ({
         id: Date.now() + Math.random(),
         type,
@@ -770,8 +765,7 @@ const QuickStartModal = ({ isOpen, onClose }) => {
         animateIn: true
     });
 
-    // NEW — parse the Positions template tabs into QuickAdd shape
-// --- Robust Positions parser (handles Date/serial/strings) ---
+    // --- Robust Positions parser (handles Date/serial/strings) ---
     const parsePositionsExcel = async (file) => {
         const buf = await readFileAsArrayBuffer(file);
         const XLSX = await import('xlsx');
@@ -792,7 +786,7 @@ const QuickStartModal = ({ isOpen, onClose }) => {
             return accountNameToId.get(key);
         };
 
-  // -------------- SECURITIES --------------
+        // -------------- SECURITIES --------------
         const secSheetName = findSheet('secur'); // matches "📈 SECURITIES"
         if (secSheetName) {
             const rows = toRows(secSheetName);
@@ -937,6 +931,7 @@ const QuickStartModal = ({ isOpen, onClose }) => {
 
 
 
+
     const parseAccountsExcel = async (file) => {
     const buf = await readFileAsArrayBuffer(file);
     const XLSX = await import('xlsx');
@@ -1032,7 +1027,7 @@ const QuickStartModal = ({ isOpen, onClose }) => {
         ];
 
         const sheetHasHeaders = (sheet, requiredHeaders) => {
-            const rows = XLSX.utils.sheet_to_json(sheet, { defval: '' });
+            const rows = XLSX.utils.sheet_to_json(sheet, { defval: '', raw: false });
             if (!rows.length) return false;
             const keys = Object.keys(rows[0]).map(k => normH(k));
             return requiredHeaders.every(h => keys.includes(normH(h)));
@@ -2588,7 +2583,7 @@ const QuickStartModal = ({ isOpen, onClose }) => {
                         type="button"
                         onClick={() => {
                             // go back to the template step (preserve which template was chosen)
-                            setActiveTab('template');
+                            setActiveTab(selectedTemplate === 'accounts' ? 'accounts' : 'positions');
                             setImportMethod(null);
                             // keep selectedTemplate so the template page stays on Positions
                             setUploadedFile(null);
