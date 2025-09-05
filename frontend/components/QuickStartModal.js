@@ -1070,27 +1070,28 @@ const QuickStartModal = ({ isOpen, onClose }) => {
             return requiredHeaders.every((h) => keys.includes(normH(h)));
         };
 
-        // Try to detect Accounts
-        for (const name of wb.SheetNames) {
-            if (sheetHasHeaders(wb.Sheets[name], ACC_HEADERS)) {
-            return { kind: 'accounts', wb };
+            // Try to detect Accounts
+            for (const name of wb.SheetNames) {
+                if (sheetHasHeaders(wb.Sheets[name], ACC_HEADERS)) {
+                return { kind: 'accounts', wb };
+                }
             }
-        }
 
-        // Try to detect Positions if ANY per-tab header set matches on ANY sheet
-        for (const name of wb.SheetNames) {
-            const sheet = wb.Sheets[name];
-            if (POS_HEADER_SETS.some((set) => sheetHasHeaders(sheet, set))) {
-            return { kind: 'positions', wb };
+            // Try to detect Positions if ANY per-tab header set matches on ANY sheet
+            for (const name of wb.SheetNames) {
+                const sheet = wb.Sheets[name];
+                if (POS_HEADER_SETS.some((set) => sheetHasHeaders(sheet, set))) {
+                return { kind: 'positions', wb };
+                }
             }
-        }
 
-        return { kind: 'unknown', wb };
-        };
+            return { kind: 'unknown', wb };
+            };
 
-    const handleFileSelect = async (file) => 
 
-    {
+            const handleFileSelect = async (file) => 
+
+        {
         const allowedTypes = [
             'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
             'application/vnd.ms-excel',
@@ -1144,26 +1145,27 @@ const QuickStartModal = ({ isOpen, onClose }) => {
 
 
             if (kind === 'accounts') {
-                const parsedAccounts = await parseAccountsExcel(file);
-                setUploadProgress(60);
+            const parsedAccounts = await parseAccountsExcel(file);
+            setUploadProgress(60);
 
-                if (!parsedAccounts.length) {
-                    setValidationStatus(null);
-                    setUploadProgress(0);
-                    alert('No rows found. Make sure you filled in the "Accounts" sheet and saved the file.');
-                    return;
-                }
-
-                setAccounts(parsedAccounts);
-                setUploadProgress(100);
-                setValidationStatus('valid');
-
-                // Route into the Accounts Quick Add UI
-                setSelectedTemplate('accounts');
-                setActiveTab('accounts');
-                setImportMethod('ui');
+            if (!parsedAccounts.length) {
+                setValidationStatus(null);
+                setUploadProgress(0);
+                alert('No rows found. Make sure you filled in the "Accounts" sheet and saved the file.');
                 return;
             }
+
+            setAccounts(parsedAccounts);
+            setUploadProgress(100);
+            setValidationStatus('valid');
+
+            // Route into the Accounts Quick Add UI
+            setSelectedTemplate('accounts');
+            setActiveTab('accounts');
+            setImportMethod('ui');
+            return;
+            }
+
 
 
             // Unknown/unsupported
@@ -1178,7 +1180,8 @@ const QuickStartModal = ({ isOpen, onClose }) => {
         }
         }
 
-    const renderOverview = () => (
+   
+        const renderOverview = () => (
         <div className="space-y-6 animate-fadeIn">
             <div className="text-center">
                 <div className="relative inline-block">
@@ -1463,24 +1466,24 @@ const QuickStartModal = ({ isOpen, onClose }) => {
                     onClick={() => setImportMethod('excel')}
                 >
 
-                    {/* Direct upload path — skip downloading */}
-                    <div className="mt-2">
-                    <button
-                        type="button"
-                        onClick={(e) => {
-                        e.stopPropagation(); // avoid triggering the card's onClick
-                        setSelectedTemplate('accounts');
-                        setImportMethod('excel');
-                        setActiveTab('upload');   // straight to the uploader
-                        setValidationStatus(null);
-                        setUploadProgress(0);
-                        setUploadedFile(null);
-                        }}
-                        className="text-sm font-medium text-green-700 hover:text-green-800 underline"
-                    >
-                        I already have a filled template — Upload now
-                    </button>
-                    </div>
+                {/* Direct upload path — skip downloading */}
+                <div className="mt-2">
+                <button
+                    type="button"
+                    onClick={(e) => {
+                    e.stopPropagation(); // avoid triggering the card click
+                    setSelectedTemplate('accounts');
+                    setImportMethod('excel');
+                    setActiveTab('upload');
+                    setValidationStatus(null);
+                    setUploadProgress(0);
+                    setUploadedFile(null);
+                    }}
+                    className="text-sm font-medium text-green-700 hover:text-green-800 underline"
+                >
+                    I already have a filled template — Upload now
+                </button>
+                </div>
 
                     <div className="absolute inset-0 bg-gradient-to-br from-green-600 to-green-700 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
                     <div className="relative z-10">
@@ -2533,27 +2536,25 @@ const QuickStartModal = ({ isOpen, onClose }) => {
                     )}
                 </button>
 
-                {/* New: let users jump straight to upload */}
-                {!isAccounts && (
-                        {/* New: let users jump straight to upload (both Accounts & Positions) */}
-                        <button
-                        type="button"
-                        onClick={() => {
-                            setImportMethod('excel');
-                            setSelectedTemplate(isAccounts ? 'accounts' : 'positions');
-                            setActiveTab('upload');
-                            setValidationStatus(null);
-                            setUploadProgress(0);
-                            setUploadedFile(null);
-                        }}
-                        className={`text-sm font-medium ${
-                            isAccounts ? 'text-blue-700 hover:text-blue-800' : 'text-purple-700 hover:text-purple-800'
-                        } underline`}
-                        >
-                        I already have a filled template — Upload now
-                        </button>
-                )}
+                {/* New: let users jump straight to upload (no conditional wrapper to avoid JSX parse edge-cases) */}
+                <button
+                    type="button"
+                    onClick={() => {
+                    setImportMethod('excel');
+                    setSelectedTemplate(isAccounts ? 'accounts' : 'positions');
+                    setActiveTab('upload');
+                    setValidationStatus(null);
+                    setUploadProgress(0);
+                    setUploadedFile(null);
+                    }}
+                    className={`text-sm font-medium ${
+                    isAccounts ? 'text-blue-700 hover:text-blue-800' : 'text-purple-700 hover:text-purple-800'
+                    } underline`}
+                >
+                    I already have a filled template — Upload now
+                </button>
                 </div>
+
 
            </div>
        );
