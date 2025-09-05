@@ -3,10 +3,35 @@ import { ClerkProvider, useUser, UserButton, useAuth } from "@clerk/nextjs";
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { 
-  CheckCircle, XCircle, Info, Code, User, Mail, 
-  Shield, Clock, ArrowLeft, Sparkles, Key, Database,
-  Loader, Copy, ExternalLink
+  CheckCircle, XCircle, User, Shield, Sparkles, Key,
+  Loader, Copy, ExternalLink, Crown, Zap, Star,
+  CreditCard, ArrowUpRight, Calendar, Settings
 } from 'lucide-react';
+
+// Plan details
+const planDetails = {
+  free: {
+    name: 'Free',
+    icon: <Star className="h-5 w-5" />,
+    color: 'text-gray-400',
+    bgColor: 'bg-gray-500/10',
+    features: ['2 accounts', 'Basic tracking', 'Community support']
+  },
+  pro: {
+    name: 'Pro',
+    icon: <Zap className="h-5 w-5" />,
+    color: 'text-blue-400',
+    bgColor: 'bg-blue-500/10',
+    features: ['Unlimited accounts', 'Advanced analytics', 'Priority support', 'API access']
+  },
+  premium: {
+    name: 'Premium',
+    icon: <Crown className="h-5 w-5" />,
+    color: 'text-purple-400',
+    bgColor: 'bg-purple-500/10',
+    features: ['Everything in Pro', 'AI insights', 'Tax optimization', 'White-glove support']
+  }
+};
 
 function DashboardContent() {
   const { isLoaded, isSignedIn, user } = useUser();
@@ -14,6 +39,12 @@ function DashboardContent() {
   const [token, setToken] = useState(null);
   const [tokenError, setTokenError] = useState(null);
   const [copied, setCopied] = useState(false);
+  const [showUpgrade, setShowUpgrade] = useState(false);
+
+  // Get user's plan from metadata
+  const userPlan = user?.unsafeMetadata?.plan || user?.publicMetadata?.plan || 'free';
+  const signupDate = user?.unsafeMetadata?.signupDate || user?.publicMetadata?.signupDate;
+  const plan = planDetails[userPlan] || planDetails.free;
 
   useEffect(() => {
     const fetchToken = async () => {
@@ -37,6 +68,23 @@ function DashboardContent() {
       navigator.clipboard.writeText(token);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
+    }
+  };
+
+  const handleUpgrade = async (newPlan) => {
+    try {
+      await user.update({
+        unsafeMetadata: {
+          ...user.unsafeMetadata,
+          plan: newPlan,
+          planUpdatedAt: new Date().toISOString()
+        }
+      });
+      setShowUpgrade(false);
+      // In production, this would redirect to Stripe checkout
+      alert(`Upgraded to ${newPlan}! (In production, this would process payment)`);
+    } catch (error) {
+      console.error('Error updating plan:', error);
     }
   };
 
@@ -75,8 +123,8 @@ function DashboardContent() {
             <div className="flex items-center space-x-4">
               <CheckCircle className="h-8 w-8 text-green-500" />
               <div>
-                <h1 className="text-2xl font-bold text-white">Clerk Test Success!</h1>
-                <p className="text-gray-400">You're signed in with Clerk (Test Mode)</p>
+                <h1 className="text-2xl font-bold text-white">Welcome, {user?.firstName || 'User'}!</h1>
+                <p className="text-gray-400">Clerk Test Dashboard</p>
               </div>
             </div>
             <div className="flex items-center space-x-4">
@@ -97,8 +145,52 @@ function DashboardContent() {
 
       {/* Main Content */}
       <div className="max-w-7xl mx-auto px-6 py-8">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           
+          {/* Plan Card */}
+          <div className={`bg-gray-900 border border-gray-800 rounded-xl p-6 ${plan.bgColor}`}>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold text-white flex items-center">
+                <CreditCard className="h-5 w-5 mr-2 text-green-500" />
+                Subscription
+              </h2>
+              <div className={`${plan.color}`}>
+                {plan.icon}
+              </div>
+            </div>
+            <div className="space-y-3">
+              <div>
+                <p className="text-gray-400 text-sm">Current Plan</p>
+                <p className={`text-2xl font-bold ${plan.color}`}>{plan.name}</p>
+              </div>
+              {signupDate && (
+                <div>
+                  <p className="text-gray-400 text-sm">Member Since</p>
+                  <p className="text-white">{new Date(signupDate).toLocaleDateString()}</p>
+                </div>
+              )}
+              <div className="pt-3 border-t border-gray-700">
+                <p className="text-gray-400 text-sm mb-2">Features:</p>
+                <ul className="space-y-1">
+                  {plan.features.map((feature, i) => (
+                    <li key={i} className="text-sm text-gray-300 flex items-center">
+                      <CheckCircle className="h-3 w-3 text-green-500 mr-2" />
+                      {feature}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+              {userPlan !== 'premium' && (
+                <button
+                  onClick={() => setShowUpgrade(true)}
+                  className="w-full mt-4 py-2 bg-gradient-to-r from-blue-500 to-purple-500 text-white rounded-lg hover:from-blue-600 hover:to-purple-600 transition-all flex items-center justify-center"
+                >
+                  Upgrade Plan <ArrowUpRight className="h-4 w-4 ml-2" />
+                </button>
+              )}
+            </div>
+          </div>
+
           {/* User Info Card */}
           <div className="bg-gray-900 border border-gray-800 rounded-xl p-6">
             <h2 className="text-lg font-semibold text-white mb-4 flex items-center">
@@ -106,27 +198,27 @@ function DashboardContent() {
               User Information
             </h2>
             <div className="space-y-3">
-              <div className="flex justify-between">
-                <span className="text-gray-400">User ID:</span>
-                <span className="text-white font-mono text-sm">{userId || 'N/A'}</span>
+              <div>
+                <p className="text-gray-400 text-sm">Name</p>
+                <p className="text-white">{user?.fullName || `${user?.firstName || ''} ${user?.lastName || ''}`.trim() || 'Not provided'}</p>
               </div>
-              <div className="flex justify-between">
-                <span className="text-gray-400">Email:</span>
-                <span className="text-white">{user?.primaryEmailAddress?.emailAddress || 'N/A'}</span>
+              <div>
+                <p className="text-gray-400 text-sm">Email</p>
+                <p className="text-white text-sm">{user?.primaryEmailAddress?.emailAddress}</p>
               </div>
-              <div className="flex justify-between">
-                <span className="text-gray-400">Name:</span>
-                <span className="text-white">{user?.fullName || 'Not provided'}</span>
+              <div>
+                <p className="text-gray-400 text-sm">User ID</p>
+                <p className="text-white font-mono text-xs">{userId}</p>
               </div>
-              <div className="flex justify-between">
-                <span className="text-gray-400">Username:</span>
-                <span className="text-white">{user?.username || 'Not set'}</span>
+              <div>
+                <p className="text-gray-400 text-sm">Verified</p>
+                <p className="text-white">
+                  {user?.primaryEmailAddress?.verification?.status === 'verified' ? '✓ Yes' : '○ No'}
+                </p>
               </div>
-              <div className="flex justify-between">
-                <span className="text-gray-400">Verified:</span>
-                <span className="text-white">
-                  {user?.primaryEmailAddress?.verification?.status === 'verified' ? '✓ Yes' : 'No'}
-                </span>
+              <div>
+                <p className="text-gray-400 text-sm">MFA</p>
+                <p className="text-white">{user?.twoFactorEnabled ? '✓ Enabled' : '○ Disabled'}</p>
               </div>
             </div>
           </div>
@@ -135,134 +227,152 @@ function DashboardContent() {
           <div className="bg-gray-900 border border-gray-800 rounded-xl p-6">
             <h2 className="text-lg font-semibold text-white mb-4 flex items-center">
               <Shield className="h-5 w-5 mr-2 text-green-500" />
-              Session Information
+              Session Details
             </h2>
             <div className="space-y-3">
-              <div className="flex justify-between">
-                <span className="text-gray-400">Session ID:</span>
-                <span className="text-white font-mono text-sm">
-                  {sessionId ? `${sessionId.slice(0, 20)}...` : 'N/A'}
-                </span>
+              <div>
+                <p className="text-gray-400 text-sm">Status</p>
+                <p className="text-green-400 font-semibold">● Active</p>
               </div>
-              <div className="flex justify-between">
-                <span className="text-gray-400">Auth Status:</span>
-                <span className="text-green-400">Authenticated ✓</span>
+              <div>
+                <p className="text-gray-400 text-sm">Session ID</p>
+                <p className="text-white font-mono text-xs">
+                  {sessionId ? `${sessionId.slice(0, 12)}...` : 'N/A'}
+                </p>
               </div>
-              <div className="flex justify-between">
-                <span className="text-gray-400">Created:</span>
-                <span className="text-white">
-                  {user?.createdAt ? new Date(user.createdAt).toLocaleDateString() : 'N/A'}
-                </span>
+              <div>
+                <p className="text-gray-400 text-sm">Created</p>
+                <p className="text-white text-sm">
+                  {user?.createdAt ? new Date(user.createdAt).toLocaleString() : 'N/A'}
+                </p>
               </div>
-              <div className="flex justify-between">
-                <span className="text-gray-400">Last Updated:</span>
-                <span className="text-white">
-                  {user?.updatedAt ? new Date(user.updatedAt).toLocaleDateString() : 'N/A'}
-                </span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-400">MFA Enabled:</span>
-                <span className="text-white">{user?.twoFactorEnabled ? 'Yes' : 'No'}</span>
+              <div>
+                <p className="text-gray-400 text-sm">Last Sign In</p>
+                <p className="text-white text-sm">
+                  {user?.lastSignInAt ? new Date(user.lastSignInAt).toLocaleString() : 'First session'}
+                </p>
               </div>
             </div>
           </div>
 
-          {/* JWT Token Preview */}
-          <div className="lg:col-span-2 bg-gray-900 border border-gray-800 rounded-xl p-6">
+          {/* JWT Token Card - Full Width */}
+          <div className="lg:col-span-3 bg-gray-900 border border-gray-800 rounded-xl p-6">
             <h2 className="text-lg font-semibold text-white mb-4 flex items-center">
               <Key className="h-5 w-5 mr-2 text-purple-500" />
-              JWT Token (for API testing)
+              JWT Token for API Testing
             </h2>
             {token ? (
               <div>
                 <div className="bg-gray-950 rounded-lg p-4 font-mono text-xs text-gray-400 break-all relative">
-                  {token.substring(0, 100)}...
+                  <div className="pr-12">
+                    {token.substring(0, 150)}...
+                  </div>
                   <button
                     onClick={copyToken}
                     className="absolute top-2 right-2 p-2 bg-gray-800 hover:bg-gray-700 rounded transition-colors"
                     title="Copy token"
                   >
                     {copied ? (
-                      <Check className="h-4 w-4 text-green-500" />
+                      <CheckCircle className="h-4 w-4 text-green-500" />
                     ) : (
                       <Copy className="h-4 w-4 text-gray-400" />
                     )}
                   </button>
                 </div>
                 <p className="text-sm text-gray-500 mt-2">
-                  ✓ This token can be used to authenticate with your backend API
+                  Use this token in the Authorization header: <code className="text-gray-400">Bearer {`{token}`}</code>
                 </p>
               </div>
             ) : tokenError ? (
-              <div className="text-red-400">Error fetching token: {tokenError}</div>
+              <div className="text-red-400">Error: {tokenError}</div>
             ) : (
               <div className="text-gray-400">Loading token...</div>
             )}
           </div>
 
-          {/* Next Steps */}
-          <div className="lg:col-span-2 bg-gradient-to-r from-blue-500/10 to-purple-500/10 border border-blue-500/20 rounded-xl p-6">
+          {/* Metadata Display */}
+          <div className="lg:col-span-3 bg-gray-900 border border-gray-800 rounded-xl p-6">
             <h2 className="text-lg font-semibold text-white mb-4 flex items-center">
-              <Sparkles className="h-5 w-5 mr-2 text-yellow-500" />
-              Next Steps for Integration
+              <Settings className="h-5 w-5 mr-2 text-gray-500" />
+              User Metadata (Testing View)
             </h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <h3 className="text-white font-medium">✅ What's Working:</h3>
-                <ul className="text-sm text-gray-400 space-y-1">
-                  <li>• User registration via Clerk</li>
-                  <li>• Social login providers</li>
-                  <li>• Session management</li>
-                  <li>• JWT token generation</li>
-                  <li>• Email verification</li>
-                </ul>
+              <div>
+                <h3 className="text-sm font-medium text-gray-400 mb-2">Public Metadata</h3>
+                <pre className="bg-gray-950 rounded p-3 text-xs text-gray-400 overflow-auto">
+                  {JSON.stringify(user?.publicMetadata || {}, null, 2)}
+                </pre>
               </div>
-              <div className="space-y-2">
-                <h3 className="text-white font-medium">📋 To Complete Integration:</h3>
-                <ul className="text-sm text-gray-400 space-y-1">
-                  <li>• Connect Clerk JWT to FastAPI backend</li>
-                  <li>• Sync Clerk users with database</li>
-                  <li>• Update AuthContext to use Clerk</li>
-                  <li>• Migrate existing users (optional)</li>
-                  <li>• Switch to production keys</li>
-                </ul>
-              </div>
-            </div>
-            
-            {/* Helpful Links */}
-            <div className="mt-6 pt-6 border-t border-gray-800">
-              <h3 className="text-white font-medium mb-3">📚 Helpful Resources:</h3>
-              <div className="flex flex-wrap gap-3">
-                <a 
-                  href="https://clerk.com/docs" 
-                  target="_blank" 
-                  rel="noopener noreferrer"
-                  className="flex items-center text-blue-400 hover:text-blue-300 text-sm"
-                >
-                  Clerk Docs <ExternalLink className="h-3 w-3 ml-1" />
-                </a>
-                <a 
-                  href="https://dashboard.clerk.com" 
-                  target="_blank" 
-                  rel="noopener noreferrer"
-                  className="flex items-center text-blue-400 hover:text-blue-300 text-sm"
-                >
-                  Clerk Dashboard <ExternalLink className="h-3 w-3 ml-1" />
-                </a>
-                <a 
-                  href="https://clerk.com/docs/backend-requests/handling/manual-jwt" 
-                  target="_blank" 
-                  rel="noopener noreferrer"
-                  className="flex items-center text-blue-400 hover:text-blue-300 text-sm"
-                >
-                  JWT Verification Guide <ExternalLink className="h-3 w-3 ml-1" />
-                </a>
+              <div>
+                <h3 className="text-sm font-medium text-gray-400 mb-2">Unsafe Metadata</h3>
+                <pre className="bg-gray-950 rounded p-3 text-xs text-gray-400 overflow-auto">
+                  {JSON.stringify(user?.unsafeMetadata || {}, null, 2)}
+                </pre>
               </div>
             </div>
           </div>
 
         </div>
       </div>
+
+      {/* Upgrade Modal */}
+      {showUpgrade && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+          <div className="bg-gray-900 border border-gray-800 rounded-xl p-6 max-w-md w-full">
+            <h3 className="text-xl font-bold text-white mb-4">Upgrade Your Plan</h3>
+            <div className="space-y-3">
+              {userPlan === 'free' && (
+                <>
+                  <button
+                    onClick={() => handleUpgrade('pro')}
+                    className="w-full p-4 bg-blue-500/10 border border-blue-500/20 rounded-lg hover:bg-blue-500/20 transition-colors text-left"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-white font-semibold">Pro - $9/mo</p>
+                        <p className="text-sm text-gray-400">Unlimited accounts, advanced features</p>
+                      </div>
+                      <Zap className="h-5 w-5 text-blue-400" />
+                    </div>
+                  </button>
+                  <button
+                    onClick={() => handleUpgrade('premium')}
+                    className="w-full p-4 bg-purple-500/10 border border-purple-500/20 rounded-lg hover:bg-purple-500/20 transition-colors text-left"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-white font-semibold">Premium - $29/mo</p>
+                        <p className="text-sm text-gray-400">Everything + AI insights</p>
+                      </div>
+                      <Crown className="h-5 w-5 text-purple-400" />
+                    </div>
+                  </button>
+                </>
+              )}
+              {userPlan === 'pro' && (
+                <button
+                  onClick={() => handleUpgrade('premium')}
+                  className="w-full p-4 bg-purple-500/10 border border-purple-500/20 rounded-lg hover:bg-purple-500/20 transition-colors text-left"
+                >
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-white font-semibold">Premium - $29/mo</p>
+                      <p className="text-sm text-gray-400">Add AI insights & premium support</p>
+                    </div>
+                    <Crown className="h-5 w-5 text-purple-400" />
+                  </div>
+                </button>
+              )}
+            </div>
+            <button
+              onClick={() => setShowUpgrade(false)}
+              className="w-full mt-4 py-2 bg-gray-800 text-white rounded-lg hover:bg-gray-700 transition-colors"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -275,7 +385,7 @@ export default function TestClerkDashboard() {
   }, []);
 
   if (!mounted) {
-    return null; // Prevent hydration mismatch
+    return null;
   }
 
   return (
@@ -285,7 +395,7 @@ export default function TestClerkDashboard() {
   );
 }
 
-// Skip static generation for this page
+// Skip static generation
 export async function getServerSideProps() {
   return {
     props: {},

@@ -765,24 +765,60 @@ const QuickStartModal = ({ isOpen, onClose }) => {
         animateIn: true
     });
 
-    // --- Robust Positions parser (handles Date/serial/strings) ---
+        // --- Robust Positions parser (header-insensitive) ---
     const parsePositionsExcel = async (file) => {
         const buf = await readFileAsArrayBuffer(file);
         const XLSX = await import('xlsx');
 
-        // Critical: enable Date objects when cells are true dates
+        // Keep true excel dates as Date objects
         const wb = XLSX.read(buf, { type: 'array', cellDates: true });
 
-        const normH = (h) => String(h || '').trim().toLowerCase().replace(/\s+/g, ' ');
-        const findSheet = (part) => wb.SheetNames.find((n) => normLower(n).includes(part));
+        // Utilities
+        const findSheet = (part) =>
+            wb.SheetNames.find((n) => String(n || '').toLowerCase().includes(part));
 
         const toRows = (sheetName) =>
             XLSX.utils.sheet_to_json(wb.Sheets[sheetName], { defval: '', raw: false });
 
+        // normalize header keys: lowercased, trimmed, collapse spaces, remove asterisks/punctuation
+        const normKey = (s) =>
+            String(s || '')
+            .toLowerCase()
+            .replace(/\s+/g, ' ')
+            .replace(/\*/g, '')
+            .replace(/[\u200B-\u200D\uFEFF]/g, '')
+            .replace(/[^\w/ ]+/g, '')    // keep slash for "identifier / ticker"
+            .trim();
+
+        // Build map: normalized header -> original header
+        const buildHeaderMap = (rows) => {
+            if (!rows || !rows.length) return {};
+            const firstRowKeys = Object.keys(rows[0] || {});
+            const map = {};
+            firstRowKeys.forEach((k) => {
+            const nk = normKey(k);
+            if (nk) map[nk] = k;
+            });
+            return map;
+        };
+
+        // Value getter that tries multiple header aliases (lenient)
+        const getVal = (row, headerMap, aliases) => {
+            for (const alias of aliases) {
+            const key = headerMap[normKey(alias)];
+            if (key && row[key] !== undefined) {
+                const v = row[key];
+                // treat empty string as absent
+                if (!(typeof v === 'string' && v.trim() === '')) return v;
+            }
+            }
+            return undefined;
+        };
+
         const result = { security: [], cash: [], crypto: [], metal: [] };
 
         const accountIdFor = (name) => {
-            const key = normLower(name);
+            const key = (String(name || '')).trim().toLowerCase();
             return accountNameToId.get(key);
         };
 
@@ -790,20 +826,24 @@ const QuickStartModal = ({ isOpen, onClose }) => {
         const secSheetName = findSheet('secur'); // matches "📈 SECURITIES"
         if (secSheetName) {
             const rows = toRows(secSheetName);
-            rows.forEach((r) => {
-            const account = r['Account'] ?? r['Account*'] ?? r['account'];
-            const ticker  = r['Ticker'] ?? r['Identifier / Ticker'] ?? r['Symbol'] ?? r['symbol'];
-            const name    = r['Company Name'] ?? r['Name'] ?? r['Company'] ?? '';
-            const shares  = r['Shares'] ?? r['Quantity'];
-            const cost    = r['Cost Basis*'] ?? r['Cost Basis'] ?? r['Purchase Price per Share'] ?? r['Price'];
-            const date    = r['Purchase Date*'] ?? r['Purchase Date'] ?? r['Acquired Date (YYYY-MM-DD)'];
+            const H = buildHeaderMap(rows);
 
-            const acctNorm = norm(account);
-            const tickNorm = norm(ticker);
+            rows.forEach((r) => {
+            const account = getVal(r, H, ['Account', 'Account*', 'account']);
+            const ticker  = getVal(r, H, ['Identifier / Ticker', 'Ticker', 'Symbol', 'symbol']);
+            const name    = getVal(r, H, ['Company Name', 'Name', 'Company']) || '';
+            const shares  = getVal(r, H, ['Shares', 'Quantity']);
+            const cost    = getVal(r, H, ['Cost Basis*', 'Cost Basis', 'Purchase Price per Share', 'Price']);
+            const date    = getVal(r, H, ['Purchase Date*', 'Purchase Date', 'Acquired Date (YYYY-MM-DD)']);
+
+            const acctNorm = (String(account || '')).trim();
+            const tickNorm = (String(ticker || '')).trim();
 
             const isInstruction = acctNorm.startsWith('⚠');
             const isPlaceholder = /^select account/i.test(acctNorm);
-            const isEmptyRow = !acctNorm && !tickNorm && !toNumber(shares) && !toNumber(cost) && !toDateString(date);
+            const isEmptyRow =
+                !acctNorm && !tickNorm && !toNumber(shares) && !toNumber(cost) && !toDateString(date);
+
             if (isInstruction || isPlaceholder || isEmptyRow) return;
             if (!acctNorm || !tickNorm) return; // require account+ticker
 
@@ -812,7 +852,7 @@ const QuickStartModal = ({ isOpen, onClose }) => {
                 account_id: accountIdFor(account),
                 account_name: acctNorm,
                 ticker: tickNorm,
-                name: norm(name),
+                name: (String(name || '')).trim(),
                 shares: toNumber(shares),
                 cost_basis: toNumber(cost),
                 purchase_date: toDateString(date),
@@ -825,19 +865,22 @@ const QuickStartModal = ({ isOpen, onClose }) => {
         const cashSheetName = findSheet('cash'); // matches "💵 CASH"
         if (cashSheetName) {
             const rows = toRows(cashSheetName);
-            rows.forEach((r) => {
-            const account  = r['Account'] ?? r['Account*'] ?? r['account'];
-            const cashType = r['Cash Type'] ?? r['Cash Type*'] ?? r['Type'];
-            const amount   = r['Amount'] ?? r['Amount*'];
-            const rate     = r['Interest Rate (%)'] ?? r['Interest Rate'] ?? r['Rate'];
-            const maturity = r['Maturity Date'] ?? r['Maturity'];
+            const H = buildHeaderMap(rows);
 
-            const acctNorm = norm(account);
-            const typeNorm = norm(cashType);
+            rows.forEach((r) => {
+            const account  = getVal(r, H, ['Account', 'Account*', 'account']);
+            const cashType = getVal(r, H, ['Cash Type', 'Cash Type*', 'Type']);
+            const amount   = getVal(r, H, ['Amount', 'Amount*']);
+            const rate     = getVal(r, H, ['Interest Rate (%)', 'Interest Rate', 'Rate']);
+            const maturity = getVal(r, H, ['Maturity Date', 'Maturity']);
+
+            const acctNorm = (String(account || '')).trim();
+            const typeNorm = (String(cashType || '')).trim();
 
             const isInstruction = acctNorm.startsWith('⚠');
             const isPlaceholder = /^select account/i.test(acctNorm);
             const isEmptyRow = !acctNorm && !typeNorm && !toNumber(amount);
+
             if (isInstruction || isPlaceholder || isEmptyRow) return;
             if (!acctNorm || !typeNorm || !toNumber(amount)) return;
 
@@ -858,20 +901,23 @@ const QuickStartModal = ({ isOpen, onClose }) => {
         const cryptoSheetName = findSheet('crypto'); // matches "🪙 CRYPTO"
         if (cryptoSheetName) {
             const rows = toRows(cryptoSheetName);
-            rows.forEach((r) => {
-            const account = r['Account'] ?? r['Account*'] ?? r['account'];
-            const symbol  = r['Symbol'] ?? r['Symbol*'] ?? r['Ticker'];
-            const name    = r['Name'] ?? '';
-            const qty     = r['Quantity'] ?? r['Quantity*'];
-            const price   = r['Purchase Price'] ?? r['Purchase Price*'];
-            const date    = r['Purchase Date'] ?? r['Purchase Date*'];
+            const H = buildHeaderMap(rows);
 
-            const acctNorm = norm(account);
-            const symNorm  = norm(symbol);
+            rows.forEach((r) => {
+            const account = getVal(r, H, ['Account', 'Account*', 'account']);
+            const symbol  = getVal(r, H, ['Symbol', 'Symbol*', 'Ticker']);
+            const name    = getVal(r, H, ['Name']) || '';
+            const qty     = getVal(r, H, ['Quantity', 'Quantity*']);
+            const price   = getVal(r, H, ['Purchase Price', 'Purchase Price*', 'Price']);
+            const date    = getVal(r, H, ['Purchase Date', 'Purchase Date*']);
+
+            const acctNorm = (String(account || '')).trim();
+            const symNorm  = (String(symbol || '')).trim();
 
             const isInstruction = acctNorm.startsWith('⚠');
             const isPlaceholder = /^select account/i.test(acctNorm);
             const isEmptyRow = !acctNorm && !symNorm && !toNumber(qty) && !toNumber(price);
+
             if (isInstruction || isPlaceholder || isEmptyRow) return;
             if (!acctNorm || !symNorm) return;
 
@@ -880,7 +926,7 @@ const QuickStartModal = ({ isOpen, onClose }) => {
                 account_id: accountIdFor(account),
                 account_name: acctNorm,
                 symbol: symNorm,
-                name: norm(name),
+                name: (String(name || '')).trim(),
                 quantity: toNumber(qty),
                 purchase_price: toNumber(price),
                 purchase_date: toDateString(date),
@@ -893,20 +939,23 @@ const QuickStartModal = ({ isOpen, onClose }) => {
         const metalSheetName = findSheet('metal'); // matches "🥇 METALS"
         if (metalSheetName) {
             const rows = toRows(metalSheetName);
-            rows.forEach((r) => {
-            const account = r['Account'] ?? r['Account*'] ?? r['account'];
-            const mtype   = r['Metal Type'] ?? r['Metal Type*'] ?? r['Metal'];
-            const code    = r['Metal Code'] ?? r['Symbol'] ?? r['Ticker'] ?? ''; // may be blank; UI can derive
-            const qty     = r['Quantity (oz)'] ?? r['Quantity (oz)*'] ?? r['Quantity'];
-            const price   = r['Purchase Price/oz'] ?? r['Purchase Price/oz*'] ?? r['Price/Unit'] ?? r['Purchase Price'];
-            const date    = r['Purchase Date'] ?? r['Purchase Date*'];
+            const H = buildHeaderMap(rows);
 
-            const acctNorm = norm(account);
-            const typeNorm = norm(mtype);
+            rows.forEach((r) => {
+            const account = getVal(r, H, ['Account', 'Account*', 'account']);
+            const mtype   = getVal(r, H, ['Metal Type', 'Metal Type*', 'Metal']);
+            const code    = getVal(r, H, ['Metal Code', 'Symbol', 'Ticker']) || '';
+            const qty     = getVal(r, H, ['Quantity (oz)', 'Quantity (oz)*', 'Quantity']);
+            const price   = getVal(r, H, ['Purchase Price/oz', 'Purchase Price/oz*', 'Price/Unit', 'Purchase Price']);
+            const date    = getVal(r, H, ['Purchase Date', 'Purchase Date*']);
+
+            const acctNorm = (String(account || '')).trim();
+            const typeNorm = (String(mtype || '')).trim();
 
             const isInstruction = acctNorm.startsWith('⚠');
             const isPlaceholder = /^select account/i.test(acctNorm);
             const isEmptyRow = !acctNorm && !typeNorm && !toNumber(qty) && !toNumber(price);
+
             if (isInstruction || isPlaceholder || isEmptyRow) return;
             if (!acctNorm || !typeNorm) return;
 
@@ -915,7 +964,7 @@ const QuickStartModal = ({ isOpen, onClose }) => {
                 account_id: accountIdFor(account),
                 account_name: acctNorm,
                 metal_type: typeNorm,
-                symbol: norm(code),
+                symbol: (String(code || '')).trim(), // ok if '', UI can derive
                 name: '',
                 quantity: toNumber(qty),
                 unit: 'oz',
@@ -926,8 +975,13 @@ const QuickStartModal = ({ isOpen, onClose }) => {
             });
         }
 
-        return result;
-        };
+                // Optional debug (uncomment to inspect what parser sees)
+        console.log('Sheets:', wb.SheetNames);
+        console.log('SEC rows sample keys:', (secSheetName && toRows(secSheetName)[0]) ? Object.keys(toRows(secSheetName)[0]) : []);
+        console.log('CRYPTO rows sample keys:', (cryptoSheetName && toRows(cryptoSheetName)[0]) ? Object.keys(toRows(cryptoSheetName)[0]) : []);
+
+  return result;
+};
 
 
 
