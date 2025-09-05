@@ -766,93 +766,61 @@ const QuickStartModal = ({ isOpen, onClose }) => {
     });
 
         // --- Robust Positions parser (header-insensitive) ---
+        // NEW — parse the Positions template tabs into QuickAdd shape (robust to banner row)
     const parsePositionsExcel = async (file) => {
         const buf = await readFileAsArrayBuffer(file);
         const XLSX = await import('xlsx');
-
-        // Keep true excel dates as Date objects
+        // Keep real Excel dates as JS Date objects
         const wb = XLSX.read(buf, { type: 'array', cellDates: true });
 
-        // Utilities
         const findSheet = (part) =>
-            wb.SheetNames.find((n) => String(n || '').toLowerCase().includes(part));
+            wb.SheetNames.find((n) => normLower(n).includes(part));
 
-        const toRows = (sheetName) =>
-            XLSX.utils.sheet_to_json(wb.Sheets[sheetName], { defval: '', raw: false });
-
-        // normalize header keys: lowercased, trimmed, collapse spaces, remove asterisks/punctuation
-        const normKey = (s) =>
-            String(s || '')
-            .toLowerCase()
-            .replace(/\s+/g, ' ')
-            .replace(/\*/g, '')
-            .replace(/[\u200B-\u200D\uFEFF]/g, '')
-            .replace(/[^\w/ ]+/g, '')    // keep slash for "identifier / ticker"
-            .trim();
-
-        // Build map: normalized header -> original header
-        const buildHeaderMap = (rows) => {
-            if (!rows || !rows.length) return {};
-            const firstRowKeys = Object.keys(rows[0] || {});
-            const map = {};
-            firstRowKeys.forEach((k) => {
-            const nk = normKey(k);
-            if (nk) map[nk] = k;
-            });
-            return map;
-        };
-
-        // Value getter that tries multiple header aliases (lenient)
-        const getVal = (row, headerMap, aliases) => {
-            for (const alias of aliases) {
-            const key = headerMap[normKey(alias)];
-            if (key && row[key] !== undefined) {
-                const v = row[key];
-                // treat empty string as absent
-                if (!(typeof v === 'string' && v.trim() === '')) return v;
-            }
-            }
-            return undefined;
-        };
+        // Always skip the banner row (row 1) and read textual values
+        const rowsFrom = (sheetName) =>
+            XLSX.utils.sheet_to_json(wb.Sheets[sheetName], { defval: '', raw: false, range: 1 });
 
         const result = { security: [], cash: [], crypto: [], metal: [] };
 
         const accountIdFor = (name) => {
-            const key = (String(name || '')).trim().toLowerCase();
+            const key = normLower(name);
             return accountNameToId.get(key);
         };
 
-        // -------------- SECURITIES --------------
+        // --- SECURITIES ---
         const secSheetName = findSheet('secur'); // matches "📈 SECURITIES"
         if (secSheetName) {
-            const rows = toRows(secSheetName);
-            const H = buildHeaderMap(rows);
+            const rows = rowsFrom(secSheetName);
 
             rows.forEach((r) => {
-            const account = getVal(r, H, ['Account', 'Account*', 'account']);
-            const ticker  = getVal(r, H, ['Identifier / Ticker', 'Ticker', 'Symbol', 'symbol']);
-            const name    = getVal(r, H, ['Company Name', 'Name', 'Company']) || '';
-            const shares  = getVal(r, H, ['Shares', 'Quantity']);
-            const cost    = getVal(r, H, ['Cost Basis*', 'Cost Basis', 'Purchase Price per Share', 'Price']);
-            const date    = getVal(r, H, ['Purchase Date*', 'Purchase Date', 'Acquired Date (YYYY-MM-DD)']);
+            const account = r['Account'] ?? r['Account*'] ?? r['account'];
+            // accept both "Identifier / Ticker" and "Ticker"/"Symbol"
+            const ticker  = r['Identifier / Ticker'] ?? r['Ticker'] ?? r['Symbol'] ?? r['symbol'];
+            const name    = r['Company Name'] ?? r['Name'] ?? r['Company'] ?? '';
+            const shares  = r['Shares'] ?? r['Quantity'];
+            const cost    = r['Cost Basis*'] ?? r['Cost Basis'] ?? r['Purchase Price'] ?? r['Price'];
+            const date    = r['Purchase Date*'] ?? r['Purchase Date'] ?? r['Acquired Date (YYYY-MM-DD)'];
 
-            const acctNorm = (String(account || '')).trim();
-            const tickNorm = (String(ticker || '')).trim();
+            const acctNorm = norm(account);
+            const tickNorm = norm(ticker);
 
+            // Skip the instruction row and the example placeholder rows
             const isInstruction = acctNorm.startsWith('⚠');
             const isPlaceholder = /^select account/i.test(acctNorm);
             const isEmptyRow =
                 !acctNorm && !tickNorm && !toNumber(shares) && !toNumber(cost) && !toDateString(date);
 
             if (isInstruction || isPlaceholder || isEmptyRow) return;
-            if (!acctNorm || !tickNorm) return; // require account+ticker
+
+            // Require both Account and Ticker to push a row
+            if (!acctNorm || !tickNorm) return;
 
             result.security.push(
                 seedRow('security', {
                 account_id: accountIdFor(account),
                 account_name: acctNorm,
                 ticker: tickNorm,
-                name: (String(name || '')).trim(),
+                name: norm(name),
                 shares: toNumber(shares),
                 cost_basis: toNumber(cost),
                 purchase_date: toDateString(date),
@@ -861,27 +829,28 @@ const QuickStartModal = ({ isOpen, onClose }) => {
             });
         }
 
-        // -------------- CASH --------------
+        // --- CASH ---
         const cashSheetName = findSheet('cash'); // matches "💵 CASH"
         if (cashSheetName) {
-            const rows = toRows(cashSheetName);
-            const H = buildHeaderMap(rows);
+            const rows = rowsFrom(cashSheetName);
 
             rows.forEach((r) => {
-            const account  = getVal(r, H, ['Account', 'Account*', 'account']);
-            const cashType = getVal(r, H, ['Cash Type', 'Cash Type*', 'Type']);
-            const amount   = getVal(r, H, ['Amount', 'Amount*']);
-            const rate     = getVal(r, H, ['Interest Rate (%)', 'Interest Rate', 'Rate']);
-            const maturity = getVal(r, H, ['Maturity Date', 'Maturity']);
+            const account  = r['Account'] ?? r['Account*'] ?? r['account'];
+            const cashType = r['Cash Type'] ?? r['Cash Type*'] ?? r['Type'];
+            const amount   = r['Amount'] ?? r['Amount*'];
+            const rate     = r['Interest Rate (%)'] ?? r['Interest Rate'] ?? r['Rate'];
+            const maturity = r['Maturity Date'] ?? r['Maturity'];
 
-            const acctNorm = (String(account || '')).trim();
-            const typeNorm = (String(cashType || '')).trim();
+            const acctNorm = norm(account);
+            const typeNorm = norm(cashType);
 
             const isInstruction = acctNorm.startsWith('⚠');
             const isPlaceholder = /^select account/i.test(acctNorm);
             const isEmptyRow = !acctNorm && !typeNorm && !toNumber(amount);
 
             if (isInstruction || isPlaceholder || isEmptyRow) return;
+
+            // Required for CASH: Account + Cash Type + Amount
             if (!acctNorm || !typeNorm || !toNumber(amount)) return;
 
             result.cash.push(
@@ -897,28 +866,29 @@ const QuickStartModal = ({ isOpen, onClose }) => {
             });
         }
 
-        // -------------- CRYPTO --------------
+        // --- CRYPTO ---
         const cryptoSheetName = findSheet('crypto'); // matches "🪙 CRYPTO"
         if (cryptoSheetName) {
-            const rows = toRows(cryptoSheetName);
-            const H = buildHeaderMap(rows);
+            const rows = rowsFrom(cryptoSheetName);
 
             rows.forEach((r) => {
-            const account = getVal(r, H, ['Account', 'Account*', 'account']);
-            const symbol  = getVal(r, H, ['Symbol', 'Symbol*', 'Ticker']);
-            const name    = getVal(r, H, ['Name']) || '';
-            const qty     = getVal(r, H, ['Quantity', 'Quantity*']);
-            const price   = getVal(r, H, ['Purchase Price', 'Purchase Price*', 'Price']);
-            const date    = getVal(r, H, ['Purchase Date', 'Purchase Date*']);
+            const account = r['Account'] ?? r['Account*'] ?? r['account'];
+            const symbol  = r['Symbol'] ?? r['Symbol*'] ?? r['Ticker'];
+            const name    = r['Name'] ?? '';
+            const qty     = r['Quantity'] ?? r['Quantity*'];
+            const price   = r['Purchase Price'] ?? r['Purchase Price*'] ?? r['Price'];
+            const date    = r['Purchase Date'] ?? r['Purchase Date*'];
 
-            const acctNorm = (String(account || '')).trim();
-            const symNorm  = (String(symbol || '')).trim();
+            const acctNorm = norm(account);
+            const symNorm  = norm(symbol);
 
             const isInstruction = acctNorm.startsWith('⚠');
             const isPlaceholder = /^select account/i.test(acctNorm);
             const isEmptyRow = !acctNorm && !symNorm && !toNumber(qty) && !toNumber(price);
 
             if (isInstruction || isPlaceholder || isEmptyRow) return;
+
+            // Require Account + Symbol
             if (!acctNorm || !symNorm) return;
 
             result.crypto.push(
@@ -926,7 +896,7 @@ const QuickStartModal = ({ isOpen, onClose }) => {
                 account_id: accountIdFor(account),
                 account_name: acctNorm,
                 symbol: symNorm,
-                name: (String(name || '')).trim(),
+                name: norm(name),
                 quantity: toNumber(qty),
                 purchase_price: toNumber(price),
                 purchase_date: toDateString(date),
@@ -935,28 +905,29 @@ const QuickStartModal = ({ isOpen, onClose }) => {
             });
         }
 
-        // -------------- METALS --------------
+        // --- METALS ---
         const metalSheetName = findSheet('metal'); // matches "🥇 METALS"
         if (metalSheetName) {
-            const rows = toRows(metalSheetName);
-            const H = buildHeaderMap(rows);
+            const rows = rowsFrom(metalSheetName);
 
             rows.forEach((r) => {
-            const account = getVal(r, H, ['Account', 'Account*', 'account']);
-            const mtype   = getVal(r, H, ['Metal Type', 'Metal Type*', 'Metal']);
-            const code    = getVal(r, H, ['Metal Code', 'Symbol', 'Ticker']) || '';
-            const qty     = getVal(r, H, ['Quantity (oz)', 'Quantity (oz)*', 'Quantity']);
-            const price   = getVal(r, H, ['Purchase Price/oz', 'Purchase Price/oz*', 'Price/Unit', 'Purchase Price']);
-            const date    = getVal(r, H, ['Purchase Date', 'Purchase Date*']);
+            const account = r['Account'] ?? r['Account*'] ?? r['account'];
+            const mtype   = r['Metal Type'] ?? r['Metal Type*'] ?? r['Metal'];
+            const code    = r['Metal Code'] ?? r['Symbol'] ?? r['Ticker'] ?? ''; // ok if blank
+            const qty     = r['Quantity (oz)'] ?? r['Quantity (oz)*'] ?? r['Quantity'];
+            const price   = r['Purchase Price/oz'] ?? r['Purchase Price/oz*'] ?? r['Price/Unit'] ?? r['Purchase Price'];
+            const date    = r['Purchase Date'] ?? r['Purchase Date*'];
 
-            const acctNorm = (String(account || '')).trim();
-            const typeNorm = (String(mtype || '')).trim();
+            const acctNorm = norm(account);
+            const typeNorm = norm(mtype);
 
             const isInstruction = acctNorm.startsWith('⚠');
             const isPlaceholder = /^select account/i.test(acctNorm);
             const isEmptyRow = !acctNorm && !typeNorm && !toNumber(qty) && !toNumber(price);
 
             if (isInstruction || isPlaceholder || isEmptyRow) return;
+
+            // Require Account + Metal Type (code can be blank; UI/Excel VLOOKUP fills it)
             if (!acctNorm || !typeNorm) return;
 
             result.metal.push(
@@ -964,7 +935,7 @@ const QuickStartModal = ({ isOpen, onClose }) => {
                 account_id: accountIdFor(account),
                 account_name: acctNorm,
                 metal_type: typeNorm,
-                symbol: (String(code || '')).trim(), // ok if '', UI can derive
+                symbol: norm(code),
                 name: '',
                 quantity: toNumber(qty),
                 unit: 'oz',
@@ -975,90 +946,98 @@ const QuickStartModal = ({ isOpen, onClose }) => {
             });
         }
 
-                // Optional debug (uncomment to inspect what parser sees)
-        console.log('Sheets:', wb.SheetNames);
-        console.log('SEC rows sample keys:', (secSheetName && toRows(secSheetName)[0]) ? Object.keys(toRows(secSheetName)[0]) : []);
-        console.log('CRYPTO rows sample keys:', (cryptoSheetName && toRows(cryptoSheetName)[0]) ? Object.keys(toRows(cryptoSheetName)[0]) : []);
-
-  return result;
-};
+        return result;
+        };
 
 
 
 
     const parseAccountsExcel = async (file) => {
-    const buf = await readFileAsArrayBuffer(file);
-    const XLSX = await import('xlsx');
-    const wb = XLSX.read(buf, { type: 'array', cellDates: true });
-    const sheetName = wb.SheetNames.find(n => normalizeHeader(n) === 'accounts') || wb.SheetNames[0];
-    const sheet = wb.Sheets[sheetName];
-    const rows = XLSX.utils.sheet_to_json(sheet, { defval: '', raw: false });
+        const buf = await readFileAsArrayBuffer(file);
+        const XLSX = await import('xlsx');
+        // Keep real Excel dates as JS Date objects
+        const wb = XLSX.read(buf, { type: 'array', cellDates: true });
 
-    if (!rows.length) return [];
+        const sheetName =
+            wb.SheetNames.find((n) => normalizeHeader(n) === 'accounts') ||
+            wb.SheetNames[0];
 
-    // Build a case-insensitive header map using the first row's keys
-    const headerKeys = Object.keys(rows[0]);
-    const headerMap = {};
-    for (const k of headerKeys) headerMap[normalizeHeader(k)] = k;
+        const sheet = wb.Sheets[sheetName];
 
-    // Verify required headers exist (leniently)
-    const missing = REQUIRED_ACCOUNT_HEADERS.filter(req => !(normalizeHeader(req) in headerMap));
-    if (missing.length) {
-        throw new Error(`Missing required column(s): ${missing.join(', ')}`);
-    }
+        // First try: assume header row is the first row after banner; if not, fallback
+        let rows = XLSX.utils.sheet_to_json(sheet, { defval: '', raw: false });
+        if (!rows.length || Object.keys(rows[0] || {}).length <= 1) {
+            rows = XLSX.utils.sheet_to_json(sheet, { defval: '', raw: false, range: 1 });
+        }
 
-    const mapVal = (row, label) => String(row[headerMap[normalizeHeader(label)]] ?? '').trim();
+        if (!rows.length) return [];
 
-    // Build UI-shape accounts array your table already expects
-    const parsed = rows
-        .map((r) => {
-        const accountName = mapVal(r, 'Account Name');
-        const institution = mapVal(r, 'Institution');
-        const accountCategory = mapVal(r, 'Account Category'); // expect values like "brokerage", "retirement", etc. (or labels)
-        const accountType = mapVal(r, 'Account Type');         // "Individual", "Roth IRA", etc.
-        const hasAnyValue = [accountName, institution, accountCategory, accountType]
-            .some(v => v && v.length > 0);
+        // Build a case-insensitive header map using the first row's keys
+        const headerKeys = Object.keys(rows[0]);
+        const headerMap = {};
+        for (const k of headerKeys) headerMap[normalizeHeader(k)] = k;
 
-        if (!hasAnyValue) return null; // skip fully empty rows
+        // Verify required headers exist (leniently)
+        const missing = REQUIRED_ACCOUNT_HEADERS.filter(
+            (req) => !(normalizeHeader(req) in headerMap)
+        );
+        if (missing.length) {
+            throw new Error(`Missing required column(s): ${missing.join(', ')}`);
+        }
 
-        return {
-            tempId: Date.now() + Math.random(),
-            accountName,
-            institution,
-            accountCategory,
-            accountType,
-            isNew: true,
+        const mapVal = (row, label) =>
+            String(row[headerMap[normalizeHeader(label)]] ?? '').trim();
+
+        // Build UI-shape accounts array your table already expects
+        const parsed = rows
+            .map((r) => {
+            const accountName = mapVal(r, 'Account Name');
+            const institution = mapVal(r, 'Institution');
+            const accountCategory = mapVal(r, 'Account Category'); // id or label
+            const accountType = mapVal(r, 'Account Type');
+
+            const hasAnyValue = [accountName, institution, accountCategory, accountType]
+                .some((v) => v && v.length > 0);
+            if (!hasAnyValue) return null; // skip fully empty rows
+
+            return {
+                tempId: Date.now() + Math.random(),
+                accountName,
+                institution,
+                accountCategory,
+                accountType,
+                isNew: true,
+            };
+            })
+            .filter(Boolean);
+
+        // Translate category labels → ids if needed
+        const categoryNames = new Map(
+            ACCOUNT_CATEGORIES.map((c) => [c.name.toLowerCase(), c.id])
+        );
+        parsed.forEach((a) => {
+            const lowered = String(a.accountCategory || '').toLowerCase();
+            if (categoryNames.has(lowered)) a.accountCategory = categoryNames.get(lowered);
+        });
+
+        return parsed;
         };
-        })
-        .filter(Boolean);
 
-    // Optional: simple category normalization if user typed labels that match your UI ids
-    // If you strictly need id values (brokerage/retirement/cash/cryptocurrency/metals),
-    // we can translate labels to ids here using ACCOUNT_CATEGORIES.
-    const categoryNames = new Map(ACCOUNT_CATEGORIES.map(c => [c.name.toLowerCase(), c.id]));
-    parsed.forEach(a => {
-        const raw = String(a.accountCategory || '');
-        const lowered = raw.toLowerCase();
-        if (categoryNames.has(lowered)) a.accountCategory = categoryNames.get(lowered);
-        // leave as-is if already id-like
-    });
-
-    return parsed;
-    };
 
     // Detect which template (by sheet name or headers)
+// Detect which template (by sheet name or headers)
     const detectTemplateType = async (file) => {
         const buf = await readFileAsArrayBuffer(file);
         const XLSX = await import('xlsx');
         const wb = XLSX.read(buf, { type: 'array', cellDates: true });
 
         // 1) Quick sheet-name heuristic
-        const sheetNamesNorm = wb.SheetNames.map(n => (n || '').toLowerCase());
-        if (sheetNamesNorm.some(n => n.includes('accounts'))) return { kind: 'accounts', wb };
+        const sheetNamesNorm = wb.SheetNames.map((n) => (n || '').toLowerCase());
+        if (sheetNamesNorm.some((n) => n.includes('accounts'))) return { kind: 'accounts', wb };
 
         // Positions template has per-tab sheets like "📈 SECURITIES", "💵 CASH", "🪙 CRYPTO", "🥇 METALS"
-        const looksLikePositionsByName = sheetNamesNorm.some(n =>
-            n.includes('secur') || n.includes('cash') || n.includes('crypto') || n.includes('metal')
+        const looksLikePositionsByName = sheetNamesNorm.some(
+            (n) => n.includes('secur') || n.includes('cash') || n.includes('crypto') || n.includes('metal')
         );
         if (looksLikePositionsByName) return { kind: 'positions', wb };
 
@@ -1081,10 +1060,14 @@ const QuickStartModal = ({ isOpen, onClose }) => {
         ];
 
         const sheetHasHeaders = (sheet, requiredHeaders) => {
-            const rows = XLSX.utils.sheet_to_json(sheet, { defval: '', raw: false });
+            // Try normal header row; if it looks like a banner, try range:1
+            let rows = XLSX.utils.sheet_to_json(sheet, { defval: '', raw: false });
+            if (!rows.length || Object.keys(rows[0] || {}).length <= 1) {
+            rows = XLSX.utils.sheet_to_json(sheet, { defval: '', raw: false, range: 1 });
+            }
             if (!rows.length) return false;
-            const keys = Object.keys(rows[0]).map(k => normH(k));
-            return requiredHeaders.every(h => keys.includes(normH(h)));
+            const keys = Object.keys(rows[0]).map((k) => normH(k));
+            return requiredHeaders.every((h) => keys.includes(normH(h)));
         };
 
         // Try to detect Accounts
@@ -1097,7 +1080,7 @@ const QuickStartModal = ({ isOpen, onClose }) => {
         // Try to detect Positions if ANY per-tab header set matches on ANY sheet
         for (const name of wb.SheetNames) {
             const sheet = wb.Sheets[name];
-            if (POS_HEADER_SETS.some(set => sheetHasHeaders(sheet, set))) {
+            if (POS_HEADER_SETS.some((set) => sheetHasHeaders(sheet, set))) {
             return { kind: 'positions', wb };
             }
         }
