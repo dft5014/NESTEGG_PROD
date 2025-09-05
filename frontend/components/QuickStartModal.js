@@ -1144,26 +1144,27 @@ const QuickStartModal = ({ isOpen, onClose }) => {
 
 
             if (kind === 'accounts') {
-            const parsedAccounts = await parseAccountsExcel(file);
-            setUploadProgress(60);
+                const parsedAccounts = await parseAccountsExcel(file);
+                setUploadProgress(60);
 
-            if (!parsedAccounts.length) {
-                setValidationStatus(null);
-                setUploadProgress(0);
-                alert('No rows found. Make sure you filled in the "Accounts" sheet and saved the file.');
+                if (!parsedAccounts.length) {
+                    setValidationStatus(null);
+                    setUploadProgress(0);
+                    alert('No rows found. Make sure you filled in the "Accounts" sheet and saved the file.');
+                    return;
+                }
+
+                setAccounts(parsedAccounts);
+                setUploadProgress(100);
+                setValidationStatus('valid');
+
+                // Route into the Accounts Quick Add UI
+                setSelectedTemplate('accounts');
+                setActiveTab('accounts');
+                setImportMethod('ui');
                 return;
             }
 
-            setAccounts(parsedAccounts);
-            setUploadProgress(100);
-            setValidationStatus('valid');
-
-            // ✅ Route to the Accounts Quick Add UI (same UX as positions)
-            setSelectedTemplate('accounts');
-            setActiveTab('accounts');
-            setImportMethod('ui');
-            return;
-            }
 
             // Unknown/unsupported
             setValidationStatus(null);
@@ -1467,10 +1468,10 @@ const QuickStartModal = ({ isOpen, onClose }) => {
                     <button
                         type="button"
                         onClick={(e) => {
-                        e.stopPropagation(); // don’t trigger card onClick
+                        e.stopPropagation(); // avoid triggering the card's onClick
                         setSelectedTemplate('accounts');
                         setImportMethod('excel');
-                        setActiveTab('upload');     // go straight to upload screen
+                        setActiveTab('upload');   // straight to the uploader
                         setValidationStatus(null);
                         setUploadProgress(0);
                         setUploadedFile(null);
@@ -2534,21 +2535,23 @@ const QuickStartModal = ({ isOpen, onClose }) => {
 
                 {/* New: let users jump straight to upload */}
                 {!isAccounts && (
-                    {/* New: let users jump straight to upload (both Accounts & Positions) */}
-                    <button
-                    type="button"
-                    onClick={() => {
-                        setImportMethod('excel');
-                        setSelectedTemplate(isAccounts ? 'accounts' : 'positions');
-                        setActiveTab('upload');
-                        setValidationStatus(null);
-                        setUploadProgress(0);
-                        setUploadedFile(null);
-                    }}
-                    className={`text-sm font-medium text-${color}-700 hover:text-${color}-800 underline`}
-                    >
-                    I already have a filled template — Upload now
-                    </button>
+                        {/* New: let users jump straight to upload (both Accounts & Positions) */}
+                        <button
+                        type="button"
+                        onClick={() => {
+                            setImportMethod('excel');
+                            setSelectedTemplate(isAccounts ? 'accounts' : 'positions');
+                            setActiveTab('upload');
+                            setValidationStatus(null);
+                            setUploadProgress(0);
+                            setUploadedFile(null);
+                        }}
+                        className={`text-sm font-medium ${
+                            isAccounts ? 'text-blue-700 hover:text-blue-800' : 'text-purple-700 hover:text-purple-800'
+                        } underline`}
+                        >
+                        I already have a filled template — Upload now
+                        </button>
                 )}
                 </div>
 
