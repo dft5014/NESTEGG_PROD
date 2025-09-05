@@ -7,8 +7,6 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { QuickStartButton } from '@/components/QuickStartModal';
 import { QuickReconciliationButton } from '@/components/modals/QuickReconciliationModal';
 import { QuickEditDeleteButton } from '@/components/modals/QuickEditDeleteModal';
-import AddPositionButton from '@/components/AddPositionButton';
-import AddAccountButton from '@/components/AddAccountButton';
 import UpdateStatusIndicator from '@/components/UpdateStatusIndicator';
 
 import { AuthContext } from '@/context/AuthContext';
@@ -87,7 +85,14 @@ const StockTicker = () => {
     { symbol: 'BTC',   price: 64230.50, changePercent: 1.96, isUp: true },
   ];
 
-  // Map grouped positions for ticker
+// Percent helper: backend may return 0.0123 (1.23%) or 1.23 (1.23%)
+const normalizePct = (v) => {
+  if (typeof v !== 'number' || !isFinite(v)) return null;
+  // If within [-1, 1], assume decimal and convert to %
+  return Math.abs(v) <= 1 ? v * 100 : v;
+};
+
+  // Map grouped positions for ticker (top 10 by value)
   const userStocks = useMemo(() => {
     if (!positions || positions.length === 0) return [];
     return positions
@@ -98,21 +103,30 @@ const StockTicker = () => {
       )
       .sort((a, b) => (b.total_current_value || 0) - (a.total_current_value || 0))
       .slice(0, 10)
-      .map(pos => ({
-        symbol: pos.identifier,
-        name: pos.name,
-        value: pos.total_current_value,
-        price: pos.latest_price_per_unit,
-        dayChangePercent: (pos.value_1d_change_pct || 0),
-        weekChangePercent: (pos.value_1w_change_pct || 0),
-        ytdChangePercent: (pos.value_ytd_change_pct || 0),
-        totalGainLossPercent: typeof pos.total_gain_loss_pct === 'number' ? pos.total_gain_loss_pct * 100 : null,
-        isUp1d: (pos.value_1d_change_pct || 0) >= 0,
-        isUp1w: (pos.value_1w_change_pct || 0) >= 0,
-        isUpYtd: (pos.value_ytd_change_pct || 0) >= 0,
-        isUpTotal: (pos.total_gain_loss_pct || 0) >= 0,
-      }));
+      .map(pos => {
+        const dayPct  = normalizePct(pos.value_1d_change_pct);
+        const weekPct = normalizePct(pos.value_1w_change_pct);
+        const ytdPct  = normalizePct(pos.value_ytd_change_pct);
+        const totPct  = normalizePct(pos.total_gain_loss_pct);
+
+        return {
+          symbol: pos.identifier,
+          name: pos.name,
+          value: pos.total_current_value,
+          price: pos.latest_price_per_unit,
+          dayChangePercent: dayPct,
+          weekChangePercent: weekPct,
+          ytdChangePercent: ytdPct,
+          totalGainLossPercent: totPct,
+          totalGainLossAmt: typeof pos.total_gain_loss_amt === 'number' ? pos.total_gain_loss_amt : null,
+          isUp1d: typeof dayPct === 'number' ? dayPct >= 0 : null,
+          isUp1w: typeof weekPct === 'number' ? weekPct >= 0 : null,
+          isUpYtd: typeof ytdPct === 'number' ? ytdPct >= 0 : null,
+          isUpTotal: typeof totPct === 'number' ? totPct >= 0 : null,
+        };
+      });
   }, [positions]);
+
 
   const hasPositions = userStocks.length > 0;
   const isLoading = positionsLoading || summaryLoading;
@@ -192,9 +206,10 @@ const StockTicker = () => {
 
   const renderChip = useCallback((label, data, fallbackAmt = null, fallbackPct = null) => {
     const amt = data?.netWorthChange ?? fallbackAmt ?? null;
-    const pct = data?.netWorthPercent ?? fallbackPct ?? null;
+    const rawPct = data?.netWorthPercent ?? fallbackPct ?? null;
+    const pct = normalizePct(rawPct); // <- fix scaling
     const up  = typeof pct === 'number' ? pct >= 0 : (typeof amt === 'number' ? amt >= 0 : null);
-    const color = up == null ? 'text-gray-300' : up ? 'text-green-400' : 'text-red-400';
+    const color = up == null ? 'text-gray-300' : (up ? 'text-green-400' : 'text-red-400');
 
     return (
       <div className="flex items-center gap-2 px-3 py-1 bg-gray-800 rounded" title={label}>
@@ -270,51 +285,74 @@ const StockTicker = () => {
               </div>
             )}
 
-            {/* 1D change (or sample % if no positions) */}
-            <span
-              className={`flex items-center text-sm ${
-                (hasPositions ? stock.isUp1d : stock.isUp) ? 'text-green-400' : 'text-red-400'
-              }`}
-              title="1D change"
-            >
-              {(hasPositions ? stock.isUp1d : stock.isUp)
-                ? <TrendingUp className="w-3 h-3 mr-1" />
-                : <TrendingDown className="w-3 h-3 mr-1" />
-              }
-              {(() => {
-                const pct = hasPositions ? stock.dayChangePercent : stock.changePercent;
-                if (typeof pct === 'number') return `${pct >= 0 ? '+' : ''}${pct.toFixed(1)}%`;
-                return '—';
-              })()}
-            </span>
+            {/* 1D change */}
+            <div className="flex items-center gap-1 text-sm">
+              <span className="text-xs text-gray-500">1D:</span>
+              <span
+                className={`flex items-center ${
+                  (hasPositions ? stock.isUp1d : stock.isUp) ? 'text-green-400' : 'text-red-400'
+                }`}
+                title="1D change"
+              >
+                {(hasPositions ? stock.isUp1d : stock.isUp)
+                  ? <TrendingUp className="w-3 h-3 mr-1" />
+                  : <TrendingDown className="w-3 h-3 mr-1" />
+                }
+                {(() => {
+                  const pct = hasPositions ? stock.dayChangePercent : stock.changePercent;
+                  return (typeof pct === 'number') ? `${pct >= 0 ? '+' : ''}${pct.toFixed(2)}%` : '—';
+                })()}
+              </span>
+            </div>
 
-            {/* Optional: 1W / YTD / Total chips inside each row (can be commented if too dense) */}
+            {/* 1W / YTD / Gain-Loss (only for user positions) */}
             {hasPositions && (
               <>
-                <span
-                  className={`hidden md:flex items-center text-sm ${
-                    stock.isUp1w ? 'text-green-400' : 'text-red-400'
-                  }`}
-                  title="1W change"
-                >
-                  {stock.isUp1w ? <TrendingUp className="w-3 h-3 mr-1" /> : <TrendingDown className="w-3 h-3 mr-1" />}
-                  {typeof stock.weekChangePercent === 'number'
-                    ? `${stock.weekChangePercent >= 0 ? '+' : ''}${stock.weekChangePercent.toFixed(1)}%`
-                    : '—'}
-                </span>
-                <span
-                  className={`hidden lg:flex items-center text-sm ${
-                    stock.isUpYtd ? 'text-green-400' : 'text-red-400'
-                  }`}
-                  title="YTD change"
-                >
-                  {stock.isUpYtd ? <TrendingUp className="w-3 h-3 mr-1" /> : <TrendingDown className="w-3 h-3 mr-1" />}
-                  {typeof stock.ytdChangePercent === 'number'
-                    ? `${stock.ytdChangePercent >= 0 ? '+' : ''}${stock.ytdChangePercent.toFixed(1)}%`
-                    : '—'}
-                </span>
+                <div className="hidden md:flex items-center gap-1 text-sm">
+                  <span className="text-xs text-gray-500">1W:</span>
+                  <span
+                    className={`flex items-center ${stock.isUp1w ? 'text-green-400' : 'text-red-400'}`}
+                    title="1W change"
+                  >
+                    {stock.isUp1w ? <TrendingUp className="w-3 h-3 mr-1" /> : <TrendingDown className="w-3 h-3 mr-1" />}
+                    {typeof stock.weekChangePercent === 'number'
+                      ? `${stock.weekChangePercent >= 0 ? '+' : ''}${stock.weekChangePercent.toFixed(2)}%`
+                      : '—'}
+                  </span>
+                </div>
+
+                <div className="hidden lg:flex items-center gap-1 text-sm">
+                  <span className="text-xs text-gray-500">YTD:</span>
+                  <span
+                    className={`flex items-center ${stock.isUpYtd ? 'text-green-400' : 'text-red-400'}`}
+                    title="YTD change"
+                  >
+                    {stock.isUpYtd ? <TrendingUp className="w-3 h-3 mr-1" /> : <TrendingDown className="w-3 h-3 mr-1" />}
+                    {typeof stock.ytdChangePercent === 'number'
+                      ? `${stock.ytdChangePercent >= 0 ? '+' : ''}${stock.ytdChangePercent.toFixed(2)}%`
+                      : '—'}
+                  </span>
+                </div>
+
+                <div className="hidden xl:flex items-center gap-1 text-sm">
+                  <span className="text-xs text-gray-500">Gain/Loss:</span>
+                  <span
+                    className={`flex items-center ${
+                      stock.isUpTotal == null ? 'text-gray-400' : (stock.isUpTotal ? 'text-green-400' : 'text-red-400')
+                    }`}
+                    title="Total Gain/Loss"
+                  >
+                    {stock.isUpTotal == null ? null : (stock.isUpTotal ? <TrendingUp className="w-3 h-3 mr-1" /> : <TrendingDown className="w-3 h-3 mr-1" />)}
+                    {stock.totalGainLossAmt != null ? `${stock.totalGainLossAmt >= 0 ? '+' : ''}${formatCurrency(Math.abs(stock.totalGainLossAmt)).replace('$','')}` : '—'}
+                    <span className="text-gray-500 mx-1">/</span>
+                    {typeof stock.totalGainLossPercent === 'number'
+                      ? `${stock.totalGainLossPercent >= 0 ? '+' : ''}${stock.totalGainLossPercent.toFixed(2)}%`
+                      : '—'}
+                  </span>
+                </div>
               </>
             )}
+
           </div>
         ))}
       </div>
@@ -357,7 +395,6 @@ const StockTicker = () => {
 // ---------------------- Navbar ----------------------
 const Navbar = () => {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
-  const [isManualAddOpen, setIsManualAddOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const [accounts, setAccounts] = useState([]);
   const [isLoadingAccounts, setIsLoadingAccounts] = useState(false);
@@ -396,9 +433,7 @@ const Navbar = () => {
       if (isDropdownOpen && !event.target.closest('.user-dropdown')) {
         setIsDropdownOpen(false);
       }
-      if (isManualAddOpen && !event.target.closest('.manual-add-dropdown')) {
-        setIsManualAddOpen(false);
-      }
+
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
@@ -447,44 +482,7 @@ const Navbar = () => {
                   <QuickReconciliationButton />
                 </motion.div>
 
-                {/* Manual Add Dropdown */}
-                <motion.div
-                  initial={{ opacity: 0, y: -10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.4 }}
-                  className="relative manual-add-dropdown"
-                >
-                  <motion.button
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                    onClick={() => setIsManualAddOpen(!isManualAddOpen)}
-                    className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-all shadow-lg hover:shadow-xl"
-                  >
-                    <Plus className="w-4 h-4" />
-                    <span className="text-sm font-medium">Add New</span>
-                    <motion.div animate={{ rotate: isManualAddOpen ? 180 : 0 }} transition={{ duration: 0.2 }}>
-                      <ChevronDown className="w-4 h-4" />
-                    </motion.div>
-                  </motion.button>
-
-                  <AnimatePresence>
-                    {isManualAddOpen && (
-                      <motion.div
-                        initial={{ opacity: 0, y: -10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: -10 }}
-                        className="absolute top-full mt-2 w-48 bg-gray-800 rounded-lg shadow-xl border border-gray-700 overflow-hidden z-50"
-                      >
-                        <AddAccountButton
-                          fetchAccounts={loadAccounts}
-                          className="w-full text-left px-4 py-3 hover:bg-gray-700 transition-colors"
-                        />
-                        <AddPositionButton
-                          accounts={accounts}
-                          fetchPositions={() => {}}
-                          className="w-full text-left px-4 py-3 hover:bg-gray-700 transition-colors"
-                        />
-                      </motion.div>
+                
                     )}
                   </AnimatePresence>
                 </motion.div>
