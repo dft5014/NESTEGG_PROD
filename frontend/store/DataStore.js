@@ -695,44 +695,39 @@ export const DataStoreProvider = ({ children }) => {
 
   // Fetch portfolio data
   const fetchPortfolioData = useCallback(async (force = false) => {
-    // Skip if already loading (prevent duplicate fetches)
-    if (state.portfolioSummary.loading) {
-      console.log('[DataStore] Skip portfolio fetch - already loading');
-      return Promise.resolve(); // Return resolved promise instead of undefined
-    }
+      const ps = state.portfolioSummary;
 
-    // Skip if data is fresh (< 1 minute) unless forced
-    const fiveMinutesAgo = Date.now() - 300000;
-    if (!force && 
-        state.portfolioSummary.lastFetched && 
-        state.portfolioSummary.lastFetched > fiveMinutesAgo && 
-        !state.portfolioSummary.isStale) {
-      console.log('[DataStore] Portfolio data is fresh, skipping fetch');
-      return Promise.resolve();
-    }
-
-    dispatch({ type: ActionTypes.FETCH_SUMMARY_START });
-
-    try {
-      const response = await fetchWithAuth('/portfolio/net_worth_summary/datastore?include_history=true');
-      if (!response.ok) {
-        throw new Error('Failed to fetch portfolio data');
+      // Skip if already loading (prevent duplicate fetches)
+      if (ps.loading && !force) {
+        console.log('[DataStore] Skip portfolio fetch - already loading');
+        return Promise.resolve();
       }
-      
-      const data = await response.json();
-      
-      dispatch({
-        type: ActionTypes.FETCH_SUMMARY_SUCCESS,
-        payload: data,
-      });
-    } catch (error) {
-      console.error('Error fetching portfolio data:', error);
-      dispatch({
-        type: ActionTypes.FETCH_SUMMARY_ERROR,
-        payload: error.message,
-      });
-    }
-  }, []); // Remove all dependencies to prevent recreation
+
+      // Skip if data is fresh (< 5 minutes) unless forced or stale
+      const fiveMinutesAgo = Date.now() - 300000;
+      if (!force && ps.lastFetched && ps.lastFetched > fiveMinutesAgo && !ps.isStale) {
+        console.log('[DataStore] Portfolio data is fresh, skipping fetch');
+        return Promise.resolve();
+      }
+
+      dispatch({ type: ActionTypes.FETCH_SUMMARY_START });
+
+      try {
+        const response = await fetchWithAuth('/portfolio/net_worth_summary/datastore?include_history=true');
+        if (!response.ok) throw new Error('Failed to fetch portfolio data');
+
+        const data = await response.json();
+        dispatch({ type: ActionTypes.FETCH_SUMMARY_SUCCESS, payload: data });
+      } catch (error) {
+        console.error('Error fetching portfolio data:', error);
+        dispatch({ type: ActionTypes.FETCH_SUMMARY_ERROR, payload: error.message });
+      }
+    }, [
+      state.portfolioSummary.loading,
+      state.portfolioSummary.lastFetched,
+      state.portfolioSummary.isStale,
+    ]);
+
 
 
   // Fetch accounts data
@@ -1052,12 +1047,25 @@ export const DataStoreProvider = ({ children }) => {
   }, []);
 
   // Initial load - only fetch if we have no data
-// Progressive loading strategy - fetch data in phases
-  useEffect(() => {
+// Progressive loading strategy - fetch data in phases (auth-gated)
+useEffect(() => {
+  const hasToken = () => {
+    try {
+      return !!localStorage.getItem('token');
+    } catch {
+      return false;
+    }
+  };
+
+  // If we've already initialized after a valid token, bail
+  if (hasInitialized.current && hasToken()) return;
+
+  const kickPhases = () => {
+    // Guard double-run (StrictMode/dev)
     if (hasInitialized.current) return;
     hasInitialized.current = true;
-    
-    // Phase 1: Critical data (immediate - needed for portfolio page and navbar)
+
+    // Phase 1: Critical data (immediate)
     const phase1 = setTimeout(() => {
       console.log('[DataStore] Phase 1: Loading critical data...');
       
@@ -1066,47 +1074,75 @@ export const DataStoreProvider = ({ children }) => {
       }
       if (!state.groupedPositions.data && !state.groupedPositions.loading) {
         console.log('[DataStore] Phase 1: Fetching grouped positions for navbar ticker');
-        fetchGroupedPositionsData();  // THIS IS CRITICAL FOR THE TICKER
+        fetchGroupedPositionsData(); // critical for ticker
       }
-
-        // NEW: fetch accounts immediately so QuickStartModal has data on first open
+      // Fetch accounts immediately so QuickStartModal has data on first open
       if (!state.accounts.data && !state.accounts.loading) {
         fetchAccountsData();
       }
+    }, 0);
 
-    }, 100);
-    
     // Phase 2: Likely needed soon (1 second delay)
     phase2Timeout.current = setTimeout(() => {
       console.log('[DataStore] Phase 2: Pre-fetching likely needed data...');
-      
-
       if (!state.groupedLiabilities.data && !state.groupedLiabilities.loading) {
         fetchGroupedLiabilitiesData();
       }
     }, 1000);
-    
+
     // Phase 3: Nice to have (3 seconds delay)
     phase3Timeout.current = setTimeout(() => {
       console.log('[DataStore] Phase 3: Pre-fetching modal data...');
-      
-      // Pre-fetch for QuickEdit modal
       if (!state.detailedPositions.data && !state.detailedPositions.loading) {
         fetchDetailedPositionsData();
       }
-      // Could add snapshots here if needed
+      // Optionally: snapshots prefetch later
       // if (!state.snapshots.data && !state.snapshots.loading) {
       //   fetchSnapshotsData();
       // }
     }, 3000);
-    
-    // Cleanup
+
+    // Cleanup timers if provider unmounts
     return () => {
       clearTimeout(phase1);
       if (phase2Timeout.current) clearTimeout(phase2Timeout.current);
       if (phase3Timeout.current) clearTimeout(phase3Timeout.current);
     };
-  }, []); // Run once
+  };
+
+  // If token already present, kick immediately
+  if (hasToken()) {
+    kickPhases();
+    return;
+  }
+
+  // Otherwise, wait for token to appear (auth just completed)
+  const onAuthLogin = () => {
+    kickPhases();
+    window.removeEventListener('auth-login', onAuthLogin);
+    window.removeEventListener('storage', onStorage);
+    clearInterval(poll);
+  };
+
+  const onStorage = (e) => {
+    if (e.key === 'token' && e.newValue) onAuthLogin();
+  };
+
+  window.addEventListener('auth-login', onAuthLogin);
+  window.addEventListener('storage', onStorage);
+
+  // Small safety net for environments that don’t emit the custom event
+  const poll = setInterval(() => {
+    if (hasToken()) onAuthLogin();
+  }, 150);
+
+  return () => {
+    window.removeEventListener('auth-login', onAuthLogin);
+    window.removeEventListener('storage', onStorage);
+    clearInterval(poll);
+  };
+}, []); // Run once
+
 
   // Auto-refresh stale data
   useEffect(() => {
