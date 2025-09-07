@@ -2,7 +2,7 @@
 import React, { useMemo, useCallback, useState, useEffect } from 'react';
 import { usePortfolioSummary } from '@/store/hooks/usePortfolioSummary';
 import { formatCurrency } from '@/utils/formatters';
-import { TrendingUp, TrendingDown, Activity } from 'lucide-react';
+import { TrendingUp, TrendingDown, Sparkle } from 'lucide-react';
 
 const normalizePct = (v) => {
  if (typeof v !== 'number' || !isFinite(v)) return null;
@@ -43,6 +43,28 @@ const AnimatedCounter = ({ value, duration = 800 }) => {
  return formatCurrency(displayValue);
 };
 
+// Period comparison item
+const PeriodItem = ({ label, amount, percent, isLarge = false }) => {
+ if (percent == null) return null;
+ 
+ const isPositive = percent >= 0;
+ const Icon = isPositive ? TrendingUp : TrendingDown;
+ 
+ return (
+   <div className={`flex items-center justify-between ${isLarge ? 'py-1' : 'py-0.5'}`}>
+     <span className={`${isLarge ? 'text-xs' : 'text-[11px]'} font-medium text-gray-500`}>
+       {label}
+     </span>
+     <div className="flex items-center gap-1.5">
+       <Icon className={`${isLarge ? 'w-3.5 h-3.5' : 'w-3 h-3'} ${isPositive ? 'text-emerald-400' : 'text-red-400'}`} />
+       <span className={`${isLarge ? 'text-sm' : 'text-xs'} font-semibold tabular-nums ${isPositive ? 'text-emerald-400' : 'text-red-400'}`}>
+         {isPositive ? '+' : ''}{percent.toFixed(2)}%
+       </span>
+     </div>
+   </div>
+ );
+};
+
 export default function PeriodSummaryChips({ className = '' }) {
  const { summary } = usePortfolioSummary();
  const [isHovered, setIsHovered] = useState(false);
@@ -65,112 +87,102 @@ export default function PeriodSummaryChips({ className = '' }) {
  
  const isDayPositive = typeof dayPct === 'number' ? dayPct >= 0 : null;
 
- // Format percentage with color
- const formatPeriod = (label, pct) => {
-   if (pct == null) return null;
-   const isPositive = pct >= 0;
-   const color = isPositive ? 'text-emerald-400' : 'text-red-400';
-   return (
-     <span className="inline-flex items-center">
-       <span className="text-gray-500 text-[10px] font-medium">{label}:</span>
-       <span className={`${color} text-[11px] font-semibold ml-1 tabular-nums`}>
-         {isPositive ? '+' : ''}{pct.toFixed(1)}%
-       </span>
-     </span>
-   );
- };
+ // Calculate total gain/loss
+ const t = summary?.totals || {};
+ const totalGainLossPct = normalizePct(typeof t.totalGainLossPct === 'number' ? t.totalGainLossPct : null);
+ const totalGainLossAmt = typeof t.totalGainLossAmt === 'number' ? t.totalGainLossAmt : null;
 
  return (
-   <div className={`flex items-center ${className}`}>
-     {/* Compact, elegant container */}
+   <div className={`flex items-center gap-3 ${className}`}>
+     {/* Net Worth - Hero Section */}
      <div 
        className="relative group"
        onMouseEnter={() => setIsHovered(true)}
        onMouseLeave={() => setIsHovered(false)}
      >
-       {/* Subtle glow on hover */}
+       {/* Subtle background glow */}
        <div className={`
          absolute -inset-1 bg-gradient-to-r 
-         ${isDayPositive === null ? 'from-gray-500/10 to-gray-600/5' :
-           isDayPositive ? 'from-emerald-500/10 to-emerald-600/5' : 
-           'from-red-500/10 to-red-600/5'}
-         rounded-xl blur-md opacity-0 group-hover:opacity-100 transition-opacity duration-500
+         ${isDayPositive === null ? 'from-gray-500/5 to-gray-600/5' :
+           isDayPositive ? 'from-emerald-500/5 to-emerald-600/5' : 
+           'from-red-500/5 to-red-600/5'}
+         rounded-xl blur-xl opacity-0 group-hover:opacity-100 transition-opacity duration-700
        `} />
        
-       {/* Main display container */}
-       <div className="relative bg-gray-950/80 backdrop-blur-sm border border-gray-800/40 rounded-xl px-4 py-2.5 hover:border-gray-700/50 transition-all duration-300">
-         <div className="flex items-center gap-4">
-           {/* Net Worth section */}
-           <div className="flex flex-col">
-             <div className="flex items-center gap-2">
-               <span className="text-[9px] font-semibold text-gray-500 uppercase tracking-wider">
-                 NET WORTH
-               </span>
-               {/* Live pulse indicator */}
-               <div className="relative flex items-center">
-                 <div className="w-1 h-1 rounded-full bg-emerald-400/60"></div>
-                 <div className="absolute w-1 h-1 rounded-full bg-emerald-400 animate-ping"></div>
-               </div>
-             </div>
-             
-             {/* Value and today's change */}
-             <div className="flex items-baseline gap-3">
-               <span className="text-xl font-bold text-white tracking-tight tabular-nums">
-                 <AnimatedCounter value={totalValue} />
-               </span>
-               
-               {/* Today's change */}
-               {typeof dayPct === 'number' && (
-                 <div className={`
-                   flex items-center gap-1.5 px-2 py-0.5 rounded-md
-                   ${isDayPositive ? 'bg-emerald-500/10' : 'bg-red-500/10'}
-                 `}>
-                   {isDayPositive ? 
-                     <TrendingUp className="w-3 h-3 text-emerald-400" /> : 
-                     <TrendingDown className="w-3 h-3 text-red-400" />
-                   }
-                   <span className={`
-                     text-xs font-bold tabular-nums
-                     ${isDayPositive ? 'text-emerald-400' : 'text-red-400'}
-                   `}>
-                     {dayPct >= 0 ? '+' : ''}{dayPct.toFixed(2)}%
-                   </span>
-                   <span className={`
-                     text-[9px] font-medium opacity-70
-                     ${isDayPositive ? 'text-emerald-400/70' : 'text-red-400/70'}
-                   `}>
-                     TODAY
-                   </span>
-                 </div>
+       {/* Net Worth Display */}
+       <div className="relative bg-gray-950/90 backdrop-blur-sm border border-gray-800/50 rounded-xl px-4 py-2.5 hover:border-gray-700/50 transition-all duration-300">
+         <div className="flex flex-col">
+           <div className="flex items-center gap-1.5 mb-1">
+             <span className="text-[9px] font-semibold text-gray-500 uppercase tracking-wider">
+               NET WORTH
+             </span>
+             {/* Live indicator */}
+             <div className="relative">
+               <Sparkle className="w-2.5 h-2.5 text-blue-400/60" />
+               {isHovered && (
+                 <Sparkle className="absolute inset-0 w-2.5 h-2.5 text-blue-400 animate-pulse" />
                )}
-             </div>
-             
-             {/* Period summary line - super clean */}
-             <div className="flex items-center gap-3 mt-1.5 pt-1 border-t border-gray-800/30">
-               {formatPeriod('1W', weekPct)}
-               {weekPct != null && monthPct != null && (
-                 <span className="text-gray-700">•</span>
-               )}
-               {formatPeriod('1M', monthPct)}
-               {((weekPct != null || monthPct != null) && ytdPct != null) && (
-                 <span className="text-gray-700">•</span>
-               )}
-               {formatPeriod('YTD', ytdPct)}
              </div>
            </div>
-
-           {/* Activity indicator - subtle */}
-           <div className={`
-             p-1.5 rounded-lg transition-all duration-300
-             ${isHovered ? 'bg-gray-800/40' : 'bg-gray-900/20'}
-           `}>
-             <Activity className={`
-               w-3.5 h-3.5 transition-all duration-300
-               ${isHovered ? 'text-blue-400' : 'text-gray-600'}
-               ${isHovered ? 'animate-pulse' : ''}
-             `} />
+           
+           <div className="flex items-baseline gap-2">
+             <span className="text-2xl font-bold text-white tracking-tight tabular-nums">
+               <AnimatedCounter value={totalValue} />
+             </span>
+             
+             {/* Today badge */}
+             {typeof dayPct === 'number' && (
+               <div className={`
+                 flex items-center gap-1 px-1.5 py-0.5 rounded-md
+                 ${isDayPositive ? 'bg-emerald-500/10' : 'bg-red-500/10'}
+               `}>
+                 <span className={`
+                   text-xs font-bold tabular-nums
+                   ${isDayPositive ? 'text-emerald-400' : 'text-red-400'}
+                 `}>
+                   {dayPct >= 0 ? '+' : ''}{dayPct.toFixed(2)}%
+                 </span>
+                 <span className={`
+                   text-[8px] font-medium opacity-70
+                   ${isDayPositive ? 'text-emerald-400/70' : 'text-red-400/70'}
+                 `}>
+                   TODAY
+                 </span>
+               </div>
+             )}
            </div>
          </div>
+       </div>
+     </div>
+
+     {/* Vertical Divider */}
+     <div className="h-12 w-px bg-gray-800/30" />
+
+     {/* Periods Grid - 2 columns */}
+     <div className="grid grid-cols-2 gap-x-6 gap-y-0">
+       {/* Column 1 */}
+       <div className="flex flex-col">
+         <PeriodItem label="1W" amount={p1w?.netWorth} percent={weekPct} />
+         <PeriodItem label="1M" amount={p1m?.netWorth} percent={monthPct} />
+       </div>
+       
+       {/* Column 2 */}
+       <div className="flex flex-col">
+         <PeriodItem label="YTD" amount={pytd?.netWorth} percent={ytdPct} />
+         {totalGainLossPct != null && (
+           <div className="flex items-center justify-between py-0.5">
+             <span className="text-[11px] font-medium text-gray-500">Total</span>
+             <div className="flex items-center gap-1.5">
+               {totalGainLossPct >= 0 ? 
+                 <TrendingUp className="w-3 h-3 text-emerald-400" /> : 
+                 <TrendingDown className="w-3 h-3 text-red-400" />
+               }
+               <span className={`text-xs font-semibold tabular-nums ${totalGainLossPct >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                 {totalGainLossPct >= 0 ? '+' : ''}{totalGainLossPct.toFixed(2)}%
+               </span>
+             </div>
+           </div>
+         )}
        </div>
      </div>
    </div>
