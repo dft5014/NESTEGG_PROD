@@ -1,27 +1,21 @@
 // components/Navbar.js
 import { useState, useContext, useEffect, useCallback, useMemo, useRef } from 'react';
-import Link from 'next/link';
-import { useRouter } from 'next/router';
-import { motion, AnimatePresence } from 'framer-motion';
+import PeriodSummaryChips from '@/components/PeriodSummaryChips';
+import UserMenu from '@/components/UserMenu';
+import { motion } from 'framer-motion';
 
 import { QuickStartButton } from '@/components/QuickStartModal';
 import { QuickReconciliationButton } from '@/components/modals/QuickReconciliationModal';
 import { QuickEditDeleteButton } from '@/components/modals/QuickEditDeleteModal';
-import UpdateStatusIndicator from '@/components/UpdateStatusIndicator';
 
 import { AuthContext } from '@/context/AuthContext';
-import { fetchAccounts } from '@/utils/apimethods/accountMethods';
 
 import { useGroupedPositions } from '@/store/hooks/useGroupedPositions';
-import { usePortfolioSummary } from '@/store/hooks/usePortfolioSummary';
 import { useDataStore } from '@/store/DataStore';
 
-import {
-  User, Settings, LogOut, HelpCircle, Shield, Clock,
-  ChevronDown, Activity, Plus, TrendingUp, TrendingDown
-} from 'lucide-react';
-
+import { TrendingUp, TrendingDown } from 'lucide-react';
 import { formatCurrency, formatStockPrice } from '@/utils/formatters';
+
 
 // ---- Layout constants
 const NAV_BAR_H = 64;      // 16 * 4px
@@ -60,7 +54,7 @@ const StockTicker = () => {
     window.matchMedia('(prefers-reduced-motion: reduce)').matches
   );
 
-  const { positions, loading: positionsLoading, error: positionsError } = useGroupedPositions();
+  const { positions, loading: positionsLoading } = useGroupedPositions();
   const { actions } = useDataStore();
 
   // Nudge a fetch if we truly have nothing (defensive)
@@ -71,7 +65,6 @@ const StockTicker = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [positionsLoading]);
 
-  const { summary: portfolioSummary, loading: summaryLoading } = usePortfolioSummary();
 
   // Sample data if user has no positions
   const sampleStocks = [
@@ -129,7 +122,7 @@ const normalizePct = (v) => {
 
 
   const hasPositions = userStocks.length > 0;
-  const isLoading = positionsLoading || summaryLoading;
+  const isLoading = positionsLoading;
   const items = hasPositions ? userStocks : sampleStocks;
 
   // Render list 3x for seamless loop
@@ -199,46 +192,7 @@ const normalizePct = (v) => {
     }
   };
 
-  // Helpers for right-side performance capsule
-  const getPeriod = useCallback((key) => {
-    return portfolioSummary?.periodChanges?.[key] ?? null;
-  }, [portfolioSummary]);
-
-  const renderChip = useCallback((label, data, fallbackAmt = null, fallbackPct = null) => {
-    // DataStore: absolute = netWorth, percent = netWorthPercent
-    const amt = (typeof data?.netWorth === 'number') ? data.netWorth : fallbackAmt;
-    const rawPct = (typeof data?.netWorthPercent === 'number') ? data.netWorthPercent : fallbackPct;
-    const pct = normalizePct(rawPct);
-
-    const up  = typeof pct === 'number' ? pct >= 0 : (typeof amt === 'number' ? amt >= 0 : null);
-    const color = up == null ? 'text-gray-300' : (up ? 'text-green-400' : 'text-red-400');
-
-    return (
-      <div className="flex items-center gap-2 px-3 py-1 bg-gray-800 rounded" title={label}>
-        <span className="text-gray-400">{label}:</span>
-        <span className={`font-medium ${color}`}>
-          {typeof amt === 'number'
-            ? `${amt >= 0 ? '+' : ''}${formatCurrency(Math.abs(amt)).replace('$','')}`
-            : '—'}
-        </span>
-        <span className="text-gray-500">/</span>
-        <span className={`font-medium ${color}`}>
-          {typeof pct === 'number' ? `${pct >= 0 ? '+' : ''}${pct.toFixed(2)}%` : '—'}
-        </span>
-      </div>
-    );
-  }, []);
-
-
-  const totalValue = useMemo(() => {
-    return (
-      portfolioSummary?.totals?.netWorth ??
-      portfolioSummary?.netWorth ??
-      portfolioSummary?.currentNetWorth ??
-      null
-    );
-  }, [portfolioSummary]);
-
+  
   return (
     <div
       ref={containerRef}
@@ -362,35 +316,6 @@ const normalizePct = (v) => {
         ))}
       </div>
 
-      {/* Right-side portfolio performance capsule */}
-      {!isLoading && hasPositions && portfolioSummary && (
-        <div className="absolute right-4 top-0 h-full flex items-center bg-gray-950 pl-4 z-50">
-          <div className="flex items-center gap-3 text-sm">
-            {/* Total Value */}
-            <div className="flex items-center gap-2 px-3 py-1 bg-gray-800 rounded">
-              <span className="text-gray-400">Total Value:</span>
-              <span className="font-semibold text-gray-200">
-                {totalValue != null ? formatCurrency(totalValue) : '—'}
-              </span>
-            </div>
-
-            {/* Multi-period chips */}
-            {renderChip('1D',  getPeriod('1d'))}
-            {renderChip('1W',  getPeriod('1w'))}
-            {renderChip('YTD', getPeriod('ytd'))}
-            {renderChip(
-              'Gain/Loss',
-              null, // not a period object
-              portfolioSummary?.totals?.totalGainLossAmt ?? null,
-              (typeof portfolioSummary?.totals?.totalGainLossPct === 'number'
-                ? portfolioSummary?.totals?.totalGainLossPct
-                : null)
-            )}
-
-          </div>
-        </div>
-      )}
-
       {/* Gradient masks */}
       <div className="pointer-events-none absolute left-0 top-0 h-full w-20 bg-gradient-to-r from-gray-950 to-transparent" />
       <div className="pointer-events-none absolute right-0 top-0 h-full w-32 bg-gradient-to-l from-gray-950 to-transparent" />
@@ -400,63 +325,13 @@ const normalizePct = (v) => {
 
 // ---------------------- Navbar ----------------------
 const Navbar = () => {
-  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
-  const [accounts, setAccounts] = useState([]);
-  const [isLoadingAccounts, setIsLoadingAccounts] = useState(false);
-  const [accountError, setAccountError] = useState(null);
   const { logout, user } = useContext(AuthContext);
-  const router = useRouter();
 
   // Toggle scrolled with rAF throttling
   useRafScroll(() => {
     setScrolled(window.scrollY > 10);
   });
-
-  // Load accounts once
-  const loadAccounts = useCallback(async () => {
-    setIsLoadingAccounts(true);
-    setAccountError(null);
-    try {
-      const response = await fetchAccounts();
-      setAccounts(response.data || []);
-    } catch (error) {
-      console.error('Error loading accounts:', error);
-      setAccountError('Failed to load accounts');
-      setAccounts([]);
-    } finally {
-      setIsLoadingAccounts(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    loadAccounts();
-  }, [loadAccounts]);
-
-  // Close dropdowns when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (isDropdownOpen && !event.target.closest('.user-dropdown')) {
-        setIsDropdownOpen(false);
-      }
-
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [isDropdownOpen]);
-
-  const getInitials = useCallback(() => {
-    if (user?.first_name && user?.last_name) {
-      return `${user.first_name[0]}${user.last_name[0]}`.toUpperCase();
-    } else if (user?.email) {
-      return user.email[0].toUpperCase();
-    }
-    return 'U';
-  }, [user]);
-
-  const displayName = user?.first_name && user?.last_name
-    ? `${user.first_name} ${user.last_name}`
-    : user?.email || 'User';
 
   return (
     <>
@@ -475,133 +350,23 @@ const Navbar = () => {
         >
           {/* Top bar (64px) */}
           <div className="h-16 px-4 flex items-center justify-between">
-            {/* Center-aligned Quick Actions */}
-            <div className="flex-1 flex justify-center">
-              <div className="flex items-center gap-2 ml-20">
-                <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
-                  <QuickStartButton />
-                </motion.div>
-                <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
-                  <QuickEditDeleteButton />
-                </motion.div>
-                <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>
-                  <QuickReconciliationButton />
-                </motion.div>
-              </div>
+            {/* Left: Quick Actions */}
+            <div className="flex items-center gap-2">
+              <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
+                <QuickStartButton />
+              </motion.div>
+              <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
+                <QuickEditDeleteButton />
+              </motion.div>
+              <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>
+                <QuickReconciliationButton />
+              </motion.div>
             </div>
 
-            {/* Right side - User Menu */}
-            <div className="relative user-dropdown">
-              <motion.button
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-                onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-                className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-gray-800/50 transition-all border border-transparent hover:border-gray-700"
-              >
-                <div className="relative">
-                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-semibold shadow-lg">
-                    {getInitials()}
-                  </div>
-                  <div className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 rounded-full border-2 border-gray-900" />
-                </div>
-                <div className="hidden md:block text-left">
-                  <p className="text-sm font-medium text-white">{displayName}</p>
-                  <p className="text-xs text-gray-400">Premium Member</p>
-                </div>
-                <motion.div animate={{ rotate: isDropdownOpen ? 180 : 0 }} transition={{ duration: 0.2 }}>
-                  <ChevronDown className="w-4 h-4 text-gray-400" />
-                </motion.div>
-              </motion.button>
-
-              <AnimatePresence>
-                {isDropdownOpen && (
-                  <motion.div
-                    initial={{ opacity: 0, y: -10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -10 }}
-                    className="absolute right-0 mt-2 w-72 bg-gray-800 rounded-xl shadow-2xl border border-gray-700 overflow-hidden z-50"
-                  >
-                    {/* User info header */}
-                    <div className="bg-gradient-to-r from-blue-600 to-purple-600 p-4">
-                      <div className="flex items-center gap-3">
-                        <div className="w-12 h-12 rounded-full bg-white/20 backdrop-blur flex items-center justify-center text-white font-bold text-lg">
-                          {getInitials()}
-                        </div>
-                        <div className="flex-1">
-                          <p className="font-semibold text-white">{displayName}</p>
-                          <p className="text-sm text-blue-100 truncate">{user?.email}</p>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Market Data Status */}
-                    <div className="p-4 border-b border-gray-700">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <Activity className="w-4 h-4 text-green-400" />
-                          <span className="text-sm text-gray-300">Market Data</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <UpdateStatusIndicator />
-                          <span className="text-xs text-green-400">Live</span>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Menu items */}
-                    <div className="py-2">
-                      <Link href="/profile">
-                        <motion.div whileHover={{ x: 4 }} className="flex items-center gap-3 px-4 py-3 hover:bg-gray-700/50 transition-all text-gray-300 hover:text-white">
-                          <User className="w-5 h-5" />
-                          <span>Profile</span>
-                        </motion.div>
-                      </Link>
-
-                      <Link href="/admin">
-                        <motion.div whileHover={{ x: 4 }} className="flex items-center gap-3 px-4 py-3 hover:bg-gray-700/50 transition-all text-gray-300 hover:text-white">
-                          <Shield className="w-5 h-5" />
-                          <span>Admin Panel</span>
-                        </motion.div>
-                      </Link>
-
-                      <Link href="/settings">
-                        <motion.div whileHover={{ x: 4 }} className="flex items-center gap-3 px-4 py-3 hover:bg-gray-700/50 transition-all text-gray-300 hover:text-white">
-                          <Settings className="w-5 h-5" />
-                          <span>Settings</span>
-                        </motion.div>
-                      </Link>
-
-                      <Link href="/scheduler">
-                        <motion.div whileHover={{ x: 4 }} className="flex items-center gap-3 px-4 py-3 hover:bg-gray-700/50 transition-all text-gray-300 hover:text-white">
-                          <Clock className="w-5 h-5" />
-                          <span>Scheduler</span>
-                        </motion.div>
-                      </Link>
-
-                      <Link href="/help">
-                        <motion.div whileHover={{ x: 4 }} className="flex items-center gap-3 px-4 py-3 hover:bg-gray-700/50 transition-all text-gray-300 hover:text-white">
-                          <HelpCircle className="w-5 h-5" />
-                          <span>Help & Support</span>
-                        </motion.div>
-                      </Link>
-
-                      <div className="border-t border-gray-700 mt-2 pt-2">
-                        <motion.button
-                          whileHover={{ x: 4 }}
-                          onClick={() => {
-                            setIsDropdownOpen(false);
-                            logout();
-                          }}
-                          className="w-full flex items-center gap-3 px-4 py-3 hover:bg-red-500/10 transition-all text-red-400 hover:text-red-300"
-                        >
-                          <LogOut className="w-5 h-5" />
-                          <span>Logout</span>
-                        </motion.button>
-                      </div>
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
+            {/* Right: Summary chips + User Menu */}
+            <div className="flex items-center gap-4">
+              <PeriodSummaryChips />
+              <UserMenu user={user} onLogout={logout} />
             </div>
           </div>
 
