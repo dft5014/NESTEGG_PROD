@@ -347,10 +347,10 @@ const Navbar = () => {
               : 'bg-gradient-to-r from-gray-900 via-gray-850 to-blue-900'
           }`}
         >
-          {/* Top bar (64px) */}
-          <div className="h-16 px-4 flex items-center justify-between">
+        {/* Top bar (64px) */}
+        <div className="h-16 px-4 flex items-center justify-between">
           {/* 3-column grid: center actions, nudge left; compact performance chips on the right */}
-          <div className="h-16 px-4 grid grid-cols-3 items-center">
+          <div className="grid grid-cols-3 w-full items-center">
             {/* Left spacer (keeps center truly centered) */}
             <div className="col-span-1"></div>
 
@@ -374,11 +374,11 @@ const Navbar = () => {
               <PeriodSummaryChips />
             </div>
           </div>
+        </div>
 
+        {/* Ticker (32px) inside the same fixed nav */}
+        <StockTicker />
 
-
-          {/* Ticker (32px) inside the same fixed nav */}
-          <StockTicker />
         </motion.nav>
       </div>
 
