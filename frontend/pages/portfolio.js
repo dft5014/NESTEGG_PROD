@@ -1001,7 +1001,8 @@ export default function Portfolio() {
             )}
           </div>
         </div>
-      </main>
+      </div>
+    </main>
 
       {/* Fullscreen modal: Invested Amount row */}
       <FullscreenModal
