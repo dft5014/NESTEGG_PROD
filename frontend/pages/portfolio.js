@@ -507,7 +507,13 @@ export default function Portfolio() {
             { id: '1y', label: '1 Year' },
           ].map(({ id, label }) => {
             const mini = sliceForPeriod(chartData, id);
-            const { value, deltaPct } = computeChangeFor(mini.map(r => ({ ...r, _v: Number(r?.[perfMetric] ?? 0) })), '_v');
+            const { delta, deltaPct } = computeChangeFor(
+                  mini.map(r => ({ ...r, _v: Number(r?.[perfMetric] ?? 0) })), 
+                  '_v'
+                );
+
+                <p className="text-sm font-semibold">{formatCurrency(delta)}</p>
+                <Delta value={deltaPct} />
             return (
               <motion.div key={id} whileHover={{ y: -2 }} className="bg-gray-900/70 border border-gray-800 rounded-2xl p-3 flex items-center justify-between">
                 <div>
