@@ -93,25 +93,25 @@ export default function PeriodSummaryChips({ className = '' }) {
  const totalGainLossAmt = typeof t.totalGainLossAmt === 'number' ? t.totalGainLossAmt : null;
 
  return (
-   <div className={`flex items-center gap-3 ${className}`}>
-     {/* Net Worth - Hero Section */}
-     <div 
-       className="relative group"
-       onMouseEnter={() => setIsHovered(true)}
-       onMouseLeave={() => setIsHovered(false)}
-     >
-       {/* Subtle background glow */}
-       <div className={`
-         absolute -inset-1 bg-gradient-to-r 
-         ${isDayPositive === null ? 'from-gray-500/5 to-gray-600/5' :
-           isDayPositive ? 'from-emerald-500/5 to-emerald-600/5' : 
-           'from-red-500/5 to-red-600/5'}
-         rounded-xl blur-xl opacity-0 group-hover:opacity-100 transition-opacity duration-700
-       `} />
-       
-       {/* Net Worth Display */}
-       <div className="relative bg-gray-950/90 backdrop-blur-sm border border-gray-800/50 rounded-xl px-4 py-2.5 hover:border-gray-700/50 transition-all duration-300">
-         <div className="flex flex-col">
+   <div 
+     className={`relative group ${className}`}
+     onMouseEnter={() => setIsHovered(true)}
+     onMouseLeave={() => setIsHovered(false)}
+   >
+     {/* Subtle background glow on hover */}
+     <div className={`
+       absolute -inset-1 bg-gradient-to-r 
+       ${isDayPositive === null ? 'from-gray-500/5 to-gray-600/5' :
+         isDayPositive ? 'from-emerald-500/5 to-emerald-600/5' : 
+         'from-red-500/5 to-red-600/5'}
+       rounded-xl blur-xl opacity-0 group-hover:opacity-100 transition-opacity duration-700
+     `} />
+     
+     {/* Main container with unified background */}
+     <div className="relative bg-gray-950/90 backdrop-blur-sm border border-gray-800/50 rounded-xl px-4 py-2.5 hover:border-gray-700/50 transition-all duration-300">
+       <div className="flex items-center gap-3">
+         {/* Net Worth Section */}
+         <div className="flex flex-col pr-3">
            <div className="flex items-center gap-1.5 mb-1">
              <span className="text-[9px] font-semibold text-gray-500 uppercase tracking-wider">
                NET WORTH
@@ -152,37 +152,37 @@ export default function PeriodSummaryChips({ className = '' }) {
              )}
            </div>
          </div>
-       </div>
-     </div>
 
-     {/* Vertical Divider */}
-     <div className="h-12 w-px bg-gray-800/30" />
+         {/* Vertical Divider */}
+         <div className="h-10 w-px bg-gray-800/30" />
 
-     {/* Periods Grid - 2 columns */}
-     <div className="grid grid-cols-2 gap-x-6 gap-y-0">
-       {/* Column 1 */}
-       <div className="flex flex-col">
-         <PeriodItem label="1W" amount={p1w?.netWorth} percent={weekPct} />
-         <PeriodItem label="1M" amount={p1m?.netWorth} percent={monthPct} />
-       </div>
-       
-       {/* Column 2 */}
-       <div className="flex flex-col">
-         <PeriodItem label="YTD" amount={pytd?.netWorth} percent={ytdPct} />
-         {totalGainLossPct != null && (
-           <div className="flex items-center justify-between py-0.5">
-             <span className="text-[11px] font-medium text-gray-500">Total</span>
-             <div className="flex items-center gap-1.5">
-               {totalGainLossPct >= 0 ? 
-                 <TrendingUp className="w-3 h-3 text-emerald-400" /> : 
-                 <TrendingDown className="w-3 h-3 text-red-400" />
-               }
-               <span className={`text-xs font-semibold tabular-nums ${totalGainLossPct >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                 {totalGainLossPct >= 0 ? '+' : ''}{totalGainLossPct.toFixed(2)}%
-               </span>
-             </div>
+         {/* Periods Grid - 2 columns */}
+         <div className="grid grid-cols-2 gap-x-6 gap-y-0 pl-2">
+           {/* Column 1 */}
+           <div className="flex flex-col">
+             <PeriodItem label="1W" amount={p1w?.netWorth} percent={weekPct} />
+             <PeriodItem label="1M" amount={p1m?.netWorth} percent={monthPct} />
            </div>
-         )}
+           
+           {/* Column 2 */}
+           <div className="flex flex-col">
+             <PeriodItem label="YTD" amount={pytd?.netWorth} percent={ytdPct} />
+             {totalGainLossPct != null && (
+               <div className="flex items-center justify-between py-0.5">
+                 <span className="text-[11px] font-medium text-gray-500">Total</span>
+                 <div className="flex items-center gap-1.5">
+                   {totalGainLossPct >= 0 ? 
+                     <TrendingUp className="w-3 h-3 text-emerald-400" /> : 
+                     <TrendingDown className="w-3 h-3 text-red-400" />
+                   }
+                   <span className={`text-xs font-semibold tabular-nums ${totalGainLossPct >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                     {totalGainLossPct >= 0 ? '+' : ''}{totalGainLossPct.toFixed(2)}%
+                   </span>
+                 </div>
+               </div>
+             )}
+           </div>
+         </div>
        </div>
      </div>
    </div>
