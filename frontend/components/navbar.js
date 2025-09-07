@@ -352,10 +352,10 @@ const Navbar = () => {
           {/* 3-column grid: center actions, nudge left; compact performance chips on the right */}
           <div className="h-16 px-4 grid grid-cols-3 items-center">
             {/* Left spacer (keeps center truly centered) */}
-            <div />
+            <div className="col-span-1"></div>
 
             {/* Center: Quick Actions (nudged slightly left) */}
-            <div className="flex justify-center">
+            <div className="col-span-1 flex justify-center">
               <div className="flex items-center gap-2 md:-translate-x-6">
                 <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}>
                   <QuickStartButton />
@@ -370,10 +370,11 @@ const Navbar = () => {
             </div>
 
             {/* Right: Performance Chips (compact) */}
-            <div className="flex justify-end">
+            <div className="col-span-1 flex justify-end">
               <PeriodSummaryChips />
             </div>
           </div>
+
 
 
           {/* Ticker (32px) inside the same fixed nav */}
