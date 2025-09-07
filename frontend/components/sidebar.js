@@ -339,7 +339,7 @@ const Sidebar = () => {
         </nav>
 
         {/* Footer: User dropdown + Logout */}
-        <div className="border-top border-gray-800/50 p-2 relative">
+        <div className="border-t border-gray-800/50 p-2 relative">
           {/* User dropdown trigger (replaces Settings) */}
           <div ref={userMenuRef} className="mb-1">
             <motion.button
@@ -385,63 +385,81 @@ const Sidebar = () => {
               )}
             </motion.button>
 
-            {/* Dropdown */}
+            {/* Dropdown (expanded = in-rail, collapsed = floating popover to the right) */}
             <AnimatePresence>
               {userMenuOpen && (
-                <motion.div
-                  initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 8 }}
-                  className={`
-                    absolute z-50 ${sidebarCollapsed ? 'left-16' : 'left-2'} right-2 bottom-16
-                    bg-gray-850/95 backdrop-blur rounded-lg border border-gray-700 shadow-2xl
-                    overflow-hidden
-                  `}
-                  role="menu"
-                >
-                  <div className="px-4 py-3 bg-gradient-to-r from-blue-600/20 to-purple-600/20 border-b border-gray-700">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-600
-                                      flex items-center justify-center text-white font-semibold">
-                        {getInitials()}
-                      </div>
-                      <div className="min-w-0">
-                        <div className="text-sm font-semibold truncate">
-                          {user?.first_name && user?.last_name ? `${user.first_name} ${user.last_name}` : (user?.email || 'User')}
+                <>
+                  {/* Backdrop for collapsed state to catch outside clicks */}
+                  {sidebarCollapsed && (
+                    <motion.div
+                      initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                      className="fixed inset-0 z-[999]"
+                      onClick={() => setUserMenuOpen(false)}
+                    />
+                  )}
+
+                  <motion.div
+                    initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 8 }}
+                    className={
+                      sidebarCollapsed
+                        ? // Collapsed: float next to the rail (~5rem wide rail => left-20)
+                          "fixed z-[1000] left-20 bottom-20 w-72 bg-gray-850/95 backdrop-blur rounded-lg " +
+                          "border border-gray-700 shadow-2xl overflow-hidden"
+                        : // Expanded: keep inside the rail
+                          "absolute z-50 left-2 right-2 bottom-16 bg-gray-850/95 backdrop-blur rounded-lg " +
+                          "border border-gray-700 shadow-2xl overflow-hidden"
+                    }
+                    role="menu"
+                  >
+                    {/* Header */}
+                    <div className="px-4 py-3 bg-gradient-to-r from-blue-600/20 to-purple-600/20 border-b border-gray-700">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-600
+                                        flex items-center justify-center text-white font-semibold">
+                          {getInitials()}
                         </div>
-                        {user?.email && <div className="text-xs text-gray-400 truncate">{user.email}</div>}
+                        <div className="min-w-0">
+                          <div className="text-sm font-semibold truncate">
+                            {user?.first_name && user?.last_name ? `${user.first_name} ${user.last_name}` : (user?.email || 'User')}
+                          </div>
+                          {user?.email && <div className="text-xs text-gray-400 truncate">{user.email}</div>}
+                        </div>
                       </div>
                     </div>
-                  </div>
 
-                  <div className="py-1">
-                    <Link href="/profile">
-                      <div className="flex items-center gap-3 px-4 py-2 hover:bg-gray-800/60 cursor-pointer">
-                        <User className="w-4 h-4" /><span className="text-sm">Profile</span>
-                      </div>
-                    </Link>
-                    <Link href="/admin">
-                      <div className="flex items-center gap-3 px-4 py-2 hover:bg-gray-800/60 cursor-pointer">
-                        <Shield className="w-4 h-4" /><span className="text-sm">Admin Panel</span>
-                      </div>
-                    </Link>
-                    <Link href="/settings">
-                      <div className="flex items-center gap-3 px-4 py-2 hover:bg-gray-800/60 cursor-pointer">
-                        <Settings className="w-4 h-4" /><span className="text-sm">Settings</span>
-                      </div>
-                    </Link>
-                    <Link href="/scheduler">
-                      <div className="flex items-center gap-3 px-4 py-2 hover:bg-gray-800/60 cursor-pointer">
-                        <Clock className="w-4 h-4" /><span className="text-sm">Scheduler</span>
-                      </div>
-                    </Link>
-                    <Link href="/help">
-                      <div className="flex items-center gap-3 px-4 py-2 hover:bg-gray-800/60 cursor-pointer">
-                        <HelpCircle className="w-4 h-4" /><span className="text-sm">Help & Support</span>
-                      </div>
-                    </Link>
-                  </div>
-                </motion.div>
+                    {/* Items */}
+                    <div className="py-1">
+                      <Link href="/profile">
+                        <div className="flex items-center gap-3 px-4 py-2 hover:bg-gray-800/60 cursor-pointer">
+                          <User className="w-4 h-4" /><span className="text-sm">Profile</span>
+                        </div>
+                      </Link>
+                      <Link href="/admin">
+                        <div className="flex items-center gap-3 px-4 py-2 hover:bg-gray-800/60 cursor-pointer">
+                          <Shield className="w-4 h-4" /><span className="text-sm">Admin Panel</span>
+                        </div>
+                      </Link>
+                      <Link href="/settings">
+                        <div className="flex items-center gap-3 px-4 py-2 hover:bg-gray-800/60 cursor-pointer">
+                          <Settings className="w-4 h-4" /><span className="text-sm">Settings</span>
+                        </div>
+                      </Link>
+                      <Link href="/scheduler">
+                        <div className="flex items-center gap-3 px-4 py-2 hover:bg-gray-800/60 cursor-pointer">
+                          <Clock className="w-4 h-4" /><span className="text-sm">Scheduler</span>
+                        </div>
+                      </Link>
+                      <Link href="/help">
+                        <div className="flex items-center gap-3 px-4 py-2 hover:bg-gray-800/60 cursor-pointer">
+                          <HelpCircle className="w-4 h-4" /><span className="text-sm">Help & Support</span>
+                        </div>
+                      </Link>
+                    </div>
+                  </motion.div>
+                </>
               )}
             </AnimatePresence>
+
           </div>
 
           {/* Logout */}
