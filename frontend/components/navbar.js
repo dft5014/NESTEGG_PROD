@@ -205,9 +205,11 @@ const normalizePct = (v) => {
   }, [portfolioSummary]);
 
   const renderChip = useCallback((label, data, fallbackAmt = null, fallbackPct = null) => {
-    const amt = data?.netWorthChange ?? fallbackAmt ?? null;
-    const rawPct = data?.netWorthPercent ?? fallbackPct ?? null;
-    const pct = normalizePct(rawPct); // <- fix scaling
+    // DataStore: absolute = netWorth, percent = netWorthPercent
+    const amt = (typeof data?.netWorth === 'number') ? data.netWorth : fallbackAmt;
+    const rawPct = (typeof data?.netWorthPercent === 'number') ? data.netWorthPercent : fallbackPct;
+    const pct = normalizePct(rawPct);
+
     const up  = typeof pct === 'number' ? pct >= 0 : (typeof amt === 'number' ? amt >= 0 : null);
     const color = up == null ? 'text-gray-300' : (up ? 'text-green-400' : 'text-red-400');
 
@@ -215,7 +217,9 @@ const normalizePct = (v) => {
       <div className="flex items-center gap-2 px-3 py-1 bg-gray-800 rounded" title={label}>
         <span className="text-gray-400">{label}:</span>
         <span className={`font-medium ${color}`}>
-          {amt != null ? `${amt >= 0 ? '+' : ''}${formatCurrency(Math.abs(amt)).replace('$','')}` : '—'}
+          {typeof amt === 'number'
+            ? `${amt >= 0 ? '+' : ''}${formatCurrency(Math.abs(amt)).replace('$','')}`
+            : '—'}
         </span>
         <span className="text-gray-500">/</span>
         <span className={`font-medium ${color}`}>
@@ -224,6 +228,7 @@ const normalizePct = (v) => {
       </div>
     );
   }, []);
+
 
   const totalValue = useMemo(() => {
     return (
@@ -375,12 +380,13 @@ const normalizePct = (v) => {
             {renderChip('YTD', getPeriod('ytd'))}
             {renderChip(
               'Gain/Loss',
-              getPeriod('total'),
+              null, // not a period object
               portfolioSummary?.totals?.totalGainLossAmt ?? null,
               (typeof portfolioSummary?.totals?.totalGainLossPct === 'number'
                 ? portfolioSummary?.totals?.totalGainLossPct
                 : null)
             )}
+
           </div>
         </div>
       )}
