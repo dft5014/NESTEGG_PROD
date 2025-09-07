@@ -1,7 +1,6 @@
 // components/Navbar.js
 import { useState, useContext, useEffect, useCallback, useMemo, useRef } from 'react';
 import PeriodSummaryChips from '@/components/PeriodSummaryChips';
-import UserMenu from '@/components/UserMenu';
 import { motion } from 'framer-motion';
 
 import { QuickStartButton } from '@/components/QuickStartModal';
@@ -326,7 +325,7 @@ const normalizePct = (v) => {
 // ---------------------- Navbar ----------------------
 const Navbar = () => {
   const [scrolled, setScrolled] = useState(false);
-  const { logout, user } = useContext(AuthContext);
+  
 
   // Toggle scrolled with rAF throttling
   useRafScroll(() => {
@@ -350,25 +349,32 @@ const Navbar = () => {
         >
           {/* Top bar (64px) */}
           <div className="h-16 px-4 flex items-center justify-between">
-            {/* Left: Quick Actions */}
-            <div className="flex items-center gap-2">
-              <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
-                <QuickStartButton />
-              </motion.div>
-              <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
-                <QuickEditDeleteButton />
-              </motion.div>
-              <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>
-                <QuickReconciliationButton />
-              </motion.div>
+          {/* 3-column grid: center actions, nudge left; compact performance chips on the right */}
+          <div className="h-16 px-4 grid grid-cols-3 items-center">
+            {/* Left spacer (keeps center truly centered) */}
+            <div />
+
+            {/* Center: Quick Actions (nudged slightly left) */}
+            <div className="flex justify-center">
+              <div className="flex items-center gap-2 md:-translate-x-6">
+                <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}>
+                  <QuickStartButton />
+                </motion.div>
+                <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.10 }}>
+                  <QuickEditDeleteButton />
+                </motion.div>
+                <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}>
+                  <QuickReconciliationButton />
+                </motion.div>
+              </div>
             </div>
 
-            {/* Right: Summary chips + User Menu */}
-            <div className="flex items-center gap-4">
+            {/* Right: Performance Chips (compact) */}
+            <div className="flex justify-end">
               <PeriodSummaryChips />
-              <UserMenu user={user} onLogout={logout} />
             </div>
           </div>
+
 
           {/* Ticker (32px) inside the same fixed nav */}
           <StockTicker />

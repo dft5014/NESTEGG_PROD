@@ -25,6 +25,14 @@ const timeframeOptions = [
   { id: '6m', label: '6M' }, { id: 'ytd', label: 'YTD' }, { id: '1y', label: '1Y' }, { id: 'all', label: 'All' },
 ];
 
+// Secondary performance rail options (metric selector)
+const metricOptions = [
+  { id: 'altLiquidNetWorth', label: 'Liquid (Non-Retirement)' },
+  { id: 'altRetirementAssets', label: 'Retirement Assets' },
+  { id: 'altIlliquidNetWorth', label: 'Illiquid Net Worth' },
+  { id: 'totalAssets', label: 'Total Assets' },
+];
+
 const assetColors = {
   securities: '#4f46e5', security: '#4f46e5',
   cash: '#10b981', crypto: '#8b5cf6', bond: '#ec4899',
@@ -65,6 +73,30 @@ const axisMoney = (v) => {
   if (Math.abs(v) >= 1_000) return `$${(v / 1_000).toFixed(0)}k`;
   return `$${v.toLocaleString()}`;
 };
+
+// -----------------------------------------------------------------------------
+// Period helpers (generic, work for any metric key present in chartData rows)
+// -----------------------------------------------------------------------------
+const periodWindowDays = { '1w': 7, '1m': 30, '3m': 90, '6m': 180, '1y': 365 };
+
+function sliceForPeriod(chartRows, id) {
+  if (!chartRows?.length) return [];
+  if (id === '1d') return chartRows.slice(-2);
+  if (id === 'ytd') return chartRows; // assume chartData already filtered to YTD elsewhere as needed
+  if (id === 'all') return chartRows;
+  const n = periodWindowDays[id] || 30;
+  return chartRows.slice(-n);
+}
+
+function computeChangeFor(rows, key) {
+  if (!rows?.length) return { value: 0, delta: 0, deltaPct: 0 };
+  const first = Number(rows[0]?.[key] ?? 0);
+  const last  = Number(rows[rows.length - 1]?.[key] ?? 0);
+  const delta = last - first;
+  const deltaPct = first !== 0 ? delta / first : 0;
+  return { value: last, delta, deltaPct };
+}
+
 
 // -----------------------------------------------------------------------------
 // Tiny Primitives
@@ -168,6 +200,9 @@ export default function Portfolio() {
 
   const [timeframe, setTimeframe] = useState('1m');
   const [showInThousands, setShowInThousands] = useState(true);
+
+  // Secondary performance rail: which metric are we evaluating?
+  const [perfMetric, setPerfMetric] = useState('altLiquidNetWorth');
 
   const [modalOpen, setModalOpen] = useState(false);
   const [modalAssetKey, setModalAssetKey] = useState(null);
@@ -417,8 +452,11 @@ export default function Portfolio() {
           <KPI label="Annual Income" value={formatCurrency(annualIncome)} delta={<span className="text-xs text-amber-300 mt-1 block">{formatPct((yieldPct || 0) * 100)} yield</span>} icon={<Gift className="h-5 w-5" />} />
         </div>
 
-        {/* Performance Over Time KPIs (rail) */}
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-8">
+        {/* Performance Over Time KPIs (rail) — NET WORTH */}
+        <div className="mb-2 flex items-center justify-between">
+          <div className="text-sm text-gray-400">Performance — <span className="text-gray-200 font-medium">Net Worth</span></div>
+        </div>
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
           {[
             { id: '1d', label: '1 Day' },
             { id: '1w', label: '1 Week' },
@@ -426,13 +464,9 @@ export default function Portfolio() {
             { id: 'ytd', label: 'YTD' },
             { id: '1y', label: '1 Year' },
           ].map(({ id, label }) => {
+            const mini = sliceForPeriod(chartData, id);
+            // existing summary.periodChanges keeps netWorth deltas
             const p = periodChanges?.[id] || {};
-            const mini = id === '1d' ? chartData.slice(-2) : (id === 'ytd' ? chartData : (() => {
-              const map = { '1w': '1w', '1m': '1m', '3m': '3m', '6m': '6m', '1y': '1y' };
-              const tf = map[id] || '1m';
-              const mapDays = { '1w': 7, '1m': 30, '3m': 90, '6m': 180, '1y': 365 };
-              return chartData.slice(-(mapDays[tf] || 30));
-            })());
             return (
               <motion.div key={id} whileHover={{ y: -2 }} className="bg-gray-900/70 border border-gray-800 rounded-2xl p-3 flex items-center justify-between">
                 <div>
@@ -445,6 +479,48 @@ export default function Portfolio() {
             );
           })}
         </div>
+
+        {/* Performance Over Time KPIs (rail) — SECONDARY METRIC (dropdown) */}
+        <div className="mb-2 flex items-center justify-between">
+          <div className="text-sm text-gray-400">
+            Performance — <span className="text-gray-200 font-medium">
+              {metricOptions.find(m => m.id === perfMetric)?.label || 'Metric'}
+            </span>
+          </div>
+          <div className="relative">
+            <select
+              value={perfMetric}
+              onChange={(e) => setPerfMetric(e.target.value)}
+              className="text-xs bg-gray-800 border border-gray-700 rounded-lg px-2 py-1 text-gray-200 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              aria-label="Select performance metric"
+            >
+              {metricOptions.map(m => <option key={m.id} value={m.id}>{m.label}</option>)}
+            </select>
+          </div>
+        </div>
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-8">
+          {[
+            { id: '1d', label: '1 Day' },
+            { id: '1w', label: '1 Week' },
+            { id: '1m', label: '1 Month' },
+            { id: 'ytd', label: 'YTD' },
+            { id: '1y', label: '1 Year' },
+          ].map(({ id, label }) => {
+            const mini = sliceForPeriod(chartData, id);
+            const { value, deltaPct } = computeChangeFor(mini.map(r => ({ ...r, _v: Number(r?.[perfMetric] ?? 0) })), '_v');
+            return (
+              <motion.div key={id} whileHover={{ y: -2 }} className="bg-gray-900/70 border border-gray-800 rounded-2xl p-3 flex items-center justify-between">
+                <div>
+                  <p className="text-xs text-gray-400">{label}</p>
+                  <p className="text-sm font-semibold">{formatCurrency(value)}</p>
+                  <Delta value={deltaPct} />
+                </div>
+                <Sparkline data={mini.map(r => ({ date: r.date, value: Number(r?.[perfMetric] ?? 0) }))} dataKey="value" />
+              </motion.div>
+            );
+          })}
+        </div>
+
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
           {/* LEFT: Charts & Deep Metrics */}
