@@ -97,6 +97,30 @@ function computeChangeFor(rows, key) {
   return { value: last, delta, deltaPct };
 }
 
+// Prefer store-provided deltas when available (like we do on the navbar)
+function getStoreDelta(metricId, periodId, summary) {
+  if (!summary) return null;
+
+  // periodChanges (1d/1w/1m/1y/etc) covers totalAssets/liquid/other/liabilities
+  const pc = summary.periodChanges?.[periodId];
+  if (metricId === 'totalAssets' && pc) {
+    return { delta: pc.totalAssets ?? 0, deltaPct: pc.totalAssetsPercent ?? 0 };
+  }
+
+  // The "alt*" components have YTD deltas on the summary
+  if (periodId === 'ytd') {
+    const ytdMap = {
+      altLiquidNetWorth:       ['altLiquidNetWorthYTDChange',       'altLiquidNetWorthYTDPercent'],
+      altRetirementAssets:     ['altRetirementAssetsYTDChange',     'altRetirementAssetsYTDPercent'],
+      altIlliquidNetWorth:     ['altIlliquidNetWorthYTDChange',     'altIlliquidNetWorthYTDPercent'],
+    };
+    const keys = ytdMap[metricId];
+    if (keys) return { delta: summary[keys[0]] ?? 0, deltaPct: summary[keys[1]] ?? 0 };
+  }
+
+  return null; // fallback to compute from chart
+}
+
 
 // -----------------------------------------------------------------------------
 // Tiny Primitives
@@ -500,25 +524,43 @@ export default function Portfolio() {
         </div>
         <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-8">
           {[
-            { id: '1d', label: '1 Day' },
-            { id: '1w', label: '1 Week' },
-            { id: '1m', label: '1 Month' },
-            { id: 'ytd', label: 'YTD' },
-            { id: '1y', label: '1 Year' },
-          ].map(({ id, label }) => {
-            const mini = sliceForPeriod(chartData, id);
-            const { value, deltaPct } = computeChangeFor(mini.map(r => ({ ...r, _v: Number(r?.[perfMetric] ?? 0) })), '_v');
-            return (
-              <motion.div key={id} whileHover={{ y: -2 }} className="bg-gray-900/70 border border-gray-800 rounded-2xl p-3 flex items-center justify-between">
-                <div>
-                  <p className="text-xs text-gray-400">{label}</p>
-                  <p className="text-sm font-semibold">{formatCurrency(value)}</p>
-                  <Delta value={deltaPct} />
-                </div>
-                <Sparkline data={mini.map(r => ({ date: r.date, value: Number(r?.[perfMetric] ?? 0) }))} dataKey="value" />
-              </motion.div>
-            );
-          })}
+        {[
+          { id: '1d', label: '1 Day' },
+          { id: '1w', label: '1 Week' },
+          { id: '1m', label: '1 Month' },
+          { id: 'ytd', label: 'YTD' },
+          { id: '1y', label: '1 Year' },
+        ].map(({ id, label }) => {
+          const mini = sliceForPeriod(chartData, id);
+
+          // 1) Try store-provided deltas first
+          const storeChange = getStoreDelta(perfMetric, id, summary);
+
+          // 2) Otherwise compute from the current chart slices
+          const computed = storeChange
+            ? storeChange
+            : computeChangeFor(
+                mini.map(r => ({ ...r, _v: Number(r?.[perfMetric] ?? 0) })),
+                '_v'
+              );
+
+          const deltaAmt = computed.delta || 0;     // ← show this (Δ amount)
+          const deltaPct = computed.deltaPct || 0;  // ← show this (Δ percent)
+
+          return (
+            <motion.div key={id} whileHover={{ y: -2 }} className="bg-gray-900/70 border border-gray-800 rounded-2xl p-3 flex items-center justify-between">
+              <div>
+                <p className="text-xs text-gray-400">{label}</p>
+                <p className="text-sm font-semibold">{formatCurrency(deltaAmt)}</p>
+                <Delta value={deltaPct} />
+              </div>
+              <Sparkline
+                data={mini.map(r => ({ date: r.date, value: Number(r?.[perfMetric] ?? 0) }))}
+                dataKey="value"
+              />
+            </motion.div>
+          );
+        })}
         </div>
 
 
