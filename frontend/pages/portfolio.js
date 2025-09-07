@@ -97,29 +97,42 @@ function computeChangeFor(rows, key) {
   return { value: last, delta, deltaPct };
 }
 
+
+// Percent normalizer: ensure we always return a fraction (0..1)
+const toFrac = (x) => {
+  const n = Number(x ?? 0);
+  return Math.abs(n) > 1 ? n / 100 : n;
+};
+
 // Prefer store-provided deltas when available (like we do on the navbar)
 function getStoreDelta(metricId, periodId, summary) {
   if (!summary) return null;
 
-  // periodChanges (1d/1w/1m/1y/etc) covers totalAssets/liquid/other/liabilities
+  // periodChanges (1d/1w/1m/1y/etc) covers totalAssets
   const pc = summary.periodChanges?.[periodId];
   if (metricId === 'totalAssets' && pc) {
-    return { delta: pc.totalAssets ?? 0, deltaPct: pc.totalAssetsPercent ?? 0 };
+    return { delta: pc.totalAssets ?? 0, deltaPct: toFrac(pc.totalAssetsPercent) };
   }
 
   // The "alt*" components have YTD deltas on the summary
   if (periodId === 'ytd') {
     const ytdMap = {
-      altLiquidNetWorth:       ['altLiquidNetWorthYTDChange',       'altLiquidNetWorthYTDPercent'],
-      altRetirementAssets:     ['altRetirementAssetsYTDChange',     'altRetirementAssetsYTDPercent'],
-      altIlliquidNetWorth:     ['altIlliquidNetWorthYTDChange',     'altIlliquidNetWorthYTDPercent'],
+      altLiquidNetWorth:   ['altLiquidNetWorthYTDChange',   'altLiquidNetWorthYTDChangePercent', 'altLiquidNetWorthYTDPercent'],
+      altRetirementAssets: ['altRetirementAssetsYTDChange', 'altRetirementAssetsYTDChangePercent', 'altRetirementAssetsYTDPercent'],
+      altIlliquidNetWorth: ['altIlliquidNetWorthYTDChange', 'altIlliquidNetWorthYTDChangePercent', 'altIlliquidNetWorthYTDPercent'],
     };
     const keys = ytdMap[metricId];
-    if (keys) return { delta: summary[keys[0]] ?? 0, deltaPct: summary[keys[1]] ?? 0 };
+    if (keys) {
+      const [amtKey, pctKey1, pctKey2] = keys;
+      const amt = summary[amtKey] ?? 0;
+      const pct = summary[pctKey1] ?? summary[pctKey2] ?? 0;
+      return { delta: amt, deltaPct: toFrac(pct) };
+    }
   }
 
   return null; // fallback to compute from chart
 }
+
 
 
 // -----------------------------------------------------------------------------
@@ -258,6 +271,7 @@ export default function Portfolio() {
   const chartData = useMemo(() => {
     if (!trends?.chartData?.length) return [];
     return trends.chartData.map((d) => ({
+      isoDate: d.date,
       date: new Date(d.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
       value: d.netWorth,
       totalAssets: d.totalAssets,
@@ -271,9 +285,16 @@ export default function Portfolio() {
 
   const slicedChart = useMemo(() => {
     if (!chartData.length) return [];
-    const mapDays = { '1w': 7, '1m': 30, '3m': 90, '6m': 180, '1y': 365 };
-    if (timeframe === 'ytd' || timeframe === 'all') return chartData;
-    const n = mapDays[timeframe] || 30;
+    if (timeframe === 'ytd') {
+      const jan1 = new Date(new Date().getFullYear(), 0, 1);
+      return chartData.filter(r => {
+        const d = new Date(r.isoDate);
+        // r.date is "MMM D" right now; if needed, keep original ISO date in chartData too
+        return !isNaN(d) ? d >= jan1 : true;
+      });
+    }
+    if (timeframe === 'all') return chartData;
+    const n = periodWindowDays[timeframe] || 30;
     return chartData.slice(-n);
   }, [chartData, timeframe]);
 
@@ -524,44 +545,49 @@ export default function Portfolio() {
         </div>
         <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-8">
           {[
-        {[
-          { id: '1d', label: '1 Day' },
-          { id: '1w', label: '1 Week' },
-          { id: '1m', label: '1 Month' },
-          { id: 'ytd', label: 'YTD' },
-          { id: '1y', label: '1 Year' },
-        ].map(({ id, label }) => {
-          const mini = sliceForPeriod(chartData, id);
+            { id: '1d', label: '1 Day' },
+            { id: '1w', label: '1 Week' },
+            { id: '1m', label: '1 Month' },
+            { id: 'ytd', label: 'YTD' },
+            { id: '1y', label: '1 Year' },
+          ].map(({ id, label }) => {
+            const mini = sliceForPeriod(chartData, id);
 
-          // 1) Try store-provided deltas first
-          const storeChange = getStoreDelta(perfMetric, id, summary);
+            // 1) Try store-provided delta (for YTD alt-metrics or any period for total assets)
+            const storeDelta = getStoreDelta(perfMetric, id, summary);
 
-          // 2) Otherwise compute from the current chart slices
-          const computed = storeChange
-            ? storeChange
-            : computeChangeFor(
+            // 2) Otherwise compute from the timeseries for the period
+            let deltaAmt = 0;
+            let deltaPct = 0;
+            if (storeDelta) {
+              deltaAmt = storeDelta.delta || 0;
+              deltaPct = storeDelta.deltaPct || 0;
+            } else {
+              const computed = computeChangeFor(
                 mini.map(r => ({ ...r, _v: Number(r?.[perfMetric] ?? 0) })),
                 '_v'
               );
+              deltaAmt = computed.delta;
+              deltaPct = computed.deltaPct;
+            }
 
-          const deltaAmt = computed.delta || 0;     // ← show this (Δ amount)
-          const deltaPct = computed.deltaPct || 0;  // ← show this (Δ percent)
-
-          return (
-            <motion.div key={id} whileHover={{ y: -2 }} className="bg-gray-900/70 border border-gray-800 rounded-2xl p-3 flex items-center justify-between">
-              <div>
-                <p className="text-xs text-gray-400">{label}</p>
-                <p className="text-sm font-semibold">{formatCurrency(deltaAmt)}</p>
-                <Delta value={deltaPct} />
-              </div>
-              <Sparkline
-                data={mini.map(r => ({ date: r.date, value: Number(r?.[perfMetric] ?? 0) }))}
-                dataKey="value"
-              />
-            </motion.div>
-          );
-        })}
+            return (
+              <motion.div key={id} whileHover={{ y: -2 }} className="bg-gray-900/70 border border-gray-800 rounded-2xl p-3 flex items-center justify-between">
+                <div>
+                  <p className="text-xs text-gray-400">{label}</p>
+                  {/* Show CHANGE (Δ) instead of ending absolute value */}
+                  <p className="text-sm font-semibold">{formatCurrency(deltaAmt)}</p>
+                  <Delta value={deltaPct} />
+                </div>
+                <Sparkline
+                  data={mini.map(r => ({ date: r.date, value: Number(r?.[perfMetric] ?? 0) }))}
+                  dataKey="value"
+                />
+              </motion.div>
+            );
+          })}
         </div>
+
 
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
@@ -974,7 +1000,6 @@ export default function Portfolio() {
               </Section>
             )}
           </div>
-          </div>
         </div>
       </main>
 
@@ -1038,9 +1063,9 @@ export default function Portfolio() {
           </div>
           <div className="grid grid-cols-3 gap-3 text-center">
             {[
-              ['Day', summary?.netCashBasisMetrics?.cash_flow_1d, summary?.netCashBasisMetrics?.cash_flow_1d_pct],
-              ['Week', summary?.netCashBasisMetrics?.cash_flow_1w, summary?.netCashBasisMetrics?.cash_flow_1w_pct],
-              ['Month', summary?.netCashBasisMetrics?.cash_flow_1m, summary?.netCashBasisMetrics?.cash_flow_1m_pct],
+              ['Day',   netCashBasisMetrics?.cash_flow_1d, netCashBasisMetrics?.cash_flow_1d_pct],
+              ['Week',  netCashBasisMetrics?.cash_flow_1w, netCashBasisMetrics?.cash_flow_1w_pct],
+              ['Month', netCashBasisMetrics?.cash_flow_1m, netCashBasisMetrics?.cash_flow_1m_pct],
             ].map(([label, flow, pct]) => (
               <div key={label} className="bg-gray-900/70 border border-gray-800 rounded-xl p-3">
                 <p className="text-xs text-gray-400">{label}</p>
