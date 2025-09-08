@@ -601,7 +601,7 @@ const PerformanceIndicator = ({ value, format = 'percentage', size = 'sm', showS
                                                     </th>
                                                 </tr>
                                             </thead>
-                                            </thead>
+                                            
                                             <tbody className="divide-y divide-gray-700">
                                                 {/* Total Row - Anchored at top */}
                                                 <tr className="bg-blue-900/20 font-semibold border-b-2 border-blue-700">
