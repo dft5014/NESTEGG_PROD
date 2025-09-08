@@ -18,6 +18,7 @@ import {
   searchFXAssets
 } from '@/utils/apimethods/positionMethods';
 import { formatCurrency, formatPercentage } from '@/utils/formatters';
+import { popularBrokerages } from '@/utils/constants';
 import { useDataStore } from '@/store/DataStore';
 import { useAccounts } from '@/store/hooks/useAccounts';
 import { useDetailedPositions } from '@/store/hooks/useDetailedPositions';
@@ -632,6 +633,109 @@ const AssetTypeDistribution = ({ assetCounts, totalCount }) => {
   );
 };
 
+// Lightweight searchable dropdown for institutions (no portal, shows logos)
+const InstitutionSelect = ({ value, onChange, placeholder = 'Type to search.' }) => {
+  const [open, setOpen] = useState(false);
+  const [input, setInput] = useState(value || '');
+  const wrapRef = useRef(null);
+
+  useEffect(() => setInput(value || ''), [value]);
+
+  useEffect(() => {
+    const onDocClick = (e) => {
+      if (!wrapRef.current?.contains(e.target)) {
+        setOpen(false);
+        // Commit any custom text when closing
+        if (input && input !== value) onChange(input);
+      }
+    };
+    document.addEventListener('mousedown', onDocClick);
+    return () => document.removeEventListener('mousedown', onDocClick);
+  }, [input, value, onChange]);
+
+  const filtered = useMemo(() => {
+    if (!input) return popularBrokerages;
+    const q = input.toLowerCase();
+    return popularBrokerages.filter(b => b.name.toLowerCase().includes(q));
+  }, [input]);
+
+  const selected = popularBrokerages.find(b => b.name === value);
+
+  return (
+    <div ref={wrapRef} className="relative">
+      <div className="relative">
+        <input
+          type="text"
+          value={input}
+          onFocus={() => setOpen(true)}
+          onChange={(e) => { setInput(e.target.value); setOpen(true); }}
+          placeholder={placeholder}
+          className="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg hover:border-gray-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all pr-10"
+          style={{ paddingLeft: selected?.logo ? '2.5rem' : undefined }}
+        />
+        {selected?.logo && (
+          <img
+            src={selected.logo}
+            alt={selected.name}
+            className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 rounded pointer-events-none"
+            onError={(e) => { e.currentTarget.style.display = 'none'; }}
+          />
+        )}
+        <button
+          type="button"
+          className="absolute right-0 top-0 bottom-0 px-3 flex items-center justify-center hover:bg-gray-50 rounded-r-lg transition-colors"
+          onClick={() => setOpen(o => !o)}
+        >
+          <svg className={`w-4 h-4 text-gray-400 transition-transform ${open ? 'rotate-180' : ''}`} viewBox="0 0 24 24" fill="none"><path d="M6 9l6 6 6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+        </button>
+      </div>
+
+      {open && (
+        <div className="absolute z-50 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-xl max-h-64 overflow-y-auto">
+          {/* “Use custom” row when input not an exact match */}
+          {input &&
+            !popularBrokerages.find(b => b.name.toLowerCase() === input.toLowerCase()) && (
+              <button
+                type="button"
+                onClick={() => { onChange(input); setOpen(false); }}
+                className="w-full px-3 py-2 flex items-center bg-blue-50 hover:bg-blue-100 transition-colors border-b border-gray-100 text-left"
+              >
+                <span className="text-sm text-blue-700 font-medium">Use “{input}” (custom)</span>
+              </button>
+            )
+          }
+
+          {filtered.map((b) => (
+            <button
+              key={b.name}
+              type="button"
+              onClick={() => { onChange(b.name); setInput(b.name); setOpen(false); }}
+              className={`w-full px-3 py-2 flex items-center hover:bg-gray-50 transition-colors text-left ${value === b.name ? 'bg-blue-50' : ''}`}
+            >
+              {b.logo && (
+                <img
+                  src={b.logo}
+                  alt={b.name}
+                  className="w-5 h-5 mr-3 rounded"
+                  onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                />
+              )}
+              <span className="text-sm text-gray-900">{b.name}</span>
+              {value === b.name && (
+                <svg className="w-4 h-4 text-blue-600 ml-auto" viewBox="0 0 24 24" fill="none"><path d="M20 6L9 17l-5-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+              )}
+            </button>
+          ))}
+
+          <div className="p-2 border-t border-gray-100 bg-gray-50 text-center">
+            <p className="text-xs text-gray-500">Select an institution or type a custom name</p>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
 // Edit Account Form Component (enhanced)
 const EditAccountForm = ({ account, onSave, onCancel }) => {
   // Import account types from constants
@@ -763,21 +867,10 @@ const EditAccountForm = ({ account, onSave, onCancel }) => {
           <label className="block text-sm font-medium text-gray-700 mb-1">
             Institution
           </label>
-          <input
-            type="text"
+          <InstitutionSelect
             value={formData.institution}
-            onChange={(e) => handleFieldChange('institution', e.target.value)}
-            className={`
-              w-full px-3 py-2 border rounded-lg text-sm
-              ${errors.institution 
-                ? 'border-red-300 focus:ring-red-500 focus:border-red-500' 
-                : isFieldModified('institution')
-                  ? 'border-blue-300 bg-blue-50 focus:ring-blue-500 focus:border-blue-500'
-                  : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'
-              }
-              transition-colors
-            `}
-            placeholder="Fidelity, Vanguard, etc."
+            onChange={(val) => handleFieldChange('institution', val)}
+            placeholder="Type to search."
           />
           {errors.institution && (
             <p className="mt-1 text-xs text-red-600">{errors.institution}</p>

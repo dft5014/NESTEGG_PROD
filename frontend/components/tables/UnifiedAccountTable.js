@@ -3,6 +3,10 @@ import React, { useState, useEffect, useMemo } from 'react';
 import ReactDOM from 'react-dom';
 // Store hooks
 import { useAccounts } from '@/store/hooks/useAccounts';
+import { useAccounts } from '@/store/hooks/useAccounts';
+import { useGroupedPositions } from '@/store/hooks/useGroupedPositions';
+import { useDetailedPositions } from '@/store/hooks/useDetailedPositions';
+import { usePortfolioTrends } from '@/store/hooks/usePortfolioTrends';
 // Utils
 import { popularBrokerages } from '@/utils/constants';
 import { formatCurrency, formatDate, formatPercentage, formatNumber } from '@/utils/formatters';
@@ -61,19 +65,47 @@ const PerformanceIndicator = ({ value, format = 'percentage', size = 'sm', showS
 };
 
 // Updated Account Detail Modal Component
-// Updated Account Detail Modal Component
-// Updated Account Detail Modal Component
-// Updated Account Detail Modal Component
     const AccountDetailModal = ({ isOpen, onClose, account }) => {
         // State for sorting - must be before any conditional returns
         const [positionSort, setPositionSort] = useState({ field: 'value', direction: 'desc' });
         const [performanceRange, setPerformanceRange] = useState('1M'); // 1D, 1W, 1M, 3M, YTD, 1Y, ALL
         
-        // Sort positions based on current sort settings - must be before conditional returns
-        const sortedPositions = useMemo(() => {
-            if (!account?.positions) return [];
+        // Get position data from DataStore hooks
+        const { positions: groupedPositions } = useGroupedPositions();
+        const { positions: detailedPositions } = useDetailedPositions();
+
+        // Filter positions for this account
+        const accountPositions = useMemo(() => {
+            if (!account || !groupedPositions) return [];
             
-            const sorted = [...account.positions].sort((a, b) => {
+            // Get positions that have this account in their account_details
+            return groupedPositions.filter(pos => 
+                pos.account_details?.some(detail => detail.account_id === account.id)
+            ).map(pos => {
+                // Find the specific account detail for this account
+                const accountDetail = pos.account_details.find(d => d.account_id === account.id);
+                return {
+                    symbol: pos.identifier,
+                    name: pos.name,
+                    asset_type: pos.asset_type,
+                    sector: pos.sector,
+                    quantity: accountDetail?.quantity || 0,
+                    currentPrice: pos.current_price,
+                    currentValue: accountDetail?.value || 0,
+                    costBasis: accountDetail?.cost || 0,
+                    gainLoss: accountDetail?.gain_loss_amt || 0,
+                    gainLossPercent: accountDetail?.gain_loss_pct || 0,
+                    annualIncome: accountDetail?.annual_income || 0,
+                    dividendYield: pos.dividend_yield || 0,
+                    priceChange1d: pos.price_1d_change_pct
+                };
+            });
+        }, [account, groupedPositions]);
+
+        const sortedPositions = useMemo(() => {
+            if (!accountPositions) return [];
+            
+            const sorted = [...accountPositions].sort((a, b) => {
                 let comparison = 0;
                 switch (positionSort.field) {
                     case 'symbol':
@@ -110,11 +142,40 @@ const PerformanceIndicator = ({ value, format = 'percentage', size = 'sm', showS
             return sorted;
         }, [account?.positions, account?.totalValue, positionSort]);
 
-        // Generate mock chart data (in real implementation, this would come from historical data)
+        // Get trend data
+        const { trends } = usePortfolioTrends();
+
         const chartData = useMemo(() => {
             if (!account) return [];
             
-            // Mock data generation - replace with real historical data
+            // Try to use real trend data if available
+            if (trends && trends.length > 0) {
+                const periods = {
+                    '1D': 1,
+                    '1W': 7,
+                    '1M': 30,
+                    '3M': 90,
+                    'YTD': Math.floor((new Date() - new Date(new Date().getFullYear(), 0, 1)) / (1000 * 60 * 60 * 24)),
+                    '1Y': 365,
+                    'ALL': 9999
+                };
+                
+                const daysToShow = periods[performanceRange] || 30;
+                const cutoffDate = new Date(Date.now() - (daysToShow * 24 * 60 * 60 * 1000));
+                
+                // Filter trends to date range
+                const filteredTrends = trends
+                    .filter(t => new Date(t.date) >= cutoffDate)
+                    .map(t => ({
+                        date: t.date,
+                        value: account.totalValue || t.total_value,
+                        percentChange: ((account.totalValue - account.totalCostBasis) / account.totalCostBasis) * 100
+                    }));
+                
+                if (filteredTrends.length > 0) return filteredTrends;
+            }
+            
+            // Fallback to mock data if no trends available
             const periods = {
                 '1D': 24,
                 '1W': 7,
@@ -159,17 +220,17 @@ const PerformanceIndicator = ({ value, format = 'percentage', size = 'sm', showS
 
         // Calculate summary statistics
         const accountStats = {
-            totalPositions: account.positions?.length || 0,
-            totalSecurities: account.positions?.filter(p => p.asset_type === 'security').length || 0,
+            totalPositions: accountPositions?.length || 0,
+            totalSecurities: accountPositions?.filter(p => p.asset_type === 'security').length || 0,
             totalCash: account.cashBalance || 0,
             liquidValue: account.totalValue || 0,
             totalCostBasis: account.totalCostBasis || 0,
             totalGainLoss: account.totalGainLoss || 0,
             totalGainLossPct: account.totalGainLossPercent || 0,
-            totalIncome: account.positions?.reduce((sum, p) => sum + (p.annualIncome || 0), 0) || 0,
-            avgDividendYield: account.positions?.length > 0 
+            totalIncome: account.dividendIncomeAnnual || account.positions?.reduce((sum, p) => sum + (p.annualIncome || 0), 0) || 0,
+            avgDividendYield: account.yieldPercent || (account.positions?.length > 0 
                 ? (account.positions.reduce((sum, p) => sum + (p.dividendYield || 0), 0) / account.positions.length)
-                : 0
+                : 0)
         };
 
         // Performance metrics
@@ -262,7 +323,7 @@ const PerformanceIndicator = ({ value, format = 'percentage', size = 'sm', showS
                                                 {account.type || account.account_type}
                                             </span>
                                             <span className="text-xs text-gray-500">
-                                                {accountStats.totalPositions} positions
+                                                {accountPositions?.length || 0} positions
                                             </span>
                                             <span className="text-xs text-gray-500">
                                                 Cash: {formatCurrency(account.cashBalance || 0)}
@@ -302,11 +363,11 @@ const PerformanceIndicator = ({ value, format = 'percentage', size = 'sm', showS
                                     }`}>
                                         {accountStats.totalGainLoss >= 0 ? '+' : ''}{formatCurrency(accountStats.totalGainLoss)}
                                     </div>
-                                    <div className={`text-xs mt-1 ${
-                                        accountStats.totalGainLossPct >= 0 ? 'text-green-400' : 'text-red-400'
-                                    }`}>
-                                        {accountStats.totalGainLossPct >= 0 ? '+' : ''}{formatPercentage(accountStats.totalGainLossPct)}
-                                    </div>
+                                        <div className={`text-xs mt-1 ${
+                                            accountStats.totalGainLossPct >= 0 ? 'text-green-400' : 'text-red-400'
+                                        }`}>
+                                            {accountStats.totalGainLossPct >= 0 ? '+' : ''}{accountStats.totalGainLossPct.toFixed(2)}%
+                                        </div>
                                 </div>
                                 <div className="bg-gray-800/50 p-4 rounded">
                                     <div className="text-xs text-gray-400">Cost Basis</div>
@@ -319,7 +380,7 @@ const PerformanceIndicator = ({ value, format = 'percentage', size = 'sm', showS
                                     <div className="text-xs text-gray-400">Income</div>
                                     <div className="text-xl font-semibold">{formatCurrency(accountStats.totalIncome)}</div>
                                     <div className="text-xs text-gray-500 mt-1">
-                                        Yield: {formatPercentage(accountStats.avgDividendYield)}
+                                        {accountStats.avgDividendYield > 0 && `Yield: ${accountStats.avgDividendYield.toFixed(2)}%`}
                                     </div>
                                 </div>
                             </div>

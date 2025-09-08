@@ -44,26 +44,27 @@ const AnimatedCounter = ({ value, duration = 800 }) => {
 };
 
 // Period comparison item
-const PeriodItem = ({ label, amount, percent, isLarge = false }) => {
- if (percent == null) return null;
- 
- const isPositive = percent >= 0;
- const Icon = isPositive ? TrendingUp : TrendingDown;
- 
- return (
-   <div className={`flex items-center justify-between ${isLarge ? 'py-1' : 'py-0.5'}`}>
-     <span className={`${isLarge ? 'text-xs' : 'text-[11px]'} font-medium text-gray-500`}>
-       {label}
-     </span>
-     <div className="flex items-center gap-1.5">
-       <Icon className={`${isLarge ? 'w-3.5 h-3.5' : 'w-3 h-3'} ${isPositive ? 'text-emerald-400' : 'text-red-400'}`} />
-       <span className={`${isLarge ? 'text-sm' : 'text-xs'} font-semibold tabular-nums ${isPositive ? 'text-emerald-400' : 'text-red-400'}`}>
-         {isPositive ? '+' : ''}{percent.toFixed(2)}%
-       </span>
-     </div>
-   </div>
- );
+const PeriodItem = ({ label, percent, isLarge = false }) => {
+  if (percent == null) return null;
+
+  const isPositive = percent >= 0;
+  const Icon = isPositive ? TrendingUp : TrendingDown;
+
+  return (
+    <div className={`flex items-center justify-between ${isLarge ? 'py-1' : 'py-0.5'}`}>
+      <span className={`${isLarge ? 'text-xs' : 'text-[11px]'} font-medium text-gray-500`}>
+        {label}
+      </span>
+      <div className="flex items-center gap-1.5">
+        <Icon className={`${isLarge ? 'w-3.5 h-3.5' : 'w-3 h-3'} ${isPositive ? 'text-emerald-400' : 'text-red-400'}`} />
+        <span className={`${isLarge ? 'text-sm' : 'text-xs'} font-semibold tabular-nums ${isPositive ? 'text-emerald-400' : 'text-red-400'}`}>
+          {isPositive ? '+' : ''}{percent.toFixed(2)}%
+        </span>
+      </div>
+    </div>
+  );
 };
+
 
 export default function PeriodSummaryChips({ className = '' }) {
  const { summary } = usePortfolioSummary();
@@ -156,33 +157,22 @@ export default function PeriodSummaryChips({ className = '' }) {
          {/* Vertical Divider */}
          <div className="h-10 w-px bg-gray-800/30" />
 
-         {/* Periods Grid - 2 columns */}
-         <div className="grid grid-cols-2 gap-x-6 gap-y-0 pl-2">
-           {/* Column 1 */}
-           <div className="flex flex-col">
-             <PeriodItem label="1W" amount={p1w?.netWorth} percent={weekPct} />
-             <PeriodItem label="1M" amount={p1m?.netWorth} percent={monthPct} />
-           </div>
-           
-           {/* Column 2 */}
-           <div className="flex flex-col">
-             <PeriodItem label="YTD" amount={pytd?.netWorth} percent={ytdPct} />
-             {totalGainLossPct != null && (
-               <div className="flex items-center justify-between py-0.5">
-                 <span className="text-[11px] font-medium text-gray-500">Total</span>
-                 <div className="flex items-center gap-1.5">
-                   {totalGainLossPct >= 0 ? 
-                     <TrendingUp className="w-3 h-3 text-emerald-400" /> : 
-                     <TrendingDown className="w-3 h-3 text-red-400" />
-                   }
-                   <span className={`text-xs font-semibold tabular-nums ${totalGainLossPct >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                     {totalGainLossPct >= 0 ? '+' : ''}{totalGainLossPct.toFixed(2)}%
-                   </span>
-                 </div>
-               </div>
-             )}
-           </div>
-         </div>
+        {/* Periods Grid - 2 columns */}
+        <div className="grid grid-cols-2 gap-x-6 gap-y-0 pl-2">
+        {/* Left column: 1W over 1M */}
+        <div className="flex flex-col">
+            <PeriodItem label="1W" percent={weekPct} />
+            <PeriodItem label="1M" percent={monthPct} />
+        </div>
+
+        {/* Right column: YTD over Gain/Loss % */}
+        <div className="flex flex-col">
+            <PeriodItem label="YTD" percent={ytdPct} />
+            {totalGainLossPct != null && (
+            <PeriodItem label="Gain/Loss" percent={totalGainLossPct} />
+            )}
+        </div>
+        </div>
        </div>
      </div>
    </div>

@@ -67,16 +67,16 @@ const Sidebar = () => {
       description: "View your portfolio overview and key metrics"
     },
     {
-      href: "/accounts",
-      label: "Accounts",
-      icon: <Wallet className="w-5 h-5" />,
-      description: "Manage your investment and savings accounts"
-    },
-    {
       href: "/positions",
       label: "Positions",
       icon: <Coins className="w-5 h-5" />,
       description: "Track your holdings, stocks, and investments"
+    },
+    {
+      href: "/accounts",
+      label: "Accounts",
+      icon: <Wallet className="w-5 h-5" />,
+      description: "Manage your investment and savings accounts"
     },
     {
       href: "/liabilities",
