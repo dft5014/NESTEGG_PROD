@@ -42,6 +42,7 @@ import {
     Calendar,
     DollarSign,
     Percent,
+    ChevronRight,
     Eye,
     PieChart
 } from 'lucide-react';
@@ -68,6 +69,7 @@ const PerformanceIndicator = ({ value, format = 'percentage', size = 'sm', showS
         // State for sorting - must be before any conditional returns
         const [positionSort, setPositionSort] = useState({ field: 'value', direction: 'desc' });
         const [performanceRange, setPerformanceRange] = useState('1M'); // 1D, 1W, 1M, 3M, YTD, 1Y, ALL
+        const [expandedPositions, setExpandedPositions] = useState(new Set());
         
         // Get position data from DataStore hooks
         const { positions: groupedPositions } = useGroupedPositions();
@@ -101,8 +103,29 @@ const PerformanceIndicator = ({ value, format = 'percentage', size = 'sm', showS
             });
         }, [account, groupedPositions]);
 
+        // Get tax lots for expanded positions
+        const getPositionTaxLots = (symbol) => {
+            if (!detailedPositions) return [];
+            return detailedPositions.filter(p => 
+                p.identifier === symbol && p.accountId === account?.id
+            ).sort((a, b) => new Date(a.purchaseDate) - new Date(b.purchaseDate));
+        };
+
+        // Toggle tax lot expansion
+        const toggleTaxLots = (symbol) => {
+            setExpandedPositions(prev => {
+                const newSet = new Set(prev);
+                if (newSet.has(symbol)) {
+                    newSet.delete(symbol);
+                } else {
+                    newSet.add(symbol);
+                }
+                return newSet;
+            });
+        };
+
         const sortedPositions = useMemo(() => {
-            if (!accountPositions) return [];
+            if (!accountPositions || accountPositions.length === 0) return [];
             
             const sorted = [...accountPositions].sort((a, b) => {
                 let comparison = 0;
@@ -139,7 +162,7 @@ const PerformanceIndicator = ({ value, format = 'percentage', size = 'sm', showS
             });
             
             return sorted;
-        }, [account?.positions, account?.totalValue, positionSort]);
+        }, [accountPositions, account?.totalValue, positionSort]);
 
         // Get trend data
         const { trends } = usePortfolioTrends();
@@ -465,15 +488,18 @@ const PerformanceIndicator = ({ value, format = 'percentage', size = 'sm', showS
                             </div>
 
                             {/* Positions Table */}
-                            {accountStats.totalPositions > 0 && (
+                            {accountPositions.length > 0 && (
                                 <div className="bg-gray-800/30 rounded">
                                     <div className="px-4 py-3 border-b border-gray-700">
-                                        <h4 className="text-sm font-semibold text-gray-300">Position Details</h4>
+                                        <h4 className="text-sm font-semibold text-gray-300">
+                                            Position Details ({accountPositions.length} holdings)
+                                        </h4>
                                     </div>
                                     <div className="overflow-x-auto">
                                         <table className="w-full">
                                             <thead className="bg-gray-800/50">
                                                 <tr>
+                                                    <th className="px-2 py-2 text-center text-xs font-medium text-gray-400 w-8">#</th>
                                                     <th className="px-3 py-2 text-left text-xs font-medium text-gray-400">
                                                         <button
                                                             onClick={() => setPositionSort({
@@ -575,10 +601,89 @@ const PerformanceIndicator = ({ value, format = 'percentage', size = 'sm', showS
                                                     </th>
                                                 </tr>
                                             </thead>
+                                            </thead>
                                             <tbody className="divide-y divide-gray-700">
-                                                {sortedPositions.map((position, idx) => (
-                                                    <tr key={idx} className="hover:bg-gray-700/30">
-                                                        <td className="px-3 py-2 text-xs">
+                                                {/* Total Row - Anchored at top */}
+                                                <tr className="bg-blue-900/20 font-semibold border-b-2 border-blue-700">
+                                                    <td className="px-2 py-2 text-center text-xs">Σ</td>
+                                                    <td className="px-3 py-2 text-xs">
+                                                        <div className="font-bold text-blue-400">TOTAL</div>
+                                                    </td>
+                                                    <td className="px-3 py-2 text-xs text-right">-</td>
+                                                    <td className="px-3 py-2 text-xs text-right">-</td>
+                                                    <td className="px-3 py-2 text-xs text-right font-bold text-white">
+                                                        {formatCurrency(accountPositions.reduce((sum, p) => sum + p.currentValue, 0))}
+                                                    </td>
+                                                    <td className="px-3 py-2 text-xs text-right text-gray-400">
+                                                        {formatCurrency(accountPositions.reduce((sum, p) => sum + p.costBasis, 0))}
+                                                    </td>
+                                                    <td className="px-3 py-2 text-xs text-right">
+                                                        <span className={`font-bold ${
+                                                            accountPositions.reduce((sum, p) => sum + p.gainLoss, 0) >= 0 
+                                                                ? 'text-green-400' : 'text-red-400'
+                                                        }`}>
+                                                            {accountPositions.reduce((sum, p) => sum + p.gainLoss, 0) >= 0 && '+'}
+                                                            {formatCurrency(accountPositions.reduce((sum, p) => sum + p.gainLoss, 0))}
+                                                        </span>
+                                                    </td>
+                                                    <td className="px-3 py-2 text-xs text-right">
+                                                        <span className={`font-bold ${
+                                                            ((accountPositions.reduce((sum, p) => sum + p.gainLoss, 0) / 
+                                                            accountPositions.reduce((sum, p) => sum + p.costBasis, 0)) * 100) >= 0 
+                                                                ? 'text-green-400' : 'text-red-400'
+                                                        }`}>
+                                                            {((accountPositions.reduce((sum, p) => sum + p.gainLoss, 0) / 
+                                                            accountPositions.reduce((sum, p) => sum + p.costBasis, 0)) * 100).toFixed(2)}%
+                                                        </span>
+                                                    </td>
+                                                    <td className="px-3 py-2 text-xs text-right">100.00%</td>
+                                                </tr>
+                                                
+                                                {/* Individual Position Rows */}
+                                                {sortedPositions.map((position, idx) => {
+                                                    const taxLots = getPositionTaxLots(position.symbol);
+                                                    const isExpanded = expandedPositions.has(position.symbol);
+                                                    const hasMultipleLots = taxLots.length > 1;
+                                                    
+                                                    return (
+                                                        <React.Fragment key={idx}>
+                                                            <tr className="hover:bg-gray-700/30 transition-colors">
+                                                                <td className="px-2 py-2 text-center text-xs text-gray-500 font-medium">
+                                                                    {idx + 1}
+                                                                </td>
+                                                                <td className="px-3 py-2 text-xs">
+                                                                    <div className="flex items-center">
+                                                                        {hasMultipleLots && (
+                                                                            <button
+                                                                                onClick={(e) => {
+                                                                                    e.stopPropagation();
+                                                                                    toggleTaxLots(position.symbol);
+                                                                                }}
+                                                                                className="mr-2 text-gray-400 hover:text-white transition-colors"
+                                                                            >
+                                                                                {isExpanded ? (
+                                                                                    <ChevronDown className="w-3 h-3" />
+                                                                                ) : (
+                                                                                    <ChevronRight className="w-3 h-3" />
+                                                                                )}
+                                                                            </button>
+                                                                        )}
+                                                                        <div>
+                                                                            <div className="font-medium flex items-center">
+                                                                                {position.symbol}
+                                                                                {hasMultipleLots && (
+                                                                                    <span className="ml-2 text-xs text-gray-500">
+                                                                                        ({taxLots.length} lots)
+                                                                                    </span>
+                                                                                )}
+                                                                            </div>
+                                                                            <div className="text-gray-400">{position.name}</div>
+                                                                            {position.sector && (
+                                                                                <div className="text-gray-500 text-xs">{position.sector}</div>
+                                                                            )}
+                                                                        </div>
+                                                                    </div>
+                                                                </td>
                                                             <div>
                                                                 <div className="font-medium">{position.symbol}</div>
                                                                 <div className="text-gray-400">{position.name}</div>
@@ -609,17 +714,85 @@ const PerformanceIndicator = ({ value, format = 'percentage', size = 'sm', showS
                                                                 {position.gainLoss >= 0 && '+'}{formatCurrency(position.gainLoss || 0)}
                                                             </span>
                                                         </td>
-                                                        <td className="px-3 py-2 text-xs text-right">
-                                                            <span className={`font-medium ${position.gainLossPercent >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                                                                {position.gainLossPercent >= 0 && '+'}{formatPercentage(position.gainLossPercent || 0)}
-                                                            </span>
-                                                        </td>
+                                                            <td className="px-3 py-2 text-xs text-right">
+                                                                <span className={`font-medium ${position.gainLossPercent >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                                                    {position.gainLossPercent >= 0 && '+'}{position.gainLossPercent.toFixed(2)}%
+                                                                </span>
+                                                            </td>
                                                         <td className="px-3 py-2 text-xs text-right">
                                                             <div className="font-medium">
                                                                 {formatPercentage((position.currentValue / account.totalValue) * 100)}
                                                             </div>
                                                         </td>
                                                     </tr>
+
+                                                    {/* Tax Lots - Expanded Detail */}
+                                                                {isExpanded && taxLots.length > 0 && (
+                                                                    <>
+                                                                        <tr className="bg-gray-800/50 border-b border-gray-700">
+                                                                            <td></td>
+                                                                            <td colSpan="8" className="px-3 py-1">
+                                                                                <div className="text-xs text-gray-400 font-medium">Tax Lot Details</div>
+                                                                            </td>
+                                                                        </tr>
+                                                                        {taxLots.map((lot, lotIdx) => {
+                                                                            const lotValue = lot.quantity * position.currentPrice;
+                                                                            const lotGain = lotValue - lot.costBasis;
+                                                                            const lotGainPct = (lotGain / lot.costBasis) * 100;
+                                                                            const holdingDays = Math.floor((new Date() - new Date(lot.purchaseDate)) / (1000 * 60 * 60 * 24));
+                                                                            const isLongTerm = holdingDays > 365;
+                                                                            
+                                                                            return (
+                                                                                <tr key={`${idx}-lot-${lotIdx}`} className="bg-gray-800/30 text-xs">
+                                                                                    <td className="px-2 py-1 text-center text-gray-600">
+                                                                                        {idx + 1}.{lotIdx + 1}
+                                                                                    </td>
+                                                                                    <td className="px-3 py-1 text-gray-400">
+                                                                                        <div className="flex items-center space-x-2">
+                                                                                            <span className={`px-1.5 py-0.5 rounded text-xs ${
+                                                                                                isLongTerm 
+                                                                                                    ? 'bg-green-900/30 text-green-400' 
+                                                                                                    : 'bg-yellow-900/30 text-yellow-400'
+                                                                                            }`}>
+                                                                                                {isLongTerm ? 'LT' : 'ST'}
+                                                                                            </span>
+                                                                                            <span>{formatDate(lot.purchaseDate)}</span>
+                                                                                            <span className="text-gray-600">({holdingDays}d)</span>
+                                                                                        </div>
+                                                                                    </td>
+                                                                                    <td className="px-3 py-1 text-right text-gray-300">
+                                                                                        {formatNumber(lot.quantity, { maximumFractionDigits: 4 })}
+                                                                                    </td>
+                                                                                    <td className="px-3 py-1 text-right text-gray-400">
+                                                                                        @ {formatCurrency(lot.costPerUnit)}
+                                                                                    </td>
+                                                                                    <td className="px-3 py-1 text-right text-gray-300">
+                                                                                        {formatCurrency(lotValue)}
+                                                                                    </td>
+                                                                                    <td className="px-3 py-1 text-right text-gray-400">
+                                                                                        {formatCurrency(lot.costBasis)}
+                                                                                    </td>
+                                                                                    <td className="px-3 py-1 text-right">
+                                                                                        <span className={lotGain >= 0 ? 'text-green-400' : 'text-red-400'}>
+                                                                                            {lotGain >= 0 && '+'}{formatCurrency(lotGain)}
+                                                                                        </span>
+                                                                                    </td>
+                                                                                    <td className="px-3 py-1 text-right">
+                                                                                        <span className={lotGainPct >= 0 ? 'text-green-400' : 'text-red-400'}>
+                                                                                            {lotGainPct >= 0 && '+'}{lotGainPct.toFixed(2)}%
+                                                                                        </span>
+                                                                                    </td>
+                                                                                    <td className="px-3 py-1 text-right text-gray-500">
+                                                                                        {((lotValue / account.totalValue) * 100).toFixed(2)}%
+                                                                                    </td>
+                                                                                </tr>
+                                                                            );
+                                                                        })}
+                                                                    </>
+                                                                )}
+                                                            </React.Fragment>
+                                                        );
+                                                    })}
                                                 ))}
                                             </tbody>
                                         </table>
@@ -1136,13 +1309,13 @@ const UnifiedAccountTable = ({
                                             {getSortIndicator('gain_loss')}
                                         </div>
                                     </th>
-                                    <th scope="col" className="px-3 py-2 text-center text-xs font-medium text-gray-400 uppercase tracking-wider" colSpan="5">
-                                        <div className="text-center">Performance</div>
-                                        <div className="flex justify-center space-x-4 mt-1">
-                                            <span className="text-xs">1D</span>
-                                            <span className="text-xs">1W</span>
-                                            <span className="text-xs">1M</span>
-                                            <span className="text-xs">YTD</span>
+                                    <th scope="col" className="px-2 py-2 text-center text-xs font-medium text-gray-400 uppercase tracking-wider" colSpan="4">
+                                        <div className="text-center mb-1">Performance</div>
+                                        <div className="grid grid-cols-4 gap-0">
+                                            <span className="text-xs text-center">1D</span>
+                                            <span className="text-xs text-center">1W</span>
+                                            <span className="text-xs text-center">1M</span>
+                                            <span className="text-xs text-center">YTD</span>
                                         </div>
                                     </th>
                                 </tr>

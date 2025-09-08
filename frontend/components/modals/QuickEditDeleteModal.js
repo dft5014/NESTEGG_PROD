@@ -145,6 +145,31 @@ const GROUPING_OPTIONS = [
   { id: 'category', name: 'By Category', icon: PieChart }
 ];
 
+// Small, reusable badge for institution with logo
+const InstitutionBadge = ({ name }) => {
+  const match = useMemo(() => {
+    const n = String(name || '').trim().toLowerCase();
+    return popularBrokerages.find(b => b.name.toLowerCase() === n);
+  }, [name]);
+
+  if (!name) {
+    return <span className="text-gray-400">—</span>;
+  }
+
+  return (
+    <span className="inline-flex items-center gap-2">
+      {match?.logo && (
+        <img
+          src={match.logo}
+          alt={match.name}
+          className="w-5 h-5 rounded"
+          onError={(e) => { e.currentTarget.style.display = 'none'; }}
+        />
+      )}
+      <span className="text-gray-800">{name}</span>
+    </span>
+  );
+};
 
 // Enhanced dropdown component
 const EnhancedDropdown = ({ 
@@ -2828,8 +2853,9 @@ const EditLiabilityForm = ({ liability, onSave, onCancel }) => {
             </div>
           </td>
           
-          <td className="px-4 py-3 text-sm text-gray-900">
-            {account.institution}
+          {/* Institution */}
+          <td className="...">
+            <InstitutionBadge name={account.institution} />
           </td>
           
           <td className="px-4 py-3 text-sm text-gray-900">
