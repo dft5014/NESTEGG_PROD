@@ -337,15 +337,16 @@ const Navbar = () => {
       {/* Fixed header block: nav + ticker */}
       <div className="fixed top-0 left-0 right-0 z-40">
         <motion.nav
-          initial={{ y: -100 }}
-          animate={{ y: 0 }}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
           role="navigation"
           aria-label="Primary"
-          className={`transition-all duration-300 ${
+          className={`transition-colors duration-300 ${
             scrolled
               ? 'bg-gray-900/95 backdrop-blur-md shadow-lg'
               : 'bg-gradient-to-r from-gray-900 via-gray-850 to-blue-900'
           }`}
+          style={{ transform: 'none' }}
         >
         {/* Top bar (64px) */}
         <div className="h-16 px-4 flex items-center justify-between">
@@ -356,7 +357,7 @@ const Navbar = () => {
 
             {/* Center: Quick Actions (nudged slightly left) */}
             <div className="col-span-1 flex justify-center">
-              <div className="flex items-center gap-2 md:-translate-x-6">
+              <div className="flex items-center gap-2 md:-ml-6">
                 <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}>
                   <QuickStartButton />
                 </motion.div>
