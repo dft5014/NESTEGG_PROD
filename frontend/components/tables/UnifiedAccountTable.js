@@ -684,14 +684,6 @@ const PerformanceIndicator = ({ value, format = 'percentage', size = 'sm', showS
                                                                         </div>
                                                                     </div>
                                                                 </td>
-                                                            <div>
-                                                                <div className="font-medium">{position.symbol}</div>
-                                                                <div className="text-gray-400">{position.name}</div>
-                                                                {position.sector && (
-                                                                    <div className="text-gray-500 text-xs">{position.sector}</div>
-                                                                )}
-                                                            </div>
-                                                        </td>
                                                         <td className="px-3 py-2 text-xs text-right">
                                                             {formatNumber(position.quantity || 0, { maximumFractionDigits: 4 })}
                                                         </td>
