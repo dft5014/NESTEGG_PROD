@@ -785,7 +785,6 @@ const PerformanceIndicator = ({ value, format = 'percentage', size = 'sm', showS
                                                             </React.Fragment>
                                                         );
                                                     })}
-                                                ))}
                                             </tbody>
                                         </table>
                                     </div>
