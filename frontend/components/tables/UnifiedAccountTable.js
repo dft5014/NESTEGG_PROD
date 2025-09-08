@@ -3,7 +3,6 @@ import React, { useState, useEffect, useMemo } from 'react';
 import ReactDOM from 'react-dom';
 // Store hooks
 import { useAccounts } from '@/store/hooks/useAccounts';
-import { useAccounts } from '@/store/hooks/useAccounts';
 import { useGroupedPositions } from '@/store/hooks/useGroupedPositions';
 import { useDetailedPositions } from '@/store/hooks/useDetailedPositions';
 import { usePortfolioTrends } from '@/store/hooks/usePortfolioTrends';
