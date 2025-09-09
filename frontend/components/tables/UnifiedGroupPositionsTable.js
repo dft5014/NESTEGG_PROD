@@ -837,12 +837,19 @@ const UnifiedGroupPositionsTable = ({
                         </div>
                       </div>
                     </td>
-                    <td className="px-2 py-2 whitespace-nowrap text-sm text-right">
-                      <div>{formatNumber(position.total_quantity, { maximumFractionDigits: 4 })}</div>
-                      {formatQuantityChange(position.quantity_1d_change, position.quantity_1d_change_pct)}
-                    </td>
                       <td className="px-2 py-2 whitespace-nowrap text-sm text-right">
-                        {position.latest_price_per_unit ? formatSharePrice(position.latest_price_per_unit) : '-'}
+                        {position.asset_type !== 'cash' && position.asset_type !== 'other_assets' ? (
+                          <>
+                            <div>{formatNumber(position.total_quantity, { maximumFractionDigits: 4 })}</div>
+                            {formatQuantityChange(position.quantity_1d_change, position.quantity_1d_change_pct)}
+                          </>
+                        ) : (
+                          <span className="text-gray-500">-</span>
+                        )}
+                      </td>
+                      <td className="px-2 py-2 whitespace-nowrap text-sm text-right">
+                        {position.asset_type !== 'cash' && position.asset_type !== 'other_assets' && position.latest_price_per_unit ? 
+                          formatSharePrice(position.latest_price_per_unit) : '-'}
                       </td>
                     <td className="px-2 py-2 whitespace-nowrap text-sm text-right">
                       <div className="font-medium">{formatCurrency(position.total_current_value)}</div>
@@ -944,12 +951,16 @@ const UnifiedGroupPositionsTable = ({
                         <span className="text-xs text-gray-500">
                           {selectedPosition.long_term_positions} LT / {selectedPosition.short_term_positions} ST
                         </span>
-                        <span className="text-xs text-gray-500">
-                          Price: {formatSharePrice(selectedPosition.latest_price_per_unit || 0)}
-                        </span>
-                        <span className="text-xs text-gray-500">
-                          Avg Cost: {formatSharePrice(selectedPosition.weighted_avg_cost || 0)}  
-                        </span>
+                        {selectedPosition.asset_type !== 'cash' && selectedPosition.asset_type !== 'other_assets' && (
+                          <>
+                            <span className="text-xs text-gray-500">
+                              Price: {formatSharePrice(selectedPosition.latest_price_per_unit || 0)}
+                            </span>
+                            <span className="text-xs text-gray-500">
+                              Avg Cost: {formatSharePrice(selectedPosition.weighted_avg_cost || 0)}  
+                            </span>
+                          </>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -1612,9 +1623,11 @@ const UnifiedGroupPositionsTable = ({
                             <td className="px-2 py-2 text-xs text-right font-medium">
                                 {formatCurrency(detail.value)}
                             </td>
-                            <td className="px-2 py-2 text-xs text-right text-gray-400">
-                              {formatSharePrice(detail.cost / (detail.quantity || 1))}
-                            </td>
+                              <td className="px-2 py-2 text-xs text-right text-gray-400">
+                                {selectedPosition.asset_type === 'cash' || selectedPosition.asset_type === 'other_assets' ? 
+                                  formatCurrency(detail.cost) : 
+                                  formatSharePrice(detail.cost / (detail.quantity || 1))}
+                              </td>
                             <td className="px-2 py-2 text-xs text-right">
                                 <span className={detail.gain_loss_amt >= 0 ? 'text-green-400' : 'text-red-400'}>
                                 {detail.gain_loss_amt >= 0 && '+'}{formatCurrency(detail.gain_loss_amt)}
