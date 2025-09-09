@@ -350,13 +350,13 @@ const Navbar = () => {
         >
         {/* Top bar (64px) */}
         <div className="h-16 px-4 flex items-center justify-between">
-          {/* 3-column grid: center actions, nudge left; compact performance chips on the right */}
-          <div className="grid grid-cols-3 w-full items-center">
-            {/* Left spacer (keeps center truly centered) */}
-            <div className="col-span-1"></div>
+          {/* Use explicit column sizes so center stays centered and right never collapses */}
+          <div className="grid grid-cols-[1fr_auto_1fr] w-full items-center">
+            {/* Left spacer */}
+            <div />
 
-            {/* Center: Quick Actions (nudged slightly left) */}
-            <div className="col-span-1 flex justify-center">
+            {/* Center: Quick Actions */}
+            <div className="justify-self-center">
               <div className="flex items-center gap-2 md:-ml-6">
                 <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}>
                   <QuickStartButton />
@@ -370,9 +370,9 @@ const Navbar = () => {
               </div>
             </div>
 
-            {/* Right: Performance Chips (compact) */}
-            <div className="col-span-1 flex justify-end">
-              <PeriodSummaryChips />
+            {/* Right: Period chips — prevent shrink & keep a minimum width */}
+            <div className="justify-self-end shrink-0">
+              <PeriodSummaryChips className="min-w-[290px] sm:min-w-[340px] whitespace-nowrap" />
             </div>
           </div>
         </div>
