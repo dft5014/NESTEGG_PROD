@@ -860,6 +860,7 @@ export default function Portfolio() {
         </div>
       </main>
 
+
       {/* Fullscreen modal: Invested Amount row */}
       <FullscreenModal
         open={modalOpen}
