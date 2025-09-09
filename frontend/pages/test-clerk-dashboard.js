@@ -5,7 +5,7 @@ import Link from "next/link";
 import { 
   CheckCircle, XCircle, User, Shield, Sparkles, Key,
   Loader, Copy, ExternalLink, Crown, Zap, Star,
-  CreditCard, ArrowUpRight, Calendar, Settings
+  CreditCard, ArrowUpRight, Calendar, Settings, Check, AlertCircle
 } from 'lucide-react';
 
 // Plan details
@@ -36,9 +36,19 @@ const planDetails = {
 function DashboardContent() {
   const { isLoaded, isSignedIn, user } = useUser();
   const { userId, sessionId, getToken } = useAuth();
-  const [token, setToken] = useState(null);
-  const [tokenError, setTokenError] = useState(null);
-  const [copied, setCopied] = useState(false);
+
+  // Clerk session token (raw)
+  const [clerkToken, setClerkToken] = useState(null);
+  const [clerkTokenError, setClerkTokenError] = useState(null);
+
+  // NestEgg app token (after exchange)
+  const [appToken, setAppToken] = useState(null);
+  const [appTokenError, setAppTokenError] = useState(null);
+
+  // Quick /user ping result to prove round-trip
+  const [userPing, setUserPing] = useState({ ok: null, msg: '' });
+
+  const [copied, setCopied] = useState({ clerk: false, app: false });
   const [showUpgrade, setShowUpgrade] = useState(false);
 
   // Get user's plan from metadata
@@ -46,29 +56,63 @@ function DashboardContent() {
   const signupDate = user?.unsafeMetadata?.signupDate || user?.publicMetadata?.signupDate;
   const plan = planDetails[userPlan] || planDetails.free;
 
+  // Clerk → (exchange) → NestEgg JWT
   useEffect(() => {
-    const fetchToken = async () => {
+    const run = async () => {
+      if (!isSignedIn || !getToken) return;
       try {
-        if (isSignedIn && getToken) {
-          const jwt = await getToken();
-          setToken(jwt);
+        // 1) Clerk session token
+        const cJwt = await getToken();
+        setClerkToken(cJwt);
+
+        // 2) Exchange for NestEgg JWT (your backend)
+        const base = process.env.NEXT_PUBLIC_API_BASE_URL;
+        if (!base) {
+          throw new Error("NEXT_PUBLIC_API_BASE_URL is not set");
         }
-      } catch (err) {
-        setTokenError(err.message);
+
+        const res = await fetch(`${base}/auth/exchange`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ clerk_jwt: cJwt })
+        });
+
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err.detail || `Exchange failed (${res.status})`);
+        }
+
+        const data = await res.json();
+        setAppToken(data.access_token);
+        localStorage.setItem("token", data.access_token); // <-- your app already reads this key
+
+        // 3) Prove it works: call /user with our token
+        const ures = await fetch(`${base}/user`, {
+          headers: { Authorization: `Bearer ${data.access_token}` }
+        });
+
+        if (ures.ok) {
+          setUserPing({ ok: true, msg: "✓ /user returned 200" });
+        } else {
+          const errText = await ures.text().catch(() => "");
+          setUserPing({ ok: false, msg: `✗ /user ${ures.status} ${errText}` });
+        }
+      } catch (e) {
+        // Split errors between Clerk and exchange for easier debugging
+        if (!clerkToken) setClerkTokenError(e.message);
+        else setAppTokenError(e.message);
       }
     };
-    
-    if (isSignedIn) {
-      fetchToken();
-    }
+    run();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isSignedIn, getToken]);
 
-  const copyToken = () => {
-    if (token) {
-      navigator.clipboard.writeText(token);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    }
+  const copy = (what) => {
+    const val = what === 'clerk' ? clerkToken : appToken;
+    if (!val) return;
+    navigator.clipboard.writeText(val);
+    setCopied(prev => ({ ...prev, [what]: true }));
+    setTimeout(() => setCopied(prev => ({ ...prev, [what]: false })), 2000);
   };
 
   const handleUpgrade = async (newPlan) => {
@@ -81,8 +125,7 @@ function DashboardContent() {
         }
       });
       setShowUpgrade(false);
-      // In production, this would redirect to Stripe checkout
-      alert(`Upgraded to ${newPlan}! (In production, this would process payment)`);
+      alert(`Upgraded to ${newPlan}! (Replace with Clerk billing checkout in prod)`);
     } catch (error) {
       console.error('Error updating plan:', error);
     }
@@ -255,39 +298,70 @@ function DashboardContent() {
             </div>
           </div>
 
-          {/* JWT Token Card - Full Width */}
-          <div className="lg:col-span-3 bg-gray-900 border border-gray-800 rounded-xl p-6">
-            <h2 className="text-lg font-semibold text-white mb-4 flex items-center">
-              <Key className="h-5 w-5 mr-2 text-purple-500" />
-              JWT Token for API Testing
-            </h2>
-            {token ? (
-              <div>
-                <div className="bg-gray-950 rounded-lg p-4 font-mono text-xs text-gray-400 break-all relative">
-                  <div className="pr-12">
-                    {token.substring(0, 150)}...
+          {/* TOKENS */}
+          <div className="lg:col-span-3 grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Clerk token */}
+            <div className="bg-gray-900 border border-gray-800 rounded-xl p-6">
+              <h2 className="text-lg font-semibold text-white mb-4 flex items-center">
+                <Key className="h-5 w-5 mr-2 text-purple-500" />
+                Clerk Session Token
+              </h2>
+              {clerkToken ? (
+                <div>
+                  <div className="bg-gray-950 rounded-lg p-4 font-mono text-xs text-gray-400 break-all relative">
+                    <div className="pr-12">{clerkToken.substring(0, 150)}...</div>
+                    <button
+                      onClick={() => copy('clerk')}
+                      className="absolute top-2 right-2 p-2 bg-gray-800 hover:bg-gray-700 rounded transition-colors"
+                      title="Copy token"
+                    >
+                      {copied.clerk ? <CheckCircle className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4 text-gray-400" />}
+                    </button>
                   </div>
-                  <button
-                    onClick={copyToken}
-                    className="absolute top-2 right-2 p-2 bg-gray-800 hover:bg-gray-700 rounded transition-colors"
-                    title="Copy token"
-                  >
-                    {copied ? (
-                      <CheckCircle className="h-4 w-4 text-green-500" />
-                    ) : (
-                      <Copy className="h-4 w-4 text-gray-400" />
-                    )}
-                  </button>
+                  <p className="text-sm text-gray-500 mt-2">
+                    Raw Clerk token returned by <code>getToken()</code>.
+                  </p>
                 </div>
-                <p className="text-sm text-gray-500 mt-2">
-                  Use this token in the Authorization header: <code className="text-gray-400">Bearer {`{token}`}</code>
-                </p>
-              </div>
-            ) : tokenError ? (
-              <div className="text-red-400">Error: {tokenError}</div>
-            ) : (
-              <div className="text-gray-400">Loading token...</div>
-            )}
+              ) : clerkTokenError ? (
+                <div className="text-red-400 flex items-center gap-2"><AlertCircle className="h-4 w-4" />{clerkTokenError}</div>
+              ) : (
+                <div className="text-gray-400">Loading Clerk token...</div>
+              )}
+            </div>
+
+            {/* App token */}
+            <div className="bg-gray-900 border border-gray-800 rounded-xl p-6">
+              <h2 className="text-lg font-semibold text-white mb-4 flex items-center">
+                <Key className="h-5 w-5 mr-2 text-green-500" />
+                NestEgg App Token (after exchange)
+              </h2>
+              {appToken ? (
+                <div>
+                  <div className="bg-gray-950 rounded-lg p-4 font-mono text-xs text-gray-400 break-all relative">
+                    <div className="pr-12">{appToken.substring(0, 150)}...</div>
+                    <button
+                      onClick={() => copy('app')}
+                      className="absolute top-2 right-2 p-2 bg-gray-800 hover:bg-gray-700 rounded transition-colors"
+                      title="Copy token"
+                    >
+                      {copied.app ? <CheckCircle className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4 text-gray-400" />}
+                    </button>
+                  </div>
+                  <p className="text-sm text-gray-500 mt-2">
+                    Stored in <code>localStorage.token</code>. All existing API calls can use it.
+                  </p>
+                  <div className="mt-3 text-sm">
+                    {userPing.ok === true && <span className="text-green-400 inline-flex items-center"><Check className="h-4 w-4 mr-1" /> {userPing.msg}</span>}
+                    {userPing.ok === false && <span className="text-red-400 inline-flex items-center"><AlertCircle className="h-4 w-4 mr-1" /> {userPing.msg}</span>}
+                    {userPing.ok == null && <span className="text-gray-400">Pinging /user…</span>}
+                  </div>
+                </div>
+              ) : appTokenError ? (
+                <div className="text-red-400 flex items-center gap-2"><AlertCircle className="h-4 w-4" />{appTokenError}</div>
+              ) : (
+                <div className="text-gray-400">Exchanging Clerk token for app token…</div>
+              )}
+            </div>
           </div>
 
           {/* Metadata Display */}
@@ -379,14 +453,8 @@ function DashboardContent() {
 
 export default function TestClerkDashboard() {
   const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  if (!mounted) {
-    return null;
-  }
+  useEffect(() => setMounted(true), []);
+  if (!mounted) return null;
 
   return (
     <ClerkProvider publishableKey={process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY}>
@@ -397,7 +465,5 @@ export default function TestClerkDashboard() {
 
 // Skip static generation
 export async function getServerSideProps() {
-  return {
-    props: {},
-  };
+  return { props: {} };
 }

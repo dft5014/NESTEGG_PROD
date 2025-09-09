@@ -96,6 +96,7 @@ export default function TestClerkLogin() {
                 routing="path"
                 path="/test-clerk-login"
                 signUpUrl="/test-clerk-signup"
+                afterSignUpUrl="/test-clerk-onboarding"
                 fallbackRedirectUrl="/test-clerk-dashboard"
               />
             </div>

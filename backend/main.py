@@ -63,6 +63,11 @@ BASE_DIR = Path(__file__).resolve().parent
 if str(BASE_DIR) not in sys.path:
     sys.path.append(str(BASE_DIR))
 
+CLERK_JWKS_URL = os.getenv("CLERK_JWKS_URL")
+CLERK_ISSUER = os.getenv("CLERK_ISSUER")          
+CLERK_AUDIENCE = os.getenv("CLERK_AUDIENCE")      
+DEFAULT_PLAN = os.getenv("DEFAULT_PLAN", "basic")
+
 # Local application imports
 from backend.services.price_updater_v2 import PriceUpdaterV2
 from backend.services.data_consistency_monitor import DataConsistencyMonitor
@@ -317,6 +322,45 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
             headers={"WWW-Authenticate": "Bearer"},
         )
 
+_jwks_cache = None
+_jwks_fetched_at = 0
+
+def _get_jwks():
+    global _jwks_cache, _jwks_fetched_at
+    now = time.time()
+    # cache for 1 hour
+    if _jwks_cache and (now - _jwks_fetched_at) < 3600:
+        return _jwks_cache
+    if not CLERK_JWKS_URL:
+        raise HTTPException(status_code=500, detail="CLERK_JWKS_URL not configured")
+    resp = requests.get(CLERK_JWKS_URL, timeout=5)
+    resp.raise_for_status()
+    _jwks_cache = resp.json()
+    _jwks_fetched_at = now
+    return _jwks_cache
+
+def verify_clerk_jwt(token: str) -> dict:
+    # Verify a Clerk session token and return its claims
+    jwks = _get_jwks()
+    headers = jose_jwt.get_unverified_header(token)
+    kid = headers.get("kid")
+    key = next((k for k in jwks.get("keys", []) if k.get("kid") == kid), None)
+    if not key:
+        raise HTTPException(status_code=401, detail="No matching JWKS key")
+    # verify audience/issuer only if provided
+    options = {
+        "verify_aud": bool(CLERK_AUDIENCE),
+        "verify_iss": bool(CLERK_ISSUER),
+    }
+    return jose_jwt.decode(
+        token,
+        key,
+        algorithms=[headers.get("alg", "RS256")],
+        audience=CLERK_AUDIENCE if CLERK_AUDIENCE else None,
+        issuer=CLERK_ISSUER if CLERK_ISSUER else None,
+        options=options,
+    )
+
 # ----- PYDANTIC MODELS  -----
 # ----- THESE ARE USED IN VARIOUS API CALLS  -----
 
@@ -330,6 +374,11 @@ class PositionReconciliationCreate(BaseModel):
     actual_value: float
     reconcile_quantity: bool = True  # Added flag
     reconcile_value: bool = True     # Added flag
+
+class ClerkExchangeRequest(BaseModel):
+    clerk_jwt: str
+    plan: Optional[str] = None
+    features: Optional[List[str]] = None
 
 class AccountReconciliationCreate(BaseModel):
     account_id: int
@@ -794,6 +843,13 @@ class PortfolioAssetSummary(BaseModel):
     total_cost_basis: float
     count: int
 
+class OnboardProfile(BaseModel):
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    phone: Optional[str] = None
+    occupation: Optional[str] = None
+    date_of_birth: Optional[str] = None  # ISO date (YYYY-MM-DD)
+
 class PortfolioSummaryAllResponse(BaseModel):
     total_value: float
     total_cost_basis: float
@@ -1041,6 +1097,61 @@ async def _get_detailed_cash(user_id: str) -> List[CashPositionDetail]:
     except Exception as e:
         logger.error(f"Error in _get_detailed_cash for user {user_id}: {str(e)}")
         return []
+
+async def _link_or_create_user_from_clerk(claims: dict, plan_hint: Optional[str], features: Optional[List[str]]):
+    # Extract email (Clerk may place it in different fields)
+    email = (claims.get("email") or claims.get("primary_email_address") or "").lower().strip()
+    if not email:
+        emails = claims.get("email_addresses") or []
+        if emails and isinstance(emails, list):
+            email = (emails[0].get("email_address") or "").lower().strip()
+    if not email:
+        raise HTTPException(status_code=400, detail="No email in Clerk token")
+
+    clerk_id = claims.get("sub")
+    plan = plan_hint or (claims.get("public_metadata", {}) or {}).get("plan") \
+           or (claims.get("unsafe_metadata", {}) or {}).get("plan") \
+           or DEFAULT_PLAN
+
+    existing = await database.fetch_one(users.select().where(users.c.email == email))
+    if existing:
+        upd = (
+            users.update()
+            .where(users.c.id == existing["id"])
+            .values(
+                clerk_id=clerk_id,
+                auth_provider="clerk",
+                subscription_plan=plan,
+                image_url=claims.get("image_url"),
+            )
+        )
+        await database.execute(upd)
+        return existing["id"], plan
+    else:
+        new_id = str(uuid.uuid4())
+        ins = users.insert().values(
+            id=new_id,
+            email=email,
+            password_hash="",  # keep nullable/blank for Clerk users
+            first_name=claims.get("first_name"),
+            last_name=claims.get("last_name"),
+            image_url=claims.get("image_url"),
+            clerk_id=clerk_id,
+            auth_provider="clerk",
+            subscription_plan=plan,
+            created_at=datetime.utcnow(),
+            notification_preferences={
+                "emailUpdates": True,
+                "marketAlerts": True,
+                "securityAlerts": True,
+                "newsletterUpdates": False,
+                "performanceReports": True,
+            },
+        )
+        await database.execute(ins)
+        return new_id, plan
+
+
 
 # ----- API ENDPOINT DIRECTORY  -----
 # ----- BELOW FEATURES VARIOUS ENDPOINTS USED BY CLIENT APPLICATION  -----
@@ -7900,3 +8011,75 @@ async def get_system_events(limit: int = 20, current_user: dict = Depends(get_cu
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to fix data consistency issues: {str(e)}"
         )
+
+@app.post("/auth/exchange")
+async def exchange_clerk_token(payload: ClerkExchangeRequest):
+    """
+    Accept a Clerk session JWT, verify it, upsert/link user in our DB,
+    and return a NestEgg JWT compatible with existing clients.
+    """
+    if not payload.clerk_jwt:
+        raise HTTPException(status_code=400, detail="clerk_jwt is required")
+
+    try:
+        claims = verify_clerk_jwt(payload.clerk_jwt)
+    except Exception as e:
+        logger.error(f"Clerk verify failed: {e}")
+        raise HTTPException(status_code=401, detail="Invalid Clerk token")
+
+    # choose plan/features (payload > Clerk public/unsafe metadata > default)
+    plan = payload.plan or (claims.get("public_metadata", {}) or {}).get("plan") \
+           or (claims.get("unsafe_metadata", {}) or {}).get("plan") \
+           or DEFAULT_PLAN
+    features = payload.features or (claims.get("public_metadata", {}) or {}).get("features") \
+               or (claims.get("unsafe_metadata", {}) or {}).get("features") \
+               or []
+
+    # link/create user row and set clerk_id/auth_provider
+    supa_user_id, plan = await _link_or_create_user_from_clerk(claims, plan, features)
+
+    # Your existing JWT uses {"sub": email}. Keep that + add extras.
+    email_for_sub = (claims.get("email") or claims.get("primary_email_address") or "").lower().strip()
+    access_token = create_access_token({
+        "sub": email_for_sub,
+        "user_id": supa_user_id,
+        "plan": plan,
+        "features": features,
+        "auth": "clerk",
+    })
+
+    return {
+        "access_token": access_token,
+        "token_type": "bearer",
+        "user_id": supa_user_id,
+        "plan": plan,
+        "features": features,
+    }
+
+
+
+@app.post("/me/onboard")
+async def save_onboard_profile(payload: OnboardProfile, current_user: dict = Depends(get_current_user)):
+    """
+    Saves basic profile fields for the logged-in user.
+    Requires Authorization: Bearer <NestEgg JWT>.
+    """
+    user_id = current_user.get("user_id")
+    if not user_id:
+        # fallback: try by email 'sub'
+        email = current_user.get("sub")
+        if not email:
+            raise HTTPException(status_code=401, detail="Unauthorized")
+        row = await database.fetch_one(users.select().where(users.c.email == email))
+        if not row:
+            raise HTTPException(status_code=404, detail="User not found")
+        user_id = row["id"]
+
+    values = {k: v for k, v in payload.dict().items() if v not in (None, "")}
+    if not values:
+        return {"ok": True}
+
+    await database.execute(
+        users.update().where(users.c.id == user_id).values(**values)
+    )
+    return {"ok": True}

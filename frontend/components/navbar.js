@@ -78,11 +78,67 @@ const StockTicker = () => {
   ];
 
 // Percent helper: backend may return 0.0123 (1.23%) or 1.23 (1.23%)
-const normalizePct = (v) => {
-  if (typeof v !== 'number' || !isFinite(v)) return null;
-  // If within [-1, 1], assume decimal and convert to %
-  return Math.abs(v) <= 1 ? v * 100 : v;
+// Horizon-aware percent normalizer.
+// Accepts number or string (with/without %), parentheses for negatives.
+// Heuristic: values in (-1,1) are ambiguous; treat as FRACTION (×100) only when
+// small enough to be realistic for that horizon; otherwise treat as already %.
+const clamp = (x, cap) => {
+  if (!isFinite(x)) return null;
+  if (cap == null) return x;
+  return Math.max(-cap, Math.min(cap, x));
 };
+
+const parseMaybePercentString = (raw) => {
+  if (raw == null) return { num: null, hadPercent: false };
+  if (typeof raw === 'number') return { num: raw, hadPercent: false };
+
+  // string
+  let s = String(raw).trim();
+  const hadPercent = s.includes('%');
+  const isParenNeg = /^\(.*\)$/.test(s);
+  s = s.replace(/[,%\s()]/g, ''); // strip %, commas, spaces, parentheses
+  const num = parseFloat(s);
+  if (!isFinite(num)) return { num: null, hadPercent: hadPercent };
+  const val = isParenNeg ? -Math.abs(num) : num;
+  return { num: val, hadPercent };
+};
+
+// bounds represent "reasonable" max % magnitudes, used for interpreting
+// ambiguous sub-1 values as fraction vs already-percent.
+const HORIZON_BOUNDS = {
+  '1d': 30,    // ~±30% daily bound
+  '1w': 60,    // ~±60% weekly bound
+  'ytd': 400,  // broader YTD swings
+  'total': 2000,
+  'generic': 200,
+};
+
+const normalizePct = (raw, horizon = 'generic') => {
+  const { num, hadPercent } = parseMaybePercentString(raw);
+  if (num == null) return null;
+
+  // If the original text had a '%' sign, treat as percent already.
+  if (hadPercent) return clamp(num, HORIZON_BOUNDS[horizon]);
+
+  const abs = Math.abs(num);
+  const cap = HORIZON_BOUNDS[horizon] ?? HORIZON_BOUNDS.generic;
+
+  // If abs > 1, it's almost certainly already a percent value (e.g., 1.23 => 1.23%).
+  if (abs > 1) return clamp(num, cap);
+
+  // For values in (-1,1), decide: fraction vs already-percent.
+  // If it's larger than the horizon's small threshold (e.g., >0.30 for 1d),
+  // it's likely already a percent (0.56 -> 0.56%), NOT 56%.
+  const smallThreshold = (cap / 100); // e.g., 30% -> 0.30
+  if (abs > smallThreshold) {
+    // treat as already percent (0.56 -> 0.56%)
+    return clamp(num, cap);
+  }
+
+  // Otherwise treat as FRACTION needing ×100 (0.0123 -> 1.23%)
+  return clamp(num * 100, cap);
+};
+
 
   // Map grouped positions for ticker (top 10 by value)
   const userStocks = useMemo(() => {
@@ -96,10 +152,10 @@ const normalizePct = (v) => {
       .sort((a, b) => (b.total_current_value || 0) - (a.total_current_value || 0))
       .slice(0, 10)
       .map(pos => {
-        const dayPct  = normalizePct(pos.value_1d_change_pct);
-        const weekPct = normalizePct(pos.value_1w_change_pct);
-        const ytdPct  = normalizePct(pos.value_ytd_change_pct);
-        const totPct  = normalizePct(pos.total_gain_loss_pct);
+          const dayPct  = normalizePct(pos.value_1d_change_pct, '1d');
+          const weekPct = normalizePct(pos.value_1w_change_pct, '1w');
+          const ytdPct  = normalizePct(pos.value_ytd_change_pct, 'ytd');
+          const totPct  = normalizePct(pos.total_gain_loss_pct, 'total');
 
         return {
           symbol: pos.identifier,
