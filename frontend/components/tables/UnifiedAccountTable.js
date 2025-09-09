@@ -687,14 +687,14 @@ const PerformanceIndicator = ({ value, format = 'percentage', size = 'sm', showS
                                                         <td className="px-3 py-2 text-xs text-right">
                                                             {formatNumber(position.quantity || 0, { maximumFractionDigits: 4 })}
                                                         </td>
-                                                        <td className="px-3 py-2 text-xs text-right">
-                                                            {formatCurrency(position.currentPrice || 0)}
-                                                            {position.priceChange1d && (
-                                                                <div className={`text-xs ${position.priceChange1d >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                                                                    {position.priceChange1d >= 0 ? '+' : ''}{position.priceChange1d.toFixed(2)}%
-                                                                </div>
-                                                            )}
-                                                        </td>
+                                                            <td className="px-3 py-2 text-xs text-right">
+                                                                {formatCurrency(position.currentPrice || 0)}
+                                                                {position.priceChange1d !== null && position.priceChange1d !== undefined && (
+                                                                    <div className={`text-xs ${position.priceChange1d >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                                                        {position.priceChange1d >= 0 ? '+' : ''}{position.priceChange1d.toFixed(2)}%
+                                                                    </div>
+                                                                )}
+                                                            </td>
                                                         <td className="px-3 py-2 text-xs text-right font-medium">
                                                             {formatCurrency(position.currentValue || 0)}
                                                         </td>
@@ -713,7 +713,7 @@ const PerformanceIndicator = ({ value, format = 'percentage', size = 'sm', showS
                                                             </td>
                                                         <td className="px-3 py-2 text-xs text-right">
                                                             <div className="font-medium">
-                                                                {formatPercentage((position.currentValue / account.totalValue) * 100)}
+                                                                {formatPercentage((position.currentValue / account.totalValue))}
                                                             </div>
                                                         </td>
                                                     </tr>
@@ -728,9 +728,9 @@ const PerformanceIndicator = ({ value, format = 'percentage', size = 'sm', showS
                                                                             </td>
                                                                         </tr>
                                                                         {taxLots.map((lot, lotIdx) => {
-                                                                            const lotValue = lot.quantity * position.currentPrice;
-                                                                            const lotGain = lotValue - lot.costBasis;
-                                                                            const lotGainPct = (lotGain / lot.costBasis) * 100;
+                                                                            const lotValue = (lot.quantity || 0) * (position.currentPrice || 0);
+                                                                            const lotGain = lotValue - (lot.costBasis || 0);
+                                                                            const lotGainPct = lot.costBasis > 0 ? (lotGain / lot.costBasis) * 100 : 0;
                                                                             const holdingDays = Math.floor((new Date() - new Date(lot.purchaseDate)) / (1000 * 60 * 60 * 24));
                                                                             const isLongTerm = holdingDays > 365;
                                                                             
@@ -756,10 +756,10 @@ const PerformanceIndicator = ({ value, format = 'percentage', size = 'sm', showS
                                                                                         {formatNumber(lot.quantity, { maximumFractionDigits: 4 })}
                                                                                     </td>
                                                                                     <td className="px-3 py-1 text-right text-gray-400">
-                                                                                        @ {formatCurrency(lot.costPerUnit)}
+                                                                                        {formatCurrency(lot.costBasis / lot.quantity)}
                                                                                     </td>
                                                                                     <td className="px-3 py-1 text-right text-gray-300">
-                                                                                        {formatCurrency(lotValue)}
+                                                                                        {formatCurrency(lot.quantity * position.currentPrice)}
                                                                                     </td>
                                                                                     <td className="px-3 py-1 text-right text-gray-400">
                                                                                         {formatCurrency(lot.costBasis)}
@@ -773,9 +773,6 @@ const PerformanceIndicator = ({ value, format = 'percentage', size = 'sm', showS
                                                                                         <span className={lotGainPct >= 0 ? 'text-green-400' : 'text-red-400'}>
                                                                                             {lotGainPct >= 0 && '+'}{lotGainPct.toFixed(2)}%
                                                                                         </span>
-                                                                                    </td>
-                                                                                    <td className="px-3 py-1 text-right text-gray-500">
-                                                                                        {((lotValue / account.totalValue) * 100).toFixed(2)}%
                                                                                     </td>
                                                                                 </tr>
                                                                             );

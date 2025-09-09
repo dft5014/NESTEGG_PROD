@@ -33,12 +33,13 @@ const AnimatedCounter = ({ value, duration = 800 }) => {
     };
 
     if (Math.abs(diff) > 0.01) requestAnimationFrame(animate);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [value]);
 
   return formatCurrency(displayValue);
 };
 
-// Period comparison item (now supports optional amount)
+// Period comparison item (supports optional amount)
 const PeriodItem = ({ label, percent, amount = null, isLarge = false }) => {
   if (percent == null) return null;
 
@@ -66,7 +67,7 @@ const PeriodItem = ({ label, percent, amount = null, isLarge = false }) => {
         </span>
         {typeof amount === 'number' && isFinite(amount) && (
           <span className="text-[10px] font-medium text-gray-400">
-            ({formatCurrency(amount)})
+            ({amount >= 0 ? '+' : ''}{formatCurrency(Math.abs(amount))})
           </span>
         )}
       </div>
@@ -87,7 +88,7 @@ export default function PeriodSummaryChips({ className = '' }) {
 
   const p1d = get('1d');
   const p1w = get('1w');
-  const p1m = get('1m'); // kept for potential future use
+  const p1m = get('1m');
   const pytd = get('ytd');
 
   const dayPct = normalizePct(p1d?.netWorthPercent);
@@ -97,12 +98,23 @@ export default function PeriodSummaryChips({ className = '' }) {
 
   const isDayPositive = typeof dayPct === 'number' ? dayPct >= 0 : null;
 
-  // Total gain/loss
+  // Total gain/loss (with safe fallbacks)
   const t = summary?.totals || {};
   const totalGainLossPct = normalizePct(
-    typeof t.totalGainLossPct === 'number' ? t.totalGainLossPct : null
+    typeof t.totalGainLossPct === 'number'
+      ? t.totalGainLossPct
+      : (typeof t.totalUnrealizedGainPercent === 'number'
+          ? t.totalUnrealizedGainPercent
+          : (typeof t.total_unrealized_gain_percent === 'number'
+              ? t.total_unrealized_gain_percent
+              : null))
   );
-  const totalGainLossAmt = typeof t.totalGainLossAmt === 'number' ? t.totalGainLossAmt : null;
+  const totalGainLossAmt =
+    typeof t.totalGainLossAmt === 'number'
+      ? t.totalGainLossAmt
+      : (typeof t.total_unrealized_gain === 'number'
+          ? t.total_unrealized_gain
+          : null);
 
   return (
     <div
@@ -178,12 +190,12 @@ export default function PeriodSummaryChips({ className = '' }) {
           {/* Divider */}
           <div className="h-10 w-px bg-gray-800/30" />
 
-          {/* Periods Grid - 2 columns: top row 1W | YTD, bottom row 1D | Gain/Loss */}
+          {/* Periods Grid - 2 columns: left 1W/1M, right YTD/Gain-Loss */}
           <div className="grid grid-cols-2 gap-x-6 gap-y-0 pl-2">
-            {/* Left column: 1W over 1D */}
+            {/* Left column: 1W over 1M */}
             <div className="flex flex-col">
               <PeriodItem label="1W" percent={weekPct} />
-              <PeriodItem label="1D" percent={dayPct} />
+              <PeriodItem label="1M" percent={monthPct} />
             </div>
 
             {/* Right column: YTD over Gain/Loss */}

@@ -271,7 +271,7 @@ export default function PositionsPage() {
                 color: positionMetrics.totalGainLoss >= 0 ? "text-green-400" : "text-red-400",
                 bgColor: positionMetrics.totalGainLoss >= 0 ? "bg-green-500/10" : "bg-red-500/10",
                 format: (v) => showValues ? formatCurrency(v) : '••••',
-                subtitle: `${positionMetrics.totalGainLossPercent >= 0 ? '+' : ''}${positionMetrics.totalGainLossPercent.toFixed(2)}% return`
+                subtitle: `${positionMetrics.totalGainLossPercent >= 0 ? '+' : ''}${(positionMetrics.totalGainLossPercent).toFixed(2)}% return`
               },
               {
                 title: "Largest Position",
@@ -288,7 +288,7 @@ export default function PositionsPage() {
                 icon: <Flame className="w-5 h-5" />,
                 color: "text-orange-400",
                 bgColor: "bg-orange-500/10",
-                format: (v) => `${v >= 0 ? '+' : ''}${v.toFixed(2)}%`,
+                format: (v) => `${v >= 0 ? '+' : ''}${(v).toFixed(2)}%`,
                 subtitle: positionMetrics.mostProfitablePosition?.name || 'N/A'
               }
             ].map((metric, index) => (

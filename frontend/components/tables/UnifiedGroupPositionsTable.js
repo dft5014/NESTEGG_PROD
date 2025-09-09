@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { BarChart4, Loader, Search, Filter, TrendingUp, TrendingDown, X, RefreshCw, Info, DollarSign, Home, Package, ChevronDown, Check, ChevronUp, ArrowUpDown, Briefcase } from 'lucide-react';
-import { formatCurrency, formatPercentage, formatNumber, formatDate } from '@/utils/formatters';
+import { formatCurrency, formatPercentage, formatNumber, formatDate, formatSharePrice } from '@/utils/formatters';
 import { LineChart, Line, BarChart, Bar, ComposedChart, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceLine, Cell } from 'recharts';
 import { useGroupedPositions } from '@/store/hooks/useGroupedPositions';
 import { usePositionHistory } from '@/store/hooks/usePositionHistory';
@@ -841,9 +841,9 @@ const UnifiedGroupPositionsTable = ({
                       <div>{formatNumber(position.total_quantity, { maximumFractionDigits: 4 })}</div>
                       {formatQuantityChange(position.quantity_1d_change, position.quantity_1d_change_pct)}
                     </td>
-                    <td className="px-2 py-2 whitespace-nowrap text-sm text-right">
-                      {position.latest_price_per_unit ? formatCurrency(position.latest_price_per_unit) : '-'}
-                    </td>
+                      <td className="px-2 py-2 whitespace-nowrap text-sm text-right">
+                        {position.latest_price_per_unit ? formatSharePrice(position.latest_price_per_unit) : '-'}
+                      </td>
                     <td className="px-2 py-2 whitespace-nowrap text-sm text-right">
                       <div className="font-medium">{formatCurrency(position.total_current_value)}</div>
                       <div className="text-xs text-gray-400">
@@ -945,10 +945,10 @@ const UnifiedGroupPositionsTable = ({
                           {selectedPosition.long_term_positions} LT / {selectedPosition.short_term_positions} ST
                         </span>
                         <span className="text-xs text-gray-500">
-                          Price: {formatCurrency(selectedPosition.latest_price_per_unit || 0)}
+                          Price: {formatSharePrice(selectedPosition.latest_price_per_unit || 0)}
                         </span>
                         <span className="text-xs text-gray-500">
-                          Avg Cost: {formatCurrency(selectedPosition.weighted_avg_cost || 0)}  
+                          Avg Cost: {formatSharePrice(selectedPosition.weighted_avg_cost || 0)}  
                         </span>
                       </div>
                     </div>
@@ -1607,13 +1607,13 @@ const UnifiedGroupPositionsTable = ({
                                 {formatNumber(detail.quantity || 0, { maximumFractionDigits: 4 })}
                             </td>
                             <td className="px-2 py-2 text-xs text-right">
-                                {formatCurrency(selectedPosition.latest_price_per_unit || 0)}
+                              {formatSharePrice(selectedPosition.latest_price_per_unit || 0)}
                             </td>
                             <td className="px-2 py-2 text-xs text-right font-medium">
                                 {formatCurrency(detail.value)}
                             </td>
                             <td className="px-2 py-2 text-xs text-right text-gray-400">
-                                {formatCurrency(detail.cost / (detail.quantity || 1))}
+                              {formatSharePrice(detail.cost / (detail.quantity || 1))}
                             </td>
                             <td className="px-2 py-2 text-xs text-right">
                                 <span className={detail.gain_loss_amt >= 0 ? 'text-green-400' : 'text-red-400'}>
