@@ -177,10 +177,19 @@ function DashboardContent() {
               >
                 Regular App →
               </Link>
-              <UserButton 
-                afterSignOutUrl="/test-clerk-login"
-                signInUrl="/test-clerk-login"
-              />
+                <SignOutButton
+                  signOutCallback={() => {
+                    localStorage.removeItem('token'); // Clear NestEgg JWT
+                    window.location.href = '/test-clerk-login';
+                  }}
+                >
+                  <button className="flex items-center space-x-2 text-gray-400 hover:text-white transition-colors">
+                    <div className="w-8 h-8 rounded-full bg-gray-800 flex items-center justify-center">
+                      <User className="h-5 w-5" />
+                    </div>
+                    <span>Sign Out</span>
+                  </button>
+                </SignOutButton>
             </div>
           </div>
         </div>

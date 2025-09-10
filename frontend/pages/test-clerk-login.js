@@ -1,8 +1,8 @@
 // pages/test-clerk-login.js
-import { ClerkProvider, SignIn } from "@clerk/nextjs";
+import { ClerkProvider, SignIn, SignedIn, SignedOut, SignOutButton } from "@clerk/nextjs";
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { ArrowLeft, Sparkles, LogIn, Shield, Zap } from 'lucide-react';
+import { ArrowLeft, Sparkles, LogIn, Shield, Zap, LogOut } from 'lucide-react';
 
 export default function TestClerkLogin() {
   const [mounted, setMounted] = useState(false);
@@ -74,31 +74,55 @@ export default function TestClerkLogin() {
             </div>
           </div>
 
-          {/* Right side - Sign In */}
+          {/* Right side - Conditional Sign In / Logout */}
           <div className="w-full lg:w-1/2 flex items-center justify-center p-8">
             <div className="w-full max-w-md">
-              <SignIn 
-                appearance={{
-                  baseTheme: "dark",
-                  elements: {
-                    formButtonPrimary: 
-                      'bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600',
-                    card: 'bg-gray-900 border border-gray-800 shadow-2xl',
-                    headerTitle: 'text-white',
-                    headerSubtitle: 'text-gray-400',
-                    socialButtonsBlockButton: 
-                      'bg-gray-800 border-gray-700 text-white hover:bg-gray-700',
-                    formFieldLabel: 'text-gray-300',
-                    formFieldInput: 'bg-gray-800 border-gray-700 text-white',
-                    footerActionLink: 'text-blue-400 hover:text-blue-300'
-                  }
-                }}
-                routing="path"
-                path="/test-clerk-login"
-                signUpUrl="/test-clerk-signup"
-                afterSignUpUrl="/test-clerk-onboarding"
-                fallbackRedirectUrl="/test-clerk-dashboard"
-              />
+              <SignedOut>
+                <SignIn 
+                  appearance={{
+                    baseTheme: "dark",
+                    elements: {
+                      formButtonPrimary: 
+                        'bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600 transition-transform duration-200 hover:scale-105',
+                      card: 'bg-gray-900 border border-gray-800 shadow-2xl',
+                      headerTitle: 'text-white',
+                      headerSubtitle: 'text-gray-400',
+                      socialButtonsBlockButton: 
+                        'bg-gray-800 border-gray-700 text-white hover:bg-gray-700',
+                      formFieldLabel: 'text-gray-300',
+                      formFieldInput: 'bg-gray-800 border-gray-700 text-white',
+                      footerActionLink: 'text-blue-400 hover:text-blue-300'
+                    }
+                  }}
+                  routing="path"
+                  path="/test-clerk-login"
+                  signUpUrl="/test-clerk-signup"
+                  afterSignUpUrl="/test-clerk-onboarding"
+                  fallbackRedirectUrl="/test-clerk-dashboard"
+                />
+              </SignedOut>
+              <SignedIn>
+                <div className="bg-gray-900 border border-gray-800 rounded-xl p-8 text-center space-y-6">
+                  <h2 className="text-xl font-semibold text-white">You are already signed in</h2>
+                  <p className="text-gray-400">Head to the dashboard or sign out below.</p>
+                  <div className="space-y-4">
+                    <Link href="/test-clerk-dashboard" className="block py-3 px-4 bg-blue-500/10 border border-blue-500/20 rounded-lg text-blue-400 hover:text-blue-300 hover:bg-blue-500/20 transition-colors flex items-center justify-center">
+                      Go to Dashboard
+                    </Link>
+                    <SignOutButton
+                      signOutCallback={() => {
+                        localStorage.removeItem('token'); // Clear NestEgg JWT
+                        window.location.href = '/test-clerk-login'; // Redirect to refresh
+                      }}
+                    >
+                      <button className="w-full py-3 px-4 bg-red-500/10 border border-red-500/20 rounded-lg text-red-400 hover:text-red-300 hover:bg-red-500/20 transition-transform duration-200 hover:scale-105 flex items-center justify-center">
+                        <LogOut className="h-5 w-5 mr-2" />
+                        Sign Out
+                      </button>
+                    </SignOutButton>
+                  </div>
+                </div>
+              </SignedIn>
             </div>
           </div>
         </div>
