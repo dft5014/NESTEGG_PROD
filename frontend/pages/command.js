@@ -21,6 +21,7 @@ import {
 
 import { usePortfolioSummary } from '@/store/hooks/usePortfolioSummary';
 import { usePortfolioTrends } from '@/store/hooks/usePortfolioTrends';
+import { useGroupedPositions } from '@/store/hooks/useGroupedPositions';
 import UnifiedGroupPositionsTable from '@/components/tables/UnifiedGroupPositionsTable';
 import { formatCurrency } from '@/utils/formatters';
 
@@ -39,11 +40,17 @@ export default function CommandPage() {
     error: trendsError
   } = usePortfolioTrends();
 
-  const isLoading = summaryLoading || trendsLoading;
+  const {
+    loading: positionsLoading,
+    refreshData: refreshPositions
+  } = useGroupedPositions();
+
+  const isLoading = summaryLoading || trendsLoading || positionsLoading;
 
   const refreshAll = async () => {
     await Promise.all([
-      refreshSummary()
+      refreshSummary(),
+      refreshPositions()
     ]);
   };
 
