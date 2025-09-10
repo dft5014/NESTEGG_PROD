@@ -1,53 +1,33 @@
 // pages/test-clerk-dashboard.js
-import { ClerkProvider, useUser, UserButton, useAuth, UserProfile } from "@clerk/nextjs";
-import { useState, useEffect } from "react";
+import { ClerkProvider, useAuth, useUser, UserProfile, SignedIn, SignedOut } from "@clerk/nextjs";
+import { useEffect, useState } from "react";
 import Link from "next/link";
-import { 
-  CheckCircle, XCircle, User, Shield, Sparkles, Key,
-  Loader, Copy, ExternalLink, Crown, Zap, Star,
-  CreditCard, ArrowUpRight, Calendar, Settings, Check, AlertCircle
-} from 'lucide-react';
+import { Loader, Copy, Star, Zap, Crown } from "lucide-react";
 
-// Plan details
 const planDetails = {
-  free: {
-    name: 'Free',
-    icon: <Star className="h-5 w-5" />,
-    color: 'text-gray-400',
-    bgColor: 'bg-gray-500/10',
-    features: ['2 accounts', 'Basic tracking', 'Community support']
-  },
-  pro: {
-    name: 'Pro',
-    icon: <Zap className="h-5 w-5" />,
-    color: 'text-blue-400',
-    bgColor: 'bg-blue-500/10',
-    features: ['Unlimited accounts', 'Advanced analytics', 'Priority support', 'API access']
-  },
-  premium: {
-    name: 'Premium',
-    icon: <Crown className="h-5 w-5" />,
-    color: 'text-purple-400',
-    bgColor: 'bg-purple-500/10',
-    features: ['Everything in Pro', 'AI insights', 'Tax optimization', 'White-glove support']
-  }
+  free: { name: "Free", icon: <Star className="h-5 w-5" />, color: "text-gray-400", bgColor: "bg-gray-500/10" },
+  pro: { name: "Pro", icon: <Zap className="h-5 w-5" />, color: "text-blue-400", bgColor: "bg-blue-500/10" },
+  premium: { name: "Premium", icon: <Crown className="h-5 w-5" />, color: "text-purple-400", bgColor: "bg-purple-500/10" },
 };
+
+export default function TestClerkDashboard() {
+  return (
+    <ClerkProvider publishableKey={process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY} appearance={{ baseTheme: "dark" }}>
+      <DashboardContent />
+    </ClerkProvider>
+  );
+}
 
 function DashboardContent() {
   const { isLoaded, isSignedIn, user } = useUser();
-  const { userId, sessionId, getToken } = useAuth();
+  const { getToken } = useAuth();
 
   const [clerkToken, setClerkToken] = useState(null);
-  const [clerkTokenError, setClerkTokenError] = useState(null);
   const [appToken, setAppToken] = useState(null);
-  const [appTokenError, setAppTokenError] = useState(null);
-  const [userPing, setUserPing] = useState({ ok: null, msg: '' });
+  const [userPing, setUserPing] = useState({ ok: null, msg: "" });
   const [copied, setCopied] = useState({ clerk: false, app: false });
-  const [showUpgrade, setShowUpgrade] = useState(false);
 
-  const userPlan = user?.unsafeMetadata?.plan || user?.publicMetadata?.plan || 'free';
-  const signupDate = user?.unsafeMetadata?.signupDate || user?.publicMetadata?.signupDate;
-  const occupation = user?.unsafeMetadata?.occupation || user?.publicMetadata?.occupation;
+  const userPlan = user?.unsafeMetadata?.plan || user?.publicMetadata?.plan || "free";
   const plan = planDetails[userPlan] || planDetails.free;
 
   useEffect(() => {
@@ -57,66 +37,36 @@ function DashboardContent() {
         const cJwt = await getToken();
         setClerkToken(cJwt);
 
-        const base = process.env.NEXT_PUBLIC_API_BASE_URL;
-        if (!base) {
-          throw new Error("NEXT_PUBLIC_API_BASE_URL is not set");
-        }
+        const base = process.env.NEXT_PUBLIC_API_URL;
+        if (!base) throw new Error("NEXT_PUBLIC_API_URL is not set");
 
+        // Exchange token (and ensure Supabase user row)
         const res = await fetch(`${base}/auth/exchange`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ clerk_jwt: cJwt })
+          body: JSON.stringify({ clerk_jwt: cJwt }),
         });
-
-        if (!res.ok) {
-          const err = await res.json().catch(() => ({}));
-          throw new Error(err.detail || `Exchange failed (${res.status})`);
-        }
-
+        if (!res.ok) throw new Error(`Exchange failed (${res.status}): ${await res.text()}`);
         const data = await res.json();
         setAppToken(data.access_token);
         localStorage.setItem("token", data.access_token);
 
-        const ures = await fetch(`${base}/user`, {
-          headers: { Authorization: `Bearer ${data.access_token}` }
-        });
-
-        if (ures.ok) {
-          setUserPing({ ok: true, msg: "✓ /user returned 200" });
-        } else {
-          const errText = await ures.text().catch(() => "");
-          setUserPing({ ok: false, msg: `✗ /user ${ures.status} ${errText}` });
-        }
+        // Ping /user
+        const ures = await fetch(`${base}/user`, { headers: { Authorization: `Bearer ${data.access_token}` } });
+        setUserPing(ures.ok ? { ok: true, msg: "✓ /user returned 200" } : { ok: false, msg: `✗ /user ${ures.status}` });
       } catch (e) {
-        if (!clerkToken) setClerkTokenError(e.message);
-        else setAppTokenError(e.message);
+        setUserPing({ ok: false, msg: e.message });
       }
     };
     run();
   }, [isSignedIn, getToken]);
 
   const copy = (what) => {
-    const val = what === 'clerk' ? clerkToken : appToken;
+    const val = what === "clerk" ? clerkToken : appToken;
     if (!val) return;
     navigator.clipboard.writeText(val);
-    setCopied(prev => ({ ...prev, [what]: true }));
-    setTimeout(() => setCopied(prev => ({ ...prev, [what]: false })), 2000);
-  };
-
-  const handleUpgrade = async (newPlan) => {
-    try {
-      await user.update({
-        unsafeMetadata: {
-          ...user.unsafeMetadata,
-          plan: newPlan,
-          planUpdatedAt: new Date().toISOString()
-        }
-      });
-      setShowUpgrade(false);
-      alert(`Upgraded to ${newPlan}! (Replace with Clerk billing checkout in prod)`);
-    } catch (error) {
-      console.error('Error updating plan:', error);
-    }
+    setCopied((s) => ({ ...s, [what]: true }));
+    setTimeout(() => setCopied((s) => ({ ...s, [what]: false })), 1500);
   };
 
   if (!isLoaded) {
@@ -130,387 +80,64 @@ function DashboardContent() {
     );
   }
 
-  if (!isSignedIn) {
-    return (
-      <div className="min-h-screen bg-gray-950 flex items-center justify-center">
-        <div className="text-center">
-          <XCircle className="h-12 w-12 text-red-500 mx-auto mb-4" />
-          <h1 className="text-2xl font-bold text-gray-100 mb-2">Not Signed In</h1>
-          <p className="text-gray-400 mb-4">Please sign in to test Clerk</p>
-          <Link href="/test-clerk-login" className="text-blue-400 hover:text-blue-300">
-            Go to Test Login
-          </Link>
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <div className="min-h-screen bg-gray-950">
-      {/* Header */}
-      <div className="bg-gradient-to-r from-green-500/10 to-blue-500/10 border-b border-green-500/20">
-        <div className="max-w-7xl mx-auto px-6 py-6">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-4">
-              <CheckCircle className="h-8 w-8 text-green-500" />
-              <div>
-                <h1 className="text-2xl font-bold text-gray-100">Welcome, {user?.firstName || 'User'}!</h1>
-                <p className="text-gray-400">Clerk Test Dashboard</p>
+    <div className="min-h-screen bg-gray-950 text-gray-100">
+      <div className="max-w-6xl mx-auto p-6">
+        <div className="flex items-center justify-between mb-6">
+          <h1 className="text-2xl font-semibold">Dashboard</h1>
+          <Link href="/test-clerk-login" className="text-blue-400 hover:text-blue-300">Switch account</Link>
+        </div>
+
+        <SignedOut>
+          <div className="p-6 border border-gray-800 rounded-xl bg-gray-900">Please sign in first.</div>
+        </SignedOut>
+
+        <SignedIn>
+          <div className="grid md:grid-cols-2 gap-6">
+            <div className="border border-gray-800 rounded-xl bg-gray-900 p-6">
+              <h2 className="text-lg font-semibold mb-4">Tokens</h2>
+              <div className="space-y-2">
+                <Token label="Clerk Session Token" token={clerkToken} copied={copied.clerk} onCopy={() => copy("clerk")} />
+                <Token label="NestEgg App Token" token={appToken} copied={copied.app} onCopy={() => copy("app")} />
               </div>
+              <p className={`mt-3 text-sm ${userPing.ok ? "text-green-400" : "text-red-400"}`}>{userPing.msg || " "}</p>
             </div>
-            <div className="flex items-center space-x-4">
-              <Link 
-                href="/signup" 
-                className="px-4 py-2 bg-gray-800 text-gray-100 rounded-lg hover:bg-gray-700 transition-transform duration-200 hover:scale-105"
-              >
-                Regular App →
-              </Link>
-              <UserButton
-                afterSignOutUrl="/test-clerk-login"
-                signOutCallback={() => {
-                  localStorage.removeItem('token');
-                  window.location.href = '/test-clerk-login';
-                }}
-                appearance={{
-                  elements: {
-                    userButtonBox: 'bg-gray-800 hover:bg-gray-700 rounded-full transition-transform duration-200 hover:scale-105',
-                    userButtonAvatarBox: 'w-8 h-8',
-                    userButtonPopoverCard: 'bg-gray-900 border-gray-800 shadow-xl',
-                    userButtonPopoverActionButton: 'text-gray-100 hover:text-blue-400',
-                    userButtonPopoverFooter: 'border-t border-gray-700'
-                  }
-                }}
-              >
-                <UserButton.UserProfilePage
-                  label="plan"
-                  labelIcon={<CreditCard className="h-4 w-4" />}
-                  url="plan"
-                  content={
-                    <div className="p-4">
-                      <h3 className="text-lg font-semibold text-gray-100 mb-4">Manage Plan</h3>
-                      <div className={`p-4 rounded-lg ${plan.bgColor} ${plan.color}`}>
-                        <div className="flex items-center space-x-2 mb-2">
-                          {plan.icon}
-                          <span className="font-medium">{plan.name}</span>
-                        </div>
-                        <ul className="text-sm text-gray-400 space-y-1">
-                          {plan.features.map((f, i) => (
-                            <li key={i} className="flex items-center space-x-2">
-                              <Check className="h-4 w-4 text-green-500" />
-                              <span>{f}</span>
-                            </li>
-                          ))}
-                        </ul>
-                        {plan.name !== 'Premium' && (
-                          <button
-                            onClick={() => setShowUpgrade(true)}
-                            className="mt-4 w-full py-2 bg-blue-500/10 border border-blue-500/20 text-blue-400 hover:text-blue-300 rounded-lg transition-transform duration-200 hover:scale-105"
-                          >
-                            Upgrade Plan
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  }
+
+            <div className="border border-gray-800 rounded-xl bg-gray-900 p-6">
+              <h2 className="text-lg font-semibold mb-4">Account</h2>
+              <div className={`inline-flex items-center gap-2 px-3 py-1 rounded ${plan.bgColor} ${plan.color}`}>
+                {plan.icon} <span className="font-medium">{plan.name}</span>
+              </div>
+              <div className="mt-6">
+                <UserProfile
+                  appearance={{ baseTheme: "dark" }}
+                  // Example: add custom pages per Clerk docs if desired
+                  // https://clerk.com/docs/components/user/user-profile
                 />
-                <UserButton.UserProfileLink
-                  label="Contact Support"
-                  url={userPlan === 'premium' ? "mailto:premium@nestegg.io" : "mailto:support@nestegg.io"}
-                  labelIcon={<ExternalLink className="h-4 w-4" />}
-                />
-              </UserButton>
+              </div>
             </div>
           </div>
-        </div>
+        </SignedIn>
       </div>
-
-      {/* Main Content */}
-      <div className="max-w-7xl mx-auto px-6 py-8">
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-          {/* Plan Card */}
-          <div className="lg:col-span-1 bg-gray-900 border border-gray-800 rounded-xl p-6">
-            <h2 className="text-lg font-semibold text-gray-100 mb-4 flex items-center">
-              <CreditCard className="h-5 w-5 mr-2 text-gray-500" />
-              Your Plan
-            </h2>
-            <div className={`p-4 rounded-lg ${plan.bgColor} ${plan.color}`}>
-              <div className="flex items-center space-x-2 mb-2">
-                {plan.icon}
-                <span className="font-medium">{plan.name}</span>
-              </div>
-              <ul className="text-sm text-gray-400 space-y-1">
-                {plan.features.map((f, i) => (
-                  <li key={i} className="flex items-center space-x-2">
-                    <Check className="h-4 w-4 text-green-500" />
-                    <span>{f}</span>
-                  </li>
-                ))}
-              </ul>
-              {plan.name !== 'Premium' && (
-                <button
-                  onClick={() => setShowUpgrade(true)}
-                  className="mt-4 w-full py-2 bg-blue-500/10 border border-blue-500/20 text-blue-400 hover:text-blue-300 rounded-lg transition-transform duration-200 hover:scale-105"
-                >
-                  Upgrade Plan
-                </button>
-              )}
-            </div>
-            {signupDate && (
-              <p className="text-sm text-gray-400 mt-4">
-                Joined: {new Date(signupDate).toLocaleDateString()}
-              </p>
-            )}
-          </div>
-
-          {/* User Info Card */}
-          <div className="bg-gray-900 border border-gray-800 rounded-xl p-6">
-            <h2 className="text-lg font-semibold text-gray-100 mb-4 flex items-center">
-              <User className="h-5 w-5 mr-2 text-blue-500" />
-              User Information
-            </h2>
-            <div className="space-y-3">
-              <div>
-                <p className="text-gray-400 text-sm">Name</p>
-                <p className="text-gray-100">{user?.fullName || `${user?.firstName || ''} ${user?.lastName || ''}`.trim() || 'Not provided'}</p>
-              </div>
-              <div>
-                <p className="text-gray-400 text-sm">Email</p>
-                <p className="text-gray-100 text-sm">{user?.primaryEmailAddress?.emailAddress}</p>
-              </div>
-              {occupation && (
-                <div>
-                  <p className="text-gray-400 text-sm">Occupation</p>
-                  <p className="text-gray-100 text-sm">{occupation}</p>
-                </div>
-              )}
-              <div>
-                <p className="text-gray-400 text-sm">User ID</p>
-                <p className="text-gray-100 font-mono text-xs">{userId}</p>
-              </div>
-              <div>
-                <p className="text-gray-400 text-sm">Verified</p>
-                <p className="text-gray-100">
-                  {user?.primaryEmailAddress?.verification?.status === 'verified' ? '✓ Yes' : '○ No'}
-                </p>
-              </div>
-              <div>
-                <p className="text-gray-400 text-sm">MFA</p>
-                <p className="text-gray-100">{user?.twoFactorEnabled ? '✓ Enabled' : '○ Disabled'}</p>
-              </div>
-            </div>
-          </div>
-
-          {/* Session Info Card */}
-          <div className="bg-gray-900 border border-gray-800 rounded-xl p-6">
-            <h2 className="text-lg font-semibold text-gray-100 mb-4 flex items-center">
-              <Shield className="h-5 w-5 mr-2 text-green-500" />
-              Session Details
-            </h2>
-            <div className="space-y-3">
-              <div>
-                <p className="text-gray-400 text-sm">Status</p>
-                <p className="text-green-400 font-semibold">● Active</p>
-              </div>
-              <div>
-                <p className="text-gray-400 text-sm">Session ID</p>
-                <p className="text-gray-100 font-mono text-xs">
-                  {sessionId ? `${sessionId.slice(0, 12)}...` : 'N/A'}
-                </p>
-              </div>
-              <div>
-                <p className="text-gray-400 text-sm">Created</p>
-                <p className="text-gray-100 text-sm">
-                  {user?.createdAt ? new Date(user.createdAt).toLocaleString() : 'N/A'}
-                </p>
-              </div>
-              <div>
-                <p className="text-gray-400 text-sm">Last Sign In</p>
-                <p className="text-gray-100 text-sm">
-                  {user?.lastSignInAt ? new Date(user.lastSignInAt).toLocaleString() : 'First session'}
-                </p>
-              </div>
-            </div>
-          </div>
-
-          {/* Tokens */}
-          <div className="lg:col-span-3 grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Clerk Token */}
-            <div className="bg-gray-900 border border-gray-800 rounded-xl p-6">
-              <h2 className="text-lg font-semibold text-gray-100 mb-4 flex items-center">
-                <Key className="h-5 w-5 mr-2 text-purple-500" />
-                Clerk Session Token
-              </h2>
-              {clerkToken ? (
-                <div>
-                  <div className="bg-gray-950 rounded-lg p-4 font-mono text-xs text-gray-400 break-all relative">
-                    <div className="pr-12">{clerkToken.substring(0, 150)}...</div>
-                    <button
-                      onClick={() => copy('clerk')}
-                      className="absolute top-2 right-2 p-2 bg-gray-800 hover:bg-gray-700 rounded transition-transform duration-200 hover:scale-105"
-                      title="Copy token"
-                    >
-                      {copied.clerk ? <CheckCircle className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4 text-gray-400" />}
-                    </button>
-                  </div>
-                  <p className="text-sm text-gray-500 mt-2">
-                    Raw Clerk token returned by <code>getToken()</code>.
-                  </p>
-                </div>
-              ) : clerkTokenError ? (
-                <div className="text-red-400 flex items-center gap-2"><AlertCircle className="h-4 w-4" />{clerkTokenError}</div>
-              ) : (
-                <div className="text-gray-400">Loading Clerk token...</div>
-              )}
-            </div>
-
-            {/* App Token */}
-            <div className="bg-gray-900 border border-gray-800 rounded-xl p-6">
-              <h2 className="text-lg font-semibold text-gray-100 mb-4 flex items-center">
-                <Key className="h-5 w-5 mr-2 text-green-500" />
-                NestEgg App Token
-              </h2>
-              {appToken ? (
-                <div>
-                  <div className="bg-gray-950 rounded-lg p-4 font-mono text-xs text-gray-400 break-all relative">
-                    <div className="pr-12">{appToken.substring(0, 150)}...</div>
-                    <button
-                      onClick={() => copy('app')}
-                      className="absolute top-2 right-2 p-2 bg-gray-800 hover:bg-gray-700 rounded transition-transform duration-200 hover:scale-105"
-                      title="Copy token"
-                    >
-                      {copied.app ? <CheckCircle className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4 text-gray-400" />}
-                    </button>
-                  </div>
-                  <p className="text-sm text-gray-500 mt-2">
-                    Stored in <code>localStorage.token</code>. All existing API calls can use it.
-                  </p>
-                  <div className="mt-3 text-sm">
-                    {userPing.ok === true && <span className="text-green-400 inline-flex items-center"><Check className="h-4 w-4 mr-1" /> {userPing.msg}</span>}
-                    {userPing.ok === false && <span className="text-red-400 inline-flex items-center"><AlertCircle className="h-4 w-4 mr-1" /> {userPing.msg}</span>}
-                    {userPing.ok == null && <span className="text-gray-400">Pinging /user...</span>}
-                  </div>
-                </div>
-              ) : appTokenError ? (
-                <div className="text-red-400 flex items-center gap-2"><AlertCircle className="h-4 w-4" />{appTokenError}</div>
-              ) : (
-                <div className="text-gray-400">Exchanging Clerk token for app token...</div>
-              )}
-            </div>
-          </div>
-
-          {/* Metadata Display */}
-          <div className="lg:col-span-3 bg-gray-900 border border-gray-800 rounded-xl p-6">
-            <h2 className="text-lg font-semibold text-gray-100 mb-4 flex items-center">
-              <Settings className="h-5 w-5 mr-2 text-gray-500" />
-              User Metadata (Testing View)
-            </h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <h3 className="text-sm font-medium text-gray-400 mb-2">Public Metadata</h3>
-                <pre className="bg-gray-950 rounded p-3 text-xs text-gray-400 overflow-auto">
-                  {JSON.stringify(user?.publicMetadata || {}, null, 2)}
-                </pre>
-              </div>
-              <div>
-                <h3 className="text-sm font-medium text-gray-400 mb-2">Unsafe Metadata</h3>
-                <pre className="bg-gray-950 rounded p-3 text-xs text-gray-400 overflow-auto">
-                  {JSON.stringify(user?.unsafeMetadata || {}, null, 2)}
-                </pre>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Upgrade Modal */}
-      {showUpgrade && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-          <div className="bg-gray-900 border border-gray-800 rounded-xl p-6 max-w-md w-full">
-            <h3 className="text-xl font-bold text-gray-100 mb-4">Upgrade Your Plan</h3>
-            <div className="space-y-3">
-              {userPlan === 'free' && (
-                <>
-                  <button
-                    onClick={() => handleUpgrade('pro')}
-                    className="w-full p-4 bg-blue-500/10 border border-blue-500/20 rounded-lg hover:bg-blue-500/20 transition-transform duration-200 hover:scale-105 text-left"
-                  >
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-gray-100 font-semibold">Pro - $9/mo</p>
-                        <p className="text-sm text-gray-400">Unlimited accounts, advanced features</p>
-                      </div>
-                      <Zap className="h-5 w-5 text-blue-400" />
-                    </div>
-                  </button>
-                  <button
-                    onClick={() => handleUpgrade('premium')}
-                    className="w-full p-4 bg-purple-500/10 border border-purple-500/20 rounded-lg hover:bg-purple-500/20 transition-transform duration-200 hover:scale-105 text-left"
-                  >
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-gray-100 font-semibold">Premium - $29/mo</p>
-                        <p className="text-sm text-gray-400">Everything + AI insights</p>
-                      </div>
-                      <Crown className="h-5 w-5 text-purple-400" />
-                    </div>
-                  </button>
-                </>
-              )}
-              {userPlan === 'pro' && (
-                <button
-                  onClick={() => handleUpgrade('premium')}
-                  className="w-full p-4 bg-purple-500/10 border border-purple-500/20 rounded-lg hover:bg-purple-500/20 transition-transform duration-200 hover:scale-105 text-left"
-                >
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-gray-100 font-semibold">Premium - $29/mo</p>
-                      <p className="text-sm text-gray-400">Add AI insights & premium support</p>
-                    </div>
-                    <Crown className="h-5 w-5 text-purple-400" />
-                  </div>
-                </button>
-              )}
-            </div>
-            <button
-              onClick={() => setShowUpgrade(false)}
-              className="w-full mt-4 py-2 bg-gray-800 text-gray-100 rounded-lg hover:bg-gray-700 transition-transform duration-200 hover:scale-105"
-            >
-              Cancel
-            </button>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
 
-export default function TestClerkDashboard() {
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => setMounted(true), []);
-  if (!mounted) return null;
-
+function Token({ label, token, copied, onCopy }) {
   return (
-    <ClerkProvider
-      publishableKey={process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY}
-      appearance={{
-        baseTheme: ['dark', 'minimal'],
-        variables: {
-          colorPrimary: '#6366f1',
-          colorBackground: '#0f0f0f',
-          colorText: '#f3f4f6',
-          colorInputBackground: '#111827',
-          colorInputText: '#f3f4f6',
-          borderRadius: '0.5rem',
-          fontFamily: 'Inter, sans-serif'
-        }
-      }}
-    >
-      <DashboardContent />
-    </ClerkProvider>
+    <div className="text-sm">
+      <div className="flex items-center justify-between">
+        <span className="text-gray-300">{label}</span>
+        <button
+          className="text-xs px-2 py-1 rounded bg-gray-800 hover:bg-gray-700"
+          onClick={onCopy}
+          disabled={!token}
+        >
+          <Copy className="h-3 w-3 inline mr-1" />
+          {copied ? "Copied" : "Copy"}
+        </button>
+      </div>
+      <pre className="mt-1 p-2 rounded bg-black/40 text-gray-400 overflow-x-auto">{token ? token.slice(0, 80) + "…" : "—"}</pre>
+    </div>
   );
-}
-
-// Skip static generation
-export async function getServerSideProps() {
-  return { props: {} };
 }

@@ -1,18 +1,27 @@
 // pages/test-clerk-login.js
 import { ClerkProvider, SignIn, SignedIn, SignedOut, SignOutButton, useUser } from "@clerk/nextjs";
-import { useState, useEffect } from "react";
 import Link from "next/link";
-import { ArrowLeft, LogIn, Shield, Zap, LogOut, AlertCircle, CreditCard } from 'lucide-react';
+import { useEffect, useState } from "react";
+import { ArrowLeft, LogIn, Shield, Zap, LogOut, AlertCircle } from "lucide-react";
+
+export default function TestClerkLogin() {
+  return (
+    <ClerkProvider
+      publishableKey={process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY}
+      appearance={{ baseTheme: "dark" }} // Clerk prebuilt theme
+    >
+      <LoginContent />
+    </ClerkProvider>
+  );
+}
 
 function LoginContent() {
   const { user } = useUser();
-  const [error, setError] = useState('');
+  const [error, setError] = useState("");
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    if (params.get('error')) {
-      setError(params.get('error'));
-    }
+    if (params.get("error")) setError(params.get("error"));
   }, []);
 
   return (
@@ -37,31 +46,17 @@ function LoginContent() {
       </div>
 
       <div className="flex min-h-[calc(100vh-80px)]">
-        {/* Left side - Info */}
+        {/* Left Info */}
         <div className="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-gray-900 to-gray-950 p-12 flex-col justify-center">
           <div className="max-w-md">
-            <h2 className="text-3xl font-bold text-gray-100 mb-6">
-              Welcome Back to NestEgg
-            </h2>
+            <h2 className="text-3xl font-bold text-gray-100 mb-6">Welcome Back to NestEgg</h2>
             <div className="space-y-4 mb-8">
-              <div className="flex items-start space-x-3">
-                <Shield className="h-5 w-5 text-green-500 mt-0.5" />
-                <div>
-                  <p className="text-gray-100 font-medium">Secure Access</p>
-                  <p className="text-gray-400 text-sm">Your financial data is encrypted and protected</p>
-                </div>
-              </div>
-              <div className="flex items-start space-x-3">
-                <Zap className="h-5 w-5 text-blue-500 mt-0.5" />
-                <div>
-                  <p className="text-gray-100 font-medium">Quick Login</p>
-                  <p className="text-gray-400 text-sm">Use email, social login, or passkeys</p>
-                </div>
-              </div>
+              <Info icon={<Shield className="h-5 w-5 text-green-500" />} title="Secure Access" text="Your financial data is encrypted and protected" />
+              <Info icon={<Zap className="h-5 w-5 text-blue-500" />} title="Quick Login" text="Use email, social login, or passkeys" />
             </div>
             <div className="p-4 bg-gradient-to-r from-blue-500/10 to-purple-500/10 border border-blue-500/20 rounded-lg">
               <p className="text-sm text-gray-400">
-                Don't have an account? 
+                Don&apos;t have an account?{" "}
                 <Link href="/test-clerk-signup" className="text-blue-400 hover:text-blue-300 ml-1">
                   Sign up here
                 </Link>
@@ -70,74 +65,41 @@ function LoginContent() {
           </div>
         </div>
 
-        {/* Right side - Conditional Sign In / Logout */}
+        {/* Right Auth Panel */}
         <div className="w-full lg:w-1/2 flex items-center justify-center p-8">
           <div className="w-full max-w-md">
-            {error && (
-              <div className="mb-4 text-red-400 flex items-center gap-2">
-                <AlertCircle className="h-4 w-4" />
-                {error}
-              </div>
-            )}
             <SignedOut>
-              <SignIn 
+              {error && (
+                <div className="mb-4 p-3 rounded border border-red-500/30 bg-red-500/10 text-red-300 text-sm flex items-center">
+                  <AlertCircle className="h-4 w-4 mr-2" /> {error}
+                </div>
+              )}
+              <SignIn
                 appearance={{
-                  baseTheme: ['dark', 'minimal'],
-                  variables: {
-                    colorPrimary: '#6366f1',
-                    colorBackground: '#0f0f0f',
-                    colorText: '#f3f4f6',
-                    colorInputBackground: '#111827',
-                    colorInputText: '#f3f4f6',
-                    borderRadius: '0.5rem',
-                    fontFamily: 'Inter, sans-serif'
-                  },
+                  baseTheme: "dark",
                   elements: {
-                    formButtonPrimary: 
-                      'bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600 transition-transform duration-200 hover:scale-105',
-                    card: 'bg-gray-900 border border-gray-800 shadow-xl',
-                    headerTitle: 'text-gray-100',
-                    headerSubtitle: 'text-gray-400',
-                    socialButtonsBlockButton: 
-                      'bg-gray-800 border-gray-700 text-gray-100 hover:bg-gray-700',
-                    formFieldLabel: 'text-gray-300',
-                    formFieldInput: 'bg-gray-900 border-gray-700 text-gray-100 focus:ring-blue-500/20',
-                    footerActionLink: 'text-blue-400 hover:text-blue-300'
+                    card: "bg-gray-900 border border-gray-800 shadow-2xl",
+                    formButtonPrimary:
+                      "bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600",
                   },
-                  layout: {
-                    showOptionalFields: false,
-                    socialButtonsPlacement: 'bottom',
-                    logoPlacement: 'none'
-                  }
                 }}
-                routing="path"
                 path="/test-clerk-login"
                 signUpUrl="/test-clerk-signup"
-                fallbackRedirectUrl="/test-clerk-onboarding"
                 afterSignInUrl="/test-clerk-dashboard"
-                afterSignInErrorUrl="/test-clerk-login?error=Invalid%20credentials"
+                routing="path"
               />
             </SignedOut>
+
             <SignedIn>
-              <div className="bg-gray-900 border border-gray-800 rounded-xl p-8 text-center space-y-6">
-                <h2 className="text-xl font-semibold text-gray-100">Welcome, {user?.firstName || 'User'}!</h2>
-                <p className="text-gray-400">You are signed in on the {user?.unsafeMetadata?.plan || 'free'} plan.</p>
-                <div className="space-y-4">
-                  <Link 
-                    href="/test-clerk-dashboard" 
-                    className="block py-3 px-4 bg-blue-500/10 border border-blue-500/20 rounded-lg text-blue-400 hover:text-blue-300 hover:bg-blue-500/20 transition-transform duration-200 hover:scale-105"
-                  >
-                    Go to Dashboard
+              <div className="p-6 rounded-xl border border-gray-800 bg-gray-900">
+                <p className="text-gray-100 mb-3">You&apos;re already signed in as <b>{user?.primaryEmailAddress?.emailAddress}</b>.</p>
+                <div className="flex items-center gap-3">
+                  <Link href="/test-clerk-dashboard" className="px-4 py-2 rounded bg-blue-600 text-white hover:bg-blue-700">
+                    Go to dashboard
                   </Link>
-                  <SignOutButton
-                    signOutCallback={() => {
-                      localStorage.removeItem('token');
-                      window.location.href = '/test-clerk-login';
-                    }}
-                  >
-                    <button className="w-full py-3 px-4 bg-red-500/10 border border-red-500/20 rounded-lg text-red-400 hover:text-red-300 hover:bg-red-500/20 transition-transform duration-200 hover:scale-105 flex items-center justify-center">
-                      <LogOut className="h-5 w-5 mr-2" />
-                      Sign Out
+                  <SignOutButton>
+                    <button className="px-4 py-2 rounded bg-gray-700 text-gray-100 hover:bg-gray-600 flex items-center gap-2">
+                      <LogOut className="h-4 w-4" /> Sign out
                     </button>
                   </SignOutButton>
                 </div>
@@ -150,39 +112,14 @@ function LoginContent() {
   );
 }
 
-export default function TestClerkLogin() {
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  if (!mounted) {
-    return null;
-  }
-
+function Info({ icon, title, text }) {
   return (
-    <ClerkProvider
-      publishableKey={process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY}
-      appearance={{
-        baseTheme: ['dark', 'minimal'],
-        variables: {
-          colorPrimary: '#6366f1',
-          colorBackground: '#0f0f0f',
-          colorText: '#f3f4f6',
-          colorInputBackground: '#111827',
-          colorInputText: '#f3f4f6',
-          borderRadius: '0.5rem',
-          fontFamily: 'Inter, sans-serif'
-        }
-      }}
-    >
-      <LoginContent />
-    </ClerkProvider>
+    <div className="flex items-start space-x-3">
+      {icon}
+      <div>
+        <p className="text-gray-100 font-medium">{title}</p>
+        <p className="text-gray-400 text-sm">{text}</p>
+      </div>
+    </div>
   );
-}
-
-// Skip static generation
-export async function getServerSideProps() {
-  return { props: {} };
 }
