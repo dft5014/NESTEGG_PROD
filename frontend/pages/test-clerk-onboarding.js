@@ -45,6 +45,7 @@ function OnboardContent() {
 
     try {
       // 1) Update Clerk metadata
+      console.log('Updating Clerk metadata with:', form);
       await user.update({
         unsafeMetadata: {
           ...user.unsafeMetadata,
@@ -57,23 +58,29 @@ function OnboardContent() {
           onboardedAt: new Date().toISOString(),
         },
       });
+      console.log('Clerk metadata update successful');
 
       // 2) Exchange Clerk token for NestEgg app token
       const clerkJwt = await getToken();
       const api = process.env.NEXT_PUBLIC_API_BASE_URL;
+      console.log('Starting token exchange to:', `${api}/auth/exchange`, 'with method: POST', 'body:', { clerk_jwt: clerkJwt.substring(0, 20) + '...' });
       const ex = await fetch(`${api}/auth/exchange`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ clerk_jwt: clerkJwt }),
       });
+      console.log('Token exchange response status:', ex.status, 'ok:', ex.ok);
       if (!ex.ok) {
-        const j = await ex.json().catch(() => ({}));
-        throw new Error(j.detail || `Token exchange failed (${ex.status})`);
+        const j = await ex.text(); // Use text() to capture raw response
+        console.error('Token exchange failed response:', j);
+        throw new Error(`Token exchange failed (${ex.status}): ${j}`);
       }
       const data = await ex.json();
       localStorage.setItem("token", data.access_token);
+      console.log('Token exchange successful, NestEgg token stored');
 
       // 3) Save fields to Supabase
+      console.log('Starting profile save to:', `${api}/me/onboard`, 'with body:', form);
       const save = await fetch(`${api}/me/onboard`, {
         method: "POST",
         headers: {
@@ -82,15 +89,19 @@ function OnboardContent() {
         },
         body: JSON.stringify(form),
       });
+      console.log('Profile save response status:', save.status, 'ok:', save.ok);
       if (!save.ok) {
-        const j = await save.json().catch(() => ({}));
-        throw new Error(j.detail || `Profile save failed (${save.status})`);
+        const j = await save.text();
+        console.error('Profile save failed response:', j);
+        throw new Error(`Profile save failed (${save.status}): ${j}`);
       }
+      console.log('Profile save successful');
 
       // 4) Go to dashboard
       router.push("/test-clerk-dashboard");
     } catch (e) {
-      setApiError(e.message || "An error occurred. Please try again.");
+      console.error('Onboarding error:', e);
+      setApiError(e.message || "An error occurred. Please check console for details.");
       setSaving(false);
     }
   };
@@ -129,7 +140,7 @@ function OnboardContent() {
               name="first_name" 
               value={form.first_name} 
               onChange={onChange} 
-              className="w-full bg-gray-900 border border-gray-700 rounded px-3 py-2 text-gray-100 focus:ring-blue-500/20" 
+              className="w-full bg-gray-900 border border-gray-700 rounded px-3 py-2 text-gray-100 focus:ring-blue-500/20 transition-transform duration-200 focus:scale-105" 
               required
             />
             {errors.first_name && <p className="text-red-400 text-xs mt-1">{errors.first_name}</p>}
@@ -140,7 +151,7 @@ function OnboardContent() {
               name="last_name" 
               value={form.last_name} 
               onChange={onChange} 
-              className="w-full bg-gray-900 border border-gray-700 rounded px-3 py-2 text-gray-100 focus:ring-blue-500/20" 
+              className="w-full bg-gray-900 border border-gray-700 rounded px-3 py-2 text-gray-100 focus:ring-blue-500/20 transition-transform duration-200 focus:scale-105" 
               required
             />
             {errors.last_name && <p className="text-red-400 text-xs mt-1">{errors.last_name}</p>}
@@ -154,7 +165,7 @@ function OnboardContent() {
               name="phone" 
               value={form.phone} 
               onChange={onChange} 
-              className="w-full bg-gray-900 border border-gray-700 rounded px-3 py-2 text-gray-100 focus:ring-blue-500/20" 
+              className="w-full bg-gray-900 border border-gray-700 rounded px-3 py-2 text-gray-100 focus:ring-blue-500/20 transition-transform duration-200 focus:scale-105" 
               placeholder="+1234567890"
             />
             {errors.phone && <p className="text-red-400 text-xs mt-1">{errors.phone}</p>}
@@ -165,7 +176,7 @@ function OnboardContent() {
               name="occupation" 
               value={form.occupation} 
               onChange={onChange} 
-              className="w-full bg-gray-900 border border-gray-700 rounded px-3 py-2 text-gray-100 focus:ring-blue-500/20" 
+              className="w-full bg-gray-900 border border-gray-700 rounded px-3 py-2 text-gray-100 focus:ring-blue-500/20 transition-transform duration-200 focus:scale-105" 
             />
           </div>
         </div>
@@ -177,7 +188,7 @@ function OnboardContent() {
             name="date_of_birth" 
             value={form.date_of_birth} 
             onChange={onChange} 
-            className="w-full bg-gray-900 border border-gray-700 rounded px-3 py-2 text-gray-100 focus:ring-blue-500/20" 
+            className="w-full bg-gray-900 border border-gray-700 rounded px-3 py-2 text-gray-100 focus:ring-blue-500/20 transition-transform duration-200 focus:scale-105" 
           />
           {errors.date_of_birth && <p className="text-red-400 text-xs mt-1">{errors.date_of_birth}</p>}
         </div>
