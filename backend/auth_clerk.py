@@ -21,6 +21,29 @@ logger = logging.getLogger("auth_clerk")
 # ---- import the ONE shared DB + tables ----
 from backend.core_db import database, users  # single source of truth
 
+# ---- organize data from clerk to supabase ----
+
+def _profile_from_claims(claims: dict) -> dict:
+    """
+    Build a flat profile dict from Clerk JWT claims (and public/unsafe metadata).
+    Only primitive values; date_of_birth will be parsed by the API consumer later.
+    """
+    pm = (claims.get("public_metadata") or {}) or {}
+    um = (claims.get("unsafe_metadata") or {}) or {}
+    out = {
+        "first_name": claims.get("first_name"),
+        "last_name": claims.get("last_name"),
+        "image_url": claims.get("image_url"),
+        # optional metadata we’ve been using in onboarding
+        "phone": um.get("phone") or pm.get("phone"),
+        "occupation": um.get("occupation") or pm.get("occupation"),
+        "date_of_birth": um.get("date_of_birth") or pm.get("date_of_birth"),
+        # subscription plan (also handled separately)
+        "subscription_plan": um.get("plan") or pm.get("plan"),
+    }
+    # normalize blanks to None
+    return {k: (v if (v is not None and str(v).strip() != "") else None) for k, v in out.items()}
+
 # ---------- Env & shared constants ----------
 SECRET_KEY = os.getenv("SECRET_KEY", "your_secret_key")
 ALGORITHM = "HS256"
@@ -202,32 +225,51 @@ async def _link_or_create_user_from_clerk(claims: dict, plan_hint: Optional[str]
 
     if existing:
         logger.info("clerk.link.existing_user", extra={"user_id": existing["id"], "had_clerk_id": bool(existing["clerk_id"])})
+        # Merge profile fields only if these columns exist
+        existing_cols = set(users.c.keys())
+        profile = _profile_from_claims(claims)
+        update_values = {
+            "clerk_id": existing["clerk_id"] or (clerk_id or None),
+            "auth_provider": "clerk",
+            "subscription_plan": plan or existing["subscription_plan"] or DEFAULT_PLAN,
+        }
+
+        # only write columns that exist on the table
+        for col in ("first_name", "last_name", "phone", "occupation", "date_of_birth", "image_url"):
+            if col in existing_cols and profile.get(col) is not None:
+                update_values[col] = profile[col]
+
         await database.execute(
             users.update()
             .where(users.c.id == existing["id"])
-            .values(
-                clerk_id=existing["clerk_id"] or (clerk_id or None),
-                auth_provider="clerk",
-                subscription_plan=plan or existing["subscription_plan"] or DEFAULT_PLAN,
-            )
+            .values(**update_values)
         )
-        return existing["id"], plan or existing["subscription_plan"] or DEFAULT_PLAN
+        return str(existing["id"]), plan or existing["subscription_plan"] or DEFAULT_PLAN
+
 
     # 2) Create new user (race-safe)
     new_id = str(uuid.uuid4())
     try:
-        await database.execute(
-            users.insert().values(
-                id=new_id,
-                email=email,
-                password_hash=None,    # NULL for Clerk users
-                clerk_id=(clerk_id or None),
-                auth_provider="clerk",
-                subscription_plan=plan or DEFAULT_PLAN,
-            )
-        )
-        logger.info("clerk.link.created_user", extra={"user_id": new_id, "email": email, "plan": plan})
-        return new_id, plan or DEFAULT_PLAN
+        existing_cols = set(users.c.keys())
+        profile = _profile_from_claims(claims)
+
+        insert_values = {
+            "id": new_id,
+            "email": email,
+            "password_hash": None,    # NULL for Clerk users
+            "clerk_id": (clerk_id or None),
+            "auth_provider": "clerk",
+            "subscription_plan": (profile.get("subscription_plan") or plan or DEFAULT_PLAN),
+        }
+
+        for col in ("first_name", "last_name", "phone", "occupation", "date_of_birth", "image_url"):
+            if col in existing_cols and profile.get(col) is not None:
+                insert_values[col] = profile[col]
+
+        await database.execute(users.insert().values(**insert_values))
+        logger.info("clerk.link.created_user", extra={"user_id": new_id, "email": email, "plan": insert_values["subscription_plan"]})
+        return new_id, insert_values["subscription_plan"]
+
     except IntegrityError:
         logger.warning("clerk.link.integrity_race", extra={"email": email})
         row = await database.fetch_one(users.select().where(users.c.email == email))
@@ -239,7 +281,7 @@ async def _link_or_create_user_from_clerk(claims: dict, plan_hint: Optional[str]
                 users.update().where(users.c.id == row["id"]).values(clerk_id=clerk_id, auth_provider="clerk")
             )
         logger.info("clerk.link.race_linked", extra={"user_id": row["id"]})
-        return row["id"], row["subscription_plan"] or (plan or DEFAULT_PLAN)
+        return str(row["id"]), row["subscription_plan"] or (plan or DEFAULT_PLAN)
 
 # ---------- Router & endpoints ----------
 router = APIRouter()
@@ -251,6 +293,11 @@ async def exchange_clerk_token(payload: ClerkExchangeRequest):
     and return a NestEgg JWT compatible with existing clients.
     """
     logger.info("clerk.exchange.start", extra={"has_token": bool(payload.clerk_jwt)})
+    logger.info("clerk.exchange.config", extra={
+    "has_secret": bool(CLERK_SECRET_KEY),
+    "has_issuer": bool(CLERK_ISSUER),
+    "has_aud": bool(CLERK_AUDIENCE),
+    })
 
     if not payload.clerk_jwt:
         logger.error("clerk.exchange.missing_token")
@@ -294,13 +341,23 @@ async def exchange_clerk_token(payload: ClerkExchangeRequest):
         row = await database.fetch_one(users.select().where(users.c.id == supa_user_id))
         email_for_sub = (row["email"] or "").strip().lower() if row else ""
 
+    # Ensure serializable primitives only
+    supa_user_id = str(supa_user_id) if supa_user_id is not None else ""
+    plan = str(plan) if plan is not None else DEFAULT_PLAN
+    if not isinstance(features, list):
+        features = []
+    else:
+        # make sure everything in features is JSON-serializable (stringify UUIDs etc.)
+        features = [str(x) if not isinstance(x, (str, int, float, bool, type(None))) else x for x in features]
+
     access_token = create_access_token({
-        "sub": email_for_sub,
+        "sub": (email_for_sub or "").strip().lower(),
         "user_id": supa_user_id,
         "plan": plan,
         "features": features,
         "auth": "clerk",
     })
+
 
     logger.info("clerk.exchange.success", extra={
         "user_id": supa_user_id,
