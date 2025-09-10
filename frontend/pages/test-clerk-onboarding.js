@@ -63,7 +63,10 @@ function OnboardContent() {
       // 2) Exchange Clerk token for NestEgg app token
       const clerkJwt = await getToken();
       const api = process.env.NEXT_PUBLIC_API_BASE_URL;
-      console.log('Starting token exchange to:', `${api}/auth/exchange`, 'with method: POST', 'body:', { clerk_jwt: clerkJwt.substring(0, 20) + '...' });
+      console.log('Starting token exchange to:', api ? `${api}/auth/exchange` : 'undefined', 'with method: POST', 'body:', { clerk_jwt: clerkJwt.substring(0, 20) + '...' });
+      if (!api) {
+        throw new Error("API base URL is not configured. Check NEXT_PUBLIC_API_BASE_URL in environment variables.");
+      }
       const ex = await fetch(`${api}/auth/exchange`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -71,9 +74,9 @@ function OnboardContent() {
       });
       console.log('Token exchange response status:', ex.status, 'ok:', ex.ok);
       if (!ex.ok) {
-        const j = await ex.text(); // Use text() to capture raw response
+        const j = await ex.text(); // Capture raw response
         console.error('Token exchange failed response:', j);
-        throw new Error(`Token exchange failed (${ex.status}): ${j}`);
+        throw new Error(`Token exchange failed (${ex.status}): ${j || 'No response body'}`);
       }
       const data = await ex.json();
       localStorage.setItem("token", data.access_token);
@@ -93,7 +96,7 @@ function OnboardContent() {
       if (!save.ok) {
         const j = await save.text();
         console.error('Profile save failed response:', j);
-        throw new Error(`Profile save failed (${save.status}): ${j}`);
+        throw new Error(`Profile save failed (${save.status}): ${j || 'No response body'}`);
       }
       console.log('Profile save successful');
 
