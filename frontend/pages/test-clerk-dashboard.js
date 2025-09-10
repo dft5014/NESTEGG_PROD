@@ -13,9 +13,7 @@ const planDetails = {
 export default function TestClerkDashboard() {
   return (
     
-      publishableKey={process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY}
-      appearance={{ baseTheme: "dark" }}
-    >
+
       <DashboardContent />
     
   );
