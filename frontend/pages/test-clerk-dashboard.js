@@ -12,7 +12,10 @@ const planDetails = {
 
 export default function TestClerkDashboard() {
   return (
-    <ClerkProvider publishableKey={process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY} appearance={{ baseTheme: "dark" }}>
+    <ClerkProvider
+      publishableKey={process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY}
+      appearance={{ baseTheme: "dark" }}
+    >
       <DashboardContent />
     </ClerkProvider>
   );
@@ -27,39 +30,93 @@ function DashboardContent() {
   const [userPing, setUserPing] = useState({ ok: null, msg: "" });
   const [copied, setCopied] = useState({ clerk: false, app: false });
 
+  const base = process.env.NEXT_PUBLIC_API_URL;
+
   const userPlan = user?.unsafeMetadata?.plan || user?.publicMetadata?.plan || "free";
   const plan = planDetails[userPlan] || planDetails.free;
 
   useEffect(() => {
     const run = async () => {
-      if (!isSignedIn || !getToken) return;
+      console.groupCollapsed("[Dashboard] boot");
       try {
-        const cJwt = await getToken();
-        setClerkToken(cJwt);
+        if (!isSignedIn || !getToken) {
+          console.warn("[Dashboard] not signed in (or no getToken)");
+          return;
+        }
+        if (!base) {
+          throw new Error("[CFG] NEXT_PUBLIC_API_URL is not set");
+        }
 
-        const base = process.env.NEXT_PUBLIC_API_URL;
-        if (!base) throw new Error("NEXT_PUBLIC_API_URL is not set");
+        // 1) get Clerk token
+        console.groupCollapsed("[Dashboard] 1. get Clerk token");
+        let cJwt = null;
+        try {
+          cJwt = await getToken(/* { template: "nestegg" } */);
+          console.debug("[Dashboard] getToken -> hasToken", !!cJwt, "len", cJwt?.length);
+          setClerkToken(cJwt);
+          if (!cJwt) throw new Error("[Auth] getToken() returned empty");
+        } catch (err) {
+          console.error("[Dashboard] getToken error", err);
+          setUserPing({ ok: false, msg: String(err?.message || err) });
+          return;
+        } finally {
+          console.groupEnd();
+        }
 
-        // Exchange token (and ensure Supabase user row)
-        const res = await fetch(`${base}/auth/exchange`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ clerk_jwt: cJwt }),
-        });
-        if (!res.ok) throw new Error(`Exchange failed (${res.status}): ${await res.text()}`);
-        const data = await res.json();
-        setAppToken(data.access_token);
-        localStorage.setItem("token", data.access_token);
+        // 2) exchange for app token (creates/links Supabase user)
+        console.groupCollapsed("[Dashboard] 2. POST /auth/exchange");
+        let data = null;
+        try {
+          const url = `${base}/auth/exchange`;
+          console.debug("[Dashboard] POST", url);
+          const res = await fetch(url, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ clerk_jwt: cJwt }),
+          });
+          const body = await res.text();
+          console.debug("[Dashboard] exchange.status", res.status);
+          console.debug("[Dashboard] exchange.body", truncate(body, 400));
+          if (!res.ok) throw new Error(`[Exchange] ${res.status} ${body}`);
+          data = JSON.parse(body);
+          setAppToken(data.access_token);
+          localStorage.setItem("token", data.access_token);
+          console.debug("[Dashboard] appToken stored", !!data.access_token, "user_id", data.user_id);
+        } catch (err) {
+          console.error("[Dashboard] exchange error", err);
+          setUserPing({ ok: false, msg: String(err?.message || err) });
+          return;
+        } finally {
+          console.groupEnd();
+        }
 
-        // Ping /user
-        const ures = await fetch(`${base}/user`, { headers: { Authorization: `Bearer ${data.access_token}` } });
-        setUserPing(ures.ok ? { ok: true, msg: "✓ /user returned 200" } : { ok: false, msg: `✗ /user ${ures.status}` });
+        // 3) ping /user with NestEgg token
+        console.groupCollapsed("[Dashboard] 3. GET /user");
+        try {
+          const url = `${base}/user`;
+          console.debug("[Dashboard] GET", url);
+          const res = await fetch(url, {
+            headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+          });
+          const body = await res.text();
+          console.debug("[Dashboard] /user.status", res.status);
+          console.debug("[Dashboard] /user.body", truncate(body, 400));
+          setUserPing(res.ok ? { ok: true, msg: "✓ /user 200" } : { ok: false, msg: `✗ /user ${res.status}` });
+        } catch (err) {
+          console.error("[Dashboard] /user error", err);
+          setUserPing({ ok: false, msg: String(err?.message || err) });
+        } finally {
+          console.groupEnd();
+        }
       } catch (e) {
-        setUserPing({ ok: false, msg: e.message });
+        console.error("[Dashboard] boot failed", e);
+        setUserPing({ ok: false, msg: String(e?.message || e) });
+      } finally {
+        console.groupEnd();
       }
     };
     run();
-  }, [isSignedIn, getToken]);
+  }, [isSignedIn, getToken, base]);
 
   const copy = (what) => {
     const val = what === "clerk" ? clerkToken : appToken;
@@ -85,7 +142,9 @@ function DashboardContent() {
       <div className="max-w-6xl mx-auto p-6">
         <div className="flex items-center justify-between mb-6">
           <h1 className="text-2xl font-semibold">Dashboard</h1>
-          <Link href="/test-clerk-login" className="text-blue-400 hover:text-blue-300">Switch account</Link>
+          <Link href="/test-clerk-login" className="text-blue-400 hover:text-blue-300">
+            Switch account
+          </Link>
         </div>
 
         <SignedOut>
@@ -101,6 +160,12 @@ function DashboardContent() {
                 <Token label="NestEgg App Token" token={appToken} copied={copied.app} onCopy={() => copy("app")} />
               </div>
               <p className={`mt-3 text-sm ${userPing.ok ? "text-green-400" : "text-red-400"}`}>{userPing.msg || " "}</p>
+
+              <div className="mt-4 text-xs text-gray-500 space-y-1">
+                <div><b>API Base</b>: {base || "(not set)"}</div>
+                <div><b>User ID</b>: {user?.id || "—"}</div>
+                <div><b>Email</b>: {user?.primaryEmailAddress?.emailAddress || "—"}</div>
+              </div>
             </div>
 
             <div className="border border-gray-800 rounded-xl bg-gray-900 p-6">
@@ -109,11 +174,7 @@ function DashboardContent() {
                 {plan.icon} <span className="font-medium">{plan.name}</span>
               </div>
               <div className="mt-6">
-                <UserProfile
-                  appearance={{ baseTheme: "dark" }}
-                  // Example: add custom pages per Clerk docs if desired
-                  // https://clerk.com/docs/components/user/user-profile
-                />
+                <UserProfile appearance={{ baseTheme: "dark" }} />
               </div>
             </div>
           </div>
@@ -137,7 +198,14 @@ function Token({ label, token, copied, onCopy }) {
           {copied ? "Copied" : "Copy"}
         </button>
       </div>
-      <pre className="mt-1 p-2 rounded bg-black/40 text-gray-400 overflow-x-auto">{token ? token.slice(0, 80) + "…" : "—"}</pre>
+      <pre className="mt-1 p-2 rounded bg-black/40 text-gray-400 overflow-x-auto">
+        {token ? token.slice(0, 80) + "…" : "—"}
+      </pre>
     </div>
   );
+}
+
+function truncate(s, n) {
+  if (typeof s !== "string") return s;
+  return s.length > n ? s.slice(0, n) + "…" : s;
 }
