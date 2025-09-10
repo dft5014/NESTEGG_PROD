@@ -8,7 +8,6 @@ function LoginContent() {
   const { user } = useUser();
   const [error, setError] = useState('');
 
-  // Parse URL query for error (e.g., from afterSignInErrorUrl)
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     if (params.get('error')) {
@@ -114,7 +113,7 @@ function LoginContent() {
                 routing="path"
                 path="/test-clerk-login"
                 signUpUrl="/test-clerk-signup"
-                afterSignUpUrl="/test-clerk-onboarding"
+                fallbackRedirectUrl="/test-clerk-onboarding"
                 afterSignInUrl="/test-clerk-dashboard"
                 afterSignInErrorUrl="/test-clerk-login?error=Invalid%20credentials"
               />

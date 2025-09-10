@@ -44,7 +44,6 @@ function OnboardContent() {
     }
 
     try {
-      // 1) Update Clerk metadata
       console.log('Updating Clerk metadata with:', form);
       await user.update({
         unsafeMetadata: {
@@ -60,12 +59,12 @@ function OnboardContent() {
       });
       console.log('Clerk metadata update successful');
 
-      // 2) Exchange Clerk token for NestEgg app token
       const clerkJwt = await getToken();
-      const api = process.env.NEXT_PUBLIC_API_BASE_URL;
+      const api = process.env.NEXT_PUBLIC_API_URL; // Updated to match your env var
+      console.log('Environment variable NEXT_PUBLIC_API_URL:', api);
       console.log('Starting token exchange to:', api ? `${api}/auth/exchange` : 'undefined', 'with method: POST', 'body:', { clerk_jwt: clerkJwt.substring(0, 20) + '...' });
       if (!api) {
-        throw new Error("API base URL is not configured. Check NEXT_PUBLIC_API_BASE_URL in environment variables.");
+        throw new Error(`API base URL is not available. Current value: "${api}". Please ensure NEXT_PUBLIC_API_URL is correctly set in Vercel environment variables (e.g., https://nestegg-api.onrender.com/).`);
       }
       const ex = await fetch(`${api}/auth/exchange`, {
         method: "POST",
@@ -74,7 +73,7 @@ function OnboardContent() {
       });
       console.log('Token exchange response status:', ex.status, 'ok:', ex.ok);
       if (!ex.ok) {
-        const j = await ex.text(); // Capture raw response
+        const j = await ex.text();
         console.error('Token exchange failed response:', j);
         throw new Error(`Token exchange failed (${ex.status}): ${j || 'No response body'}`);
       }
@@ -82,7 +81,6 @@ function OnboardContent() {
       localStorage.setItem("token", data.access_token);
       console.log('Token exchange successful, NestEgg token stored');
 
-      // 3) Save fields to Supabase
       console.log('Starting profile save to:', `${api}/me/onboard`, 'with body:', form);
       const save = await fetch(`${api}/me/onboard`, {
         method: "POST",
@@ -100,7 +98,6 @@ function OnboardContent() {
       }
       console.log('Profile save successful');
 
-      // 4) Go to dashboard
       router.push("/test-clerk-dashboard");
     } catch (e) {
       console.error('Onboarding error:', e);
@@ -229,5 +226,8 @@ export default function OnboardingPage() {
   );
 }
 
-// SSR passthrough
-export async function getServerSideProps() { return { props: {} }; }
+// SSR passthrough with env var log
+export async function getServerSideProps() {
+  console.log('Server-side NEXT_PUBLIC_API_URL:', process.env.NEXT_PUBLIC_API_URL);
+  return { props: {} };
+}
