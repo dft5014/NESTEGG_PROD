@@ -2,7 +2,6 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
-import { API_BASE_URL } from '@/utils/api';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Shield, TrendingUp, BarChart3, Bell, Lock, Globe,
@@ -14,11 +13,9 @@ import {
   AlertCircle, CheckCircle, Timer, Trophy
 } from 'lucide-react';
 
-// 🔐 Clerk
+// Clerk
 import {
   useAuth,
-  SignedIn,
-  SignedOut,
   useUser,
   SignUp
 } from "@clerk/nextjs";
@@ -27,10 +24,9 @@ import {
   useSubscription
 } from "@clerk/nextjs/experimental";
 
-const PUBLISHABLE_KEY = process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY;
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || API_BASE_URL;
+const API_BASE = process.env.NEXT_PUBLIC_API_URL;
 
-// ---------- Helper: Exchange Clerk token -> NestEgg JWT ----------
+// Helper: Exchange Clerk token -> NestEgg JWT
 async function exchangeToken(getToken) {
   const cJwt = await getToken?.();
   console.groupCollapsed("[Signup/Clerk] Exchange");
@@ -52,7 +48,7 @@ async function exchangeToken(getToken) {
   return data;
 }
 
-// ---------- Post-signup: prompt for plan via Clerk's Subscription drawer ----------
+// Post-signup: prompt for plan via Clerk's Subscription drawer
 function ClerkPostSignupPlanPicker() {
   const { getToken } = useAuth();
   const { user } = useUser();
@@ -99,22 +95,11 @@ function ClerkPostSignupPlanPicker() {
 }
 
 const SignupContent = () => {
-    const [email, setEmail] = useState('');
-    const [password, setPassword] = useState('');
-    const [confirmPassword, setConfirmPassword] = useState('');
-    const [firstName, setFirstName] = useState('');
-    const [lastName, setLastName] = useState('');
-    const [error, setError] = useState('');
-    const [loading, setLoading] = useState(false);
-    const [showPassword, setShowPassword] = useState(false);
-    const [passwordStrength, setPasswordStrength] = useState(0);
-    const [agreedToTerms, setAgreedToTerms] = useState(false);
     const [systemStatus, setSystemStatus] = useState({
         status: 'checking',
         message: 'Checking system status...'
     });
-    const router = useRouter();
-
+    
     // Animated stats
     const [stats, setStats] = useState({
         avgSavings: 0,
@@ -139,7 +124,7 @@ const SignupContent = () => {
     useEffect(() => {
         const checkStatus = async () => {
             try {
-                const response = await fetch(`${API_BASE_URL}/`);
+                const response = await fetch(`${API_BASE}/`);
                 
                 if (response.ok) {
                     setSystemStatus({
@@ -162,89 +147,6 @@ const SignupContent = () => {
         
         checkStatus();
     }, []);
-
-    // Password strength checker
-    useEffect(() => {
-        if (!password) {
-            setPasswordStrength(0);
-            return;
-        }
-        
-        let strength = 0;
-        if (password.length >= 6) strength++;
-        if (password.length >= 8) strength++;
-        if (/[A-Z]/.test(password)) strength++;
-        if (/[0-9]/.test(password)) strength++;
-        if (/[^A-Za-z0-9]/.test(password)) strength++;
-        
-        setPasswordStrength(strength);
-    }, [password]);
-
-    const handleSignup = async (event) => {
-        event.preventDefault();
-        setError('');
-        setLoading(true);
-        
-        // Validate inputs
-        if (!email || !password) {
-            setError("Email and password are required");
-            setLoading(false);
-            return;
-        }
-        
-        if (password !== confirmPassword) {
-            setError("Passwords do not match");
-            setLoading(false);
-            return;
-        }
-        
-        if (password.length < 6) {
-            setError("Password must be at least 6 characters");
-            setLoading(false);
-            return;
-        }
-
-        if (!agreedToTerms) {
-            setError("Please agree to the Terms of Service and Privacy Policy");
-            setLoading(false);
-            return;
-        }
-      
-        try {
-            const response = await fetch(`${API_BASE_URL}/signup`, {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                },
-                body: JSON.stringify({ 
-                  email, 
-                  password,
-                  first_name: firstName,
-                  last_name: lastName
-                }),
-            });
-      
-            const data = await response.json();
-      
-            if (!response.ok) {
-                let errorMessage;
-                if (typeof data.detail === 'object') {
-                    errorMessage = JSON.stringify(data.detail);
-                } else {
-                    errorMessage = data.detail || "Sign-up failed";
-                }
-                throw new Error(errorMessage);
-            }
-      
-            // Success - redirect to login with success message
-            router.push("/login?signup=success");
-        } catch (error) {
-            console.error("Sign-up error:", error);
-            setError(error.message || "Sign-up failed");
-        } finally {
-            setLoading(false);
-        }
-    };
 
     const benefits = [
         {
@@ -284,24 +186,6 @@ const SignupContent = () => {
             icon: <PieChart className="h-5 w-5" />
         }
     ];
-
-    const getPasswordStrengthColor = () => {
-        if (passwordStrength <= 1) return 'bg-red-500';
-        if (passwordStrength <= 3) return 'bg-yellow-500';
-        return 'bg-green-500';
-    };
-
-    const getPasswordStrengthText = () => {
-        if (passwordStrength === 0) return '';
-        if (passwordStrength <= 1) return 'Weak';
-        if (passwordStrength <= 3) return 'Medium';
-        return 'Strong';
-    };
-
-    // Placeholder for social signup
-    const handleSocialSignup = (provider) => {
-        console.log(`Social signup with ${provider} - Not implemented yet`);
-    };
 
     return (
         <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900">
@@ -509,207 +393,12 @@ const SignupContent = () => {
                                 </div>
                             </motion.div>
 
-                            {error && (
-                                <motion.div 
-                                    initial={{ opacity: 0, y: -10 }}
-                                    animate={{ opacity: 1, y: 0 }}
-                                    className="bg-red-500/10 border border-red-500/50 text-red-400 px-4 py-3 rounded-lg mb-4 flex items-center"
-                                >
-                                    <AlertCircle className="w-5 h-5 mr-2" />
-                                    {error}
-                                </motion.div>
-                            )}
-
-                            <form onSubmit={handleSignup} className="space-y-4">
-                                <div className="grid grid-cols-2 gap-3">
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-300 mb-1">
-                                            First Name
-                                        </label>
-                                        <input
-                                            type="text"
-                                            value={firstName}
-                                            onChange={(e) => setFirstName(e.target.value)}
-                                            className="w-full px-3 py-2 bg-gray-700/50 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-colors"
-                                            placeholder="John"
-                                        />
-                                    </div>
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-300 mb-1">
-                                            Last Name
-                                        </label>
-                                        <input
-                                            type="text"
-                                            value={lastName}
-                                            onChange={(e) => setLastName(e.target.value)}
-                                            className="w-full px-3 py-2 bg-gray-700/50 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-colors"
-                                            placeholder="Smith"
-                                        />
-                                    </div>
-                                </div>
-                                
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-300 mb-1">
-                                        Email Address
-                                    </label>
-                                    <input
-                                        type="email"
-                                        value={email}
-                                        onChange={(e) => setEmail(e.target.value)}
-                                        required
-                                        className="w-full px-4 py-2.5 bg-gray-700/50 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-colors"
-                                        placeholder="you@example.com"
-                                    />
-                                </div>
-                                
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-300 mb-1">
-                                        Password
-                                    </label>
-                                    <div className="relative">
-                                        <input
-                                            type={showPassword ? "text" : "password"}
-                                            value={password}
-                                            onChange={(e) => setPassword(e.target.value)}
-                                            required
-                                            className="w-full px-4 py-2.5 bg-gray-700/50 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-colors pr-12"
-                                            placeholder="••••••••"
-                                        />
-                                        <button
-                                            type="button"
-                                            onClick={() => setShowPassword(!showPassword)}
-                                            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white transition-colors"
-                                        >
-                                            {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
-                                        </button>
-                                    </div>
-                                    {password && (
-                                        <div className="mt-2">
-                                            <div className="flex items-center justify-between mb-1">
-                                                <span className="text-xs text-gray-400">Password strength</span>
-                                                <span className={`text-xs font-medium ${
-                                                    passwordStrength <= 1 ? 'text-red-400' :
-                                                    passwordStrength <= 3 ? 'text-yellow-400' :
-                                                    'text-green-400'
-                                                }`}>
-                                                    {getPasswordStrengthText()}
-                                                </span>
-                                            </div>
-                                            <div className="h-1.5 bg-gray-700 rounded-full overflow-hidden">
-                                                <div 
-                                                    className={`h-full transition-all ${getPasswordStrengthColor()}`}
-                                                    style={{ width: `${(passwordStrength / 5) * 100}%` }}
-                                                />
-                                            </div>
-                                        </div>
-                                    )}
-                                </div>
-                                
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-300 mb-1">
-                                        Confirm Password
-                                    </label>
-                                    <input
-                                        type={showPassword ? "text" : "password"}
-                                        value={confirmPassword}
-                                        onChange={(e) => setConfirmPassword(e.target.value)}
-                                        required
-                                        className="w-full px-4 py-2.5 bg-gray-700/50 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-colors"
-                                        placeholder="••••••••"
-                                    />
-                                </div>
-
-                                <div className="flex items-start">
-                                    <input
-                                        type="checkbox"
-                                        checked={agreedToTerms}
-                                        onChange={(e) => setAgreedToTerms(e.target.checked)}
-                                        className="w-4 h-4 bg-gray-700 border-gray-600 rounded text-blue-500 focus:ring-blue-500/20 mt-0.5"
-                                    />
-                                    <label className="ml-2 text-sm text-gray-300">
-                                        I agree to the{' '}
-                                        <a href="#" className="text-blue-400 hover:underline">Terms of Service</a>
-                                        {' '}and{' '}
-                                        <a href="#" className="text-blue-400 hover:underline">Privacy Policy</a>
-                                    </label>
-                                </div>
-
-                                <button
-                                    type="submit"
-                                    disabled={loading || !agreedToTerms}
-                                    className="w-full py-3 px-4 bg-gradient-to-r from-blue-500 to-purple-500 text-white font-semibold rounded-lg hover:from-blue-600 hover:to-purple-600 focus:outline-none focus:ring-2 focus:ring-blue-500/20 disabled:opacity-50 disabled:cursor-not-allowed transition-all transform hover:scale-[1.02]"
-                                >
-                                    {loading ? (
-                                        <span className="flex items-center justify-center">
-                                            <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                                            </svg>
-                                            Creating your account...
-                                        </span>
-                                    ) : (
-                                        <span className="flex items-center justify-center">
-                                            Start tracking for free
-                                            <ArrowRight className="ml-2 h-5 w-5" />
-                                        </span>
-                                    )}
-                                </button>
-                            </form>
-
-                            <div className="mt-6">
-                                <div className="relative">
-                                    <div className="absolute inset-0 flex items-center">
-                                        <div className="w-full border-t border-gray-600"></div>
-                                    </div>
-                                    <div className="relative flex justify-center text-sm">
-                                        <span className="px-2 bg-gray-800/50 text-gray-400">Or sign up with</span>
-                                    </div>
-                                </div>
-
-                                <div className="mt-6 grid grid-cols-3 gap-3">
-                                    <button 
-                                        onClick={() => handleSocialSignup('google')}
-                                        className="flex items-center justify-center py-2.5 px-4 bg-gray-700/50 border border-gray-600 rounded-lg hover:bg-gray-700 transition-colors group"
-                                    >
-                                        <Chrome className="h-5 w-5 text-gray-400 group-hover:text-white transition-colors" />
-                                    </button>
-                                    <button 
-                                        onClick={() => handleSocialSignup('apple')}
-                                        className="flex items-center justify-center py-2.5 px-4 bg-gray-700/50 border border-gray-600 rounded-lg hover:bg-gray-700 transition-colors group"
-                                    >
-                                        <svg className="h-5 w-5 text-gray-400 group-hover:text-white transition-colors" fill="currentColor" viewBox="0 0 24 24">
-                                            <path d="M17.05 20.28c-.98.95-2.05.8-3.08.35-1.09-.46-2.09-.48-3.24 0-1.44.62-2.2.44-3.06-.35C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.8 1.18-.24 2.31-.93 3.57-.84 1.51.12 2.65.72 3.4 1.8-3.12 1.87-2.38 5.98.48 7.13-.57 1.5-1.31 2.99-2.54 4.09l.01-.01zM12.03 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z"/>
-                                        </svg>
-                                    </button>
-                                    <button 
-                                        onClick={() => handleSocialSignup('microsoft')}
-                                        className="flex items-center justify-center py-2.5 px-4 bg-gray-700/50 border border-gray-600 rounded-lg hover:bg-gray-700 transition-colors group"
-                                    >
-                                        <Building className="h-5 w-5 text-gray-400 group-hover:text-white transition-colors" />
-                                    </button>
-                                </div>
-                            </div>
-
-                            {/* Divider for Clerk */}
-                            <div className="mt-6">
-                                <div className="relative">
-                                    <div className="absolute inset-0 flex items-center">
-                                        <div className="w-full border-t border-gray-600"></div>
-                                    </div>
-                                    <div className="relative flex justify-center text-sm">
-                                        <span className="px-2 bg-gray-800/50 text-gray-400">Or sign up with Clerk</span>
-                                    </div>
-                                </div>
-
-                                {/* Clerk SignUp Component */}
-                                <div className="mt-6">
-                                    <SignUp
-                                        appearance={{ baseTheme: "dark" }}
-                                        signInUrl="/login"
-                                        afterSignUpUrl="/signup?clerkComplete=1"
-                                    />
-                                </div>
-                            </div>
+                            {/* Clerk SignUp Component */}
+                            <SignUp
+                                appearance={{ baseTheme: "dark" }}
+                                signInUrl="/login"
+                                afterSignUpUrl="/signup?clerkComplete=1"
+                            />
 
                             <p className="mt-6 text-center text-sm text-gray-400">
                                 Already have an account?{' '}
@@ -772,7 +461,7 @@ function PageShell({ clerkComplete }) {
 
     return (
         <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900">
-            {/* Legacy + Clerk content together */}
+            {/* Clerk content */}
             <SignupContent />
 
             {/* When we come back from Clerk sign-up, show plan chooser */}
@@ -789,9 +478,5 @@ export default function SignupPage() {
     const router = useRouter();
     const clerkComplete = router.query.clerkComplete === "1";
 
-    return (
-       
-            <PageShell clerkComplete={clerkComplete} />
-        
-    );
+    return <PageShell clerkComplete={clerkComplete} />;
 }
