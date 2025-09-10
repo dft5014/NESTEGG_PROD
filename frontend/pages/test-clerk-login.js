@@ -1,17 +1,14 @@
 // pages/test-clerk-login.js
-import { ClerkProvider, SignIn, SignedIn, SignedOut, SignOutButton, useUser } from "@clerk/nextjs";
+import { SignIn, SignedIn, SignedOut, SignOutButton, useUser } from "@clerk/nextjs";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { ArrowLeft, LogIn, Shield, Zap, LogOut, AlertCircle } from "lucide-react";
 
 export default function TestClerkLogin() {
   return (
-    <ClerkProvider
-      publishableKey={process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY}
-      appearance={{ baseTheme: "dark" }} // Clerk prebuilt theme
-    >
+
       <LoginContent />
-    </ClerkProvider>
+
   );
 }
 

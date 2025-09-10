@@ -1,16 +1,12 @@
 // pages/test-clerk-onboarding.js
-import { ClerkProvider, useAuth, useUser } from "@clerk/nextjs";
+import {  useAuth, useUser } from "@clerk/nextjs";
 import { useRouter } from "next/router";
 import { useEffect, useState } from "react";
 
 export default function TestClerkOnboarding() {
   return (
-    <ClerkProvider
-      publishableKey={process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY}
-      appearance={{ baseTheme: "dark" }}
-    >
+
       <OnboardContent />
-    </ClerkProvider>
   );
 }
 

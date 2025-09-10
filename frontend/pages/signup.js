@@ -16,7 +16,6 @@ import {
 
 // 🔐 Clerk
 import {
-  ClerkProvider,
   useAuth,
   SignedIn,
   SignedOut,
@@ -791,8 +790,8 @@ export default function SignupPage() {
     const clerkComplete = router.query.clerkComplete === "1";
 
     return (
-        <ClerkProvider publishableKey={PUBLISHABLE_KEY} appearance={{ baseTheme: "dark" }}>
+       
             <PageShell clerkComplete={clerkComplete} />
-        </ClerkProvider>
+        
     );
 }

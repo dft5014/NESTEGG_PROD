@@ -1,5 +1,5 @@
 // pages/test-clerk-verify.js
-import { ClerkProvider, SignIn } from "@clerk/nextjs";
+import { SignIn } from "@clerk/nextjs";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { Mail, ArrowLeft } from "lucide-react";
@@ -10,7 +10,7 @@ export default function TestClerkVerify() {
   if (!mounted) return null;
 
   return (
-    <ClerkProvider publishableKey={process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY} appearance={{ baseTheme: "dark" }}>
+
       <div className="min-h-screen bg-gray-950">
         <Header />
         <div className="flex items-center justify-center min-h-[calc(100vh-80px)] p-8">
@@ -26,7 +26,7 @@ export default function TestClerkVerify() {
           </div>
         </div>
       </div>
-    </ClerkProvider>
+   
   );
 }
 

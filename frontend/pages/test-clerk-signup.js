@@ -1,5 +1,5 @@
 // pages/test-clerk-signup.js
-import { ClerkProvider, SignUp, SignedIn, SignedOut, useUser } from "@clerk/nextjs";
+import { SignUp, SignedIn, SignedOut, useUser } from "@clerk/nextjs";
 import Link from "next/link";
 import { ArrowLeft, Check, Crown, Zap, Star, ChevronRight } from "lucide-react";
 import { useState } from "react";
@@ -12,9 +12,8 @@ const plans = [
 
 export default function TestClerkSignup() {
   return (
-    <ClerkProvider publishableKey={process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY} appearance={{ baseTheme: "dark" }}>
       <SignupContent />
-    </ClerkProvider>
+
   );
 }
 

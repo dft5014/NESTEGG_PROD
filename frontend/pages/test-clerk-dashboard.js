@@ -1,5 +1,5 @@
 // pages/test-clerk-dashboard.js
-import { ClerkProvider, useAuth, useUser, UserProfile, SignedIn, SignedOut } from "@clerk/nextjs";
+import {  useAuth, useUser, UserProfile, SignedIn, SignedOut } from "@clerk/nextjs";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Loader, Copy, Star, Zap, Crown } from "lucide-react";
@@ -12,12 +12,12 @@ const planDetails = {
 
 export default function TestClerkDashboard() {
   return (
-    <ClerkProvider
+    
       publishableKey={process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY}
       appearance={{ baseTheme: "dark" }}
     >
       <DashboardContent />
-    </ClerkProvider>
+    
   );
 }
 

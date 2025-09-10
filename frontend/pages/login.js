@@ -15,7 +15,6 @@ import {
 
 // 🔐 Clerk
 import {
-  ClerkProvider,
   useAuth,
   useUser,
   SignedIn,
@@ -698,8 +697,8 @@ function PageShell() {
 
 export default function LoginPage() {
     return (
-        <ClerkProvider publishableKey={PUBLISHABLE_KEY} appearance={{ baseTheme: "dark" }}>
+        
             <PageShell />
-        </ClerkProvider>
+        
     );
 }
