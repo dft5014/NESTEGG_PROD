@@ -9,6 +9,9 @@ import { useRouter } from "next/router";
 import { UpdateCheckProvider } from '@/context/UpdateCheckContext';
 import { DataStoreProvider } from '@/store/DataStore'; 
 import { useState, useEffect, createContext, useContext } from 'react';
+import { ClerkProvider } from "@clerk/nextjs";
+
+const CLERK_PK = process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY;
 
 // Create a context for sidebar state
 const SidebarContext = createContext();
@@ -89,6 +92,7 @@ function LayoutWrapper({ children }) {
 export default function App({ Component, pageProps }) {
   return (
     <AuthProvider>
+     <ClerkProvider publishableKey={CLERK_PK} appearance={{ baseTheme: "dark" }}>
       <UpdateCheckProvider>
         <DataStoreProvider> 
           <EggMascotProvider>
@@ -98,6 +102,7 @@ export default function App({ Component, pageProps }) {
           </EggMascotProvider>
         </DataStoreProvider> 
       </UpdateCheckProvider>
+     </ClerkProvider>
     </AuthProvider>
   );
 }
