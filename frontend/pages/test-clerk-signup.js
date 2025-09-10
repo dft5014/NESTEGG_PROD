@@ -1,12 +1,12 @@
 // pages/test-clerk-signup.js
-import { ClerkProvider, SignUp, useSignUp, useClerk } from "@clerk/nextjs";
+import { ClerkProvider, SignUp, useSignUp, useClerk, SignedIn, SignedOut } from "@clerk/nextjs";
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/router";
 import { 
   ArrowLeft, Sparkles, Shield, Check, Crown, 
   Zap, Star, TrendingUp, X, ChevronRight,
-  LogOut, User, CreditCard
+  LogOut, User, CreditCard, AlertCircle
 } from 'lucide-react';
 
 // Plan data
@@ -65,10 +65,10 @@ function PlanSelector({ onSelectPlan, selectedPlan, onContinue, onSkip }) {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between mb-4">
-        <h3 className="text-lg font-semibold text-white">Choose Your Plan</h3>
+        <h3 className="text-lg font-semibold text-gray-100">Choose Your Plan</h3>
         <button
           onClick={onSkip}
-          className="text-gray-400 hover:text-white text-sm flex items-center"
+          className="text-gray-400 hover:text-gray-100 text-sm flex items-center"
         >
           Skip for now
           <ChevronRight className="h-4 w-4 ml-1" />
@@ -80,7 +80,7 @@ function PlanSelector({ onSelectPlan, selectedPlan, onContinue, onSkip }) {
           <div
             key={plan.id}
             onClick={() => onSelectPlan(plan.id)}
-            className={`relative rounded-xl border-2 p-6 cursor-pointer transition-all ${
+            className={`relative rounded-xl border-2 p-6 cursor-pointer transition-transform duration-200 hover:scale-105 ${
               selectedPlan === plan.id
                 ? plan.color === 'blue' 
                   ? 'border-blue-500 bg-blue-500/10'
@@ -92,7 +92,7 @@ function PlanSelector({ onSelectPlan, selectedPlan, onContinue, onSkip }) {
           >
             {plan.popular && (
               <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
-                <span className="bg-gradient-to-r from-blue-500 to-purple-500 text-white text-xs font-semibold px-3 py-1 rounded-full">
+                <span className="bg-gradient-to-r from-blue-500 to-purple-500 text-gray-100 text-xs font-semibold px-3 py-1 rounded-full">
                   MOST POPULAR
                 </span>
               </div>
@@ -110,16 +110,16 @@ function PlanSelector({ onSelectPlan, selectedPlan, onContinue, onSkip }) {
                   {plan.icon}
                 </div>
                 <div>
-                  <h4 className="text-white font-semibold">{plan.name}</h4>
+                  <h4 className="text-gray-100 font-semibold">{plan.name}</h4>
                   <div className="flex items-baseline">
-                    <span className="text-2xl font-bold text-white">{plan.price}</span>
+                    <span className="text-2xl font-bold text-gray-100">{plan.price}</span>
                     <span className="text-gray-400 ml-1">{plan.period}</span>
                   </div>
                 </div>
               </div>
               {selectedPlan === plan.id && (
                 <div className="bg-green-500 rounded-full p-1">
-                  <Check className="h-4 w-4 text-white" />
+                  <Check className="h-4 w-4 text-gray-100" />
                 </div>
               )}
             </div>
@@ -139,14 +139,14 @@ function PlanSelector({ onSelectPlan, selectedPlan, onContinue, onSkip }) {
       <div className="flex gap-3 mt-6">
         <button
           onClick={onSkip}
-          className="flex-1 py-3 px-4 bg-gray-800 text-white font-semibold rounded-lg hover:bg-gray-700 transition-all"
+          className="flex-1 py-3 px-4 bg-gray-800 text-gray-100 font-semibold rounded-lg hover:bg-gray-700 transition-transform duration-200 hover:scale-105"
         >
           Skip & Use Free
         </button>
         <button
           onClick={onContinue}
           disabled={!selectedPlan}
-          className="flex-1 py-3 px-4 bg-gradient-to-r from-blue-500 to-purple-500 text-white font-semibold rounded-lg hover:from-blue-600 hover:to-purple-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center"
+          className="flex-1 py-3 px-4 bg-gradient-to-r from-blue-500 to-purple-500 text-gray-100 font-semibold rounded-lg hover:from-blue-600 hover:to-purple-600 disabled:opacity-50 disabled:cursor-not-allowed transition-transform duration-200 hover:scale-105 flex items-center justify-center"
         >
           Continue
           <ChevronRight className="h-5 w-5 ml-2" />
@@ -158,38 +158,37 @@ function PlanSelector({ onSelectPlan, selectedPlan, onContinue, onSkip }) {
 
 // Main signup component
 function SignUpContent() {
-  const [step, setStep] = useState('plan'); // 'plan' or 'signup'
+  const [step, setStep] = useState('plan');
   const [selectedPlan, setSelectedPlan] = useState('');
-  const { signOut } = useClerk();
+  const [error, setError] = useState('');
+  const { signOut, user } = useClerk();
   const router = useRouter();
 
-  // Store plan in sessionStorage
   useEffect(() => {
     if (selectedPlan) {
       sessionStorage.setItem('selectedPlan', selectedPlan);
     }
   }, [selectedPlan]);
 
-  // Check if user is already signed in
   const handleSignOut = async () => {
     try {
       await signOut();
+      localStorage.removeItem('token');
       router.push('/test-clerk-login');
     } catch (error) {
       console.error('Error signing out:', error);
+      setError('Failed to sign out. Please try again.');
     }
   };
 
-  // Plan selection step
   if (step === 'plan') {
     return (
       <div className="w-full max-w-2xl">
         <div className="bg-gray-900 border border-gray-800 rounded-xl p-8">
-          {/* Navigation */}
           <div className="flex items-center justify-between mb-6">
             <button
               onClick={() => router.push('/signup')}
-              className="text-gray-400 hover:text-white flex items-center"
+              className="text-gray-400 hover:text-gray-100 flex items-center"
             >
               <ArrowLeft className="h-4 w-4 mr-2" />
               Back to regular signup
@@ -216,10 +215,8 @@ function SignUpContent() {
     );
   }
 
-  // Signup step
   return (
     <div className="w-full max-w-md">
-      {/* Plan Summary Bar */}
       {selectedPlan && (
         <div className="mb-6 p-4 bg-gray-900 border border-gray-800 rounded-lg">
           <div className="flex items-center justify-between">
@@ -227,7 +224,7 @@ function SignUpContent() {
               <CreditCard className="h-5 w-5 text-gray-400" />
               <div>
                 <p className="text-sm text-gray-400">Selected Plan</p>
-                <p className="text-white font-semibold">
+                <p className="text-gray-100 font-semibold">
                   {plans.find(p => p.id === selectedPlan)?.name || 'Free'} - 
                   {plans.find(p => p.id === selectedPlan)?.price || '$0'}
                   {plans.find(p => p.id === selectedPlan)?.period || '/forever'}
@@ -244,11 +241,10 @@ function SignUpContent() {
         </div>
       )}
       
-      {/* Navigation Bar */}
       <div className="mb-4 flex items-center justify-between">
         <button
           onClick={() => setStep('plan')}
-          className="text-gray-400 hover:text-white flex items-center text-sm"
+          className="text-gray-400 hover:text-gray-100 flex items-center text-sm"
         >
           <ArrowLeft className="h-4 w-4 mr-1" />
           Back to plans
@@ -261,36 +257,77 @@ function SignUpContent() {
         </Link>
       </div>
       
-      {/* Clerk SignUp Component */}
-      <SignUp 
-        appearance={{
-          baseTheme: "dark",
-          elements: {
-            formButtonPrimary: 
-              'bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600',
-            card: 'bg-gray-900 border border-gray-800 shadow-2xl',
-            headerTitle: 'text-white',
-            headerSubtitle: 'text-gray-400',
-            socialButtonsBlockButton: 
-              'bg-gray-800 border-gray-700 text-white hover:bg-gray-700',
-            formFieldLabel: 'text-gray-300',
-            formFieldInput: 'bg-gray-800 border-gray-700 text-white',
-            footerActionLink: 'text-blue-400 hover:text-blue-300',
-            identityPreviewText: 'text-gray-400',
-            identityPreviewEditButton: 'text-blue-400 hover:text-blue-300'
-          }
-        }}
-        routing="path"
-        path="/test-clerk-signup"
-        signInUrl="/test-clerk-login"
-        fallbackRedirectUrl="/test-clerk-dashboard"
-        unsafeMetadata={{
-          plan: selectedPlan || 'free',
-          signupDate: new Date().toISOString()
-        }}
-      />
+      {error && (
+        <div className="mb-4 text-red-400 flex items-center gap-2">
+          <AlertCircle className="h-4 w-4" />
+          {error}
+        </div>
+      )}
       
-      {/* Help Text */}
+      <SignedOut>
+        <SignUp 
+          appearance={{
+            baseTheme: ['dark', 'minimal'],
+            variables: {
+              colorPrimary: '#6366f1',
+              colorBackground: '#0f0f0f',
+              colorText: '#f3f4f6',
+              colorInputBackground: '#111827',
+              colorInputText: '#f3f4f6',
+              borderRadius: '0.5rem',
+              fontFamily: 'Inter, sans-serif'
+            },
+            elements: {
+              formButtonPrimary: 
+                'bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600 transition-transform duration-200 hover:scale-105',
+              card: 'bg-gray-900 border border-gray-800 shadow-xl',
+              headerTitle: 'text-gray-100',
+              headerSubtitle: 'text-gray-400',
+              socialButtonsBlockButton: 
+                'bg-gray-800 border-gray-700 text-gray-100 hover:bg-gray-700',
+              formFieldLabel: 'text-gray-300',
+              formFieldInput: 'bg-gray-900 border-gray-700 text-gray-100 focus:ring-blue-500/20',
+              footerActionLink: 'text-blue-400 hover:text-blue-300',
+              identityPreviewText: 'text-gray-400',
+              identityPreviewEditButton: 'text-blue-400 hover:text-blue-300'
+            },
+            layout: {
+              showOptionalFields: false,
+              socialButtonsPlacement: 'bottom',
+              logoPlacement: 'none'
+            }
+          }}
+          routing="path"
+          path="/test-clerk-signup"
+          signInUrl="/test-clerk-login"
+          afterSignUpUrl="/test-clerk-onboarding"
+          afterSignInUrl="/test-clerk-dashboard"
+          unsafeMetadata={{
+            plan: selectedPlan || 'free',
+            signupDate: new Date().toISOString(),
+            occupation: user?.unsafeMetadata?.occupation || ''
+          }}
+        />
+      </SignedOut>
+      <SignedIn>
+        <div className="bg-gray-900 border border-gray-800 rounded-xl p-8 text-center space-y-6">
+          <h2 className="text-xl font-semibold text-gray-100">You are already signed in</h2>
+          <p className="text-gray-400">Head to the dashboard or sign out below.</p>
+          <div className="space-y-4">
+            <Link href="/test-clerk-dashboard" className="block py-3 px-4 bg-blue-500/10 border border-blue-500/20 rounded-lg text-blue-400 hover:text-blue-300 hover:bg-blue-500/20 transition-transform duration-200 hover:scale-105">
+              Go to Dashboard
+            </Link>
+            <button
+              onClick={handleSignOut}
+              className="w-full py-3 px-4 bg-red-500/10 border border-red-500/20 rounded-lg text-red-400 hover:text-red-300 hover:bg-red-500/20 transition-transform duration-200 hover:scale-105 flex items-center justify-center"
+            >
+              <LogOut className="h-5 w-5 mr-2" />
+              Sign Out
+            </button>
+          </div>
+        </div>
+      </SignedIn>
+      
       <div className="mt-4 text-center">
         <p className="text-xs text-gray-500">
           Having trouble? 
@@ -315,7 +352,6 @@ export default function TestClerkSignup() {
 
   useEffect(() => {
     setMounted(true);
-    // Clear any stuck session storage
     return () => {
       sessionStorage.removeItem('selectedPlan');
     };
@@ -326,16 +362,29 @@ export default function TestClerkSignup() {
   }
 
   return (
-    <ClerkProvider publishableKey={process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY}>
+    <ClerkProvider
+      publishableKey={process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY}
+      appearance={{
+        baseTheme: ['dark', 'minimal'],
+        variables: {
+          colorPrimary: '#6366f1',
+          colorBackground: '#0f0f0f',
+          colorText: '#f3f4f6',
+          colorInputBackground: '#111827',
+          colorInputText: '#f3f4f6',
+          borderRadius: '0.5rem',
+          fontFamily: 'Inter, sans-serif'
+        }
+      }}
+    >
       <div className="min-h-screen bg-gray-950">
-        {/* Header */}
         <div className="bg-gradient-to-r from-yellow-500/10 to-orange-500/10 border-b border-yellow-500/20">
           <div className="max-w-7xl mx-auto px-6 py-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-4">
                 <Sparkles className="h-6 w-6 text-yellow-500" />
                 <div>
-                  <h1 className="text-lg font-semibold text-white">NestEgg - Clerk Test</h1>
+                  <h1 className="text-lg font-semibold text-gray-100">NestEgg - Clerk Test</h1>
                   <p className="text-sm text-gray-400">Testing signup with plans</p>
                 </div>
               </div>
@@ -349,7 +398,7 @@ export default function TestClerkSignup() {
                 </Link>
                 <Link 
                   href="/signup" 
-                  className="text-gray-400 hover:text-white flex items-center"
+                  className="text-gray-400 hover:text-gray-100 flex items-center"
                 >
                   <ArrowLeft className="h-4 w-4 mr-2" />
                   Regular Signup
@@ -359,47 +408,41 @@ export default function TestClerkSignup() {
           </div>
         </div>
 
-        {/* Main Content */}
         <div className="flex min-h-[calc(100vh-80px)]">
-          {/* Left side - Info Panel */}
           <div className="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-gray-900 to-gray-950 p-12 flex-col justify-center">
             <div className="max-w-md">
-              <h2 className="text-3xl font-bold text-white mb-6">
+              <h2 className="text-3xl font-bold text-gray-100 mb-6">
                 Start Your Financial Journey
               </h2>
-              
               <div className="space-y-4 mb-8">
                 <div className="flex items-start space-x-3">
                   <div className="bg-blue-500/10 rounded-full p-2">
                     <span className="text-blue-500 font-bold">1</span>
                   </div>
                   <div>
-                    <p className="text-white font-medium">Choose Your Plan</p>
+                    <p className="text-gray-100 font-medium">Choose Your Plan</p>
                     <p className="text-gray-400 text-sm">Select the features you need</p>
                   </div>
                 </div>
-                
                 <div className="flex items-start space-x-3">
                   <div className="bg-blue-500/10 rounded-full p-2">
                     <span className="text-blue-500 font-bold">2</span>
                   </div>
                   <div>
-                    <p className="text-white font-medium">Create Your Account</p>
+                    <p className="text-gray-100 font-medium">Create Your Account</p>
                     <p className="text-gray-400 text-sm">Sign up with email or social login</p>
                   </div>
                 </div>
-                
                 <div className="flex items-start space-x-3">
                   <div className="bg-blue-500/10 rounded-full p-2">
                     <span className="text-blue-500 font-bold">3</span>
                   </div>
                   <div>
-                    <p className="text-white font-medium">Start Tracking</p>
+                    <p className="text-gray-100 font-medium">Start Tracking</p>
                     <p className="text-gray-400 text-sm">Add accounts and watch your wealth grow</p>
                   </div>
                 </div>
               </div>
-
               <div className="p-4 bg-blue-500/10 border border-blue-500/20 rounded-lg">
                 <p className="text-sm text-blue-400">
                   <strong>Test Mode:</strong> Try different options safely. Your production data is unaffected.
@@ -407,8 +450,6 @@ export default function TestClerkSignup() {
               </div>
             </div>
           </div>
-
-          {/* Right side - Dynamic Content */}
           <div className="w-full lg:w-1/2 flex items-center justify-center p-8">
             <SignUpContent />
           </div>
@@ -420,7 +461,5 @@ export default function TestClerkSignup() {
 
 // Skip static generation
 export async function getServerSideProps() {
-  return {
-    props: {},
-  };
+  return { props: {} };
 }

@@ -1,5 +1,5 @@
 // pages/test-clerk-dashboard.js
-import { ClerkProvider, useUser, UserButton, useAuth } from "@clerk/nextjs";
+import { ClerkProvider, useUser, UserButton, useAuth, UserProfile } from "@clerk/nextjs";
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { 
@@ -37,35 +37,26 @@ function DashboardContent() {
   const { isLoaded, isSignedIn, user } = useUser();
   const { userId, sessionId, getToken } = useAuth();
 
-  // Clerk session token (raw)
   const [clerkToken, setClerkToken] = useState(null);
   const [clerkTokenError, setClerkTokenError] = useState(null);
-
-  // NestEgg app token (after exchange)
   const [appToken, setAppToken] = useState(null);
   const [appTokenError, setAppTokenError] = useState(null);
-
-  // Quick /user ping result to prove round-trip
   const [userPing, setUserPing] = useState({ ok: null, msg: '' });
-
   const [copied, setCopied] = useState({ clerk: false, app: false });
   const [showUpgrade, setShowUpgrade] = useState(false);
 
-  // Get user's plan from metadata
   const userPlan = user?.unsafeMetadata?.plan || user?.publicMetadata?.plan || 'free';
   const signupDate = user?.unsafeMetadata?.signupDate || user?.publicMetadata?.signupDate;
+  const occupation = user?.unsafeMetadata?.occupation || user?.publicMetadata?.occupation;
   const plan = planDetails[userPlan] || planDetails.free;
 
-  // Clerk → (exchange) → NestEgg JWT
   useEffect(() => {
     const run = async () => {
       if (!isSignedIn || !getToken) return;
       try {
-        // 1) Clerk session token
         const cJwt = await getToken();
         setClerkToken(cJwt);
 
-        // 2) Exchange for NestEgg JWT (your backend)
         const base = process.env.NEXT_PUBLIC_API_BASE_URL;
         if (!base) {
           throw new Error("NEXT_PUBLIC_API_BASE_URL is not set");
@@ -84,9 +75,8 @@ function DashboardContent() {
 
         const data = await res.json();
         setAppToken(data.access_token);
-        localStorage.setItem("token", data.access_token); // <-- your app already reads this key
+        localStorage.setItem("token", data.access_token);
 
-        // 3) Prove it works: call /user with our token
         const ures = await fetch(`${base}/user`, {
           headers: { Authorization: `Bearer ${data.access_token}` }
         });
@@ -98,13 +88,11 @@ function DashboardContent() {
           setUserPing({ ok: false, msg: `✗ /user ${ures.status} ${errText}` });
         }
       } catch (e) {
-        // Split errors between Clerk and exchange for easier debugging
         if (!clerkToken) setClerkTokenError(e.message);
         else setAppTokenError(e.message);
       }
     };
     run();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isSignedIn, getToken]);
 
   const copy = (what) => {
@@ -136,7 +124,7 @@ function DashboardContent() {
       <div className="min-h-screen bg-gray-950 flex items-center justify-center">
         <div className="text-center">
           <Loader className="h-8 w-8 text-blue-500 animate-spin mx-auto mb-4" />
-          <div className="text-white">Loading Clerk...</div>
+          <div className="text-gray-100">Loading Clerk...</div>
         </div>
       </div>
     );
@@ -147,7 +135,7 @@ function DashboardContent() {
       <div className="min-h-screen bg-gray-950 flex items-center justify-center">
         <div className="text-center">
           <XCircle className="h-12 w-12 text-red-500 mx-auto mb-4" />
-          <h1 className="text-2xl font-bold text-white mb-2">Not Signed In</h1>
+          <h1 className="text-2xl font-bold text-gray-100 mb-2">Not Signed In</h1>
           <p className="text-gray-400 mb-4">Please sign in to test Clerk</p>
           <Link href="/test-clerk-login" className="text-blue-400 hover:text-blue-300">
             Go to Test Login
@@ -166,30 +154,71 @@ function DashboardContent() {
             <div className="flex items-center space-x-4">
               <CheckCircle className="h-8 w-8 text-green-500" />
               <div>
-                <h1 className="text-2xl font-bold text-white">Welcome, {user?.firstName || 'User'}!</h1>
+                <h1 className="text-2xl font-bold text-gray-100">Welcome, {user?.firstName || 'User'}!</h1>
                 <p className="text-gray-400">Clerk Test Dashboard</p>
               </div>
             </div>
             <div className="flex items-center space-x-4">
               <Link 
                 href="/signup" 
-                className="px-4 py-2 bg-gray-800 text-white rounded-lg hover:bg-gray-700 transition-colors"
+                className="px-4 py-2 bg-gray-800 text-gray-100 rounded-lg hover:bg-gray-700 transition-transform duration-200 hover:scale-105"
               >
                 Regular App →
               </Link>
-                <SignOutButton
-                  signOutCallback={() => {
-                    localStorage.removeItem('token'); // Clear NestEgg JWT
-                    window.location.href = '/test-clerk-login';
-                  }}
-                >
-                  <button className="flex items-center space-x-2 text-gray-400 hover:text-white transition-colors">
-                    <div className="w-8 h-8 rounded-full bg-gray-800 flex items-center justify-center">
-                      <User className="h-5 w-5" />
+              <UserButton
+                afterSignOutUrl="/test-clerk-login"
+                signOutCallback={() => {
+                  localStorage.removeItem('token');
+                  window.location.href = '/test-clerk-login';
+                }}
+                appearance={{
+                  elements: {
+                    userButtonBox: 'bg-gray-800 hover:bg-gray-700 rounded-full transition-transform duration-200 hover:scale-105',
+                    userButtonAvatarBox: 'w-8 h-8',
+                    userButtonPopoverCard: 'bg-gray-900 border-gray-800 shadow-xl',
+                    userButtonPopoverActionButton: 'text-gray-100 hover:text-blue-400',
+                    userButtonPopoverFooter: 'border-t border-gray-700'
+                  }
+                }}
+              >
+                <UserButton.UserProfilePage
+                  label="plan"
+                  labelIcon={<CreditCard className="h-4 w-4" />}
+                  url="plan"
+                  content={
+                    <div className="p-4">
+                      <h3 className="text-lg font-semibold text-gray-100 mb-4">Manage Plan</h3>
+                      <div className={`p-4 rounded-lg ${plan.bgColor} ${plan.color}`}>
+                        <div className="flex items-center space-x-2 mb-2">
+                          {plan.icon}
+                          <span className="font-medium">{plan.name}</span>
+                        </div>
+                        <ul className="text-sm text-gray-400 space-y-1">
+                          {plan.features.map((f, i) => (
+                            <li key={i} className="flex items-center space-x-2">
+                              <Check className="h-4 w-4 text-green-500" />
+                              <span>{f}</span>
+                            </li>
+                          ))}
+                        </ul>
+                        {plan.name !== 'Premium' && (
+                          <button
+                            onClick={() => setShowUpgrade(true)}
+                            className="mt-4 w-full py-2 bg-blue-500/10 border border-blue-500/20 text-blue-400 hover:text-blue-300 rounded-lg transition-transform duration-200 hover:scale-105"
+                          >
+                            Upgrade Plan
+                          </button>
+                        )}
+                      </div>
                     </div>
-                    <span>Sign Out</span>
-                  </button>
-                </SignOutButton>
+                  }
+                />
+                <UserButton.UserProfileLink
+                  label="Contact Support"
+                  url={userPlan === 'premium' ? "mailto:premium@nestegg.io" : "mailto:support@nestegg.io"}
+                  labelIcon={<ExternalLink className="h-4 w-4" />}
+                />
+              </UserButton>
             </div>
           </div>
         </div>
@@ -197,87 +226,83 @@ function DashboardContent() {
 
       {/* Main Content */}
       <div className="max-w-7xl mx-auto px-6 py-8">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
           {/* Plan Card */}
-          <div className={`bg-gray-900 border border-gray-800 rounded-xl p-6 ${plan.bgColor}`}>
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-semibold text-white flex items-center">
-                <CreditCard className="h-5 w-5 mr-2 text-green-500" />
-                Subscription
-              </h2>
-              <div className={`${plan.color}`}>
+          <div className="lg:col-span-1 bg-gray-900 border border-gray-800 rounded-xl p-6">
+            <h2 className="text-lg font-semibold text-gray-100 mb-4 flex items-center">
+              <CreditCard className="h-5 w-5 mr-2 text-gray-500" />
+              Your Plan
+            </h2>
+            <div className={`p-4 rounded-lg ${plan.bgColor} ${plan.color}`}>
+              <div className="flex items-center space-x-2 mb-2">
                 {plan.icon}
+                <span className="font-medium">{plan.name}</span>
               </div>
-            </div>
-            <div className="space-y-3">
-              <div>
-                <p className="text-gray-400 text-sm">Current Plan</p>
-                <p className={`text-2xl font-bold ${plan.color}`}>{plan.name}</p>
-              </div>
-              {signupDate && (
-                <div>
-                  <p className="text-gray-400 text-sm">Member Since</p>
-                  <p className="text-white">{new Date(signupDate).toLocaleDateString()}</p>
-                </div>
-              )}
-              <div className="pt-3 border-t border-gray-700">
-                <p className="text-gray-400 text-sm mb-2">Features:</p>
-                <ul className="space-y-1">
-                  {plan.features.map((feature, i) => (
-                    <li key={i} className="text-sm text-gray-300 flex items-center">
-                      <CheckCircle className="h-3 w-3 text-green-500 mr-2" />
-                      {feature}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-              {userPlan !== 'premium' && (
+              <ul className="text-sm text-gray-400 space-y-1">
+                {plan.features.map((f, i) => (
+                  <li key={i} className="flex items-center space-x-2">
+                    <Check className="h-4 w-4 text-green-500" />
+                    <span>{f}</span>
+                  </li>
+                ))}
+              </ul>
+              {plan.name !== 'Premium' && (
                 <button
                   onClick={() => setShowUpgrade(true)}
-                  className="w-full mt-4 py-2 bg-gradient-to-r from-blue-500 to-purple-500 text-white rounded-lg hover:from-blue-600 hover:to-purple-600 transition-all flex items-center justify-center"
+                  className="mt-4 w-full py-2 bg-blue-500/10 border border-blue-500/20 text-blue-400 hover:text-blue-300 rounded-lg transition-transform duration-200 hover:scale-105"
                 >
-                  Upgrade Plan <ArrowUpRight className="h-4 w-4 ml-2" />
+                  Upgrade Plan
                 </button>
               )}
             </div>
+            {signupDate && (
+              <p className="text-sm text-gray-400 mt-4">
+                Joined: {new Date(signupDate).toLocaleDateString()}
+              </p>
+            )}
           </div>
 
           {/* User Info Card */}
           <div className="bg-gray-900 border border-gray-800 rounded-xl p-6">
-            <h2 className="text-lg font-semibold text-white mb-4 flex items-center">
+            <h2 className="text-lg font-semibold text-gray-100 mb-4 flex items-center">
               <User className="h-5 w-5 mr-2 text-blue-500" />
               User Information
             </h2>
             <div className="space-y-3">
               <div>
                 <p className="text-gray-400 text-sm">Name</p>
-                <p className="text-white">{user?.fullName || `${user?.firstName || ''} ${user?.lastName || ''}`.trim() || 'Not provided'}</p>
+                <p className="text-gray-100">{user?.fullName || `${user?.firstName || ''} ${user?.lastName || ''}`.trim() || 'Not provided'}</p>
               </div>
               <div>
                 <p className="text-gray-400 text-sm">Email</p>
-                <p className="text-white text-sm">{user?.primaryEmailAddress?.emailAddress}</p>
+                <p className="text-gray-100 text-sm">{user?.primaryEmailAddress?.emailAddress}</p>
               </div>
+              {occupation && (
+                <div>
+                  <p className="text-gray-400 text-sm">Occupation</p>
+                  <p className="text-gray-100 text-sm">{occupation}</p>
+                </div>
+              )}
               <div>
                 <p className="text-gray-400 text-sm">User ID</p>
-                <p className="text-white font-mono text-xs">{userId}</p>
+                <p className="text-gray-100 font-mono text-xs">{userId}</p>
               </div>
               <div>
                 <p className="text-gray-400 text-sm">Verified</p>
-                <p className="text-white">
+                <p className="text-gray-100">
                   {user?.primaryEmailAddress?.verification?.status === 'verified' ? '✓ Yes' : '○ No'}
                 </p>
               </div>
               <div>
                 <p className="text-gray-400 text-sm">MFA</p>
-                <p className="text-white">{user?.twoFactorEnabled ? '✓ Enabled' : '○ Disabled'}</p>
+                <p className="text-gray-100">{user?.twoFactorEnabled ? '✓ Enabled' : '○ Disabled'}</p>
               </div>
             </div>
           </div>
 
           {/* Session Info Card */}
           <div className="bg-gray-900 border border-gray-800 rounded-xl p-6">
-            <h2 className="text-lg font-semibold text-white mb-4 flex items-center">
+            <h2 className="text-lg font-semibold text-gray-100 mb-4 flex items-center">
               <Shield className="h-5 w-5 mr-2 text-green-500" />
               Session Details
             </h2>
@@ -288,30 +313,30 @@ function DashboardContent() {
               </div>
               <div>
                 <p className="text-gray-400 text-sm">Session ID</p>
-                <p className="text-white font-mono text-xs">
+                <p className="text-gray-100 font-mono text-xs">
                   {sessionId ? `${sessionId.slice(0, 12)}...` : 'N/A'}
                 </p>
               </div>
               <div>
                 <p className="text-gray-400 text-sm">Created</p>
-                <p className="text-white text-sm">
+                <p className="text-gray-100 text-sm">
                   {user?.createdAt ? new Date(user.createdAt).toLocaleString() : 'N/A'}
                 </p>
               </div>
               <div>
                 <p className="text-gray-400 text-sm">Last Sign In</p>
-                <p className="text-white text-sm">
+                <p className="text-gray-100 text-sm">
                   {user?.lastSignInAt ? new Date(user.lastSignInAt).toLocaleString() : 'First session'}
                 </p>
               </div>
             </div>
           </div>
 
-          {/* TOKENS */}
+          {/* Tokens */}
           <div className="lg:col-span-3 grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Clerk token */}
+            {/* Clerk Token */}
             <div className="bg-gray-900 border border-gray-800 rounded-xl p-6">
-              <h2 className="text-lg font-semibold text-white mb-4 flex items-center">
+              <h2 className="text-lg font-semibold text-gray-100 mb-4 flex items-center">
                 <Key className="h-5 w-5 mr-2 text-purple-500" />
                 Clerk Session Token
               </h2>
@@ -321,7 +346,7 @@ function DashboardContent() {
                     <div className="pr-12">{clerkToken.substring(0, 150)}...</div>
                     <button
                       onClick={() => copy('clerk')}
-                      className="absolute top-2 right-2 p-2 bg-gray-800 hover:bg-gray-700 rounded transition-colors"
+                      className="absolute top-2 right-2 p-2 bg-gray-800 hover:bg-gray-700 rounded transition-transform duration-200 hover:scale-105"
                       title="Copy token"
                     >
                       {copied.clerk ? <CheckCircle className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4 text-gray-400" />}
@@ -338,11 +363,11 @@ function DashboardContent() {
               )}
             </div>
 
-            {/* App token */}
+            {/* App Token */}
             <div className="bg-gray-900 border border-gray-800 rounded-xl p-6">
-              <h2 className="text-lg font-semibold text-white mb-4 flex items-center">
+              <h2 className="text-lg font-semibold text-gray-100 mb-4 flex items-center">
                 <Key className="h-5 w-5 mr-2 text-green-500" />
-                NestEgg App Token (after exchange)
+                NestEgg App Token
               </h2>
               {appToken ? (
                 <div>
@@ -350,7 +375,7 @@ function DashboardContent() {
                     <div className="pr-12">{appToken.substring(0, 150)}...</div>
                     <button
                       onClick={() => copy('app')}
-                      className="absolute top-2 right-2 p-2 bg-gray-800 hover:bg-gray-700 rounded transition-colors"
+                      className="absolute top-2 right-2 p-2 bg-gray-800 hover:bg-gray-700 rounded transition-transform duration-200 hover:scale-105"
                       title="Copy token"
                     >
                       {copied.app ? <CheckCircle className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4 text-gray-400" />}
@@ -362,20 +387,20 @@ function DashboardContent() {
                   <div className="mt-3 text-sm">
                     {userPing.ok === true && <span className="text-green-400 inline-flex items-center"><Check className="h-4 w-4 mr-1" /> {userPing.msg}</span>}
                     {userPing.ok === false && <span className="text-red-400 inline-flex items-center"><AlertCircle className="h-4 w-4 mr-1" /> {userPing.msg}</span>}
-                    {userPing.ok == null && <span className="text-gray-400">Pinging /user…</span>}
+                    {userPing.ok == null && <span className="text-gray-400">Pinging /user...</span>}
                   </div>
                 </div>
               ) : appTokenError ? (
                 <div className="text-red-400 flex items-center gap-2"><AlertCircle className="h-4 w-4" />{appTokenError}</div>
               ) : (
-                <div className="text-gray-400">Exchanging Clerk token for app token…</div>
+                <div className="text-gray-400">Exchanging Clerk token for app token...</div>
               )}
             </div>
           </div>
 
           {/* Metadata Display */}
           <div className="lg:col-span-3 bg-gray-900 border border-gray-800 rounded-xl p-6">
-            <h2 className="text-lg font-semibold text-white mb-4 flex items-center">
+            <h2 className="text-lg font-semibold text-gray-100 mb-4 flex items-center">
               <Settings className="h-5 w-5 mr-2 text-gray-500" />
               User Metadata (Testing View)
             </h2>
@@ -394,7 +419,6 @@ function DashboardContent() {
               </div>
             </div>
           </div>
-
         </div>
       </div>
 
@@ -402,17 +426,17 @@ function DashboardContent() {
       {showUpgrade && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
           <div className="bg-gray-900 border border-gray-800 rounded-xl p-6 max-w-md w-full">
-            <h3 className="text-xl font-bold text-white mb-4">Upgrade Your Plan</h3>
+            <h3 className="text-xl font-bold text-gray-100 mb-4">Upgrade Your Plan</h3>
             <div className="space-y-3">
               {userPlan === 'free' && (
                 <>
                   <button
                     onClick={() => handleUpgrade('pro')}
-                    className="w-full p-4 bg-blue-500/10 border border-blue-500/20 rounded-lg hover:bg-blue-500/20 transition-colors text-left"
+                    className="w-full p-4 bg-blue-500/10 border border-blue-500/20 rounded-lg hover:bg-blue-500/20 transition-transform duration-200 hover:scale-105 text-left"
                   >
                     <div className="flex items-center justify-between">
                       <div>
-                        <p className="text-white font-semibold">Pro - $9/mo</p>
+                        <p className="text-gray-100 font-semibold">Pro - $9/mo</p>
                         <p className="text-sm text-gray-400">Unlimited accounts, advanced features</p>
                       </div>
                       <Zap className="h-5 w-5 text-blue-400" />
@@ -420,11 +444,11 @@ function DashboardContent() {
                   </button>
                   <button
                     onClick={() => handleUpgrade('premium')}
-                    className="w-full p-4 bg-purple-500/10 border border-purple-500/20 rounded-lg hover:bg-purple-500/20 transition-colors text-left"
+                    className="w-full p-4 bg-purple-500/10 border border-purple-500/20 rounded-lg hover:bg-purple-500/20 transition-transform duration-200 hover:scale-105 text-left"
                   >
                     <div className="flex items-center justify-between">
                       <div>
-                        <p className="text-white font-semibold">Premium - $29/mo</p>
+                        <p className="text-gray-100 font-semibold">Premium - $29/mo</p>
                         <p className="text-sm text-gray-400">Everything + AI insights</p>
                       </div>
                       <Crown className="h-5 w-5 text-purple-400" />
@@ -435,11 +459,11 @@ function DashboardContent() {
               {userPlan === 'pro' && (
                 <button
                   onClick={() => handleUpgrade('premium')}
-                  className="w-full p-4 bg-purple-500/10 border border-purple-500/20 rounded-lg hover:bg-purple-500/20 transition-colors text-left"
+                  className="w-full p-4 bg-purple-500/10 border border-purple-500/20 rounded-lg hover:bg-purple-500/20 transition-transform duration-200 hover:scale-105 text-left"
                 >
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-white font-semibold">Premium - $29/mo</p>
+                      <p className="text-gray-100 font-semibold">Premium - $29/mo</p>
                       <p className="text-sm text-gray-400">Add AI insights & premium support</p>
                     </div>
                     <Crown className="h-5 w-5 text-purple-400" />
@@ -449,7 +473,7 @@ function DashboardContent() {
             </div>
             <button
               onClick={() => setShowUpgrade(false)}
-              className="w-full mt-4 py-2 bg-gray-800 text-white rounded-lg hover:bg-gray-700 transition-colors"
+              className="w-full mt-4 py-2 bg-gray-800 text-gray-100 rounded-lg hover:bg-gray-700 transition-transform duration-200 hover:scale-105"
             >
               Cancel
             </button>
@@ -466,7 +490,21 @@ export default function TestClerkDashboard() {
   if (!mounted) return null;
 
   return (
-    <ClerkProvider publishableKey={process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY}>
+    <ClerkProvider
+      publishableKey={process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY}
+      appearance={{
+        baseTheme: ['dark', 'minimal'],
+        variables: {
+          colorPrimary: '#6366f1',
+          colorBackground: '#0f0f0f',
+          colorText: '#f3f4f6',
+          colorInputBackground: '#111827',
+          colorInputText: '#f3f4f6',
+          borderRadius: '0.5rem',
+          fontFamily: 'Inter, sans-serif'
+        }
+      }}
+    >
       <DashboardContent />
     </ClerkProvider>
   );

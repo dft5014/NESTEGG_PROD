@@ -2,6 +2,7 @@
 import { ClerkProvider, useUser, useAuth } from "@clerk/nextjs";
 import { useState } from "react";
 import { useRouter } from "next/router";
+import { AlertCircle, CheckCircle } from 'lucide-react';
 
 function OnboardContent() {
   const router = useRouter();
@@ -9,23 +10,41 @@ function OnboardContent() {
   const { getToken } = useAuth();
 
   const [form, setForm] = useState({
-    first_name: "",
-    last_name: "",
-    phone: "",
-    occupation: "",
-    date_of_birth: "",
+    first_name: user?.firstName || "",
+    last_name: user?.lastName || "",
+    phone: user?.unsafeMetadata?.phone || "",
+    occupation: user?.unsafeMetadata?.occupation || "",
+    date_of_birth: user?.unsafeMetadata?.date_of_birth || "",
   });
+  const [errors, setErrors] = useState({});
   const [saving, setSaving] = useState(false);
-  const [err, setErr] = useState("");
+  const [apiError, setApiError] = useState("");
+
+  const validateForm = () => {
+    const newErrors = {};
+    if (!form.first_name.trim()) newErrors.first_name = "First name is required";
+    if (!form.last_name.trim()) newErrors.last_name = "Last name is required";
+    if (form.phone && !/^\+?\d{10,15}$/.test(form.phone)) newErrors.phone = "Invalid phone number";
+    if (form.date_of_birth && !/^\d{4}-\d{2}-\d{2}$/.test(form.date_of_birth)) newErrors.date_of_birth = "Invalid date format";
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
 
   const onChange = (e) => setForm({ ...form, [e.target.name]: e.target.value });
 
   const onSubmit = async (e) => {
     e.preventDefault();
-    setSaving(true); setErr("");
+    setSaving(true);
+    setApiError("");
+    setErrors({});
+
+    if (!validateForm()) {
+      setSaving(false);
+      return;
+    }
 
     try {
-      // 1) Update Clerk metadata (optional but nice to have in Clerk)
+      // 1) Update Clerk metadata
       await user.update({
         unsafeMetadata: {
           ...user.unsafeMetadata,
@@ -34,11 +53,12 @@ function OnboardContent() {
           phone: form.phone || undefined,
           occupation: form.occupation || undefined,
           date_of_birth: form.date_of_birth || undefined,
+          plan: user?.unsafeMetadata?.plan || 'free',
           onboardedAt: new Date().toISOString(),
         },
       });
 
-      // 2) Exchange Clerk token for NestEgg app token (your JWT)
+      // 2) Exchange Clerk token for NestEgg app token
       const clerkJwt = await getToken();
       const api = process.env.NEXT_PUBLIC_API_BASE_URL;
       const ex = await fetch(`${api}/auth/exchange`, {
@@ -48,12 +68,12 @@ function OnboardContent() {
       });
       if (!ex.ok) {
         const j = await ex.json().catch(() => ({}));
-        throw new Error(j.detail || `exchange failed ${ex.status}`);
+        throw new Error(j.detail || `Token exchange failed (${ex.status})`);
       }
       const data = await ex.json();
       localStorage.setItem("token", data.access_token);
 
-      // 3) Save fields to Supabase via a small backend helper (see FastAPI route below)
+      // 3) Save fields to Supabase
       const save = await fetch(`${api}/me/onboard`, {
         method: "POST",
         headers: {
@@ -64,56 +84,109 @@ function OnboardContent() {
       });
       if (!save.ok) {
         const j = await save.json().catch(() => ({}));
-        throw new Error(j.detail || `save failed ${save.status}`);
+        throw new Error(j.detail || `Profile save failed (${save.status})`);
       }
 
-      // 4) go to dashboard
+      // 4) Go to dashboard
       router.push("/test-clerk-dashboard");
     } catch (e) {
-      setErr(e.message || String(e));
+      setApiError(e.message || "An error occurred. Please try again.");
       setSaving(false);
     }
   };
 
-  if (!isLoaded) return null;
+  if (!isLoaded) {
+    return (
+      <div className="min-h-screen bg-gray-950 flex items-center justify-center">
+        <div className="text-center">
+          <CheckCircle className="h-8 w-8 text-blue-500 animate-spin mx-auto mb-4" />
+          <div className="text-gray-100">Loading...</div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-950 flex items-center justify-center px-4">
       <form onSubmit={onSubmit} className="w-full max-w-lg bg-gray-900 border border-gray-800 rounded-xl p-6 space-y-4">
-        <h1 className="text-white text-xl font-semibold">Quick onboarding</h1>
-        <p className="text-gray-400 text-sm">Add a few details so NestEgg can personalize your experience.</p>
+        <h1 className="text-gray-100 text-xl font-semibold">Quick Onboarding</h1>
+        <p className="text-gray-400 text-sm">Add details to personalize your NestEgg experience.</p>
+        {user?.unsafeMetadata?.plan && (
+          <p className="text-gray-400 text-sm">Signed up for {user.unsafeMetadata.plan} plan.</p>
+        )}
+
+        {apiError && (
+          <div className="text-red-400 flex items-center gap-2">
+            <AlertCircle className="h-4 w-4" />
+            {apiError}
+          </div>
+        )}
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
-            <label className="block text-xs text-gray-400 mb-1">First name</label>
-            <input name="first_name" value={form.first_name} onChange={onChange} className="w-full bg-gray-950 border border-gray-800 rounded px-3 py-2 text-white" />
+            <label className="block text-xs text-gray-400 mb-1">First name *</label>
+            <input 
+              name="first_name" 
+              value={form.first_name} 
+              onChange={onChange} 
+              className="w-full bg-gray-900 border border-gray-700 rounded px-3 py-2 text-gray-100 focus:ring-blue-500/20" 
+              required
+            />
+            {errors.first_name && <p className="text-red-400 text-xs mt-1">{errors.first_name}</p>}
           </div>
           <div>
-            <label className="block text-xs text-gray-400 mb-1">Last name</label>
-            <input name="last_name" value={form.last_name} onChange={onChange} className="w-full bg-gray-950 border border-gray-800 rounded px-3 py-2 text-white" />
+            <label className="block text-xs text-gray-400 mb-1">Last name *</label>
+            <input 
+              name="last_name" 
+              value={form.last_name} 
+              onChange={onChange} 
+              className="w-full bg-gray-900 border border-gray-700 rounded px-3 py-2 text-gray-100 focus:ring-blue-500/20" 
+              required
+            />
+            {errors.last_name && <p className="text-red-400 text-xs mt-1">{errors.last_name}</p>}
           </div>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
             <label className="block text-xs text-gray-400 mb-1">Phone</label>
-            <input name="phone" value={form.phone} onChange={onChange} className="w-full bg-gray-950 border border-gray-800 rounded px-3 py-2 text-white" />
+            <input 
+              name="phone" 
+              value={form.phone} 
+              onChange={onChange} 
+              className="w-full bg-gray-900 border border-gray-700 rounded px-3 py-2 text-gray-100 focus:ring-blue-500/20" 
+              placeholder="+1234567890"
+            />
+            {errors.phone && <p className="text-red-400 text-xs mt-1">{errors.phone}</p>}
           </div>
           <div>
             <label className="block text-xs text-gray-400 mb-1">Occupation</label>
-            <input name="occupation" value={form.occupation} onChange={onChange} className="w-full bg-gray-950 border border-gray-800 rounded px-3 py-2 text-white" />
+            <input 
+              name="occupation" 
+              value={form.occupation} 
+              onChange={onChange} 
+              className="w-full bg-gray-900 border border-gray-700 rounded px-3 py-2 text-gray-100 focus:ring-blue-500/20" 
+            />
           </div>
         </div>
 
         <div>
           <label className="block text-xs text-gray-400 mb-1">Date of birth</label>
-          <input type="date" name="date_of_birth" value={form.date_of_birth} onChange={onChange} className="w-full bg-gray-950 border border-gray-800 rounded px-3 py-2 text-white" />
+          <input 
+            type="date" 
+            name="date_of_birth" 
+            value={form.date_of_birth} 
+            onChange={onChange} 
+            className="w-full bg-gray-900 border border-gray-700 rounded px-3 py-2 text-gray-100 focus:ring-blue-500/20" 
+          />
+          {errors.date_of_birth && <p className="text-red-400 text-xs mt-1">{errors.date_of_birth}</p>}
         </div>
 
-        {err && <div className="text-red-400 text-sm">{err}</div>}
-
-        <button disabled={saving} className="w-full py-2 rounded bg-blue-600 hover:bg-blue-500 text-white disabled:opacity-60">
-          {saving ? "Saving…" : "Save & Continue"}
+        <button 
+          disabled={saving} 
+          className="w-full py-2 rounded bg-blue-600 hover:bg-blue-500 text-gray-100 disabled:opacity-60 transition-transform duration-200 hover:scale-105"
+        >
+          {saving ? "Saving..." : "Save & Continue"}
         </button>
       </form>
     </div>
@@ -122,7 +195,21 @@ function OnboardContent() {
 
 export default function OnboardingPage() {
   return (
-    <ClerkProvider publishableKey={process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY}>
+    <ClerkProvider
+      publishableKey={process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY}
+      appearance={{
+        baseTheme: ['dark', 'minimal'],
+        variables: {
+          colorPrimary: '#6366f1',
+          colorBackground: '#0f0f0f',
+          colorText: '#f3f4f6',
+          colorInputBackground: '#111827',
+          colorInputText: '#f3f4f6',
+          borderRadius: '0.5rem',
+          fontFamily: 'Inter, sans-serif'
+        }
+      }}
+    >
       <OnboardContent />
     </ClerkProvider>
   );
