@@ -1,10 +1,11 @@
 // pages/billing.js
 import { SignedIn, SignedOut, useUser, UserButton } from "@clerk/nextjs";
-import { SubscriptionDetailsButton } from "@clerk/nextjs/experimental";
+import { SubscriptionDetailsButton, PricingTable } from "@clerk/nextjs/experimental";
 import { useSubscription } from "@clerk/nextjs/experimental";
+import { useAuth } from "@clerk/nextjs";
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { CreditCard, Check, ArrowRight, Zap, Shield, Gift } from "lucide-react";
+import { CreditCard, Check, ArrowRight, Zap, Shield, Gift, AlertCircle, CheckCircle, X, Crown, Star, Sparkles } from "lucide-react";
 
 export default function BillingPage() {
   return <Content />;
@@ -54,20 +55,167 @@ function Content() {
 
         <SignedIn>
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div className="lg:col-span-2">
+            <div className="lg:col-span-2 space-y-6">
               <CurrentPlanCard />
-              <div className="mt-6">
-                <PlanOptions />
-              </div>
+              <FeatureAccessDebugger />
+              <ClerkPricingTableSection />
+              <PlanComparisonCard />
             </div>
-            <div className="lg:col-span-1">
+            <div className="lg:col-span-1 space-y-6">
               <BillingActions />
-              <div className="mt-6">
-                <BillingHistory />
-              </div>
+              <BillingHistory />
+              <SubscriptionDebugInfo />
             </div>
           </div>
         </SignedIn>
+      </div>
+    </div>
+  );
+}
+
+// New component to test the has() helper
+function FeatureAccessDebugger() {
+  const { has } = useAuth();
+  const [features, setFeatures] = useState({});
+  const [plans, setPlans] = useState({});
+
+  useEffect(() => {
+    // Test common feature and plan checks
+    const testFeatures = [
+      'ai_assistant',
+      'advanced_analytics',
+      'real_estate_tracking',
+      'api_access',
+      'priority_support',
+      'unlimited_accounts',
+      'csv_export',
+      'historical_data'
+    ];
+
+    const testPlans = [
+      'free',
+      'standard',
+      'premium',
+      'pro'
+    ];
+
+    const featureResults = {};
+    const planResults = {};
+
+    testFeatures.forEach(feature => {
+      featureResults[feature] = has({ feature });
+    });
+
+    testPlans.forEach(plan => {
+      planResults[plan] = has({ plan });
+    });
+
+    setFeatures(featureResults);
+    setPlans(planResults);
+
+    console.groupCollapsed("[Billing] Feature/Plan Access Check");
+    console.log("Features:", featureResults);
+    console.log("Plans:", planResults);
+    console.groupEnd();
+  }, [has]);
+
+  return (
+    <div className="p-6 border border-gray-800 rounded-xl bg-gray-900/70 backdrop-blur-sm">
+      <h2 className="text-xl font-bold mb-4 flex items-center">
+        <Shield className="h-5 w-5 mr-2 text-blue-400" />
+        Feature Access Debugger
+      </h2>
+      
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {/* Feature Access */}
+        <div>
+          <h3 className="text-sm font-semibold text-gray-300 mb-3 uppercase tracking-wide">Features</h3>
+          <div className="space-y-2">
+            {Object.entries(features).map(([feature, hasAccess]) => (
+              <div key={feature} className="flex items-center justify-between py-2 px-3 bg-gray-800/50 rounded-lg">
+                <span className="text-sm text-gray-300">{feature}</span>
+                <div className="flex items-center">
+                  {hasAccess ? (
+                    <CheckCircle className="h-4 w-4 text-green-400" />
+                  ) : (
+                    <X className="h-4 w-4 text-red-400" />
+                  )}
+                  <span className={`ml-2 text-xs ${hasAccess ? 'text-green-400' : 'text-red-400'}`}>
+                    {hasAccess ? 'Allowed' : 'Denied'}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Plan Access */}
+        <div>
+          <h3 className="text-sm font-semibold text-gray-300 mb-3 uppercase tracking-wide">Plans</h3>
+          <div className="space-y-2">
+            {Object.entries(plans).map(([plan, hasAccess]) => (
+              <div key={plan} className="flex items-center justify-between py-2 px-3 bg-gray-800/50 rounded-lg">
+                <span className="text-sm text-gray-300 capitalize">{plan}</span>
+                <div className="flex items-center">
+                  {hasAccess ? (
+                    <CheckCircle className="h-4 w-4 text-green-400" />
+                  ) : (
+                    <X className="h-4 w-4 text-red-400" />
+                  )}
+                  <span className={`ml-2 text-xs ${hasAccess ? 'text-green-400' : 'text-red-400'}`}>
+                    {hasAccess ? 'Active' : 'Inactive'}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-4 p-3 bg-blue-900/20 border border-blue-800/50 rounded-lg">
+        <p className="text-xs text-blue-300">
+          <Zap className="h-3 w-3 inline mr-1" />
+          This debugger uses the `has()` helper to check feature and plan access in real-time.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+// New component with Clerk's built-in PricingTable
+function ClerkPricingTableSection() {
+  return (
+    <div className="p-6 border border-gray-800 rounded-xl bg-gray-900/70 backdrop-blur-sm">
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h2 className="text-xl font-bold flex items-center">
+            <Crown className="h-5 w-5 mr-2 text-purple-400" />
+            Clerk Billing Pricing Table
+          </h2>
+          <p className="text-gray-400 text-sm mt-1">
+            This uses Clerk's built-in PricingTable component with your dashboard configuration
+          </p>
+        </div>
+      </div>
+
+      <div className="bg-gray-800/30 rounded-lg p-4 border border-gray-700">
+        <PricingTable 
+          appearance={{
+            baseTheme: "dark",
+            variables: {
+              colorPrimary: "#3b82f6",
+              colorBackground: "#1f2937",
+              colorText: "#f9fafb"
+            }
+          }}
+        />
+      </div>
+
+      <div className="mt-4 p-3 bg-purple-900/20 border border-purple-800/50 rounded-lg">
+        <p className="text-xs text-purple-300">
+          <Sparkles className="h-3 w-3 inline mr-1" />
+          Plans and features are configured in your Clerk Dashboard. This component automatically syncs with your settings.
+        </p>
       </div>
     </div>
   );
@@ -168,7 +316,7 @@ function CurrentPlanCard() {
   );
 }
 
-function PlanOptions() {
+function PlanComparisonCard() {
   const { data: subscription } = useSubscription();
   const currentPlan = subscription?.plan?.name?.toLowerCase() || 'free';
   
@@ -225,7 +373,10 @@ function PlanOptions() {
 
   return (
     <div className="p-8 border border-gray-800 rounded-xl bg-gray-900/70 backdrop-blur-sm">
-      <h2 className="text-2xl font-bold mb-6">Available Plans</h2>
+      <h2 className="text-2xl font-bold mb-6">Legacy Plan Comparison</h2>
+      <p className="text-gray-400 text-sm mb-6">
+        This shows your previous custom plan structure. Use the Clerk Pricing Table above for the current plans.
+      </p>
       
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {plans.map((plan) => (
@@ -371,6 +522,51 @@ function BillingHistory() {
           Download Invoice
         </button>
       </div>
+    </div>
+  );
+}
+
+// Debug component to show raw subscription data
+function SubscriptionDebugInfo() {
+  const { data: subscription, isLoaded } = useSubscription();
+  const [showDebug, setShowDebug] = useState(false);
+
+  if (!isLoaded) return null;
+
+  return (
+    <div className="p-6 border border-gray-800 rounded-xl bg-gray-900/70 backdrop-blur-sm">
+      <button 
+        onClick={() => setShowDebug(!showDebug)}
+        className="flex items-center justify-between w-full text-left"
+      >
+        <h2 className="text-xl font-bold">Debug Info</h2>
+        <AlertCircle className="h-5 w-5 text-orange-400" />
+      </button>
+      
+      {showDebug && (
+        <div className="mt-4 space-y-3">
+          <div className="bg-gray-800/50 p-3 rounded-lg">
+            <h3 className="text-sm font-semibold text-gray-300 mb-2">Raw Subscription Data</h3>
+            <pre className="text-xs text-gray-400 overflow-auto max-h-60">
+              {JSON.stringify(subscription, null, 2)}
+            </pre>
+          </div>
+          
+          <div className="bg-gray-800/50 p-3 rounded-lg">
+            <h3 className="text-sm font-semibold text-gray-300 mb-2">Environment</h3>
+            <div className="text-xs space-y-1">
+              <div className="flex justify-between">
+                <span className="text-gray-400">Node Env:</span>
+                <span className="text-white">{process.env.NODE_ENV}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-400">API Base:</span>
+                <span className="text-white">{process.env.NEXT_PUBLIC_API_URL}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
