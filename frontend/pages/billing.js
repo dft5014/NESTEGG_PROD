@@ -1,11 +1,11 @@
 // pages/billing.js
-import { SignedIn, SignedOut, useUser, UserButton } from "@clerk/nextjs";
-import { SubscriptionDetailsButton, PricingTable } from "@clerk/nextjs/experimental";
+import { SignedIn, SignedOut, useUser, UserButton, PricingTable, Protect } from "@clerk/nextjs";
+import { SubscriptionDetailsButton } from "@clerk/nextjs/experimental";
 import { useSubscription } from "@clerk/nextjs/experimental";
 import { useAuth } from "@clerk/nextjs";
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { CreditCard, Check, ArrowRight, Zap, Shield, Gift, AlertCircle, CheckCircle, X, Crown, Star, Sparkles } from "lucide-react";
+import { CreditCard, Check, ArrowRight, Zap, Shield, Gift, AlertCircle, CheckCircle, X, Crown, Star, Sparkles, Settings, User, Building, Download } from "lucide-react";
 
 export default function BillingPage() {
   return <Content />;
@@ -16,7 +16,8 @@ function Content() {
 
   return (
     <div className="min-h-screen bg-gray-950 text-gray-100">
-      <div className="max-w-5xl mx-auto p-6 space-y-8">
+      <div className="max-w-6xl mx-auto p-6 space-y-8">
+        {/* Enhanced Header with UserButton */}
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-bold">Billing & Subscription</h1>
@@ -24,9 +25,22 @@ function Content() {
           </div>
           <div className="flex items-center space-x-4">
             {isSignedIn && (
-              <div className="flex items-center">
-                <span className="text-gray-400 mr-2">{user.primaryEmailAddress?.emailAddress}</span>
-                <UserButton />
+              <div className="flex items-center space-x-4">
+                <div className="text-right">
+                  <p className="text-sm text-gray-300">{user.fullName}</p>
+                  <p className="text-xs text-gray-500">{user.primaryEmailAddress?.emailAddress}</p>
+                </div>
+                <UserButton 
+                  showName={false}
+                  appearance={{
+                    baseTheme: "dark",
+                    elements: {
+                      userButtonAvatarBox: "w-10 h-10",
+                      userButtonPopoverCard: "bg-gray-800 border-gray-700",
+                      userButtonPopoverActionButton: "text-gray-100 hover:bg-gray-700"
+                    }
+                  }}
+                />
               </div>
             )}
             <Link 
@@ -59,11 +73,11 @@ function Content() {
               <CurrentPlanCard />
               <FeatureAccessDebugger />
               <ClerkPricingTableSection />
-              <PlanComparisonCard />
+              <ProtectedContentExample />
             </div>
             <div className="lg:col-span-1 space-y-6">
+              <QuickActions />
               <BillingActions />
-              <BillingHistory />
               <SubscriptionDebugInfo />
             </div>
           </div>
@@ -73,76 +87,146 @@ function Content() {
   );
 }
 
-// New component to test the has() helper
+// New Quick Actions component
+function QuickActions() {
+  return (
+    <div className="p-6 border border-gray-800 rounded-xl bg-gray-900/70 backdrop-blur-sm">
+      <h2 className="text-xl font-bold mb-4 flex items-center">
+        <Zap className="h-5 w-5 mr-2 text-yellow-400" />
+        Quick Actions
+      </h2>
+      
+      <div className="space-y-3">
+        <SubscriptionDetailsButton>
+          <button className="w-full py-2 px-4 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-lg flex items-center justify-center hover:from-blue-700 hover:to-blue-800 transition-colors text-sm">
+            <Settings className="h-4 w-4 mr-2" />
+            Subscription Settings
+          </button>
+        </SubscriptionDetailsButton>
+
+        <SubscriptionDetailsButton for="user">
+          <button className="w-full py-2 px-4 bg-gray-800 hover:bg-gray-700 text-white rounded-lg flex items-center justify-center transition-colors text-sm">
+            <User className="h-4 w-4 mr-2" />
+            User Billing
+          </button>
+        </SubscriptionDetailsButton>
+
+        <button className="w-full py-2 px-4 bg-gray-800 hover:bg-gray-700 text-white rounded-lg flex items-center justify-center transition-colors text-sm">
+          <Download className="h-4 w-4 mr-2" />
+          Download Invoice
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// Enhanced Feature Access Debugger with real-time data
 function FeatureAccessDebugger() {
   const { has } = useAuth();
+  const { data: subscription } = useSubscription();
   const [features, setFeatures] = useState({});
   const [plans, setPlans] = useState({});
 
   useEffect(() => {
-    // Test common feature and plan checks
+    // Test feature access based on your actual dashboard configuration
+    // Update these with your real feature names from Clerk Dashboard
     const testFeatures = [
       'ai_assistant',
-      'advanced_analytics',
+      'advanced_analytics', 
       'real_estate_tracking',
       'api_access',
       'priority_support',
       'unlimited_accounts',
       'csv_export',
-      'historical_data'
+      'historical_data',
+      'custom_reports',
+      'white_label'
     ];
 
+    // Test plan access based on your actual dashboard configuration
+    // Update these with your real plan names from Clerk Dashboard
     const testPlans = [
       'free',
-      'standard',
+      'basic',
+      'standard', 
       'premium',
-      'pro'
+      'pro',
+      'enterprise'
     ];
 
     const featureResults = {};
     const planResults = {};
 
     testFeatures.forEach(feature => {
-      featureResults[feature] = has({ feature });
+      try {
+        featureResults[feature] = has({ feature });
+      } catch (error) {
+        featureResults[feature] = false;
+        console.warn(`Feature check failed for ${feature}:`, error);
+      }
     });
 
     testPlans.forEach(plan => {
-      planResults[plan] = has({ plan });
+      try {
+        planResults[plan] = has({ plan });
+      } catch (error) {
+        planResults[plan] = false;
+        console.warn(`Plan check failed for ${plan}:`, error);
+      }
     });
 
     setFeatures(featureResults);
     setPlans(planResults);
 
     console.groupCollapsed("[Billing] Feature/Plan Access Check");
+    console.log("Current subscription:", subscription);
     console.log("Features:", featureResults);
     console.log("Plans:", planResults);
     console.groupEnd();
-  }, [has]);
+  }, [has, subscription]);
+
+  const currentPlan = Object.entries(plans).find(([plan, hasAccess]) => hasAccess)?.[0] || 'none';
+  const enabledFeatures = Object.entries(features).filter(([feature, hasAccess]) => hasAccess);
 
   return (
     <div className="p-6 border border-gray-800 rounded-xl bg-gray-900/70 backdrop-blur-sm">
       <h2 className="text-xl font-bold mb-4 flex items-center">
         <Shield className="h-5 w-5 mr-2 text-blue-400" />
-        Feature Access Debugger
+        Access Control Status
       </h2>
+      
+      {/* Current Plan Summary */}
+      <div className="mb-6 p-4 bg-gray-800/50 rounded-lg">
+        <div className="flex items-center justify-between mb-2">
+          <span className="text-sm font-medium text-gray-300">Current Plan</span>
+          <span className={`px-2 py-1 text-xs rounded-full ${
+            currentPlan === 'none' ? 'bg-gray-600 text-gray-300' :
+            currentPlan === 'free' ? 'bg-green-600 text-white' :
+            currentPlan === 'premium' ? 'bg-purple-600 text-white' :
+            'bg-blue-600 text-white'
+          }`}>
+            {currentPlan.toUpperCase()}
+          </span>
+        </div>
+        <div className="text-sm text-gray-400">
+          {enabledFeatures.length} of {Object.keys(features).length} features enabled
+        </div>
+      </div>
       
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* Feature Access */}
         <div>
           <h3 className="text-sm font-semibold text-gray-300 mb-3 uppercase tracking-wide">Features</h3>
-          <div className="space-y-2">
+          <div className="space-y-2 max-h-60 overflow-y-auto">
             {Object.entries(features).map(([feature, hasAccess]) => (
               <div key={feature} className="flex items-center justify-between py-2 px-3 bg-gray-800/50 rounded-lg">
-                <span className="text-sm text-gray-300">{feature}</span>
+                <span className="text-sm text-gray-300 capitalize">{feature.replace(/_/g, ' ')}</span>
                 <div className="flex items-center">
                   {hasAccess ? (
                     <CheckCircle className="h-4 w-4 text-green-400" />
                   ) : (
                     <X className="h-4 w-4 text-red-400" />
                   )}
-                  <span className={`ml-2 text-xs ${hasAccess ? 'text-green-400' : 'text-red-400'}`}>
-                    {hasAccess ? 'Allowed' : 'Denied'}
-                  </span>
                 </div>
               </div>
             ))}
@@ -162,9 +246,6 @@ function FeatureAccessDebugger() {
                   ) : (
                     <X className="h-4 w-4 text-red-400" />
                   )}
-                  <span className={`ml-2 text-xs ${hasAccess ? 'text-green-400' : 'text-red-400'}`}>
-                    {hasAccess ? 'Active' : 'Inactive'}
-                  </span>
                 </div>
               </div>
             ))}
@@ -175,14 +256,69 @@ function FeatureAccessDebugger() {
       <div className="mt-4 p-3 bg-blue-900/20 border border-blue-800/50 rounded-lg">
         <p className="text-xs text-blue-300">
           <Zap className="h-3 w-3 inline mr-1" />
-          This debugger uses the `has()` helper to check feature and plan access in real-time.
+          Real-time access control using Clerk's `has()` helper. Update feature/plan names in code to match your dashboard.
         </p>
       </div>
     </div>
   );
 }
 
-// New component with Clerk's built-in PricingTable
+// New component showcasing Protect component
+function ProtectedContentExample() {
+  return (
+    <div className="p-6 border border-gray-800 rounded-xl bg-gray-900/70 backdrop-blur-sm">
+      <h2 className="text-xl font-bold mb-4 flex items-center">
+        <Shield className="h-5 w-5 mr-2 text-purple-400" />
+        Protected Content Demo
+      </h2>
+      
+      <div className="space-y-4">
+        <Protect 
+          feature="ai_assistant" 
+          fallback={
+            <div className="p-4 border border-red-800/50 bg-red-900/20 rounded-lg">
+              <p className="text-red-300 text-sm">
+                🔒 AI Assistant feature requires a premium subscription
+              </p>
+            </div>
+          }
+        >
+          <div className="p-4 border border-green-800/50 bg-green-900/20 rounded-lg">
+            <p className="text-green-300 text-sm">
+              ✨ You have access to the AI Assistant feature!
+            </p>
+          </div>
+        </Protect>
+
+        <Protect 
+          feature="advanced_analytics" 
+          fallback={
+            <div className="p-4 border border-red-800/50 bg-red-900/20 rounded-lg">
+              <p className="text-red-300 text-sm">
+                📊 Advanced Analytics requires a paid plan
+              </p>
+            </div>
+          }
+        >
+          <div className="p-4 border border-green-800/50 bg-green-900/20 rounded-lg">
+            <p className="text-green-300 text-sm">
+              📈 Advanced Analytics is available to you!
+            </p>
+          </div>
+        </Protect>
+      </div>
+
+      <div className="mt-4 p-3 bg-purple-900/20 border border-purple-800/50 rounded-lg">
+        <p className="text-xs text-purple-300">
+          <Sparkles className="h-3 w-3 inline mr-1" />
+          The `&lt;Protect&gt;` component automatically shows/hides content based on user access.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+// Clerk's built-in PricingTable component
 function ClerkPricingTableSection() {
   return (
     <div className="p-6 border border-gray-800 rounded-xl bg-gray-900/70 backdrop-blur-sm">
@@ -190,10 +326,10 @@ function ClerkPricingTableSection() {
         <div>
           <h2 className="text-xl font-bold flex items-center">
             <Crown className="h-5 w-5 mr-2 text-purple-400" />
-            Clerk Billing Pricing Table
+            Available Plans
           </h2>
           <p className="text-gray-400 text-sm mt-1">
-            This uses Clerk's built-in PricingTable component with your dashboard configuration
+            Live pricing from your Clerk Dashboard configuration
           </p>
         </div>
       </div>
@@ -205,16 +341,28 @@ function ClerkPricingTableSection() {
             variables: {
               colorPrimary: "#3b82f6",
               colorBackground: "#1f2937",
-              colorText: "#f9fafb"
+              colorText: "#f9fafb",
+              colorTextSecondary: "#9ca3af"
+            },
+            elements: {
+              card: "bg-gray-800 border-gray-700",
+              cardBox: "bg-gray-800",
+              headerTitle: "text-white",
+              headerSubtitle: "text-gray-300",
+              pricingPlan: "bg-gray-800 border-gray-700",
+              pricingPlanBox: "bg-gray-800",
+              formButtonPrimary: "bg-blue-600 hover:bg-blue-700"
             }
           }}
+          ctaPosition="bottom"
+          collapseFeatures={false}
         />
       </div>
 
       <div className="mt-4 p-3 bg-purple-900/20 border border-purple-800/50 rounded-lg">
         <p className="text-xs text-purple-300">
           <Sparkles className="h-3 w-3 inline mr-1" />
-          Plans and features are configured in your Clerk Dashboard. This component automatically syncs with your settings.
+          This component automatically syncs with plans configured in your Clerk Dashboard.
         </p>
       </div>
     </div>
@@ -246,7 +394,7 @@ function CurrentPlanCard() {
     return (
       <div className="p-6 border border-red-900/50 rounded-xl bg-red-900/10 backdrop-blur-sm text-red-400">
         <h2 className="text-lg font-semibold mb-2">Failed to load subscription</h2>
-        <p>{String(error?.message || error)}</p>
+        <p className="text-sm">{String(error?.message || error)}</p>
         <button 
           onClick={() => window.location.reload()} 
           className="mt-3 px-3 py-1 bg-gray-800 rounded-lg text-sm hover:bg-gray-700 transition-colors"
@@ -258,7 +406,11 @@ function CurrentPlanCard() {
   }
 
   const status = subscription?.status ?? "none";
-  const planName = subscription?.plan?.name || subscription?.plan?.id || "Free";
+  const planName = subscription?.plan?.name || "Free";
+  const planId = subscription?.plan?.id || "free";
+  const amount = subscription?.amount ? `$${(subscription.amount / 100).toFixed(2)}` : "$0";
+  const interval = subscription?.interval || "forever";
+  
   const renewsAt = subscription?.currentPeriodEnd
     ? new Date(subscription.currentPeriodEnd).toLocaleDateString('en-US', { 
         year: 'numeric', 
@@ -267,11 +419,12 @@ function CurrentPlanCard() {
       })
     : "—";
 
-  // Determine plan badge color
+  // Determine plan badge color based on actual plan
   const getBadgeClass = () => {
-    if (planName.toLowerCase().includes('premium')) {
+    const lowerPlan = planName.toLowerCase();
+    if (lowerPlan.includes('premium') || lowerPlan.includes('enterprise')) {
       return 'bg-purple-500/20 text-purple-300 border-purple-500/30';
-    } else if (planName.toLowerCase().includes('pro')) {
+    } else if (lowerPlan.includes('pro') || lowerPlan.includes('standard')) {
       return 'bg-blue-500/20 text-blue-300 border-blue-500/30';
     } else {
       return 'bg-green-500/20 text-green-300 border-green-500/30';
@@ -289,145 +442,38 @@ function CurrentPlanCard() {
         </span>
       </div>
       
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
         <div className="bg-gray-800/50 p-4 rounded-lg">
           <p className="text-gray-400 text-sm">Status</p>
           <p className="text-lg font-medium capitalize">{status}</p>
         </div>
         <div className="bg-gray-800/50 p-4 rounded-lg">
-          <p className="text-gray-400 text-sm">Renewal Date</p>
-          <p className="text-lg font-medium">{renewsAt}</p>
+          <p className="text-gray-400 text-sm">Amount</p>
+          <p className="text-lg font-medium">{amount}</p>
         </div>
         <div className="bg-gray-800/50 p-4 rounded-lg">
           <p className="text-gray-400 text-sm">Billing Cycle</p>
-          <p className="text-lg font-medium">
-            {subscription?.intervalCount 
-              ? `Every ${subscription.intervalCount} ${subscription.interval}${subscription.intervalCount > 1 ? 's' : ''}` 
-              : 'Monthly'}
-          </p>
+          <p className="text-lg font-medium capitalize">{interval}</p>
+        </div>
+        <div className="bg-gray-800/50 p-4 rounded-lg">
+          <p className="text-gray-400 text-sm">Next Payment</p>
+          <p className="text-lg font-medium">{renewsAt}</p>
         </div>
       </div>
       
-      <div className="text-sm text-gray-400 flex items-center">
-        <Zap className="h-4 w-4 mr-2 text-blue-400" />
-        Plan changes and billing info synced via Clerk webhooks
-      </div>
-    </div>
-  );
-}
-
-function PlanComparisonCard() {
-  const { data: subscription } = useSubscription();
-  const currentPlan = subscription?.plan?.name?.toLowerCase() || 'free';
-  
-  const plans = [
-    {
-      id: 'free',
-      name: 'Free',
-      price: '$0',
-      period: 'forever',
-      description: 'Track up to 5 investment accounts with basic portfolio analysis',
-      features: [
-        '5 investment accounts',
-        'Basic portfolio analytics',
-        'Manual asset tracking',
-        'Daily portfolio snapshots'
-      ],
-      highlighted: false,
-      color: 'from-gray-500 to-gray-600'
-    },
-    {
-      id: 'standard',
-      name: 'Standard',
-      price: '$9.99',
-      period: 'per month',
-      description: 'Advanced portfolio tracking with unlimited accounts',
-      features: [
-        'Unlimited investment accounts',
-        'Advanced portfolio analytics',
-        'Performance benchmarking',
-        '90-day historical data',
-        'CSV export capabilities'
-      ],
-      highlighted: true,
-      color: 'from-blue-500 to-blue-600'
-    },
-    {
-      id: 'premium',
-      name: 'Premium',
-      price: '$19.99',
-      period: 'per month',
-      description: 'Complete financial tracking with premium analytics',
-      features: [
-        'Everything in Standard',
-        'Real estate & alternative assets',
-        'Advanced tax reporting',
-        'Full historical data',
-        'API access',
-        'Priority support'
-      ],
-      highlighted: false,
-      color: 'from-purple-500 to-purple-600'
-    }
-  ];
-
-  return (
-    <div className="p-8 border border-gray-800 rounded-xl bg-gray-900/70 backdrop-blur-sm">
-      <h2 className="text-2xl font-bold mb-6">Legacy Plan Comparison</h2>
-      <p className="text-gray-400 text-sm mb-6">
-        This shows your previous custom plan structure. Use the Clerk Pricing Table above for the current plans.
-      </p>
-      
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        {plans.map((plan) => (
-          <div 
-            key={plan.id}
-            className={`border rounded-xl p-6 flex flex-col ${
-              currentPlan === plan.id.toLowerCase() 
-                ? 'border-blue-500/50 bg-blue-900/10' 
-                : 'border-gray-800 hover:border-gray-700 bg-gray-800/30'
-            } ${plan.highlighted ? 'ring-2 ring-blue-500/50' : ''}`}
-          >
-            <div className="mb-4">
-              <h3 className="text-xl font-bold">{plan.name}</h3>
-              <div className="flex items-baseline mt-2">
-                <span className="text-3xl font-bold">{plan.price}</span>
-                <span className="text-gray-400 text-sm ml-1">{plan.period}</span>
-              </div>
-              <p className="text-gray-400 text-sm mt-2">{plan.description}</p>
-            </div>
-            
-            <div className="flex-grow">
-              <ul className="space-y-2">
-                {plan.features.map((feature, idx) => (
-                  <li key={idx} className="flex items-start">
-                    <Check className="h-5 w-5 text-green-400 mr-2 flex-shrink-0 mt-0.5" />
-                    <span className="text-sm">{feature}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-            
-            <div className="mt-6">
-              {currentPlan === plan.id.toLowerCase() ? (
-                <button 
-                  disabled
-                  className="w-full py-2 px-4 bg-blue-500/20 text-blue-300 rounded-lg text-center cursor-not-allowed"
-                >
-                  Current Plan
-                </button>
-              ) : (
-                <SubscriptionDetailsButton>
-                  <button 
-                    className={`w-full py-2 px-4 bg-gradient-to-r ${plan.color} text-white rounded-lg text-center hover:opacity-90 transition-opacity`}
-                  >
-                    {plan.id === 'free' ? 'Downgrade' : 'Upgrade'} to {plan.name}
-                  </button>
-                </SubscriptionDetailsButton>
-              )}
-            </div>
-          </div>
-        ))}
+      <div className="flex items-center justify-between">
+        <div className="text-sm text-gray-400 flex items-center">
+          <Zap className="h-4 w-4 mr-2 text-blue-400" />
+          Managed by Clerk Billing
+        </div>
+        
+        {subscription && (
+          <SubscriptionDetailsButton>
+            <button className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm transition-colors">
+              Manage Plan
+            </button>
+          </SubscriptionDetailsButton>
+        )}
       </div>
     </div>
   );
@@ -436,34 +482,45 @@ function PlanComparisonCard() {
 function BillingActions() {
   return (
     <div className="p-6 border border-gray-800 rounded-xl bg-gray-900/70 backdrop-blur-sm">
-      <h2 className="text-xl font-bold mb-4">Manage Subscription</h2>
+      <h2 className="text-xl font-bold mb-4">Subscription Management</h2>
       
       <div className="space-y-4">
-        <SubscriptionDetailsButton>
+        <SubscriptionDetailsButton
+          onSubscriptionCancel={() => {
+            console.log('Subscription was cancelled');
+            // You could add analytics tracking or redirect here
+          }}
+        >
           <button className="w-full py-3 px-4 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-lg flex items-center justify-center hover:from-blue-700 hover:to-blue-800 transition-colors">
             <CreditCard className="h-5 w-5 mr-2" />
-            Manage Payment Methods
+            Payment & Billing
           </button>
         </SubscriptionDetailsButton>
         
-        <SubscriptionDetailsButton>
+        <SubscriptionDetailsButton
+          subscriptionDetailsProps={{
+            appearance: {
+              baseTheme: "dark"
+            }
+          }}
+        >
           <button className="w-full py-3 px-4 bg-gray-800 hover:bg-gray-700 text-white rounded-lg flex items-center justify-center transition-colors">
             <Shield className="h-5 w-5 mr-2" />
-            Billing Details
+            Subscription Details
           </button>
         </SubscriptionDetailsButton>
         
         <SubscriptionDetailsButton>
           <button className="w-full py-3 px-4 bg-gray-800 hover:bg-gray-700 text-white rounded-lg flex items-center justify-center transition-colors">
             <Gift className="h-5 w-5 mr-2" />
-            Redeem Promo Code
+            Manage Add-ons
           </button>
         </SubscriptionDetailsButton>
       </div>
       
-      <div className="mt-4 text-center">
+      <div className="mt-6 pt-4 border-t border-gray-700">
         <SubscriptionDetailsButton>
-          <button className="text-gray-400 hover:text-gray-300 text-sm">
+          <button className="text-gray-400 hover:text-red-400 text-sm transition-colors">
             Cancel Subscription
           </button>
         </SubscriptionDetailsButton>
@@ -472,63 +529,10 @@ function BillingActions() {
   );
 }
 
-function BillingHistory() {
-  // Placeholder billing history
-  const transactions = [
-    { id: 1, date: '2025-08-15', amount: '$19.99', status: 'Paid', plan: 'Premium' },
-    { id: 2, date: '2025-07-15', amount: '$19.99', status: 'Paid', plan: 'Premium' },
-    { id: 3, date: '2025-06-15', amount: '$9.99', status: 'Paid', plan: 'Standard' },
-  ];
-
-  return (
-    <div className="p-6 border border-gray-800 rounded-xl bg-gray-900/70 backdrop-blur-sm">
-      <h2 className="text-xl font-bold mb-4">Billing History</h2>
-      
-      {transactions.length > 0 ? (
-        <div className="overflow-hidden rounded-lg border border-gray-800">
-          <table className="min-w-full divide-y divide-gray-800">
-            <thead className="bg-gray-800/50">
-              <tr>
-                <th className="px-4 py-2 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Date</th>
-                <th className="px-4 py-2 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Amount</th>
-                <th className="px-4 py-2 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Status</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-800">
-              {transactions.map((transaction) => (
-                <tr key={transaction.id} className="hover:bg-gray-800/30">
-                  <td className="px-4 py-3 text-sm">
-                    {new Date(transaction.date).toLocaleDateString()}
-                  </td>
-                  <td className="px-4 py-3 text-sm">{transaction.amount}</td>
-                  <td className="px-4 py-3 text-sm">
-                    <span className="px-2 py-1 text-xs rounded-full bg-green-500/20 text-green-400">
-                      {transaction.status}
-                    </span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      ) : (
-        <div className="text-center py-6 text-gray-400">
-          No billing history available yet
-        </div>
-      )}
-      
-      <div className="mt-4 text-center">
-        <button className="text-blue-400 hover:text-blue-300 text-sm">
-          Download Invoice
-        </button>
-      </div>
-    </div>
-  );
-}
-
-// Debug component to show raw subscription data
+// Debug component showing real subscription data (no placeholder data)
 function SubscriptionDebugInfo() {
   const { data: subscription, isLoaded } = useSubscription();
+  const { user } = useUser();
   const [showDebug, setShowDebug] = useState(false);
 
   if (!isLoaded) return null;
@@ -539,16 +543,29 @@ function SubscriptionDebugInfo() {
         onClick={() => setShowDebug(!showDebug)}
         className="flex items-center justify-between w-full text-left"
       >
-        <h2 className="text-xl font-bold">Debug Info</h2>
+        <h2 className="text-xl font-bold">Debug Information</h2>
         <AlertCircle className="h-5 w-5 text-orange-400" />
       </button>
       
       {showDebug && (
         <div className="mt-4 space-y-3">
           <div className="bg-gray-800/50 p-3 rounded-lg">
-            <h3 className="text-sm font-semibold text-gray-300 mb-2">Raw Subscription Data</h3>
-            <pre className="text-xs text-gray-400 overflow-auto max-h-60">
-              {JSON.stringify(subscription, null, 2)}
+            <h3 className="text-sm font-semibold text-gray-300 mb-2">Subscription Data</h3>
+            <pre className="text-xs text-gray-400 overflow-auto max-h-40">
+              {JSON.stringify(subscription || "No subscription data", null, 2)}
+            </pre>
+          </div>
+          
+          <div className="bg-gray-800/50 p-3 rounded-lg">
+            <h3 className="text-sm font-semibold text-gray-300 mb-2">User Data</h3>
+            <pre className="text-xs text-gray-400 overflow-auto max-h-40">
+              {JSON.stringify({
+                id: user?.id,
+                email: user?.primaryEmailAddress?.emailAddress,
+                name: user?.fullName,
+                createdAt: user?.createdAt,
+                lastSignInAt: user?.lastSignInAt
+              }, null, 2)}
             </pre>
           </div>
           
@@ -556,12 +573,14 @@ function SubscriptionDebugInfo() {
             <h3 className="text-sm font-semibold text-gray-300 mb-2">Environment</h3>
             <div className="text-xs space-y-1">
               <div className="flex justify-between">
-                <span className="text-gray-400">Node Env:</span>
+                <span className="text-gray-400">Mode:</span>
                 <span className="text-white">{process.env.NODE_ENV}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-gray-400">API Base:</span>
-                <span className="text-white">{process.env.NEXT_PUBLIC_API_URL}</span>
+                <span className="text-white text-right truncate ml-2" title={process.env.NEXT_PUBLIC_API_URL}>
+                  {process.env.NEXT_PUBLIC_API_URL}
+                </span>
               </div>
             </div>
           </div>
