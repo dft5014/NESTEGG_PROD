@@ -1,6 +1,7 @@
 // pages/profile.js
 import { useState, useEffect, useContext } from "react";
-import { SignedIn, SignedOut, useUser, UserButton, PricingTable, Protect, SubscriptionDetailsButton, useSubscription, useAuth } from "@clerk/nextjs";
+import { SignedIn, SignedOut, useUser, UserButton, PricingTable, Protect, useAuth } from "@clerk/nextjs";
+import { SubscriptionDetailsButton, useSubscription } from "@clerk/nextjs/experimental";
 import { AuthContext } from "@/context/AuthContext";
 import { fetchWithAuth } from "@/utils/api";
 import Link from "next/link";
