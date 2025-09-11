@@ -124,7 +124,8 @@ async def _upsert_user_from_clerk_user(clerk_user: Dict[str, Any]) -> None:
             "clerk_id": row["clerk_id"] or clerk_id,
             "auth_provider": "clerk",
         })
-        logger.info("clerk.webhook.user.update.values", extra={"user_id": str(row["id"]), "values": {k: str(v) for k,v in values.items()}})
+        logger.info("clerk.webhook.user.update.values user_id=%s values=%s",
+            str(row["id"]), json.dumps({k: str(v) for k, v in values.items()}))
         query = users.update().where(users.c.id == row["id"]).values(**values)
         res = await database.execute(query)
         # databases.execute returns the primary key for inserts; for updates it returns lastrowid (None on PG).
@@ -148,7 +149,8 @@ async def _upsert_user_from_clerk_user(clerk_user: Dict[str, Any]) -> None:
         }
         # keep only existing columns
         insert_values = {k: v for k, v in insert_values.items() if k in existing_cols}
-        logger.info("clerk.webhook.user.insert.values", extra={"values": {k: str(v) for k,v in insert_values.items()}})
+        logger.info("clerk.webhook.user.insert.values %s",
+            json.dumps({k: str(v) for k, v in insert_values.items()}))
         await database.execute(users.insert().values(**insert_values))
         logger.info("clerk.webhook.user.created", extra={"email": email, "plan": insert_values.get("subscription_plan")})
 
