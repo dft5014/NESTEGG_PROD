@@ -124,8 +124,8 @@ async def _upsert_user_from_clerk_user(clerk_user: Dict[str, Any]) -> None:
             "clerk_id": row["clerk_id"] or clerk_id,
             "auth_provider": "clerk",
         })
-        logger.info("clerk.webhook.user.update.values user_id=%s values=%s",
-            str(row["id"]), json.dumps({k: str(v) for k, v in values.items()}))
+        logger.info("clerk.webhook.user.update.values",
+            extra={"user_id": str(row["id"]), "values": {k: str(v) for k, v in values.items()}})
         query = users.update().where(users.c.id == row["id"]).values(**values)
         res = await database.execute(query)
         # databases.execute returns the primary key for inserts; for updates it returns lastrowid (None on PG).
@@ -155,43 +155,210 @@ async def _upsert_user_from_clerk_user(clerk_user: Dict[str, Any]) -> None:
         logger.info("clerk.webhook.user.created", extra={"email": email, "plan": insert_values.get("subscription_plan")})
 
 
-async def _sync_subscription_to_user(sub: Dict[str, Any]) -> None:
+async def _sync_subscription_to_user(data: Dict[str, Any]):
     """
-    Mirror Clerk Billing subscription events to users.subscription_plan.
-    Shapes differ by billing provider; extract defensively.
+    Mirror Clerk Billing subscription changes into our users table.
+
+    Expected Clerk payload shape (commerce):
+      data:
+        status: "active" | "canceled" | ...
+        items: [ { status, plan: { slug, name, id, ... }, ... }, ... ]
+        payer: { user_id, email, ... }
     """
-    clerk_user_id = sub.get("user_id") or sub.get("user") or sub.get("owner_id")
+    # 1) Resolve the Clerk user id (commerce puts it under payer.user_id)
+    clerk_user_id = (
+        data.get("user_id")
+        or data.get("owner_id")
+        or (data.get("payer") or {}).get("user_id")
+    )
     if not clerk_user_id:
         logger.info("clerk.webhook.subscription.skip_no_user")
         return
 
-    # Try several common locations for a product/plan identifier
-    plan = (
-        sub.get("plan") or
-        (sub.get("price") or {}).get("product") or
-        (sub.get("items") or [{}])[0].get("price", {}).get("product") or
-        (sub.get("product") or {}).get("name") or
-        (sub.get("data") or {}).get("plan")  # some test payloads
-    )
-    status = sub.get("status")
+    # 2) Pick the active item; if none, pick the most recently updated item
+    items = data.get("items") or []
+    active_item = next((i for i in items if (i.get("status") or "").lower() == "active"), None)
+    if not active_item and items:
+        active_item = max(items, key=lambda i: i.get("updated_at") or 0)
 
+    plan_slug = None
+    plan_name = None
+    if active_item:
+        plan = active_item.get("plan") or {}
+        plan_slug = plan.get("slug")
+        plan_name = plan.get("name")
+
+    # Fallback: if we still don't have a slug, derive one from the name
+    if not plan_slug and plan_name:
+        plan_slug = plan_name.strip().lower().replace(" ", "_")
+
+    # 3) Optionally capture overall subscription status too
+    sub_status = (data.get("status") or "").lower()  # e.g., active, canceled, past_due
+
+    # 4) Update our user row
     row = await database.fetch_one(users.select().where(users.c.clerk_id == clerk_user_id))
     if not row:
-        logger.info("clerk.webhook.subscription.no_user_yet", extra={"clerk_id": clerk_user_id})
+        logger.info("clerk.webhook.subscription.no_user_yet clerk_id=%s", clerk_user_id)
         return
 
-    vals = {}
-    if plan and "subscription_plan" in set(users.c.keys()):
-        vals["subscription_plan"] = str(plan)
+    update_vals = {}
+    if plan_slug:
+        update_vals["subscription_plan"] = plan_slug  # e.g., "nestegg_pro", "basic"
+    # If you later add a column like users.subscription_status, set it here:
+    # if "subscription_status" in users.c.keys():
+    #     update_vals["subscription_status"] = sub_status
 
-    if not vals:
-        logger.info("clerk.webhook.subscription.noop", extra={"user_id": str(row["id"]), "status": status})
+    if update_vals:
+        await database.execute(users.update().where(users.c.id == row["id"]).values(**update_vals))
+        logger.info(
+            "clerk.webhook.subscription.updated user_id=%s plan=%s status=%s",
+            str(row["id"]), plan_slug, sub_status
+        )
+    else:
+        logger.info(
+            "clerk.webhook.subscription.noop user_id=%s (no plan to write)",
+            str(row["id"])
+        )
+
+
+# --- sessions: created/updated/ended ---
+async def _handle_session_created(db, payload):
+    s = payload["data"]
+    act = (s.get("latest_activity") or {})
+    clerk_session_id = s["id"]
+    clerk_user_id = s["user_id"]
+    # Resolve our user_id via clerk_id
+    user_row = await db.fetch_one(
+        "SELECT id FROM users WHERE clerk_id = :clerk_user_id",
+        {"clerk_user_id": clerk_user_id}
+    )
+    if not user_row:
+        # (optional) create/link user here or log and exit
         return
 
-    logger.info("clerk.webhook.subscription.update.values", extra={"user_id": str(row["id"]), "vals": vals, "status": status})
-    await database.execute(users.update().where(users.c.id == row["id"]).values(**vals))
-    chk = await database.fetch_one(users.select().where(users.c.id == row["id"]))
-    logger.info("clerk.webhook.subscription.updated", extra={"user_id": str(row["id"]), "plan": chk["subscription_plan"], "status": status})
+    fields = {
+        "clerk_session_id": clerk_session_id,
+        "clerk_user_id": clerk_user_id,
+        "user_id": user_row["id"],
+        "status": s.get("status", "active"),
+        "started_at": _ts_to_tz(s.get("created_at")),
+        "last_active_at": _ts_to_tz(s.get("last_active_at")),
+        "device_type": act.get("device_type"),
+        "is_mobile": act.get("is_mobile"),
+        "browser_name": act.get("browser_name"),
+        "browser_version": act.get("browser_version"),
+        "city": act.get("city"),
+        "country": act.get("country"),
+        # Some events omit IP or include IPv6/Private; let Postgres INET handle it if present.
+        "ip_address": (payload.get("event_attributes", {}).get("http_request", {}) or {}).get("client_ip"),
+        "user_agent": payload.get("event_attributes", {}).get("http_request", {}).get("user_agent"),
+        "client_id": s.get("client_id"),
+        "raw": json.dumps(payload)
+    }
+
+    # Upsert session
+    await db.execute("""
+        INSERT INTO user_sessions
+        (clerk_session_id, clerk_user_id, user_id, status, started_at, last_active_at,
+         device_type, is_mobile, browser_name, browser_version, city, country, ip_address,
+         user_agent, client_id, raw)
+        VALUES
+        (:clerk_session_id, :clerk_user_id, :user_id, :status, :started_at, :last_active_at,
+         :device_type, :is_mobile, :browser_name, :browser_version, :city, :country, :ip_address,
+         :user_agent, :client_id, CAST(:raw AS JSONB))
+        ON CONFLICT (clerk_session_id) DO UPDATE SET
+          status = EXCLUDED.status,
+          last_active_at = EXCLUDED.last_active_at,
+          device_type = EXCLUDED.device_type,
+          is_mobile = EXCLUDED.is_mobile,
+          browser_name = EXCLUDED.browser_name,
+          browser_version = EXCLUDED.browser_version,
+          city = EXCLUDED.city,
+          country = EXCLUDED.country,
+          ip_address = EXCLUDED.ip_address,
+          user_agent = EXCLUDED.user_agent,
+          client_id = EXCLUDED.client_id,
+          raw = EXCLUDED.raw,
+          updated_at = now();
+    """, fields)
+
+    # Update denormalized user columns + login_count
+    await db.execute("""
+        UPDATE users
+           SET last_login_at = :last_login_at,
+               last_login_ip = :last_login_ip::inet,
+               last_login_city = :last_login_city,
+               last_login_country = :last_login_country,
+               last_login_device = :last_login_device,
+               last_login_browser = :last_login_browser,
+               login_count = COALESCE(login_count, 0) + 1
+         WHERE id = :user_id;
+    """, {
+        "last_login_at": fields["last_active_at"] or fields["started_at"],
+        "last_login_ip": fields["ip_address"],
+        "last_login_city": fields["city"],
+        "last_login_country": fields["country"],
+        "last_login_device": fields["device_type"],
+        "last_login_browser": " ".join(filter(None, [fields["browser_name"], fields["browser_version"]])),
+        "user_id": fields["user_id"]
+    })
+
+async def _handle_session_updated(db, payload):
+    s = payload["data"]; act = (s.get("latest_activity") or {})
+    await db.execute("""
+        UPDATE user_sessions
+           SET status = COALESCE(:status, status),
+               last_active_at = COALESCE(:last_active_at, last_active_at),
+               device_type = COALESCE(:device_type, device_type),
+               is_mobile = COALESCE(:is_mobile, is_mobile),
+               browser_name = COALESCE(:browser_name, browser_name),
+               browser_version = COALESCE(:browser_version, browser_version),
+               city = COALESCE(:city, city),
+               country = COALESCE(:country, country),
+               ip_address = COALESCE(:ip_address::inet, ip_address),
+               user_agent = COALESCE(:user_agent, user_agent),
+               raw = CAST(:raw AS JSONB),
+               updated_at = now()
+         WHERE clerk_session_id = :clerk_session_id
+    """, {
+        "status": s.get("status"),
+        "last_active_at": _ts_to_tz(s.get("last_active_at")),
+        "device_type": act.get("device_type"),
+        "is_mobile": act.get("is_mobile"),
+        "browser_name": act.get("browser_name"),
+        "browser_version": act.get("browser_version"),
+        "city": act.get("city"),
+        "country": act.get("country"),
+        "ip_address": (payload.get("event_attributes", {}).get("http_request", {}) or {}).get("client_ip"),
+        "user_agent": payload.get("event_attributes", {}).get("http_request", {}).get("user_agent"),
+        "raw": json.dumps(payload),
+        "clerk_session_id": s["id"]
+    })
+
+async def _handle_session_ended(db, payload):
+    s = payload["data"]
+    await db.execute("""
+        UPDATE user_sessions
+           SET status = :status,
+               ended_at = COALESCE(:ended_at, now()),
+               updated_at = now()
+         WHERE clerk_session_id = :clerk_session_id
+    """, {
+        "status": s.get("status", "ended"),
+        "ended_at": _ts_to_tz(s.get("updated_at")),
+        "clerk_session_id": s["id"]
+    })
+
+def _ts_to_tz(ms_or_s):
+    if ms_or_s is None:
+        return None
+    # Clerk samples sometimes provide ms epoch; your sample shows ms in nested fields and seconds in `timestamp`
+    import datetime as dt
+    x = int(ms_or_s)
+    # Heuristic: treat > 10^12 as ms
+    if x > 10**12:
+        return dt.datetime.utcfromtimestamp(x / 1000.0)
+    return dt.datetime.utcfromtimestamp(x)
 
 
 @router.post("/webhooks/clerk")
@@ -205,19 +372,31 @@ async def clerk_webhook(request: Request):
         logger.exception("clerk.webhook.bad_payload.json_decode")
         raise HTTPException(status_code=400, detail="Bad payload")
 
-    etype = payload.get("type")
+    etype = (payload.get("type") or "").strip()
     data: Dict[str, Any] = payload.get("data") or {}
     logger.info("clerk.webhook.received", extra={"type": etype})
 
+    # --- Users ---
     if etype in ("user.created", "user.updated"):
         await _upsert_user_from_clerk_user(data)
         return {"ok": True}
 
-    if etype in (
-        "subscription.created", "subscription.updated", "subscription.deleted",
-        "subscription.paused", "subscription.resumed", "subscription.canceled", "subscription.active"
-    ):
+    # --- Subscriptions (Clerk Billing / Commerce) ---
+    if etype.startswith("subscription."):
         await _sync_subscription_to_user(data)
+        return {"ok": True}
+
+    # --- Sessions ---
+    if etype in ("session.created", "session.created_web"):
+        await _handle_session_created(database, payload)   # pass full payload (we need event_attributes)
+        return {"ok": True}
+
+    if etype in ("session.updated", "session.activity", "session.activity_recorded"):
+        await _handle_session_updated(database, payload)
+        return {"ok": True}
+
+    if etype in ("session.ended", "session.removed", "session.revoked"):
+        await _handle_session_ended(database, payload)
         return {"ok": True}
 
     logger.info("clerk.webhook.ignored", extra={"type": etype})

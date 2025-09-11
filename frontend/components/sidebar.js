@@ -7,12 +7,15 @@ import {
 } from 'lucide-react';
 import { useContext, useState, useEffect, useRef } from 'react';
 import { AuthContext } from '@/context/AuthContext';
+import { UserButton, UserProfile, useUser } from '@clerk/nextjs';
 import { useRouter } from 'next/router';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useSidebar } from '@/pages/_app';
 
 const Sidebar = () => {
-  const { logout, user } = useContext(AuthContext);
+  const { logout, user: authUser } = useContext(AuthContext);
+  const { user: clerkUser, isLoaded: clerkLoaded } = useUser();
+  const user = clerkUser || authUser; // Prefer Clerk user if available
   const { sidebarCollapsed, setSidebarCollapsed } = useSidebar();
   const [hoveredItem, setHoveredItem] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -340,155 +343,100 @@ const Sidebar = () => {
 
         {/* Footer: User dropdown + Logout */}
         <div className="border-t border-gray-800/50 p-2 relative">
-          {/* User dropdown trigger (replaces Settings) */}
-          <div ref={userMenuRef} className="mb-1">
-            <motion.button
-              whileHover={{ x: sidebarCollapsed ? 0 : 4 }} whileTap={{ scale: 0.98 }}
-              onClick={() => setUserMenuOpen((o) => !o)}
-              onMouseEnter={() => setHoveredItem('user-menu')}
-              onMouseLeave={() => setHoveredItem(null)}
-              className={`
-                w-full flex items-center gap-3 p-3 rounded-lg
-                hover:bg-gray-800/50 text-gray-300 hover:text-white
-                transition-all duration-200 group relative
-                ${sidebarCollapsed ? 'justify-center' : 'justify-between'}
-              `}
-              aria-haspopup="menu"
-              aria-expanded={userMenuOpen}
-            >
+
+
+        {/* Clerk UserButton Integration */}
+        <div className="mb-1 relative">
+          <motion.div
+            whileHover={{ x: sidebarCollapsed ? 0 : 4 }}
+            whileTap={{ scale: 0.98 }}
+            onMouseEnter={() => setHoveredItem('user-menu')}
+            onMouseLeave={() => setHoveredItem(null)}
+            className={`
+              p-3 rounded-lg
+              transition-all duration-200 group
+              ${sidebarCollapsed ? 'flex justify-center' : ''}
+            `}
+          >
+            <div className={`flex items-center ${!sidebarCollapsed ? 'w-full justify-between' : ''}`}>
               <div className="flex items-center gap-3">
-                {/* Avatar */}
-                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-purple-600
-                                flex items-center justify-center text-white font-semibold">
-                  {getInitials()}
-                </div>
+                <UserButton
+                  afterSignOutUrl="/"
+                  appearance={{
+                    baseTheme: "dark",
+                    elements: {
+                      userButtonAvatarBox: "w-8 h-8",
+                      userButtonPopoverCard: "bg-gray-900 border border-gray-800",
+                      userButtonPopoverActionButton: "text-gray-100 hover:bg-gray-800",
+                    },
+                  }}
+                />
+                
                 {!sidebarCollapsed && (
                   <div className="flex flex-col text-left">
-                    <span className="text-sm font-medium">{user?.first_name && user?.last_name
-                      ? `${user.first_name} ${user.last_name}` : (user?.email || 'User')}</span>
+                    <span className="text-sm font-medium">
+                      {user?.first_name && user?.last_name
+                        ? `${user.first_name} ${user.last_name}`
+                        : (user?.email || 'User')}
+                    </span>
                     <span className="text-[11px] text-gray-400">Account</span>
                   </div>
                 )}
               </div>
-              {!sidebarCollapsed && <ChevronDown className={`w-4 h-4 ${userMenuOpen ? 'rotate-180' : ''} transition-transform`} />}
+            </div>
 
-              {/* Tooltip when collapsed */}
-              {sidebarCollapsed && hoveredItem === 'user-menu' && (
-                <motion.div
-                  initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }}
-                  className="absolute left-20 ml-2 px-3 py-2 bg-gray-800 rounded-lg shadow-xl
-                             border border-gray-700 whitespace-nowrap z-50"
-                >
-                  <p className="text-sm font-medium">Account</p>
-                  <p className="text-xs text-gray-400 mt-1">{user?.email}</p>
-                </motion.div>
-              )}
-            </motion.button>
-
-            {/* Dropdown (expanded = in-rail, collapsed = floating popover to the right) */}
-            <AnimatePresence>
-              {userMenuOpen && (
-                <>
-                  {/* Backdrop for collapsed state to catch outside clicks */}
-                  {sidebarCollapsed && (
-                    <motion.div
-                      initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-                      className="fixed inset-0 z-[999]"
-                      onClick={() => setUserMenuOpen(false)}
-                    />
-                  )}
-
-                  <motion.div
-                    initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 8 }}
-                    className={
-                      sidebarCollapsed
-                        ? // Collapsed: float next to the rail (~5rem wide rail => left-20)
-                          "fixed z-[1000] left-20 bottom-20 w-72 bg-gray-850/95 backdrop-blur rounded-lg " +
-                          "border border-gray-700 shadow-2xl overflow-hidden"
-                        : // Expanded: keep inside the rail
-                          "absolute z-50 left-2 right-2 bottom-16 bg-gray-850/95 backdrop-blur rounded-lg " +
-                          "border border-gray-700 shadow-2xl overflow-hidden"
-                    }
-                    role="menu"
-                  >
-                    {/* Header */}
-                    <div className="px-4 py-3 bg-gradient-to-r from-blue-600/20 to-purple-600/20 border-b border-gray-700">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-600
-                                        flex items-center justify-center text-white font-semibold">
-                          {getInitials()}
-                        </div>
-                        <div className="min-w-0">
-                          <div className="text-sm font-semibold truncate">
-                            {user?.first_name && user?.last_name ? `${user.first_name} ${user.last_name}` : (user?.email || 'User')}
-                          </div>
-                          {user?.email && <div className="text-xs text-gray-400 truncate">{user.email}</div>}
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Items */}
-                    <div className="py-1">
-                      <Link href="/profile">
-                        <div className="flex items-center gap-3 px-4 py-2 hover:bg-gray-800/60 cursor-pointer">
-                          <User className="w-4 h-4" /><span className="text-sm">Profile</span>
-                        </div>
-                      </Link>
-                      <Link href="/admin">
-                        <div className="flex items-center gap-3 px-4 py-2 hover:bg-gray-800/60 cursor-pointer">
-                          <Shield className="w-4 h-4" /><span className="text-sm">Admin Panel</span>
-                        </div>
-                      </Link>
-                      <Link href="/settings">
-                        <div className="flex items-center gap-3 px-4 py-2 hover:bg-gray-800/60 cursor-pointer">
-                          <Settings className="w-4 h-4" /><span className="text-sm">Settings</span>
-                        </div>
-                      </Link>
-                      <Link href="/scheduler">
-                        <div className="flex items-center gap-3 px-4 py-2 hover:bg-gray-800/60 cursor-pointer">
-                          <Clock className="w-4 h-4" /><span className="text-sm">Scheduler</span>
-                        </div>
-                      </Link>
-                      <Link href="/help">
-                        <div className="flex items-center gap-3 px-4 py-2 hover:bg-gray-800/60 cursor-pointer">
-                          <HelpCircle className="w-4 h-4" /><span className="text-sm">Help & Support</span>
-                        </div>
-                      </Link>
-                    </div>
-                  </motion.div>
-                </>
-              )}
-            </AnimatePresence>
-
-          </div>
-
-          {/* Logout */}
-          <motion.button
-            whileHover={{ x: sidebarCollapsed ? 0 : 4 }} whileTap={{ scale: 0.98 }}
-            onClick={logout}
-            onMouseEnter={() => setHoveredItem('logout')}
-            onMouseLeave={() => setHoveredItem(null)}
-            className={`
-              w-full flex items-center gap-3 p-3 rounded-lg
-              hover:bg-red-500/10 text-gray-300 hover:text-red-400
-              transition-all duration-200 group relative
-              ${sidebarCollapsed ? 'justify-center' : ''}
-            `}
-          >
-            <LogOut className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
-            {!sidebarCollapsed && <span className="font-medium">Logout</span>}
-
-            {sidebarCollapsed && hoveredItem === 'logout' && (
+            {/* Tooltip when collapsed */}
+            {sidebarCollapsed && hoveredItem === 'user-menu' && (
               <motion.div
-                initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }}
+                initial={{ opacity: 0, x: -10 }}
+                animate={{ opacity: 1, x: 0 }}
                 className="absolute left-20 ml-2 px-3 py-2 bg-gray-800 rounded-lg shadow-xl
-                           border border-gray-700 whitespace-nowrap z-50"
+                          border border-gray-700 whitespace-nowrap z-50"
               >
-                <p className="text-sm font-medium">Logout</p>
-                <p className="text-xs text-gray-400 mt-1">Sign out of NestEgg</p>
+                <p className="text-sm font-medium">Account</p>
+                <p className="text-xs text-gray-400 mt-1">{user?.email}</p>
               </motion.div>
             )}
-          </motion.button>
+          </motion.div>
+        </div>
+
+          {/* Logout */}
+         <motion.button
+          whileHover={{ x: sidebarCollapsed ? 0 : 4 }} whileTap={{ scale: 0.98 }}
+          onClick={() => {
+            // Use Clerk logout if available, otherwise fall back to the original logout function
+            if (window.Clerk && typeof window.Clerk.signOut === 'function') {
+              window.Clerk.signOut();
+              localStorage.removeItem('token'); // Clear NestEgg token too
+            } else {
+              logout();
+            }
+          }}
+          onMouseEnter={() => setHoveredItem('logout')}
+          onMouseLeave={() => setHoveredItem(null)}
+          className={`
+            w-full flex items-center gap-3 p-3 rounded-lg
+            hover:bg-red-500/10 text-gray-300 hover:text-red-400
+            transition-all duration-200 group relative
+            ${sidebarCollapsed ? 'justify-center' : ''}
+          `}
+        >
+          <LogOut className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+          {!sidebarCollapsed && <span className="font-medium">Logout</span>}
+
+          {sidebarCollapsed && hoveredItem === 'logout' && (
+            <motion.div
+              initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }}
+              className="absolute left-20 ml-2 px-3 py-2 bg-gray-800 rounded-lg shadow-xl
+                        border border-gray-700 whitespace-nowrap z-50"
+            >
+              <p className="text-sm font-medium">Logout</p>
+              <p className="text-xs text-gray-400 mt-1">Sign out of NestEgg</p>
+            </motion.div>
+          )}
+        </motion.button>
+
+        
         </div>
       </motion.aside>
     </>
