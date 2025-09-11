@@ -95,19 +95,19 @@ export default function App({ Component, pageProps }) {
         },
         elements: {
           formButtonPrimary: 
-            "bg-blue-600 hover:bg-blue-700 text-white transition-colors",
+            "bg-blue-600 hover:bg-blue-700 text-white transition-colors text-base px-6 py-3",
           card: 
-            "bg-gray-900/70 backdrop-blur-sm border-gray-800 shadow-xl",
+            "bg-gray-900/70 backdrop-blur-sm border-gray-800 shadow-xl min-w-[400px] p-8",
           headerTitle: 
-            "text-gray-100",
+            "text-gray-100 text-2xl font-bold",
           headerSubtitle: 
-            "text-gray-400",
+            "text-gray-400 text-base",
           socialButtonsBlockButton: 
             "bg-gray-800 border-gray-700 text-gray-100 hover:bg-gray-700 transition-colors",
           formFieldInput: 
-            "bg-gray-800 border-gray-600 text-gray-100 focus:border-blue-500 focus:ring-blue-500/20",
+            "bg-gray-800 border-gray-600 text-gray-100 focus:border-blue-500 focus:ring-blue-500/20 text-base py-3 px-4",
           formFieldLabel: 
-            "text-gray-300",
+            "text-gray-300 text-base font-medium",
           footerActionLink: 
             "text-blue-400 hover:text-blue-300 transition-colors",
           userButtonAvatarBox: 
