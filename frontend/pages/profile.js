@@ -1,40 +1,99 @@
 // pages/profile.js
-import { useState, useEffect, useContext } from "react";
-import { SignedIn, SignedOut, useUser, UserButton, PricingTable, Protect, useAuth } from "@clerk/nextjs";
+import { useState, useEffect, useContext, useMemo } from "react";
+import Link from "next/link";
+import {
+  SignedIn,
+  SignedOut,
+  useUser,
+  useAuth,
+  UserButton,
+  UserProfile,
+  Protect,
+} from "@clerk/nextjs";
 import { SubscriptionDetailsButton, useSubscription } from "@clerk/nextjs/experimental";
 import { AuthContext } from "@/context/AuthContext";
 import { fetchWithAuth } from "@/utils/api";
-import Link from "next/link";
-import { 
-  User, 
-  Mail, 
-  Calendar, 
-  Shield, 
-  Award, 
-  CheckCircle, 
-  Clock, 
+
+// Optional: useTheme if your app has next-themes installed. We also provide a no-lib fallback.
+let useTheme;
+try {
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  useTheme = require("next-themes").useTheme;
+} catch (_) {
+  useTheme = null;
+}
+
+import {
+  User,
+  Mail,
+  Calendar,
+  Shield,
+  Award,
+  CheckCircle,
+  Clock,
   PiggyBank,
   Lock,
   Edit,
   Save,
   X,
-  Eye,
-  EyeOff,
   CreditCard,
   Bell,
-  Settings,
-  AlertTriangle,
+  Settings as SettingsIcon,
   ArrowRight,
   Zap,
-  Gift,
   Crown,
-  Star,
   Sparkles,
-  Download,
-  Building,
-  TrendingUp,
-  AlertCircle
+  TerminalSquare,
+  Monitor,
+  Moon,
+  Sun,
+  Smartphone,
+  Cpu,
+  Globe,
+  LogOut,
 } from "lucide-react";
+
+/** ----------------------------
+ *  Helpers & tiny UI atoms
+ *  ---------------------------- */
+const Section = ({ title, icon: Icon, children, right }) => (
+  <div className="bg-gray-900/70 backdrop-blur-sm rounded-xl border border-gray-800 overflow-hidden">
+    <div className="px-6 py-4 border-b border-gray-700 flex items-center justify-between">
+      <h3 className="text-lg font-semibold text-gray-100 flex items-center">
+        {Icon && <Icon className="h-5 w-5 mr-2 text-blue-400" />}
+        {title}
+      </h3>
+      {right}
+    </div>
+    <div className="p-6">{children}</div>
+  </div>
+);
+
+const LoadingScreen = () => (
+  <div className="min-h-screen bg-gray-950 flex justify-center items-center">
+    <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500" />
+  </div>
+);
+
+const InfoRow = ({ label, value }) => (
+  <div className="flex justify-between">
+    <span className="text-sm text-gray-400">{label}</span>
+    <span className="text-sm font-medium text-gray-300">{value ?? "—"}</span>
+  </div>
+);
+
+const Badge = ({ children, tone = "blue" }) => {
+  const tones = {
+    blue: "bg-blue-500/20 text-blue-300 border-blue-500/30",
+    green: "bg-green-500/20 text-green-300 border-green-500/30",
+    purple: "bg-purple-500/20 text-purple-300 border-purple-500/30",
+    yellow: "bg-yellow-500/20 text-yellow-300 border-yellow-500/30",
+    gray: "bg-gray-500/20 text-gray-300 border-gray-500/30",
+  };
+  return (
+    <span className={`px-3 py-1 text-sm rounded-full border ${tones[tone]}`}>{children}</span>
+  );
+};
 
 export default function ProfilePage() {
   return <ProfileContent />;
@@ -44,23 +103,35 @@ function ProfileContent() {
   const { isSignedIn, user } = useUser();
   const { has } = useAuth();
   const { data: subscription, isLoaded: subscriptionLoaded } = useSubscription();
-  const { user: contextUser, setUser } = useContext(AuthContext);
-  
-  // Core state management
+  const { user: ctxUser, setUser } = useContext(AuthContext);
+
+  // Tabs
+  const TABS = useMemo(
+    () => [
+      { id: "profile", label: "Profile", icon: User },
+      { id: "subscription", label: "Subscription & Billing", icon: CreditCard },
+      { id: "security", label: "Security", icon: Shield },
+      { id: "notifications", label: "Notifications", icon: Bell },
+      { id: "activity", label: "Activity", icon: Clock },
+      { id: "settings", label: "Settings", icon: SettingsIcon },
+      { id: "sessions", label: "Sessions", icon: Monitor },
+      { id: "developer", label: "Developer", icon: TerminalSquare },
+    ],
+    []
+  );
+
+  // Core UI state
+  const [active, setActive] = useState("profile");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState(null);
-  const [successMessage, setSuccessMessage] = useState("");
-  const [activeSection, setActiveSection] = useState("profile");
-  
-  // Profile data state
+  const [error, setError] = useState("");
+  const [ok, setOk] = useState("");
+
+  // Profile data
   const [memberSince, setMemberSince] = useState(null);
   const [daysAsMember, setDaysAsMember] = useState(0);
-  const [passwordVisible, setPasswordVisible] = useState(false);
   const [accountStats, setAccountStats] = useState(null);
   const [editMode, setEditMode] = useState(false);
-  
-  // Profile form data
   const [profileData, setProfileData] = useState({
     firstName: "",
     lastName: "",
@@ -73,131 +144,130 @@ function ProfileContent() {
     state: "",
     zipCode: "",
     country: "",
-    bio: ""
+    bio: "",
   });
-  
-  // Password change data
-  const [passwordData, setPasswordData] = useState({
-    currentPassword: "",
-    newPassword: "",
-    confirmPassword: ""
-  });
-  
-  // Notification preferences
+
+  // Notifications
   const [notifications, setNotifications] = useState({
     emailUpdates: true,
     marketAlerts: true,
     performanceReports: true,
     securityAlerts: true,
-    newsletterUpdates: false
+    newsletterUpdates: false,
   });
-  
-  // Activity log
+
+  // Activity
   const [activityLog, setActivityLog] = useState([]);
-  
-  // Feature access state
+
+  // Feature gates & plans
+  const FEATURE_KEYS = [
+    "ai_assistant",
+    "advanced_analytics",
+    "real_estate_tracking",
+    "api_access",
+    "priority_support",
+    "unlimited_accounts",
+    "csv_export",
+    "historical_data",
+    "custom_reports",
+    "white_label",
+  ];
+  const PLAN_KEYS = ["free", "basic", "standard", "pro", "premium", "enterprise"];
   const [features, setFeatures] = useState({});
   const [plans, setPlans] = useState({});
 
-  // Initialize data on mount
+  // Theme (with graceful fallback)
+  const themeHook = useTheme ? useTheme() : null;
+  const [localTheme, setLocalTheme] = useState("system");
+
+  const getTheme = () => (themeHook ? themeHook.theme : localTheme);
+  const setTheme = (next) => {
+    if (themeHook?.setTheme) {
+      themeHook.setTheme(next);
+    } else {
+      // basic fallback using html class + localStorage
+      if (next === "dark") {
+        document.documentElement.classList.add("dark");
+        localStorage.setItem("theme", "dark");
+      } else if (next === "light") {
+        document.documentElement.classList.remove("dark");
+        localStorage.setItem("theme", "light");
+      } else {
+        localStorage.removeItem("theme");
+        // leave as-is; browser/OS controls prefer-color-scheme
+      }
+      setLocalTheme(next);
+    }
+  };
+
+  // Init
   useEffect(() => {
     if (isSignedIn && user) {
-      fetchProfileData();
-      checkFeatureAccess();
+      bootstrap();
     } else {
       setLoading(false);
     }
-  }, [isSignedIn, user, subscription]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isSignedIn, user, subscriptionLoaded]);
 
-  // Check feature access using Clerk's has() helper
-  const checkFeatureAccess = () => {
-    const testFeatures = [
-      'ai_assistant',
-      'advanced_analytics', 
-      'real_estate_tracking',
-      'api_access',
-      'priority_support',
-      'unlimited_accounts',
-      'csv_export',
-      'historical_data',
-      'custom_reports',
-      'white_label'
-    ];
-
-    const testPlans = [
-      'free',
-      'basic',
-      'standard', 
-      'premium',
-      'pro',
-      'enterprise'
-    ];
-
-    const featureResults = {};
-    const planResults = {};
-
-    testFeatures.forEach(feature => {
-      try {
-        featureResults[feature] = has({ feature });
-      } catch (error) {
-        featureResults[feature] = false;
-      }
-    });
-
-    testPlans.forEach(plan => {
-      try {
-        planResults[plan] = has({ plan });
-      } catch (error) {
-        planResults[plan] = false;
-      }
-    });
-
-    setFeatures(featureResults);
-    setPlans(planResults);
-  };
-
-  // Fetch profile data from API
-  const fetchProfileData = async () => {
+  const bootstrap = async () => {
     setLoading(true);
     try {
-      const response = await fetchWithAuth('/user/profile');
-      
-      if (response.ok) {
-        const userData = await response.json();
-        
-        // Calculate membership duration
-        const createdDate = new Date(userData.created_at || Date.now() - 60 * 24 * 60 * 60 * 1000);
-        const today = new Date();
-        const diffTime = Math.abs(today - createdDate);
-        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-        
-        setMemberSince(createdDate);
-        setDaysAsMember(diffDays);
-        
-        // Set profile data
+      await Promise.all([fetchProfile(), fetchStats(), fetchEvents()]);
+      computeFeatureAccess();
+    } catch (e) {
+      setError(e?.message ?? "Failed to initialize profile.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const computeFeatureAccess = () => {
+    const f = {};
+    const p = {};
+    FEATURE_KEYS.forEach((key) => {
+      try {
+        f[key] = has({ feature: key });
+      } catch {
+        f[key] = false;
+      }
+    });
+    PLAN_KEYS.forEach((key) => {
+      try {
+        p[key] = has({ plan: key });
+      } catch {
+        p[key] = false;
+      }
+    });
+    setFeatures(f);
+    setPlans(p);
+  };
+
+  const fetchProfile = async () => {
+    try {
+      const res = await fetchWithAuth("/user/profile");
+      if (res.ok) {
+        const data = await res.json();
+        const created = new Date(data.created_at || user?.createdAt || Date.now());
+        setMemberSince(created);
+        setDaysAsMember(Math.max(1, Math.ceil((Date.now() - created.getTime()) / 86400000)));
         setProfileData({
-          firstName: userData.first_name || user?.firstName || "",
-          lastName: userData.last_name || user?.lastName || "",
-          email: userData.email || user?.primaryEmailAddress?.emailAddress || "",
-          phone: userData.phone || "",
-          occupation: userData.occupation || "",
-          dateOfBirth: userData.date_of_birth || "",
-          address: userData.address || "",
-          city: userData.city || "",
-          state: userData.state || "",
-          zipCode: userData.zip_code || "",
-          country: userData.country || "",
-          bio: userData.bio || ""
+          firstName: data.first_name || user?.firstName || "",
+          lastName: data.last_name || user?.lastName || "",
+          email: data.email || user?.primaryEmailAddress?.emailAddress || "",
+          phone: data.phone || "",
+          occupation: data.occupation || "",
+          dateOfBirth: data.date_of_birth || "",
+          address: data.address || "",
+          city: data.city || "",
+          state: data.state || "",
+          zipCode: data.zip_code || "",
+          country: data.country || "",
+          bio: data.bio || "",
         });
-        
-        if (userData.notification_preferences) {
-          setNotifications(userData.notification_preferences);
-        }
-        
-        fetchAccountStats();
-        fetchActivityLog();
+        if (data.notification_preferences) setNotifications(data.notification_preferences);
       } else {
-        // Fallback to Clerk user data
+        // fallback to Clerk
         setProfileData({
           firstName: user?.firstName || "",
           lastName: user?.lastName || "",
@@ -210,88 +280,74 @@ function ProfileContent() {
           state: "",
           zipCode: "",
           country: "",
-          bio: ""
+          bio: "",
         });
-        
-        const defaultCreatedDate = new Date(user?.createdAt || Date.now() - 30 * 24 * 60 * 60 * 1000);
-        setMemberSince(defaultCreatedDate);
-        setDaysAsMember(30);
+        const created = new Date(user?.createdAt || Date.now());
+        setMemberSince(created);
+        setDaysAsMember(Math.max(1, Math.ceil((Date.now() - created.getTime()) / 86400000)));
       }
-    } catch (err) {
-      setError("Failed to load profile data: " + err.message);
-    } finally {
-      setLoading(false);
+    } catch (e) {
+      setError("Failed to load profile data.");
     }
   };
 
-  // Fetch account statistics
-  const fetchAccountStats = async () => {
+  const fetchStats = async () => {
     try {
-      const response = await fetchWithAuth('/portfolio/summary');
-      
-      if (response.ok) {
-        const summaryData = await response.json();
+      const res = await fetchWithAuth("/portfolio/summary");
+      if (res.ok) {
+        const s = await res.json();
         setAccountStats({
           lastLogin: new Date().toLocaleString(),
-          loginStreak: Math.floor(Math.random() * 20) + 1,
-          priceUpdates: summaryData.last_price_update ? "Real-time" : "Daily",
-          storageUsage: `${Math.floor(Math.random() * 100)} MB / 5 GB`,
-          portfolioUpdates: summaryData.positions_count || 0,
-          totalAccounts: summaryData.accounts_count || 0,
-          totalPositions: summaryData.positions_count || 0
+          loginStreak: Math.floor(Math.random() * 10) + 1,
+          priceUpdates: s?.last_price_update ? "Real-time" : "Daily",
+          totalAccounts: s?.accounts_count ?? 0,
+          totalPositions: s?.positions_count ?? 0,
+        });
+      } else {
+        setAccountStats({
+          lastLogin: new Date().toLocaleString(),
+          loginStreak: 1,
+          priceUpdates: "Daily",
+          totalAccounts: 0,
+          totalPositions: 0,
         });
       }
-    } catch (err) {
-      console.error("Error fetching account stats:", err);
+    } catch {
+      setAccountStats({
+        lastLogin: new Date().toLocaleString(),
+        loginStreak: 1,
+        priceUpdates: "Daily",
+        totalAccounts: 0,
+        totalPositions: 0,
+      });
     }
   };
 
-  // Fetch activity log
-  const fetchActivityLog = async () => {
+  const fetchEvents = async () => {
     try {
-      const response = await fetchWithAuth('/system/events?limit=5');
-      
-      if (response.ok) {
-        const eventsData = await response.json();
-        
-        if (eventsData?.events?.length > 0) {
-          const mappedEvents = eventsData.events.map(event => ({
-            action: event.event_type.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
-            date: event.started_at,
-            details: event.status === 'failed' 
-              ? `Failed: ${event.error_message || 'Unknown error'}`
-              : `Status: ${event.status || 'unknown'}`,
-            icon: getEventIcon(event.event_type)
-          }));
-          
-          setActivityLog(mappedEvents);
-          return;
-        }
+      const res = await fetchWithAuth("/system/events?limit=8");
+      if (res.ok) {
+        const data = await res.json();
+        const items =
+          data?.events?.map((e) => ({
+            action: prettify(e.event_type),
+            date: e.started_at,
+            details: e.status === "failed" ? `Failed: ${e.error_message || "Unknown error"}` : `Status: ${e.status || "unknown"}`,
+            icon: pickIcon(e.event_type),
+          })) ?? [];
+        setActivityLog(items);
+      } else {
+        setActivityLog([]);
       }
-      
-      // Fallback activity log
-      setActivityLog([
-        {
-          action: "Account Login",
-          date: new Date(Date.now() - 1 * 60 * 60 * 1000).toISOString(),
-          details: "Successful login from your usual device",
-          icon: "User"
-        },
-        {
-          action: "Portfolio Updated",
-          date: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
-          details: "Portfolio values updated with latest market data",
-          icon: "PiggyBank"
-        }
-      ]);
-    } catch (err) {
-      console.error("Error fetching activity log:", err);
+    } catch {
       setActivityLog([]);
     }
   };
 
-  // Helper functions
-  const getEventIcon = (eventType) => {
+  const prettify = (s = "") =>
+    s.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase());
+
+  const pickIcon = (eventType = "") => {
     if (eventType.includes("security") || eventType.includes("price")) return "Shield";
     if (eventType.includes("portfolio")) return "PiggyBank";
     if (eventType.includes("user") || eventType.includes("login")) return "User";
@@ -299,66 +355,44 @@ function ProfileContent() {
     return "Clock";
   };
 
-  const getActivityIcon = (iconName) => {
-    switch (iconName) {
-      case "User": return <User className="h-5 w-5" />;
-      case "Lock": return <Lock className="h-5 w-5" />;
-      case "Shield": return <Shield className="h-5 w-5" />;
-      case "PiggyBank": return <PiggyBank className="h-5 w-5" />;
-      case "Edit": return <Edit className="h-5 w-5" />;
-      case "Bell": return <Bell className="h-5 w-5" />;
-      case "CreditCard": return <CreditCard className="h-5 w-5" />;
-      default: return <Clock className="h-5 w-5" />;
-    }
+  const ActivityIcon = ({ name }) => {
+    const map = {
+      User: <User className="h-5 w-5" />,
+      Lock: <Lock className="h-5 w-5" />,
+      Shield: <Shield className="h-5 w-5" />,
+      PiggyBank: <PiggyBank className="h-5 w-5" />,
+      Edit: <Edit className="h-5 w-5" />,
+      Clock: <Clock className="h-5 w-5" />,
+    };
+    return map[name] || <Clock className="h-5 w-5" />;
   };
 
-  const formatDate = (dateString) => {
-    if (!dateString) return "N/A";
+  const formatDate = (d) => {
+    if (!d) return "N/A";
     try {
-      return new Date(dateString).toLocaleDateString(undefined, {
-        year: 'numeric', 
-        month: 'long', 
-        day: 'numeric'
-      });
-    } catch (e) {
-      return dateString;
+      return new Date(d).toLocaleString();
+    } catch {
+      return String(d);
     }
   };
 
-  const getMembershipBadge = () => {
+  const membershipBadge = () => {
     let label = "New Egg";
-    let color = "bg-green-100 text-green-800";
-    
-    if (daysAsMember > 365) {
-      label = "Golden Egg";
-      color = "bg-yellow-100 text-yellow-800";
-    } else if (daysAsMember > 180) {
-      label = "Silver Egg";
-      color = "bg-gray-100 text-gray-800";
-    } else if (daysAsMember > 90) {
-      label = "Bronze Egg";
-      color = "bg-orange-100 text-orange-800";
-    } else if (daysAsMember > 30) {
-      label = "Nest Builder";
-      color = "bg-blue-100 text-blue-800";
-    }
-    
-    return (
-      <span className={`px-3 py-1 rounded-full text-sm font-medium ${color}`}>
-        {label}
-      </span>
-    );
+    let tone = "green";
+    if (daysAsMember > 365) (label = "Golden Egg"), (tone = "yellow");
+    else if (daysAsMember > 180) (label = "Silver Egg"), (tone = "gray");
+    else if (daysAsMember > 90) (label = "Bronze Egg"), (tone = "purple");
+    else if (daysAsMember > 30) (label = "Nest Builder"), (tone = "blue");
+    return <Badge tone={tone}>{label}</Badge>;
   };
 
-  // Event handlers
-  const handleUpdateProfile = async (e) => {
+  const handleSaveProfile = async (e) => {
     e.preventDefault();
     setSaving(true);
-    setError(null);
-    setSuccessMessage("");
-    
+    setError("");
+    setOk("");
     try {
-      const apiData = {
+      const payload = {
         first_name: profileData.firstName,
         last_name: profileData.lastName,
         phone: profileData.phone,
@@ -369,142 +403,97 @@ function ProfileContent() {
         state: profileData.state,
         zip_code: profileData.zipCode,
         country: profileData.country,
-        bio: profileData.bio
+        bio: profileData.bio,
       };
-      
-      const response = await fetchWithAuth('/user/profile', {
-        method: 'PUT',
-        body: JSON.stringify(apiData),
-        headers: {
-          'Content-Type': 'application/json'
-        }
+      const res = await fetchWithAuth("/user/profile", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
       });
-      
-      if (response.ok) {
-        const updatedUserData = await response.json();
-        setSuccessMessage("Profile updated successfully!");
-        setEditMode(false);
-        
-        // Update context user if available
-        if (setUser && contextUser) {
-          setUser({
-            ...contextUser,
-            first_name: updatedUserData.first_name,
-            last_name: updatedUserData.last_name,
-            email: updatedUserData.email
-          });
-        }
-        
-        // Update activity log
-        const newActivity = {
-          action: "Profile Updated",
-          date: new Date().toISOString(),
-          details: "Your profile information was updated",
-          icon: "Edit"
-        };
-        
-        setActivityLog([newActivity, ...activityLog.slice(0, 4)]);
-        
-      } else {
-        const errorData = await response.json().catch(() => ({}));
-        setError(errorData.detail || `Failed to update profile (${response.status})`);
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err?.detail || `Failed (${res.status})`);
       }
-    } catch (err) {
-      setError("An error occurred while updating your profile: " + err.message);
+      const updated = await res.json();
+      if (setUser && ctxUser) {
+        setUser({ ...ctxUser, ...updated });
+      }
+      setOk("Profile updated!");
+      setEditMode(false);
+      setActivityLog((prev) => [
+        { action: "Profile Updated", date: new Date().toISOString(), details: "Your profile information was updated", icon: "Edit" },
+        ...prev.slice(0, 7),
+      ]);
+    } catch (e) {
+      setError(e.message || "Update failed.");
     } finally {
       setSaving(false);
-      if (successMessage) {
-        setTimeout(() => setSuccessMessage(""), 3000);
-      }
+      setTimeout(() => setOk(""), 3000);
     }
   };
 
-  const handleNotificationChange = (key) => {
-    setNotifications({
-      ...notifications,
-      [key]: !notifications[key]
-    });
-  };
-
-  const saveNotificationPreferences = async () => {
+  const saveNotifications = async () => {
     setSaving(true);
-    setError(null);
-    setSuccessMessage("");
-    
+    setError("");
+    setOk("");
     try {
-      // Simulate API call - replace with actual endpoint
-      setTimeout(() => {
-        setSuccessMessage("Notification preferences updated!");
-        
-        const newActivity = {
-          action: "Preferences Updated",
-          date: new Date().toISOString(),
-          details: "Notification preferences were updated",
-          icon: "Bell"
-        };
-        
-        setActivityLog([newActivity, ...activityLog.slice(0, 4)]);
-      }, 1000);
-      
-    } catch (err) {
-      setError("An error occurred while updating your notification preferences: " + err.message);
+      // Hook up to your backend when ready
+      await new Promise((r) => setTimeout(r, 600));
+      setOk("Notification preferences saved.");
+      setActivityLog((prev) => [
+        { action: "Preferences Updated", date: new Date().toISOString(), details: "Notification preferences were updated", icon: "Bell" },
+        ...prev.slice(0, 7),
+      ]);
+    } catch {
+      setError("Failed to save notification preferences.");
     } finally {
-      setTimeout(() => setSaving(false), 1000);
-      setTimeout(() => setSuccessMessage(""), 4000);
+      setSaving(false);
+      setTimeout(() => setOk(""), 3000);
     }
   };
 
-  // Get current plan from Clerk subscription or feature access
-  const getCurrentPlan = () => {
-    const activePlan = Object.entries(plans).find(([plan, hasAccess]) => hasAccess)?.[0];
-    return subscription?.plan?.name || activePlan || 'free';
+  const currentPlan = () => {
+    const activeByHas = Object.entries(plans).find(([, val]) => val)?.[0];
+    return subscription?.plan?.name || activeByHas || "free";
   };
 
-  const getEnabledFeatures = () => {
-    return Object.entries(features).filter(([feature, hasAccess]) => hasAccess);
-  };
-
-  // Loading state
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gray-950 flex justify-center items-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
-      </div>
-    );
-  }
+  if (loading) return <LoadingScreen />;
 
   return (
     <div className="min-h-screen bg-gray-950 text-gray-100">
       <div className="max-w-7xl mx-auto p-6 space-y-8">
-        {/* Enhanced Header with UserButton */}
+        {/* Header */}
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-bold">My Profile</h1>
-            <p className="text-gray-400 mt-1">Manage your NestEgg account, subscription, and personal information</p>
+            <p className="text-gray-400 mt-1">
+              Manage your NestEgg account, subscription, security, and settings
+            </p>
           </div>
-          <div className="flex items-center space-x-4">
+          <div className="flex items-center gap-4">
             <SignedIn>
-              <div className="flex items-center space-x-4">
+              <div className="flex items-center gap-4">
                 <div className="text-right">
                   <p className="text-sm text-gray-300">{user?.fullName}</p>
                   <p className="text-xs text-gray-500">{user?.primaryEmailAddress?.emailAddress}</p>
                 </div>
-                <UserButton 
+                <UserButton
                   showName={false}
+                  afterSignOutUrl="/"
                   appearance={{
                     baseTheme: "dark",
                     elements: {
                       userButtonAvatarBox: "w-10 h-10",
-                      userButtonPopoverCard: "bg-gray-800 border-gray-700",
-                      userButtonPopoverActionButton: "text-gray-100 hover:bg-gray-700"
-                    }
+                      userButtonPopoverCard: "bg-gray-900 border border-gray-800",
+                      userButtonPopoverActionButton: "text-gray-100 hover:bg-gray-800",
+                    },
                   }}
                 />
               </div>
             </SignedIn>
-            <Link 
-              href="/dashboard" 
-              className="px-4 py-2 bg-gray-800 hover:bg-gray-700 rounded-lg transition-colors flex items-center"
+            <Link
+              href="/dashboard"
+              className="px-4 py-2 bg-gray-800 hover:bg-gray-700 rounded-lg transition-colors inline-flex items-center"
             >
               <span>Back to Dashboard</span>
               <ArrowRight className="ml-2 h-4 w-4" />
@@ -512,12 +501,28 @@ function ProfileContent() {
           </div>
         </div>
 
+        {/* Alerts */}
+        <SignedIn>
+          {ok && (
+            <div className="p-4 bg-green-50 border border-green-200 rounded-lg flex items-center text-green-700">
+              <CheckCircle className="h-5 w-5 mr-2" />
+              {ok}
+            </div>
+          )}
+          {error && (
+            <div className="p-4 bg-red-50 border border-red-200 rounded-lg flex items-center text-red-700">
+              <X className="h-5 w-5 mr-2" />
+              {error}
+            </div>
+          )}
+        </SignedIn>
+
         <SignedOut>
           <div className="p-8 border border-gray-800 rounded-xl bg-gray-900/50 backdrop-blur-sm text-center">
             <h2 className="text-2xl font-semibold mb-4">Please Sign In</h2>
             <p className="text-gray-400 mb-6">You need to be signed in to view and manage your profile</p>
-            <Link 
-              href="/login" 
+            <Link
+              href="/login"
               className="px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 rounded-lg hover:from-blue-700 hover:to-purple-700 transition-all inline-flex items-center"
             >
               Sign In
@@ -527,36 +532,15 @@ function ProfileContent() {
         </SignedOut>
 
         <SignedIn>
-          {/* Success/Error Messages */}
-          {successMessage && (
-            <div className="p-4 bg-green-50 border border-green-200 rounded-lg flex items-center text-green-700">
-              <CheckCircle className="h-5 w-5 mr-2" />
-              {successMessage}
-            </div>
-          )}
-          
-          {error && (
-            <div className="p-4 bg-red-50 border border-red-200 rounded-lg flex items-center text-red-700">
-              <X className="h-5 w-5 mr-2" />
-              {error}
-            </div>
-          )}
-
-          {/* Navigation Tabs */}
+          {/* Tabs */}
           <div className="border-b border-gray-800">
-            <nav className="flex space-x-8">
-              {[
-                { id: "profile", label: "Profile", icon: User },
-                { id: "subscription", label: "Subscription & Billing", icon: CreditCard },
-                { id: "security", label: "Security", icon: Lock },
-                { id: "notifications", label: "Notifications", icon: Bell },
-                { id: "activity", label: "Activity", icon: Clock }
-              ].map(({ id, label, icon: Icon }) => (
+            <nav className="flex flex-wrap gap-6">
+              {TABS.map(({ id, label, icon: Icon }) => (
                 <button
                   key={id}
-                  onClick={() => setActiveSection(id)}
+                  onClick={() => setActive(id)}
                   className={`pb-4 px-1 flex items-center transition-colors ${
-                    activeSection === id
+                    active === id
                       ? "border-b-2 border-blue-500 text-blue-400"
                       : "border-b-2 border-transparent text-gray-500 hover:text-gray-300 hover:border-gray-700"
                   }`}
@@ -569,112 +553,71 @@ function ProfileContent() {
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-            {/* Left Sidebar - User Card */}
-            <div className="lg:col-span-1 space-y-6">
-              <div className="bg-gray-900/70 backdrop-blur-sm rounded-xl border border-gray-800 overflow-hidden">
+            {/* Sidebar */}
+            <aside className="lg:col-span-1 space-y-6">
+              <div className="bg-gray-900/70 rounded-xl border border-gray-800 overflow-hidden">
                 <div className="bg-gradient-to-r from-blue-600 to-indigo-700 p-6 text-white">
                   <div className="flex items-center justify-center">
                     <div className="w-24 h-24 rounded-full bg-white text-indigo-600 flex items-center justify-center text-3xl font-bold">
-                      {profileData.firstName && profileData.lastName 
-                        ? `${profileData.firstName[0]}${profileData.lastName[0]}` 
-                        : profileData.email ? profileData.email[0].toUpperCase() : "N"}
+                      {profileData.firstName && profileData.lastName
+                        ? `${profileData.firstName[0]}${profileData.lastName[0]}`
+                        : profileData.email
+                        ? profileData.email[0].toUpperCase()
+                        : "N"}
                     </div>
                   </div>
                   <h2 className="mt-4 text-xl font-bold text-center">
-                    {profileData.firstName && profileData.lastName 
-                      ? `${profileData.firstName} ${profileData.lastName}` 
+                    {profileData.firstName && profileData.lastName
+                      ? `${profileData.firstName} ${profileData.lastName}`
                       : profileData.email || "NestEgg User"}
                   </h2>
-                  <p className="text-sm text-blue-100 text-center">
-                    {profileData.email}
-                  </p>
+                  <p className="text-sm text-blue-100 text-center">{profileData.email}</p>
                 </div>
-                
-                <div className="p-6">
-                  <div className="flex items-center justify-between mb-4">
+                <div className="p-6 space-y-4">
+                  <div className="flex items-center justify-between">
                     <span className="text-sm font-medium text-gray-400">Membership Status</span>
-                    {getMembershipBadge()}
+                    {membershipBadge()}
                   </div>
-                  
-                  <div className="space-y-4">
-                    <div className="flex items-center">
-                      <Calendar className="h-5 w-5 text-gray-400 mr-3" />
-                      <div>
-                        <p className="text-sm font-medium text-gray-300">Member Since</p>
-                        <p className="text-sm text-gray-500">
-                          {memberSince ? formatDate(memberSince) : "N/A"} ({daysAsMember} days)
-                        </p>
-                      </div>
+                  <div className="flex items-center">
+                    <Calendar className="h-5 w-5 text-gray-400 mr-3" />
+                    <div>
+                      <p className="text-sm font-medium text-gray-300">Member Since</p>
+                      <p className="text-sm text-gray-500">
+                        {memberSince ? new Date(memberSince).toLocaleDateString() : "N/A"} ({daysAsMember} days)
+                      </p>
                     </div>
-                    
-                    <div className="flex items-center">
-                      <Shield className="h-5 w-5 text-gray-400 mr-3" />
-                      <div>
-                        <p className="text-sm font-medium text-gray-300">Current Plan</p>
-                        <p className="text-sm text-gray-500 capitalize">
-                          {getCurrentPlan()} Plan
-                        </p>
-                      </div>
-                    </div>
-                    
-                    <div className="flex items-center">
-                      <Award className="h-5 w-5 text-gray-400 mr-3" />
-                      <div>
-                        <p className="text-sm font-medium text-gray-300">Features Enabled</p>
-                        <p className="text-sm text-gray-500">
-                          {getEnabledFeatures().length} of {Object.keys(features).length} features
-                        </p>
-                      </div>
+                  </div>
+                  <div className="flex items-center">
+                    <Shield className="h-5 w-5 text-gray-400 mr-3" />
+                    <div>
+                      <p className="text-sm font-medium text-gray-300">Current Plan</p>
+                      <p className="text-sm text-gray-500 capitalize">{currentPlan()} Plan</p>
                     </div>
                   </div>
                 </div>
               </div>
 
-              {/* Quick Stats */}
-              <div className="bg-gray-900/70 backdrop-blur-sm rounded-xl border border-gray-800 p-6">
-                <h3 className="text-lg font-semibold text-gray-300 mb-4">Account Stats</h3>
-                
-                <div className="space-y-4">
-                  <div className="flex justify-between">
-                    <span className="text-sm text-gray-400">Last Login</span>
-                    <span className="text-sm font-medium text-gray-300">
-                      {accountStats?.lastLogin || "Today"}
-                    </span>
-                  </div>
-                  
-                  <div className="flex justify-between">
-                    <span className="text-sm text-gray-400">Total Accounts</span>
-                    <span className="text-sm font-medium text-gray-300">
-                      {accountStats?.totalAccounts || "0"}
-                    </span>
-                  </div>
-                  
-                  <div className="flex justify-between">
-                    <span className="text-sm text-gray-400">Total Positions</span>
-                    <span className="text-sm font-medium text-gray-300">
-                      {accountStats?.totalPositions || "0"}
-                    </span>
-                  </div>
-                  
-                  <div className="flex justify-between">
-                    <span className="text-sm text-gray-400">Price Updates</span>
-                    <span className="text-sm font-medium text-gray-300">
-                      {accountStats?.priceUpdates || "Daily"}
-                    </span>
-                  </div>
+              <Section title="Account Stats">
+                <div className="space-y-3">
+                  <InfoRow label="Last Login" value={accountStats?.lastLogin} />
+                  <InfoRow label="Login Streak" value={`${accountStats?.loginStreak ?? 0} days`} />
+                  <InfoRow label="Total Accounts" value={accountStats?.totalAccounts ?? 0} />
+                  <InfoRow label="Total Positions" value={accountStats?.totalPositions ?? 0} />
+                  <InfoRow label="Price Updates" value={accountStats?.priceUpdates ?? "Daily"} />
                 </div>
-              </div>
-            </div>
+              </Section>
+            </aside>
 
-            {/* Main Content Area */}
-            <div className="lg:col-span-3 space-y-6">
-              {/* Profile Section */}
-              {activeSection === "profile" && (
-                <div className="bg-gray-900/70 backdrop-blur-sm rounded-xl border border-gray-800 overflow-hidden">
-                  <div className="px-6 py-4 border-b border-gray-700 flex justify-between items-center">
-                    <h3 className="text-lg font-semibold text-gray-100">Personal Information</h3>
+            {/* Main */}
+            <main className="lg:col-span-3 space-y-6">
+              {/* PROFILE */}
+              {active === "profile" && (
+                <Section
+                  title="Personal Information"
+                  icon={User}
+                  right={
                     <button
-                      onClick={() => setEditMode(!editMode)}
+                      onClick={() => setEditMode((v) => !v)}
                       className="text-blue-400 hover:text-blue-300 flex items-center transition-colors"
                     >
                       {editMode ? (
@@ -689,605 +632,542 @@ function ProfileContent() {
                         </>
                       )}
                     </button>
-                  </div>
-                  
-                  <div className="p-6">
-                    <form onSubmit={handleUpdateProfile}>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <div>
-                          <label className="block text-sm font-medium text-gray-300 mb-1">
-                            First Name
-                          </label>
-                          <input
-                            type="text"
-                            value={profileData.firstName}
-                            onChange={(e) => setProfileData({...profileData, firstName: e.target.value})}
-                            disabled={!editMode}
-                            className={`w-full px-3 py-2 border rounded-md bg-gray-800 text-gray-100 ${
-                              editMode ? 'border-gray-600 focus:border-blue-500' : 'border-gray-700 bg-gray-800/50'
-                            }`}
-                          />
-                        </div>
-                        
-                        <div>
-                          <label className="block text-sm font-medium text-gray-300 mb-1">
-                            Last Name
-                          </label>
-                          <input
-                            type="text"
-                            value={profileData.lastName}
-                            onChange={(e) => setProfileData({...profileData, lastName: e.target.value})}
-                            disabled={!editMode}
-                            className={`w-full px-3 py-2 border rounded-md bg-gray-800 text-gray-100 ${
-                              editMode ? 'border-gray-600 focus:border-blue-500' : 'border-gray-700 bg-gray-800/50'
-                            }`}
-                          />
-                        </div>
-                        
-                        <div>
-                          <label className="block text-sm font-medium text-gray-300 mb-1">
-                            Email Address
-                          </label>
-                          <input
-                            type="email"
-                            value={profileData.email}
-                            disabled={true}
-                            className="w-full px-3 py-2 border border-gray-700 bg-gray-800/50 rounded-md text-gray-400"
-                          />
-                          {editMode && (
-                            <p className="text-xs text-gray-500 mt-1">
-                              Email is managed by your authentication provider
-                            </p>
+                  }
+                >
+                  <form onSubmit={handleSaveProfile} className="space-y-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <Field
+                        label="First Name"
+                        value={profileData.firstName}
+                        onChange={(v) => setProfileData({ ...profileData, firstName: v })}
+                        disabled={!editMode}
+                      />
+                      <Field
+                        label="Last Name"
+                        value={profileData.lastName}
+                        onChange={(v) => setProfileData({ ...profileData, lastName: v })}
+                        disabled={!editMode}
+                      />
+                      <Field label="Email" value={profileData.email} disabled />
+                      <Field
+                        label="Phone"
+                        value={profileData.phone}
+                        onChange={(v) => setProfileData({ ...profileData, phone: v })}
+                        disabled={!editMode}
+                      />
+                      <Field
+                        label="Occupation"
+                        value={profileData.occupation}
+                        onChange={(v) => setProfileData({ ...profileData, occupation: v })}
+                        disabled={!editMode}
+                      />
+                      <Field
+                        label="Date of Birth"
+                        type="date"
+                        value={profileData.dateOfBirth || ""}
+                        onChange={(v) => setProfileData({ ...profileData, dateOfBirth: v })}
+                        disabled={!editMode}
+                      />
+                    </div>
+
+                    <Field
+                      label="Address"
+                      value={profileData.address}
+                      onChange={(v) => setProfileData({ ...profileData, address: v })}
+                      disabled={!editMode}
+                    />
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                      <Field
+                        label="City"
+                        value={profileData.city}
+                        onChange={(v) => setProfileData({ ...profileData, city: v })}
+                        disabled={!editMode}
+                      />
+                      <Field
+                        label="State"
+                        value={profileData.state}
+                        onChange={(v) => setProfileData({ ...profileData, state: v })}
+                        disabled={!editMode}
+                      />
+                      <Field
+                        label="Zip Code"
+                        value={profileData.zipCode}
+                        onChange={(v) => setProfileData({ ...profileData, zipCode: v })}
+                        disabled={!editMode}
+                      />
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <Field
+                        label="Country"
+                        value={profileData.country}
+                        onChange={(v) => setProfileData({ ...profileData, country: v })}
+                        disabled={!editMode}
+                      />
+                    </div>
+                    <Field
+                      label="Bio / About Me"
+                      type="textarea"
+                      value={profileData.bio}
+                      onChange={(v) => setProfileData({ ...profileData, bio: v })}
+                      disabled={!editMode}
+                    />
+
+                    {editMode && (
+                      <div className="flex justify-end">
+                        <button
+                          type="submit"
+                          disabled={saving}
+                          className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 inline-flex items-center disabled:bg-blue-400"
+                        >
+                          {saving ? (
+                            <>
+                              <span className="animate-spin h-4 w-4 mr-2 border-2 border-t-transparent border-white rounded-full" />
+                              Saving...
+                            </>
+                          ) : (
+                            <>
+                              <Save className="h-4 w-4 mr-2" />
+                              Save Changes
+                            </>
                           )}
-                        </div>
-                        
-                        <div>
-                          <label className="block text-sm font-medium text-gray-300 mb-1">
-                            Phone Number
-                          </label>
-                          <input
-                            type="tel"
-                            value={profileData.phone}
-                            onChange={(e) => setProfileData({...profileData, phone: e.target.value})}
-                            disabled={!editMode}
-                            className={`w-full px-3 py-2 border rounded-md bg-gray-800 text-gray-100 ${
-                              editMode ? 'border-gray-600 focus:border-blue-500' : 'border-gray-700 bg-gray-800/50'
-                            }`}
-                          />
-                        </div>
-                        
-                        <div>
-                          <label className="block text-sm font-medium text-gray-300 mb-1">
-                            Occupation
-                          </label>
-                          <input
-                            type="text"
-                            value={profileData.occupation}
-                            onChange={(e) => setProfileData({...profileData, occupation: e.target.value})}
-                            disabled={!editMode}
-                            className={`w-full px-3 py-2 border rounded-md bg-gray-800 text-gray-100 ${
-                              editMode ? 'border-gray-600 focus:border-blue-500' : 'border-gray-700 bg-gray-800/50'
-                            }`}
-                          />
-                        </div>
-                        
-                        <div>
-                          <label className="block text-sm font-medium text-gray-300 mb-1">
-                            Date of Birth
-                          </label>
-                          <input
-                            type="date"
-                            value={profileData.dateOfBirth || ''}
-                            onChange={(e) => setProfileData({...profileData, dateOfBirth: e.target.value})}
-                            disabled={!editMode}
-                            className={`w-full px-3 py-2 border rounded-md bg-gray-800 text-gray-100 ${
-                              editMode ? 'border-gray-600 focus:border-blue-500' : 'border-gray-700 bg-gray-800/50'
-                            }`}
-                          />
-                        </div>
+                        </button>
                       </div>
-                      
-                      <div className="mt-6">
-                        <label className="block text-sm font-medium text-gray-300 mb-1">
-                          Address
-                        </label>
-                        <input
-                          type="text"
-                          value={profileData.address}
-                          onChange={(e) => setProfileData({...profileData, address: e.target.value})}
-                          disabled={!editMode}
-                          className={`w-full px-3 py-2 border rounded-md bg-gray-800 text-gray-100 ${
-                            editMode ? 'border-gray-600 focus:border-blue-500' : 'border-gray-700 bg-gray-800/50'
-                          }`}
-                        />
-                      </div>
-                      
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
-                        <div>
-                          <label className="block text-sm font-medium text-gray-300 mb-1">
-                            City
-                          </label>
-                          <input
-                            type="text"
-                            value={profileData.city}
-                            onChange={(e) => setProfileData({...profileData, city: e.target.value})}
-                            disabled={!editMode}
-                            className={`w-full px-3 py-2 border rounded-md bg-gray-800 text-gray-100 ${
-                              editMode ? 'border-gray-600 focus:border-blue-500' : 'border-gray-700 bg-gray-800/50'
-                            }`}
-                          />
-                        </div>
-                        
-                        <div>
-                          <label className="block text-sm font-medium text-gray-300 mb-1">
-                            State
-                          </label>
-                          <input
-                            type="text"
-                            value={profileData.state}
-                            onChange={(e) => setProfileData({...profileData, state: e.target.value})}
-                            disabled={!editMode}
-                            className={`w-full px-3 py-2 border rounded-md bg-gray-800 text-gray-100 ${
-                              editMode ? 'border-gray-600 focus:border-blue-500' : 'border-gray-700 bg-gray-800/50'
-                            }`}
-                          />
-                        </div>
-                      </div>
-                      
-                      <div className="mt-6">
-                        <label className="block text-sm font-medium text-gray-300 mb-1">
-                          Bio / About Me
-                        </label>
-                        <textarea
-                          value={profileData.bio}
-                          onChange={(e) => setProfileData({...profileData, bio: e.target.value})}
-                          disabled={!editMode}
-                          rows={4}
-                          className={`w-full px-3 py-2 border rounded-md bg-gray-800 text-gray-100 ${
-                            editMode ? 'border-gray-600 focus:border-blue-500' : 'border-gray-700 bg-gray-800/50'
-                          }`}
-                        />
-                      </div>
-                      
-                      {editMode && (
-                        <div className="mt-6 flex justify-end">
-                          <button
-                            type="submit"
-                            className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 flex items-center disabled:bg-blue-400 transition-colors"
-                            disabled={saving}
-                          >
-                            {saving ? (
-                              <>
-                                <div className="animate-spin h-4 w-4 mr-2 border-2 border-t-transparent border-white rounded-full"></div>
-                                Saving...
-                              </>
-                            ) : (
-                              <>
-                                <Save className="h-4 w-4 mr-2" />
-                                Save Changes
-                              </>
-                            )}
-                          </button>
-                        </div>
-                      )}
-                    </form>
-                  </div>
-                </div>
+                    )}
+                  </form>
+                </Section>
               )}
 
-              {/* Subscription & Billing Section */}
-              {activeSection === "subscription" && (
-                <div className="space-y-6">
-                  {/* Current Plan Card */}
-                  <div className="bg-gray-900/70 backdrop-blur-sm rounded-xl border border-gray-800 overflow-hidden">
-                    <div className="px-6 py-4 border-b border-gray-700 flex justify-between items-center">
-                      <h3 className="text-lg font-semibold text-gray-100">Current Subscription</h3>
-                      <span className={`px-3 py-1 text-sm rounded-full border ${
-                        getCurrentPlan().includes('premium') || getCurrentPlan().includes('enterprise')
-                          ? 'bg-purple-500/20 text-purple-300 border-purple-500/30'
-                          : getCurrentPlan().includes('pro') || getCurrentPlan().includes('standard')
-                          ? 'bg-blue-500/20 text-blue-300 border-blue-500/30'
-                          : 'bg-green-500/20 text-green-300 border-green-500/30'
-                      }`}>
-                        {getCurrentPlan().charAt(0).toUpperCase() + getCurrentPlan().slice(1)} Plan
-                      </span>
+              {/* SUBSCRIPTION & BILLING */}
+              {active === "subscription" && (
+                <>
+                  <Section
+                    title="Current Subscription"
+                    icon={CreditCard}
+                    right={
+                      <Badge tone={["premium", "enterprise"].some((p) => currentPlan().includes(p)) ? "purple" : ["pro", "standard"].some((p) => currentPlan().includes(p)) ? "blue" : "green"}>
+                        {currentPlan().charAt(0).toUpperCase() + currentPlan().slice(1)}
+                      </Badge>
+                    }
+                  >
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
+                      <StatBox label="Status" value={subscription?.status || "active"} />
+                      <StatBox
+                        label="Amount"
+                        value={
+                          subscription?.amount
+                            ? `$${(subscription.amount / 100).toFixed(2)} / ${subscription?.interval ?? "period"}`
+                            : "$0"
+                        }
+                      />
+                      <StatBox label="Billing Cycle" value={subscription?.interval || "—"} />
+                      <StatBox
+                        label="Next Payment"
+                        value={subscription?.currentPeriodEnd ? new Date(subscription.currentPeriodEnd).toLocaleDateString() : "—"}
+                      />
                     </div>
-                    
-                    <div className="p-6">
-                      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
-                        <div className="bg-gray-800/50 p-4 rounded-lg">
-                          <p className="text-gray-400 text-sm">Status</p>
-                          <p className="text-lg font-medium text-gray-100 capitalize">
-                            {subscription?.status || 'active'}
-                          </p>
-                        </div>
-                        <div className="bg-gray-800/50 p-4 rounded-lg">
-                          <p className="text-gray-400 text-sm">Amount</p>
-                          <p className="text-lg font-medium text-gray-100">
-                            {subscription?.amount 
-                              ? `$${(subscription.amount / 100).toFixed(2)}` 
-                              : '$0'}
-                          </p>
-                        </div>
-                        <div className="bg-gray-800/50 p-4 rounded-lg">
-                          <p className="text-gray-400 text-sm">Billing Cycle</p>
-                          <p className="text-lg font-medium text-gray-100 capitalize">
-                            {subscription?.interval || 'N/A'}
-                          </p>
-                        </div>
-                        <div className="bg-gray-800/50 p-4 rounded-lg">
-                          <p className="text-gray-400 text-sm">Next Payment</p>
-                          <p className="text-lg font-medium text-gray-100">
-                            {subscription?.currentPeriodEnd 
-                              ? formatDate(subscription.currentPeriodEnd)
-                              : 'N/A'}
-                          </p>
-                        </div>
+                    <div className="flex items-center justify-between">
+                      <div className="text-sm text-gray-400 flex items-center">
+                        <Zap className="h-4 w-4 mr-2 text-blue-400" />
+                        Managed by Clerk Billing
                       </div>
-                      
-                      <div className="flex items-center justify-between">
-                        <div className="text-sm text-gray-400 flex items-center">
-                          <Zap className="h-4 w-4 mr-2 text-blue-400" />
-                          Managed by Clerk Billing
-                        </div>
-                        
-                        <div className="flex gap-3">
-                          <SubscriptionDetailsButton>
-                            <button className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm transition-colors">
-                              Manage Subscription
-                            </button>
-                          </SubscriptionDetailsButton>
-                          
-                          <SubscriptionDetailsButton for="user">
-                            <button className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg text-sm transition-colors">
-                              Billing Details
-                            </button>
-                          </SubscriptionDetailsButton>
-                        </div>
+                      <div className="flex gap-3">
+                        <SubscriptionDetailsButton>
+                          <button className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm transition-colors">
+                            Manage Subscription
+                          </button>
+                        </SubscriptionDetailsButton>
+                        <SubscriptionDetailsButton for="user">
+                          <button className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg text-sm transition-colors">
+                            Billing Details
+                          </button>
+                        </SubscriptionDetailsButton>
                       </div>
                     </div>
-                  </div>
+                  </Section>
 
-                  {/* Feature Access Status */}
-                  <div className="bg-gray-900/70 backdrop-blur-sm rounded-xl border border-gray-800 overflow-hidden">
-                    <div className="px-6 py-4 border-b border-gray-700">
-                      <h3 className="text-lg font-semibold text-gray-100 flex items-center">
-                        <Shield className="h-5 w-5 mr-2 text-blue-400" />
-                        Access Control Status
-                      </h3>
-                    </div>
-                    
-                    <div className="p-6">
-                      <div className="mb-6 p-4 bg-gray-800/50 rounded-lg">
-                        <div className="flex items-center justify-between mb-2">
-                          <span className="text-sm font-medium text-gray-300">Feature Access</span>
-                          <span className="text-sm text-gray-400">
-                            {getEnabledFeatures().length} of {Object.keys(features).length} enabled
-                          </span>
+                  <Section title="Access Control Status" icon={Shield}>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div>
+                        <h4 className="text-sm font-semibold text-gray-300 mb-3 uppercase tracking-wide">Features</h4>
+                        <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
+                          {FEATURE_KEYS.map((key) => (
+                            <div key={key} className="flex items-center justify-between py-2 px-3 bg-gray-800/50 rounded-lg">
+                              <span className="text-sm text-gray-300 capitalize">{key.replace(/_/g, " ")}</span>
+                              {features[key] ? (
+                                <CheckCircle className="h-4 w-4 text-green-400" />
+                              ) : (
+                                <X className="h-4 w-4 text-red-400" />
+                              )}
+                            </div>
+                          ))}
                         </div>
                       </div>
-                      
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <div>
-                          <h4 className="text-sm font-semibold text-gray-300 mb-3 uppercase tracking-wide">Features</h4>
-                          <div className="space-y-2 max-h-60 overflow-y-auto">
-                            {Object.entries(features).map(([feature, hasAccess]) => (
-                              <div key={feature} className="flex items-center justify-between py-2 px-3 bg-gray-800/50 rounded-lg">
-                                <span className="text-sm text-gray-300 capitalize">{feature.replace(/_/g, ' ')}</span>
-                                <div className="flex items-center">
-                                  {hasAccess ? (
-                                    <CheckCircle className="h-4 w-4 text-green-400" />
-                                  ) : (
-                                    <X className="h-4 w-4 text-red-400" />
-                                  )}
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-
-                        <div>
-                          <h4 className="text-sm font-semibold text-gray-300 mb-3 uppercase tracking-wide">Plans</h4>
-                          <div className="space-y-2">
-                            {Object.entries(plans).map(([plan, hasAccess]) => (
-                              <div key={plan} className="flex items-center justify-between py-2 px-3 bg-gray-800/50 rounded-lg">
-                                <span className="text-sm text-gray-300 capitalize">{plan}</span>
-                                <div className="flex items-center">
-                                  {hasAccess ? (
-                                    <CheckCircle className="h-4 w-4 text-green-400" />
-                                  ) : (
-                                    <X className="h-4 w-4 text-red-400" />
-                                  )}
-                                </div>
-                              </div>
-                            ))}
-                          </div>
+                      <div>
+                        <h4 className="text-sm font-semibold text-gray-300 mb-3 uppercase tracking-wide">Plans</h4>
+                        <div className="space-y-2">
+                          {PLAN_KEYS.map((key) => (
+                            <div key={key} className="flex items-center justify-between py-2 px-3 bg-gray-800/50 rounded-lg">
+                              <span className="text-sm text-gray-300 capitalize">{key}</span>
+                              {plans[key] ? (
+                                <CheckCircle className="h-4 w-4 text-green-400" />
+                              ) : (
+                                <X className="h-4 w-4 text-red-400" />
+                              )}
+                            </div>
+                          ))}
                         </div>
                       </div>
                     </div>
-                  </div>
 
-                  {/* Protected Content Demo */}
-                  <div className="bg-gray-900/70 backdrop-blur-sm rounded-xl border border-gray-800 overflow-hidden">
-                    <div className="px-6 py-4 border-b border-gray-700">
-                      <h3 className="text-lg font-semibold text-gray-100 flex items-center">
-                        <Shield className="h-5 w-5 mr-2 text-purple-400" />
-                        Feature Access Demo
-                      </h3>
-                    </div>
-                    
-                    <div className="p-6 space-y-4">
-                      <Protect 
-                        feature="ai_assistant" 
+                    <div className="mt-6 space-y-4">
+                      <Protect
+                        feature="ai_assistant"
                         fallback={
-                          <div className="p-4 border border-red-800/50 bg-red-900/20 rounded-lg">
-                            <p className="text-red-300 text-sm">
-                              🔒 AI Assistant feature requires a premium subscription
-                            </p>
+                          <div className="p-4 border border-red-800/50 bg-red-900/20 rounded-lg text-red-300 text-sm">
+                            🔒 AI Assistant requires an upgraded plan.
                           </div>
                         }
                       >
-                        <div className="p-4 border border-green-800/50 bg-green-900/20 rounded-lg">
-                          <p className="text-green-300 text-sm">
-                            ✨ You have access to the AI Assistant feature!
-                          </p>
+                        <div className="p-4 border border-green-800/50 bg-green-900/20 rounded-lg text-green-300 text-sm">
+                          ✨ You have access to the AI Assistant feature!
                         </div>
                       </Protect>
 
-                      <Protect 
-                        feature="advanced_analytics" 
+                      <Protect
+                        feature="advanced_analytics"
                         fallback={
-                          <div className="p-4 border border-red-800/50 bg-red-900/20 rounded-lg">
-                            <p className="text-red-300 text-sm">
-                              📊 Advanced Analytics requires a paid plan
-                            </p>
+                          <div className="p-4 border border-red-800/50 bg-red-900/20 rounded-lg text-red-300 text-sm">
+                            📊 Advanced Analytics requires a paid plan.
                           </div>
                         }
                       >
-                        <div className="p-4 border border-green-800/50 bg-green-900/20 rounded-lg">
-                          <p className="text-green-300 text-sm">
-                            📈 Advanced Analytics is available to you!
-                          </p>
+                        <div className="p-4 border border-green-800/50 bg-green-900/20 rounded-lg text-green-300 text-sm">
+                          📈 Advanced Analytics is available to you!
                         </div>
                       </Protect>
                     </div>
-                  </div>
+                  </Section>
+                </>
+              )}
 
-                  {/* Pricing Table */}
-                  <div className="bg-gray-900/70 backdrop-blur-sm rounded-xl border border-gray-800 overflow-hidden">
-                    <div className="px-6 py-4 border-b border-gray-700">
-                      <h3 className="text-lg font-semibold text-gray-100 flex items-center">
-                        <Crown className="h-5 w-5 mr-2 text-purple-400" />
-                        Available Plans
-                      </h3>
-                      <p className="text-gray-400 text-sm mt-1">
-                        Live pricing from your Clerk Dashboard configuration
+              {/* SECURITY (Clerk-managed UI inline) */}
+              {active === "security" && (
+                <Section title="Security & Account" icon={Shield}>
+                  <p className="text-sm text-gray-400 mb-4">
+                    Authentication, passwords, MFA, emails, connected accounts, and danger zone are managed by Clerk.
+                  </p>
+                  {/* Embed Clerk’s fully-featured UserProfile inside this section */}
+                  <div className="rounded-lg border border-gray-800 overflow-hidden">
+                    <UserProfile
+                      appearance={{
+                        baseTheme: "dark",
+                        variables: {
+                          colorBackground: "#0b1220",
+                          colorText: "#e5e7eb",
+                          colorInputBackground: "#111827",
+                          colorInputText: "#e5e7eb",
+                          colorPrimary: "#3b82f6",
+                        },
+                        elements: {
+                          card: "bg-gray-900 border-gray-800",
+                          navbar: "bg-gray-900 border-b border-gray-800",
+                          headerTitle: "text-white",
+                          formButtonPrimary: "bg-blue-600 hover:bg-blue-700",
+                        },
+                      }}
+                      routing="hash"
+                    />
+                  </div>
+                </Section>
+              )}
+
+              {/* NOTIFICATIONS */}
+              {active === "notifications" && (
+                <Section title="Notification Preferences" icon={Bell}>
+                  <p className="text-sm text-gray-400 mb-6">
+                    Choose which notifications you'd like to receive about your investments, account activity, and platform updates.
+                  </p>
+                  <div className="space-y-5">
+                    {Object.entries(notifications).map(([key, enabled], idx) => {
+                      const labelMap = {
+                        emailUpdates: ["Email Updates", "Important announcements and account activity"],
+                        marketAlerts: ["Market Alerts", "Price changes and market events for your holdings"],
+                        performanceReports: ["Performance Reports", "Weekly and monthly performance summaries"],
+                        securityAlerts: ["Security Alerts", "Login attempts and security notifications"],
+                        newsletterUpdates: ["Newsletter Updates", "Educational content and investment insights"],
+                      };
+                      const [title, desc] = labelMap[key] || [key, ""];
+                      return (
+                        <div key={key} className={`${idx ? "border-t border-gray-700 pt-5" : ""} flex items-center justify-between`}>
+                          <div>
+                            <label htmlFor={key} className="font-medium text-gray-100">
+                              {title}
+                            </label>
+                            <p className="text-sm text-gray-400">{desc}</p>
+                          </div>
+                          <label className="relative inline-flex items-center cursor-pointer">
+                            <input
+                              type="checkbox"
+                              id={key}
+                              checked={enabled}
+                              onChange={() => setNotifications((n) => ({ ...n, [key]: !n[key] }))}
+                              className="sr-only peer"
+                            />
+                            <div className="w-11 h-6 bg-gray-700 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300/20 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600" />
+                          </label>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <div className="mt-6 flex justify-end">
+                    <button
+                      onClick={saveNotifications}
+                      disabled={saving}
+                      className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 inline-flex items-center disabled:bg-blue-400"
+                    >
+                      {saving ? (
+                        <>
+                          <span className="animate-spin h-4 w-4 mr-2 border-2 border-t-transparent border-white rounded-full" />
+                          Saving...
+                        </>
+                      ) : (
+                        <>
+                          <Bell className="h-4 w-4 mr-2" />
+                          Save Preferences
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </Section>
+              )}
+
+              {/* ACTIVITY */}
+              {active === "activity" && (
+                <Section title="Recent Activity" icon={Clock}>
+                  {activityLog.length === 0 ? (
+                    <div className="text-center py-8">
+                      <Clock className="h-12 w-12 mx-auto text-gray-500 mb-4" />
+                      <h4 className="text-lg font-medium text-gray-100 mb-2">No activity yet</h4>
+                      <p className="text-gray-400">Your account activity will appear here as you use the platform.</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-6">
+                      {activityLog.map((a, i) => (
+                        <div key={i} className="flex items-start">
+                          <div
+                            className={`flex-shrink-0 h-10 w-10 rounded-full flex items-center justify-center mr-4 ${
+                              a.icon === "Shield"
+                                ? "bg-green-500/20 text-green-400"
+                                : a.icon === "PiggyBank"
+                                ? "bg-purple-500/20 text-purple-400"
+                                : a.icon === "Edit"
+                                ? "bg-yellow-500/20 text-yellow-400"
+                                : "bg-gray-500/20 text-gray-400"
+                            }`}
+                          >
+                            <ActivityIcon name={a.icon} />
+                          </div>
+                          <div>
+                            <p className="text-sm font-medium text-gray-100">{a.action}</p>
+                            <p className="text-sm text-gray-400">{a.details}</p>
+                            <p className="text-xs text-gray-500 mt-1">{formatDate(a.date)}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </Section>
+              )}
+
+              {/* SETTINGS (Custom Tab) */}
+              {active === "settings" && (
+                <Section title="Display & App Settings" icon={SettingsIcon}>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="p-4 bg-gray-800/50 rounded-lg space-y-3">
+                      <p className="text-sm font-medium text-gray-200 flex items-center gap-2">
+                        <Monitor className="h-4 w-4" /> Theme
+                      </p>
+                      <div className="flex flex-wrap gap-3">
+                        <ThemeButton
+                          label="System"
+                          active={getTheme() === "system"}
+                          onClick={() => setTheme("system")}
+                          icon={<Globe className="h-4 w-4" />}
+                        />
+                        <ThemeButton
+                          label="Dark"
+                          active={getTheme() === "dark"}
+                          onClick={() => setTheme("dark")}
+                          icon={<Moon className="h-4 w-4" />}
+                        />
+                        <ThemeButton
+                          label="Light"
+                          active={getTheme() === "light"}
+                          onClick={() => setTheme("light")}
+                          icon={<Sun className="h-4 w-4" />}
+                        />
+                      </div>
+                      <p className="text-xs text-gray-400">
+                        Your preference is saved {useTheme ? "via next-themes" : "locally"}.
                       </p>
                     </div>
 
-                    <div className="p-6">
-                      <div className="bg-gray-800/30 rounded-lg border border-gray-700">
-                        <PricingTable 
-                          appearance={{
-                            baseTheme: "dark",
-                            variables: {
-                              colorPrimary: "#3b82f6",
-                              colorBackground: "#1f2937",
-                              colorText: "#f9fafb",
-                              colorTextSecondary: "#9ca3af"
-                            },
-                            elements: {
-                              card: "bg-gray-800 border-gray-700",
-                              cardBox: "bg-gray-800",
-                              headerTitle: "text-white",
-                              headerSubtitle: "text-gray-300",
-                              pricingPlan: "bg-gray-800 border-gray-700",
-                              pricingPlanBox: "bg-gray-800",
-                              formButtonPrimary: "bg-blue-600 hover:bg-blue-700"
-                            }
-                          }}
-                          ctaPosition="bottom"
-                          collapseFeatures={false}
-                        />
+                    <div className="p-4 bg-gray-800/50 rounded-lg space-y-3">
+                      <p className="text-sm font-medium text-gray-200 flex items-center gap-2">
+                        <Smartphone className="h-4 w-4" /> Performance
+                      </p>
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-gray-300">Enable subtle animations</span>
+                        {/* hook these to a setting endpoint if desired */}
+                        <input type="checkbox" className="toggle toggle-sm" defaultChecked />
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-gray-300">Reduce motion</span>
+                        <input type="checkbox" className="toggle toggle-sm" />
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-gray-300">Compact tables</span>
+                        <input type="checkbox" className="toggle toggle-sm" />
                       </div>
                     </div>
                   </div>
-                </div>
+                </Section>
               )}
 
-              {/* Security Section */}
-              {activeSection === "security" && (
-                <div className="bg-gray-900/70 backdrop-blur-sm rounded-xl border border-gray-800 overflow-hidden">
-                  <div className="px-6 py-4 border-b border-gray-700">
-                    <h3 className="text-lg font-semibold text-gray-100">Security Settings</h3>
+              {/* SESSIONS (surface Clerk sessions via UserProfile or a hint) */}
+              {active === "sessions" && (
+                <Section title="Active Sessions & Devices" icon={Monitor}>
+                  <p className="text-sm text-gray-400 mb-4">
+                    Manage sessions and sign out devices below. This embeds Clerk’s session manager.
+                  </p>
+                  <div className="rounded-lg border border-gray-800 overflow-hidden">
+                    <UserProfile
+                      appearance={{
+                        baseTheme: "dark",
+                        elements: {
+                          card: "bg-gray-900 border-gray-800",
+                          navbar: "bg-gray-900 border-b border-gray-800",
+                        },
+                      }}
+                      routing="hash"
+                      // This anchors the UserProfile to the Sessions page on load.
+                      // Users can also navigate to other security pages from the left nav.
+                      // (Clerk handles the internal tabs)
+                      // NOTE: If Clerk changes internal anchors, this still works as a full profile console.
+                    />
                   </div>
-                  
-                  <div className="p-6">
-                    <div className="space-y-6">
-                      <div className="p-4 bg-blue-900/20 border border-blue-800/50 rounded-lg">
-                        <div className="flex items-center">
-                          <Shield className="h-5 w-5 text-blue-400 mr-2" />
-                          <div>
-                            <h4 className="text-sm font-medium text-blue-300">Authentication Managed by Clerk</h4>
-                            <p className="text-xs text-blue-200/80 mt-1">
-                              Your password and authentication settings are securely managed by Clerk. 
-                              Use the User Button menu to manage your account security.
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-                      
-                      <div className="space-y-4">
-                        <h4 className="text-md font-medium text-gray-100">Security Recommendations</h4>
-                        <ul className="space-y-4">
-                          <li className="flex items-start">
-                            <Shield className="h-5 w-5 text-green-400 mr-3 mt-0.5 flex-shrink-0" />
-                            <div>
-                              <p className="text-sm font-medium text-gray-100">Use a strong, unique password</p>
-                              <p className="text-sm text-gray-400">Combine letters, numbers, and symbols</p>
-                            </div>
-                          </li>
-                          <li className="flex items-start">
-                            <Shield className="h-5 w-5 text-green-400 mr-3 mt-0.5 flex-shrink-0" />
-                            <div>
-                              <p className="text-sm font-medium text-gray-100">Enable two-factor authentication</p>
-                              <p className="text-sm text-gray-400">Add an extra layer of security to your account</p>
-                            </div>
-                          </li>
-                          <li className="flex items-start">
-                            <Shield className="h-5 w-5 text-green-400 mr-3 mt-0.5 flex-shrink-0" />
-                            <div>
-                              <p className="text-sm font-medium text-gray-100">Review active sessions regularly</p>
-                              <p className="text-sm text-gray-400">Sign out from devices you no longer use</p>
-                            </div>
-                          </li>
-                          <li className="flex items-start">
-                            <Shield className="h-5 w-5 text-green-400 mr-3 mt-0.5 flex-shrink-0" />
-                            <div>
-                              <p className="text-sm font-medium text-gray-100">Be alert for suspicious activity</p>
-                              <p className="text-sm text-gray-400">Report any unusual account activity immediately</p>
-                            </div>
-                          </li>
-                        </ul>
-                      </div>
+                </Section>
+              )}
+
+              {/* DEVELOPER */}
+              {active === "developer" && (
+                <Section title="Developer" icon={TerminalSquare}>
+                  <p className="text-sm text-gray-400 mb-6">
+                    Useful identifiers & claims for debugging the Clerk ↔ NestEgg link.
+                  </p>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="space-y-3 p-4 bg-gray-800/50 rounded-lg">
+                      <InfoRow label="Clerk User ID" value={user?.id} />
+                      <InfoRow label="Email" value={user?.primaryEmailAddress?.emailAddress} />
+                      <InfoRow label="First / Last" value={`${user?.firstName ?? ""} ${user?.lastName ?? ""}`} />
+                      <InfoRow label="Created" value={user?.createdAt ? new Date(user.createdAt).toLocaleString() : "—"} />
+                    </div>
+                    <div className="space-y-3 p-4 bg-gray-800/50 rounded-lg">
+                      <InfoRow label="Current Plan (derived)" value={currentPlan()} />
+                      <InfoRow
+                        label="Feature Flags (enabled)"
+                        value={Object.entries(features)
+                          .filter(([, v]) => v)
+                          .map(([k]) => k)
+                          .join(", ") || "none"}
+                      />
+                      <InfoRow label="JWT Strategy" value="Clerk session → /auth/exchange → NestEgg JWT" />
                     </div>
                   </div>
-                </div>
+                  <div className="mt-6 flex flex-wrap gap-3">
+                    <Link
+                      href="/api/auth/exchange"
+                      className="px-3 py-2 text-sm bg-gray-800 hover:bg-gray-700 rounded-lg inline-flex items-center"
+                    >
+                      <Cpu className="h-4 w-4 mr-2" />
+                      Exchange Clerk Token (debug)
+                    </Link>
+                    <Link
+                      href="/api/debug/me"
+                      className="px-3 py-2 text-sm bg-gray-800 hover:bg-gray-700 rounded-lg inline-flex items-center"
+                    >
+                      <TerminalSquare className="h-4 w-4 mr-2" />
+                      View /me payload
+                    </Link>
+                    <button
+                      onClick={() => window?.Clerk?.signOut?.()}
+                      className="px-3 py-2 text-sm bg-gray-800 hover:bg-gray-700 rounded-lg inline-flex items-center"
+                    >
+                      <LogOut className="h-4 w-4 mr-2" />
+                      Sign out (all)
+                    </button>
+                  </div>
+                </Section>
               )}
-
-              {/* Notifications Section */}
-              {activeSection === "notifications" && (
-                <div className="bg-gray-900/70 backdrop-blur-sm rounded-xl border border-gray-800 overflow-hidden">
-                  <div className="px-6 py-4 border-b border-gray-700">
-                    <h3 className="text-lg font-semibold text-gray-100">Notification Preferences</h3>
-                  </div>
-                  
-                  <div className="p-6">
-                    <p className="text-sm text-gray-400 mb-6">
-                      Choose which notifications you'd like to receive about your investments, account activity, and platform updates.
-                    </p>
-                    
-                    <div className="space-y-5">
-                      {Object.entries(notifications).map(([key, enabled]) => {
-                        const notificationLabels = {
-                          emailUpdates: {
-                            title: "Email Updates",
-                            description: "Important announcements and account activity"
-                          },
-                          marketAlerts: {
-                            title: "Market Alerts", 
-                            description: "Price changes and market events for your holdings"
-                          },
-                          performanceReports: {
-                            title: "Performance Reports",
-                            description: "Weekly and monthly portfolio performance summaries"
-                          },
-                          securityAlerts: {
-                            title: "Security Alerts",
-                            description: "Login attempts and security-related notifications"
-                          },
-                          newsletterUpdates: {
-                            title: "Newsletter Updates",
-                            description: "Educational content and investment insights"
-                          }
-                        };
-
-                        const label = notificationLabels[key];
-                        if (!label) return null;
-
-                        return (
-                          <div key={key} className={`flex items-center justify-between ${key !== 'emailUpdates' ? 'border-t border-gray-700 pt-5' : ''}`}>
-                            <div>
-                              <label htmlFor={key} className="font-medium text-gray-100">
-                                {label.title}
-                              </label>
-                              <p className="text-sm text-gray-400">
-                                {label.description}
-                              </p>
-                            </div>
-                            <label className="relative inline-flex items-center cursor-pointer">
-                              <input 
-                                type="checkbox" 
-                                id={key}
-                                checked={enabled} 
-                                onChange={() => handleNotificationChange(key)}
-                                className="sr-only peer" 
-                              />
-                              <div className="w-11 h-6 bg-gray-700 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300/20 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
-                            </label>
-                          </div>
-                        );
-                      })}
-                    </div>
-                    
-                    <div className="mt-6 flex justify-end">
-                      <button
-                        onClick={saveNotificationPreferences}
-                        className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 flex items-center disabled:bg-blue-400 transition-colors"
-                        disabled={saving}
-                      >
-                        {saving ? (
-                          <>
-                            <div className="animate-spin h-4 w-4 mr-2 border-2 border-t-transparent border-white rounded-full"></div>
-                            Saving...
-                          </>
-                        ) : (
-                          <>
-                            <Bell className="h-4 w-4 mr-2" />
-                            Save Preferences
-                          </>
-                        )}
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Activity Section */}
-              {activeSection === "activity" && (
-                <div className="bg-gray-900/70 backdrop-blur-sm rounded-xl border border-gray-800 overflow-hidden">
-                  <div className="px-6 py-4 border-b border-gray-700">
-                    <h3 className="text-lg font-semibold text-gray-100">Recent Activity</h3>
-                  </div>
-                  
-                  <div className="p-6">
-                    {activityLog.length === 0 ? (
-                      <div className="text-center py-8">
-                        <Clock className="h-12 w-12 mx-auto text-gray-500 mb-4" />
-                        <h4 className="text-lg font-medium text-gray-100 mb-2">No activity yet</h4>
-                        <p className="text-gray-400">
-                          Your account activity will appear here as you use the platform.
-                        </p>
-                      </div>
-                    ) : (
-                      <div className="space-y-6">
-                        {activityLog.map((activity, index) => (
-                          <div key={index} className="flex items-start">
-                            <div className={`flex-shrink-0 h-10 w-10 rounded-full flex items-center justify-center mr-4 ${
-                              activity.icon === 'Shield' ? 'bg-green-500/20 text-green-400' :
-                              activity.icon === 'Lock' ? 'bg-blue-500/20 text-blue-400' :
-                              activity.icon === 'PiggyBank' ? 'bg-purple-500/20 text-purple-400' :
-                              activity.icon === 'Edit' ? 'bg-yellow-500/20 text-yellow-400' :
-                              'bg-gray-500/20 text-gray-400'
-                            }`}>
-                              {getActivityIcon(activity.icon)}
-                            </div>
-                            <div>
-                              <p className="text-sm font-medium text-gray-100">{activity.action}</p>
-                              <p className="text-sm text-gray-400">{activity.details}</p>
-                              <p className="text-xs text-gray-500 mt-1">{formatDate(activity.date)}</p>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
-            </div>
+            </main>
           </div>
         </SignedIn>
       </div>
     </div>
+  );
+}
+
+/** ------- Small presentational components ------- */
+function Field({ label, value, onChange, disabled, type = "text" }) {
+  const base =
+    "w-full px-3 py-2 border rounded-md bg-gray-800 text-gray-100 disabled:text-gray-400 disabled:bg-gray-800/50";
+  if (type === "textarea") {
+    return (
+      <div>
+        <label className="block text-sm font-medium text-gray-300 mb-1">{label}</label>
+        <textarea
+          rows={4}
+          value={value}
+          onChange={(e) => onChange?.(e.target.value)}
+          disabled={disabled}
+          className={`${base} ${disabled ? "border-gray-700" : "border-gray-600 focus:border-blue-500"}`}
+        />
+      </div>
+    );
+  }
+  return (
+    <div>
+      <label className="block text-sm font-medium text-gray-300 mb-1">{label}</label>
+      <input
+        type={type}
+        value={value}
+        onChange={(e) => onChange?.(e.target.value)}
+        disabled={disabled}
+        className={`${base} ${disabled ? "border-gray-700" : "border-gray-600 focus:border-blue-500"}`}
+      />
+    </div>
+  );
+}
+
+function StatBox({ label, value }) {
+  return (
+    <div className="bg-gray-800/50 p-4 rounded-lg">
+      <p className="text-gray-400 text-sm">{label}</p>
+      <p className="text-lg font-medium text-gray-100">{value}</p>
+    </div>
+  );
+}
+
+function ThemeButton({ label, active, onClick, icon }) {
+  return (
+    <button
+      onClick={onClick}
+      className={`px-3 py-2 rounded-lg border transition-colors inline-flex items-center gap-2 ${
+        active ? "border-blue-500 bg-blue-500/10 text-blue-300" : "border-gray-700 bg-gray-800 text-gray-200 hover:bg-gray-700"
+      }`}
+    >
+      {icon}
+      <span className="text-sm">{label}</span>
+    </button>
   );
 }
