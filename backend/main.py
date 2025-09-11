@@ -76,6 +76,8 @@ from backend.api_clients.yahooquery_client import YahooQueryClient
 from backend.api_clients.direct_yahoo_client import DirectYahooFinanceClient
 from backend.auth_clerk import router as auth_router
 from backend.core_db import database, users
+from backend.webhooks_clerk import router as clerk_webhook_router
+
 
 # Initialize Database Connection
 # database = databases.Database(
@@ -304,7 +306,9 @@ def create_access_token(data: dict, expires_delta: timedelta = None):
     to_encode.update({"exp": expire})
     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
 
+# Authentication and Webhooks for Clerk -- bringing in services
 app.include_router(auth_router)
+app.include_router(clerk_webhook_router)
 
 # Dependency to get the current user
 async def get_current_user(token: str = Depends(oauth2_scheme)):

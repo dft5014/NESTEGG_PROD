@@ -186,21 +186,64 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
         logger.exception("auth.current_user.decode_failed")
         raise HTTPException(status_code=401, detail=f"Invalid credentials: {e}")
 
+def _profile_from_claims(claims: dict) -> dict:
+    """
+    Extracts profile-ish fields from Clerk claims defensively.
+    Only returns keys when there is a non-empty value.
+    """
+    unsafe = (claims.get("unsafe_metadata") or {}) if isinstance(claims.get("unsafe_metadata"), dict) else {}
+    out = {}
+
+    # Names & avatar
+    for k_src, k_dst in (("first_name", "first_name"), ("last_name", "last_name"), ("image_url", "image_url")):
+        v = claims.get(k_src)
+        if v:
+            out[k_dst] = v
+
+    # Optional fields we store in our users table (if columns exist)
+    for k in ("phone", "occupation", "date_of_birth"):
+        v = unsafe.get(k)
+        if v not in (None, "", []):
+            # Normalize date if Clerk sent a full ISO timestamp; Postgres DATE accepts YYYY-MM-DD
+            if k == "date_of_birth" and isinstance(v, str) and len(v) >= 10:
+                out[k] = v[:10]
+            else:
+                out[k] = v
+
+    # Plan can be signaled in public or unsafe metadata
+    pm = claims.get("public_metadata") or {}
+    if isinstance(pm, dict) and pm.get("plan"):
+        out["subscription_plan"] = pm["plan"]
+    elif unsafe.get("plan"):
+        out["subscription_plan"] = unsafe["plan"]
+
+    return out
+
+
 # ---------- Upsert/link Clerk user ----------
 async def _link_or_create_user_from_clerk(claims: dict, plan_hint: Optional[str]) -> tuple[str, str]:
-    # Normalize email from various Clerk token shapes
+    # 1) Normalize email from various Clerk token shapes
     email = (claims.get("email") or claims.get("primary_email_address") or "").strip().lower()
+
+    # If not present, consult the array
     if not email:
         emails = claims.get("email_addresses") or []
         if isinstance(emails, list):
-            for e in emails:
-                if e and isinstance(e, dict) and e.get("email_address"):
-                    email = e["email_address"].strip().lower()
-                    logger.info("clerk.link.email_from_array", extra={"email": email})
-                    break
+            # Prefer the one that matches primary_email_address_id, else first verified, else first any.
+            primary_id = claims.get("primary_email_address_id")
+            chosen = None
+            if primary_id:
+                chosen = next((e for e in emails if isinstance(e, dict) and e.get("id") == primary_id and e.get("email_address")), None)
+            if not chosen:
+                chosen = next((e for e in emails if isinstance(e, dict) and e.get("verification") and e["verification"].get("status") == "verified" and e.get("email_address")), None)
+            if not chosen:
+                chosen = next((e for e in emails if isinstance(e, dict) and e.get("email_address")), None)
+            if chosen:
+                email = (chosen.get("email_address") or "").strip().lower()
+
     clerk_id = (claims.get("sub") or "").strip()
 
-    # Final fallback: fetch from Clerk Admin API by id
+    # Final fallback: call Clerk Admin API to resolve email by id
     if not email and clerk_id:
         logger.info("clerk.link.fetch_email_fallback", extra={"sub": clerk_id})
         email = _fetch_email_from_clerk_api(clerk_id)
@@ -209,79 +252,91 @@ async def _link_or_create_user_from_clerk(claims: dict, plan_hint: Optional[str]
         logger.error("clerk.link.no_email", extra={"sub": clerk_id})
         raise HTTPException(status_code=400, detail="No email in Clerk token")
 
-    plan = (
-        plan_hint
-        or (claims.get("public_metadata", {}) or {}).get("plan")
-        or (claims.get("unsafe_metadata", {}) or {}).get("plan")
-        or DEFAULT_PLAN
-    )
+    # 2) Determine plan WITHOUT overriding a stronger value already in DB
+    profile = _profile_from_claims(claims)
+    plan_from_meta = profile.get("subscription_plan")
+    plan = plan_hint or plan_from_meta or DEFAULT_PLAN
 
     logger.info("clerk.link.lookup", extra={"email": email, "sub": clerk_id})
 
-    # 1) Lookup by clerk_id or email
+    # 3) Lookup existing by clerk_id OR email
     existing = await database.fetch_one(
         users.select().where((users.c.clerk_id == clerk_id) | (users.c.email == email))
     )
+    existing_cols = set(users.c.keys())
 
     if existing:
-        logger.info("clerk.link.existing_user", extra={"user_id": existing["id"], "had_clerk_id": bool(existing["clerk_id"])})
-        # Merge profile fields only if these columns exist
-        existing_cols = set(users.c.keys())
-        profile = _profile_from_claims(claims)
+        # Build update set without overwriting good data with None/empty
         update_values = {
             "clerk_id": existing["clerk_id"] or (clerk_id or None),
             "auth_provider": "clerk",
+            # Keep existing subscription if it's more authoritative (e.g., set by webhook):
             "subscription_plan": plan or existing["subscription_plan"] or DEFAULT_PLAN,
         }
 
-        # only write columns that exist on the table
-        for col in ("first_name", "last_name", "phone", "occupation", "date_of_birth", "image_url"):
-            if col in existing_cols and profile.get(col) is not None:
-                update_values[col] = profile[col]
+        # Only set columns that exist and have a non-empty value coming in
+        field_candidates = ("first_name", "last_name", "phone", "occupation", "date_of_birth", "image_url")
+        for col in field_candidates:
+            if col in existing_cols:
+                incoming = profile.get(col)
+                if incoming not in (None, "", []):
+                    # Avoid write if value is identical (minor perf/log noise reduction)
+                    if existing.get(col) != incoming:
+                        update_values[col] = incoming
 
-        await database.execute(
-            users.update()
-            .where(users.c.id == existing["id"])
-            .values(**update_values)
-        )
-        return str(existing["id"]), plan or existing["subscription_plan"] or DEFAULT_PLAN
+        # Log intent (which keys are changing)
+        intent_keys = [k for k in update_values.keys() if k not in ("auth_provider",)]
+        logger.info("clerk.link.existing_user", extra={
+            "user_id": str(existing["id"]),
+            "had_clerk_id": bool(existing["clerk_id"]),
+            "update_keys": intent_keys
+        })
 
+        if len(update_values) > 0:
+            await database.execute(users.update().where(users.c.id == existing["id"]).values(**update_values))
 
-    # 2) Create new user (race-safe)
+        # If DB already had a plan and no new plan came in, keep DB’s plan
+        final_plan = update_values.get("subscription_plan") or existing["subscription_plan"] or DEFAULT_PLAN
+        return str(existing["id"]), final_plan
+
+    # 4) Create new (race-safe)
     new_id = str(uuid.uuid4())
     try:
-        existing_cols = set(users.c.keys())
-        profile = _profile_from_claims(claims)
-
         insert_values = {
             "id": new_id,
             "email": email,
-            "password_hash": None,    # NULL for Clerk users
+            "password_hash": None,          # NULL for Clerk users
             "clerk_id": (clerk_id or None),
             "auth_provider": "clerk",
-            "subscription_plan": (profile.get("subscription_plan") or plan or DEFAULT_PLAN),
+            "subscription_plan": profile.get("subscription_plan") or plan or DEFAULT_PLAN,
         }
 
         for col in ("first_name", "last_name", "phone", "occupation", "date_of_birth", "image_url"):
-            if col in existing_cols and profile.get(col) is not None:
+            if col in existing_cols and profile.get(col) not in (None, "", []):
                 insert_values[col] = profile[col]
 
         await database.execute(users.insert().values(**insert_values))
-        logger.info("clerk.link.created_user", extra={"user_id": new_id, "email": email, "plan": insert_values["subscription_plan"]})
+        logger.info("clerk.link.created_user", extra={
+            "user_id": new_id, "email": email, "plan": insert_values["subscription_plan"]
+        })
         return new_id, insert_values["subscription_plan"]
 
     except IntegrityError:
+        # Classic race on email uniqueness—re-link to clerk_id if needed
         logger.warning("clerk.link.integrity_race", extra={"email": email})
         row = await database.fetch_one(users.select().where(users.c.email == email))
         if not row:
             logger.error("clerk.link.race_no_row")
             raise HTTPException(status_code=500, detail="Race during user upsert")
+
         if clerk_id and not row["clerk_id"]:
             await database.execute(
                 users.update().where(users.c.id == row["id"]).values(clerk_id=clerk_id, auth_provider="clerk")
             )
-        logger.info("clerk.link.race_linked", extra={"user_id": row["id"]})
-        return str(row["id"]), row["subscription_plan"] or (plan or DEFAULT_PLAN)
+            logger.info("clerk.link.race_linked", extra={"user_id": str(row["id"])})
+
+        final_plan = row["subscription_plan"] or (plan or DEFAULT_PLAN)
+        return str(row["id"]), final_plan
 
 # ---------- Router & endpoints ----------
 router = APIRouter()
