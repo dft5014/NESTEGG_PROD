@@ -2,32 +2,25 @@
 import os
 import json
 import logging
-from typing import Any, Dict, Optional
+from datetime import date
+from typing import Dict, Any, Optional
 
 from fastapi import APIRouter, Request, HTTPException
-from svix.webhooks import Webhook, WebhookVerificationError  # pip install svix
+from svix.webhooks import Webhook, WebhookVerificationError
 
-from backend.core_db import database, users  # single source of truth
+from backend.core_db import database, users
 
 logger = logging.getLogger("clerk_webhooks")
 
-# ---- ENV ----
-CLERK_WEBHOOK_SECRET = os.getenv("CLERK_WEBHOOK_SECRET")  # Clerk dashboard → Webhooks → Signing secret
+CLERK_WEBHOOK_SECRET = os.getenv("CLERK_WEBHOOK_SECRET")  # Clerk > Webhooks > Signing Secret
+if not CLERK_WEBHOOK_SECRET:
+    logger.warning("clerk.webhook.missing_secret_env")
 
+router = APIRouter()
 
-# ---- Router ----
-router = APIRouter(tags=["clerk-webhooks"])
-
-
-# ---- Helpers -----------------------------------------------------------------
 
 def _verify_clerk_signature(headers: dict, body: bytes) -> None:
-    """
-    Verify the Svix signature on the raw request body.
-    Raises HTTPException(400/500) if missing or invalid.
-    """
     if not CLERK_WEBHOOK_SECRET:
-        logger.error("clerk.webhook.missing_secret_env")
         raise HTTPException(status_code=500, detail="CLERK_WEBHOOK_SECRET not configured")
 
     svix_headers = {
@@ -41,169 +34,166 @@ def _verify_clerk_signature(headers: dict, body: bytes) -> None:
 
     try:
         wh = Webhook(CLERK_WEBHOOK_SECRET)
-        # Verify signature (raises if invalid). We don't need the return value.
-        wh.verify(body, svix_headers)
+        wh.verify(body, svix_headers)  # will raise if invalid
     except WebhookVerificationError as e:
-        logger.warning("clerk.webhook.verify_failed", extra={"error": str(e)})
+        logger.warning("clerk.webhook.verify_failed", extra={"err": str(e)})
         raise HTTPException(status_code=400, detail="Invalid signature")
 
 
-def _extract_primary_email_from_user(user: Dict[str, Any]) -> Optional[str]:
-    """
-    From a Clerk 'user' object (event.data), return the primary email string.
-    """
-    primary_id = user.get("primary_email_address_id")
-    for e in user.get("email_addresses") or []:
+def _extract_primary_email(clerk_user: Dict[str, Any]) -> Optional[str]:
+    """Return the primary email (lowercased) from Clerk user payload."""
+    email = None
+    primary_id = clerk_user.get("primary_email_address_id")
+    for e in clerk_user.get("email_addresses") or []:
+        # prefer primary; fallback to first available
         if (primary_id and e.get("id") == primary_id) or (not primary_id and e.get("email_address")):
-            addr = (e.get("email_address") or "").strip().lower()
-            if addr:
-                return addr
+            email = (e.get("email_address") or "").strip().lower()
+            break
+    return email
+
+
+def _to_date(val: Any) -> Optional[date]:
+    """Cast common date string formats to date; return None on failure."""
+    if not val:
+        return None
+    if isinstance(val, date):
+        return val
+    s = str(val).strip()
+    if not s or s.lower() in ("null", "none"):
+        return None
+    # accept YYYY-MM-DD, or YYYY/MM/DD
+    for sep in ("-", "/"):
+        parts = s.split(sep)
+        if len(parts) == 3 and all(p.isdigit() for p in parts):
+            try:
+                y, m, d = map(int, parts)
+                return date(y, m, d)
+            except Exception:
+                pass
     return None
 
 
-async def _upsert_user_from_clerk_user(user: Dict[str, Any]) -> None:
+async def _upsert_user_from_clerk_user(clerk_user: Dict[str, Any]) -> None:
     """
     Map Clerk user payload → your `users` table.
-    Creates or updates by (clerk_id) or (email).
-    Only writes columns that actually exist on your table.
+    Updates when row exists (by clerk_id or email); inserts otherwise.
     """
-    clerk_id: Optional[str] = user.get("id")
-    email: Optional[str] = _extract_primary_email_from_user(user)
+    clerk_id = clerk_user.get("id")
+    email = _extract_primary_email(clerk_user)
+
+    pm = clerk_user.get("public_metadata") or {}
+    um = clerk_user.get("unsafe_metadata") or {}
+
+    # fields we try to persist
+    first_name = clerk_user.get("first_name")
+    last_name  = clerk_user.get("last_name")
+    image_url  = clerk_user.get("image_url")
+    plan       = pm.get("plan") or um.get("plan")
+    phone      = um.get("phone")
+    occupation = um.get("occupation")
+    dob        = _to_date(um.get("date_of_birth"))
+
+    logger.info("clerk.webhook.user.parsed",
+        extra={"clerk_id": clerk_id, "email": email, "first_name": first_name,
+               "last_name": last_name, "plan": plan, "has_dob": bool(dob)})
 
     if not (clerk_id or email):
         logger.info("clerk.webhook.user.skip_no_keys")
         return
 
-    # Metadata and profile
-    first_name = user.get("first_name")
-    last_name = user.get("last_name")
-    image_url = user.get("image_url")
-
-    public_meta = user.get("public_metadata") or {}
-    unsafe_meta = user.get("unsafe_metadata") or {}
-
-    plan = public_meta.get("plan") or unsafe_meta.get("plan") or None
-    phone = unsafe_meta.get("phone")
-    occupation = unsafe_meta.get("occupation")
-    date_of_birth = unsafe_meta.get("date_of_birth")
-
-    # Determine which columns exist (your Supabase schema)
-    existing_cols = set(users.c.keys())
-
-    # Build values to upsert
-    values: Dict[str, Any] = {}
-    if "email" in existing_cols and email:
-        values["email"] = email
-    if "first_name" in existing_cols and first_name is not None:
-        values["first_name"] = first_name
-    if "last_name" in existing_cols and last_name is not None:
-        values["last_name"] = last_name
-    if "image_url" in existing_cols and image_url is not None:
-        values["image_url"] = image_url
-    if "phone" in existing_cols and phone is not None:
-        values["phone"] = phone
-    if "occupation" in existing_cols and occupation is not None:
-        values["occupation"] = occupation
-    if "date_of_birth" in existing_cols and date_of_birth is not None:
-        values["date_of_birth"] = date_of_birth
-    if "subscription_plan" in existing_cols and plan:
-        values["subscription_plan"] = str(plan)
-
-    # Lookup by clerk_id first, then by email
+    # find existing row
     row = await database.fetch_one(
         users.select().where((users.c.clerk_id == clerk_id) | (users.c.email == (email or "")))
     )
 
+    # Build values that actually exist as columns
+    existing_cols = set(users.c.keys())
+    values: Dict[str, Any] = {}
+    if email and "email" in existing_cols: values["email"] = email
+    if first_name is not None and "first_name" in existing_cols: values["first_name"] = first_name
+    if last_name  is not None and "last_name"  in existing_cols: values["last_name"]  = last_name
+    if image_url  is not None and "image_url"  in existing_cols: values["image_url"]  = image_url
+    if phone      is not None and "phone"      in existing_cols: values["phone"]      = phone
+    if occupation is not None and "occupation" in existing_cols: values["occupation"] = occupation
+    if dob is not None and "date_of_birth" in existing_cols:     values["date_of_birth"] = dob
+    if plan and "subscription_plan" in existing_cols:            values["subscription_plan"] = str(plan)
+
     if row:
-        upd_vals = dict(values)
-        if "auth_provider" in existing_cols:
-            upd_vals["auth_provider"] = "clerk"
-        if "clerk_id" in existing_cols and not row["clerk_id"] and clerk_id:
-            upd_vals["clerk_id"] = clerk_id
-
-        await database.execute(users.update().where(users.c.id == row["id"]).values(**upd_vals))
-        logger.info(
-            "clerk.webhook.user.updated",
-            extra={"user_id": str(row["id"]), "email": email, "plan": values.get("subscription_plan")},
-        )
+        # UPDATE
+        values.update({
+            "clerk_id": row["clerk_id"] or clerk_id,
+            "auth_provider": "clerk",
+        })
+        logger.info("clerk.webhook.user.update.values", extra={"user_id": str(row["id"]), "values": {k: str(v) for k,v in values.items()}})
+        query = users.update().where(users.c.id == row["id"]).values(**values)
+        res = await database.execute(query)
+        # databases.execute returns the primary key for inserts; for updates it returns lastrowid (None on PG).
+        # So we log an extra read to confirm changes happened.
+        chk = await database.fetch_one(users.select().where(users.c.id == row["id"]))
+        logger.info("clerk.webhook.user.updated", extra={"user_id": str(row["id"]), "email": chk["email"], "plan": chk["subscription_plan"]})
     else:
-        ins_vals = dict(values)
-        # Required / defaults
-        if "password_hash" in existing_cols:
-            ins_vals["password_hash"] = None
-        if "clerk_id" in existing_cols:
-            ins_vals["clerk_id"] = clerk_id
-        if "auth_provider" in existing_cols:
-            ins_vals["auth_provider"] = "clerk"
-        if "subscription_plan" in existing_cols and "subscription_plan" not in ins_vals:
-            ins_vals["subscription_plan"] = "basic"
+        # INSERT
+        insert_values = {
+            "email": email or "",               # required in your schema
+            "password_hash": None,
+            "first_name": first_name,
+            "last_name": last_name,
+            "phone": phone,
+            "occupation": occupation,
+            "date_of_birth": dob,
+            "image_url": image_url,
+            "clerk_id": clerk_id,
+            "auth_provider": "clerk",
+            "subscription_plan": str(plan) if plan else "basic",
+        }
+        # keep only existing columns
+        insert_values = {k: v for k, v in insert_values.items() if k in existing_cols}
+        logger.info("clerk.webhook.user.insert.values", extra={"values": {k: str(v) for k,v in insert_values.items()}})
+        await database.execute(users.insert().values(**insert_values))
+        logger.info("clerk.webhook.user.created", extra={"email": email, "plan": insert_values.get("subscription_plan")})
 
-        # NOTE: your Supabase table defines id as uuid with a default (gen_random_uuid()).
-        # So we don't set `id` here—let the DB default generate it.
-        await database.execute(users.insert().values(**ins_vals))
-        logger.info("clerk.webhook.user.created", extra={"email": email, "plan": ins_vals.get("subscription_plan")})
 
-
-async def _sync_subscription_to_user(subscription: Dict[str, Any]) -> None:
+async def _sync_subscription_to_user(sub: Dict[str, Any]) -> None:
     """
-    Mirror Clerk Billing subscription changes to users table (plan, etc.).
-    The payload shape can vary; we extract defensively.
+    Mirror Clerk Billing subscription events to users.subscription_plan.
+    Shapes differ by billing provider; extract defensively.
     """
-    clerk_user_id = (
-        subscription.get("user_id")
-        or subscription.get("user")
-        or subscription.get("owner_id")
-    )
-
+    clerk_user_id = sub.get("user_id") or sub.get("user") or sub.get("owner_id")
     if not clerk_user_id:
         logger.info("clerk.webhook.subscription.skip_no_user")
         return
 
-    # Best-effort plan extraction
+    # Try several common locations for a product/plan identifier
     plan = (
-        subscription.get("plan")
-        or (subscription.get("price") or {}).get("product")
-        or (subscription.get("items") or [{}])[0].get("price", {}).get("product")
+        sub.get("plan") or
+        (sub.get("price") or {}).get("product") or
+        (sub.get("items") or [{}])[0].get("price", {}).get("product") or
+        (sub.get("product") or {}).get("name") or
+        (sub.get("data") or {}).get("plan")  # some test payloads
     )
-    status = subscription.get("status")
+    status = sub.get("status")
 
     row = await database.fetch_one(users.select().where(users.c.clerk_id == clerk_user_id))
     if not row:
         logger.info("clerk.webhook.subscription.no_user_yet", extra={"clerk_id": clerk_user_id})
         return
 
-    upd_vals: Dict[str, Any] = {}
-    if plan and "subscription_plan" in users.c.keys():
-        upd_vals["subscription_plan"] = str(plan)
+    vals = {}
+    if plan and "subscription_plan" in set(users.c.keys()):
+        vals["subscription_plan"] = str(plan)
 
-    # If you later add users.subscription_status, update it here as well.
-    if upd_vals:
-        await database.execute(users.update().where(users.c.id == row["id"]).values(**upd_vals))
-        logger.info(
-            "clerk.webhook.subscription.updated",
-            extra={"user_id": str(row["id"]), "plan": upd_vals.get("subscription_plan"), "status": status},
-        )
+    if not vals:
+        logger.info("clerk.webhook.subscription.noop", extra={"user_id": str(row["id"]), "status": status})
+        return
 
-
-# ---- Routes ------------------------------------------------------------------
-
-@router.get("/webhooks/clerk/health")
-async def clerk_webhook_health():
-    """
-    Simple GET health check (handy to test routing quickly in a browser).
-    """
-    ok = bool(CLERK_WEBHOOK_SECRET)
-    return {"ok": ok, "has_signing_secret": ok}
+    logger.info("clerk.webhook.subscription.update.values", extra={"user_id": str(row["id"]), "vals": vals, "status": status})
+    await database.execute(users.update().where(users.c.id == row["id"]).values(**vals))
+    chk = await database.fetch_one(users.select().where(users.c.id == row["id"]))
+    logger.info("clerk.webhook.subscription.updated", extra={"user_id": str(row["id"]), "plan": chk["subscription_plan"], "status": status})
 
 
 @router.post("/webhooks/clerk")
 async def clerk_webhook(request: Request):
-    """
-    Single endpoint for all Clerk events.
-    - Verifies Svix signature on the raw body.
-    - Parses JSON leniently (no strict Pydantic model).
-    - Routes by `type` and upserts/syncs as needed.
-    """
     raw = await request.body()
     _verify_clerk_signature(request.headers, raw)
 
@@ -214,27 +204,19 @@ async def clerk_webhook(request: Request):
         raise HTTPException(status_code=400, detail="Bad payload")
 
     etype = payload.get("type")
-    data = payload.get("data") or {}
-
+    data: Dict[str, Any] = payload.get("data") or {}
     logger.info("clerk.webhook.received", extra={"type": etype})
 
-    # User lifecycle
     if etype in ("user.created", "user.updated"):
         await _upsert_user_from_clerk_user(data)
         return {"ok": True}
 
-    # Subscription lifecycle (Clerk Billing or your provider webhooks forwarded through Clerk)
     if etype in (
-        "subscription.created",
-        "subscription.updated",
-        "subscription.deleted",
-        "subscription.paused",
-        "subscription.resumed",
-        "subscription.canceled",
+        "subscription.created", "subscription.updated", "subscription.deleted",
+        "subscription.paused", "subscription.resumed", "subscription.canceled", "subscription.active"
     ):
         await _sync_subscription_to_user(data)
         return {"ok": True}
 
-    # Add more handlers as needed (email_address.updated, phone_number.updated, etc.)
     logger.info("clerk.webhook.ignored", extra={"type": etype})
     return {"ok": True}
