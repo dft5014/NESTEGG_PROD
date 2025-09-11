@@ -10,7 +10,7 @@ import { UpdateCheckProvider } from "@/context/UpdateCheckContext";
 import { DataStoreProvider } from "@/store/DataStore";
 import { useState, useEffect, createContext, useContext } from "react";
 import { ClerkProvider } from "@clerk/nextjs";
-import { dark, shadesOfPurple } from '@clerk/themes'
+import { dark } from '@clerk/themes';
 
 const CLERK_PK = process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY;
 
@@ -29,7 +29,6 @@ function LayoutWrapper({ children }) {
   useEffect(() => {
     if (typeof window === "undefined") return;
     const handleResize = () => {
-      // (You set true in both branches previously; keeping same behavior)
       setSidebarCollapsed(true);
     };
     handleResize();
@@ -76,7 +75,82 @@ function LayoutWrapper({ children }) {
 
 export default function App({ Component, pageProps }) {
   return (
-    <ClerkProvider publishableKey={CLERK_PK} appearance={{ baseTheme: "dark" }}>
+    <ClerkProvider 
+      publishableKey={CLERK_PK} 
+      appearance={{
+        baseTheme: dark,
+        variables: {
+          colorPrimary: "#3b82f6",
+          colorBackground: "#0f172a",
+          colorInputBackground: "#1e293b",
+          colorInputText: "#f1f5f9",
+          colorText: "#f1f5f9",
+          colorTextSecondary: "#94a3b8",
+          colorShimmer: "#374151",
+          colorSuccess: "#10b981",
+          colorWarning: "#f59e0b",
+          colorDanger: "#ef4444",
+          borderRadius: "0.5rem",
+          fontFamily: "inherit"
+        },
+        elements: {
+          formButtonPrimary: 
+            "bg-blue-600 hover:bg-blue-700 text-white transition-colors",
+          card: 
+            "bg-gray-900/70 backdrop-blur-sm border-gray-800 shadow-xl",
+          headerTitle: 
+            "text-gray-100",
+          headerSubtitle: 
+            "text-gray-400",
+          socialButtonsBlockButton: 
+            "bg-gray-800 border-gray-700 text-gray-100 hover:bg-gray-700 transition-colors",
+          formFieldInput: 
+            "bg-gray-800 border-gray-600 text-gray-100 focus:border-blue-500 focus:ring-blue-500/20",
+          formFieldLabel: 
+            "text-gray-300",
+          footerActionLink: 
+            "text-blue-400 hover:text-blue-300 transition-colors",
+          userButtonAvatarBox: 
+            "w-10 h-10",
+          userButtonPopoverCard: 
+            "bg-gray-800 border-gray-700 backdrop-blur-sm",
+          userButtonPopoverActionButton: 
+            "text-gray-100 hover:bg-gray-700 transition-colors",
+          userButtonPopoverActionButtonIcon: 
+            "text-gray-400",
+          navbarButton: 
+            "text-gray-300 hover:text-gray-100",
+          navbarMobileMenuButton: 
+            "text-gray-300",
+          alertText: 
+            "text-gray-100",
+          formHeaderTitle: 
+            "text-gray-100",
+          formHeaderSubtitle: 
+            "text-gray-400",
+          socialButtonsProviderIcon: 
+            "brightness-0 invert",
+          dividerLine: 
+            "bg-gray-700",
+          dividerText: 
+            "text-gray-400",
+          formFieldSuccessText: 
+            "text-green-400",
+          formFieldErrorText: 
+            "text-red-400",
+          formFieldWarningText: 
+            "text-yellow-400",
+          badge: 
+            "bg-blue-600 text-white",
+          avatarBox: 
+            "border-gray-700",
+          userPreviewMainIdentifier: 
+            "text-gray-100",
+          userPreviewSecondaryIdentifier: 
+            "text-gray-400"
+        }
+      }}
+    >
       <AuthProvider>
         <UpdateCheckProvider>
           <DataStoreProvider>
