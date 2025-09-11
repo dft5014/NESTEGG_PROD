@@ -9,7 +9,7 @@ metadata = sqlalchemy.MetaData()
 
 users = sqlalchemy.Table(
     "users", metadata,
-    sqlalchemy.Column("id", sqlalchemy.dialects.postgresql.UUID(as_uuid=True), primary_key=True),
+    sqlalchemy.Column("id", sqlalchemy.String, primary_key=True),
     sqlalchemy.Column("email", sqlalchemy.Text, unique=True, nullable=False),
     sqlalchemy.Column("password_hash", sqlalchemy.Text, nullable=True),
     sqlalchemy.Column("first_name", sqlalchemy.Text, nullable=True),
