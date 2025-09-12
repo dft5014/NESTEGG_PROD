@@ -2,6 +2,7 @@
 import os
 import json
 import logging
+import ipaddress
 from datetime import date
 from typing import Dict, Any, Optional
 
@@ -12,13 +13,32 @@ from backend.core_db import database, users
 
 logger = logging.getLogger("clerk_webhooks")
 
+
+
 CLERK_WEBHOOK_SECRET = os.getenv("CLERK_WEBHOOK_SECRET")  # Clerk > Webhooks > Signing Secret
 if not CLERK_WEBHOOK_SECRET:
     logger.warning("clerk.webhook.missing_secret_env")
 
 router = APIRouter()
 
+def _clean_ip(ip: Optional[str]) -> Optional[str]:
+    if not ip:
+        return None
+    try:
+        ipaddress.ip_address(ip)  # validates IPv4/IPv6
+        return ip
+    except Exception:
+        return None
 
+def _ts_to_tz(ms_or_s):
+    if ms_or_s is None:
+        return None
+    import datetime as dt
+    x = int(ms_or_s)
+    if x > 10**12:  # ms
+        return dt.datetime.fromtimestamp(x / 1000.0, tz=dt.timezone.utc)
+    return dt.datetime.fromtimestamp(x, tz=dt.timezone.utc)
+    
 def _verify_clerk_signature(headers: dict, body: bytes) -> None:
     if not CLERK_WEBHOOK_SECRET:
         raise HTTPException(status_code=500, detail="CLERK_WEBHOOK_SECRET not configured")
@@ -250,7 +270,7 @@ async def _handle_session_created(db, payload):
         "city": act.get("city"),
         "country": act.get("country"),
         # Some events omit IP or include IPv6/Private; let Postgres INET handle it if present.
-        "ip_address": (payload.get("event_attributes", {}).get("http_request", {}) or {}).get("client_ip"),
+        "ip_address": _clean_ip((payload.get("event_attributes", {}).get("http_request", {}) or {}).get("client_ip")),
         "user_agent": payload.get("event_attributes", {}).get("http_request", {}).get("user_agent"),
         "client_id": s.get("client_id"),
         "raw": json.dumps(payload)
@@ -283,25 +303,33 @@ async def _handle_session_created(db, payload):
     """, fields)
 
     # Update denormalized user columns + login_count
-    await db.execute("""
-        UPDATE users
-           SET last_login_at = :last_login_at,
-               last_login_ip = :last_login_ip::inet,
-               last_login_city = :last_login_city,
-               last_login_country = :last_login_country,
-               last_login_device = :last_login_device,
-               last_login_browser = :last_login_browser,
-               login_count = COALESCE(login_count, 0) + 1
-         WHERE id = :user_id;
-    """, {
+    update_vals = {
         "last_login_at": fields["last_active_at"] or fields["started_at"],
         "last_login_ip": fields["ip_address"],
         "last_login_city": fields["city"],
         "last_login_country": fields["country"],
         "last_login_device": fields["device_type"],
         "last_login_browser": " ".join(filter(None, [fields["browser_name"], fields["browser_version"]])),
-        "user_id": fields["user_id"]
-    })
+        "user_id": fields["user_id"],
+        "clerk_user_id": fields["clerk_user_id"],
+    }
+    row = await db.fetch_one("""
+        UPDATE users
+        SET last_login_at      = :last_login_at,
+            last_login_ip      = :last_login_ip::inet,
+            last_login_city    = :last_login_city,
+            last_login_country = :last_login_country,
+            last_login_device  = :last_login_device,
+            last_login_browser = :last_login_browser,
+            login_count        = COALESCE(login_count, 0) + 1
+        WHERE id = :user_id
+            OR clerk_id = :clerk_user_id
+        RETURNING id;
+    """, update_vals)
+
+    if not row:
+        logger.warning("clerk.session_created.users_update_no_match",
+                    extra={"user_id": str(update_vals["user_id"]), "clerk_user_id": update_vals["clerk_user_id"]})
 
 async def _handle_session_updated(db, payload):
     s = payload["data"]; act = (s.get("latest_activity") or {})
@@ -329,7 +357,7 @@ async def _handle_session_updated(db, payload):
         "browser_version": act.get("browser_version"),
         "city": act.get("city"),
         "country": act.get("country"),
-        "ip_address": (payload.get("event_attributes", {}).get("http_request", {}) or {}).get("client_ip"),
+        "ip_address": _clean_ip((payload.get("event_attributes", {}).get("http_request", {}) or {}).get("client_ip")),
         "user_agent": payload.get("event_attributes", {}).get("http_request", {}).get("user_agent"),
         "raw": json.dumps(payload),
         "clerk_session_id": s["id"]

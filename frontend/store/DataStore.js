@@ -456,6 +456,11 @@ export const DataStoreProvider = ({ children }) => {
   const [state, dispatch] = useReducer(dataStoreReducer, initialState);
   const { fetchAuthed } = useContext(AuthContext);
 
+  // Only attempt API calls when a NestEgg app token exists
+  const haveToken = useCallback(() => {
+    try { return !!localStorage.getItem('token'); } catch { return false; }
+  }, []);
+
   const hasInitialized = useRef(false);
   const phase1Timeout = useRef(null);
   const phase2Timeout = useRef(null);
@@ -495,6 +500,7 @@ export const DataStoreProvider = ({ children }) => {
   }, [fetchAuthed]);
 
   const fetchPortfolioData = useCallback(async (force = false) => {
+    if (!haveToken()) return;
     const ps = state.portfolioSummary;
     if (ps.loading && !force) return;
     const fiveMinutesAgo = Date.now() - 300000;
@@ -511,9 +517,10 @@ export const DataStoreProvider = ({ children }) => {
       console.error('Error fetching portfolio data:', error);
       dispatch({ type: ActionTypes.FETCH_SUMMARY_ERROR, payload: error.message });
     }
-  }, [state.portfolioSummary.loading, state.portfolioSummary.lastFetched, state.portfolioSummary.isStale, withAbort]);
+  }, [state.portfolioSummary.loading, state.portfolioSummary.lastFetched, state.portfolioSummary.isStale, withAbort, haveToken]);
 
   const fetchAccountsData = useCallback(async (force = false) => {
+    if (!haveToken()) return;
     if (state.accounts.loading && !force) return;
     const oneMinuteAgo = Date.now() - 60000;
     if (!force && state.accounts.lastFetched && state.accounts.lastFetched > oneMinuteAgo && !state.accounts.isStale) return;
@@ -529,9 +536,10 @@ export const DataStoreProvider = ({ children }) => {
       console.error('Error fetching accounts data:', error);
       dispatch({ type: ActionTypes.FETCH_ACCOUNTS_ERROR, payload: error.message });
     }
-  }, [state.accounts.loading, state.accounts.lastFetched, state.accounts.isStale, withAbort]);
+  }, [state.accounts.loading, state.accounts.lastFetched, state.accounts.isStale, withAbort, haveToken]);
 
   const fetchGroupedPositionsData = useCallback(async (force = false) => {
+    if (!haveToken()) return;
     if (state.groupedPositions.loading && !force) return;
     const oneMinuteAgo = Date.now() - 60000;
     if (!force && state.groupedPositions.lastFetched && state.groupedPositions.lastFetched > oneMinuteAgo && !state.groupedPositions.isStale) return;
@@ -547,9 +555,10 @@ export const DataStoreProvider = ({ children }) => {
       console.error('Error fetching grouped positions:', error);
       dispatch({ type: ActionTypes.FETCH_GROUPED_POSITIONS_ERROR, payload: error.message });
     }
-  }, [state.groupedPositions.loading, state.groupedPositions.lastFetched, state.groupedPositions.isStale, withAbort]);
+  }, [state.groupedPositions.loading, state.groupedPositions.lastFetched, state.groupedPositions.isStale, withAbort, haveToken]);
 
   const fetchDetailedPositionsData = useCallback(async (force = false) => {
+    if (!haveToken()) return;
     if (!force && (state.detailedPositions.loading || (state.detailedPositions.lastFetched && Date.now() - state.detailedPositions.lastFetched < 60000))) return;
 
     dispatch({ type: ActionTypes.FETCH_DETAILED_POSITIONS_START });
@@ -563,9 +572,10 @@ export const DataStoreProvider = ({ children }) => {
       console.error('Error fetching detailed positions:', error);
       dispatch({ type: ActionTypes.FETCH_DETAILED_POSITIONS_ERROR, payload: error.message });
     }
-  }, [state.detailedPositions.loading, state.detailedPositions.lastFetched, withAbort]);
+  }, [state.detailedPositions.loading, state.detailedPositions.lastFetched, withAbort, haveToken]);
 
   const fetchPositionHistory = useCallback(async (identifier, days = 90, force = false) => {
+    if (!haveToken()) return;
     if (!identifier) return;
     if (state.positionHistory.loading[identifier] && !force) return;
     const fiveMinutesAgo = Date.now() - 300000;
@@ -582,9 +592,10 @@ export const DataStoreProvider = ({ children }) => {
       console.error('Error fetching position history:', error);
       dispatch({ type: ActionTypes.FETCH_POSITION_HISTORY_ERROR, payload: { identifier, error: error.message } });
     }
-  }, [state.positionHistory.loading, state.positionHistory.lastFetched, withAbort]);
+  }, [state.positionHistory.loading, state.positionHistory.lastFetched, withAbort, haveToken]);
 
   const fetchGroupedLiabilitiesData = useCallback(async (force = false) => {
+    if (!haveToken()) return;
     if (state.groupedLiabilities.loading && !force) return;
     const oneMinuteAgo = Date.now() - 60000;
     if (!force && state.groupedLiabilities.lastFetched && state.groupedLiabilities.lastFetched > oneMinuteAgo && !state.groupedLiabilities.isStale) return;
@@ -600,9 +611,10 @@ export const DataStoreProvider = ({ children }) => {
       console.error('Error fetching grouped liabilities:', error);
       dispatch({ type: ActionTypes.FETCH_GROUPED_LIABILITIES_ERROR, payload: error.message });
     }
-  }, [state.groupedLiabilities.loading, state.groupedLiabilities.lastFetched, state.groupedLiabilities.isStale, withAbort]);
+  }, [state.groupedLiabilities.loading, state.groupedLiabilities.lastFetched, state.groupedLiabilities.isStale, withAbort, haveToken]);
 
   const fetchSnapshotsData = useCallback(async (days = 90, force = false) => {
+    if (!haveToken()) return;
     if (state.snapshots.loading && !force) return;
     const oneMinuteAgo = Date.now() - 60000;
     if (!force && state.snapshots.lastFetched && state.snapshots.lastFetched > oneMinuteAgo && !state.snapshots.isStale) return;
@@ -671,7 +683,7 @@ export const DataStoreProvider = ({ children }) => {
       console.error('Error fetching snapshots:', error);
       dispatch({ type: ActionTypes.FETCH_SNAPSHOTS_ERROR, payload: error.message });
     }
-  }, [state.snapshots.loading, state.snapshots.lastFetched, state.snapshots.isStale, withAbort]);
+  }, [state.snapshots.loading, state.snapshots.lastFetched, state.snapshots.isStale, withAbort, haveToken]);
 
   // ---------- Refresh helpers ----------
   const refreshData = useCallback(async (force = true) => {

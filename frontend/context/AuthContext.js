@@ -30,6 +30,7 @@ export const AuthProvider = ({ children }) => {
       if (!res.ok) throw new Error(`[exchange] ${res.status} ${txt}`);
       const data = JSON.parse(txt);
       localStorage.setItem("token", data.access_token);
+      window.dispatchEvent(new CustomEvent("auth-login"));
       return data.access_token;
     } catch (e) {
       console.warn("[AuthContext] Clerk exchange failed:", e);
