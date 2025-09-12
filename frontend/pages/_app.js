@@ -3,7 +3,7 @@ import "@/styles/globals.css";
 import Sidebar from "@/components/sidebar";
 import Navbar from "@/components/navbar";
 import EggMascot from "@/components/EggMascot";
-import { AuthProvider } from "@/context/AuthContext";
+import { AuthProvider, AuthContext } from "@/context/AuthContext";
 import { EggMascotProvider, useEggMascot } from "@/context/EggMascotContext";
 import { useRouter } from "next/router";
 import { UpdateCheckProvider } from "@/context/UpdateCheckContext";
@@ -11,6 +11,7 @@ import { DataStoreProvider } from "@/store/DataStore";
 import { useState, useEffect, createContext, useContext } from "react";
 import { ClerkProvider } from "@clerk/nextjs";
 import { dark } from '@clerk/themes';
+import { useAuth, useUser } from "@clerk/nextjs";
 
 const CLERK_PK = process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY;
 
@@ -151,9 +152,11 @@ export default function App({ Component, pageProps }) {
         }
       }}
     >
-      <AuthProvider>
+    <AuthProvider>
+      <AuthSessionGate>
         <UpdateCheckProvider>
-          <DataStoreProvider>
+          {/* Key by session to fully remount state on login/logout */}
+          <DataStoreProvider key={`ds:${useAuthSessionKey()}`}>
             <EggMascotProvider>
               <LayoutWrapper>
                 <Component {...pageProps} />
@@ -161,9 +164,22 @@ export default function App({ Component, pageProps }) {
             </EggMascotProvider>
           </DataStoreProvider>
         </UpdateCheckProvider>
-      </AuthProvider>
-    </ClerkProvider>
+      </AuthSessionGate>
+    </AuthProvider>
+   </ClerkProvider>
   );
+}
+
+function useAuthSessionKey() {
+  const { clerkUser } = useContext(AuthContext);
+  const { sessionId, isSignedIn } = useAuth();
+  // Prefer Clerk session id; fall back to your app user id; else anon
+  return isSignedIn ? (sessionId || clerkUser?.id || "clerk") : "anon";
+}
+
+function AuthSessionGate({ children }) {
+  // This component simply exists so hooks above can be used safely under ClerkProvider/AuthProvider
+  return children;
 }
 
 function EggMascotWithState() {

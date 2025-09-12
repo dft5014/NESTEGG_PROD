@@ -457,10 +457,8 @@ function PageShell() {
             console.groupCollapsed("[Login/Clerk] post-signin");
             console.log("isSignedIn:", isSignedIn, "user.id:", user?.id, "clerkSignedIn:", clerkSignedIn);
             try {
-                const data = await exchangeToken(getToken);
-                console.log("[Login/Clerk] JWT stored; redirect -> /portfolio");
-                // optional: decide target based on plan/features etc.
-                window.location.replace("/portfolio");
+                await exchangeToken(getToken);
+                window.dispatchEvent(new CustomEvent("auth-login"));
             } catch (e) {
                 console.warn("[Login/Clerk] exchange failed", e);
             }

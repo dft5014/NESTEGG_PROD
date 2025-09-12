@@ -69,14 +69,16 @@ export const AuthProvider = ({ children }) => {
         }
 
         // 2) No app token → try Clerk
-        if (!token && isClerkLoaded && isSignedIn) {
-          const exchanged = await exchangeFromClerk();
-          if (exchanged) {
-            const u = await fetchUserWithToken(exchanged);
-            setUser(u);
-            setLoading(false);
-            return;
+        const exchanged = await exchangeFromClerk();
+        if (exchanged) {
+          const u = await fetchUserWithToken(exchanged);
+          setUser(u);
+          // notify app that an authenticated session is ready
+          if (typeof window !== "undefined") {
+            window.dispatchEvent(new CustomEvent("auth-login"));
           }
+          setLoading(false);
+          return;
         }
 
         // 3) Not authenticated
@@ -104,6 +106,9 @@ export const AuthProvider = ({ children }) => {
 
       const u = await fetchUserWithToken(data.access_token);
       setUser(u);
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("auth-login"));
+      }
       return { success: true };
     } catch (error) {
       console.error("Login error:", error);
@@ -131,19 +136,40 @@ export const AuthProvider = ({ children }) => {
   };
 
   // Public API: logout (clears both app + Clerk)
+  const APP_NS = "ne:"; // prefix all NestEgg keys with this going forward
+
+  function hardClearClientState() {
+    try {
+      // Remove all app-namespaced keys
+      const toRemove = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (!k) continue;
+        if (k === "token" || k.startsWith(APP_NS) || k.startsWith("ds:")) {
+          toRemove.push(k);
+        }
+      }
+      toRemove.forEach(k => localStorage.removeItem(k));
+
+      // If you persist to sessionStorage/IndexedDB, clear here as well
+      // e.g., indexedDB.deleteDatabase('NestEggDB');
+
+      // Nudge other tabs + local listeners
+      window.dispatchEvent(new CustomEvent("auth-logout"));
+      // Also trigger cross-tab via a bump key
+      localStorage.setItem("ne:lastLogout", String(Date.now()));
+    } catch (e) {
+      console.warn("[AuthContext] hardClearClientState error:", e);
+    }
+  }
+
   const logout = async () => {
     try {
-      localStorage.removeItem("token");
+      hardClearClientState();
       setUser(null);
 
-      // Notify DataStore
-      if (typeof window !== "undefined") {
-        window.dispatchEvent(new CustomEvent("auth-logout"));
-      }
-
       if (isSignedIn) {
-        // Sign out of Clerk session too
-        await signOut({ redirectUrl: "/login" });
+        await signOut({ redirectUrl: "/login" }); // Clerk sign-out
         return;
       }
     } catch (e) {
@@ -161,19 +187,52 @@ export const AuthProvider = ({ children }) => {
         ...(raw ? { Authorization: `Bearer ${raw}` } : {}),
       };
 
-      let resp = await fetch(`${API_BASE_URL}${input}`, { ...init, headers });
+      // ensure no-store and pass through signal/mode/etc.
+      const baseInit = { cache: 'no-store', mode: 'cors', ...init, headers };
+
+      let resp = await fetch(`${API_BASE_URL}${input}`, baseInit);
       if (resp.status === 401 && isSignedIn) {
-        // refresh app token from Clerk
         const newToken = await exchangeFromClerk();
         if (newToken) {
           const retryHeaders = { ...(init.headers || {}), Authorization: `Bearer ${newToken}` };
-          resp = await fetch(`${API_BASE_URL}${input}`, { ...init, headers: retryHeaders });
+          resp = await fetch(`${API_BASE_URL}${input}`, { ...baseInit, headers: retryHeaders });
         }
       }
       return resp;
     },
     [exchangeFromClerk, isSignedIn]
   );
+
+  useEffect(() => {
+    const onStorage = (e) => {
+      if (e.key === "token" && e.newValue === null) {
+        // Token removed in another tab
+        setUser(null);
+        window.dispatchEvent(new CustomEvent("auth-logout"));
+        router.push("/login");
+      }
+      if (e.key === "ne:lastLogout") {
+        setUser(null);
+        window.dispatchEvent(new CustomEvent("auth-logout"));
+        router.push("/login");
+      }
+    };
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
+  }, [router]);
+
+  // Watch Clerk's auth state directly
+  useEffect(() => {
+    if (!isSignedIn) {
+      const hasToken =
+        typeof window !== "undefined" && localStorage.getItem("token");
+      if (hasToken) {
+        try {
+          hardClearClientState();
+        } catch {}
+      }
+    }
+  }, [isSignedIn]);
 
   return (
     <ClerkLoaded> {/* avoid hydration issues */}

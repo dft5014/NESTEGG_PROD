@@ -11,8 +11,11 @@ export const fetchWithAuth = async (endpoint, options = {}) => {
   };
   
   return fetch(`${API_BASE_URL}${endpoint}`, {
+    // IMPORTANT: keep options first so signal, method, body, etc. are preserved
     ...options,
     headers,
-    mode: 'cors'  // Explicitly set CORS mode
+    mode: 'cors',
+    cache: 'no-store',        // prevent cross-session caching
+    credentials: 'omit',      // typical for token-based APIs; adjust if you need cookies
   });
 };

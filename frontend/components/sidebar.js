@@ -403,15 +403,10 @@ const Sidebar = () => {
           {/* Logout */}
          <motion.button
           whileHover={{ x: sidebarCollapsed ? 0 : 4 }} whileTap={{ scale: 0.98 }}
-          onClick={() => {
-            // Use Clerk logout if available, otherwise fall back to the original logout function
-            if (window.Clerk && typeof window.Clerk.signOut === 'function') {
-              window.Clerk.signOut();
-              localStorage.removeItem('token'); // Clear NestEgg token too
-            } else {
-              logout();
-            }
-          }}
+            onClick={async () => {
+              // Always use centralized logout to guarantee full cleanup
+              await logout();
+            }}
           onMouseEnter={() => setHoveredItem('logout')}
           onMouseLeave={() => setHoveredItem(null)}
           className={`
@@ -436,7 +431,7 @@ const Sidebar = () => {
           )}
         </motion.button>
 
-        
+
         </div>
       </motion.aside>
     </>
