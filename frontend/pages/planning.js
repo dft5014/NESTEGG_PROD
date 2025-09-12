@@ -4,6 +4,7 @@ import {
   Info, Settings, Download, Upload, BarChart3, PieChart, Eye, EyeOff, Zap, Target,
   Calendar, AlertCircle
 } from 'lucide-react';
+import { Protect } from '@clerk/nextjs';
 
 const FinancialPlanning = () => {
   const currentYear = new Date().getFullYear();
@@ -207,7 +208,36 @@ const FinancialPlanning = () => {
   };
 
   return (
-    <div className="w-full max-w-full mx-auto p-6 bg-gradient-to-br from-gray-50 to-gray-100 min-h-screen">
+    <Protect
+    // ensure that the feature name here ties out to Clerk page and be mindful if we change in clerk we need to change here
+      condition={(has) => has({ feature: 'feature_dynamic_planning' })}
+      fallback={
+        <main className="mx-auto max-w-2xl p-8 mt-16 rounded-2xl border border-yellow-500/30 bg-yellow-500/10 text-yellow-100">
+          <h1 className="text-2xl font-bold text-yellow-50">Dynamic Planning is a Premium Feature</h1>
+          <p className="mt-2 text-sm text-yellow-100/90">
+            Your account doesn’t have access to <span className="font-semibold">Dynamic Planning</span> yet.
+            Upgrade your plan to unlock long-range projections, asset allocation scenarios, and Monte Carlo analysis.
+          </p>
+          <div className="mt-6 flex items-center gap-3">
+            <a
+              href="/upgrade"
+              className="inline-flex items-center gap-2 rounded-xl border border-yellow-400/60 px-4 py-2 text-sm hover:bg-yellow-500/20"
+            >
+              <Zap className="w-4 h-4" />
+              View Plans
+            </a>
+            <a
+              href="/"
+              className="inline-flex items-center gap-2 rounded-xl border border-yellow-400/30 px-4 py-2 text-sm hover:bg-yellow-500/10"
+            >
+              Go Home
+            </a>
+          </div>
+        </main>
+      }
+    >
+      <div className="w-full max-w-full mx-auto p-6 bg-gradient-to-br from-gray-50 to-gray-100 min-h-screen">
+
       {/* Header */}
       <div className="mb-8 bg-white rounded-2xl shadow-lg p-6 border border-gray-100">
         <div className="flex items-center justify-between mb-4">
@@ -687,7 +717,8 @@ const FinancialPlanning = () => {
           Run Monte Carlo Simulation
         </button>
       </div>
-    </div>
+      </div>
+    </Protect>
   );
 };
 

@@ -279,28 +279,29 @@ async def _handle_session_created(db, payload):
     # Upsert session
     await db.execute("""
         INSERT INTO user_sessions
-        (clerk_session_id, clerk_user_id, user_id, status, started_at, last_active_at,
-         device_type, is_mobile, browser_name, browser_version, city, country, ip_address,
-         user_agent, client_id, raw)
+        ( clerk_session_id, clerk_user_id, user_id, status, started_at, last_active_at,
+        device_type, is_mobile, browser_name, browser_version, city, country, ip_address,
+        user_agent, client_id, raw)
         VALUES
         (:clerk_session_id, :clerk_user_id, :user_id, :status, :started_at, :last_active_at,
-         :device_type, :is_mobile, :browser_name, :browser_version, :city, :country, :ip_address,
-         :user_agent, :client_id, CAST(:raw AS JSONB))
+        :device_type, :is_mobile, :browser_name, :browser_version, :city, :country,
+        NULLIF(:ip_address,'')::inet,
+        :user_agent, :client_id, CAST(:raw AS JSONB))
         ON CONFLICT (clerk_session_id) DO UPDATE SET
-          status = EXCLUDED.status,
-          last_active_at = EXCLUDED.last_active_at,
-          device_type = EXCLUDED.device_type,
-          is_mobile = EXCLUDED.is_mobile,
-          browser_name = EXCLUDED.browser_name,
-          browser_version = EXCLUDED.browser_version,
-          city = EXCLUDED.city,
-          country = EXCLUDED.country,
-          ip_address = EXCLUDED.ip_address,
-          user_agent = EXCLUDED.user_agent,
-          client_id = EXCLUDED.client_id,
-          raw = EXCLUDED.raw,
-          updated_at = now();
-    """, fields)
+        status = EXCLUDED.status,
+        last_active_at = EXCLUDED.last_active_at,
+        device_type = EXCLUDED.device_type,
+        is_mobile = EXCLUDED.is_mobile,
+        browser_name = EXCLUDED.browser_name,
+        browser_version = EXCLUDED.browser_version,
+        city = EXCLUDED.city,
+        country = EXCLUDED.country,
+        ip_address = EXCLUDED.ip_address,
+        user_agent = EXCLUDED.user_agent,
+        client_id = EXCLUDED.client_id,
+        raw = EXCLUDED.raw,
+        updated_at = now();
+            """, fields)
 
     # Update denormalized user columns + login_count
     update_vals = {
@@ -377,18 +378,6 @@ async def _handle_session_ended(db, payload):
         "clerk_session_id": s["id"]
     })
 
-def _ts_to_tz(ms_or_s):
-    if ms_or_s is None:
-        return None
-    # Clerk samples sometimes provide ms epoch; your sample shows ms in nested fields and seconds in `timestamp`
-    import datetime as dt
-    x = int(ms_or_s)
-    # Heuristic: treat > 10^12 as ms
-    if x > 10**12:
-        return dt.datetime.utcfromtimestamp(x / 1000.0)
-    return dt.datetime.utcfromtimestamp(x)
-
-
 @router.post("/webhooks/clerk")
 async def clerk_webhook(request: Request):
     raw = await request.body()
@@ -416,8 +405,19 @@ async def clerk_webhook(request: Request):
 
     # --- Sessions ---
     if etype in ("session.created", "session.created_web"):
-        await _handle_session_created(database, payload)   # pass full payload (we need event_attributes)
+        try:
+            await _handle_session_created(database, payload)
+        except Exception as e:
+            logger.exception("clerk.session_created.error", extra={
+                "svix_id": request.headers.get("svix-id"),
+                "etype": etype
+            })
+            # Option A: let Clerk retry (keep pressure until fixed)
+            raise
+            # Option B (comment the raise): ACK to stop retries while you debug
+            # return {"ok": False}
         return {"ok": True}
+
 
     if etype in ("session.updated", "session.activity", "session.activity_recorded"):
         await _handle_session_updated(database, payload)
