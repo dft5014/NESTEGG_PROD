@@ -372,7 +372,7 @@ function LoginContent() {
               <SignIn
                 appearance={{ baseTheme: "dark" }}
                 signUpUrl="/signup"
-                afterSignInUrl="/portfolio"
+                forceRedirectUrl="/portfolio"
               />
 
               <p className="mt-6 text-center text-sm text-gray-400">

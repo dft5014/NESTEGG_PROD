@@ -759,20 +759,20 @@ export const DataStoreProvider = ({ children }) => {
     phase1Timeout.current = setTimeout(() => {
       console.log('[DataStore] Phase 1: Loading critical data...');
       if (!state.portfolioSummary.data && !state.portfolioSummary.loading) fetchPortfolioData();
-      if (!state.groupedPositions.data && !state.groupedPositions.loading) fetchGroupedPositionsData();
-      if (!state.accounts.data && !state.accounts.loading) fetchAccountsData();
+      if ((!state.groupedPositions.data || state.groupedPositions.data.length === 0) && !state.groupedPositions.loading) fetchGroupedPositionsData();
+      if ((!state.accounts.data || state.accounts.data.length === 0) && !state.accounts.loading) fetchAccountsData();
     }, 0);
 
     // Phase 2
     phase2Timeout.current = setTimeout(() => {
       console.log('[DataStore] Phase 2: Pre-fetching likely needed data...');
-      if (!state.groupedLiabilities.data && !state.groupedLiabilities.loading) fetchGroupedLiabilitiesData();
+      if ((!state.groupedLiabilities.data || state.groupedLiabilities.data.length === 0) && !state.groupedLiabilities.loading) fetchGroupedLiabilitiesData();
     }, 1000);
 
     // Phase 3
     phase3Timeout.current = setTimeout(() => {
       console.log('[DataStore] Phase 3: Pre-fetching modal data...');
-      if (!state.detailedPositions.data && !state.detailedPositions.loading) fetchDetailedPositionsData();
+      if ((!state.detailedPositions.data || state.detailedPositions.data.length === 0) && !state.detailedPositions.loading) fetchDetailedPositionsData();
       // Optionally: snapshots later
       // if (!state.snapshots.data && !state.snapshots.loading) fetchSnapshotsData();
     }, 3000);
