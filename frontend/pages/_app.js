@@ -3,15 +3,17 @@ import "@/styles/globals.css";
 import Sidebar from "@/components/sidebar";
 import Navbar from "@/components/navbar";
 import EggMascot from "@/components/EggMascot";
+
 import { AuthProvider, AuthContext } from "@/context/AuthContext";
 import { EggMascotProvider, useEggMascot } from "@/context/EggMascotContext";
-import { useRouter } from "next/router";
 import { UpdateCheckProvider } from "@/context/UpdateCheckContext";
 import { DataStoreProvider } from "@/store/DataStore";
-import { useState, useEffect, createContext, useContext } from "react";
-import { ClerkProvider } from "@clerk/nextjs";
-import { dark } from '@clerk/themes';
-import { useAuth, useUser } from "@clerk/nextjs";
+
+import { ClerkProvider, useAuth } from "@clerk/nextjs";
+import { dark } from "@clerk/themes";
+
+import { useRouter } from "next/router";
+import React, { useState, useEffect, createContext, useContext } from "react";
 
 const CLERK_PK = process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY;
 
@@ -74,10 +76,18 @@ function LayoutWrapper({ children }) {
   );
 }
 
+// Runs under ClerkProvider + AuthProvider so hooks have providers.
+function DataStoreWithSessionKey({ children }) {
+  const { clerkUser } = useContext(AuthContext);
+  const { sessionId, isSignedIn } = useAuth();
+  const key = isSignedIn ? (sessionId || clerkUser?.id || "clerk") : "anon";
+  return <DataStoreProvider key={`ds:${key}`}>{children}</DataStoreProvider>;
+}
+
 export default function App({ Component, pageProps }) {
   return (
-    <ClerkProvider 
-      publishableKey={CLERK_PK} 
+    <ClerkProvider
+      publishableKey={CLERK_PK}
       appearance={{
         baseTheme: dark,
         variables: {
@@ -92,93 +102,63 @@ export default function App({ Component, pageProps }) {
           colorWarning: "#f59e0b",
           colorDanger: "#ef4444",
           borderRadius: "0.5rem",
-          fontFamily: "inherit"
+          fontFamily: "inherit",
         },
         elements: {
-          formButtonPrimary: 
+          formButtonPrimary:
             "bg-blue-600 hover:bg-blue-700 text-white transition-colors text-base px-6 py-3",
-          card: 
+          card:
             "bg-gray-900/70 backdrop-blur-sm border-gray-800 shadow-xl min-w-[400px] p-8",
-          headerTitle: 
-            "text-gray-100 text-2xl font-bold",
-          headerSubtitle: 
-            "text-gray-400 text-base",
-          socialButtonsBlockButton: 
+          headerTitle: "text-gray-100 text-2xl font-bold",
+          headerSubtitle: "text-gray-400 text-base",
+          socialButtonsBlockButton:
             "bg-gray-800 border-gray-700 text-gray-100 hover:bg-gray-700 transition-colors",
-          formFieldInput: 
+          formFieldInput:
             "bg-gray-800 border-gray-600 text-gray-100 focus:border-blue-500 focus:ring-blue-500/20 text-base py-3 px-4",
-          formFieldLabel: 
-            "text-gray-300 text-base font-medium",
-          footerActionLink: 
-            "text-blue-400 hover:text-blue-300 transition-colors",
-          userButtonAvatarBox: 
-            "w-10 h-10",
-          userButtonPopoverCard: 
-            "bg-gray-800 border-gray-700 backdrop-blur-sm",
-          userButtonPopoverActionButton: 
+          formFieldLabel: "text-gray-300 text-base font-medium",
+          footerActionLink: "text-blue-400 hover:text-blue-300 transition-colors",
+          userButtonAvatarBox: "w-10 h-10",
+          userButtonPopoverCard: "bg-gray-800 border-gray-700 backdrop-blur-sm",
+          userButtonPopoverActionButton:
             "text-gray-100 hover:bg-gray-700 transition-colors",
-          userButtonPopoverActionButtonIcon: 
-            "text-gray-400",
-          navbarButton: 
-            "text-gray-300 hover:text-gray-100",
-          navbarMobileMenuButton: 
-            "text-gray-300",
-          alertText: 
-            "text-gray-100",
-          formHeaderTitle: 
-            "text-gray-100",
-          formHeaderSubtitle: 
-            "text-gray-400",
-          socialButtonsProviderIcon: 
-            "brightness-0 invert",
-          dividerLine: 
-            "bg-gray-700",
-          dividerText: 
-            "text-gray-400",
-          formFieldSuccessText: 
-            "text-green-400",
-          formFieldErrorText: 
-            "text-red-400",
-          formFieldWarningText: 
-            "text-yellow-400",
-          badge: 
-            "bg-blue-600 text-white",
-          avatarBox: 
-            "border-gray-700",
-          userPreviewMainIdentifier: 
-            "text-gray-100",
-          userPreviewSecondaryIdentifier: 
-            "text-gray-400"
-        }
+          userButtonPopoverActionButtonIcon: "text-gray-400",
+          navbarButton: "text-gray-300 hover:text-gray-100",
+          navbarMobileMenuButton: "text-gray-300",
+          alertText: "text-gray-100",
+          formHeaderTitle: "text-gray-100",
+          formHeaderSubtitle: "text-gray-400",
+          socialButtonsProviderIcon: "brightness-0 invert",
+          dividerLine: "bg-gray-700",
+          dividerText: "text-gray-400",
+          formFieldSuccessText: "text-green-400",
+          formFieldErrorText: "text-red-400",
+          formFieldWarningText: "text-yellow-400",
+          badge: "bg-blue-600 text-white",
+          avatarBox: "border-gray-700",
+          userPreviewMainIdentifier: "text-gray-100",
+          userPreviewSecondaryIdentifier: "text-gray-400",
+        },
       }}
     >
-    <AuthProvider>
-      <AuthSessionGate>
-        <UpdateCheckProvider>
-          {/* Key by session to fully remount state on login/logout */}
-          <DataStoreProvider key={`ds:${useAuthSessionKey()}`}>
-            <EggMascotProvider>
-              <LayoutWrapper>
-                <Component {...pageProps} />
-              </LayoutWrapper>
-            </EggMascotProvider>
-          </DataStoreProvider>
-        </UpdateCheckProvider>
-      </AuthSessionGate>
-    </AuthProvider>
-   </ClerkProvider>
+      <AuthProvider>
+        <AuthSessionGate>
+          <UpdateCheckProvider>
+            <DataStoreWithSessionKey>
+              <EggMascotProvider>
+                <LayoutWrapper>
+                  <Component {...pageProps} />
+                </LayoutWrapper>
+              </EggMascotProvider>
+            </DataStoreWithSessionKey>
+          </UpdateCheckProvider>
+        </AuthSessionGate>
+      </AuthProvider>
+    </ClerkProvider>
   );
 }
 
-function useAuthSessionKey() {
-  const { clerkUser } = useContext(AuthContext);
-  const { sessionId, isSignedIn } = useAuth();
-  // Prefer Clerk session id; fall back to your app user id; else anon
-  return isSignedIn ? (sessionId || clerkUser?.id || "clerk") : "anon";
-}
-
 function AuthSessionGate({ children }) {
-  // This component simply exists so hooks above can be used safely under ClerkProvider/AuthProvider
+  // Exists so hooks used below are safely under providers.
   return children;
 }
 
