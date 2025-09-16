@@ -3696,7 +3696,7 @@ async def update_all_securities_prices():
         
         # Fetch all tickers from the securities table
         logger.info("Fetching active securities from the database")
-        query = "SELECT ticker FROM security_usage WHERE status = 'Active' AND price_status = 'Requires Updating' ORDER BY last_updated ASC"
+        query = "SELECT ticker FROM security_usage WHERE status = 'Active' AND price_status = 'Requires Updating' AND on_yfinance IS DISTINCT FROM FALSE ORDER BY last_updated ASC"
         results = await database.fetch_all(query)
         
         if not results:
@@ -3758,77 +3758,111 @@ async def update_all_securities_prices():
 
 # Define the background task function that will run asynchronously
 async def process_price_updates(ticker_list: list, event_id):
-    """Process price updates for the given tickers in the background."""
+    """
+    Process price updates for the given tickers in the background.
+
+    Behavior change:
+    - If a ticker fails to fetch or update, mark securities.on_yfinance = FALSE for that ticker.
+    - If a ticker updates successfully, (re)affirm on_yfinance = TRUE.
+    - Include failed tickers in the system event payload for debugging.
+    """
     ticker_count = len(ticker_list)
-    
+
     try:
-        # Initialize DirectYahooFinanceClient
         client = DirectYahooFinanceClient()
-        
-        # Get batch price data
-        logger.info(f"Fetching prices for all {ticker_count} active tickers using DirectYahooFinanceClient")
+
+        logger.info(
+            f"Fetching prices for all {ticker_count} active tickers using DirectYahooFinanceClient"
+        )
         batch_price_data = await client.get_batch_prices(ticker_list)
-        
+
         if not batch_price_data:
             error_msg = "No price data returned for any tickers"
             logger.error(error_msg)
-            
-            # Update event as failed
+
+            # We do NOT flip all tickers to FALSE on a global fetch error (could be transient).
             await update_system_event(
                 database,
                 event_id,
                 "failed",
-                {"error": error_msg}
+                {"error": error_msg, "tickers_count": ticker_count},
             )
             return
-        
-        # Process results for each ticker
+
         updated_count = 0
         failed_tickers = []
-        
+        success_tickers = []
+
         for ticker in ticker_list:
-            if ticker not in batch_price_data:
-                # No data returned for this ticker
+            # If the API returned nothing for this ticker, disable it.
+            if ticker not in batch_price_data or not batch_price_data[ticker]:
                 failed_tickers.append(ticker)
+                try:
+                    await database.execute(
+                        """
+                        UPDATE securities
+                        SET on_yfinance = FALSE,
+                            last_updated = :updated_at
+                        WHERE ticker = :ticker
+                        """,
+                        {"ticker": ticker, "updated_at": datetime.now()},
+                    )
+                except Exception as flag_err:
+                    logger.error(f"Failed to flag on_yfinance FALSE for {ticker}: {flag_err}")
                 continue
-                
+
             price_data = batch_price_data[ticker]
-            
+
             try:
                 # Update securities table with price data
-                update_query = """
-                UPDATE securities
-                SET 
-                    current_price = :price,
-                    day_open = :day_open,
-                    day_high = :day_high,
-                    day_low = :day_low,
-                    volume = :volume,
-                    last_updated = :updated_at,
-                    price_timestamp = :price_timestamp
-                WHERE ticker = :ticker
-                """
-                
-                update_values = {
-                    "ticker": ticker,
-                    "price": price_data.get("price"),
-                    "day_open": price_data.get("day_open"),
-                    "day_high": price_data.get("day_high"),
-                    "day_low": price_data.get("day_low"),
-                    "volume": price_data.get("volume"),
-                    "updated_at": datetime.now(),
-                    "price_timestamp": price_data.get("price_timestamp")
-                }
-                
-                await database.execute(update_query, update_values)
+                await database.execute(
+                    """
+                    UPDATE securities
+                    SET 
+                        current_price   = :price,
+                        day_open        = :day_open,
+                        day_high        = :day_high,
+                        day_low         = :day_low,
+                        volume          = :volume,
+                        last_updated    = :updated_at,
+                        price_timestamp = :price_timestamp,
+                        on_yfinance     = TRUE
+                    WHERE ticker = :ticker
+                    """,
+                    {
+                        "ticker": ticker,
+                        "price": price_data.get("price"),
+                        "day_open": price_data.get("day_open"),
+                        "day_high": price_data.get("day_high"),
+                        "day_low": price_data.get("day_low"),
+                        "volume": price_data.get("volume"),
+                        "updated_at": datetime.now(),
+                        "price_timestamp": price_data.get("price_timestamp"),
+                    },
+                )
                 updated_count += 1
-                
+                success_tickers.append(ticker)
+
             except Exception as ticker_error:
                 error_message = f"Error updating price for {ticker}: {str(ticker_error)}"
                 logger.error(error_message)
                 failed_tickers.append(ticker)
-        
-        # Update event as completed
+
+                # Best-effort: flip this ticker OFF so we stop retrying it until reviewed.
+                try:
+                    await database.execute(
+                        """
+                        UPDATE securities
+                        SET on_yfinance = FALSE,
+                            last_updated = :updated_at
+                        WHERE ticker = :ticker
+                        """,
+                        {"ticker": ticker, "updated_at": datetime.now()},
+                    )
+                except Exception as flag_err:
+                    logger.error(f"Failed to flag on_yfinance FALSE for {ticker}: {flag_err}")
+
+        # Summarize & persist event status
         await update_system_event(
             database,
             event_id,
@@ -3836,27 +3870,30 @@ async def process_price_updates(ticker_list: list, event_id):
             {
                 "tickers_count": ticker_count,
                 "updated_count": updated_count,
-                "failed_count": len(failed_tickers)
-            }
+                "failed_count": len(failed_tickers),
+                "failed_tickers": failed_tickers[:100],  # cap payload size
+            },
         )
-        
-        logger.info(f"Background price update completed: {updated_count}/{ticker_count} tickers updated")
-        
+
+        logger.info(
+            f"Background price update completed: {updated_count}/{ticker_count} tickers updated "
+            f"({len(failed_tickers)} disabled: on_yfinance=FALSE)"
+        )
+
     except Exception as e:
         error_message = f"Error in batch price update: {str(e)}"
         logger.error(error_message)
-        
-        # Update event as failed
+
         await update_system_event(
             database,
             event_id,
             "failed",
-            {"error": error_message}
+            {"error": error_message, "tickers_count": len(ticker_list)},
         )
-        
-        # Log detailed error for debugging
+
         import traceback
         logger.error(traceback.format_exc())
+
 
 @app.post("/market/update-all-securities-metrics")
 async def update_all_securities_metrics():
