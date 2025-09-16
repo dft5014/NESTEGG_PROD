@@ -3696,7 +3696,7 @@ async def update_all_securities_prices():
         
         # Fetch all tickers from the securities table
         logger.info("Fetching active securities from the database")
-        query = "SELECT ticker FROM security_usage WHERE AND price_status = 'Requires Updating' AND on_yfinance IS DISTINCT FROM FALSE ORDER BY last_updated ASC"
+        query = "SELECT ticker FROM security_usage WHERE price_status = 'Requires Updating' AND on_yfinance IS DISTINCT FROM FALSE ORDER BY last_updated ASC"
 
         results = await database.fetch_all(query)
         
