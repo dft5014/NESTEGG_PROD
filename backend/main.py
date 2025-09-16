@@ -3780,12 +3780,39 @@ async def process_price_updates(ticker_list: list, event_id):
             error_msg = "No price data returned for any tickers"
             logger.error(error_msg)
 
-            # We do NOT flip all tickers to FALSE on a global fetch error (could be transient).
+            # Flip ALL requested tickers OFF (these are known-bad in your use case)
+            # Do it in small batches to avoid parameter limits
+            BATCH_SZ = 100
+            now_ts = datetime.now()
+            for i in range(0, len(ticker_list), BATCH_SZ):
+                batch = ticker_list[i:i + BATCH_SZ]
+                try:
+                    # Use an IN clause for efficiency
+                    placeholders = ", ".join([f":t{i}" for i in range(len(batch))])
+                    params = {f"t{i}": t for i, t in enumerate(batch)}
+                    params.update({"updated_at": now_ts})
+                    await database.execute(
+                        f"""
+                        UPDATE securities
+                        SET on_yfinance = FALSE,
+                            last_updated = :updated_at
+                        WHERE ticker IN ({placeholders})
+                        """,
+                        params,
+                    )
+                except Exception as bulk_err:
+                    logger.error(f"Failed to bulk-flag on_yfinance FALSE for batch {i//BATCH_SZ+1}: {bulk_err}")
+
+            # Record the failure event with explicit list (capped)
             await update_system_event(
                 database,
                 event_id,
                 "failed",
-                {"error": error_msg, "tickers_count": ticker_count},
+                {
+                    "error": error_msg,
+                    "tickers_count": ticker_count,
+                    "failed_tickers": ticker_list[:100],
+                },
             )
             return
 
