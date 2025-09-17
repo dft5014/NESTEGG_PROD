@@ -76,8 +76,8 @@ class YahooQueryClient(MarketDataSource):
         if cached_data:
             return cached_data
             
-        retries = 3
-        delay = 2
+        retries = 1
+        delay = 0
         for attempt in range(retries):
             try:
                 logger.info(f"Fetching data for {ticker} using yahooquery (attempt {attempt+1}/{retries})")
