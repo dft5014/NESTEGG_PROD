@@ -74,6 +74,7 @@ from backend.api_clients.yahoo_data import Yahoo_Data
 from backend.api_clients.yahoo_finance_client import YahooFinanceClient
 from backend.api_clients.yahooquery_client import YahooQueryClient
 from backend.api_clients.direct_yahoo_client import DirectYahooFinanceClient
+from backend.api_clients.polygon_client import PolygonClient
 from backend.auth_clerk import router as auth_router
 from backend.core_db import database, users
 from backend.webhooks_clerk import router as clerk_webhook_router
@@ -1831,1850 +1832,6 @@ async def get_unified_positions(
             detail=f"Failed to fetch positions: {str(e)}"
         )
 
-# ----- PRICING MANAGEMENT  -----
-# INCLUDES UPDATES OF SECURITIES AND EXCHANGE RATES - RELATES TO SECURITIES TABLE AND FX_PRICES
-# Get full list of securities / fx for price update or specific info from securities table or FX prices
-@app.get("/securities/all")
-async def get_all_securities(current_user: dict = Depends(get_current_user)):
-    """Retrieve all securities from the database for debugging purposes."""
-    try:
-        logger.info("Fetching all securities from the database")
-        query = "SELECT * FROM security_usage ORDER BY last_updated ASC"
-        results = await database.fetch_all(query)
-        result_count = len(results) if results else 0
-        logger.info(f"Fetched {result_count} securities from the database")
-        return {"securities": [dict(row) for row in results]}
-    except Exception as e:
-        logger.error(f"Error fetching all securities: {str(e)}")
-        import traceback
-        logger.error(traceback.format_exc())
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to fetch securities: {str(e)}"
-        )   
-
-@app.get("/securities")
-async def get_securities(current_user: dict = Depends(get_current_user)):
-    """
-    Fetch securities data for the user with robust type handling
-    """
-    try:
-        # Fetch securities with smart filtering and type conversion
-        query = """
-            SELECT 
-                ticker, 
-                company_name, 
-                sector, 
-                industry, 
-                COALESCE(
-                    CASE 
-                        WHEN current_price IS NULL OR current_price = 'NaN' THEN 0.0 
-                        ELSE CAST(current_price AS NUMERIC) 
-                    END, 
-                    0.0
-                ) as price,
-                market_cap,
-                pe_ratio,
-                volume,
-                dividend_yield,
-                dividend_rate,
-                eps,
-                last_metrics_update,
-                last_updated, 
-                on_yfinance as available_on_yfinance,
-                (
-                    CASE 
-                        WHEN last_updated IS NULL THEN 'Never'
-                        WHEN last_updated < NOW() - INTERVAL '1 hour' THEN 
-                            CONCAT(EXTRACT(HOURS FROM (NOW() - last_updated)), ' hours ago')
-                        WHEN last_updated < NOW() - INTERVAL '1 day' THEN 
-                            CONCAT(EXTRACT(DAYS FROM (NOW() - last_updated)), ' days ago')
-                        ELSE 'Recently'
-                    END
-                ) as time_ago
-            FROM securities 
-            WHERE on_yfinance = true 
-            ORDER BY last_updated DESC NULLS LAST
-            """
-        
-        results = await database.fetch_all(query)
-        
-        # Explicitly convert to dictionary with robust type conversion
-        securities_list = []
-        for row in results:
-            sec_dict = dict(row)
-            
-            # Robust price conversion
-            try:
-                price = float(sec_dict.get('price', 0.0))
-                # Replace NaN or infinite values with 0
-                if math.isnan(price) or math.isinf(price):
-                    price = 0.0
-            except (TypeError, ValueError):
-                price = 0.0
-            
-            sec_dict['price'] = price
-            
-            # Convert last_updated to ISO format if it exists
-            if sec_dict.get('last_updated'):
-                sec_dict['last_updated'] = sec_dict['last_updated'].isoformat()
-            
-            # Convert last_metrics_update to ISO format if it exists
-            if sec_dict.get('last_metrics_update'):
-                sec_dict['last_metrics_update'] = sec_dict['last_metrics_update'].isoformat()
-            
-            securities_list.append(sec_dict)
-        
-        return {
-            "securities": securities_list,
-            "total_count": len(securities_list),
-            "last_updated": datetime.utcnow().isoformat()
-        }
-    
-    except Exception as e:
-        logger.error(f"Error fetching securities: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
-            detail=f"Failed to fetch securities data: {str(e)}"
-        )
-        
-@app.get("/securities/{ticker}/details")
-async def get_security_details(ticker: str, current_user: dict = Depends(get_current_user)):
-    """Get detailed statistics for a security"""
-    try:
-        # Get security basic info
-        query = """
-        SELECT 
-            ticker, 
-            last_metrics_update,
-            COALESCE((
-                SELECT COUNT(*) 
-                FROM price_history 
-                WHERE price_history.ticker = securities.ticker
-            ), 0) as days_of_history
-        FROM securities
-        WHERE ticker = :ticker
-        """
-        security = await database.fetch_one(query, {"ticker": ticker.upper()})
-        
-        if not security:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Security {ticker.upper()} not found"
-            )
-        
-        # Format security details
-        result = dict(security)
-        
-        # Get price statistics
-        stats_query = """
-        SELECT 
-            MIN(close_price) as low_price,
-            MAX(close_price) as high_price,
-            AVG(close_price) as avg_price,
-            COUNT(*) as count
-        FROM price_history
-        WHERE ticker = :ticker
-        """
-        stats = await database.fetch_one(stats_query, {"ticker": ticker.upper()})
-        
-        if stats and stats["count"] > 0:
-            result["low_price"] = float(stats["low_price"]) if stats["low_price"] is not None else None
-            result["high_price"] = float(stats["high_price"]) if stats["high_price"] is not None else None
-            result["avg_price"] = float(stats["avg_price"]) if stats["avg_price"] is not None else None
-        else:
-            result["low_price"] = None
-            result["high_price"] = None
-            result["avg_price"] = None
-        
-        # Format last_metrics_update to ISO format if it exists
-        if result.get("last_metrics_update"):
-            result["last_metrics_update"] = result["last_metrics_update"].isoformat()
-        
-        return result
-    
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error fetching security details: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to fetch security details: {str(e)}"
-        )
-
-# Search methods for adding positions for drop down
-@app.get("/securities/search")
-async def search_securities(query: str, current_user: dict = Depends(get_current_user)):
-    """Search securities from the database."""
-    try:
-        logger.info(f"Securities search request received: query='{query}'")
-        
-        if not query or len(query.strip()) < 1:
-            return {"results": []}
-
-        search_pattern = f"%{query.strip().lower()}%"
-        params = {
-            "search_pattern": search_pattern
-        }
-        logger.info(f"Executing search with params: {params}")
-
-        # Query matching the schema
-        search_query = """
-        SELECT 
-            ticker,
-            asset_type,
-            company_name AS name,
-            COALESCE(current_price, 0) AS price,
-            sector,
-            industry,
-            market_cap
-        FROM securities
-            WHERE 
-                TRIM(LOWER(ticker)) LIKE :search_pattern OR
-                TRIM(LOWER(company_name)) LIKE :search_pattern OR
-                TRIM(LOWER(COALESCE(sector, ''))) LIKE :search_pattern OR
-                TRIM(LOWER(COALESCE(industry, ''))) LIKE :search_pattern
-
-        ORDER BY ticker ASC
-        LIMIT 20
-        """
-
-        results = await database.fetch_all(search_query, params)
-        result_count = len(results) if results else 0
-        logger.info(f"Search for '{query}' found {result_count} results")
-
-        formatted_results = [dict(row) for row in results]
-        return {"results": formatted_results}
-
-    except Exception as e:
-        logger.error(f"Error in securities search: {str(e)}")
-        import traceback
-        logger.error(traceback.format_exc())
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to search securities: {str(e)}"
-        )
-
-# Edit FX / Securities tables to add or edit existing in-scope securities
-@app.post("/securities", status_code=status.HTTP_201_CREATED)
-async def add_security(security: SecurityCreate, current_user: dict = Depends(get_current_user)):
-    """Add a new security to track"""
-    try:
-        # Check if security already exists
-        query = "SELECT ticker FROM securities WHERE ticker = :ticker"
-        existing = await database.fetch_one(query, {"ticker": security.ticker.upper()})
-        
-        if existing:
-            return {"message": f"Security {security.ticker.upper()} already exists in the database"}
-        
-        # Insert new security
-        query = """
-        INSERT INTO securities (ticker) 
-        VALUES (:ticker)
-        """
-        await database.execute(
-            query, 
-            {
-                "ticker": security.ticker.upper(),
-            }
-        )
-        
-        # Immediately try to fetch basic data for the security using the DirectYahooFinanceClient
-        # Initialize DirectYahooFinanceClient
-        client = DirectYahooFinanceClient()
-        
-        try:
-            # Get current price data
-            logger.info(f"Fetching current price for {security.ticker.upper()} using DirectYahooFinanceClient")
-            price_data = await client.get_current_price(security.ticker.upper())
-            
-            if price_data:
-                # Update securities table with price data
-                update_query = """
-                UPDATE securities
-                SET 
-                    current_price = :price,
-                    day_open = :day_open,
-                    day_high = :day_high,
-                    day_low = :day_low,
-                    volume = :volume,
-                    last_updated = :updated_at,
-                    price_timestamp = :price_timestamp
-                WHERE ticker = :ticker
-                """
-                
-                update_values = {
-                    "ticker": security.ticker.upper(),
-                    "price": price_data.get("price"),
-                    "day_open": price_data.get("day_open"),
-                    "day_high": price_data.get("day_high"),
-                    "day_low": price_data.get("day_low"),
-                    "volume": price_data.get("volume"),
-                    "last_updated": datetime.now(),
-                    "price_timestamp": price_data.get("price_timestamp")
-                }
-                
-                await database.execute(update_query, update_values)
-                logger.info(f"Updated price data for {security.ticker.upper()}")
-        
-        except Exception as e:
-            # Log the error but don't fail the entire operation
-            logger.error(f"Error fetching initial price data for {security.ticker.upper()}: {str(e)}")
-        
-        return {"message": f"Security {security.ticker.upper()} added successfully"}
-    
-    except Exception as e:
-        logger.error(f"Error adding security: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to add security: {str(e)}"
-        )
-
-@app.post("/securities/{ticker}/update")
-async def update_specific_security(
-    ticker: str, 
-    update_data: SecurityUpdate, 
-    current_user: dict = Depends(get_current_user)
-):
-    """Update a specific security based on the update type"""
-    try:
-        # Check if security exists
-        query = "SELECT ticker FROM securities WHERE ticker = :ticker"
-        existing = await database.fetch_one(query, {"ticker": ticker.upper()})
-        
-        if not existing:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Security {ticker.upper()} not found"
-            )
-        
-        # Create event record for tracking
-        event_id = await record_system_event(
-            database,
-            f"security_update_{update_data.update_type}",
-            "started",
-            {"ticker": ticker.upper()}
-        )
-        
-        result = None
-        
-        # Perform update based on type
-        if update_data.update_type == "metrics":
-            # Use directly or import if needed
-            updater = PriceUpdaterV2()
-            result = await updater.update_company_metrics([ticker.upper()])
-            message = "Metrics updated successfully"
-            
-        elif update_data.update_type == "current_price":
-            # Use directly without reimporting
-            updater = PriceUpdaterV2()
-            result = await updater.update_security_prices([ticker.upper()])
-            message = "Current price updated successfully"
-            
-        elif update_data.update_type == "history":
-            # Use directly without reimporting
-            updater = PriceUpdaterV2()
-            days = update_data.days if update_data.days else 30  # Default to 30 days
-            result = await updater.update_historical_prices([ticker.upper()], days=days)
-            message = f"Price history updated successfully (last {days} days)"
-            
-        else:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Invalid update type: {update_data.update_type}"
-            )
-        
-        # Record completion of event
-        await update_system_event(
-            database,
-            event_id,
-            "completed",
-            {
-                "ticker": ticker.upper(),
-                "update_type": update_data.update_type,
-                "result": result
-            }
-        )
-        
-        return {
-            "message": message, 
-            "ticker": ticker.upper(),
-            "details": result
-        }
-    
-    except HTTPException:
-        raise
-    except Exception as e:
-        # Record failure if event was created
-        if 'event_id' in locals() and event_id:
-            await update_system_event(
-                database,
-                event_id,
-                "failed",
-                {"error": str(e)},
-                str(e)
-            )
-        
-        logger.error(f"Error updating security: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to update security: {str(e)}"
-        )
-        
-# --- NEW SIMPLIFIED PRICE UPDATER LOGIC
-# - YAHOO QUERY CLIENT
-# Update Company Metrics for use of single ticker
-@app.post("/market/update-ticker-metrics/{ticker}")
-async def update_ticker_metrics(
-    ticker: str,
-    current_user: dict = Depends(get_current_user)
-):
-    """
-    Update company metrics for a single ticker using YahooQuery client.
-    
-    This endpoint:
-    1. Validates the ticker
-    2. Creates a YahooQueryClient
-    3. Fetches the company metrics data
-    4. Updates the securities database table
-    5. Returns results and status
-    """
-    try:
-        # Validate request
-        if not ticker:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Ticker must be provided"
-            )
-            
-        # Standardize ticker (uppercase)
-        ticker = ticker.strip().upper()
-        
-        # Check if ticker exists in database
-        check_query = "SELECT ticker FROM securities WHERE ticker = :ticker"
-        existing = await database.fetch_one(check_query, {"ticker": ticker})
-        
-        if not existing:
-            # Ticker doesn't exist, insert it first
-            insert_query = """
-            INSERT INTO securities (ticker, active, on_yfinance, created_at) 
-            VALUES (:ticker, true, true, :now)
-            """
-            await database.execute(
-                insert_query, 
-                {
-                    "ticker": ticker,
-                    "now": datetime.utcnow()
-                }
-            )
-            logger.info(f"Created new security record for ticker: {ticker}")
-            
-        # Create event record for tracking
-        event_id = await record_system_event(
-            database,
-            "yahoo_ticker_metrics_update",
-            "started",
-            {"ticker": ticker}
-        )
-        
-        # Initialize YahooQueryClient
-        client = YahooQueryClient()
-        
-        try:
-            # Get company metrics data
-            logger.info(f"Fetching company metrics for {ticker}")
-            metrics = await client.get_company_metrics(ticker)
-            
-            if not metrics or metrics.get("not_found"):
-                error_msg = f"No metrics data returned for {ticker}"
-                logger.error(error_msg)
-                
-                # Update event as failed
-                await update_system_event(
-                    database,
-                    event_id,
-                    "failed",
-                    {"error": error_msg}
-                )
-                
-                return {
-                    "success": False,
-                    "message": error_msg,
-                    "ticker": ticker
-                }
-            
-            # Update securities table with company metrics
-            update_query = """
-            UPDATE securities
-            SET 
-                company_name = :company_name,
-                current_price = :current_price,
-                sector = :sector,
-                industry = :industry,
-                market_cap = :market_cap,
-                pe_ratio = :pe_ratio,
-                forward_pe = :forward_pe,
-                dividend_rate = :dividend_rate,
-                dividend_yield = :dividend_yield,
-                beta = :beta,
-                fifty_two_week_low = :fifty_two_week_low,
-                fifty_two_week_high = :fifty_two_week_high,
-                fifty_two_week_range = :fifty_two_week_range,
-                eps = :eps,
-                forward_eps = :forward_eps,
-                last_metrics_update = :updated_at,
-                last_updated = :updated_at
-            WHERE ticker = :ticker
-            """
-            
-            # Prepare values for update
-            fifty_two_week_range = None
-            if metrics.get("fifty_two_week_low") is not None and metrics.get("fifty_two_week_high") is not None:
-                fifty_two_week_range = f"{metrics['fifty_two_week_low']}-{metrics['fifty_two_week_high']}"
-            
-            update_values = {
-                "ticker": ticker,
-                "company_name": metrics.get("company_name"),
-                "current_price": metrics.get("current_price"),
-                "sector": metrics.get("sector"),
-                "industry": metrics.get("industry"),
-                "market_cap": metrics.get("market_cap"),
-                "pe_ratio": metrics.get("pe_ratio"),
-                "forward_pe": metrics.get("forward_pe"),
-                "dividend_rate": metrics.get("dividend_rate"),
-                "dividend_yield": metrics.get("dividend_yield"),
-                "beta": metrics.get("beta"),
-                "fifty_two_week_low": metrics.get("fifty_two_week_low"),
-                "fifty_two_week_high": metrics.get("fifty_two_week_high"),
-                "fifty_two_week_range": fifty_two_week_range,
-                "eps": metrics.get("eps"),
-                "forward_eps": metrics.get("forward_eps"),
-                "updated_at": datetime.now()
-            }
-            
-            await database.execute(update_query, update_values)
-            
-            # Filter out empty values for response
-            filtered_metrics = {k: v for k, v in metrics.items() if v is not None}
-            
-            # Update event as completed
-            await update_system_event(
-                database,
-                event_id,
-                "completed",
-                {"ticker": ticker, "fields_updated": len(filtered_metrics)}
-            )
-            
-            return {
-                "success": True,
-                "message": f"Successfully updated metrics for {ticker}",
-                "ticker": ticker,
-                "fields_updated": len(filtered_metrics),
-                "metrics": filtered_metrics
-            }
-            
-        except Exception as e:
-            error_message = f"Error updating metrics for {ticker}: {str(e)}"
-            logger.error(error_message)
-            
-            # Update event as failed
-            await update_system_event(
-                database,
-                event_id,
-                "failed",
-                {"error": error_message}
-            )
-            
-            return {
-                "success": False,
-                "message": error_message,
-                "ticker": ticker
-            }
-            
-    except Exception as e:
-        error_message = f"Error in ticker metrics update: {str(e)}"
-        logger.error(error_message)
-        
-        # Update event status if we have an event_id
-        if 'event_id' in locals():
-            await update_system_event(
-                database,
-                event_id,
-                "failed",
-                {"error": error_message}
-            )
-            
-        # Log detailed error for debugging
-        import traceback
-        logger.error(traceback.format_exc())
-        
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to update ticker metrics: {str(e)}"
-        )
-
-@app.post("/market/update-tickers-metrics/{tickers}")
-async def update_multiple_ticker_metrics(
-    tickers: str,
-    current_user: dict = Depends(get_current_user)
-):
-    """
-    Update company metrics for multiple tickers using YahooQuery client.
-    
-    Tickers should be comma-separated in the URL, e.g.:
-    /market/update-tickers-metrics/AAPL,MSFT,GOOG,AMZN
-    """
-    # Parse tickers from the URL path parameter
-    ticker_list = [ticker.strip().upper() for ticker in tickers.split(',') if ticker.strip()]
-    
-    if not ticker_list:
-        return {
-            "success": False,
-            "message": "No valid tickers provided",
-            "results": []
-        }
-    
-    # Create event record for the batch
-    event_id = await record_system_event(
-        database,
-        "yahoo_tickers_metrics_batch_update",
-        "started",
-        {"tickers_count": len(ticker_list), "first_ticker": ticker_list[0]}
-    )
-    
-    # Initialize results
-    results = []
-    success_count = 0
-    failed_count = 0
-    
-    # Initialize YahooQueryClient
-    client = YahooQueryClient()
-    
-    # Process each ticker
-    for ticker in ticker_list:
-        try:
-            # Check if ticker exists in database
-            check_query = "SELECT ticker FROM securities WHERE ticker = :ticker"
-            existing = await database.fetch_one(check_query, {"ticker": ticker})
-            
-            if not existing:
-                # Ticker doesn't exist, insert it first
-                insert_query = """
-                INSERT INTO securities (ticker, active, on_yfinance) 
-                VALUES (:ticker, true, true)
-                """
-                await database.execute(
-                    insert_query, 
-                    {
-                        "ticker": ticker
-                    }
-                )
-                logger.info(f"Created new security record for ticker: {ticker}")
-            
-            # Get company metrics data
-            logger.info(f"Fetching company metrics for {ticker}")
-            metrics = await client.get_company_metrics(ticker)
-            
-            if isinstance(metrics, str):
-                error_msg = f"Invalid metrics format (received string): {metrics}"
-                logger.error(error_msg)
-                
-                results.append({
-                    "ticker": ticker,
-                    "success": False,
-                    "message": error_msg
-                })
-                failed_count += 1
-                continue
-            
-            if not metrics or metrics.get("not_found"):
-                error_msg = f"No metrics data returned for {ticker}"
-                logger.error(error_msg)
-                
-                results.append({
-                    "ticker": ticker,
-                    "success": False,
-                    "message": error_msg
-                })
-                failed_count += 1
-                continue
-            
-            # Update securities table with company metrics
-            update_query = """
-            UPDATE securities
-            SET 
-                company_name = :company_name,
-                current_price = :current_price,
-                sector = :sector,
-                industry = :industry,
-                market_cap = :market_cap,
-                pe_ratio = :pe_ratio,
-                forward_pe = :forward_pe,
-                dividend_rate = :dividend_rate,
-                dividend_yield = :dividend_yield,
-                beta = :beta,
-                fifty_two_week_low = :fifty_two_week_low,
-                fifty_two_week_high = :fifty_two_week_high,
-                fifty_two_week_range = :fifty_two_week_range,
-                eps = :eps,
-                forward_eps = :forward_eps,
-                last_metrics_update = :updated_at,
-                last_updated = :updated_at
-            WHERE ticker = :ticker
-            """
-            
-            # Prepare values for update
-            fifty_two_week_range = None
-            if metrics.get("fifty_two_week_low") is not None and metrics.get("fifty_two_week_high") is not None:
-                fifty_two_week_range = f"{metrics['fifty_two_week_low']}-{metrics['fifty_two_week_high']}"
-            
-            update_values = {
-                "ticker": ticker,
-                "company_name": metrics.get("company_name"),
-                "current_price": metrics.get("current_price"),
-                "sector": metrics.get("sector"),
-                "industry": metrics.get("industry"),
-                "market_cap": metrics.get("market_cap"),
-                "pe_ratio": metrics.get("pe_ratio"),
-                "forward_pe": metrics.get("forward_pe"),
-                "dividend_rate": metrics.get("dividend_rate"),
-                "dividend_yield": metrics.get("dividend_yield"),
-                "beta": metrics.get("beta"),
-                "fifty_two_week_low": metrics.get("fifty_two_week_low"),
-                "fifty_two_week_high": metrics.get("fifty_two_week_high"),
-                "fifty_two_week_range": fifty_two_week_range,
-                "eps": metrics.get("eps"),
-                "forward_eps": metrics.get("forward_eps"),
-                "updated_at": datetime.now()
-            }
-            
-            await database.execute(update_query, update_values)
-            
-            # Filter out empty values for response
-            filtered_metrics = {k: v for k, v in metrics.items() if v is not None}
-            
-            results.append({
-                "ticker": ticker,
-                "success": True,
-                "message": f"Successfully updated metrics for {ticker}",
-                "fields_updated": len(filtered_metrics)
-            })
-            success_count += 1
-            
-        except Exception as e:
-            error_message = f"Error updating metrics for {ticker}: {str(e)}"
-            logger.error(error_message)
-            
-            results.append({
-                "ticker": ticker,
-                "success": False,
-                "message": error_message
-            })
-            failed_count += 1
-    
-    # Update event as completed
-    await update_system_event(
-        database,
-        event_id,
-        "completed",
-        {
-            "tickers_count": len(ticker_list),
-            "success_count": success_count,
-            "failed_count": failed_count
-        }
-    )
-    
-    return {
-        "success": success_count > 0,
-        "message": f"Updated metrics for {success_count}/{len(ticker_list)} tickers ({failed_count} failed)",
-        "total_tickers": len(ticker_list),
-        "success_count": success_count,
-        "failed_count": failed_count,
-        "results": results
-    }
-
-# Update just price for a single ticker
-@app.post("/market/update-ticker-price/{ticker}")
-async def update_ticker_price(
-    ticker: str,
-    current_user: dict = Depends(get_current_user)
-):
-    """
-    Update current price data for a single ticker using YahooQuery client.
-    """
-    try:
-        # Standardize ticker (uppercase)
-        ticker = ticker.strip().upper()
-        
-        # Check if ticker exists in database
-        check_query = "SELECT ticker FROM securities WHERE ticker = :ticker"
-        existing = await database.fetch_one(check_query, {"ticker": ticker})
-        
-        if not existing:
-            # Ticker doesn't exist, insert it first
-            insert_query = """
-            INSERT INTO securities (ticker, active, on_yfinance, created_at) 
-            VALUES (:ticker, true, true, :now)
-            """
-            await database.execute(
-                insert_query, 
-                {
-                    "ticker": ticker,
-                    "now": datetime.utcnow()
-                }
-            )
-            logger.info(f"Created new security record for ticker: {ticker}")
-            
-        # Create event record for tracking
-        event_id = await record_system_event(
-            database,
-            "yahoo_ticker_price_update",
-            "started",
-            {"ticker": ticker}
-        )
-        
-        # Initialize YahooQueryClient
-        client = YahooQueryClient()
-        
-        try:
-            # Get current price data
-            logger.info(f"Fetching current price for {ticker}")
-            price_data = await client.get_current_price(ticker)
-            
-            if not price_data:
-                error_msg = f"No price data returned for {ticker}"
-                logger.error(error_msg)
-                
-                # Update event as failed
-                await update_system_event(
-                    database,
-                    event_id,
-                    "failed",
-                    {"error": error_msg}
-                )
-                
-                return {
-                    "success": False,
-                    "message": error_msg,
-                    "ticker": ticker
-                }
-            
-            # Update securities table with price data
-            update_query = """
-            UPDATE securities
-            SET 
-                current_price = :price,
-                day_open = :day_open,
-                day_high = :day_high,
-                day_low = :day_low,
-                volume = :volume,
-                last_updated = :updated_at,
-                price_timestamp = :price_timestamp
-            WHERE ticker = :ticker
-            """
-            
-            update_values = {
-                "ticker": ticker,
-                "price": price_data.get("price"),
-                "day_open": price_data.get("day_open"),
-                "day_high": price_data.get("day_high"),
-                "day_low": price_data.get("day_low"),
-                "volume": price_data.get("volume"),
-                "updated_at": datetime.now(),
-                "price_timestamp": price_data.get("price_timestamp")
-            }
-            
-            await database.execute(update_query, update_values)
-            
-            # Filter out empty values for response
-            filtered_price_data = {k: v for k, v in price_data.items() if v is not None}
-            
-            # Update event as completed
-            await update_system_event(
-                database,
-                event_id,
-                "completed",
-                {"ticker": ticker, "fields_updated": len(filtered_price_data)}
-            )
-            
-            return {
-                "success": True,
-                "message": f"Successfully updated price for {ticker}",
-                "ticker": ticker,
-                "current_price": price_data.get("price"),
-                "updated_at": datetime.now().isoformat(),
-                "data": filtered_price_data
-            }
-            
-        except Exception as e:
-            error_message = f"Error updating price for {ticker}: {str(e)}"
-            logger.error(error_message)
-            
-            # Update event as failed
-            await update_system_event(
-                database,
-                event_id,
-                "failed",
-                {"error": error_message}
-            )
-            
-            return {
-                "success": False,
-                "message": error_message,
-                "ticker": ticker
-            }
-            
-    except Exception as e:
-        error_message = f"Error in ticker price update: {str(e)}"
-        logger.error(error_message)
-        
-        # Update event status if we have an event_id
-        if 'event_id' in locals():
-            await update_system_event(
-                database,
-                event_id,
-                "failed",
-                {"error": error_message}
-            )
-            
-        # Log detailed error for debugging
-        import traceback
-        logger.error(traceback.format_exc())
-        
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to update ticker price: {str(e)}"
-        )
-
-@app.post("/market/update-tickers-price/{tickers}")
-async def update_multiple_ticker_prices(
-    tickers: str,
-    current_user: dict = Depends(get_current_user)
-):
-    """
-    Update current price data for multiple tickers using YahooQuery client.
-    
-    Tickers should be comma-separated in the URL, e.g.:
-    /market/update-tickers-price/AAPL,MSFT,GOOG,AMZN
-    """
-    try:
-        # Parse tickers from the URL path parameter
-        ticker_list = [ticker.strip().upper() for ticker in tickers.split(',') if ticker.strip()]
-        
-        if not ticker_list:
-            return {
-                "success": False,
-                "message": "No valid tickers provided",
-                "results": []
-            }
-        
-        # Create event record for the batch update
-        event_id = await record_system_event(
-            database,
-            "yahoo_tickers_batch_price_update",
-            "started",
-            {"tickers_count": len(ticker_list), "first_ticker": ticker_list[0]}
-        )
-        
-        # Check for missing tickers and add them to the database
-        for ticker in ticker_list:
-            check_query = "SELECT ticker FROM securities WHERE ticker = :ticker"
-            existing = await database.fetch_one(check_query, {"ticker": ticker})
-            
-            if not existing:
-                # Ticker doesn't exist, insert it first
-                insert_query = """
-                INSERT INTO securities (ticker, active, on_yfinance, created_at) 
-                VALUES (:ticker, true, true, :now)
-                """
-                await database.execute(
-                    insert_query, 
-                    {
-                        "ticker": ticker,
-                        "now": datetime.utcnow()
-                    }
-                )
-                logger.info(f"Created new security record for ticker: {ticker}")
-        
-        # Initialize YahooQueryClient
-        client = YahooQueryClient()
-        
-        try:
-            # Get batch price data
-            logger.info(f"Fetching prices for batch of {len(ticker_list)} tickers")
-            batch_price_data = await client.get_batch_prices(ticker_list)
-            
-            if not batch_price_data:
-                error_msg = "No price data returned for any tickers"
-                logger.error(error_msg)
-                
-                # Update event as failed
-                await update_system_event(
-                    database,
-                    event_id,
-                    "failed",
-                    {"error": error_msg}
-                )
-                
-                return {
-                    "success": False,
-                    "message": error_msg,
-                    "tickers": ticker_list
-                }
-            
-            # Process results for each ticker
-            results = []
-            updated_count = 0
-            failed_tickers = []
-            
-            for ticker in ticker_list:
-                if ticker not in batch_price_data:
-                    # No data returned for this ticker
-                    failed_tickers.append(ticker)
-                    results.append({
-                        "ticker": ticker,
-                        "success": False,
-                        "message": "No price data returned"
-                    })
-                    continue
-                    
-                price_data = batch_price_data[ticker]
-                
-                try:
-                    # Update securities table with price data
-                    update_query = """
-                    UPDATE securities
-                    SET 
-                        current_price = :price,
-                        day_open = :day_open,
-                        day_high = :day_high,
-                        day_low = :day_low,
-                        volume = :volume,
-                        last_updated = :updated_at,
-                        price_timestamp = :price_timestamp
-                    WHERE ticker = :ticker
-                    """
-                    
-                    update_values = {
-                        "ticker": ticker,
-                        "price": price_data.get("price"),
-                        "day_open": price_data.get("day_open"),
-                        "day_high": price_data.get("day_high"),
-                        "day_low": price_data.get("day_low"),
-                        "volume": price_data.get("volume"),
-                        "updated_at": datetime.now(),
-                        "price_timestamp": price_data.get("price_timestamp")
-                    }
-                    
-                    await database.execute(update_query, update_values)
-                    updated_count += 1
-                    
-                    # Filter out empty values for response
-                    filtered_price_data = {k: v for k, v in price_data.items() if v is not None}
-                    
-                    results.append({
-                        "ticker": ticker,
-                        "success": True,
-                        "message": f"Successfully updated price",
-                        "current_price": price_data.get("price"),
-                        "fields_updated": len(filtered_price_data)
-                    })
-                    
-                except Exception as ticker_error:
-                    error_message = f"Error updating price for {ticker}: {str(ticker_error)}"
-                    logger.error(error_message)
-                    failed_tickers.append(ticker)
-                    
-                    results.append({
-                        "ticker": ticker,
-                        "success": False,
-                        "message": error_message
-                    })
-            
-            # Update event as completed
-            await update_system_event(
-                database,
-                event_id,
-                "completed",
-                {
-                    "tickers_count": len(ticker_list),
-                    "updated_count": updated_count,
-                    "failed_count": len(failed_tickers)
-                }
-            )
-            
-            return {
-                "success": updated_count > 0,
-                "message": f"Updated prices for {updated_count}/{len(ticker_list)} tickers",
-                "total_tickers": len(ticker_list),
-                "updated_count": updated_count,
-                "failed_count": len(failed_tickers),
-                "failed_tickers": failed_tickers if failed_tickers else None,
-                "results": results
-            }
-            
-        except Exception as e:
-            error_message = f"Error in batch price update: {str(e)}"
-            logger.error(error_message)
-            
-            # Update event as failed
-            await update_system_event(
-                database,
-                event_id,
-                "failed",
-                {"error": error_message}
-            )
-            
-            return {
-                "success": False,
-                "message": error_message,
-                "tickers": ticker_list
-            }
-            
-    except Exception as e:
-        error_message = f"Error in batch ticker price update: {str(e)}"
-        logger.error(error_message)
-        
-        # Update event status if we have an event_id
-        if 'event_id' in locals():
-            await update_system_event(
-                database,
-                event_id,
-                "failed",
-                {"error": error_message}
-            )
-            
-        # Log detailed error for debugging
-        import traceback
-        logger.error(traceback.format_exc())
-        
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to update ticker prices: {str(e)}"
-        )
-
-# - DIRECT YAHOO CLIENT
-@app.post("/market/direct-update-ticker-price/{ticker}")
-async def direct_update_ticker_price(
-    ticker: str,
-    current_user: dict = Depends(get_current_user)
-):
-    """
-    Update current price data for a single ticker using DirectYahooFinanceClient.
-    """
-    try:
-        # Standardize ticker (uppercase)
-        ticker = ticker.strip().upper()
-        
-        # Check if ticker exists in database
-        check_query = "SELECT ticker FROM securities WHERE ticker = :ticker"
-        existing = await database.fetch_one(check_query, {"ticker": ticker})
-        
-        if not existing:
-            # Ticker doesn't exist, insert it first
-            insert_query = """
-            INSERT INTO securities (ticker, active, on_yfinance, created_at) 
-            VALUES (:ticker, true, true, :now)
-            """
-            await database.execute(
-                insert_query, 
-                {
-                    "ticker": ticker,
-                    "now": datetime.utcnow()
-                }
-            )
-            logger.info(f"Created new security record for ticker: {ticker}")
-            
-        # Create event record for tracking
-        event_id = await record_system_event(
-            database,
-            "direct_yahoo_ticker_price_update",
-            "started",
-            {"ticker": ticker}
-        )
-        
-        # Initialize DirectYahooFinanceClient
-        client = DirectYahooFinanceClient()
-        
-        try:
-            # Get current price data
-            logger.info(f"Fetching current price for {ticker} using DirectYahooFinanceClient")
-            price_data = await client.get_current_price(ticker)
-            
-            if not price_data:
-                error_msg = f"No price data returned for {ticker}"
-                logger.error(error_msg)
-                
-                # Update event as failed
-                await update_system_event(
-                    database,
-                    event_id,
-                    "failed",
-                    {"error": error_msg}
-                )
-                
-                return {
-                    "success": False,
-                    "message": error_msg,
-                    "ticker": ticker
-                }
-            
-            # Update securities table with price data
-            update_query = """
-            UPDATE securities
-            SET 
-                current_price = :price,
-                day_open = :day_open,
-                day_high = :day_high,
-                day_low = :day_low,
-                volume = :volume,
-                last_updated = :updated_at,
-                price_timestamp = :price_timestamp
-            WHERE ticker = :ticker
-            """
-            
-            update_values = {
-                "ticker": ticker,
-                "price": price_data.get("price"),
-                "day_open": price_data.get("day_open"),
-                "day_high": price_data.get("day_high"),
-                "day_low": price_data.get("day_low"),
-                "volume": price_data.get("volume"),
-                "updated_at": datetime.now(),
-                "price_timestamp": price_data.get("price_timestamp")
-            }
-            
-            await database.execute(update_query, update_values)
-            
-            # Filter out empty values for response
-            filtered_price_data = {k: v for k, v in price_data.items() if v is not None}
-            
-            # Update event as completed
-            await update_system_event(
-                database,
-                event_id,
-                "completed",
-                {"ticker": ticker, "fields_updated": len(filtered_price_data)}
-            )
-            
-            return {
-                "success": True,
-                "message": f"Successfully updated price for {ticker}",
-                "ticker": ticker,
-                "current_price": price_data.get("price"),
-                "updated_at": datetime.now().isoformat(),
-                "data": filtered_price_data
-            }
-            
-        except Exception as e:
-            error_message = f"Error updating price for {ticker}: {str(e)}"
-            logger.error(error_message)
-            
-            # Update event as failed
-            await update_system_event(
-                database,
-                event_id,
-                "failed",
-                {"error": error_message}
-            )
-            
-            return {
-                "success": False,
-                "message": error_message,
-                "ticker": ticker
-            }
-            
-    except Exception as e:
-        error_message = f"Error in direct ticker price update: {str(e)}"
-        logger.error(error_message)
-        
-        # Update event status if we have an event_id
-        if 'event_id' in locals():
-            await update_system_event(
-                database,
-                event_id,
-                "failed",
-                {"error": error_message}
-            )
-            
-        # Log detailed error for debugging
-        import traceback
-        logger.error(traceback.format_exc())
-        
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to update ticker price: {str(e)}"
-        )
-
-@app.post("/market/direct-update-tickers-price/{tickers}")
-async def direct_update_multiple_ticker_prices(
-    tickers: str,
-    current_user: dict = Depends(get_current_user)
-):
-    """
-    Update current price data for multiple tickers using DirectYahooFinanceClient.
-    
-    Tickers should be comma-separated in the URL, e.g.:
-    /market/direct-update-tickers-price/AAPL,MSFT,GOOG,AMZN
-    """
-    try:
-        # Parse tickers from the URL path parameter
-        ticker_list = [ticker.strip().upper() for ticker in tickers.split(',') if ticker.strip()]
-        
-        if not ticker_list:
-            return {
-                "success": False,
-                "message": "No valid tickers provided",
-                "results": []
-            }
-        
-        # Create event record for the batch update
-        event_id = await record_system_event(
-            database,
-            "direct_yahoo_tickers_batch_price_update",
-            "started",
-            {"tickers_count": len(ticker_list), "first_ticker": ticker_list[0]}
-        )
-        
-        # Check for missing tickers and add them to the database
-        for ticker in ticker_list:
-            check_query = "SELECT ticker FROM securities WHERE ticker = :ticker"
-            existing = await database.fetch_one(check_query, {"ticker": ticker})
-            
-            if not existing:
-                # Ticker doesn't exist, insert it first
-                insert_query = """
-                INSERT INTO securities (ticker, active, on_yfinance, created_at) 
-                VALUES (:ticker, true, true, :now)
-                """
-                await database.execute(
-                    insert_query, 
-                    {
-                        "ticker": ticker,
-                        "now": datetime.utcnow()
-                    }
-                )
-                logger.info(f"Created new security record for ticker: {ticker}")
-        
-        # Initialize DirectYahooFinanceClient
-        client = DirectYahooFinanceClient()
-        
-        try:
-            # Get batch price data
-            logger.info(f"Fetching prices for batch of {len(ticker_list)} tickers using DirectYahooFinanceClient")
-            batch_price_data = await client.get_batch_prices(ticker_list)
-            
-            if not batch_price_data:
-                error_msg = "No price data returned for any tickers"
-                logger.error(error_msg)
-                
-                # Update event as failed
-                await update_system_event(
-                    database,
-                    event_id,
-                    "failed",
-                    {"error": error_msg}
-                )
-                
-                return {
-                    "success": False,
-                    "message": error_msg,
-                    "tickers": ticker_list
-                }
-            
-            # Process results for each ticker
-            results = []
-            updated_count = 0
-            failed_tickers = []
-            
-            for ticker in ticker_list:
-                if ticker not in batch_price_data:
-                    # No data returned for this ticker
-                    failed_tickers.append(ticker)
-                    results.append({
-                        "ticker": ticker,
-                        "success": False,
-                        "message": "No price data returned"
-                    })
-                    continue
-                    
-                price_data = batch_price_data[ticker]
-                
-                try:
-                    # Update securities table with price data
-                    update_query = """
-                    UPDATE securities
-                    SET 
-                        current_price = :price,
-                        day_open = :day_open,
-                        day_high = :day_high,
-                        day_low = :day_low,
-                        volume = :volume,
-                        last_updated = :updated_at,
-                        price_timestamp = :price_timestamp
-                    WHERE ticker = :ticker
-                    """
-                    
-                    update_values = {
-                        "ticker": ticker,
-                        "price": price_data.get("price"),
-                        "day_open": price_data.get("day_open"),
-                        "day_high": price_data.get("day_high"),
-                        "day_low": price_data.get("day_low"),
-                        "volume": price_data.get("volume"),
-                        "updated_at": datetime.now(),
-                        "price_timestamp": price_data.get("price_timestamp")
-                    }
-                    
-                    await database.execute(update_query, update_values)
-                    updated_count += 1
-                    
-                    # Filter out empty values for response
-                    filtered_price_data = {k: v for k, v in price_data.items() if v is not None}
-                    
-                    results.append({
-                        "ticker": ticker,
-                        "success": True,
-                        "message": f"Successfully updated price",
-                        "current_price": price_data.get("price"),
-                        "fields_updated": len(filtered_price_data)
-                    })
-                    
-                except Exception as ticker_error:
-                    error_message = f"Error updating price for {ticker}: {str(ticker_error)}"
-                    logger.error(error_message)
-                    failed_tickers.append(ticker)
-                    
-                    results.append({
-                        "ticker": ticker,
-                        "success": False,
-                        "message": error_message
-                    })
-            
-            # Update event as completed
-            await update_system_event(
-                database,
-                event_id,
-                "completed",
-                {
-                    "tickers_count": len(ticker_list),
-                    "updated_count": updated_count,
-                    "failed_count": len(failed_tickers)
-                }
-            )
-            
-            return {
-                "success": updated_count > 0,
-                "message": f"Updated prices for {updated_count}/{len(ticker_list)} tickers",
-                "total_tickers": len(ticker_list),
-                "updated_count": updated_count,
-                "failed_count": len(failed_tickers),
-                "failed_tickers": failed_tickers if failed_tickers else None,
-                "results": results
-            }
-            
-        except Exception as e:
-            error_message = f"Error in batch price update: {str(e)}"
-            logger.error(error_message)
-            
-            # Update event as failed
-            await update_system_event(
-                database,
-                event_id,
-                "failed",
-                {"error": error_message}
-            )
-            
-            return {
-                "success": False,
-                "message": error_message,
-                "tickers": ticker_list
-            }
-            
-    except Exception as e:
-        error_message = f"Error in batch ticker price update: {str(e)}"
-        logger.error(error_message)
-        
-        # Update event status if we have an event_id
-        if 'event_id' in locals():
-            await update_system_event(
-                database,
-                event_id,
-                "failed",
-                {"error": error_message}
-            )
-            
-        # Log detailed error for debugging
-        import traceback
-        logger.error(traceback.format_exc())
-        
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to update ticker prices: {str(e)}"
-        )
-
-@app.post("/market/direct-update-ticker-metrics/{ticker}")
-async def direct_update_ticker_metrics(
-    ticker: str,
-    current_user: dict = Depends(get_current_user)
-):
-    """
-    Update company metrics for a single ticker using DirectYahooFinanceClient.
-    """
-    try:
-        # Validate request
-        if not ticker:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Ticker must be provided"
-            )
-            
-        # Standardize ticker (uppercase)
-        ticker = ticker.strip().upper()
-        
-        # Check if ticker exists in database
-        check_query = "SELECT ticker FROM securities WHERE ticker = :ticker"
-        existing = await database.fetch_one(check_query, {"ticker": ticker})
-        
-        if not existing:
-            # Ticker doesn't exist, insert it first
-            insert_query = """
-            INSERT INTO securities (ticker, active, on_yfinance, created_at) 
-            VALUES (:ticker, true, true, :now)
-            """
-            await database.execute(
-                insert_query, 
-                {
-                    "ticker": ticker,
-                    "now": datetime.utcnow()
-                }
-            )
-            logger.info(f"Created new security record for ticker: {ticker}")
-            
-        # Create event record for tracking
-        event_id = await record_system_event(
-            database,
-            "direct_yahoo_ticker_metrics_update",
-            "started",
-            {"ticker": ticker}
-        )
-        
-        # Initialize DirectYahooFinanceClient
-        client = DirectYahooFinanceClient()
-        
-        try:
-            # Get company metrics data
-            logger.info(f"Fetching company metrics for {ticker} using DirectYahooFinanceClient")
-            metrics = await client.get_company_metrics(ticker)
-            
-            if not metrics or metrics.get("not_found"):
-                error_msg = f"No metrics data returned for {ticker}"
-                logger.error(error_msg)
-                
-                # Update event as failed
-                await update_system_event(
-                    database,
-                    event_id,
-                    "failed",
-                    {"error": error_msg}
-                )
-                
-                return {
-                    "success": False,
-                    "message": error_msg,
-                    "ticker": ticker
-                }
-            
-            # Update securities table with company metrics
-            update_query = """
-            UPDATE securities
-            SET 
-                company_name = :company_name,
-                current_price = :current_price,
-                sector = :sector,
-                industry = :industry,
-                market_cap = :market_cap,
-                pe_ratio = :pe_ratio,
-                forward_pe = :forward_pe,
-                dividend_rate = :dividend_rate,
-                dividend_yield = :dividend_yield,
-                beta = :beta,
-                fifty_two_week_low = :fifty_two_week_low,
-                fifty_two_week_high = :fifty_two_week_high,
-                fifty_two_week_range = :fifty_two_week_range,
-                eps = :eps,
-                forward_eps = :forward_eps,
-                last_metrics_update = :updated_at,
-                last_updated = :updated_at
-            WHERE ticker = :ticker
-            """
-            
-            # Prepare values for update
-            fifty_two_week_range = None
-            if metrics.get("fifty_two_week_low") is not None and metrics.get("fifty_two_week_high") is not None:
-                fifty_two_week_range = f"{metrics['fifty_two_week_low']}-{metrics['fifty_two_week_high']}"
-            
-            update_values = {
-                "ticker": ticker,
-                "company_name": metrics.get("company_name"),
-                "current_price": metrics.get("current_price"),
-                "sector": metrics.get("sector"),
-                "industry": metrics.get("industry"),
-                "market_cap": metrics.get("market_cap"),
-                "pe_ratio": metrics.get("pe_ratio"),
-                "forward_pe": metrics.get("forward_pe"),
-                "dividend_rate": metrics.get("dividend_rate"),
-                "dividend_yield": metrics.get("dividend_yield"),
-                "beta": metrics.get("beta"),
-                "fifty_two_week_low": metrics.get("fifty_two_week_low"),
-                "fifty_two_week_high": metrics.get("fifty_two_week_high"),
-                "fifty_two_week_range": fifty_two_week_range,
-                "eps": metrics.get("eps"),
-                "forward_eps": metrics.get("forward_eps"),
-                "updated_at": datetime.now()
-            }
-            
-            await database.execute(update_query, update_values)
-            
-            # Filter out empty values for response
-            filtered_metrics = {k: v for k, v in metrics.items() if v is not None}
-            
-            # Update event as completed
-            await update_system_event(
-                database,
-                event_id,
-                "completed",
-                {"ticker": ticker, "fields_updated": len(filtered_metrics)}
-            )
-            
-            return {
-                "success": True,
-                "message": f"Successfully updated metrics for {ticker}",
-                "ticker": ticker,
-                "fields_updated": len(filtered_metrics),
-                "metrics": filtered_metrics
-            }
-            
-        except Exception as e:
-            error_message = f"Error updating metrics for {ticker}: {str(e)}"
-            logger.error(error_message)
-            
-            # Update event as failed
-            await update_system_event(
-                database,
-                event_id,
-                "failed",
-                {"error": error_message}
-            )
-            
-            return {
-                "success": False,
-                "message": error_message,
-                "ticker": ticker
-            }
-            
-    except Exception as e:
-        error_message = f"Error in direct ticker metrics update: {str(e)}"
-        logger.error(error_message)
-        
-        # Update event status if we have an event_id
-        if 'event_id' in locals():
-            await update_system_event(
-                database,
-                event_id,
-                "failed",
-                {"error": error_message}
-            )
-            
-        # Log detailed error for debugging
-        import traceback
-        logger.error(traceback.format_exc())
-        
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to update ticker metrics: {str(e)}"
-        )
-
-@app.post("/market/direct-update-tickers-metrics/{tickers}")
-async def direct_update_multiple_ticker_metrics(
-    tickers: str,
-    current_user: dict = Depends(get_current_user)
-):
-    """
-    Update company metrics for multiple tickers using DirectYahooFinanceClient.
-    
-    Tickers should be comma-separated in the URL, e.g.:
-    /market/direct-update-tickers-metrics/AAPL,MSFT,GOOG,AMZN
-    """
-    # Parse tickers from the URL path parameter
-    ticker_list = [ticker.strip().upper() for ticker in tickers.split(',') if ticker.strip()]
-    
-    if not ticker_list:
-        return {
-            "success": False,
-            "message": "No valid tickers provided",
-            "results": []
-        }
-    
-    # Create event record for the batch
-    event_id = await record_system_event(
-        database,
-        "direct_yahoo_tickers_metrics_batch_update",
-        "started",
-        {"tickers_count": len(ticker_list), "first_ticker": ticker_list[0]}
-    )
-    
-    # Initialize results
-    results = []
-    success_count = 0
-    failed_count = 0
-    
-    # Initialize DirectYahooFinanceClient
-    client = DirectYahooFinanceClient()
-    
-    # Process each ticker
-    for ticker in ticker_list:
-        try:
-            # Check if ticker exists in database
-            check_query = "SELECT ticker FROM securities WHERE ticker = :ticker"
-            existing = await database.fetch_one(check_query, {"ticker": ticker})
-            
-            if not existing:
-                # Ticker doesn't exist, insert it first
-                insert_query = """
-                INSERT INTO securities (ticker, active, on_yfinance) 
-                VALUES (:ticker, true, true)
-                """
-                await database.execute(
-                    insert_query, 
-                    {
-                        "ticker": ticker
-                    }
-                )
-                logger.info(f"Created new security record for ticker: {ticker}")
-            
-            # Get company metrics data
-            logger.info(f"Fetching company metrics for {ticker} using DirectYahooFinanceClient")
-            metrics = await client.get_company_metrics(ticker)
-            
-            if isinstance(metrics, str):
-                error_msg = f"Invalid metrics format (received string): {metrics}"
-                logger.error(error_msg)
-                
-                results.append({
-                    "ticker": ticker,
-                    "success": False,
-                    "message": error_msg
-                })
-                failed_count += 1
-                continue
-            
-            if not metrics or metrics.get("not_found"):
-                error_msg = f"No metrics data returned for {ticker}"
-                logger.error(error_msg)
-                
-                results.append({
-                    "ticker": ticker,
-                    "success": False,
-                    "message": error_msg
-                })
-                failed_count += 1
-                continue
-            
-            # Update securities table with company metrics
-            update_query = """
-            UPDATE securities
-            SET 
-                company_name = :company_name,
-                current_price = :current_price,
-                sector = :sector,
-                industry = :industry,
-                market_cap = :market_cap,
-                pe_ratio = :pe_ratio,
-                forward_pe = :forward_pe,
-                dividend_rate = :dividend_rate,
-                dividend_yield = :dividend_yield,
-                beta = :beta,
-                fifty_two_week_low = :fifty_two_week_low,
-                fifty_two_week_high = :fifty_two_week_high,
-                fifty_two_week_range = :fifty_two_week_range,
-                eps = :eps,
-                forward_eps = :forward_eps,
-                last_metrics_update = :updated_at,
-                last_updated = :updated_at
-            WHERE ticker = :ticker
-            """
-            
-            # Prepare values for update
-            fifty_two_week_range = None
-            if metrics.get("fifty_two_week_low") is not None and metrics.get("fifty_two_week_high") is not None:
-                fifty_two_week_range = f"{metrics['fifty_two_week_low']}-{metrics['fifty_two_week_high']}"
-            
-            update_values = {
-                "ticker": ticker,
-                "company_name": metrics.get("company_name"),
-                "current_price": metrics.get("current_price"),
-                "sector": metrics.get("sector"),
-                "industry": metrics.get("industry"),
-                "market_cap": metrics.get("market_cap"),
-                "pe_ratio": metrics.get("pe_ratio"),
-                "forward_pe": metrics.get("forward_pe"),
-                "dividend_rate": metrics.get("dividend_rate"),
-                "dividend_yield": metrics.get("dividend_yield"),
-                "beta": metrics.get("beta"),
-                "fifty_two_week_low": metrics.get("fifty_two_week_low"),
-                "fifty_two_week_high": metrics.get("fifty_two_week_high"),
-                "fifty_two_week_range": fifty_two_week_range,
-                "eps": metrics.get("eps"),
-                "forward_eps": metrics.get("forward_eps"),
-                "updated_at": datetime.now()
-            }
-            
-            await database.execute(update_query, update_values)
-            
-            # Filter out empty values for response
-            filtered_metrics = {k: v for k, v in metrics.items() if v is not None}
-            
-            results.append({
-                "ticker": ticker,
-                "success": True,
-                "message": f"Successfully updated metrics for {ticker}",
-                "fields_updated": len(filtered_metrics)
-            })
-            success_count += 1
-            
-        except Exception as e:
-            error_message = f"Error updating metrics for {ticker}: {str(e)}"
-            logger.error(error_message)
-            
-            results.append({
-                "ticker": ticker,
-                "success": False,
-                "message": error_message
-            })
-            failed_count += 1
-    
-    # Update event as completed
-    await update_system_event(
-        database,
-        event_id,
-        "completed",
-        {
-            "tickers_count": len(ticker_list),
-            "success_count": success_count,
-            "failed_count": failed_count
-        }
-    )
-    
-    return {
-        "success": success_count > 0,
-        "message": f"Updated metrics for {success_count}/{len(ticker_list)} tickers ({failed_count} failed)",
-        "total_tickers": len(ticker_list),
-        "success_count": success_count,
-        "failed_count": failed_count,
-        "results": results
-    }
-
 # -- SCHEDULED AUTO RUNS 
 @app.post("/market/update-all-securities-prices")
 async def update_all_securities_prices():
@@ -3922,7 +2079,6 @@ async def process_price_updates(ticker_list: list, event_id):
         import traceback
         logger.error(traceback.format_exc())
 
-
 @app.post("/market/update-all-securities-metrics")
 async def update_all_securities_metrics():
     """
@@ -4144,6 +2300,146 @@ async def warmup_system():
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to warm up system: {str(e)}"
         )
+
+@app.post("/market/polygon-sync-prices")
+async def polygon_sync_prices():
+    """
+    Pull Polygon snapshots for our tickers and update:
+      - securities.price_polygon
+      - securities.price_polygon_timestamp
+      - securities.on_polygon (TRUE if priced; FALSE if not found)
+    Yahoo fields are untouched.
+    """
+    try:
+        event_id = await record_system_event(
+            database,
+            "polygon_full_market_price_sync",
+            "started",
+            {"description": "Polygon price sync for securities"}
+        )
+
+        rows = await database.fetch_all("""
+            SELECT ticker
+            FROM securities
+            WHERE asset_type = 'security'
+              AND (on_polygon IS DISTINCT FROM FALSE)
+        """)
+        if not rows:
+            msg = "No eligible securities for Polygon sync"
+            await update_system_event(database, event_id, "completed", {"message": msg, "tickers_count": 0})
+            return {"success": True, "message": msg, "updated_count": 0}
+
+        tickers = [r["ticker"].upper() for r in rows]
+
+        client = PolygonClient()
+        snaps = await client.get_snapshots_for(tickers)
+
+        found = set(snaps.keys())
+        requested = set(tickers)
+        missing = list(requested - found)
+
+        if found:
+            payload = [{
+                "ticker": t,
+                "price_polygon": float(snaps[t]["price"]),
+                "price_polygon_timestamp": snaps[t]["timestamp"],
+            } for t in found]
+            await database.execute_many(
+                """
+                UPDATE securities
+                SET price_polygon = :price_polygon,
+                    price_polygon_timestamp = :price_polygon_timestamp,
+                    on_polygon = TRUE
+                WHERE ticker = :ticker
+                """,
+                payload
+            )
+
+        if missing:
+            BATCH = 200
+            for i in range(0, len(missing), BATCH):
+                chunk = missing[i:i+BATCH]
+                placeholders = ", ".join([f":t{i}" for i in range(len(chunk))])
+                params = {f"t{i}": t for i, t in enumerate(chunk)}
+                await database.execute(
+                    f"UPDATE securities SET on_polygon = FALSE WHERE ticker IN ({placeholders})",
+                    params
+                )
+
+        await update_system_event(
+            database,
+            event_id,
+            "completed",
+            {
+                "tickers_count": len(tickers),
+                "updated_count": len(found),
+                "missing_count": len(missing),
+                "source": "polygon"
+            }
+        )
+        return {
+            "success": True,
+            "message": f"Polygon synced {len(found)} / {len(tickers)}",
+            "updated_count": len(found),
+            "missing_count": len(missing),
+        }
+    except Exception as e:
+        logger.error(f"Polygon sync error: {e}")
+        if 'event_id' in locals():
+            await update_system_event(database, event_id, "failed", {"error": str(e)})
+        import traceback; logger.error(traceback.format_exc())
+        raise HTTPException(status_code=500, detail=f"Polygon sync failed: {e}")
+
+
+@app.post("/securities/polygon-sync-list")
+async def polygon_sync_list(
+    active_only: bool = True,
+    include_types: Optional[str] = "CS,ETF,ADR",  # comma-separated Polygon types
+    max_pages: Optional[int] = 3,                # keep conservative by default
+):
+    """
+    Compare Polygon reference tickers to our 'securities' table and insert the missing ones.
+    We insert minimally (ticker only) to avoid schema assumptions; you can enrich later.
+    """
+    try:
+        client = PolygonClient()
+        types = [t.strip().upper() for t in include_types.split(",")] if include_types else None
+        ref = await client.list_reference_tickers(
+            market="stocks",
+            active_only=active_only,
+            types=types,
+            limit=1000,
+            max_pages=max_pages,
+        )
+
+        poly_tickers = {row["ticker"].upper() for row in ref if row.get("ticker")}
+        if not poly_tickers:
+            return {"success": False, "message": "No Polygon tickers returned", "inserted": 0}
+
+        existing_rows = await database.fetch_all("SELECT ticker FROM securities")
+        existing = {r["ticker"].upper() for r in existing_rows}
+
+        missing = sorted(list(poly_tickers - existing))
+        if not missing:
+            return {"success": True, "message": "No missing tickers", "inserted": 0}
+
+        # Insert minimal rows (ticker only), safe since you already do this elsewhere
+        await database.execute_many(
+            "INSERT INTO securities (ticker) VALUES (:ticker)",
+            [{"ticker": t} for t in missing]
+        )
+
+        return {
+            "success": True,
+            "message": f"Inserted {len(missing)} new tickers from Polygon",
+            "inserted": len(missing),
+            "examples": missing[:20],
+        }
+
+    except Exception as e:
+        logger.error(f"Polygon list sync error: {e}")
+        import traceback; logger.error(traceback.format_exc())
+        raise HTTPException(status_code=500, detail=f"Polygon list sync failed: {e}")
 
 # ----- POSITION MANAGEMENT  -----
 # INCLUDES POSTIONS, CASH, METALS, CRYPTO, REAL ESTATE
@@ -7989,3 +6285,1849 @@ async def get_system_events(limit: int = 20, current_user: dict = Depends(get_cu
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to fix data consistency issues: {str(e)}"
         )
+
+
+
+@app.post("/securities/{ticker}/update")
+async def update_specific_security(
+    ticker: str, 
+    update_data: SecurityUpdate, 
+    current_user: dict = Depends(get_current_user)
+):
+    """Update a specific security based on the update type"""
+    try:
+        # Check if security exists
+        query = "SELECT ticker FROM securities WHERE ticker = :ticker"
+        existing = await database.fetch_one(query, {"ticker": ticker.upper()})
+        
+        if not existing:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Security {ticker.upper()} not found"
+            )
+        
+        # Create event record for tracking
+        event_id = await record_system_event(
+            database,
+            f"security_update_{update_data.update_type}",
+            "started",
+            {"ticker": ticker.upper()}
+        )
+        
+        result = None
+        
+        # Perform update based on type
+        if update_data.update_type == "metrics":
+            # Use directly or import if needed
+            updater = PriceUpdaterV2()
+            result = await updater.update_company_metrics([ticker.upper()])
+            message = "Metrics updated successfully"
+            
+        elif update_data.update_type == "current_price":
+            # Use directly without reimporting
+            updater = PriceUpdaterV2()
+            result = await updater.update_security_prices([ticker.upper()])
+            message = "Current price updated successfully"
+            
+        elif update_data.update_type == "history":
+            # Use directly without reimporting
+            updater = PriceUpdaterV2()
+            days = update_data.days if update_data.days else 30  # Default to 30 days
+            result = await updater.update_historical_prices([ticker.upper()], days=days)
+            message = f"Price history updated successfully (last {days} days)"
+            
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Invalid update type: {update_data.update_type}"
+            )
+        
+        # Record completion of event
+        await update_system_event(
+            database,
+            event_id,
+            "completed",
+            {
+                "ticker": ticker.upper(),
+                "update_type": update_data.update_type,
+                "result": result
+            }
+        )
+        
+        return {
+            "message": message, 
+            "ticker": ticker.upper(),
+            "details": result
+        }
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        # Record failure if event was created
+        if 'event_id' in locals() and event_id:
+            await update_system_event(
+                database,
+                event_id,
+                "failed",
+                {"error": str(e)},
+                str(e)
+            )
+        
+        logger.error(f"Error updating security: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to update security: {str(e)}"
+        )
+        
+# --- NEW SIMPLIFIED PRICE UPDATER LOGIC
+# - YAHOO QUERY CLIENT
+# Update Company Metrics for use of single ticker
+@app.post("/market/update-ticker-metrics/{ticker}")
+async def update_ticker_metrics(
+    ticker: str,
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Update company metrics for a single ticker using YahooQuery client.
+    
+    This endpoint:
+    1. Validates the ticker
+    2. Creates a YahooQueryClient
+    3. Fetches the company metrics data
+    4. Updates the securities database table
+    5. Returns results and status
+    """
+    try:
+        # Validate request
+        if not ticker:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Ticker must be provided"
+            )
+            
+        # Standardize ticker (uppercase)
+        ticker = ticker.strip().upper()
+        
+        # Check if ticker exists in database
+        check_query = "SELECT ticker FROM securities WHERE ticker = :ticker"
+        existing = await database.fetch_one(check_query, {"ticker": ticker})
+        
+        if not existing:
+            # Ticker doesn't exist, insert it first
+            insert_query = """
+            INSERT INTO securities (ticker, active, on_yfinance, created_at) 
+            VALUES (:ticker, true, true, :now)
+            """
+            await database.execute(
+                insert_query, 
+                {
+                    "ticker": ticker,
+                    "now": datetime.utcnow()
+                }
+            )
+            logger.info(f"Created new security record for ticker: {ticker}")
+            
+        # Create event record for tracking
+        event_id = await record_system_event(
+            database,
+            "yahoo_ticker_metrics_update",
+            "started",
+            {"ticker": ticker}
+        )
+        
+        # Initialize YahooQueryClient
+        client = YahooQueryClient()
+        
+        try:
+            # Get company metrics data
+            logger.info(f"Fetching company metrics for {ticker}")
+            metrics = await client.get_company_metrics(ticker)
+            
+            if not metrics or metrics.get("not_found"):
+                error_msg = f"No metrics data returned for {ticker}"
+                logger.error(error_msg)
+                
+                # Update event as failed
+                await update_system_event(
+                    database,
+                    event_id,
+                    "failed",
+                    {"error": error_msg}
+                )
+                
+                return {
+                    "success": False,
+                    "message": error_msg,
+                    "ticker": ticker
+                }
+            
+            # Update securities table with company metrics
+            update_query = """
+            UPDATE securities
+            SET 
+                company_name = :company_name,
+                current_price = :current_price,
+                sector = :sector,
+                industry = :industry,
+                market_cap = :market_cap,
+                pe_ratio = :pe_ratio,
+                forward_pe = :forward_pe,
+                dividend_rate = :dividend_rate,
+                dividend_yield = :dividend_yield,
+                beta = :beta,
+                fifty_two_week_low = :fifty_two_week_low,
+                fifty_two_week_high = :fifty_two_week_high,
+                fifty_two_week_range = :fifty_two_week_range,
+                eps = :eps,
+                forward_eps = :forward_eps,
+                last_metrics_update = :updated_at,
+                last_updated = :updated_at
+            WHERE ticker = :ticker
+            """
+            
+            # Prepare values for update
+            fifty_two_week_range = None
+            if metrics.get("fifty_two_week_low") is not None and metrics.get("fifty_two_week_high") is not None:
+                fifty_two_week_range = f"{metrics['fifty_two_week_low']}-{metrics['fifty_two_week_high']}"
+            
+            update_values = {
+                "ticker": ticker,
+                "company_name": metrics.get("company_name"),
+                "current_price": metrics.get("current_price"),
+                "sector": metrics.get("sector"),
+                "industry": metrics.get("industry"),
+                "market_cap": metrics.get("market_cap"),
+                "pe_ratio": metrics.get("pe_ratio"),
+                "forward_pe": metrics.get("forward_pe"),
+                "dividend_rate": metrics.get("dividend_rate"),
+                "dividend_yield": metrics.get("dividend_yield"),
+                "beta": metrics.get("beta"),
+                "fifty_two_week_low": metrics.get("fifty_two_week_low"),
+                "fifty_two_week_high": metrics.get("fifty_two_week_high"),
+                "fifty_two_week_range": fifty_two_week_range,
+                "eps": metrics.get("eps"),
+                "forward_eps": metrics.get("forward_eps"),
+                "updated_at": datetime.now()
+            }
+            
+            await database.execute(update_query, update_values)
+            
+            # Filter out empty values for response
+            filtered_metrics = {k: v for k, v in metrics.items() if v is not None}
+            
+            # Update event as completed
+            await update_system_event(
+                database,
+                event_id,
+                "completed",
+                {"ticker": ticker, "fields_updated": len(filtered_metrics)}
+            )
+            
+            return {
+                "success": True,
+                "message": f"Successfully updated metrics for {ticker}",
+                "ticker": ticker,
+                "fields_updated": len(filtered_metrics),
+                "metrics": filtered_metrics
+            }
+            
+        except Exception as e:
+            error_message = f"Error updating metrics for {ticker}: {str(e)}"
+            logger.error(error_message)
+            
+            # Update event as failed
+            await update_system_event(
+                database,
+                event_id,
+                "failed",
+                {"error": error_message}
+            )
+            
+            return {
+                "success": False,
+                "message": error_message,
+                "ticker": ticker
+            }
+            
+    except Exception as e:
+        error_message = f"Error in ticker metrics update: {str(e)}"
+        logger.error(error_message)
+        
+        # Update event status if we have an event_id
+        if 'event_id' in locals():
+            await update_system_event(
+                database,
+                event_id,
+                "failed",
+                {"error": error_message}
+            )
+            
+        # Log detailed error for debugging
+        import traceback
+        logger.error(traceback.format_exc())
+        
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to update ticker metrics: {str(e)}"
+        )
+
+@app.post("/market/update-tickers-metrics/{tickers}")
+async def update_multiple_ticker_metrics(
+    tickers: str,
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Update company metrics for multiple tickers using YahooQuery client.
+    
+    Tickers should be comma-separated in the URL, e.g.:
+    /market/update-tickers-metrics/AAPL,MSFT,GOOG,AMZN
+    """
+    # Parse tickers from the URL path parameter
+    ticker_list = [ticker.strip().upper() for ticker in tickers.split(',') if ticker.strip()]
+    
+    if not ticker_list:
+        return {
+            "success": False,
+            "message": "No valid tickers provided",
+            "results": []
+        }
+    
+    # Create event record for the batch
+    event_id = await record_system_event(
+        database,
+        "yahoo_tickers_metrics_batch_update",
+        "started",
+        {"tickers_count": len(ticker_list), "first_ticker": ticker_list[0]}
+    )
+    
+    # Initialize results
+    results = []
+    success_count = 0
+    failed_count = 0
+    
+    # Initialize YahooQueryClient
+    client = YahooQueryClient()
+    
+    # Process each ticker
+    for ticker in ticker_list:
+        try:
+            # Check if ticker exists in database
+            check_query = "SELECT ticker FROM securities WHERE ticker = :ticker"
+            existing = await database.fetch_one(check_query, {"ticker": ticker})
+            
+            if not existing:
+                # Ticker doesn't exist, insert it first
+                insert_query = """
+                INSERT INTO securities (ticker, active, on_yfinance) 
+                VALUES (:ticker, true, true)
+                """
+                await database.execute(
+                    insert_query, 
+                    {
+                        "ticker": ticker
+                    }
+                )
+                logger.info(f"Created new security record for ticker: {ticker}")
+            
+            # Get company metrics data
+            logger.info(f"Fetching company metrics for {ticker}")
+            metrics = await client.get_company_metrics(ticker)
+            
+            if isinstance(metrics, str):
+                error_msg = f"Invalid metrics format (received string): {metrics}"
+                logger.error(error_msg)
+                
+                results.append({
+                    "ticker": ticker,
+                    "success": False,
+                    "message": error_msg
+                })
+                failed_count += 1
+                continue
+            
+            if not metrics or metrics.get("not_found"):
+                error_msg = f"No metrics data returned for {ticker}"
+                logger.error(error_msg)
+                
+                results.append({
+                    "ticker": ticker,
+                    "success": False,
+                    "message": error_msg
+                })
+                failed_count += 1
+                continue
+            
+            # Update securities table with company metrics
+            update_query = """
+            UPDATE securities
+            SET 
+                company_name = :company_name,
+                current_price = :current_price,
+                sector = :sector,
+                industry = :industry,
+                market_cap = :market_cap,
+                pe_ratio = :pe_ratio,
+                forward_pe = :forward_pe,
+                dividend_rate = :dividend_rate,
+                dividend_yield = :dividend_yield,
+                beta = :beta,
+                fifty_two_week_low = :fifty_two_week_low,
+                fifty_two_week_high = :fifty_two_week_high,
+                fifty_two_week_range = :fifty_two_week_range,
+                eps = :eps,
+                forward_eps = :forward_eps,
+                last_metrics_update = :updated_at,
+                last_updated = :updated_at
+            WHERE ticker = :ticker
+            """
+            
+            # Prepare values for update
+            fifty_two_week_range = None
+            if metrics.get("fifty_two_week_low") is not None and metrics.get("fifty_two_week_high") is not None:
+                fifty_two_week_range = f"{metrics['fifty_two_week_low']}-{metrics['fifty_two_week_high']}"
+            
+            update_values = {
+                "ticker": ticker,
+                "company_name": metrics.get("company_name"),
+                "current_price": metrics.get("current_price"),
+                "sector": metrics.get("sector"),
+                "industry": metrics.get("industry"),
+                "market_cap": metrics.get("market_cap"),
+                "pe_ratio": metrics.get("pe_ratio"),
+                "forward_pe": metrics.get("forward_pe"),
+                "dividend_rate": metrics.get("dividend_rate"),
+                "dividend_yield": metrics.get("dividend_yield"),
+                "beta": metrics.get("beta"),
+                "fifty_two_week_low": metrics.get("fifty_two_week_low"),
+                "fifty_two_week_high": metrics.get("fifty_two_week_high"),
+                "fifty_two_week_range": fifty_two_week_range,
+                "eps": metrics.get("eps"),
+                "forward_eps": metrics.get("forward_eps"),
+                "updated_at": datetime.now()
+            }
+            
+            await database.execute(update_query, update_values)
+            
+            # Filter out empty values for response
+            filtered_metrics = {k: v for k, v in metrics.items() if v is not None}
+            
+            results.append({
+                "ticker": ticker,
+                "success": True,
+                "message": f"Successfully updated metrics for {ticker}",
+                "fields_updated": len(filtered_metrics)
+            })
+            success_count += 1
+            
+        except Exception as e:
+            error_message = f"Error updating metrics for {ticker}: {str(e)}"
+            logger.error(error_message)
+            
+            results.append({
+                "ticker": ticker,
+                "success": False,
+                "message": error_message
+            })
+            failed_count += 1
+    
+    # Update event as completed
+    await update_system_event(
+        database,
+        event_id,
+        "completed",
+        {
+            "tickers_count": len(ticker_list),
+            "success_count": success_count,
+            "failed_count": failed_count
+        }
+    )
+    
+    return {
+        "success": success_count > 0,
+        "message": f"Updated metrics for {success_count}/{len(ticker_list)} tickers ({failed_count} failed)",
+        "total_tickers": len(ticker_list),
+        "success_count": success_count,
+        "failed_count": failed_count,
+        "results": results
+    }
+
+# Update just price for a single ticker
+@app.post("/market/update-ticker-price/{ticker}")
+async def update_ticker_price(
+    ticker: str,
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Update current price data for a single ticker using YahooQuery client.
+    """
+    try:
+        # Standardize ticker (uppercase)
+        ticker = ticker.strip().upper()
+        
+        # Check if ticker exists in database
+        check_query = "SELECT ticker FROM securities WHERE ticker = :ticker"
+        existing = await database.fetch_one(check_query, {"ticker": ticker})
+        
+        if not existing:
+            # Ticker doesn't exist, insert it first
+            insert_query = """
+            INSERT INTO securities (ticker, active, on_yfinance, created_at) 
+            VALUES (:ticker, true, true, :now)
+            """
+            await database.execute(
+                insert_query, 
+                {
+                    "ticker": ticker,
+                    "now": datetime.utcnow()
+                }
+            )
+            logger.info(f"Created new security record for ticker: {ticker}")
+            
+        # Create event record for tracking
+        event_id = await record_system_event(
+            database,
+            "yahoo_ticker_price_update",
+            "started",
+            {"ticker": ticker}
+        )
+        
+        # Initialize YahooQueryClient
+        client = YahooQueryClient()
+        
+        try:
+            # Get current price data
+            logger.info(f"Fetching current price for {ticker}")
+            price_data = await client.get_current_price(ticker)
+            
+            if not price_data:
+                error_msg = f"No price data returned for {ticker}"
+                logger.error(error_msg)
+                
+                # Update event as failed
+                await update_system_event(
+                    database,
+                    event_id,
+                    "failed",
+                    {"error": error_msg}
+                )
+                
+                return {
+                    "success": False,
+                    "message": error_msg,
+                    "ticker": ticker
+                }
+            
+            # Update securities table with price data
+            update_query = """
+            UPDATE securities
+            SET 
+                current_price = :price,
+                day_open = :day_open,
+                day_high = :day_high,
+                day_low = :day_low,
+                volume = :volume,
+                last_updated = :updated_at,
+                price_timestamp = :price_timestamp
+            WHERE ticker = :ticker
+            """
+            
+            update_values = {
+                "ticker": ticker,
+                "price": price_data.get("price"),
+                "day_open": price_data.get("day_open"),
+                "day_high": price_data.get("day_high"),
+                "day_low": price_data.get("day_low"),
+                "volume": price_data.get("volume"),
+                "updated_at": datetime.now(),
+                "price_timestamp": price_data.get("price_timestamp")
+            }
+            
+            await database.execute(update_query, update_values)
+            
+            # Filter out empty values for response
+            filtered_price_data = {k: v for k, v in price_data.items() if v is not None}
+            
+            # Update event as completed
+            await update_system_event(
+                database,
+                event_id,
+                "completed",
+                {"ticker": ticker, "fields_updated": len(filtered_price_data)}
+            )
+            
+            return {
+                "success": True,
+                "message": f"Successfully updated price for {ticker}",
+                "ticker": ticker,
+                "current_price": price_data.get("price"),
+                "updated_at": datetime.now().isoformat(),
+                "data": filtered_price_data
+            }
+            
+        except Exception as e:
+            error_message = f"Error updating price for {ticker}: {str(e)}"
+            logger.error(error_message)
+            
+            # Update event as failed
+            await update_system_event(
+                database,
+                event_id,
+                "failed",
+                {"error": error_message}
+            )
+            
+            return {
+                "success": False,
+                "message": error_message,
+                "ticker": ticker
+            }
+            
+    except Exception as e:
+        error_message = f"Error in ticker price update: {str(e)}"
+        logger.error(error_message)
+        
+        # Update event status if we have an event_id
+        if 'event_id' in locals():
+            await update_system_event(
+                database,
+                event_id,
+                "failed",
+                {"error": error_message}
+            )
+            
+        # Log detailed error for debugging
+        import traceback
+        logger.error(traceback.format_exc())
+        
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to update ticker price: {str(e)}"
+        )
+
+@app.post("/market/update-tickers-price/{tickers}")
+async def update_multiple_ticker_prices(
+    tickers: str,
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Update current price data for multiple tickers using YahooQuery client.
+    
+    Tickers should be comma-separated in the URL, e.g.:
+    /market/update-tickers-price/AAPL,MSFT,GOOG,AMZN
+    """
+    try:
+        # Parse tickers from the URL path parameter
+        ticker_list = [ticker.strip().upper() for ticker in tickers.split(',') if ticker.strip()]
+        
+        if not ticker_list:
+            return {
+                "success": False,
+                "message": "No valid tickers provided",
+                "results": []
+            }
+        
+        # Create event record for the batch update
+        event_id = await record_system_event(
+            database,
+            "yahoo_tickers_batch_price_update",
+            "started",
+            {"tickers_count": len(ticker_list), "first_ticker": ticker_list[0]}
+        )
+        
+        # Check for missing tickers and add them to the database
+        for ticker in ticker_list:
+            check_query = "SELECT ticker FROM securities WHERE ticker = :ticker"
+            existing = await database.fetch_one(check_query, {"ticker": ticker})
+            
+            if not existing:
+                # Ticker doesn't exist, insert it first
+                insert_query = """
+                INSERT INTO securities (ticker, active, on_yfinance, created_at) 
+                VALUES (:ticker, true, true, :now)
+                """
+                await database.execute(
+                    insert_query, 
+                    {
+                        "ticker": ticker,
+                        "now": datetime.utcnow()
+                    }
+                )
+                logger.info(f"Created new security record for ticker: {ticker}")
+        
+        # Initialize YahooQueryClient
+        client = YahooQueryClient()
+        
+        try:
+            # Get batch price data
+            logger.info(f"Fetching prices for batch of {len(ticker_list)} tickers")
+            batch_price_data = await client.get_batch_prices(ticker_list)
+            
+            if not batch_price_data:
+                error_msg = "No price data returned for any tickers"
+                logger.error(error_msg)
+                
+                # Update event as failed
+                await update_system_event(
+                    database,
+                    event_id,
+                    "failed",
+                    {"error": error_msg}
+                )
+                
+                return {
+                    "success": False,
+                    "message": error_msg,
+                    "tickers": ticker_list
+                }
+            
+            # Process results for each ticker
+            results = []
+            updated_count = 0
+            failed_tickers = []
+            
+            for ticker in ticker_list:
+                if ticker not in batch_price_data:
+                    # No data returned for this ticker
+                    failed_tickers.append(ticker)
+                    results.append({
+                        "ticker": ticker,
+                        "success": False,
+                        "message": "No price data returned"
+                    })
+                    continue
+                    
+                price_data = batch_price_data[ticker]
+                
+                try:
+                    # Update securities table with price data
+                    update_query = """
+                    UPDATE securities
+                    SET 
+                        current_price = :price,
+                        day_open = :day_open,
+                        day_high = :day_high,
+                        day_low = :day_low,
+                        volume = :volume,
+                        last_updated = :updated_at,
+                        price_timestamp = :price_timestamp
+                    WHERE ticker = :ticker
+                    """
+                    
+                    update_values = {
+                        "ticker": ticker,
+                        "price": price_data.get("price"),
+                        "day_open": price_data.get("day_open"),
+                        "day_high": price_data.get("day_high"),
+                        "day_low": price_data.get("day_low"),
+                        "volume": price_data.get("volume"),
+                        "updated_at": datetime.now(),
+                        "price_timestamp": price_data.get("price_timestamp")
+                    }
+                    
+                    await database.execute(update_query, update_values)
+                    updated_count += 1
+                    
+                    # Filter out empty values for response
+                    filtered_price_data = {k: v for k, v in price_data.items() if v is not None}
+                    
+                    results.append({
+                        "ticker": ticker,
+                        "success": True,
+                        "message": f"Successfully updated price",
+                        "current_price": price_data.get("price"),
+                        "fields_updated": len(filtered_price_data)
+                    })
+                    
+                except Exception as ticker_error:
+                    error_message = f"Error updating price for {ticker}: {str(ticker_error)}"
+                    logger.error(error_message)
+                    failed_tickers.append(ticker)
+                    
+                    results.append({
+                        "ticker": ticker,
+                        "success": False,
+                        "message": error_message
+                    })
+            
+            # Update event as completed
+            await update_system_event(
+                database,
+                event_id,
+                "completed",
+                {
+                    "tickers_count": len(ticker_list),
+                    "updated_count": updated_count,
+                    "failed_count": len(failed_tickers)
+                }
+            )
+            
+            return {
+                "success": updated_count > 0,
+                "message": f"Updated prices for {updated_count}/{len(ticker_list)} tickers",
+                "total_tickers": len(ticker_list),
+                "updated_count": updated_count,
+                "failed_count": len(failed_tickers),
+                "failed_tickers": failed_tickers if failed_tickers else None,
+                "results": results
+            }
+            
+        except Exception as e:
+            error_message = f"Error in batch price update: {str(e)}"
+            logger.error(error_message)
+            
+            # Update event as failed
+            await update_system_event(
+                database,
+                event_id,
+                "failed",
+                {"error": error_message}
+            )
+            
+            return {
+                "success": False,
+                "message": error_message,
+                "tickers": ticker_list
+            }
+            
+    except Exception as e:
+        error_message = f"Error in batch ticker price update: {str(e)}"
+        logger.error(error_message)
+        
+        # Update event status if we have an event_id
+        if 'event_id' in locals():
+            await update_system_event(
+                database,
+                event_id,
+                "failed",
+                {"error": error_message}
+            )
+            
+        # Log detailed error for debugging
+        import traceback
+        logger.error(traceback.format_exc())
+        
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to update ticker prices: {str(e)}"
+        )
+
+# - DIRECT YAHOO CLIENT
+@app.post("/market/direct-update-ticker-price/{ticker}")
+async def direct_update_ticker_price(
+    ticker: str,
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Update current price data for a single ticker using DirectYahooFinanceClient.
+    """
+    try:
+        # Standardize ticker (uppercase)
+        ticker = ticker.strip().upper()
+        
+        # Check if ticker exists in database
+        check_query = "SELECT ticker FROM securities WHERE ticker = :ticker"
+        existing = await database.fetch_one(check_query, {"ticker": ticker})
+        
+        if not existing:
+            # Ticker doesn't exist, insert it first
+            insert_query = """
+            INSERT INTO securities (ticker, active, on_yfinance, created_at) 
+            VALUES (:ticker, true, true, :now)
+            """
+            await database.execute(
+                insert_query, 
+                {
+                    "ticker": ticker,
+                    "now": datetime.utcnow()
+                }
+            )
+            logger.info(f"Created new security record for ticker: {ticker}")
+            
+        # Create event record for tracking
+        event_id = await record_system_event(
+            database,
+            "direct_yahoo_ticker_price_update",
+            "started",
+            {"ticker": ticker}
+        )
+        
+        # Initialize DirectYahooFinanceClient
+        client = DirectYahooFinanceClient()
+        
+        try:
+            # Get current price data
+            logger.info(f"Fetching current price for {ticker} using DirectYahooFinanceClient")
+            price_data = await client.get_current_price(ticker)
+            
+            if not price_data:
+                error_msg = f"No price data returned for {ticker}"
+                logger.error(error_msg)
+                
+                # Update event as failed
+                await update_system_event(
+                    database,
+                    event_id,
+                    "failed",
+                    {"error": error_msg}
+                )
+                
+                return {
+                    "success": False,
+                    "message": error_msg,
+                    "ticker": ticker
+                }
+            
+            # Update securities table with price data
+            update_query = """
+            UPDATE securities
+            SET 
+                current_price = :price,
+                day_open = :day_open,
+                day_high = :day_high,
+                day_low = :day_low,
+                volume = :volume,
+                last_updated = :updated_at,
+                price_timestamp = :price_timestamp
+            WHERE ticker = :ticker
+            """
+            
+            update_values = {
+                "ticker": ticker,
+                "price": price_data.get("price"),
+                "day_open": price_data.get("day_open"),
+                "day_high": price_data.get("day_high"),
+                "day_low": price_data.get("day_low"),
+                "volume": price_data.get("volume"),
+                "updated_at": datetime.now(),
+                "price_timestamp": price_data.get("price_timestamp")
+            }
+            
+            await database.execute(update_query, update_values)
+            
+            # Filter out empty values for response
+            filtered_price_data = {k: v for k, v in price_data.items() if v is not None}
+            
+            # Update event as completed
+            await update_system_event(
+                database,
+                event_id,
+                "completed",
+                {"ticker": ticker, "fields_updated": len(filtered_price_data)}
+            )
+            
+            return {
+                "success": True,
+                "message": f"Successfully updated price for {ticker}",
+                "ticker": ticker,
+                "current_price": price_data.get("price"),
+                "updated_at": datetime.now().isoformat(),
+                "data": filtered_price_data
+            }
+            
+        except Exception as e:
+            error_message = f"Error updating price for {ticker}: {str(e)}"
+            logger.error(error_message)
+            
+            # Update event as failed
+            await update_system_event(
+                database,
+                event_id,
+                "failed",
+                {"error": error_message}
+            )
+            
+            return {
+                "success": False,
+                "message": error_message,
+                "ticker": ticker
+            }
+            
+    except Exception as e:
+        error_message = f"Error in direct ticker price update: {str(e)}"
+        logger.error(error_message)
+        
+        # Update event status if we have an event_id
+        if 'event_id' in locals():
+            await update_system_event(
+                database,
+                event_id,
+                "failed",
+                {"error": error_message}
+            )
+            
+        # Log detailed error for debugging
+        import traceback
+        logger.error(traceback.format_exc())
+        
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to update ticker price: {str(e)}"
+        )
+
+@app.post("/market/direct-update-tickers-price/{tickers}")
+async def direct_update_multiple_ticker_prices(
+    tickers: str,
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Update current price data for multiple tickers using DirectYahooFinanceClient.
+    
+    Tickers should be comma-separated in the URL, e.g.:
+    /market/direct-update-tickers-price/AAPL,MSFT,GOOG,AMZN
+    """
+    try:
+        # Parse tickers from the URL path parameter
+        ticker_list = [ticker.strip().upper() for ticker in tickers.split(',') if ticker.strip()]
+        
+        if not ticker_list:
+            return {
+                "success": False,
+                "message": "No valid tickers provided",
+                "results": []
+            }
+        
+        # Create event record for the batch update
+        event_id = await record_system_event(
+            database,
+            "direct_yahoo_tickers_batch_price_update",
+            "started",
+            {"tickers_count": len(ticker_list), "first_ticker": ticker_list[0]}
+        )
+        
+        # Check for missing tickers and add them to the database
+        for ticker in ticker_list:
+            check_query = "SELECT ticker FROM securities WHERE ticker = :ticker"
+            existing = await database.fetch_one(check_query, {"ticker": ticker})
+            
+            if not existing:
+                # Ticker doesn't exist, insert it first
+                insert_query = """
+                INSERT INTO securities (ticker, active, on_yfinance, created_at) 
+                VALUES (:ticker, true, true, :now)
+                """
+                await database.execute(
+                    insert_query, 
+                    {
+                        "ticker": ticker,
+                        "now": datetime.utcnow()
+                    }
+                )
+                logger.info(f"Created new security record for ticker: {ticker}")
+        
+        # Initialize DirectYahooFinanceClient
+        client = DirectYahooFinanceClient()
+        
+        try:
+            # Get batch price data
+            logger.info(f"Fetching prices for batch of {len(ticker_list)} tickers using DirectYahooFinanceClient")
+            batch_price_data = await client.get_batch_prices(ticker_list)
+            
+            if not batch_price_data:
+                error_msg = "No price data returned for any tickers"
+                logger.error(error_msg)
+                
+                # Update event as failed
+                await update_system_event(
+                    database,
+                    event_id,
+                    "failed",
+                    {"error": error_msg}
+                )
+                
+                return {
+                    "success": False,
+                    "message": error_msg,
+                    "tickers": ticker_list
+                }
+            
+            # Process results for each ticker
+            results = []
+            updated_count = 0
+            failed_tickers = []
+            
+            for ticker in ticker_list:
+                if ticker not in batch_price_data:
+                    # No data returned for this ticker
+                    failed_tickers.append(ticker)
+                    results.append({
+                        "ticker": ticker,
+                        "success": False,
+                        "message": "No price data returned"
+                    })
+                    continue
+                    
+                price_data = batch_price_data[ticker]
+                
+                try:
+                    # Update securities table with price data
+                    update_query = """
+                    UPDATE securities
+                    SET 
+                        current_price = :price,
+                        day_open = :day_open,
+                        day_high = :day_high,
+                        day_low = :day_low,
+                        volume = :volume,
+                        last_updated = :updated_at,
+                        price_timestamp = :price_timestamp
+                    WHERE ticker = :ticker
+                    """
+                    
+                    update_values = {
+                        "ticker": ticker,
+                        "price": price_data.get("price"),
+                        "day_open": price_data.get("day_open"),
+                        "day_high": price_data.get("day_high"),
+                        "day_low": price_data.get("day_low"),
+                        "volume": price_data.get("volume"),
+                        "updated_at": datetime.now(),
+                        "price_timestamp": price_data.get("price_timestamp")
+                    }
+                    
+                    await database.execute(update_query, update_values)
+                    updated_count += 1
+                    
+                    # Filter out empty values for response
+                    filtered_price_data = {k: v for k, v in price_data.items() if v is not None}
+                    
+                    results.append({
+                        "ticker": ticker,
+                        "success": True,
+                        "message": f"Successfully updated price",
+                        "current_price": price_data.get("price"),
+                        "fields_updated": len(filtered_price_data)
+                    })
+                    
+                except Exception as ticker_error:
+                    error_message = f"Error updating price for {ticker}: {str(ticker_error)}"
+                    logger.error(error_message)
+                    failed_tickers.append(ticker)
+                    
+                    results.append({
+                        "ticker": ticker,
+                        "success": False,
+                        "message": error_message
+                    })
+            
+            # Update event as completed
+            await update_system_event(
+                database,
+                event_id,
+                "completed",
+                {
+                    "tickers_count": len(ticker_list),
+                    "updated_count": updated_count,
+                    "failed_count": len(failed_tickers)
+                }
+            )
+            
+            return {
+                "success": updated_count > 0,
+                "message": f"Updated prices for {updated_count}/{len(ticker_list)} tickers",
+                "total_tickers": len(ticker_list),
+                "updated_count": updated_count,
+                "failed_count": len(failed_tickers),
+                "failed_tickers": failed_tickers if failed_tickers else None,
+                "results": results
+            }
+            
+        except Exception as e:
+            error_message = f"Error in batch price update: {str(e)}"
+            logger.error(error_message)
+            
+            # Update event as failed
+            await update_system_event(
+                database,
+                event_id,
+                "failed",
+                {"error": error_message}
+            )
+            
+            return {
+                "success": False,
+                "message": error_message,
+                "tickers": ticker_list
+            }
+            
+    except Exception as e:
+        error_message = f"Error in batch ticker price update: {str(e)}"
+        logger.error(error_message)
+        
+        # Update event status if we have an event_id
+        if 'event_id' in locals():
+            await update_system_event(
+                database,
+                event_id,
+                "failed",
+                {"error": error_message}
+            )
+            
+        # Log detailed error for debugging
+        import traceback
+        logger.error(traceback.format_exc())
+        
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to update ticker prices: {str(e)}"
+        )
+
+@app.post("/market/direct-update-ticker-metrics/{ticker}")
+async def direct_update_ticker_metrics(
+    ticker: str,
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Update company metrics for a single ticker using DirectYahooFinanceClient.
+    """
+    try:
+        # Validate request
+        if not ticker:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Ticker must be provided"
+            )
+            
+        # Standardize ticker (uppercase)
+        ticker = ticker.strip().upper()
+        
+        # Check if ticker exists in database
+        check_query = "SELECT ticker FROM securities WHERE ticker = :ticker"
+        existing = await database.fetch_one(check_query, {"ticker": ticker})
+        
+        if not existing:
+            # Ticker doesn't exist, insert it first
+            insert_query = """
+            INSERT INTO securities (ticker, active, on_yfinance, created_at) 
+            VALUES (:ticker, true, true, :now)
+            """
+            await database.execute(
+                insert_query, 
+                {
+                    "ticker": ticker,
+                    "now": datetime.utcnow()
+                }
+            )
+            logger.info(f"Created new security record for ticker: {ticker}")
+            
+        # Create event record for tracking
+        event_id = await record_system_event(
+            database,
+            "direct_yahoo_ticker_metrics_update",
+            "started",
+            {"ticker": ticker}
+        )
+        
+        # Initialize DirectYahooFinanceClient
+        client = DirectYahooFinanceClient()
+        
+        try:
+            # Get company metrics data
+            logger.info(f"Fetching company metrics for {ticker} using DirectYahooFinanceClient")
+            metrics = await client.get_company_metrics(ticker)
+            
+            if not metrics or metrics.get("not_found"):
+                error_msg = f"No metrics data returned for {ticker}"
+                logger.error(error_msg)
+                
+                # Update event as failed
+                await update_system_event(
+                    database,
+                    event_id,
+                    "failed",
+                    {"error": error_msg}
+                )
+                
+                return {
+                    "success": False,
+                    "message": error_msg,
+                    "ticker": ticker
+                }
+            
+            # Update securities table with company metrics
+            update_query = """
+            UPDATE securities
+            SET 
+                company_name = :company_name,
+                current_price = :current_price,
+                sector = :sector,
+                industry = :industry,
+                market_cap = :market_cap,
+                pe_ratio = :pe_ratio,
+                forward_pe = :forward_pe,
+                dividend_rate = :dividend_rate,
+                dividend_yield = :dividend_yield,
+                beta = :beta,
+                fifty_two_week_low = :fifty_two_week_low,
+                fifty_two_week_high = :fifty_two_week_high,
+                fifty_two_week_range = :fifty_two_week_range,
+                eps = :eps,
+                forward_eps = :forward_eps,
+                last_metrics_update = :updated_at,
+                last_updated = :updated_at
+            WHERE ticker = :ticker
+            """
+            
+            # Prepare values for update
+            fifty_two_week_range = None
+            if metrics.get("fifty_two_week_low") is not None and metrics.get("fifty_two_week_high") is not None:
+                fifty_two_week_range = f"{metrics['fifty_two_week_low']}-{metrics['fifty_two_week_high']}"
+            
+            update_values = {
+                "ticker": ticker,
+                "company_name": metrics.get("company_name"),
+                "current_price": metrics.get("current_price"),
+                "sector": metrics.get("sector"),
+                "industry": metrics.get("industry"),
+                "market_cap": metrics.get("market_cap"),
+                "pe_ratio": metrics.get("pe_ratio"),
+                "forward_pe": metrics.get("forward_pe"),
+                "dividend_rate": metrics.get("dividend_rate"),
+                "dividend_yield": metrics.get("dividend_yield"),
+                "beta": metrics.get("beta"),
+                "fifty_two_week_low": metrics.get("fifty_two_week_low"),
+                "fifty_two_week_high": metrics.get("fifty_two_week_high"),
+                "fifty_two_week_range": fifty_two_week_range,
+                "eps": metrics.get("eps"),
+                "forward_eps": metrics.get("forward_eps"),
+                "updated_at": datetime.now()
+            }
+            
+            await database.execute(update_query, update_values)
+            
+            # Filter out empty values for response
+            filtered_metrics = {k: v for k, v in metrics.items() if v is not None}
+            
+            # Update event as completed
+            await update_system_event(
+                database,
+                event_id,
+                "completed",
+                {"ticker": ticker, "fields_updated": len(filtered_metrics)}
+            )
+            
+            return {
+                "success": True,
+                "message": f"Successfully updated metrics for {ticker}",
+                "ticker": ticker,
+                "fields_updated": len(filtered_metrics),
+                "metrics": filtered_metrics
+            }
+            
+        except Exception as e:
+            error_message = f"Error updating metrics for {ticker}: {str(e)}"
+            logger.error(error_message)
+            
+            # Update event as failed
+            await update_system_event(
+                database,
+                event_id,
+                "failed",
+                {"error": error_message}
+            )
+            
+            return {
+                "success": False,
+                "message": error_message,
+                "ticker": ticker
+            }
+            
+    except Exception as e:
+        error_message = f"Error in direct ticker metrics update: {str(e)}"
+        logger.error(error_message)
+        
+        # Update event status if we have an event_id
+        if 'event_id' in locals():
+            await update_system_event(
+                database,
+                event_id,
+                "failed",
+                {"error": error_message}
+            )
+            
+        # Log detailed error for debugging
+        import traceback
+        logger.error(traceback.format_exc())
+        
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to update ticker metrics: {str(e)}"
+        )
+
+@app.post("/market/direct-update-tickers-metrics/{tickers}")
+async def direct_update_multiple_ticker_metrics(
+    tickers: str,
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Update company metrics for multiple tickers using DirectYahooFinanceClient.
+    
+    Tickers should be comma-separated in the URL, e.g.:
+    /market/direct-update-tickers-metrics/AAPL,MSFT,GOOG,AMZN
+    """
+    # Parse tickers from the URL path parameter
+    ticker_list = [ticker.strip().upper() for ticker in tickers.split(',') if ticker.strip()]
+    
+    if not ticker_list:
+        return {
+            "success": False,
+            "message": "No valid tickers provided",
+            "results": []
+        }
+    
+    # Create event record for the batch
+    event_id = await record_system_event(
+        database,
+        "direct_yahoo_tickers_metrics_batch_update",
+        "started",
+        {"tickers_count": len(ticker_list), "first_ticker": ticker_list[0]}
+    )
+    
+    # Initialize results
+    results = []
+    success_count = 0
+    failed_count = 0
+    
+    # Initialize DirectYahooFinanceClient
+    client = DirectYahooFinanceClient()
+    
+    # Process each ticker
+    for ticker in ticker_list:
+        try:
+            # Check if ticker exists in database
+            check_query = "SELECT ticker FROM securities WHERE ticker = :ticker"
+            existing = await database.fetch_one(check_query, {"ticker": ticker})
+            
+            if not existing:
+                # Ticker doesn't exist, insert it first
+                insert_query = """
+                INSERT INTO securities (ticker, active, on_yfinance) 
+                VALUES (:ticker, true, true)
+                """
+                await database.execute(
+                    insert_query, 
+                    {
+                        "ticker": ticker
+                    }
+                )
+                logger.info(f"Created new security record for ticker: {ticker}")
+            
+            # Get company metrics data
+            logger.info(f"Fetching company metrics for {ticker} using DirectYahooFinanceClient")
+            metrics = await client.get_company_metrics(ticker)
+            
+            if isinstance(metrics, str):
+                error_msg = f"Invalid metrics format (received string): {metrics}"
+                logger.error(error_msg)
+                
+                results.append({
+                    "ticker": ticker,
+                    "success": False,
+                    "message": error_msg
+                })
+                failed_count += 1
+                continue
+            
+            if not metrics or metrics.get("not_found"):
+                error_msg = f"No metrics data returned for {ticker}"
+                logger.error(error_msg)
+                
+                results.append({
+                    "ticker": ticker,
+                    "success": False,
+                    "message": error_msg
+                })
+                failed_count += 1
+                continue
+            
+            # Update securities table with company metrics
+            update_query = """
+            UPDATE securities
+            SET 
+                company_name = :company_name,
+                current_price = :current_price,
+                sector = :sector,
+                industry = :industry,
+                market_cap = :market_cap,
+                pe_ratio = :pe_ratio,
+                forward_pe = :forward_pe,
+                dividend_rate = :dividend_rate,
+                dividend_yield = :dividend_yield,
+                beta = :beta,
+                fifty_two_week_low = :fifty_two_week_low,
+                fifty_two_week_high = :fifty_two_week_high,
+                fifty_two_week_range = :fifty_two_week_range,
+                eps = :eps,
+                forward_eps = :forward_eps,
+                last_metrics_update = :updated_at,
+                last_updated = :updated_at
+            WHERE ticker = :ticker
+            """
+            
+            # Prepare values for update
+            fifty_two_week_range = None
+            if metrics.get("fifty_two_week_low") is not None and metrics.get("fifty_two_week_high") is not None:
+                fifty_two_week_range = f"{metrics['fifty_two_week_low']}-{metrics['fifty_two_week_high']}"
+            
+            update_values = {
+                "ticker": ticker,
+                "company_name": metrics.get("company_name"),
+                "current_price": metrics.get("current_price"),
+                "sector": metrics.get("sector"),
+                "industry": metrics.get("industry"),
+                "market_cap": metrics.get("market_cap"),
+                "pe_ratio": metrics.get("pe_ratio"),
+                "forward_pe": metrics.get("forward_pe"),
+                "dividend_rate": metrics.get("dividend_rate"),
+                "dividend_yield": metrics.get("dividend_yield"),
+                "beta": metrics.get("beta"),
+                "fifty_two_week_low": metrics.get("fifty_two_week_low"),
+                "fifty_two_week_high": metrics.get("fifty_two_week_high"),
+                "fifty_two_week_range": fifty_two_week_range,
+                "eps": metrics.get("eps"),
+                "forward_eps": metrics.get("forward_eps"),
+                "updated_at": datetime.now()
+            }
+            
+            await database.execute(update_query, update_values)
+            
+            # Filter out empty values for response
+            filtered_metrics = {k: v for k, v in metrics.items() if v is not None}
+            
+            results.append({
+                "ticker": ticker,
+                "success": True,
+                "message": f"Successfully updated metrics for {ticker}",
+                "fields_updated": len(filtered_metrics)
+            })
+            success_count += 1
+            
+        except Exception as e:
+            error_message = f"Error updating metrics for {ticker}: {str(e)}"
+            logger.error(error_message)
+            
+            results.append({
+                "ticker": ticker,
+                "success": False,
+                "message": error_message
+            })
+            failed_count += 1
+    
+    # Update event as completed
+    await update_system_event(
+        database,
+        event_id,
+        "completed",
+        {
+            "tickers_count": len(ticker_list),
+            "success_count": success_count,
+            "failed_count": failed_count
+        }
+    )
+    
+    return {
+        "success": success_count > 0,
+        "message": f"Updated metrics for {success_count}/{len(ticker_list)} tickers ({failed_count} failed)",
+        "total_tickers": len(ticker_list),
+        "success_count": success_count,
+        "failed_count": failed_count,
+        "results": results
+    }
+# ----- PRICING MANAGEMENT  -----
+# INCLUDES UPDATES OF SECURITIES AND EXCHANGE RATES - RELATES TO SECURITIES TABLE AND FX_PRICES
+# Get full list of securities / fx for price update or specific info from securities table or FX prices
+@app.get("/securities/all")
+async def get_all_securities(current_user: dict = Depends(get_current_user)):
+    """Retrieve all securities from the database for debugging purposes."""
+    try:
+        logger.info("Fetching all securities from the database")
+        query = "SELECT * FROM security_usage ORDER BY last_updated ASC"
+        results = await database.fetch_all(query)
+        result_count = len(results) if results else 0
+        logger.info(f"Fetched {result_count} securities from the database")
+        return {"securities": [dict(row) for row in results]}
+    except Exception as e:
+        logger.error(f"Error fetching all securities: {str(e)}")
+        import traceback
+        logger.error(traceback.format_exc())
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to fetch securities: {str(e)}"
+        )   
+
+@app.get("/securities")
+async def get_securities(current_user: dict = Depends(get_current_user)):
+    """
+    Fetch securities data for the user with robust type handling
+    """
+    try:
+        # Fetch securities with smart filtering and type conversion
+        query = """
+            SELECT 
+                ticker, 
+                company_name, 
+                sector, 
+                industry, 
+                COALESCE(
+                    CASE 
+                        WHEN current_price IS NULL OR current_price = 'NaN' THEN 0.0 
+                        ELSE CAST(current_price AS NUMERIC) 
+                    END, 
+                    0.0
+                ) as price,
+                market_cap,
+                pe_ratio,
+                volume,
+                dividend_yield,
+                dividend_rate,
+                eps,
+                last_metrics_update,
+                last_updated, 
+                on_yfinance as available_on_yfinance,
+                (
+                    CASE 
+                        WHEN last_updated IS NULL THEN 'Never'
+                        WHEN last_updated < NOW() - INTERVAL '1 hour' THEN 
+                            CONCAT(EXTRACT(HOURS FROM (NOW() - last_updated)), ' hours ago')
+                        WHEN last_updated < NOW() - INTERVAL '1 day' THEN 
+                            CONCAT(EXTRACT(DAYS FROM (NOW() - last_updated)), ' days ago')
+                        ELSE 'Recently'
+                    END
+                ) as time_ago
+            FROM securities 
+            WHERE on_yfinance = true 
+            ORDER BY last_updated DESC NULLS LAST
+            """
+        
+        results = await database.fetch_all(query)
+        
+        # Explicitly convert to dictionary with robust type conversion
+        securities_list = []
+        for row in results:
+            sec_dict = dict(row)
+            
+            # Robust price conversion
+            try:
+                price = float(sec_dict.get('price', 0.0))
+                # Replace NaN or infinite values with 0
+                if math.isnan(price) or math.isinf(price):
+                    price = 0.0
+            except (TypeError, ValueError):
+                price = 0.0
+            
+            sec_dict['price'] = price
+            
+            # Convert last_updated to ISO format if it exists
+            if sec_dict.get('last_updated'):
+                sec_dict['last_updated'] = sec_dict['last_updated'].isoformat()
+            
+            # Convert last_metrics_update to ISO format if it exists
+            if sec_dict.get('last_metrics_update'):
+                sec_dict['last_metrics_update'] = sec_dict['last_metrics_update'].isoformat()
+            
+            securities_list.append(sec_dict)
+        
+        return {
+            "securities": securities_list,
+            "total_count": len(securities_list),
+            "last_updated": datetime.utcnow().isoformat()
+        }
+    
+    except Exception as e:
+        logger.error(f"Error fetching securities: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
+            detail=f"Failed to fetch securities data: {str(e)}"
+        )
+        
+@app.get("/securities/{ticker}/details")
+async def get_security_details(ticker: str, current_user: dict = Depends(get_current_user)):
+    """Get detailed statistics for a security"""
+    try:
+        # Get security basic info
+        query = """
+        SELECT 
+            ticker, 
+            last_metrics_update,
+            COALESCE((
+                SELECT COUNT(*) 
+                FROM price_history 
+                WHERE price_history.ticker = securities.ticker
+            ), 0) as days_of_history
+        FROM securities
+        WHERE ticker = :ticker
+        """
+        security = await database.fetch_one(query, {"ticker": ticker.upper()})
+        
+        if not security:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Security {ticker.upper()} not found"
+            )
+        
+        # Format security details
+        result = dict(security)
+        
+        # Get price statistics
+        stats_query = """
+        SELECT 
+            MIN(close_price) as low_price,
+            MAX(close_price) as high_price,
+            AVG(close_price) as avg_price,
+            COUNT(*) as count
+        FROM price_history
+        WHERE ticker = :ticker
+        """
+        stats = await database.fetch_one(stats_query, {"ticker": ticker.upper()})
+        
+        if stats and stats["count"] > 0:
+            result["low_price"] = float(stats["low_price"]) if stats["low_price"] is not None else None
+            result["high_price"] = float(stats["high_price"]) if stats["high_price"] is not None else None
+            result["avg_price"] = float(stats["avg_price"]) if stats["avg_price"] is not None else None
+        else:
+            result["low_price"] = None
+            result["high_price"] = None
+            result["avg_price"] = None
+        
+        # Format last_metrics_update to ISO format if it exists
+        if result.get("last_metrics_update"):
+            result["last_metrics_update"] = result["last_metrics_update"].isoformat()
+        
+        return result
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error fetching security details: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to fetch security details: {str(e)}"
+        )
+
+# Search methods for adding positions for drop down
+@app.get("/securities/search")
+async def search_securities(query: str, current_user: dict = Depends(get_current_user)):
+    """Search securities from the database."""
+    try:
+        logger.info(f"Securities search request received: query='{query}'")
+        
+        if not query or len(query.strip()) < 1:
+            return {"results": []}
+
+        search_pattern = f"%{query.strip().lower()}%"
+        params = {
+            "search_pattern": search_pattern
+        }
+        logger.info(f"Executing search with params: {params}")
+
+        # Query matching the schema
+        search_query = """
+        SELECT 
+            ticker,
+            asset_type,
+            company_name AS name,
+            COALESCE(current_price, 0) AS price,
+            sector,
+            industry,
+            market_cap
+        FROM securities
+            WHERE 
+                TRIM(LOWER(ticker)) LIKE :search_pattern OR
+                TRIM(LOWER(company_name)) LIKE :search_pattern OR
+                TRIM(LOWER(COALESCE(sector, ''))) LIKE :search_pattern OR
+                TRIM(LOWER(COALESCE(industry, ''))) LIKE :search_pattern
+
+        ORDER BY ticker ASC
+        LIMIT 20
+        """
+
+        results = await database.fetch_all(search_query, params)
+        result_count = len(results) if results else 0
+        logger.info(f"Search for '{query}' found {result_count} results")
+
+        formatted_results = [dict(row) for row in results]
+        return {"results": formatted_results}
+
+    except Exception as e:
+        logger.error(f"Error in securities search: {str(e)}")
+        import traceback
+        logger.error(traceback.format_exc())
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to search securities: {str(e)}"
+        )
+
+# Edit FX / Securities tables to add or edit existing in-scope securities
+@app.post("/securities", status_code=status.HTTP_201_CREATED)
+async def add_security(security: SecurityCreate, current_user: dict = Depends(get_current_user)):
+    """Add a new security to track"""
+    try:
+        # Check if security already exists
+        query = "SELECT ticker FROM securities WHERE ticker = :ticker"
+        existing = await database.fetch_one(query, {"ticker": security.ticker.upper()})
+        
+        if existing:
+            return {"message": f"Security {security.ticker.upper()} already exists in the database"}
+        
+        # Insert new security
+        query = """
+        INSERT INTO securities (ticker) 
+        VALUES (:ticker)
+        """
+        await database.execute(
+            query, 
+            {
+                "ticker": security.ticker.upper(),
+            }
+        )
+        
+        # Immediately try to fetch basic data for the security using the DirectYahooFinanceClient
+        # Initialize DirectYahooFinanceClient
+        client = DirectYahooFinanceClient()
+        
+        try:
+            # Get current price data
+            logger.info(f"Fetching current price for {security.ticker.upper()} using DirectYahooFinanceClient")
+            price_data = await client.get_current_price(security.ticker.upper())
+            
+            if price_data:
+                # Update securities table with price data
+                update_query = """
+                UPDATE securities
+                SET 
+                    current_price = :price,
+                    day_open = :day_open,
+                    day_high = :day_high,
+                    day_low = :day_low,
+                    volume = :volume,
+                    last_updated = :updated_at,
+                    price_timestamp = :price_timestamp
+                WHERE ticker = :ticker
+                """
+                
+                update_values = {
+                    "ticker": security.ticker.upper(),
+                    "price": price_data.get("price"),
+                    "day_open": price_data.get("day_open"),
+                    "day_high": price_data.get("day_high"),
+                    "day_low": price_data.get("day_low"),
+                    "volume": price_data.get("volume"),
+                    "last_updated": datetime.now(),
+                    "price_timestamp": price_data.get("price_timestamp")
+                }
+                
+                await database.execute(update_query, update_values)
+                logger.info(f"Updated price data for {security.ticker.upper()}")
+        
+        except Exception as e:
+            # Log the error but don't fail the entire operation
+            logger.error(f"Error fetching initial price data for {security.ticker.upper()}: {str(e)}")
+        
+        return {"message": f"Security {security.ticker.upper()} added successfully"}
+    
+    except Exception as e:
+        logger.error(f"Error adding security: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to add security: {str(e)}"
+        )
+

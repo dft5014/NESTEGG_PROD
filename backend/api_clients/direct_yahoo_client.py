@@ -86,8 +86,8 @@ class DirectYahooFinanceClient(MarketDataSource):
         if cached_data:
             return cached_data
             
-        retries = 1
-        delay = 0
+        retries = 2
+        delay = 2
         for attempt in range(retries):
             try:
                 logger.info(f"Fetching data for {ticker} from direct Yahoo API (attempt {attempt+1}/{retries})")
