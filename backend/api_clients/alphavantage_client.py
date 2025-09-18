@@ -105,6 +105,56 @@ class AlphaVantageClient:
         r.raise_for_status()
         return r
 
+    # ---------- symbol selection (robust, logged) -----------------------------
+
+    async def _select_symbols_for_av(self, database, limit_symbols: int) -> List[str]:
+        """
+        Try multiple selection strategies with explicit logs so we always get a batch
+        (unless the dataset truly has none). Returns UPPERCASE tickers.
+        """
+        # 1) security_usage with status=Active
+        sql1 = """
+            SELECT ticker
+            FROM security_usage
+            WHERE status = 'Active'
+              AND (on_alphavantage IS DISTINCT FROM FALSE)
+            ORDER BY last_updated ASC
+            LIMIT :lim
+        """
+        rows = await database.fetch_all(sql1, {"lim": limit_symbols})
+        c1 = [ (r["ticker"] or "").strip().upper() for r in rows if r["ticker"] ]
+        logger.info(f"[AV] Select[usage_active]: {len(c1)} symbols (limit={limit_symbols})")
+        if c1:
+            return c1
+
+        # 2) security_usage without status filter
+        sql2 = """
+            SELECT ticker
+            FROM security_usage
+            WHERE (on_alphavantage IS DISTINCT FROM FALSE)
+            ORDER BY last_updated ASC
+            LIMIT :lim
+        """
+        rows = await database.fetch_all(sql2, {"lim": limit_symbols})
+        c2 = [ (r["ticker"] or "").strip().upper() for r in rows if r["ticker"] ]
+        logger.info(f"[AV] Select[usage_any_status]: {len(c2)} symbols (limit={limit_symbols})")
+        if c2:
+            return c2
+
+        # 3) fallback to the base table
+        sql3 = """
+            SELECT ticker
+            FROM securities
+            WHERE COALESCE(active, TRUE)
+              AND (on_alphavantage IS DISTINCT FROM FALSE)
+            ORDER BY COALESCE(last_updated, '1970-01-01'::timestamp) ASC
+            LIMIT :lim
+        """
+        rows = await database.fetch_all(sql3, {"lim": limit_symbols})
+        c3 = [ (r["ticker"] or "").strip().upper() for r in rows if r["ticker"] ]
+        logger.info(f"[AV] Select[securities_active]: {len(c3)} symbols (limit={limit_symbols})")
+        return c3
+
     # ---------- 1) Universe sync ---------------------------------------------
 
     async def fetch_listing_status(self, state: str = "active") -> List[Dict[str, str]]:
@@ -342,18 +392,7 @@ class AlphaVantageClient:
         Returns (updated_count, attempted_count)
         """
         logger.info(f"[AV] PriceUpdate: start limit={limit_symbols}, batch={quote_batch_size}, concurrency={max_concurrent_batches}")
-        rows = await database.fetch_all(
-            """
-            SELECT ticker
-            FROM security_usage
-            WHERE status = 'Active'
-              AND (on_alphavantage IS DISTINCT FROM FALSE)
-            ORDER BY last_updated ASC
-            LIMIT :lim
-            """,
-            {"lim": limit_symbols},
-        )
-        symbols = [ (r["ticker"] or "").strip().upper() for r in rows if r["ticker"] ]
+        symbols = await self._select_symbols_for_av(database, limit_symbols)
         logger.info(f"[AV] PriceUpdate: selected {len(symbols)} symbols. Sample: {symbols[:10]}")
 
         if not symbols:
