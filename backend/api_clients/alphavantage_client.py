@@ -105,54 +105,76 @@ class AlphaVantageClient:
         r.raise_for_status()
         return r
 
-    # ---------- symbol selection (robust, logged) -----------------------------
+    # ---------- symbol selection (robust, AV-friendly, logged) ----------------
 
     async def _select_symbols_for_av(self, database, limit_symbols: int) -> List[str]:
         """
-        Try multiple selection strategies with explicit logs so we always get a batch
-        (unless the dataset truly has none). Returns UPPERCASE tickers.
+        Try multiple selection strategies with explicit logs.
+        We keep the universe AV-friendly: US stocks/ETFs; exclude indexes (^), futures (=F), crypto (-USD), foreign (.TO) etc.
         """
-        # 1) security_usage with status=Active
+        def _log(name: str, rows):
+            vals = [ (r["ticker"] or "").strip().upper() for r in rows if r["ticker"] ]
+            logger.info(f"[AV] Select[{name}]: {len(vals)} symbols (limit={limit_symbols})")
+            return vals
+
+        # 1) security_usage with status=Active and AV-friendly filters via join
         sql1 = """
-            SELECT ticker
-            FROM security_usage
-            WHERE status = 'Active'
-              AND (on_alphavantage IS DISTINCT FROM FALSE)
-            ORDER BY last_updated ASC
+            SELECT u.ticker
+            FROM security_usage u
+            LEFT JOIN securities s ON s.ticker = u.ticker
+            WHERE u.status = 'Active'
+              AND (u.on_alphavantage IS DISTINCT FROM FALSE)
+              AND COALESCE(s.av_asset_type, s.asset_type, 'security') IN ('Stock','ETF','security')
+              AND COALESCE(s.av_exchange,'') IN ('NYSE','NASDAQ','NYSE ARCA','NYSE MKT','BATS')
+              AND u.ticker NOT LIKE '^%%'
+              AND u.ticker NOT LIKE '%%=F'
+              AND u.ticker NOT LIKE '%%-USD'
+              AND u.ticker NOT LIKE '%%.%%'
+            ORDER BY u.last_updated ASC
             LIMIT :lim
         """
         rows = await database.fetch_all(sql1, {"lim": limit_symbols})
-        c1 = [ (r["ticker"] or "").strip().upper() for r in rows if r["ticker"] ]
-        logger.info(f"[AV] Select[usage_active]: {len(c1)} symbols (limit={limit_symbols})")
+        c1 = _log("usage_active", rows)
         if c1:
             return c1
 
-        # 2) security_usage without status filter
+        # 2) security_usage without status filter, still AV-friendly
         sql2 = """
-            SELECT ticker
-            FROM security_usage
-            WHERE (on_alphavantage IS DISTINCT FROM FALSE)
-            ORDER BY last_updated ASC
+            SELECT u.ticker
+            FROM security_usage u
+            LEFT JOIN securities s ON s.ticker = u.ticker
+            WHERE (u.on_alphavantage IS DISTINCT FROM FALSE)
+              AND COALESCE(s.av_asset_type, s.asset_type, 'security') IN ('Stock','ETF','security')
+              AND COALESCE(s.av_exchange,'') IN ('NYSE','NASDAQ','NYSE ARCA','NYSE MKT','BATS')
+              AND u.ticker NOT LIKE '^%%'
+              AND u.ticker NOT LIKE '%%=F'
+              AND u.ticker NOT LIKE '%%-USD'
+              AND u.ticker NOT LIKE '%%.%%'
+            ORDER BY u.last_updated ASC
             LIMIT :lim
         """
         rows = await database.fetch_all(sql2, {"lim": limit_symbols})
-        c2 = [ (r["ticker"] or "").strip().upper() for r in rows if r["ticker"] ]
-        logger.info(f"[AV] Select[usage_any_status]: {len(c2)} symbols (limit={limit_symbols})")
+        c2 = _log("usage_any_status", rows)
         if c2:
             return c2
 
-        # 3) fallback to the base table
+        # 3) fallback to securities directly, AV-friendly
         sql3 = """
-            SELECT ticker
-            FROM securities
-            WHERE COALESCE(active, TRUE)
-              AND (on_alphavantage IS DISTINCT FROM FALSE)
-            ORDER BY COALESCE(last_updated, '1970-01-01'::timestamp) ASC
+            SELECT s.ticker
+            FROM securities s
+            WHERE COALESCE(s.active, TRUE)
+              AND (s.on_alphavantage IS DISTINCT FROM FALSE)
+              AND COALESCE(s.av_asset_type, s.asset_type, 'security') IN ('Stock','ETF','security')
+              AND COALESCE(s.av_exchange,'') IN ('NYSE','NASDAQ','NYSE ARCA','NYSE MKT','BATS')
+              AND s.ticker NOT LIKE '^%%'
+              AND s.ticker NOT LIKE '%%=F'
+              AND s.ticker NOT LIKE '%%-USD'
+              AND s.ticker NOT LIKE '%%.%%'
+            ORDER BY COALESCE(s.last_updated, '1970-01-01'::timestamp) ASC
             LIMIT :lim
         """
         rows = await database.fetch_all(sql3, {"lim": limit_symbols})
-        c3 = [ (r["ticker"] or "").strip().upper() for r in rows if r["ticker"] ]
-        logger.info(f"[AV] Select[securities_active]: {len(c3)} symbols (limit={limit_symbols})")
+        c3 = _log("securities_active", rows)
         return c3
 
     # ---------- 1) Universe sync ---------------------------------------------
@@ -378,25 +400,34 @@ class AlphaVantageClient:
                     logger.error(f"[AV] bulk quotes wave error: {repr(out)}")
 
         if not results:
-            logger.warning("[AV] bulk_quotes: no quotes parsed from AV (rate limit Note? unsupported symbols? payload shape change?).")
+            logger.warning("[AV] bulk_quotes: no quotes parsed from AV (rate limit Note? unsupported universe? payload shape change?).")
         else:
             logger.info(f"[AV] bulk_quotes: quotes parsed for {len(results)} symbols. Sample: {list(results.keys())[:10]}")
         return results
 
-    async def update_prices_for_active(self, database, limit_symbols: int = 1000,
-                                       quote_batch_size: int = 100, max_concurrent_batches: int = 5) -> Tuple[int, int]:
+    async def update_prices_for_active(
+        self,
+        database,
+        limit_symbols: int = 1000,
+        quote_batch_size: int = 100,
+        max_concurrent_batches: int = 5,
+        symbols_override: Optional[List[str]] = None,
+    ) -> Tuple[int, int]:
         """
         - Select symbols to update (oldest first) from your security_usage view (or securities)
         - Fetch quotes in 100-sized batches (concurrent waves)
         - Write back ONLY to av_* fields so we don't disrupt Yahoo/Polygon
         Returns (updated_count, attempted_count)
         """
-        logger.info(f"[AV] PriceUpdate: start limit={limit_symbols}, batch={quote_batch_size}, concurrency={max_concurrent_batches}")
-        symbols = await self._select_symbols_for_av(database, limit_symbols)
+        logger.info(f"[AV] PriceUpdate: start limit={limit_symbols}, batch={quote_batch_size}, concurrency={max_concurrent_batches}, override={bool(symbols_override)}")
+        if symbols_override:
+            symbols = [s.strip().upper() for s in symbols_override if s]
+        else:
+            symbols = await self._select_symbols_for_av(database, limit_symbols)
         logger.info(f"[AV] PriceUpdate: selected {len(symbols)} symbols. Sample: {symbols[:10]}")
 
         if not symbols:
-            logger.warning("[AV] PriceUpdate: no symbols selected from security_usage (check view filters/status/on_alphavantage).")
+            logger.warning("[AV] PriceUpdate: no symbols selected (check view filters/status/on_alphavantage).")
             return (0, 0)
 
         data = await self.bulk_quotes(
@@ -405,6 +436,9 @@ class AlphaVantageClient:
             max_concurrent_batches=max_concurrent_batches
         )
         logger.info(f"[AV] PriceUpdate: AV returned quotes for {len(data)} / {len(symbols)} symbols.")
+        zero_quotes_overall = (len(data) == 0)
+        if zero_quotes_overall:
+            logger.warning("[AV] PriceUpdate: AV returned 0 quotes for the entire batch; skipping disables (likely rate-limit/unsupported universe).")
 
         updated = 0
         now = datetime.utcnow()  # naive to match 'timestamp without time zone' on last_updated
@@ -416,7 +450,9 @@ class AlphaVantageClient:
         for sym in symbols:
             q = data.get(sym)
             if not q:
-                disable_rows.append({"ticker": sym, "now": now})
+                # Only disable when AV returned *some* quotes overall; if zero, skip disables entirely.
+                if not zero_quotes_overall:
+                    disable_rows.append({"ticker": sym, "now": now})
                 continue
             update_rows.append({
                 "ticker": sym,
