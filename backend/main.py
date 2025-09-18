@@ -2559,6 +2559,159 @@ async def update_alphavantage_overviews(limit: int = 50):
         )
 
 
+# --- prefetch the universe to work on ----------------------------------------
+
+async def _prefetch_overview_symbols(total_limit: int) -> List[str]:
+    """
+    Pull up to `total_limit` eligible tickers from `security_usage` ordered by
+    oldest metrics first (NULLs first, then largest age). AV-friendly filters applied.
+    """
+    sql = """
+        SELECT u.ticker
+        FROM security_usage u
+        LEFT JOIN securities s ON s.ticker = u.ticker
+        WHERE u.metrics_status = 'Requires Updating'
+          AND COALESCE(s.active, TRUE)
+          AND (s.on_alphavantage IS DISTINCT FROM FALSE)
+          -- keep to US stocks/ETFs; skip indexes, futures, crypto pairs, foreign suffixes, and units/warrants
+          AND COALESCE(s.av_asset_type, s.asset_type, 'security') IN ('Stock','ETF','security')
+          AND COALESCE(s.av_exchange,'') IN ('NYSE','NASDAQ','NYSE ARCA','NYSE MKT','BATS','Cboe BZX')
+          AND u.ticker NOT LIKE '^%%'
+          AND u.ticker NOT LIKE '%%=F'
+          AND u.ticker NOT LIKE '%%-USD'
+          AND u.ticker NOT LIKE '%%.%%'
+          AND u.ticker NOT LIKE '%%-%%'
+        ORDER BY u.metrics_age_minutes DESC NULLS FIRST,
+                 COALESCE(s.last_metrics_update, '1970-01-01'::timestamp) ASC,
+                 COALESCE(s.last_updated, '1970-01-01'::timestamp) ASC
+        LIMIT :lim
+    """
+    rows = await database.fetch_all(sql, {"lim": total_limit})
+    syms = [(r["ticker"] or "").strip().upper() for r in rows if r["ticker"]]
+    logger.info(f"[AV] PrefetchOverview: selected {len(syms)} symbols (limit={total_limit}). Sample={syms[:10]}")
+    return syms
+
+
+# --- orchestrate multiple overview batches over a preselected list ------------
+
+async def _run_overview_batches_prefetched(
+    total_limit: int,
+    batch_size: int,
+    delay_seconds: int,
+    event_id: Optional[str] = None,
+):
+    """
+    Uses a pre-fetched, ordered symbol list and processes it in batches.
+    """
+    from backend.api_clients.alphavantage_client import AlphaVantageClient
+
+    symbols = await _prefetch_overview_symbols(total_limit)
+    if not symbols:
+        if event_id:
+            await update_system_event(database, event_id, "completed", {"processed": 0, "totals": {}})
+        return
+
+    totals = {"attempted": 0, "updated": 0, "skipped": 0, "failed": 0, "batches": 0}
+    logger.info(
+        f"[AV] OverviewBatches(prefetched): start size={len(symbols)}, "
+        f"batch_size={batch_size}, delay={delay_seconds}s"
+    )
+
+    # slice into batches
+    for i in range(0, len(symbols), batch_size):
+        batch = symbols[i : i + batch_size]
+        totals["batches"] += 1
+        logger.info(f"[AV] OverviewBatches(prefetched): batch #{totals['batches']} len={len(batch)}")
+
+        client = AlphaVantageClient()
+        try:
+            result = await client.update_company_overviews(
+                database,
+                limit_symbols=len(batch),          # not used when symbols_override is set; safe to keep
+                symbols_override=batch,            # <— force this exact slice
+            )
+        finally:
+            await client.aclose()
+
+        for k in ("attempted", "updated", "skipped", "failed"):
+            totals[k] += int(result.get(k, 0))
+
+        if event_id:
+            await update_system_event(
+                database,
+                event_id,
+                "running",
+                {"last_batch": result, "totals": totals, "processed": i + len(batch)},
+            )
+
+        # stop if we’re at the end
+        if i + batch_size >= len(symbols):
+            break
+
+        # sleep between batches
+        logger.info(f"[AV] OverviewBatches(prefetched): sleeping {delay_seconds}s…")
+        await asyncio.sleep(delay_seconds)
+
+    logger.info(f"[AV] OverviewBatches(prefetched): done totals={totals}")
+    if event_id:
+        await update_system_event(database, event_id, "completed", totals)
+
+
+# --- endpoint to run prefetched batches (optionally in background) ------------
+
+
+
+@app.post("/alphavantage/update-overviews-batched")
+async def update_alphavantage_overviews_batched(
+    total_limit: int = 500,
+    batch_size: int = 50,
+    delay_seconds: int = 60,
+    run_in_background: bool = True,
+    background_tasks: BackgroundTasks = None,
+):
+    """
+    Prefetch up to `total_limit` tickers (oldest metrics first) and process them
+    in batches of `batch_size`, sleeping `delay_seconds` between batches.
+
+    Set `run_in_background=false` to run synchronously and wait for completion.
+    """
+    event_id = await record_system_event(
+        database,
+        "alphavantage_overview_update_batched_prefetched",
+        "started",
+        {
+            "total_limit": total_limit,
+            "batch_size": batch_size,
+            "delay_seconds": delay_seconds,
+            "mode": "background" if run_in_background else "sync",
+        },
+    )
+
+    async def _runner():
+        await _run_overview_batches_prefetched(
+            total_limit=total_limit,
+            batch_size=batch_size,
+            delay_seconds=delay_seconds,
+            event_id=str(event_id),
+        )
+
+    if run_in_background:
+        asyncio.create_task(_runner())
+        return {
+            "success": True,
+            "message": "Batched overview update scheduled (prefetched).",
+            "event_id": str(event_id),
+            "params": {"total_limit": total_limit, "batch_size": batch_size, "delay_seconds": delay_seconds},
+        }
+    else:
+        await _runner()
+        return {
+            "success": True,
+            "message": "Batched overview update completed (prefetched).",
+            "event_id": str(event_id),
+            "params": {"total_limit": total_limit, "batch_size": batch_size, "delay_seconds": delay_seconds},
+        }
+
 # ----- POSITION MANAGEMENT  -----
 # INCLUDES POSTIONS, CASH, METALS, CRYPTO, REAL ESTATE
 # Security positions
