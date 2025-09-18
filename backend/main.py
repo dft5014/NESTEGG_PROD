@@ -2355,9 +2355,9 @@ async def polygon_sync_prices():
                 UPDATE securities
                 SET price_polygon = :price_polygon,
                     price_polygon_timestamp = :price_polygon_timestamp,
-                    on_polygon = TRUE
+                    on_polygon = TRUE,
                     current_price = :price_polygon,
-                    price_timestamp = :price_polygon_timestamp
+                    price_timestamp = (:price_polygon_timestamp AT TIME ZONE 'UTC')
                 WHERE ticker = :ticker
                 """,
                 payload
