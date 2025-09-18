@@ -2494,20 +2494,21 @@ async def av_update_prices(limit_symbols: int = 1000):
 @app.post("/alphavantage/update-overviews")
 async def update_alphavantage_overviews(limit: int = 50):
     """
-    Update company metrics for a batch of tickers using Alpha Vantage OVERVIEW.
+    Update company fundamentals for a batch of tickers using Alpha Vantage OVERVIEW.
 
-    Selection:
-      - Up to `limit` tickers (default 50) from `security_usage`
-      - Ordered by metrics_age_minutes DESC (oldest first); NULL treated as *very old* (so comes first)
-      - (AV-friendly filters handled in the client)
+    Selection (inside the client):
+      - Pull from `security_usage`
+      - Oldest metrics first: metrics_age_minutes DESC (NULL treated as oldest)
+      - Skip rows where `securities.on_alphavantage = FALSE`
+      - AV-friendly universe (US stocks/ETFs; exclude indices, futures, crypto pairs, foreign suffixes, units/warrants)
 
-    Writes to `securities`:
-      company_name, sector, industry,
-      market_cap, pe_ratio, forward_pe,
-      dividend_rate, dividend_yield, beta,
-      fifty_two_week_low, fifty_two_week_high, fifty_two_week_range,
-      eps, forward_eps (None), last_metrics_update, last_updated,
-      metrics_source='alpha_vantage'.
+    Writes (into `securities`):
+      company_name, sector, industry, market_cap, pe_ratio, forward_pe,
+      dividend_rate, dividend_yield, beta, 52w metrics, eps, last_metrics_update,
+      last_updated, metrics_source='alpha_vantage'
+
+    If AV returns an empty/unexpected OVERVIEW payload for a ticker, the client
+    will set `on_alphavantage = FALSE` for that ticker to avoid reprocessing.
     """
     try:
         event_id = await record_system_event(
@@ -2520,7 +2521,11 @@ async def update_alphavantage_overviews(limit: int = 50):
         client = AlphaVantageClient()
         try:
             logger.info(f"[AV] Overview API: kicking off batch (limit={limit})")
-            result = await client.update_company_overviews(database, limit_symbols=limit)
+            result = await client.update_company_overviews(
+                database,
+                limit_symbols=limit,
+                symbols_override=None  # use selection logic in the client
+            )
         finally:
             await client.aclose()
 
@@ -2552,6 +2557,7 @@ async def update_alphavantage_overviews(limit: int = 50):
             status_code=500,
             detail=f"Alpha Vantage overview update failed: {str(e)}"
         )
+
 
 # ----- POSITION MANAGEMENT  -----
 # INCLUDES POSTIONS, CASH, METALS, CRYPTO, REAL ESTATE
