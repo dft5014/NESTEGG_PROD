@@ -4,7 +4,7 @@ import csv
 import io
 import asyncio
 import logging
-from datetime import datetime, timezone, date as _date
+from datetime import datetime, timezone, date
 from typing import Dict, List, Tuple, Optional
 
 import httpx
@@ -52,7 +52,7 @@ def _parse_ts_or_date_to_aware_utc(x):
         return None
     if isinstance(x, datetime):
         return x if x.tzinfo else x.replace(tzinfo=timezone.utc)
-    if isinstance(x, _date):
+    if isinstance(x, date):
         return datetime(x.year, x.month, x.day, tzinfo=timezone.utc)
     s = str(x).strip()
     for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%dT%H:%M:%S", "%Y-%m-%d"):
