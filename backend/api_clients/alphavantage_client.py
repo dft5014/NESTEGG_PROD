@@ -368,7 +368,7 @@ class AlphaVantageClient:
                        SET av_price            = :price,
                            av_price_timestamp  = :ts,
                            on_alphavantage     = TRUE,
-                           last_updated        = :now::timestamp
+                           last_updated        = CAST(:now AS timestamp)
                      WHERE ticker = :ticker
                     """,
                     update_rows,
@@ -386,7 +386,7 @@ class AlphaVantageClient:
                                SET av_price            = :price,
                                    av_price_timestamp  = :ts,
                                    on_alphavantage     = TRUE,
-                                   last_updated        = :now::timestamp
+                                   last_updated        = CAST(:now AS timestamp)
                              WHERE ticker = :ticker
                             """,
                             row,
@@ -401,7 +401,7 @@ class AlphaVantageClient:
                     """
                     UPDATE securities
                        SET on_alphavantage = FALSE,
-                           last_updated    = :now::timestamp
+                           last_updated    = CAST(:now AS timestamp)
                      WHERE ticker = :ticker
                     """,
                     disable_rows,
@@ -411,7 +411,7 @@ class AlphaVantageClient:
                 for row in disable_rows:
                     try:
                         await database.execute(
-                            "UPDATE securities SET on_alphavantage = FALSE, last_updated = :now::timestamp WHERE ticker = :ticker",
+                            "UPDATE securities SET on_alphavantage = FALSE, last_updated = CAST(:now AS timestamp) WHERE ticker = :ticker",
                             row,
                         )
                     except Exception as e2:
