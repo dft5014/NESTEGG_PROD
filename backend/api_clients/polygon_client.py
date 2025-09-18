@@ -1,498 +1,246 @@
-"""
-Polygon market data client using the official SDK + REST (v3).
-
-Capabilities:
-- Full-market snapshots for prices (filtered to our tickers).
-- Reference tickers listing to backfill 'securities'.
-- Historical daily OHLCV via aggregates.
-
-Docs:
-- Full market snapshot:
-  https://polygon.io/docs/rest/stocks/snapshots/full-market-snapshot
-- List tickers (v3):
-  https://polygon.io/docs/stocks/get_v3_reference_tickers
-- Aggregates (daily):
-  https://polygon.io/docs/stocks/get_v2_aggs_ticker_ticker_range_multiplier_timespan_from_to
-"""
+# backend/clients/api_clients/polygon_client.py
 import os
+import math
+import time
 import logging
-import asyncio
-from datetime import datetime, timezone
-from typing import Dict, List, Optional, Any, Iterable
+from typing import Dict, Iterable, List, Optional, Set, Tuple, Any
 
-import requests
-
-# NOTE: PyPI package name is `polygon-api-client`, but the module is imported as `polygon`.
-try:
-    from polygon import RESTClient  # provided by polygon-api-client
-except Exception as e:
-    raise RuntimeError(
-        "Polygon SDK unavailable. Install 'polygon-api-client' in requirements.txt "
-        "and ensure POLYGON_API_KEY is set."
-    ) from e
-
-from backend.api_clients.data_source_interface import MarketDataSource
+import httpx
 
 logger = logging.getLogger("polygon_client")
 
+POLYGON_API_KEY = os.getenv("POLYGON_API_KEY")
+if not POLYGON_API_KEY:
+    logger.warning("polygon.missing_api_key_env")
 
-def _to_dt(ts: Optional[int]) -> Optional[datetime]:
-    """Polygon timestamps may be ns/us/ms/s; normalize to aware UTC."""
-    if ts is None:
-        return None
-    try:
-        ts = int(ts)
-        if ts > 10**15:   # ns
-            sec = ts / 1_000_000_000
-        elif ts > 10**12: # us
-            sec = ts / 1_000_000
-        elif ts > 10**10: # ms
-            sec = ts / 1_000
-        else:             # s
-            sec = ts
-        return datetime.fromtimestamp(sec, tz=timezone.utc)
-    except Exception:
-        return None
+BASE = "https://api.polygon.io"
+SNAPSHOT_V2 = f"{BASE}/v2/snapshot/locale/us/markets/stocks/tickers"
+REF_TICKERS_V3 = f"{BASE}/v3/reference/tickers"
+
+# Reasonable HTTP timeouts for batch jobs
+HTTP_TIMEOUT = httpx.Timeout(connect=5.0, read=45.0, write=5.0, pool=5.0)
+HTTP_HEADERS = {
+    "Accept": "application/json",
+    "Accept-Encoding": "gzip",
+    "User-Agent": "NestEgg-PolygonClient/1.0",
+}
 
 
-class PolygonClient(MarketDataSource):
+class PolygonClient:
     """
-    Thin wrapper around Polygon's SDK/REST that returns
-    simple Python dicts our services can consume.
+    Lightweight async client for Polygon REST.
+    - Full-market snapshot (v2) -> filter in-memory to our tickers.
+    - Reference tickers (v3) -> paginated list for universe reconciliation.
+    - Returns simple, DB-ready shapes (price + timestamp_ms).
+
+    Public methods used by existing code:
+      - get_snapshots_for(tickers: Iterable[str]) -> Dict[str, Dict[str, Any]]
+      - list_reference_tickers(market: str, active_only: bool, types: Optional[List[str]],
+                               limit: int, max_pages: int) -> List[Dict[str, Any]]
     """
 
     def __init__(self, api_key: Optional[str] = None):
-        self.api_key = api_key or os.getenv("POLYGON_API_KEY")
+        self.api_key = api_key or POLYGON_API_KEY
         if not self.api_key:
-            raise RuntimeError("POLYGON_API_KEY not set")
+            raise RuntimeError("POLYGON_API_KEY not configured")
+        self._client: Optional[httpx.AsyncClient] = None
 
-        # Blocking SDK; run calls in a thread via run_in_executor
-        self.client = RESTClient(self.api_key)
+    async def __aenter__(self):
+        self._client = httpx.AsyncClient(timeout=HTTP_TIMEOUT, headers=HTTP_HEADERS, http2=True)
+        return self
 
-        # For v3 REST calls (reference listings)
-        self.session = requests.Session()
-        self.session.headers.update({"Accept": "application/json"})
-        self.base_v3 = "https://api.polygon.io/v3"
+    async def __aexit__(self, exc_type, exc, tb):
+        if self._client:
+            await self._client.aclose()
+            self._client = None
 
-        # lightweight cache TTLs (optional, kept consistent with other clients)
-        self.cache: Dict[str, Dict[str, Any]] = {}
-        self.cache_ttl = {
-            "current_price": 15 * 60,     # 15 minutes
-            "company_metrics": 24 * 60 * 60,
-            "historical_prices": 6 * 60 * 60,
+    # -----------------------------
+    # Public: Prices / Snapshots
+    # -----------------------------
+    async def get_snapshots_for(self, tickers: Iterable[str]) -> Dict[str, Dict[str, Any]]:
+        """
+        Fetch the full-market snapshot once, filter to the requested tickers (case-insensitive),
+        and return a mapping suitable for DB upserts:
+
+        {
+          "AAPL": {"price": 227.41, "timestamp": 1758215880000},
+          "MSFT": {"price": 432.05, "timestamp": 1758215880000},
+          ...
         }
 
-    # ---- required by MarketDataSource interface ----
-    @property
-    def source_name(self) -> str:
-        return "polygon"
-
-    @property
-    def daily_call_limit(self) -> Optional[int]:
-        return None
-
-    # ------------------------------------------------
-    # Simple in-memory cache helpers
-    # ------------------------------------------------
-
-    def _get_from_cache(self, cache_key: str, cache_type: str) -> Optional[Any]:
-        if cache_key in self.cache:
-            item = self.cache[cache_key]
-            ts: datetime = item.get("timestamp")  # type: ignore
-            if ts and (datetime.now(timezone.utc) - ts).total_seconds() < self.cache_ttl[cache_type]:
-                return item.get("data")
-        return None
-
-    def _set_in_cache(self, cache_key: str, cache_type: str, data: Any) -> None:
-        self.cache[cache_key] = {"data": data, "timestamp": datetime.now(timezone.utc)}
-
-    # ------------------------------------------------
-    # Prices via full-market snapshots
-    # ------------------------------------------------
-
-    def _pick_price_and_ts(self, snap: Any) -> (Optional[float], Optional[datetime]):
+        Price selection heuristic:
+          1) Use minute bar close `min.c` when present.
+          2) Fallback to day close `day.c`.
+          3) If neither exists, skip (no update).
+        Timestamp (ms since epoch):
+          - Prefer `min.t` (ms).
+          - Else fallback to `updated` (ns -> ms).
         """
-        Choose a reasonable price/timestamp from a TickerSnapshot-like object.
-
-        Preference:
-          1) last_trade.price / timestamp
-          2) mid(last_quote.bid_price, last_quote.ask_price) / timestamp
-          3) minute.close or day.close or prev_day.close / timestamp
-          4) updated
-        """
-        price, ts = None, None
-
-        # last trade
-        lt = getattr(snap, "last_trade", None)
-        if lt:
-            p = getattr(lt, "price", None) or getattr(lt, "p", None)
-            if p is not None:
-                try:
-                    price = float(p)
-                except Exception:
-                    price = None
-                ts = (getattr(lt, "sip_timestamp", None)
-                      or getattr(lt, "participant_timestamp", None)
-                      or getattr(lt, "t", None))
-
-        # last quote mid
-        if price is None:
-            lq = getattr(snap, "last_quote", None)
-            if lq:
-                bp = getattr(lq, "bid_price", None) or getattr(lq, "bp", None)
-                ap = getattr(lq, "ask_price", None) or getattr(lq, "ap", None)
-                if bp is not None and ap is not None:
-                    try:
-                        price = (float(bp) + float(ap)) / 2.0
-                        ts = (getattr(lq, "sip_timestamp", None)
-                              or getattr(lq, "participant_timestamp", None)
-                              or getattr(lq, "t", None))
-                    except Exception:
-                        price = None
-
-        # bars: minute -> day -> prev_day
-        if price is None:
-            for bar_attr in ("min", "minute", "day", "prev_day"):
-                bar = getattr(snap, bar_attr, None)
-                if bar:
-                    close = getattr(bar, "close", None) or getattr(bar, "c", None)
-                    if close is not None:
-                        try:
-                            price = float(close)
-                        except Exception:
-                            price = None
-                        ts = getattr(bar, "timestamp", None) or getattr(bar, "t", None)
-                        if price is not None:
-                            break
-
-        if ts is None:
-            ts = getattr(snap, "updated", None)
-
-        return price, _to_dt(ts)
-
-    async def get_snapshots_for(
-        self,
-        tickers: List[str],
-        include_otc: bool = False,
-    ) -> Dict[str, Dict[str, Any]]:
-        """
-        Return {ticker: {price, timestamp, source}} for the given tickers.
-
-        We attempt to use the SDK's `tickers=` filter (newer versions).
-        If unsupported, we fall back to streaming the whole market and filter locally.
-        """
-        if not tickers:
+        want: Set[str] = {t.upper() for t in tickers if t}
+        if not want:
             return {}
 
-        want = {t.upper() for t in tickers}
+        data = await self._get_full_market_snapshot()
+        rows = data.get("tickers") or []
+        if not isinstance(rows, list):
+            logger.warning("polygon.snapshot.unexpected_shape")
+            return {}
+
         out: Dict[str, Dict[str, Any]] = {}
-        loop = asyncio.get_event_loop()
-
-        def _fetch_snapshots() -> Iterable[Any]:
-            # try: with tickers & include_otc
-            try:
-                return self.client.get_snapshot_all(
-                    "stocks",
-                    tickers=",".join(list(want)[:900]),
-                    include_otc=include_otc,
-                )
-            except TypeError:
-                # try: include_otc only
-                try:
-                    return self.client.get_snapshot_all("stocks", include_otc=include_otc)
-                except TypeError:
-                    # fallback: no kwargs
-                    return self.client.get_snapshot_all("stocks")
-
-        try:
-            snaps = await loop.run_in_executor(None, lambda: list(_fetch_snapshots()))
-        except Exception as e:
-            logger.error(f"Polygon get_snapshot_all failed: {e}")
-            return {}
-
-        for s in snaps:
-            t = getattr(s, "ticker", None)
-            if not t:
+        for item in rows:
+            sym = str(item.get("ticker") or "").upper()
+            if sym not in want:
                 continue
-            tu = t.upper()
-            if tu not in want:
-                # If we had to stream full market, skip unrequested tickers
-                continue
-            price, dt = self._pick_price_and_ts(s)
+
+            # extract price candidates
+            min_bar = item.get("min") or {}
+            day_bar = item.get("day") or {}
+            price = _safe_float(min_bar.get("c"))
+            ts_ms = _safe_int(min_bar.get("t"))  # ms if present
+
             if price is None:
+                price = _safe_float(day_bar.get("c"))
+
+            # timestamp fallback: updated (ns) -> ms
+            if ts_ms is None:
+                updated_ns = _safe_int(item.get("updated"))
+                if updated_ns is not None and updated_ns > 1e12:
+                    ts_ms = int(updated_ns // 1_000_000)
+
+            if price is None or ts_ms is None:
+                # If we can't form a sensible reading, skip this symbol
                 continue
-            out[tu] = {
-                "price": float(price),
-                "timestamp": dt or datetime.now(timezone.utc),
-                "source": self.source_name,
-            }
+
+            out[sym] = {"price": float(price), "timestamp": int(ts_ms)}
 
         return out
 
-    # ------------------------------------------------
-    # Reference listings via v3 REST (to backfill securities)
-    # ------------------------------------------------
-
+    # -----------------------------
+    # Public: Reference universe
+    # -----------------------------
     async def list_reference_tickers(
         self,
         market: str = "stocks",
         active_only: bool = True,
-        types: Optional[List[str]] = None,  # e.g., ["CS","ETF","ADR"]
+        types: Optional[List[str]] = None,
         limit: int = 1000,
-        max_pages: Optional[int] = None,
+        max_pages: int = 3,
     ) -> List[Dict[str, Any]]:
         """
-        Page through /v3/reference/tickers and return a list of dicts:
-          {ticker, name, type, active, locale, market}
+        Page through /v3/reference/tickers to discover tickers for reconciliation.
 
-        - Keeps apiKey across `next_url` pages.
-        - Basic 429 handling using Retry-After if present.
+        Args:
+          - market: "stocks" (Polygon expects values like 'stocks', 'crypto', etc.)
+          - active_only: True -> active=true; False -> both
+          - types: e.g., ["CS","ETF","ADR"]
+          - limit: page size (Polygon allows <= 1000)
+          - max_pages: defensive cap to avoid runaway loops
+
+        Returns:
+          List of raw rows from Polygon (each contains 'ticker', 'name', 'active', 'type', etc.)
         """
         params = {
-            "apiKey": self.api_key,
             "market": market,
             "active": "true" if active_only else "false",
             "limit": limit,
+            "apiKey": self.api_key,
         }
+        if types:
+            # Polygon expects comma-separated list
+            params["type"] = ",".join(types)
 
-        # Polygon v3 supports 'type' filter; if multiple, loop over them
-        type_sets = types or [None]
-        out: List[Dict[str, Any]] = []
-        loop = asyncio.get_event_loop()
+        rows: List[Dict[str, Any]] = []
+        url = REF_TICKERS_V3
+        pages = 0
 
-        def _fetch_page(url: str, q: Optional[Dict[str, Any]]) -> Dict[str, Any]:
-            # Ensure we always pass apiKey, even if `next_url` doesn't include it
-            from urllib.parse import urlparse, parse_qs, urlencode, urlunparse
-
-            parsed = urlparse(url)
-            existing = parse_qs(parsed.query)
-            if "apiKey" not in existing:
-                existing["apiKey"] = [self.api_key]
-
-            # Only add q for the first page (Polygon expects params on the base URL, not on next_url)
-            if q:
-                for k, v in q.items():
-                    existing[k] = [v] if not isinstance(v, list) else v
-
-            new_query = urlencode({k: v[-1] for k, v in existing.items()})
-            merged = parsed._replace(query=new_query)
-            final_url = urlunparse(merged)
-
-            r = self.session.get(final_url, timeout=30)
-            if r.status_code == 429:
-                retry_after = r.headers.get("Retry-After")
-                if retry_after:
-                    try:
-                        import time
-                        time.sleep(float(retry_after))
-                        r = self.session.get(final_url, timeout=30)
-                    except Exception:
-                        pass
-            r.raise_for_status()
-            return r.json()
-
-        for t in type_sets:
-            page_count = 0
-            first_params = dict(params)
-            if t:
-                first_params["type"] = t
-
-            url = f"{self.base_v3}/reference/tickers"
-            next_url = url
-
-            while next_url:
-                page_count += 1
-                try:
-                    data = await loop.run_in_executor(
-                        None,
-                        lambda: _fetch_page(next_url, first_params if next_url == url else None),
-                    )
-                except Exception as e:
-                    logger.error(f"Polygon v3 reference page fetch failed (type={t}, page={page_count}): {e}")
+        async with self._ensure_client() as client:
+            while url and pages < max_pages:
+                resp = await self._get_with_retry(client, url, params=params)
+                payload = resp.json()
+                results = payload.get("results") or []
+                if not isinstance(results, list):
                     break
+                rows.extend(results)
+                url = payload.get("next_url")
+                params = None  # subsequent calls follow next_url which already includes query
+                pages += 1
 
-                results = data.get("results") or []
-                for row in results:
-                    out.append({
-                        "ticker": row.get("ticker"),
-                        "name": row.get("name"),
-                        "type": row.get("type"),
-                        "active": row.get("active"),
-                        "locale": row.get("locale"),
-                        "market": row.get("market"),
-                    })
+        return rows
 
-                next_url = data.get("next_url")
-                if max_pages and page_count >= max_pages:
-                    break
-
-        return out
-
-    # ============================================================
-    # Implementations required by MarketDataSource (async)
-    # ============================================================
-
-    async def get_current_price(self, ticker: str) -> Optional[Dict[str, Any]]:
+    # -----------------------------
+    # Internals
+    # -----------------------------
+    async def _get_full_market_snapshot(self) -> Dict[str, Any]:
         """
-        Return a price dict for a single ticker using snapshots.
-        Shape matches your other clients:
-        {
-          "price": float,
-          "day_open": None, "day_high": None, "day_low": None,  # (not provided here)
-          "close_price": float,
-          "volume": None,
-          "timestamp": datetime,
-          "price_timestamp": datetime,
-          "price_timestamp_str": str,
-          "source": "polygon"
-        }
+        One-shot fetch of the entire equities snapshot (v2). Large but fast on Polygon.
         """
-        if not ticker:
-            return None
-
-        cache_key = f"price_{ticker.upper()}"
-        cached = self._get_from_cache(cache_key, "current_price")
-        if cached:
-            return cached
-
-        snaps = await self.get_snapshots_for([ticker])
-        snap = snaps.get(ticker.upper())
-        if not snap or snap.get("price") is None:
-            return None
-
-        ts = snap.get("timestamp") or datetime.now(timezone.utc)
-        result = {
-            "price": float(snap["price"]),
-            "day_open": None,
-            "day_high": None,
-            "day_low": None,
-            "close_price": float(snap["price"]),
-            "volume": None,
-            "timestamp": datetime.now(timezone.utc),
-            "price_timestamp": ts,
-            "price_timestamp_str": ts.strftime("%Y-%m-%d %H:%M:%S"),
-            "source": self.source_name,
-        }
-        self._set_in_cache(cache_key, "current_price", result)
-        return result
-
-    async def get_batch_prices(self, tickers: List[str], max_batch_size: int = 900) -> Dict[str, Dict[str, Any]]:
-        """
-        Batch pricing via snapshots. Ignores max_batch_size unless you need to chunk your input.
-        Returns {ticker: price_dict_like_get_current_price}
-        """
-        if not tickers:
-            return {}
-        snaps = await self.get_snapshots_for(tickers)
-        out: Dict[str, Dict[str, Any]] = {}
-        now = datetime.now(timezone.utc)
-        for t, s in snaps.items():
-            ts = s.get("timestamp") or now
-            out[t] = {
-                "price": float(s["price"]),
-                "day_open": None,
-                "day_high": None,
-                "day_low": None,
-                "close_price": float(s["price"]),
-                "volume": None,
-                "timestamp": now,
-                "price_timestamp": ts,
-                "price_timestamp_str": ts.strftime("%Y-%m-%d %H:%M:%S"),
-                "source": self.source_name,
-            }
-        return out
-
-    async def get_company_metrics(self, ticker: str) -> Optional[Dict[str, Any]]:
-        """
-        Polygon client does not provide fundamental 'metrics' in this wrapper.
-        Return a safe sentinel so upstream code can handle it.
-        """
-        return {"not_found": True, "source": self.source_name}
-
-    async def get_historical_prices(
-        self,
-        ticker: str,
-        start_date: datetime,
-        end_date: Optional[datetime] = None
-    ) -> List[Dict[str, Any]]:
-        """
-        Historical daily OHLCV using Polygon aggregates.
-        Returns a list of dicts:
-        {
-          "date": date,
-          "timestamp": datetime,
-          "day_open": float|None,
-          "day_high": float|None,
-          "day_low": float|None,
-          "close_price": float,
-          "volume": int|None,
-          "source": "polygon"
-        }
-        """
-        if not ticker or not start_date:
-            return []
-
-        if end_date is None:
-            end_date = datetime.now(timezone.utc)
-
-        # Cache key includes date range
-        cache_key = f"history_{ticker.upper()}_{start_date.strftime('%Y%m%d')}_{end_date.strftime('%Y%m%d')}"
-        cached = self._get_from_cache(cache_key, "historical_prices")
-        if cached:
-            return cached
-
-        loop = asyncio.get_event_loop()
-        start_str = start_date.strftime("%Y-%m-%d")
-        end_str = end_date.strftime("%Y-%m-%d")
-
-        def _fetch_aggs() -> Any:
-            # 1 day bars
-            return self.client.get_aggs(
-                ticker=ticker.upper(),
-                multiplier=1,
-                timespan="day",
-                from_=start_str,
-                to=end_str,
-                adjusted=True,
-                sort="asc",
-                limit=50000,  # generous
-            )
-
-        try:
-            aggs = await loop.run_in_executor(None, _fetch_aggs)
-        except Exception as e:
-            logger.error(f"Polygon aggregates fetch failed for {ticker}: {e}")
-            return []
-
-        results: List[Dict[str, Any]] = []
-        for a in aggs or []:
-            # fields: o,h,l,c,v,t (ms)
+        async with self._ensure_client() as client:
+            resp = await self._get_with_retry(client, SNAPSHOT_V2, params={"apiKey": self.api_key})
             try:
-                ts = _to_dt(getattr(a, "timestamp", None) or getattr(a, "t", None))
-                if ts is None:
-                    continue
-                close_val = getattr(a, "close", None) or getattr(a, "c", None)
-                if close_val is None:
-                    continue
+                payload = resp.json()
+            except Exception as e:
+                logger.error(f"polygon.snapshot.json_error: {e}")
+                raise
+            return payload if isinstance(payload, dict) else {}
 
-                open_val = getattr(a, "open", None) or getattr(a, "o", None)
-                high_val = getattr(a, "high", None) or getattr(a, "h", None)
-                low_val = getattr(a, "low", None) or getattr(a, "l", None)
-                vol_val = getattr(a, "volume", None) or getattr(a, "v", None)
+    async def _ensure_client(self) -> httpx.AsyncClient:
+        """
+        Ensure we have a live AsyncClient. Context-managing this returns self._client.
+        """
+        if self._client is None:
+            self._client = httpx.AsyncClient(timeout=HTTP_TIMEOUT, headers=HTTP_HEADERS, http2=True)
+        return self._client
 
-                results.append({
-                    "date": ts.date(),
-                    "timestamp": ts,
-                    "day_open": float(open_val) if open_val is not None else None,
-                    "day_high": float(high_val) if high_val is not None else None,
-                    "day_low": float(low_val) if low_val is not None else None,
-                    "close_price": float(close_val),
-                    "volume": int(vol_val) if vol_val is not None else None,
-                    "source": self.source_name,
-                })
-            except Exception as row_err:
-                logger.warning(f"Polygon aggs row parse error for {ticker}: {row_err}")
+    async def _get_with_retry(
+        self,
+        client: httpx.AsyncClient,
+        url: str,
+        params: Optional[Dict[str, Any]] = None,
+        retries: int = 3,
+    ) -> httpx.Response:
+        """
+        Simple retry with exponential backoff. Raises on non-2xx.
+        Note: Polygon often returns 200 with a JSON 'status' field.
+              Transport errors and 4xx/5xx are handled here.
+        """
+        last_exc: Optional[Exception] = None
+        for attempt in range(retries):
+            try:
+                r = await client.get(url, params=params)
+                r.raise_for_status()
+                return r
+            except Exception as e:
+                last_exc = e
+                sleep = 1.5 ** attempt
+                logger.warning(f"polygon.http_retry attempt={attempt+1} sleep={sleep:.2f}s url={url} err={e}")
+                await _async_sleep(sleep)
+        # give up
+        assert last_exc is not None
+        raise last_exc
 
-        # Cache and return
-        self._set_in_cache(cache_key, "historical_prices", results)
-        return results
+
+# --------------- helpers -----------------
+
+def _safe_float(x: Any) -> Optional[float]:
+    try:
+        if x is None:
+            return None
+        return float(x)
+    except Exception:
+        return None
+
+
+def _safe_int(x: Any) -> Optional[int]:
+    try:
+        if x is None:
+            return None
+        # handle numeric strings as well
+        return int(x)
+    except Exception:
+        return None
+
+
+async def _async_sleep(seconds: float) -> None:
+    # tiny awaitable sleep without importing trio/asyncio directly here
+    import asyncio
+    await asyncio.sleep(seconds)
