@@ -4,12 +4,15 @@ Polygon market data client using the official SDK + REST (v3).
 Capabilities:
 - Full-market snapshots for prices (filtered to our tickers).
 - Reference tickers listing to backfill 'securities'.
+- Historical daily OHLCV via aggregates.
 
 Docs:
 - Full market snapshot:
   https://polygon.io/docs/rest/stocks/snapshots/full-market-snapshot
 - List tickers (v3):
   https://polygon.io/docs/stocks/get_v3_reference_tickers
+- Aggregates (daily):
+  https://polygon.io/docs/stocks/get_v2_aggs_ticker_ticker_range_multiplier_timespan_from_to
 """
 import os
 import logging
@@ -19,8 +22,7 @@ from typing import Dict, List, Optional, Any, Iterable
 
 import requests
 
-# Robust import: requires pip package "polygon-api-client"
-# NOTE: PyPI package name is polygon-api-client, but the module is imported as "polygon".
+# NOTE: PyPI package name is `polygon-api-client`, but the module is imported as `polygon`.
 try:
     from polygon import RESTClient  # provided by polygon-api-client
 except Exception as e:
@@ -64,13 +66,21 @@ class PolygonClient(MarketDataSource):
         if not self.api_key:
             raise RuntimeError("POLYGON_API_KEY not set")
 
-        # Blocking SDK; we'll run calls in a thread via run_in_executor
+        # Blocking SDK; run calls in a thread via run_in_executor
         self.client = RESTClient(self.api_key)
 
         # For v3 REST calls (reference listings)
         self.session = requests.Session()
         self.session.headers.update({"Accept": "application/json"})
         self.base_v3 = "https://api.polygon.io/v3"
+
+        # lightweight cache TTLs (optional, kept consistent with other clients)
+        self.cache: Dict[str, Dict[str, Any]] = {}
+        self.cache_ttl = {
+            "current_price": 15 * 60,     # 15 minutes
+            "company_metrics": 24 * 60 * 60,
+            "historical_prices": 6 * 60 * 60,
+        }
 
     # ---- required by MarketDataSource interface ----
     @property
@@ -80,6 +90,21 @@ class PolygonClient(MarketDataSource):
     @property
     def daily_call_limit(self) -> Optional[int]:
         return None
+
+    # ------------------------------------------------
+    # Simple in-memory cache helpers
+    # ------------------------------------------------
+
+    def _get_from_cache(self, cache_key: str, cache_type: str) -> Optional[Any]:
+        if cache_key in self.cache:
+            item = self.cache[cache_key]
+            ts: datetime = item.get("timestamp")  # type: ignore
+            if ts and (datetime.now(timezone.utc) - ts).total_seconds() < self.cache_ttl[cache_type]:
+                return item.get("data")
+        return None
+
+    def _set_in_cache(self, cache_key: str, cache_type: str, data: Any) -> None:
+        self.cache[cache_key] = {"data": data, "timestamp": datetime.now(timezone.utc)}
 
     # ------------------------------------------------
     # Prices via full-market snapshots
@@ -302,3 +327,172 @@ class PolygonClient(MarketDataSource):
                     break
 
         return out
+
+    # ============================================================
+    # Implementations required by MarketDataSource (async)
+    # ============================================================
+
+    async def get_current_price(self, ticker: str) -> Optional[Dict[str, Any]]:
+        """
+        Return a price dict for a single ticker using snapshots.
+        Shape matches your other clients:
+        {
+          "price": float,
+          "day_open": None, "day_high": None, "day_low": None,  # (not provided here)
+          "close_price": float,
+          "volume": None,
+          "timestamp": datetime,
+          "price_timestamp": datetime,
+          "price_timestamp_str": str,
+          "source": "polygon"
+        }
+        """
+        if not ticker:
+            return None
+
+        cache_key = f"price_{ticker.upper()}"
+        cached = self._get_from_cache(cache_key, "current_price")
+        if cached:
+            return cached
+
+        snaps = await self.get_snapshots_for([ticker])
+        snap = snaps.get(ticker.upper())
+        if not snap or snap.get("price") is None:
+            return None
+
+        ts = snap.get("timestamp") or datetime.now(timezone.utc)
+        result = {
+            "price": float(snap["price"]),
+            "day_open": None,
+            "day_high": None,
+            "day_low": None,
+            "close_price": float(snap["price"]),
+            "volume": None,
+            "timestamp": datetime.now(timezone.utc),
+            "price_timestamp": ts,
+            "price_timestamp_str": ts.strftime("%Y-%m-%d %H:%M:%S"),
+            "source": self.source_name,
+        }
+        self._set_in_cache(cache_key, "current_price", result)
+        return result
+
+    async def get_batch_prices(self, tickers: List[str], max_batch_size: int = 900) -> Dict[str, Dict[str, Any]]:
+        """
+        Batch pricing via snapshots. Ignores max_batch_size unless you need to chunk your input.
+        Returns {ticker: price_dict_like_get_current_price}
+        """
+        if not tickers:
+            return {}
+        snaps = await self.get_snapshots_for(tickers)
+        out: Dict[str, Dict[str, Any]] = {}
+        now = datetime.now(timezone.utc)
+        for t, s in snaps.items():
+            ts = s.get("timestamp") or now
+            out[t] = {
+                "price": float(s["price"]),
+                "day_open": None,
+                "day_high": None,
+                "day_low": None,
+                "close_price": float(s["price"]),
+                "volume": None,
+                "timestamp": now,
+                "price_timestamp": ts,
+                "price_timestamp_str": ts.strftime("%Y-%m-%d %H:%M:%S"),
+                "source": self.source_name,
+            }
+        return out
+
+    async def get_company_metrics(self, ticker: str) -> Optional[Dict[str, Any]]:
+        """
+        Polygon client does not provide fundamental 'metrics' in this wrapper.
+        Return a safe sentinel so upstream code can handle it.
+        """
+        return {"not_found": True, "source": self.source_name}
+
+    async def get_historical_prices(
+        self,
+        ticker: str,
+        start_date: datetime,
+        end_date: Optional[datetime] = None
+    ) -> List[Dict[str, Any]]:
+        """
+        Historical daily OHLCV using Polygon aggregates.
+        Returns a list of dicts:
+        {
+          "date": date,
+          "timestamp": datetime,
+          "day_open": float|None,
+          "day_high": float|None,
+          "day_low": float|None,
+          "close_price": float,
+          "volume": int|None,
+          "source": "polygon"
+        }
+        """
+        if not ticker or not start_date:
+            return []
+
+        if end_date is None:
+            end_date = datetime.now(timezone.utc)
+
+        # Cache key includes date range
+        cache_key = f"history_{ticker.upper()}_{start_date.strftime('%Y%m%d')}_{end_date.strftime('%Y%m%d')}"
+        cached = self._get_from_cache(cache_key, "historical_prices")
+        if cached:
+            return cached
+
+        loop = asyncio.get_event_loop()
+        start_str = start_date.strftime("%Y-%m-%d")
+        end_str = end_date.strftime("%Y-%m-%d")
+
+        def _fetch_aggs() -> Any:
+            # 1 day bars
+            return self.client.get_aggs(
+                ticker=ticker.upper(),
+                multiplier=1,
+                timespan="day",
+                from_=start_str,
+                to=end_str,
+                adjusted=True,
+                sort="asc",
+                limit=50000,  # generous
+            )
+
+        try:
+            aggs = await loop.run_in_executor(None, _fetch_aggs)
+        except Exception as e:
+            logger.error(f"Polygon aggregates fetch failed for {ticker}: {e}")
+            return []
+
+        results: List[Dict[str, Any]] = []
+        for a in aggs or []:
+            # fields: o,h,l,c,v,t (ms)
+            try:
+                ts = _to_dt(getattr(a, "timestamp", None) or getattr(a, "t", None))
+                if ts is None:
+                    continue
+                close_val = getattr(a, "close", None) or getattr(a, "c", None)
+                if close_val is None:
+                    continue
+
+                open_val = getattr(a, "open", None) or getattr(a, "o", None)
+                high_val = getattr(a, "high", None) or getattr(a, "h", None)
+                low_val = getattr(a, "low", None) or getattr(a, "l", None)
+                vol_val = getattr(a, "volume", None) or getattr(a, "v", None)
+
+                results.append({
+                    "date": ts.date(),
+                    "timestamp": ts,
+                    "day_open": float(open_val) if open_val is not None else None,
+                    "day_high": float(high_val) if high_val is not None else None,
+                    "day_low": float(low_val) if low_val is not None else None,
+                    "close_price": float(close_val),
+                    "volume": int(vol_val) if vol_val is not None else None,
+                    "source": self.source_name,
+                })
+            except Exception as row_err:
+                logger.warning(f"Polygon aggs row parse error for {ticker}: {row_err}")
+
+        # Cache and return
+        self._set_in_cache(cache_key, "historical_prices", results)
+        return results

@@ -15,6 +15,10 @@ from typing import Dict, Optional
 from uuid import UUID
 from enum import Enum
 
+# existing imports...
+
+logger = logging.getLogger("main")
+
 # Third-party imports
 import bcrypt
 import jwt  # your app JWT (HS256) issuer
@@ -23,7 +27,7 @@ import statistics
 import sqlalchemy
 from decimal import Decimal
 from dotenv import load_dotenv
-from fastapi import FastAPI, Depends, HTTPException, status, Query, File, UploadFile, Form, Response, BackgroundTasks, Request, Body
+from fastapi import FastAPI, Depends, HTTPException, APIRouter, status, Query, File, UploadFile, Form, Response, BackgroundTasks, Request, Body
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
@@ -78,6 +82,8 @@ from backend.api_clients.polygon_client import PolygonClient
 from backend.auth_clerk import router as auth_router
 from backend.core_db import database, users
 from backend.webhooks_clerk import router as clerk_webhook_router
+from backend.api_clients.alphavantage_client import AlphaVantageClient
+
 
 
 # Initialize Database Connection
@@ -2440,6 +2446,52 @@ async def polygon_sync_list(
         logger.error(f"Polygon list sync error: {e}")
         import traceback; logger.error(traceback.format_exc())
         raise HTTPException(status_code=500, detail=f"Polygon list sync failed: {e}")
+
+# --- Alpha Vantage: Universe Sync ---
+@app.post("/alphavantage/sync-universe")
+async def av_sync_universe():
+    """
+    Fetch Alpha Vantage LISTING_STATUS (active US listings) and upsert NEW tickers into securities
+    with av_* metadata. Does not overwrite existing Yahoo/Polygon fields.
+    """
+    event_id = await record_system_event(database, "alphavantage_universe_sync", "started", {"description": "AV universe sync (active)"})
+    try:
+        client = AlphaVantageClient()
+        result = await client.sync_universe_into_db(database)
+        await client.aclose()
+        await update_system_event(database, event_id, "completed", result)
+        return {"success": True, **result, "event_id": str(event_id)}
+    except Exception as e:
+        logger.error(f"AV universe sync failed: {e}")
+        await update_system_event(database, event_id, "failed", {"error": str(e)})
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"AV universe sync failed: {e}")
+
+# --- Alpha Vantage: Bulk Price Updates ---
+@app.post("/alphavantage/update-prices")
+async def av_update_prices(limit_symbols: int = 1000):
+    event_id = await record_system_event(
+        database,
+        "alphavantage_bulk_price_update",
+        "started",
+        {"description": f"AV bulk price update, limit={limit_symbols}"}
+    )
+
+    async def _run():
+        try:
+            client = AlphaVantageClient()
+            updated, attempted = await client.update_prices_for_active(database, limit_symbols=limit_symbols)
+            await client.aclose()
+            await update_system_event(database, event_id, "completed", {
+                "updated_count": updated, "attempted_count": attempted
+            })
+        except Exception as e:
+            logger.error(f"AV bulk price update failed: {e}")
+            await update_system_event(database, event_id, "failed", {"error": str(e)})
+
+    asyncio.create_task(_run())
+    return {"success": True, "status": "processing", "event_id": str(event_id)}
+
+
 
 # ----- POSITION MANAGEMENT  -----
 # INCLUDES POSTIONS, CASH, METALS, CRYPTO, REAL ESTATE
