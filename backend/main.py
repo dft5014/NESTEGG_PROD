@@ -2491,7 +2491,60 @@ async def av_update_prices(limit_symbols: int = 1000):
     asyncio.create_task(_run())
     return {"success": True, "status": "processing", "event_id": str(event_id)}
 
+@app.post("/alphavantage/update-overviews")
+async def update_alphavantage_overviews(limit: int = 5):
+    """
+    Update company metrics for a small batch of tickers using Alpha Vantage OVERVIEW.
+    Selection: first `limit` (default 5) tickers from `security_usage` where metrics_status='Requires Updating'.
+    Writes into `securities` (company_name, sector, industry, market_cap, pe_ratio, forward_pe,
+    dividend_rate, dividend_yield, beta, 52w metrics, eps, last_metrics_update, metrics_source='alpha_vantage').
 
+    Returns a simple summary dict.
+    """
+    try:
+        # Optional: record a system event like your other flows
+        event_id = await record_system_event(
+            database,
+            "alphavantage_overview_update",
+            "started",
+            {"description": f"Starting AV OVERVIEW metrics update for up to {limit} tickers"}
+        )
+
+        client = AlphaVantageClient()
+        logger.info(f"[AV] Overview API: kicking off batch (limit={limit})")
+        result = await client.update_company_overviews(database, limit_symbols=limit)
+        await client.aclose()
+
+        # Optional: mark event completed
+        await update_system_event(
+            database,
+            event_id,
+            "completed",
+            {**result, "limit": limit}
+        )
+
+        return {
+            "success": True,
+            "message": "Alpha Vantage overview update completed",
+            "limit": limit,
+            **result,
+            "event_id": str(event_id)
+        }
+
+    except Exception as e:
+        logger.error(f"[AV] Overview API failed: {repr(e)}")
+        # Optional: event fail update
+        if 'event_id' in locals():
+            await update_system_event(
+                database,
+                event_id,
+                "failed",
+                {"error": str(e)}
+            )
+        raise HTTPException(
+            status_code=500,
+            detail=f"Alpha Vantage overview update failed: {str(e)}"
+        )
 
 # ----- POSITION MANAGEMENT  -----
 # INCLUDES POSTIONS, CASH, METALS, CRYPTO, REAL ESTATE

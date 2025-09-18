@@ -145,7 +145,7 @@ class PolygonClient:
         url = REF_TICKERS_V3
         pages = 0
 
-        async with httpx.AsyncClient(timeout=HTTP_TIMEOUT, headers=HTTP_HEADERS, http2=True) as client:
+        async with httpx.AsyncClient(timeout=HTTP_TIMEOUT, headers=HTTP_HEADERS) as client:
             while url and pages < max_pages:
                 resp = await _get_with_retry(client, url, params=params)
                 params = None  # subsequent calls follow next_url which already has query
@@ -173,7 +173,7 @@ class PolygonClient:
         One-shot fetch of the entire equities snapshot (v2). Large but fast on Polygon.
         Manages its own AsyncClient and retries.
         """
-        async with httpx.AsyncClient(timeout=HTTP_TIMEOUT, headers=HTTP_HEADERS, http2=True) as client:
+        async with httpx.AsyncClient(timeout=HTTP_TIMEOUT, headers=HTTP_HEADERS) as client:
             resp = await _get_with_retry(client, SNAPSHOT_V2, params={"apiKey": self.api_key})
             try:
                 payload = resp.json()

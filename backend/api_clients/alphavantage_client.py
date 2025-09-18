@@ -529,12 +529,165 @@ class AlphaVantageClient:
         logger.info(f"[AV] PriceUpdate: completed updated={updated}, attempted={len(symbols)}, disabled={len(disable_rows)}")
         return (updated, len(symbols))
 
-    # ---------- 3) Placeholder for Overview ----------------------------------
+    # ---------- 3) Company Overview (per-symbol + batch update) --------------
 
     async def get_company_overview(self, symbol: str) -> Dict:
+        """
+        Fetch Alpha Vantage 'OVERVIEW' for a single symbol.
+        Returns raw JSON dict (Alpha Vantage field casing).
+        """
         params = {"function": "OVERVIEW", "symbol": symbol}
         resp = await self._get(params)
-        return resp.json()
+        data = resp.json()
+        # Surface Note / Error in logs for visibility
+        if isinstance(data, dict) and any(k in data for k in ("Note", "Information", "Error Message")):
+            logger.warning(f"[AV] OVERVIEW Note/Error for {symbol}: "
+                           f"{data.get('Note') or data.get('Information') or data.get('Error Message')}")
+        return data
 
-    async def aclose(self):
-        await self._client.aclose()
+    async def _select_symbols_for_overview(self, database, limit_symbols: int = 5) -> List[str]:
+        """
+        Choose up to `limit_symbols` tickers whose metrics need updating, in a
+        way that tends to be AV-friendly and predictable.
+        """
+        sql = """
+            SELECT u.ticker
+            FROM security_usage u
+            LEFT JOIN securities s ON s.ticker = u.ticker
+            WHERE u.metrics_status = 'Requires Updating'
+              AND COALESCE(s.active, TRUE)
+              -- focus on US equities/ETFs for the overview endpoint
+              AND COALESCE(s.av_asset_type, s.asset_type, 'security') IN ('Stock','ETF','security')
+              AND u.ticker NOT LIKE '^%%'       -- no indices
+              AND u.ticker NOT LIKE '%%=F'      -- no futures
+              AND u.ticker NOT LIKE '%%-USD'    -- no crypto pairs
+              AND u.ticker NOT LIKE '%%.%%'     -- no foreign suffixes
+              AND u.ticker NOT LIKE '%%-%%'     -- exclude units/warrants tickers like XYZ-U/XYZ-WS
+            ORDER BY COALESCE(s.last_metrics_update, '1970-01-01'::timestamp) ASC,
+                     COALESCE(s.last_updated, '1970-01-01'::timestamp) ASC
+            LIMIT :lim
+        """
+        rows = await database.fetch_all(sql, {"lim": limit_symbols})
+        syms = [ (r["ticker"] or "").strip().upper() for r in rows if r["ticker"] ]
+        logger.info(f"[AV] OverviewSelect: {len(syms)} symbols (limit={limit_symbols}). Sample: {syms[:5]}")
+        return syms
+
+    def _map_overview_to_update_values(self, sym: str, ov: Dict, now: datetime) -> Dict:
+        """
+        Normalize AV Overview payload into our securities columns.
+        We *don’t* overwrite prices here—this is a fundamentals/metrics update.
+        """
+        # AV uses strings for numerics. Coerce gently.
+        def f(key, alt=None):  # float
+            return _to_float(ov.get(key) if alt is None else ov.get(key, ov.get(alt)))
+        def s(key, alt=None):  # string
+            return (ov.get(key) if alt is None else ov.get(key, ov.get(alt))) or None
+
+        fifty_two_low  = f("52WeekLow")
+        fifty_two_high = f("52WeekHigh")
+        fifty_two_range = f"{fifty_two_low}-{fifty_two_high}" if (fifty_two_low is not None and fifty_two_high is not None) else None
+
+        return {
+            "ticker": sym,
+            "company_name": s("Name"),
+            "sector": s("Sector"),
+            "industry": s("Industry"),
+            "market_cap": f("MarketCapitalization"),
+            "pe_ratio": f("PERatio") or f("TrailingPE"),
+            "forward_pe": f("ForwardPE"),
+            "dividend_rate": f("DividendPerShare"),
+            "dividend_yield": f("DividendYield"),
+            "beta": f("Beta"),
+            "fifty_two_week_low": fifty_two_low,
+            "fifty_two_week_high": fifty_two_high,
+            "fifty_two_week_range": fifty_two_range,
+            "eps": f("DilutedEPSTTM") or f("EPS"),
+            "forward_eps": None,   # not present in Overview; keep for future sources
+            "updated_at": now,
+        }
+
+    async def update_company_overviews(self, database, limit_symbols: int = 5) -> Dict[str, int]:
+        """
+        Pull Alpha Vantage OVERVIEW for a small batch (default 5) of tickers that
+        have metrics_status='Requires Updating' and upsert metrics into `securities`.
+
+        Writes:
+          - company_name, sector, industry
+          - market_cap, pe_ratio, forward_pe
+          - dividend_rate, dividend_yield, beta
+          - fifty_two_week_low, fifty_two_week_high, fifty_two_week_range
+          - eps, forward_eps (None here)
+          - last_metrics_update, last_updated, metrics_source='alpha_vantage'
+
+        Returns: {"attempted": N, "updated": M, "skipped": K, "failed": F}
+        """
+        symbols = await self._select_symbols_for_overview(database, limit_symbols=limit_symbols)
+        if not symbols:
+            logger.info("[AV] OverviewUpdate: no symbols found requiring metrics update.")
+            return {"attempted": 0, "updated": 0, "skipped": 0, "failed": 0}
+
+        logger.info(f"[AV] OverviewUpdate: starting for {len(symbols)} symbols.")
+        now = datetime.utcnow()  # naive to match `timestamp without time zone` columns
+
+        updated = 0
+        skipped = 0
+        failed  = 0
+        rows_to_update = []
+
+        # Fetch serially (still rate-limited by _get); this keeps logs clean and respects rpm.
+        for sym in symbols:
+            try:
+                ov = await self.get_company_overview(sym)
+                # If AV responded with Note/Error or empty payload, skip gracefully
+                if not ov or "Symbol" not in ov:
+                    logger.warning(f"[AV] OVERVIEW empty/unexpected payload for {sym}; skipping.")
+                    skipped += 1
+                    continue
+
+                mapped = self._map_overview_to_update_values(sym, ov, now)
+                rows_to_update.append(mapped)
+            except Exception as e:
+                failed += 1
+                logger.error(f"[AV] OVERVIEW fetch failed for {sym}: {repr(e)}")
+
+        # Apply updates in batch if we have any
+        if rows_to_update:
+            sql = """
+                UPDATE securities
+                   SET company_name         = :company_name,
+                       sector               = :sector,
+                       industry             = :industry,
+                       market_cap           = :market_cap,
+                       pe_ratio             = :pe_ratio,
+                       forward_pe           = :forward_pe,
+                       dividend_rate        = :dividend_rate,
+                       dividend_yield       = :dividend_yield,
+                       beta                 = :beta,
+                       fifty_two_week_low   = :fifty_two_week_low,
+                       fifty_two_week_high  = :fifty_two_week_high,
+                       fifty_two_week_range = :fifty_two_week_range,
+                       eps                  = :eps,
+                       forward_eps          = :forward_eps,
+                       last_metrics_update  = :updated_at,
+                       last_updated         = :updated_at,
+                       metrics_source       = 'alpha_vantage'
+                 WHERE ticker = :ticker
+            """
+            try:
+                await database.execute_many(sql, rows_to_update)
+                updated = len(rows_to_update)
+                logger.info(f"[AV] OverviewUpdate: batch UPDATE applied for {updated} tickers.")
+            except Exception as e:
+                logger.error(f"[AV] OverviewUpdate: batch UPDATE failed; falling back per-row. err={repr(e)}")
+                updated = 0
+                for row in rows_to_update:
+                    try:
+                        await database.execute(sql, row)
+                        updated += 1
+                    except Exception as e2:
+                        failed += 1
+                        logger.error(f"[AV] OverviewUpdate: per-row UPDATE failed for {row['ticker']}: {repr(e2)}")
+
+        logger.info(f"[AV] OverviewUpdate: completed attempted={len(symbols)}, updated={updated}, skipped={skipped}, failed={failed}")
+        return {"attempted": len(symbols), "updated": updated, "skipped": skipped, "failed": failed}
+
