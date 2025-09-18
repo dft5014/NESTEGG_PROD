@@ -2,6 +2,7 @@
 import os
 import logging
 from typing import Dict, Iterable, List, Optional, Set, Any
+from datetime import datetime, timezone
 
 import httpx
 
@@ -112,7 +113,8 @@ class PolygonClient:
                 # Can't form a sensible reading; skip
                 continue
 
-            out[sym] = {"price": float(price), "timestamp": int(ts_ms)}
+            ts_dt = datetime.fromtimestamp(int(ts_ms) / 1000.0, tz=timezone.utc)
+            out[sym] = {"price": float(price), "timestamp": ts_dt}
 
         return out
 

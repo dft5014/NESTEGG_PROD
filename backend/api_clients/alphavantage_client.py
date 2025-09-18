@@ -99,6 +99,13 @@ class AlphaVantageClient:
         self.rate = AlphaVantageRateLimiter(rpm=rpm, concurrent=concurrent)
         self._client = httpx.AsyncClient(timeout=self.timeout)
 
+    async def aclose(self):
+        """Close the underlying HTTP client (call from main.py in a finally block)."""
+        try:
+            await self._client.aclose()
+        except Exception as e:
+            logger.warning(f"[AV] aclose() warning: {e}")
+
     async def _get(self, params: Dict[str, str]) -> httpx.Response:
         await self.rate.throttle()
         r = await self._client.get(ALPHA_VANTAGE_BASE, params={**params, "apikey": self.api_key})
@@ -606,7 +613,7 @@ class AlphaVantageClient:
             "updated_at": now,
         }
 
-    async def update_company_overviews(self, database, limit_symbols: int = 5) -> Dict[str, int]:
+    async def update_company_overviews(self, database, limit_symbols: int = 5, symbols_override: Optional[List[str]] = None) -> Dict[str, int]:
         """
         Pull Alpha Vantage OVERVIEW for a small batch (default 5) of tickers that
         have metrics_status='Requires Updating' and upsert metrics into `securities`.
@@ -621,7 +628,8 @@ class AlphaVantageClient:
 
         Returns: {"attempted": N, "updated": M, "skipped": K, "failed": F}
         """
-        symbols = await self._select_symbols_for_overview(database, limit_symbols=limit_symbols)
+        symbols = [s.strip().upper() for s in symbols_override if s] if symbols_override else \
+          await self._select_symbols_for_overview(database, limit_symbols=limit_symbols)
         if not symbols:
             logger.info("[AV] OverviewUpdate: no symbols found requiring metrics update.")
             return {"attempted": 0, "updated": 0, "skipped": 0, "failed": 0}

@@ -2511,9 +2511,15 @@ async def update_alphavantage_overviews(limit: int = 5):
         )
 
         client = AlphaVantageClient()
-        logger.info(f"[AV] Overview API: kicking off batch (limit={limit})")
-        result = await client.update_company_overviews(database, limit_symbols=limit)
-        await client.aclose()
+        try:
+            logger.info(f"[AV] Overview API: kicking off batch (limit={limit})")
+            # quick sanity test: override with known large-caps
+            # result = await client.update_company_overviews(database, limit_symbols=limit)
+            result = await client.update_company_overviews(database, limit_symbols=limit, symbols_override=["IBM","MSFT","AAPL","BAC","DOMO"])
+
+        finally:
+            # always close the httpx client
+            await client.aclose()
 
         # Optional: mark event completed
         await update_system_event(
