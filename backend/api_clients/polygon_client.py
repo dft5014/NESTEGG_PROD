@@ -16,11 +16,12 @@ BASE = "https://api.polygon.io"
 SNAPSHOT_V2 = f"{BASE}/v2/snapshot/locale/us/markets/stocks/tickers"
 REF_TICKERS_V3 = f"{BASE}/v3/reference/tickers"
 
+# Keep HTTP/1.1 to avoid httpx[http2]/h2 dependency in your current stack
 HTTP_TIMEOUT = httpx.Timeout(connect=5.0, read=45.0, write=5.0, pool=5.0)
 HTTP_HEADERS = {
     "Accept": "application/json",
     "Accept-Encoding": "gzip",
-    "User-Agent": "NestEgg-PolygonClient/1.1",
+    "User-Agent": "NestEgg-PolygonClient/1.2",
 }
 
 
@@ -28,7 +29,7 @@ class PolygonClient:
     """
     Lightweight async client for Polygon REST.
 
-    Public methods (match your main.py usage):
+    Public methods (match main.py usage):
       - get_snapshots_for(tickers: Iterable[str]) -> Dict[str, Dict[str, Any]]
       - list_reference_tickers(market: str, active_only: bool, types: Optional[List[str]],
                                limit: int, max_pages: int) -> List[Dict[str, Any]]
@@ -45,19 +46,21 @@ class PolygonClient:
     async def get_snapshots_for(self, tickers: Iterable[str]) -> Dict[str, Dict[str, Any]]:
         """
         Fetch the full-market snapshot once, filter to requested tickers (case-insensitive),
-        and return {ticker: {"price": float, "timestamp": int_ms}}.
+        and return {ticker: {"price": float, "timestamp": datetime_utc}}.
 
         Price priority:
-          1) lastTrade.p (if present)
+          1) lastTrade.p
           2) min.c (latest 1-minute bar close)
           3) day.c (day bar close-so-far)
+          4) prevDay.c (last resort for halted/zeroed day/min)
 
-        Timestamp priority (ms since epoch):
-          1) lastTrade.t (ns -> ms) if we used lastTrade.p
-          2) min.t (already ms) if we used min.c
-          3) updated (ns -> ms) as a general fallback
+        Timestamp priority (ms since epoch to datetime UTC):
+          1) lastTrade.t (ns -> ms)
+          2) min.t (ms)
+          3) updated (ns -> ms)
+          4) NOW() UTC (final fallback so we don't drop otherwise-valid prices)
         """
-        want: Set[str] = {t.upper() for t in tickers if t}
+        want: Set[str] = {str(t).strip().upper() for t in tickers if t}
         if not want:
             return {}
 
@@ -68,33 +71,40 @@ class PolygonClient:
             return {}
 
         out: Dict[str, Dict[str, Any]] = {}
+        seen = 0
+        updated = 0
+        skipped_price = []
+        skipped_ts = []
+
         for item in rows:
             sym = str(item.get("ticker") or "").upper()
             if sym not in want:
                 continue
+            seen += 1
 
             last_trade = item.get("lastTrade") or {}
-            min_bar = item.get("min") or {}
-            day_bar = item.get("day") or {}
+            min_bar    = item.get("min") or {}
+            day_bar    = item.get("day") or {}
+            prev_day   = item.get("prevDay") or {}
 
-            price = None
-            ts_ms = None
+            price: Optional[float] = None
+            ts_ms: Optional[int] = None
 
-            # 1) lastTrade.p
+            # 1) lastTrade.p (and t ns)
             lt_price = _safe_float(last_trade.get("p"))
-            lt_t = _safe_int(last_trade.get("t"))  # ns
+            lt_t     = _safe_int(last_trade.get("t"))  # ns
             if lt_price is not None:
                 price = lt_price
-                if lt_t and lt_t > 1e12:
+                if lt_t and lt_t > 1_000_000_000_000:
                     ts_ms = int(lt_t // 1_000_000)
 
-            # 2) min.c (if we didn’t get a usable last trade)
+            # 2) min.c (and t ms)
             if price is None:
                 m_close = _safe_float(min_bar.get("c"))
-                m_t = _safe_int(min_bar.get("t"))  # ms
+                m_t     = _safe_int(min_bar.get("t"))  # ms
                 if m_close is not None:
                     price = m_close
-                    if m_t:
+                    if m_t and m_t > 0:
                         ts_ms = m_t
 
             # 3) day.c
@@ -103,18 +113,42 @@ class PolygonClient:
                 if d_close is not None:
                     price = d_close
 
-            # Fallback timestamp: 'updated' (ns -> ms)
+            # 4) prevDay.c
+            if price is None:
+                pd_close = _safe_float(prev_day.get("c"))
+                if pd_close is not None:
+                    price = pd_close
+
+            # Timestamp fallbacks
             if ts_ms is None:
-                updated_ns = _safe_int(item.get("updated"))
-                if updated_ns and updated_ns > 1e12:
+                updated_ns = _safe_int(item.get("updated"))  # ns
+                if updated_ns and updated_ns > 1_000_000_000_000:
                     ts_ms = int(updated_ns // 1_000_000)
 
-            if price is None or ts_ms is None:
-                # Can't form a sensible reading; skip
+            # Final timestamp fallback: NOW UTC if we do have a price
+            if ts_ms is None and price is not None:
+                ts_ms = int(datetime.now(tz=timezone.utc).timestamp() * 1000)
+
+            if price is None:
+                skipped_price.append(sym)
+                continue
+            if ts_ms is None:
+                skipped_ts.append(sym)
                 continue
 
             ts_dt = datetime.fromtimestamp(int(ts_ms) / 1000.0, tz=timezone.utc)
             out[sym] = {"price": float(price), "timestamp": ts_dt}
+            updated += 1
+
+        # Diagnostics (client-side) — shows up in backend logs
+        logger.info(
+            f"[PolygonClient] requested={len(want)} seen_in_snapshot={seen} "
+            f"updated={updated} skipped_price={len(skipped_price)} skipped_ts={len(skipped_ts)}"
+        )
+        if skipped_price:
+            logger.info(f"[PolygonClient] skipped_price sample: {skipped_price[:20]}")
+        if skipped_ts:
+            logger.info(f"[PolygonClient] skipped_ts sample: {skipped_ts[:20]}")
 
         return out
 
@@ -173,7 +207,6 @@ class PolygonClient:
     async def _get_full_market_snapshot(self) -> Dict[str, Any]:
         """
         One-shot fetch of the entire equities snapshot (v2). Large but fast on Polygon.
-        Manages its own AsyncClient and retries.
         """
         async with httpx.AsyncClient(timeout=HTTP_TIMEOUT, headers=HTTP_HEADERS) as client:
             resp = await _get_with_retry(client, SNAPSHOT_V2, params={"apiKey": self.api_key})
@@ -195,7 +228,6 @@ async def _get_with_retry(
 ) -> httpx.Response:
     """
     Simple retry with exponential backoff. Raises on non-2xx.
-    Note: Polygon often returns 200 with a JSON 'status' field; transport/HTTP errors handled here.
     """
     last_exc: Optional[Exception] = None
     for attempt in range(retries):

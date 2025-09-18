@@ -2492,17 +2492,24 @@ async def av_update_prices(limit_symbols: int = 1000):
     return {"success": True, "status": "processing", "event_id": str(event_id)}
 
 @app.post("/alphavantage/update-overviews")
-async def update_alphavantage_overviews(limit: int = 5):
+async def update_alphavantage_overviews(limit: int = 50):
     """
-    Update company metrics for a small batch of tickers using Alpha Vantage OVERVIEW.
-    Selection: first `limit` (default 5) tickers from `security_usage` where metrics_status='Requires Updating'.
-    Writes into `securities` (company_name, sector, industry, market_cap, pe_ratio, forward_pe,
-    dividend_rate, dividend_yield, beta, 52w metrics, eps, last_metrics_update, metrics_source='alpha_vantage').
+    Update company metrics for a batch of tickers using Alpha Vantage OVERVIEW.
 
-    Returns a simple summary dict.
+    Selection:
+      - Up to `limit` tickers (default 50) from `security_usage`
+      - Ordered by metrics_age_minutes DESC (oldest first); NULL treated as *very old* (so comes first)
+      - (AV-friendly filters handled in the client)
+
+    Writes to `securities`:
+      company_name, sector, industry,
+      market_cap, pe_ratio, forward_pe,
+      dividend_rate, dividend_yield, beta,
+      fifty_two_week_low, fifty_two_week_high, fifty_two_week_range,
+      eps, forward_eps (None), last_metrics_update, last_updated,
+      metrics_source='alpha_vantage'.
     """
     try:
-        # Optional: record a system event like your other flows
         event_id = await record_system_event(
             database,
             "alphavantage_overview_update",
@@ -2513,15 +2520,10 @@ async def update_alphavantage_overviews(limit: int = 5):
         client = AlphaVantageClient()
         try:
             logger.info(f"[AV] Overview API: kicking off batch (limit={limit})")
-            # quick sanity test: override with known large-caps
-            # result = await client.update_company_overviews(database, limit_symbols=limit)
-            result = await client.update_company_overviews(database, limit_symbols=limit, symbols_override=["IBM","MSFT","AAPL","BAC","DOMO"])
-
+            result = await client.update_company_overviews(database, limit_symbols=limit)
         finally:
-            # always close the httpx client
             await client.aclose()
 
-        # Optional: mark event completed
         await update_system_event(
             database,
             event_id,
@@ -2534,12 +2536,11 @@ async def update_alphavantage_overviews(limit: int = 5):
             "message": "Alpha Vantage overview update completed",
             "limit": limit,
             **result,
-            "event_id": str(event_id)
+            "event_id": str(event_id),
         }
 
     except Exception as e:
         logger.error(f"[AV] Overview API failed: {repr(e)}")
-        # Optional: event fail update
         if 'event_id' in locals():
             await update_system_event(
                 database,
