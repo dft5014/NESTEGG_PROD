@@ -2356,7 +2356,7 @@ async def polygon_sync_prices():
                 SET price_polygon = :price_polygon,
                     price_polygon_timestamp = :price_polygon_timestamp,
                     on_polygon = TRUE
-                    price = :price_polygon,
+                    current_price = :price_polygon,
                     price_timestamp = :price_polygon_timestamp
                 WHERE ticker = :ticker
                 """,
