@@ -68,23 +68,61 @@ class AlphaVantageClient:
         """
         params = {"function": "LISTING_STATUS", "state": state}
         resp = await self._get(params, expect_csv=True)
-        text = resp.text
+        logger.info(f"[AV] LISTING_STATUS raw (first 300): {resp.text[:300]!r}")
+        text = resp.text or ""
 
-        # Parse CSV robustly
+        # If AV sent JSON (rate limit / error), surface it clearly
+        if text.lstrip().startswith("{"):
+            try:
+                j = resp.json()
+                note = j.get("Note") or j.get("Information")
+                err  = j.get("Error Message")
+                if note or err:
+                    raise RuntimeError(f"Alpha Vantage LISTING_STATUS returned JSON: {note or err}")
+            except Exception:
+                # Not valid JSON; continue to CSV parse
+                pass
+
+        # CSV parse
         reader = csv.DictReader(io.StringIO(text))
-        rows = []
-        for row in reader:
-            # Normalize field names just in case
-            rows.append({
-                "symbol": row.get("symbol"),
-                "name": row.get("name"),
-                "exchange": row.get("exchange"),
-                "assetType": row.get("assetType"),
-                "ipoDate": row.get("ipoDate"),
-                "delistingDate": row.get("delistingDate"),
-                "status": row.get("status"),
-            })
-        logger.info(f"[AV] LISTING_STATUS({state}) rows: {len(rows)}")
+        rows = [ 
+            {
+            "symbol": r.get("symbol"),
+            "name": r.get("name"),
+            "exchange": r.get("exchange"),
+            "assetType": r.get("assetType"),
+            "ipoDate": r.get("ipoDate"),
+            "delistingDate": r.get("delistingDate"),
+            "status": r.get("status"),
+            }
+            for r in reader
+        ]
+
+        if not rows:
+            # Retry once without the state filter in case of an AV-side quirk
+            logger.warning("[AV] LISTING_STATUS(state=active) returned 0 rows; retrying without state")
+            resp2 = await self._get({"function": "LISTING_STATUS"}, expect_csv=True)
+            text2 = resp2.text or ""
+            if text2.lstrip().startswith("{"):
+                try:
+                    j2 = resp2.json()
+                    note = j2.get("Note") or j2.get("Information")
+                    err  = j2.get("Error Message")
+                    raise RuntimeError(f"Alpha Vantage LISTING_STATUS retry returned JSON: {note or err}")
+                except Exception:
+                    pass
+            reader2 = csv.DictReader(io.StringIO(text2))
+            rows = [{
+                "symbol": r.get("symbol"),
+                "name": r.get("name"),
+                "exchange": r.get("exchange"),
+                "assetType": r.get("assetType"),
+                "ipoDate": r.get("ipoDate"),
+                "delistingDate": r.get("delistingDate"),
+                "status": r.get("status"),
+            } for r in reader2]
+
+        logger.info(f"[AV] LISTING_STATUS rows parsed: {len(rows)}")
         return rows
 
     async def sync_universe_into_db(self, database) -> Dict[str, int]:
