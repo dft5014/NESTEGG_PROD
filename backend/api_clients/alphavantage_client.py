@@ -4,7 +4,7 @@ import csv
 import io
 import asyncio
 import logging
-from datetime import datetime, timezone, date
+from datetime import datetime, timezone, date as _date
 from typing import Dict, List, Tuple, Optional
 
 import httpx
@@ -47,6 +47,23 @@ def _to_int(x) -> Optional[int]:
     except Exception:
         return None
 
+def _parse_ts_or_date_to_aware_utc(x):
+    if not x:
+        return None
+    if isinstance(x, datetime):
+        return x if x.tzinfo else x.replace(tzinfo=timezone.utc)
+    if isinstance(x, _date):
+        return datetime(x.year, x.month, x.day, tzinfo=timezone.utc)
+    s = str(x).strip()
+    for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%dT%H:%M:%S", "%Y-%m-%d"):
+        try:
+            dt = datetime.strptime(s, fmt)
+            if fmt == "%Y-%m-%d":
+                return datetime(dt.year, dt.month, dt.day, tzinfo=timezone.utc)
+            return dt.replace(tzinfo=timezone.utc)
+        except ValueError:
+            continue
+    return None
 # ---- Rate Limiter ------------------------------------------------------------
 
 class AlphaVantageRateLimiter:
@@ -256,13 +273,13 @@ class AlphaVantageClient:
             price = item.get("price") or item.get("05. price") or item.get("current_price")
             prev_close = item.get("previous_close") or item.get("08. previous close")
             volume = item.get("volume") or item.get("06. volume")
-            ts = item.get("timestamp") or item.get("07. latest trading day")
+            ts_raw = item.get("timestamp") or item.get("07. latest trading day")
 
             out[sym] = {
                 "price": _to_float(price),
                 "previous_close": _to_float(prev_close),
                 "volume": _to_int(volume),
-                "price_timestamp": ts,
+                "price_timestamp": _parse_ts_or_date_to_aware_utc(ts_raw),
             }
         return out
 
@@ -325,7 +342,7 @@ class AlphaVantageClient:
         data = await self.bulk_quotes(symbols, quote_batch_size=quote_batch_size, max_concurrent_batches=max_concurrent_batches)
 
         updated = 0
-        now = datetime.now(timezone.utc)
+        now = datetime.utcnow()
 
         # Use execute_many for the common success path to reduce round trips
         update_rows = []
@@ -351,7 +368,7 @@ class AlphaVantageClient:
                        SET av_price            = :price,
                            av_price_timestamp  = :ts,
                            on_alphavantage     = TRUE,
-                           last_updated        = :now
+                           last_updated        = :now::timestamp
                      WHERE ticker = :ticker
                     """,
                     update_rows,
@@ -369,7 +386,7 @@ class AlphaVantageClient:
                                SET av_price            = :price,
                                    av_price_timestamp  = :ts,
                                    on_alphavantage     = TRUE,
-                                   last_updated        = :now
+                                   last_updated        = :now::timestamp
                              WHERE ticker = :ticker
                             """,
                             row,
@@ -384,7 +401,7 @@ class AlphaVantageClient:
                     """
                     UPDATE securities
                        SET on_alphavantage = FALSE,
-                           last_updated    = :now
+                           last_updated    = :now::timestamp
                      WHERE ticker = :ticker
                     """,
                     disable_rows,
@@ -394,7 +411,7 @@ class AlphaVantageClient:
                 for row in disable_rows:
                     try:
                         await database.execute(
-                            "UPDATE securities SET on_alphavantage = FALSE, last_updated = :now WHERE ticker = :ticker",
+                            "UPDATE securities SET on_alphavantage = FALSE, last_updated = :now::timestamp WHERE ticker = :ticker",
                             row,
                         )
                     except Exception as e2:
