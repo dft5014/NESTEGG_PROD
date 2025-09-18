@@ -1,11 +1,15 @@
 """
-Polygon market data client using official SDK + REST.
-- Full-market snapshots (SDK) for prices, filtered to our tickers.
-- Reference tickers (REST v3) to backfill new tickers into 'securities'.
+Polygon market data client using the official SDK + REST (v3).
+
+Capabilities:
+- Full-market snapshots for prices (filtered to our tickers).
+- Reference tickers listing to backfill 'securities'.
 
 Docs:
-- Full market snapshot: /v2/snapshot/locale/us/markets/stocks/tickers
-- List tickers (v3):    /v3/reference/tickers
+- Full market snapshot:
+  https://polygon.io/docs/rest/stocks/snapshots/full-market-snapshot
+- List tickers (v3):
+  https://polygon.io/docs/stocks/get_v3_reference_tickers
 """
 import os
 import logging
@@ -14,8 +18,16 @@ from datetime import datetime, timezone
 from typing import Dict, List, Optional, Any, Iterable
 
 import requests
-from polygon import RESTClient
-from polygon.rest.models import TickerSnapshot
+
+# Robust import: requires pip package "polygon-api-client"
+# NOTE: PyPI package name is polygon-api-client, but the module is imported as "polygon".
+try:
+    from polygon import RESTClient  # provided by polygon-api-client
+except Exception as e:
+    raise RuntimeError(
+        "Polygon SDK unavailable. Install 'polygon-api-client' in requirements.txt "
+        "and ensure POLYGON_API_KEY is set."
+    ) from e
 
 from backend.api_clients.data_source_interface import MarketDataSource
 
@@ -42,15 +54,25 @@ def _to_dt(ts: Optional[int]) -> Optional[datetime]:
 
 
 class PolygonClient(MarketDataSource):
+    """
+    Thin wrapper around Polygon's SDK/REST that returns
+    simple Python dicts our services can consume.
+    """
+
     def __init__(self, api_key: Optional[str] = None):
         self.api_key = api_key or os.getenv("POLYGON_API_KEY")
         if not self.api_key:
             raise RuntimeError("POLYGON_API_KEY not set")
+
+        # Blocking SDK; we'll run calls in a thread via run_in_executor
         self.client = RESTClient(self.api_key)
+
+        # For v3 REST calls (reference listings)
         self.session = requests.Session()
         self.session.headers.update({"Accept": "application/json"})
         self.base_v3 = "https://api.polygon.io/v3"
 
+    # ---- required by MarketDataSource interface ----
     @property
     def source_name(self) -> str:
         return "polygon"
@@ -59,27 +81,36 @@ class PolygonClient(MarketDataSource):
     def daily_call_limit(self) -> Optional[int]:
         return None
 
-    # ---------- PRICES (snapshots) ----------
+    # ------------------------------------------------
+    # Prices via full-market snapshots
+    # ------------------------------------------------
 
-    def _pick_price_and_ts(self, snap: TickerSnapshot) -> (Optional[float], Optional[datetime]):
+    def _pick_price_and_ts(self, snap: Any) -> (Optional[float], Optional[datetime]):
         """
+        Choose a reasonable price/timestamp from a TickerSnapshot-like object.
+
         Preference:
           1) last_trade.price / timestamp
           2) mid(last_quote.bid_price, last_quote.ask_price) / timestamp
-          3) minute.close or day.close / timestamp
+          3) minute.close or day.close or prev_day.close / timestamp
           4) updated
         """
         price, ts = None, None
 
+        # last trade
         lt = getattr(snap, "last_trade", None)
         if lt:
             p = getattr(lt, "price", None) or getattr(lt, "p", None)
             if p is not None:
-                price = float(p)
+                try:
+                    price = float(p)
+                except Exception:
+                    price = None
                 ts = (getattr(lt, "sip_timestamp", None)
                       or getattr(lt, "participant_timestamp", None)
                       or getattr(lt, "t", None))
 
+        # last quote mid
         if price is None:
             lq = getattr(snap, "last_quote", None)
             if lq:
@@ -94,44 +125,61 @@ class PolygonClient(MarketDataSource):
                     except Exception:
                         price = None
 
+        # bars: minute -> day -> prev_day
         if price is None:
-            # try minute/day/prev_day bars
             for bar_attr in ("min", "minute", "day", "prev_day"):
                 bar = getattr(snap, bar_attr, None)
                 if bar:
                     close = getattr(bar, "close", None) or getattr(bar, "c", None)
                     if close is not None:
-                        price = float(close)
+                        try:
+                            price = float(close)
+                        except Exception:
+                            price = None
                         ts = getattr(bar, "timestamp", None) or getattr(bar, "t", None)
-                        break
+                        if price is not None:
+                            break
 
         if ts is None:
             ts = getattr(snap, "updated", None)
 
         return price, _to_dt(ts)
 
-    async def get_snapshots_for(self, tickers: List[str]) -> Dict[str, Dict[str, Any]]:
+    async def get_snapshots_for(
+        self,
+        tickers: List[str],
+        include_otc: bool = False,
+    ) -> Dict[str, Dict[str, Any]]:
         """
         Return {ticker: {price, timestamp, source}} for the given tickers.
-        If SDK supports 'tickers=' parameter on get_snapshot_all, we try it;
-        else we iterate full market and locally filter.
+
+        We attempt to use the SDK's `tickers=` filter (newer versions).
+        If unsupported, we fall back to streaming the whole market and filter locally.
         """
         if not tickers:
             return {}
-        want = set(t.upper() for t in tickers)
+
+        want = {t.upper() for t in tickers}
         out: Dict[str, Dict[str, Any]] = {}
         loop = asyncio.get_event_loop()
 
-        def _fetch_snapshots() -> Iterable[TickerSnapshot]:
+        def _fetch_snapshots() -> Iterable[Any]:
+            # try: with tickers & include_otc
             try:
-                # Try narrow snapshot (if SDK supports it); else fallback to full
-                return self.client.get_snapshot_all("stocks", tickers=",".join(list(want)[:900]))
+                return self.client.get_snapshot_all(
+                    "stocks",
+                    tickers=",".join(list(want)[:900]),
+                    include_otc=include_otc,
+                )
             except TypeError:
-                # Older SDKs don’t have 'tickers' arg — stream full market
-                return self.client.get_snapshot_all("stocks")
+                # try: include_otc only
+                try:
+                    return self.client.get_snapshot_all("stocks", include_otc=include_otc)
+                except TypeError:
+                    # fallback: no kwargs
+                    return self.client.get_snapshot_all("stocks")
 
         try:
-            # Materialize in a worker thread (SDK is blocking)
             snaps = await loop.run_in_executor(None, lambda: list(_fetch_snapshots()))
         except Exception as e:
             logger.error(f"Polygon get_snapshot_all failed: {e}")
@@ -139,19 +187,26 @@ class PolygonClient(MarketDataSource):
 
         for s in snaps:
             t = getattr(s, "ticker", None)
-            if not t or t.upper() not in want:
+            if not t:
+                continue
+            tu = t.upper()
+            if tu not in want:
+                # If we had to stream full market, skip unrequested tickers
                 continue
             price, dt = self._pick_price_and_ts(s)
             if price is None:
                 continue
-            out[t.upper()] = {
-                "price": price,
+            out[tu] = {
+                "price": float(price),
                 "timestamp": dt or datetime.now(timezone.utc),
                 "source": self.source_name,
             }
+
         return out
 
-    # ---------- REFERENCE TICKERS (v3) ----------
+    # ------------------------------------------------
+    # Reference listings via v3 REST (to backfill securities)
+    # ------------------------------------------------
 
     async def list_reference_tickers(
         self,
@@ -163,7 +218,10 @@ class PolygonClient(MarketDataSource):
     ) -> List[Dict[str, Any]]:
         """
         Page through /v3/reference/tickers and return a list of dicts:
-        {ticker, name, type, active, locale, market}
+          {ticker, name, type, active, locale, market}
+
+        - Keeps apiKey across `next_url` pages.
+        - Basic 429 handling using Retry-After if present.
         """
         params = {
             "apiKey": self.api_key,
@@ -171,34 +229,65 @@ class PolygonClient(MarketDataSource):
             "active": "true" if active_only else "false",
             "limit": limit,
         }
-        # Polygon v3 supports 'type' filter; if multiple, call multiple times
+
+        # Polygon v3 supports 'type' filter; if multiple, loop over them
         type_sets = types or [None]
         out: List[Dict[str, Any]] = []
         loop = asyncio.get_event_loop()
 
-        def _fetch_page(url: str, q: Dict[str, Any]) -> Dict[str, Any]:
-            r = self.session.get(url, params=q, timeout=30)
+        def _fetch_page(url: str, q: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+            # Ensure we always pass apiKey, even if `next_url` doesn't include it
+            from urllib.parse import urlparse, parse_qs, urlencode, urlunparse
+
+            parsed = urlparse(url)
+            existing = parse_qs(parsed.query)
+            if "apiKey" not in existing:
+                existing["apiKey"] = [self.api_key]
+
+            # Only add q for the first page (Polygon expects params on the base URL, not on next_url)
+            if q:
+                for k, v in q.items():
+                    existing[k] = [v] if not isinstance(v, list) else v
+
+            new_query = urlencode({k: v[-1] for k, v in existing.items()})
+            merged = parsed._replace(query=new_query)
+            final_url = urlunparse(merged)
+
+            r = self.session.get(final_url, timeout=30)
+            if r.status_code == 429:
+                retry_after = r.headers.get("Retry-After")
+                if retry_after:
+                    try:
+                        import time
+                        time.sleep(float(retry_after))
+                        r = self.session.get(final_url, timeout=30)
+                    except Exception:
+                        pass
             r.raise_for_status()
             return r.json()
 
         for t in type_sets:
-            page = 0
-            params_local = dict(params)
+            page_count = 0
+            first_params = dict(params)
             if t:
-                params_local["type"] = t
+                first_params["type"] = t
+
             url = f"{self.base_v3}/reference/tickers"
             next_url = url
+
             while next_url:
-                page += 1
+                page_count += 1
                 try:
-                    data = await loop.run_in_executor(None, lambda: _fetch_page(next_url, params_local if next_url == url else {}))
+                    data = await loop.run_in_executor(
+                        None,
+                        lambda: _fetch_page(next_url, first_params if next_url == url else None),
+                    )
                 except Exception as e:
-                    logger.error(f"Polygon v3 reference page fetch failed (type={t}, page={page}): {e}")
+                    logger.error(f"Polygon v3 reference page fetch failed (type={t}, page={page_count}): {e}")
                     break
 
                 results = data.get("results") or []
                 for row in results:
-                    # Normalize minimal fields we care about
                     out.append({
                         "ticker": row.get("ticker"),
                         "name": row.get("name"),
@@ -209,6 +298,7 @@ class PolygonClient(MarketDataSource):
                     })
 
                 next_url = data.get("next_url")
-                if max_pages and page >= max_pages:
+                if max_pages and page_count >= max_pages:
                     break
+
         return out
