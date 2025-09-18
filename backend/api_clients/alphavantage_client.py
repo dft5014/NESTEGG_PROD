@@ -13,6 +13,7 @@ logger = logging.getLogger("alphavantage_client")
 
 ALPHA_VANTAGE_API_KEY = os.getenv("ALPHA_VANTAGE_API_KEY")
 ALPHA_VANTAGE_BASE = "https://www.alphavantage.co/query"
+ALPHAVANTAGE_DEBUG = os.getenv("ALPHAVANTAGE_DEBUG", "").lower() in ("1", "true", "yes")
 
 # ---- Helpers ----------------------------------------------------------------
 
@@ -64,6 +65,7 @@ def _parse_ts_or_date_to_aware_utc(x):
         except ValueError:
             continue
     return None
+
 # ---- Rate Limiter ------------------------------------------------------------
 
 class AlphaVantageRateLimiter:
@@ -112,8 +114,11 @@ class AlphaVantageClient:
         """
         params = {"function": "LISTING_STATUS", "state": state}
         resp = await self._get(params)
-        logger.info(f"[AV] LISTING_STATUS raw (first 300): {resp.text[:300]!r}")
         text = resp.text or ""
+
+        logger.info(f"[AV] LISTING_STATUS HTTP {resp.status_code}; bytes={len(text)}")
+        if ALPHAVANTAGE_DEBUG:
+            logger.debug(f"[AV] LISTING_STATUS raw head: {text[:300]!r}")
 
         # If AV sent JSON (rate limit / error), surface it clearly
         if text.lstrip().startswith("{"):
@@ -121,8 +126,8 @@ class AlphaVantageClient:
                 j = resp.json()
                 note = j.get("Note") or j.get("Information")
                 err  = j.get("Error Message")
-                if note or err:
-                    raise RuntimeError(f"Alpha Vantage LISTING_STATUS returned JSON: {note or err}")
+                logger.warning(f"[AV] LISTING_STATUS JSON Note/Error: {note or err}")
+                raise RuntimeError(f"Alpha Vantage LISTING_STATUS returned JSON: {note or err}")
             except Exception:
                 pass  # Not valid JSON; continue to CSV parse
 
@@ -151,6 +156,7 @@ class AlphaVantageClient:
                     j2 = resp2.json()
                     note = j2.get("Note") or j2.get("Information")
                     err  = j2.get("Error Message")
+                    logger.warning(f"[AV] LISTING_STATUS retry JSON Note/Error: {note or err}")
                     raise RuntimeError(f"Alpha Vantage LISTING_STATUS retry returned JSON: {note or err}")
                 except Exception:
                     pass
@@ -174,14 +180,13 @@ class AlphaVantageClient:
         - Compare against existing securities.ticker
         - Batch upsert *new* tickers with av_* metadata (parallel to current model)
         """
-        # 1) Existing tickers
         existing_rows = await database.fetch_all("SELECT ticker FROM securities")
         existing = { (r["ticker"] or "").strip().upper() for r in existing_rows if r["ticker"] }
+        logger.info(f"[AV] UniverseSync: existing tickers loaded: {len(existing)}")
 
-        # 2) Fetch AV active universe
         active_rows = await self.fetch_listing_status("active")
 
-        # 3) Compute new symbols
+        # Compute new symbols
         new_records: List[Dict[str, str]] = []
         for r in active_rows:
             sym = (r.get("symbol") or "").strip().upper()
@@ -189,25 +194,23 @@ class AlphaVantageClient:
                 continue
             new_records.append(r)
 
-        logger.info(f"[AV] New active symbols to insert: {len(new_records)}")
+        logger.info(f"[AV] UniverseSync: new active symbols to insert: {len(new_records)}")
 
         if not new_records:
             return {"inserted": 0, "seen_active": len(active_rows)}
 
-        # 4) Prepare rows for batch upsert
-        now = datetime.now(timezone.utc)
-        to_insert = []
-        for r in new_records:
-            to_insert.append({
-                "ticker": (r.get("symbol") or "").strip().upper(),
-                "av_date_added": now,
-                "av_exchange": (r.get("exchange") or None),
-                "av_asset_type": (r.get("assetType") or None),
-                "av_ipo_date": _parse_iso_date(r.get("ipoDate")),
-                "av_name": (r.get("name") or None),
-            })
+        # Prepare rows for batch upsert
+        now = datetime.now(timezone.utc)  # av_date_added is timestamptz
+        to_insert = [{
+            "ticker": (r.get("symbol") or "").strip().upper(),
+            "av_date_added": now,
+            "av_exchange": (r.get("exchange") or None),
+            "av_asset_type": (r.get("assetType") or None),
+            "av_ipo_date": _parse_iso_date(r.get("ipoDate")),
+            "av_name": (r.get("name") or None),
+        } for r in new_records]
 
-        # 5) Batch upsert
+        # Batch upsert
         inserted = 0
         sql = """
             INSERT INTO securities (ticker, active,
@@ -231,9 +234,11 @@ class AlphaVantageClient:
             try:
                 await database.execute_many(sql, chunk)
                 inserted += len(chunk)
+                logger.info(f"[AV] UniverseSync: batch upsert rows {i}-{i+len(chunk)-1} applied")
             except Exception as e:
-                logger.error(f"[AV] Batch upsert failed for rows {i}-{i+len(chunk)-1}: {e}")
+                logger.error(f"[AV] UniverseSync: batch upsert failed for rows {i}-{i+len(chunk)-1}: {repr(e)}")
 
+        logger.info(f"[AV] UniverseSync: inserted={inserted}, seen_active={len(active_rows)}")
         return {"inserted": inserted, "seen_active": len(active_rows)}
 
     # ---------- 2) Bulk realtime quotes --------------------------------------
@@ -252,9 +257,15 @@ class AlphaVantageClient:
         try:
             resp = await self._get(params)
             data = resp.json()
+            if ALPHAVANTAGE_DEBUG:
+                logger.debug(f"[AV] bulk_quotes HTTP {resp.status_code}; batch={len(batch)}; keys={list(data.keys())[:5]}")
         except Exception as e:
-            logger.error(f"[AV] bulk quotes request failed for batch ({len(batch)}): {e}")
+            logger.error(f"[AV] bulk quotes request failed for batch ({len(batch)}): {repr(e)}")
             return out
+
+        # Detect AV Note/Error even in JSON
+        if isinstance(data, dict) and any(k in data for k in ("Note", "Information", "Error Message")):
+            logger.warning(f"[AV] bulk_quotes Note/Error: {data.get('Note') or data.get('Information') or data.get('Error Message')}")
 
         payload = (
             data.get("Realtime Bulk Quotes")
@@ -265,6 +276,9 @@ class AlphaVantageClient:
         if not isinstance(payload, list):
             logger.warning(f"[AV] Unexpected bulk payload: type={type(payload)} keys={list(data.keys())[:5]}")
             return out
+
+        if ALPHAVANTAGE_DEBUG:
+            logger.debug(f"[AV] bulk_quotes payload_len={len(payload)} for batch of {len(batch)}")
 
         for item in payload:
             sym = (item.get("symbol") or item.get("01. symbol") or "").strip().upper()
@@ -298,7 +312,6 @@ class AlphaVantageClient:
         batches = self._chunk(clean_syms, max(1, min(100, quote_batch_size)))
         results: Dict[str, Dict] = {}
 
-        # Process in small waves to avoid huge gather() sets
         sem = asyncio.Semaphore(max(1, max_concurrent_batches))
 
         async def _run_batch(b):
@@ -312,8 +325,12 @@ class AlphaVantageClient:
                 if isinstance(out, dict):
                     results.update(out)
                 else:
-                    logger.error(f"[AV] bulk quotes wave error: {out}")
+                    logger.error(f"[AV] bulk quotes wave error: {repr(out)}")
 
+        if not results:
+            logger.warning("[AV] bulk_quotes: no quotes parsed from AV (rate limit Note? unsupported symbols? payload shape change?).")
+        else:
+            logger.info(f"[AV] bulk_quotes: quotes parsed for {len(results)} symbols. Sample: {list(results.keys())[:10]}")
         return results
 
     async def update_prices_for_active(self, database, limit_symbols: int = 1000,
@@ -324,6 +341,7 @@ class AlphaVantageClient:
         - Write back ONLY to av_* fields so we don't disrupt Yahoo/Polygon
         Returns (updated_count, attempted_count)
         """
+        logger.info(f"[AV] PriceUpdate: start limit={limit_symbols}, batch={quote_batch_size}, concurrency={max_concurrent_batches}")
         rows = await database.fetch_all(
             """
             SELECT ticker
@@ -335,16 +353,24 @@ class AlphaVantageClient:
             """,
             {"lim": limit_symbols},
         )
-        symbols = [r["ticker"] for r in rows if r["ticker"]]
+        symbols = [ (r["ticker"] or "").strip().upper() for r in rows if r["ticker"] ]
+        logger.info(f"[AV] PriceUpdate: selected {len(symbols)} symbols. Sample: {symbols[:10]}")
+
         if not symbols:
+            logger.warning("[AV] PriceUpdate: no symbols selected from security_usage (check view filters/status/on_alphavantage).")
             return (0, 0)
 
-        data = await self.bulk_quotes(symbols, quote_batch_size=quote_batch_size, max_concurrent_batches=max_concurrent_batches)
+        data = await self.bulk_quotes(
+            symbols,
+            quote_batch_size=quote_batch_size,
+            max_concurrent_batches=max_concurrent_batches
+        )
+        logger.info(f"[AV] PriceUpdate: AV returned quotes for {len(data)} / {len(symbols)} symbols.")
 
         updated = 0
-        now = datetime.utcnow()
+        now = datetime.utcnow()  # naive to match 'timestamp without time zone' on last_updated
 
-        # Use execute_many for the common success path to reduce round trips
+        # Prepare batch writes
         update_rows = []
         disable_rows = []
 
@@ -360,6 +386,11 @@ class AlphaVantageClient:
                 "now": now,
             })
 
+        logger.info(f"[AV] PriceUpdate: prepared updates={len(update_rows)}, disables={len(disable_rows)}. "
+                    f"Sample update tickers: {[r['ticker'] for r in update_rows[:10]]} | "
+                    f"Sample disable tickers: {[r['ticker'] for r in disable_rows[:10]]}")
+
+        # Apply updates
         if update_rows:
             try:
                 await database.execute_many(
@@ -374,8 +405,9 @@ class AlphaVantageClient:
                     update_rows,
                 )
                 updated = len(update_rows)
+                logger.info(f"[AV] PriceUpdate: batch UPDATE applied for {updated} tickers.")
             except Exception as e:
-                logger.error(f"[AV] Batch update failed; falling back to per-row. err={e}")
+                logger.error(f"[AV] PriceUpdate: batch UPDATE failed; falling back to per-row. err={repr(e)}")
                 # Per-row fallback
                 updated = 0
                 for row in update_rows:
@@ -393,8 +425,9 @@ class AlphaVantageClient:
                         )
                         updated += 1
                     except Exception as e2:
-                        logger.error(f"[AV] Update failed for {row['ticker']}: {e2}")
+                        logger.error(f"[AV] PriceUpdate: per-row UPDATE failed for {row['ticker']}: {repr(e2)}")
 
+        # Apply disables
         if disable_rows:
             try:
                 await database.execute_many(
@@ -406,8 +439,9 @@ class AlphaVantageClient:
                     """,
                     disable_rows,
                 )
+                logger.info(f"[AV] PriceUpdate: batch DISABLE applied for {len(disable_rows)} tickers.")
             except Exception as e:
-                logger.error(f"[AV] Batch disable failed; falling back. err={e}")
+                logger.error(f"[AV] PriceUpdate: batch DISABLE failed; falling back. err={repr(e)}")
                 for row in disable_rows:
                     try:
                         await database.execute(
@@ -415,8 +449,9 @@ class AlphaVantageClient:
                             row,
                         )
                     except Exception as e2:
-                        logger.error(f"[AV] Fallback disable failed for {row['ticker']}: {e2}")
+                        logger.error(f"[AV] PriceUpdate: per-row DISABLE failed for {row['ticker']}: {repr(e2)}")
 
+        logger.info(f"[AV] PriceUpdate: completed updated={updated}, attempted={len(symbols)}, disabled={len(disable_rows)}")
         return (updated, len(symbols))
 
     # ---------- 3) Placeholder for Overview ----------------------------------
