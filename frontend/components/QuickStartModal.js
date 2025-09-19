@@ -1629,24 +1629,50 @@ const QuickStartModal = ({ isOpen, onClose }) => {
         return (
             <div className="relative">
                 <AddQuickPositionModal
-                    isOpen={true}
-                    seedPositions={importedPositionsData}
-                    onClose={() => {
-                        setImportMethod(null);
-                        // Optionally refresh data or show success
-                    }}
-                    onPositionsSaved={(count, positions) => {
+                isOpen={true}
+                seedPositions={importedPositionsData}
+                onClose={async () => {
+                    // If user cancels or just closes, you might still want a light refresh of summaries
+                    try {
+                    // Prefer targeted refreshes if your DataStore exposes them
+                    if (actions.refreshPositions) await actions.refreshPositions();         // positions slice
+                    if (actions.refreshPortfolioSummary) await actions.refreshPortfolioSummary(); // KPIs / totals
+                    if (actions.refreshGroupedPositions) await actions.refreshGroupedPositions(); // tables that group by account/type
+                    // Fallback to full refresh if specific actions aren’t available
+                    else if (actions.refreshData) await actions.refreshData();
+                    } catch (e) {
+                    console.warn('refresh after close failed', e);
+                    }
+                    setImportMethod(null);
+                }}
+                onPositionsSaved={async (count, positions) => {
+                    // DEBUG
+                    console.log('Received count:', count);
+                    console.log('Received positions:', positions);
 
-                                  // DEBUG: Log what we're receiving
-                        console.log('Received count:', count);
-                        console.log('Received positions:', positions);
+                    setImportedPositions(count);
+                    setImportedPositionsData(positions);
 
-                        setImportedPositions(count);
-                        setImportedPositionsData(positions);
-                        setActiveTab('success');
-                        setImportMethod(null);
-                    }}
+                    // 🔄 Immediately re-hydrate the UI
+                    try {
+                    // Prefer targeted refreshes (fast + light)
+                    if (actions.refreshPositions) await actions.refreshPositions();
+                    if (actions.refreshPortfolioSummary) await actions.refreshPortfolioSummary();
+                    if (actions.refreshGroupedPositions) await actions.refreshGroupedPositions();
+                    // If you also show dividends/metrics right away, add their refreshers here
+                    // if (actions.refreshSecurities) await actions.refreshSecurities();
+
+                    // One-liner fallback if you don’t have the fine-grained actions
+                    else if (actions.refreshData) await actions.refreshData();
+                    } catch (e) {
+                    console.warn('refresh after save failed', e);
+                    }
+
+                    setActiveTab('success');
+                    setImportMethod(null);
+                }}
                 />
+
             </div>
         );
     };
