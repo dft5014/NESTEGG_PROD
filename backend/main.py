@@ -2643,9 +2643,9 @@ async def _run_overview_batches_prefetched(
 
 @app.post("/alphavantage/update-overviews-batched")
 async def update_alphavantage_overviews_batched(
-    total_limit: int = 500,       # how many tickers to prefetch total
-    batch_size: int = 50,         # how many per batch
-    delay_seconds: int = 60,      # pause between batches
+    total_limit: int = 1500,       # how many tickers to prefetch total
+    batch_size: int = 60,         # how many per batch
+    delay_seconds: int = 40,      # pause between batches
     run_in_background: bool = True,
 ):
     """
