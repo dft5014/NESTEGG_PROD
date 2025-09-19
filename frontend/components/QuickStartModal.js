@@ -60,6 +60,9 @@ import { useAccounts } from '@/store/hooks/useAccounts';
 import { AddQuickPositionModal } from '@/components/modals/AddQuickPositionModal';
 import { AddLiabilitiesModal } from '@/components/modals/AddLiabilitiesModal';
 
+
+
+
 // Account categories matching AccountModal and database constraints
 const ACCOUNT_CATEGORIES = [
     { id: "brokerage", name: "Brokerage", icon: Briefcase },
@@ -224,7 +227,8 @@ const SearchableDropdown = ({ options, value, onChange, placeholder, showLogos =
             if (inputValue) {
                 onChange(inputValue);
                 setIsOpen(false);
-                if (onOpenChange) onOpenChange(false);
+                setHighlightedIndex(0);
+            if (onOpenChange) onOpenChange(false);
             }
             // Call the parent's enter handler
             if (onEnterKey) {
@@ -261,7 +265,7 @@ const SearchableDropdown = ({ options, value, onChange, placeholder, showLogos =
                     className="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg hover:border-gray-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all duration-200 pr-10"
                     style={{ paddingLeft: selectedOption?.logo ? '2.5rem' : undefined }}
                 />
-                {selectedOption?.logo && (
+                {showLogos && selectedOption?.logo && (
                     <img 
                         src={selectedOption.logo} 
                         alt={selectedOption.name}
@@ -389,6 +393,12 @@ const SearchableDropdown = ({ options, value, onChange, placeholder, showLogos =
 };
 
 const QuickStartModal = ({ isOpen, onClose }) => {
+    useEffect(() => {
+        if (!isOpen) return;
+        const { overflow } = document.body.style;
+        document.body.style.overflow = 'hidden';
+        return () => { document.body.style.overflow = overflow; };
+        }, [isOpen]);
     const [activeTab, setActiveTab] = useState('overview');
     const [selectedTemplate, setSelectedTemplate] = useState(null);
     const [uploadedFile, setUploadedFile] = useState(null);
@@ -418,6 +428,8 @@ const QuickStartModal = ({ isOpen, onClose }) => {
     refresh: refreshAccounts,
     lastFetched: accountsLastFetched
         } = useAccounts();
+
+
 
     // Try a single fetch only if we've never fetched yet (prevents loops for brand-new users with 0 accounts)
     const triedInitialAccountsFetchRef = useRef(false);
@@ -1659,11 +1671,7 @@ const QuickStartModal = ({ isOpen, onClose }) => {
                     if (actions.refreshPositions) await actions.refreshPositions();
                     if (actions.refreshPortfolioSummary) await actions.refreshPortfolioSummary();
                     if (actions.refreshGroupedPositions) await actions.refreshGroupedPositions();
-                    // If you also show dividends/metrics right away, add their refreshers here
-                    // if (actions.refreshSecurities) await actions.refreshSecurities();
-
-                    // One-liner fallback if you don’t have the fine-grained actions
-                    else if (actions.refreshData) await actions.refreshData();
+                    if (actions.refreshData) await actions.refreshData();
                     } catch (e) {
                     console.warn('refresh after save failed', e);
                     }
@@ -1880,7 +1888,7 @@ const QuickStartModal = ({ isOpen, onClose }) => {
                                                    }
                                                }}
                                            />
-                                           {account.institution && !popularBrokerages.find(b => b.name === account.institution) && (
+                                           {account.institution && !popularBrokerages.find(b => b.name.toLowerCase() === account.institution.toLowerCase()) && (
                                                <div className="absolute -bottom-5 left-0 text-[10px] text-indigo-600 flex items-center bg-indigo-50 px-1.5 py-0.5 rounded-full">
                                                    <Sparkles className="w-2.5 h-2.5 mr-0.5" />
                                                    Custom
@@ -2135,7 +2143,7 @@ const QuickStartModal = ({ isOpen, onClose }) => {
                 ) : null}
                 
                 {/* Keep existing positions section */}
-                {isPositions && importedPositionsData && importedPositionsData.length > 0 ? (
+                {isPositions && Array.isArray(importedPositionsData) && importedPositionsData.length > 0 ? (
                     <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-xl p-6 max-w-2xl mx-auto border border-purple-200">
                         <h4 className="font-semibold text-gray-900 mb-4 flex items-center justify-center">
                             <Activity className="w-5 h-5 mr-2 text-purple-600" />
@@ -2152,13 +2160,13 @@ const QuickStartModal = ({ isOpen, onClose }) => {
                             </div>
                             <div className="bg-white rounded-lg p-3 text-center">
                                 <p className="text-2xl font-bold text-blue-600">
-                                    <AnimatedNumber value={importedPositionsData.filter(p => p.type === 'security').length} />
+                                    <AnimatedNumber value={(Array.isArray(importedPositionsData) ? importedPositionsData : []).filter(p => p.type === 'security').length} />
                                 </p>
                                 <p className="text-xs text-gray-600">Securities</p>
                             </div>
                             <div className="bg-white rounded-lg p-3 text-center">
                                 <p className="text-2xl font-bold text-orange-600">
-                                    <AnimatedNumber value={importedPositionsData.filter(p => p.type === 'crypto').length} />
+                                    <AnimatedNumber value={(Array.isArray(importedPositionsData) ? importedPositionsData : []).filter(p => p.type === 'crypto').length} />
                                 </p>
                                 <p className="text-xs text-gray-600">Crypto</p>
                             </div>
@@ -2176,7 +2184,7 @@ const QuickStartModal = ({ isOpen, onClose }) => {
 
                         {/* Position List */}
                         <div className="space-y-2 max-h-48 overflow-y-auto">
-                            {importedPositionsData.slice(0, 10).map((position, index) => {
+                            {(Array.isArray(importedPositionsData) ? importedPositionsData : []).slice(0, 10).map((position, index) => {
                                 // Determine icon based on position type
                                 const getPositionIcon = (type) => {
                                     switch(type) {
@@ -2204,7 +2212,7 @@ const QuickStartModal = ({ isOpen, onClose }) => {
                                                     position.metal_type || position.currency || 'Position'}
                                                 </p>
                                                 <p className="text-xs text-gray-500">
-                                                    {position.account_name} • {position.shares || position.quantity || position.amount} units
+                                                    {position.account_name} • {(position.shares ?? position.quantity ?? position.amount ?? '') || 0} units
                                                 </p>
                                             </div>
                                         </div>
@@ -2212,9 +2220,9 @@ const QuickStartModal = ({ isOpen, onClose }) => {
                                     </div>
                                 );
                             })}
-                            {importedPositionsData.length > 10 && (
+                            {Array.isArray(importedPositionsData) && importedPositionsData.length > 10 && (
                                 <p className="text-xs text-gray-500 text-center py-2">
-                                    ... and {importedPositionsData.length - 10} more positions
+                                    ... and {(Array.isArray(importedPositionsData) ? importedPositionsData.length : 0) - 10} more positions
                                 </p>
                             )}
                         </div>
@@ -2707,8 +2715,8 @@ const QuickStartModal = ({ isOpen, onClose }) => {
 
   if (!isOpen) return null;
 
-  return (
-      <div className="fixed inset-0 z-[100000] overflow-y-auto quickstart-modal-overlay">
+  return ReactDOM.createPortal(
+        <div className="fixed inset-0 z-[100000] overflow-y-auto quickstart-modal-overlay pointer-events-auto">
           <div className="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center">
               <div 
                   className="fixed inset-0 transition-opacity duration-300 ease-out z-[99999]"
@@ -2717,7 +2725,7 @@ const QuickStartModal = ({ isOpen, onClose }) => {
                   <div className="absolute inset-0 bg-gray-900 opacity-75"></div>
               </div>
 
-              <div className="relative inline-block w-full max-w-5xl bg-white rounded-2xl shadow-2xl transform transition-all duration-300 ease-out z-[100001]">
+              <div className="relative inline-block w-full max-w-5xl bg-white rounded-2xl shadow-2xl transition-all duration-300 ease-out z-[100001]">
                   <div className="absolute top-4 right-4 z-10">
                       <button
                           onClick={onClose}
@@ -2767,7 +2775,8 @@ const QuickStartModal = ({ isOpen, onClose }) => {
                   </div>
               </div>
           </div>
-      </div>
+      </div>,
+        document.body
   );
 };
 
