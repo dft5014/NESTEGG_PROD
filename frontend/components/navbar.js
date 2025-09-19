@@ -1,5 +1,5 @@
 // components/Navbar.js
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef, forwardRef } from 'react';
 import PeriodSummaryChips from '@/components/PeriodSummaryChips';
 import { motion } from 'framer-motion';
 
@@ -10,7 +10,11 @@ import { QuickEditDeleteButton } from '@/components/modals/QuickEditDeleteModal'
 import { useGroupedPositions } from '@/store/hooks/useGroupedPositions';
 import { useDataStore } from '@/store/DataStore';
 
-import { TrendingUp, TrendingDown, HelpCircle, PlusCircle, Edit3, RefreshCw, X, ArrowRight, ArrowLeft } from 'lucide-react';
+import {
+  TrendingUp, TrendingDown,
+  HelpCircle, PlusCircle, Edit3, RefreshCw,
+  X, ArrowRight, ArrowLeft
+} from 'lucide-react';
 import { formatCurrency, formatStockPrice } from '@/utils/formatters';
 
 // ---- Layout constants
@@ -37,14 +41,16 @@ function useRafScroll(cb) {
   }, [cb]);
 }
 
-// ---------------------- StockTicker ----------------------
-const StockTicker = () => {
+/* ---------------------- StockTicker ----------------------
+   NOTE: accepts outerRef so orientation can spotlight it.
+*/
+const StockTicker = ({ outerRef }) => {
   const trackRef = useRef(null);
   const containerRef = useRef(null);
   const rafRef = useRef(null);
   const posRef = useRef(0);
   const pausedRef = useRef(false);
-  const [paused, setPaused] = useState(false); // UI state for a11y feedback
+  const [paused, setPaused] = useState(false); // for a11y feedback
   const contentWidthRef = useRef(0);
   const prefersReducedMotion = useRef(
     typeof window !== 'undefined' &&
@@ -54,6 +60,13 @@ const StockTicker = () => {
 
   const { positions, loading: positionsLoading } = useGroupedPositions();
   const { actions } = useDataStore();
+
+  // Expose container to parent (for coach marks)
+  useEffect(() => {
+    if (outerRef && 'current' in outerRef) {
+      outerRef.current = containerRef.current;
+    }
+  }, [outerRef]);
 
   // Defensive fetch if nothing loaded
   useEffect(() => {
@@ -75,7 +88,7 @@ const StockTicker = () => {
     { symbol: 'BTC',   price: 64230.50, changePercent: 1.96, isUp: true },
   ];
 
-  // Percent parser: backend already returns percent values.
+  // Percent parser
   const parsePct = (raw) => {
     if (raw == null) return null;
     if (typeof raw === 'number') return isFinite(raw) ? raw : null;
@@ -135,14 +148,14 @@ const StockTicker = () => {
     [items, shouldAnimate]
   );
 
-  // Measure width of one loop copy
+  // Measure one loop width
   const measure = useCallback(() => {
     if (!trackRef.current || !containerRef.current) return;
     const trackWidth = trackRef.current.scrollWidth;
     const containerWidth = containerRef.current.clientWidth || 0;
     contentWidthRef.current = shouldAnimate && trackWidth > 0 ? trackWidth / 3 : containerWidth;
 
-    // Normalize position to avoid big jumps after resize/content change
+    // Normalize position after resize/content change
     const single = contentWidthRef.current || 1;
     if (Math.abs(posRef.current) >= single) {
       posRef.current = - (Math.abs(posRef.current) % single);
@@ -200,13 +213,9 @@ const StockTicker = () => {
   }, [tick, shouldAnimate]);
 
   // Hover/focus pause controls
-  const pause = useCallback(() => {
-    pausedRef.current = true;
-    setPaused(true);
-  }, []);
+  const pause = useCallback(() => { pausedRef.current = true; setPaused(true); }, []);
   const resume = useCallback(() => {
-    pausedRef.current = false;
-    setPaused(false);
+    pausedRef.current = false; setPaused(false);
     if (shouldAnimate && !prefersReducedMotion.current && !rafRef.current) {
       rafRef.current = requestAnimationFrame(tick);
     }
@@ -352,7 +361,11 @@ const StockTicker = () => {
   );
 };
 
-// ---------------------- Pro Button Shell ----------------------
+/* ---------------------- Pro Button Shell ----------------------
+   We keep the premium look but GUARANTEE modal open by rendering the
+   real Quick* components invisibly and programmatically clicking their
+   inner <button>. This avoids touching their internals.
+*/
 function ProButton({ icon: Icon, label, subtitle, onClick, active, 'data-tour-id': dataTourId }) {
   return (
     <button
@@ -370,8 +383,10 @@ function ProButton({ icon: Icon, label, subtitle, onClick, active, 'data-tour-id
       ].join(' ')}
       title={subtitle || label}
     >
-      <div className="absolute inset-0 rounded-xl pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-200"
-           style={{ background: "linear-gradient(180deg, rgba(255,255,255,0.07) 0%, rgba(255,255,255,0.02) 100%)" }} />
+      <div
+        className="absolute inset-0 rounded-xl pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+        style={{ background: "linear-gradient(180deg, rgba(255,255,255,0.07) 0%, rgba(255,255,255,0.02) 100%)" }}
+      />
       <Icon className="w-[18px] h-[18px] text-blue-300/90 group-hover:scale-105 transition-transform duration-200" aria-hidden="true" />
       <span className="text-[13px] font-medium text-gray-100">{label}</span>
       {subtitle && <span className="text-[11px] text-gray-400 hidden sm:inline">• {subtitle}</span>}
@@ -379,7 +394,7 @@ function ProButton({ icon: Icon, label, subtitle, onClick, active, 'data-tour-id
   );
 }
 
-// ---------------------- Orientation (Coach Marks) ----------------------
+/* ---------------------- Orientation (Coach Marks) ---------------------- */
 function useCoachMarks(targetRefs, enabled, onClose) {
   const [step, setStep] = useState(0);
   const [rect, setRect] = useState(null);
@@ -422,8 +437,9 @@ function useCoachMarks(targetRefs, enabled, onClose) {
 function CoachOverlay({ open, step, rect, steps, onNext, onPrev, onExit }) {
   if (!open) return null;
 
+  const isFinal = step === steps.length - 1;
   const padding = 8;
-  const box = rect ? {
+  const box = rect && !isFinal ? {
     top: rect.top - padding,
     left: rect.left - padding,
     width: rect.width + padding * 2,
@@ -437,7 +453,7 @@ function CoachOverlay({ open, step, rect, steps, onNext, onPrev, onExit }) {
       {/* Backdrop */}
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
 
-      {/* Spotlight border */}
+      {/* Spotlight border (skip on final summary) */}
       {box && (
         <div
           className="absolute rounded-xl ring-2 ring-blue-400/70 shadow-[0_0_0_9999px_rgba(0,0,0,0.6)]"
@@ -447,10 +463,10 @@ function CoachOverlay({ open, step, rect, steps, onNext, onPrev, onExit }) {
 
       {/* Coach card */}
       <div
-        className="absolute max-w-sm w-[92vw] sm:w-[420px] bg-gray-900/95 border border-white/10 rounded-2xl p-4 shadow-xl"
+        className="absolute max-w-sm w-[92vw] sm:w-[440px] bg-gray-900/95 border border-white/10 rounded-2xl p-4 shadow-xl"
         style={{
-          top: box ? Math.min(box.top + box.height + 10, window.scrollY + window.innerHeight - 160) : '50%',
-          left: box ? Math.min(box.left, window.scrollX + window.innerWidth - 460) : '50%',
+          top: box ? Math.min(box.top + box.height + 10, window.scrollY + window.innerHeight - 200) : '50%',
+          left: box ? Math.min(box.left, window.scrollX + window.innerWidth - 480) : '50%',
           transform: box ? 'none' : 'translate(-50%, -50%)'
         }}
         role="dialog"
@@ -461,6 +477,7 @@ function CoachOverlay({ open, step, rect, steps, onNext, onPrev, onExit }) {
           <div>
             <h2 id="coach-title" className="text-sm font-semibold text-white">{s.title}</h2>
             <p className="text-xs text-gray-300 mt-1">{s.desc}</p>
+            {s.extra && <div className="mt-2 text-xs text-gray-400">{s.extra}</div>}
           </div>
           <button
             onClick={onExit}
@@ -486,7 +503,7 @@ function CoachOverlay({ open, step, rect, steps, onNext, onPrev, onExit }) {
             onClick={onNext}
             className="inline-flex items-center gap-1 px-3 h-8 rounded-lg bg-blue-600 hover:bg-blue-500 text-white"
           >
-            {step === steps.length - 1 ? "Finish" : "Next"} <ArrowRight className="w-3.5 h-3.5" />
+            {isFinal ? "Finish" : "Next"} <ArrowRight className="w-3.5 h-3.5" />
           </button>
         </div>
       </div>
@@ -494,36 +511,59 @@ function CoachOverlay({ open, step, rect, steps, onNext, onPrev, onExit }) {
   );
 }
 
-// ---------------------- Navbar ----------------------
+/* ---------------------- Navbar ---------------------- */
 const Navbar = () => {
   const [scrolled, setScrolled] = useState(false);
 
   // Orientation state
   const [showTour, setShowTour] = useState(false);
 
-  // Refs to *shell* buttons for spotlighting
+  // Refs to spotlight targets
   const addShellRef  = useRef(null);
   const editShellRef = useRef(null);
   const recShellRef  = useRef(null);
+  const summaryRef   = useRef(null);
+  const tickerOuterRef = useRef(null);
 
-  // Refs to the underlying quick buttons (so we can proxy click)
-  const addInnerRef  = useRef(null);
-  const editInnerRef = useRef(null);
-  const recInnerRef  = useRef(null);
+  // Hidden real buttons for guaranteed modal open
+  const addMountRef  = useRef(null);
+  const editMountRef = useRef(null);
+  const recMountRef  = useRef(null);
 
-  // Toggle scrolled with rAF throttling
-  useRafScroll(() => {
-    setScrolled(window.scrollY > 10);
-  });
+  // Keep center behavior on scroll
+  useRafScroll(() => setScrolled(window.scrollY > 10));
 
-  // Coach marks logic
+  // Steps: Add, Edit, Update, Summary (chips), Ticker, Final
   const steps = useMemo(() => ([
     { title: "Add to NestEgg", desc: "Create accounts, add positions, and track liabilities." },
-    { title: "Edit & Delete",  desc: "Correct entries fast—inline edits and clean removals." },
-    { title: "Update Manual",  desc: "Refresh non-market items like cash, loans, or other assets." }
+    { title: "Edit & Delete",  desc: "Update entries quickly—inline edits and clean removals." },
+    { title: "Update Manual",  desc: "Refresh non-market items like cash, loans, or other assets." },
+    { title: "Portfolio Summary", desc: "Your key totals and changes for the selected period (top right)." },
+    { title: "Live Ticker", desc: "Quick view of top holdings, prices, and 1D/1W/YTD moves." },
+    {
+      title: "What’s Next",
+      desc: "You’re ready to go! Here’s a quick game plan.",
+      extra: (
+        <>
+          <ul className="list-disc pl-5 space-y-1">
+            <li>Add your primary accounts (brokerage, cash, loans).</li>
+            <li>Enter positions or balances for anything manual.</li>
+            <li>Use Edit to correct any import mistakes.</li>
+            <li>Check Summary to validate totals and moves.</li>
+          </ul>
+          <div className="mt-2 italic">
+            Placeholder: “How to Use NestEgg” – we’ll drop your final copy here.
+          </div>
+        </>
+      )
+    }
   ]), []);
 
-  const { step, setStep, rect } = useCoachMarks([addShellRef, editShellRef, recShellRef], showTour, () => setShowTour(false));
+  const { step, setStep, rect } = useCoachMarks(
+    [addShellRef, editShellRef, recShellRef, summaryRef, tickerOuterRef, { current: null }], // last step centered
+    showTour,
+    () => setShowTour(false)
+  );
 
   const onExitTour = useCallback(() => setShowTour(false), []);
   const onNextTour = useCallback(() => {
@@ -534,11 +574,12 @@ const Navbar = () => {
   }, [setStep, steps.length]);
   const onPrevTour = useCallback(() => setStep((s) => Math.max(0, s - 1)), [setStep]);
 
-  // Helper: clicks the first inner button within the provided ref
-  const proxyClick = (containerRef) => {
-    const el = containerRef?.current;
+  // Utility: programmatically open the actual modals by clicking real inner buttons
+  const clickInnerButton = (mountRef) => {
+    const el = mountRef?.current;
     if (!el) return;
-    const btn = el.querySelector('button, [role="button"], [data-tour-id]');
+    // find the first interactive button inside the mounted component subtree
+    const btn = el.querySelector('button, [role="button"]');
     btn?.click?.();
   };
 
@@ -552,7 +593,7 @@ const Navbar = () => {
         Skip to content
       </a>
 
-      {/* Fixed header block: nav + ticker */}
+      {/* Fixed header: nav + ticker */}
       <div className="fixed top-0 left-0 right-0 z-40">
         <motion.nav
           initial={{ opacity: 0 }}
@@ -568,79 +609,90 @@ const Navbar = () => {
         >
           {/* Top bar (64px) */}
           <div className="h-16 px-4 flex items-center justify-between">
-            {/* Grid keeps center centered and right fixed width */}
+            {/* Grid: [left spacer] [center quick actions] [right summary + ?] */}
             <div className="grid grid-cols-[1fr_auto_1fr] w-full items-center">
-              {/* Left spacer (we tuck the Orientation '?' here but keep width minimal) */}
-              <div className="justify-self-start">
-                <button
-                  type="button"
-                  onClick={() => { setShowTour((v) => !v); setStep(0); }}
-                  className="inline-flex items-center gap-1 px-2.5 h-9 rounded-xl bg-gray-800/60 border border-white/10 backdrop-blur text-gray-200 hover:bg-white/10 transition"
-                  aria-pressed={showTour}
-                  title="Orientation"
-                >
-                  <HelpCircle className="w-[18px] h-[18px] text-blue-300/90" aria-hidden="true" />
-                  <span className="text-[13px] font-medium hidden sm:inline">Orientation</span>
-                </button>
-              </div>
+              {/* Left spacer */}
+              <div />
 
-              {/* Center: Quick Actions — new Pro shells that proxy-click existing buttons */}
+              {/* Center: Pro-looking shells that trigger the real modals */}
               <div className="justify-self-center">
                 <div className="flex items-center gap-2 md:-ml-6">
-                  {/* Add (Shell) */}
+                  {/* Add */}
                   <div ref={addShellRef}>
                     <ProButton
                       icon={PlusCircle}
                       label="Add"
                       subtitle="Accounts • Positions • Liabilities"
-                      onClick={() => proxyClick(addInnerRef)}
+                      onClick={() => clickInnerButton(addMountRef)}
                       data-tour-id="add"
                     />
-                    {/* Underlying actual trigger (kept visually hidden for semantics) */}
-                    <div ref={addInnerRef} className="sr-only">
+                    {/* Mount the real Add button invisibly (still in DOM) */}
+                    <div
+                      ref={addMountRef}
+                      className="absolute w-px h-px overflow-hidden opacity-0 pointer-events-none"
+                    >
                       <QuickStartButton />
                     </div>
                   </div>
 
-                  {/* Edit/Delete (Shell) */}
+                  {/* Edit */}
                   <div ref={editShellRef}>
                     <ProButton
                       icon={Edit3}
                       label="Edit"
                       subtitle="Edit & Delete"
-                      onClick={() => proxyClick(editInnerRef)}
+                      onClick={() => clickInnerButton(editMountRef)}
                       data-tour-id="edit"
                     />
-                    <div ref={editInnerRef} className="sr-only">
+                    <div
+                      ref={editMountRef}
+                      className="absolute w-px h-px overflow-hidden opacity-0 pointer-events-none"
+                    >
                       <QuickEditDeleteButton />
                     </div>
                   </div>
 
-                  {/* Update Manual (Shell) */}
+                  {/* Update (Manual/Reconciliation) */}
                   <div ref={recShellRef}>
                     <ProButton
                       icon={RefreshCw}
                       label="Update"
                       subtitle="Manual accounts & balances"
-                      onClick={() => proxyClick(recInnerRef)}
+                      onClick={() => clickInnerButton(recMountRef)}
                       data-tour-id="reconcile"
                     />
-                    <div ref={recInnerRef} className="sr-only">
+                    <div
+                      ref={recMountRef}
+                      className="absolute w-px h-px overflow-hidden opacity-0 pointer-events-none"
+                    >
                       <QuickReconciliationButton />
                     </div>
                   </div>
                 </div>
               </div>
 
-              {/* Right: Period chips — prevent shrink & keep a minimum width */}
-              <div className="justify-self-end shrink-0">
-                <PeriodSummaryChips className="min-w-[290px] sm:min-w-[340px] whitespace-nowrap" />
+              {/* Right: Portfolio Summary chips + Orientation “?” */}
+              <div className="justify-self-end shrink-0 flex items-center gap-2">
+                <div ref={summaryRef}>
+                  <PeriodSummaryChips className="min-w-[290px] sm:min-w-[340px] whitespace-nowrap" />
+                </div>
+
+                {/* Orientation toggle moved to the RIGHT as requested */}
+                <button
+                  type="button"
+                  onClick={() => { setShowTour((v) => !v); setStep(0); }}
+                  className="inline-flex items-center justify-center w-9 h-9 rounded-xl bg-gray-800/60 border border-white/10 backdrop-blur text-gray-200 hover:bg-white/10 transition"
+                  aria-pressed={showTour}
+                  title="Orientation"
+                >
+                  <HelpCircle className="w-[18px] h-[18px] text-blue-300/90" aria-hidden="true" />
+                </button>
               </div>
             </div>
           </div>
 
-          {/* Ticker (32px) inside the same fixed nav */}
-          <StockTicker />
+          {/* Ticker (32px) inside the same fixed nav) */}
+          <StockTicker outerRef={tickerOuterRef} />
         </motion.nav>
       </div>
 
