@@ -86,7 +86,16 @@ class PolygonClient:
                 continue
 
             ts_dt = datetime.fromtimestamp(int(ts_ms) / 1000.0, tz=timezone.utc)
-            out[db_key] = {"price": float(price), "timestamp": ts_dt}
+            day_bar   = item.get("day") or {}
+            prev_day  = item.get("prevDay") or {}
+            out[db_key] = {
+                "price": float(price),
+                "timestamp": ts_dt,
+                "previous_close": _safe_float((prev_day or {}).get("c")),
+                "day_open":  _safe_float((day_bar or {}).get("o")),
+                "day_high":  _safe_float((day_bar or {}).get("h")),
+                "day_low":   _safe_float((day_bar or {}).get("l")),
+            }
             updated += 1
 
         logger.info(

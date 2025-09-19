@@ -7,7 +7,7 @@ import sys
 import asyncio
 import time
 import uuid
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Optional, List, Any
 from datetime import date
@@ -2345,34 +2345,63 @@ async def polygon_sync_prices():
         missing = list(requested - found)
 
         if found:
-            payload = [{
+            rows = [{
                 "ticker": t,
-                "price_polygon": float(snaps[t]["price"]),
-                "price_polygon_timestamp": snaps[t]["timestamp"],
+                "price": float(snaps[t]["price"]),
+                "ts": snaps[t]["timestamp"].astimezone(timezone.utc).isoformat() if isinstance(snaps[t]["timestamp"], datetime) else str(snaps[t]["timestamp"]),
+                "previous_close": snaps[t].get("previous_close"),
+                "day_open":       snaps[t].get("day_open"),
+                "day_high":       snaps[t].get("day_high"),
+                "day_low":        snaps[t].get("day_low"),
             } for t in found]
-            await database.execute_many(
+
+            rows_json = json.dumps(rows)
+
+            await database.execute(
                 """
-                UPDATE securities
-                SET price_polygon = :price_polygon,
-                    price_polygon_timestamp = :price_polygon_timestamp,
-                    on_polygon = TRUE,
-                    current_price = :price_polygon,
-                    price_timestamp = (:price_polygon_timestamp AT TIME ZONE 'UTC')
-                WHERE ticker = :ticker
+            WITH v AS (
+            SELECT
+                (x->>'ticker')::text        AS ticker,
+                (x->>'price')::numeric      AS price,
+                (x->>'ts')::timestamptz     AS ts,
+                NULLIF(x->>'previous_close','')::numeric AS previous_close,
+                NULLIF(x->>'day_open','')::numeric       AS day_open,
+                NULLIF(x->>'day_high','')::numeric       AS day_high,
+                NULLIF(x->>'day_low','')::numeric        AS day_low
+            FROM jsonb_array_elements(:rows::jsonb) AS x
+            )
+            UPDATE securities s
+            SET
+            price_polygon            = v.price,
+            price_polygon_timestamp  = v.ts,
+            on_polygon               = TRUE,
+            current_price            = v.price,
+            price_timestamp          = (v.ts AT TIME ZONE 'UTC'),
+            previous_close           = COALESCE(v.previous_close, s.previous_close),
+            day_open                 = COALESCE(v.day_open,       s.day_open),
+            day_high                 = COALESCE(v.day_high,       s.day_high),
+            day_low                  = COALESCE(v.day_low,        s.day_low)
+            FROM v
+            WHERE s.ticker = v.ticker
                 """,
-                payload
+                {"rows": rows_json}
             )
 
         if missing:
-            BATCH = 200
-            for i in range(0, len(missing), BATCH):
-                chunk = missing[i:i+BATCH]
-                placeholders = ", ".join([f":t{i}" for i in range(len(chunk))])
-                params = {f"t{i}": t for i, t in enumerate(chunk)}
-                await database.execute(
-                    f"UPDATE securities SET on_polygon = FALSE WHERE ticker IN ({placeholders})",
-                    params
+            miss_rows_json = json.dumps([{"ticker": t} for t in missing])
+            await database.execute(
+                """
+                WITH v AS (
+                SELECT (x->>'ticker')::text AS ticker
+                FROM jsonb_array_elements(:rows::jsonb) AS x
                 )
+                UPDATE securities s
+                SET on_polygon = FALSE
+                FROM v
+                WHERE s.ticker = v.ticker
+                """,
+                {"rows": miss_rows_json}
+            )
 
         await update_system_event(
             database,
@@ -2587,13 +2616,13 @@ async def _run_overview_batches_prefetched(
     total_limit: int,
     batch_size: int,
     delay_seconds: int,
-    event_id: Optional[str] = None,
+    event_id=None,  # keep original type for DB (int/uuid/etc.)
 ):
     from backend.api_clients.alphavantage_client import AlphaVantageClient
 
     symbols = await _prefetch_overview_symbols(total_limit)
     if not symbols:
-        if event_id:
+        if event_id is not None:
             await update_system_event(database, event_id, "completed", {"processed": 0})
         return
 
@@ -2603,40 +2632,90 @@ async def _run_overview_batches_prefetched(
         f"batch_size={batch_size}, delay={delay_seconds}s"
     )
 
-    for i in range(0, len(symbols), batch_size):
+    total = len(symbols)
+    batches_total = (total + batch_size - 1) // batch_size
+
+    for i in range(0, total, batch_size):
         batch = symbols[i : i + batch_size]
         totals["batches"] += 1
-        logger.info(f"[AV] OverviewBatches: batch #{totals['batches']} len={len(batch)}")
+        batch_no = totals["batches"]
+
+        logger.info(f"[AV] OverviewBatches: batch #{batch_no}/{batches_total} size={len(batch)}")
 
         client = AlphaVantageClient()
         try:
             result = await client.update_company_overviews(
                 database,
                 limit_symbols=len(batch),
-                symbols_override=batch,  # <- run exactly this slice
+                symbols_override=batch,  # run exactly this slice
+                # If your client supports self-limiting on empty payloads, you can pass:
+                # disable_on_empty=True
             )
         finally:
             await client.aclose()
 
-        for k in ("attempted", "updated", "skipped", "failed"):
-            totals[k] += int(result.get(k, 0))
+        # Update cumulative totals
+        b_attempted = int(result.get("attempted", len(batch)))
+        b_updated   = int(result.get("updated",   0))
+        b_skipped   = int(result.get("skipped",   0))
+        b_failed    = int(result.get("failed",    0))
 
-        if event_id:
+        totals["attempted"] += b_attempted
+        totals["updated"]   += b_updated
+        totals["skipped"]   += b_skipped
+        totals["failed"]    += b_failed
+
+        remaining = max(0, total - totals["attempted"])
+        pct = (totals["attempted"] / total * 100.0) if total else 100.0
+
+        # Per-batch stats
+        logger.info(
+            f"[AV] Batch {batch_no}/{batches_total} done: "
+            f"attempted={b_attempted}, updated={b_updated}, skipped={b_skipped}, failed={b_failed}"
+        )
+        # Cumulative after this batch
+        logger.info(
+            f"[AV] CUMULATIVE after batch {batch_no}: "
+            f"{totals['attempted']}/{total} ({pct:.1f}%) | "
+            f"updated={totals['updated']}, skipped={totals['skipped']}, failed={totals['failed']} | "
+            f"remaining={remaining}"
+        )
+
+        # Update the event with both batch + cumulative (do NOT stringify event_id)
+        if event_id is not None:
             await update_system_event(
                 database,
                 event_id,
                 "running",
-                {"last_batch": result, "totals": totals, "processed": i + len(batch)},
+                {
+                    "batch_no": batch_no,
+                    "batches_total": batches_total,
+                    "batch_stats": {
+                        "attempted": b_attempted,
+                        "updated": b_updated,
+                        "skipped": b_skipped,
+                        "failed": b_failed,
+                    },
+                    "cumulative": {
+                        "attempted": totals["attempted"],
+                        "updated": totals["updated"],
+                        "skipped": totals["skipped"],
+                        "failed": totals["failed"],
+                        "total": total,
+                        "remaining": remaining,
+                        "pct_complete": round(pct, 1),
+                    },
+                },
             )
 
-        if i + batch_size >= len(symbols):
+        if i + batch_size >= total:
             break
 
         logger.info(f"[AV] OverviewBatches: sleeping {delay_seconds}s…")
         await asyncio.sleep(delay_seconds)
 
     logger.info(f"[AV] OverviewBatches: done totals={totals}")
-    if event_id:
+    if event_id is not None:
         await update_system_event(database, event_id, "completed", totals)
 
 # --- endpoint to kick off batched updates (prefetched once) ------------------
@@ -2644,8 +2723,8 @@ async def _run_overview_batches_prefetched(
 @app.post("/alphavantage/update-overviews-batched")
 async def update_alphavantage_overviews_batched(
     total_limit: int = 1500,       # how many tickers to prefetch total
-    batch_size: int = 60,         # how many per batch
-    delay_seconds: int = 40,      # pause between batches
+    batch_size: int = 60,          # how many per batch
+    delay_seconds: int = 40,       # pause between batches
     run_in_background: bool = True,
 ):
     """
@@ -2672,7 +2751,7 @@ async def update_alphavantage_overviews_batched(
             total_limit=total_limit,
             batch_size=batch_size,
             delay_seconds=delay_seconds,
-            event_id=str(event_id),
+            event_id=event_id,  # <-- keep raw type for DB writes
         )
 
     if run_in_background:
@@ -2680,7 +2759,7 @@ async def update_alphavantage_overviews_batched(
         return {
             "success": True,
             "message": "Batched overview update scheduled.",
-            "event_id": str(event_id),
+            "event_id": str(event_id),  # fine to stringify in the HTTP response
             "params": {"total_limit": total_limit, "batch_size": batch_size, "delay_seconds": delay_seconds},
         }
     else:
