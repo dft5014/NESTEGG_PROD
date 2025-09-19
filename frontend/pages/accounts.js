@@ -402,11 +402,22 @@ export default function AccountsPage() {
 
 
         {/* Accounts Table */}
-        <UnifiedAccountTable 
-          title="All Accounts"
-          initialSort="value-high"
-          onDataChanged={handleRefresh}
-        />
+        {!isLoading && accounts.length === 0 ? (
+          <div className="mt-6 rounded-xl border border-gray-800 bg-gray-900/50 p-8 text-center">
+            <div className="inline-flex h-12 w-12 items-center justify-center rounded-full bg-gray-800 mb-3">
+              <Briefcase className="w-6 h-6 text-gray-400" />
+            </div>
+            <h3 className="text-lg font-semibold">No accounts at this time</h3>
+            <p className="text-sm text-gray-400 mt-1">Add your first account to get started.</p>
+          </div>
+        ) : (
+          <UnifiedAccountTable 
+            title="All Accounts"
+            initialSort="value-high"
+            onDataChanged={handleRefresh}
+          />
+        )}
+
 
         {/* Section Divider */}
         <div className="my-8 border-t border-gray-700/50" />

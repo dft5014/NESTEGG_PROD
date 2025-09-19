@@ -87,12 +87,12 @@ export const useAccounts = () => {
   }, [accounts.summary]);
 
   return {
-    accounts: processedAccounts,
-    summary: summaryMetrics,
-    loading: accounts.loading,
-    error: accounts.error,
-    lastFetched: accounts.lastFetched,
-    isStale: accounts.isStale,
+    accounts: Array.isArray(processedAccounts) ? processedAccounts : [],
+    summary: summaryMetrics || null,
+    loading: Boolean(accounts?.loading),
+    error: accounts?.error || null,
+    lastFetched: accounts?.lastFetched || null,
+    isStale: Boolean(accounts?.isStale),
     refresh: actions.refreshAccounts,
     markStale: actions.markAccountsStale
   };
