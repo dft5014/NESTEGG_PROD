@@ -1859,7 +1859,7 @@ async def update_all_securities_prices():
         
         # Fetch all tickers from the securities table
         logger.info("Fetching active securities from the database")
-        query = "SELECT ticker FROM security_usage WHERE status = 'Active' AND price_status = 'Requires Updating' AND on_yfinance IS DISTINCT FROM FALSE ORDER BY last_updated ASC"
+        query = "SELECT ticker FROM security_usage WHERE price_status = 'Requires Updating' AND on_yfinance IS DISTINCT FROM FALSE ORDER BY last_updated ASC"
 
         results = await database.fetch_all(query)
         
@@ -2427,8 +2427,8 @@ async def polygon_sync_prices():
 @app.post("/securities/polygon-sync-list")
 async def polygon_sync_list(
     active_only: bool = True,
-    include_types: Optional[str] = "CS,ETF,ADR",  # comma-separated Polygon types
-    max_pages: Optional[int] = 3,                # keep conservative by default
+    include_types: Optional[str] = "CS,ETF,ADR,FUND",  # comma-separated Polygon types
+    max_pages: Optional[int] = 100,                # keep conservative by default
 ):
     """
     Compare Polygon reference tickers to our 'securities' table and insert the missing ones.
