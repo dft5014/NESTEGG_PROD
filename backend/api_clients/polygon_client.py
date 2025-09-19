@@ -21,14 +21,13 @@ HTTP_TIMEOUT = httpx.Timeout(connect=5.0, read=45.0, write=5.0, pool=5.0)
 HTTP_HEADERS = {
     "Accept": "application/json",
     "Accept-Encoding": "gzip",
-    "User-Agent": "NestEgg-PolygonClient/1.4",
+    "User-Agent": "NestEgg-PolygonClient/2.0",
 }
 
 class PolygonClient:
     """
     Public:
       - get_snapshots_for(tickers) -> {ticker: {price: float, timestamp: datetime}}
-      - debug_snapshots_for(tickers) -> (parsed_map, raw_map, stats)
       - list_reference_tickers(...)
     """
 
@@ -42,27 +41,30 @@ class PolygonClient:
     # -----------------------------
     async def get_snapshots_for(self, tickers: Iterable[str]) -> Dict[str, Dict[str, Any]]:
         """
-        Simple rule:
-          price = day.c
-          fallback = min.c
-          (no lastTrade / prevDay)
+        Price rule (simple, per your preference):
+          1) day.c
+          2) fallback to min.c
+          3) if price is None or 0, fallback to prevDay.c
 
         Timestamp:
-          if day.c used: updated(ns->ms) else min.t(ms) else NOW()
-          if min.c used: min.t(ms) else NOW()
+          - For day.c: use `updated` (ns→ms). If missing, use min.t (ms). Else now().
+          - For min.c: use min.t (ms). Else now().
+
+        Also maps class-share punctuation (e.g., BRK-B ↔ BRK.B).
         """
         want: Set[str] = {str(t).strip().upper() for t in tickers if t}
         if not want:
             return {}
 
-        # alias mapping BRK-B <-> BRK.B, etc.
+        # Build alias map once
         alias_map: Dict[str, str] = {}
-        for db_sym in want:
-            for alt in _aliases_for(db_sym):
-                alias_map[alt] = db_sym
-        want_all: Set[str] = set(alias_map.keys())
+        for db_t in want:
+            for alt in _aliases_for(db_t):
+                alias_map[alt] = db_t
+        want_all = set(alias_map.keys())
         logger.info(f"[PolygonClient] alias_map size={len(alias_map)} (for {len(want)} originals)")
 
+        # Fetch snapshot
         payload = await self._get_full_market_snapshot()
         rows = payload.get("tickers") or []
         if not isinstance(rows, list):
@@ -71,7 +73,7 @@ class PolygonClient:
 
         out: Dict[str, Dict[str, Any]] = {}
         seen = updated = 0
-        skipped = []
+        skipped: List[str] = []
 
         for item in rows:
             sym = str(item.get("ticker") or "").upper()
@@ -80,98 +82,30 @@ class PolygonClient:
             db_key = alias_map.get(sym, sym)
             seen += 1
 
-            price, ts_ms, source = _pick_price_ts_day_then_min(item)
+            # choose price + timestamp (day -> min)
+            price, ts_ms, src = _pick_price_ts_day_then_min(item)
+
+            # zero/None price guard – use prevDay.c when available
+            prev_close = _safe_float((item.get("prevDay") or {}).get("c"))
+            if (price is None or price <= 0) and (prev_close is not None and prev_close > 0):
+                price = prev_close
+
+            # skip if still no price or no timestamp
             if price is None or ts_ms is None:
                 skipped.append(db_key)
                 continue
 
             ts_dt = datetime.fromtimestamp(int(ts_ms) / 1000.0, tz=timezone.utc)
-            day_bar   = item.get("day") or {}
-            prev_day  = item.get("prevDay") or {}
             out[db_key] = {
                 "price": float(price),
                 "timestamp": ts_dt,
-                "previous_close": _safe_float((prev_day or {}).get("c")),
-                "day_open":  _safe_float((day_bar or {}).get("o")),
-                "day_high":  _safe_float((day_bar or {}).get("h")),
-                "day_low":   _safe_float((day_bar or {}).get("l")),
             }
             updated += 1
 
-        logger.info(
-            f"[PolygonClient] requested={len(want)} seen_in_snapshot={seen} "
-            f"updated={updated} skipped={len(skipped)}"
-        )
+        logger.info(f"[PolygonClient] requested={len(want)} seen_in_snapshot={seen} updated={updated} skipped={len(skipped)}")
         if skipped:
             logger.info(f"[PolygonClient] skipped sample: {skipped[:20]}")
         return out
-
-    async def debug_snapshots_for(
-        self,
-        tickers: Iterable[str],
-    ) -> Tuple[Dict[str, Dict[str, Any]], Dict[str, Dict[str, Any]], Dict[str, Any]]:
-        """
-        Returns (parsed_map, raw_map, stats).
-        parsed_map includes "source": "day" or "min".
-        """
-        want: Set[str] = {str(t).strip().upper() for t in tickers if t}
-        if not want:
-            return {}, {}, {"requested": 0, "seen": 0, "updated": 0, "skipped": 0}
-
-        alias_map: Dict[str, str] = {}
-        for db_sym in want:
-            for alt in _aliases_for(db_sym):
-                alias_map[alt] = db_sym
-        want_all = set(alias_map.keys())
-        logger.info(f"[PolygonClient.debug] alias_map size={len(alias_map)} (for {len(want)} originals)")
-
-        payload = await self._get_full_market_snapshot()
-        rows = payload.get("tickers") or []
-        if not isinstance(rows, list):
-            return {}, {}, {"requested": len(want), "seen": 0, "updated": 0, "skipped": 0}
-
-        parsed: Dict[str, Dict[str, Any]] = {}
-        raw: Dict[str, Dict[str, Any]] = {}
-        seen = updated = 0
-        skipped = []
-
-        for item in rows:
-            sym = str(item.get("ticker") or "").upper()
-            if sym not in want_all:
-                continue
-            db_key = alias_map.get(sym, sym)
-            raw[db_key] = item
-            seen += 1
-
-            price, ts_ms, source = _pick_price_ts_day_then_min(item)
-            if price is None or ts_ms is None:
-                skipped.append(db_key)
-                continue
-
-            ts_dt = datetime.fromtimestamp(int(ts_ms) / 1000.0, tz=timezone.utc)
-            parsed[db_key] = {"price": float(price), "timestamp": ts_dt, "source": source}
-            updated += 1
-
-        stats = {"requested": len(want), "seen": seen, "updated": updated, "skipped": len(skipped)}
-
-        # compact sample log
-        try:
-            sample_keys = list(parsed.keys())[:10] or list(raw.keys())[:10]
-            sample_dump = {
-                "stats": stats,
-                "sample": {k: {
-                    "parsed": parsed.get(k, {}),
-                    "raw_day_c": (((raw.get(k) or {}).get("day") or {}).get("c")),
-                    "raw_min_c": (((raw.get(k) or {}).get("min") or {}).get("c")),
-                    "raw_updated": (raw.get(k) or {}).get("updated"),
-                    "raw_min_t": (((raw.get(k) or {}).get("min") or {}).get("t")),
-                } for k in sample_keys}
-            }
-            logger.info("[PolygonClient.debug] " + json.dumps(sample_dump, default=_dt_iso)[:8000])
-        except Exception:
-            pass
-
-        return parsed, raw, stats
 
     # -----------------------------
     # Reference universe
@@ -200,7 +134,7 @@ class PolygonClient:
         async with httpx.AsyncClient(timeout=HTTP_TIMEOUT, headers=HTTP_HEADERS) as client:
             while url and pages < max_pages:
                 resp = await _get_with_retry(client, url, params=params)
-                params = None  # next_url has the query
+                params = None  # next_url carries query
                 try:
                     payload = resp.json()
                 except Exception as e:
@@ -268,20 +202,17 @@ def _safe_int(x: Any) -> Optional[int]:
     except Exception:
         return None
 
-def _dt_iso(x: Any) -> Any:
-    if isinstance(x, datetime):
-        return x.isoformat()
-    return x
+async def _async_sleep(seconds: float) -> None:
+    import asyncio
+    await asyncio.sleep(seconds)
 
 def _aliases_for(sym: str) -> List[str]:
     """
-    Simple aliasing to bridge dataset punctuation differences.
-    Class shares: 'BRK-B' <-> 'BRK.B' (right side 1–3 A–Z letters)
-    Preserve suffixes WS, W, U, RT by not morphing them.
+    Minimal aliasing to bridge dataset punctuation differences for class shares.
+    e.g., 'BRK-B' <-> 'BRK.B'. Protect suffixes WS/W/U/RT.
     """
     s = sym.strip().upper()
     out = {s}
-
     PROTECTED = {"WS", "W", "U", "RT"}
 
     def _is_class_suffix(x: str) -> bool:
@@ -303,15 +234,11 @@ def _aliases_for(sym: str) -> List[str]:
 
     return list(out)
 
-async def _async_sleep(seconds: float) -> None:
-    import asyncio
-    await asyncio.sleep(seconds)
-
 def _pick_price_ts_day_then_min(item: Dict[str, Any]) -> Tuple[Optional[float], Optional[int], str]:
     """
     Return (price, ts_ms, source) using the simple rule:
-      1) day.c with ts from updated (ns->ms), else min.t, else NOW()
-      2) min.c with ts from min.t (ms), else NOW()
+      1) day.c (timestamp from 'updated' ns -> ms; else min.t; else now)
+      2) min.c (timestamp from min.t; else now)
       3) else (None, None, 'none')
     """
     day_bar = (item.get("day") or {})
@@ -324,15 +251,15 @@ def _pick_price_ts_day_then_min(item: Dict[str, Any]) -> Tuple[Optional[float], 
         if updated_ns and updated_ns > 1_000_000_000_000:
             ts_ms = int(updated_ns // 1_000_000)
         else:
-            m_t = _safe_int(min_bar.get("t"))
-            ts_ms = m_t if (m_t and m_t > 0) else int(datetime.now(tz=timezone.utc).timestamp() * 1000)
+            m_t = _safe_int(min_bar.get("t"))  # ms
+            ts_ms = m_t if (m_t and m_t > 0) else int(datetime.now(timezone.utc).timestamp() * 1000)
         return float(d_close), ts_ms, "day"
 
     # 2) min.c
     m_close = _safe_float(min_bar.get("c"))
     if m_close is not None:
-        m_t = _safe_int(min_bar.get("t"))
-        ts_ms = m_t if (m_t and m_t > 0) else int(datetime.now(tz=timezone.utc).timestamp() * 1000)
+        m_t = _safe_int(min_bar.get("t"))  # ms
+        ts_ms = m_t if (m_t and m_t > 0) else int(datetime.now(timezone.utc).timestamp() * 1000)
         return float(m_close), ts_ms, "min"
 
     return None, None, "none"

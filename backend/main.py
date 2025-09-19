@@ -2312,9 +2312,12 @@ async def polygon_sync_prices():
     """
     Pull Polygon snapshots for our tickers and update:
       - securities.price_polygon
-      - securities.price_polygon_timestamp
+      - securities.price_polygon_timestamp (timestamptz UTC)
       - securities.on_polygon (TRUE if priced; FALSE if not found)
-    Yahoo fields are untouched.
+      - securities.current_price (mirror of Polygon price)
+      - securities.price_timestamp (timestamp, stored as UTC-naive)
+
+    NOTE: Zero-price fallback (use prevDay.c) is implemented in PolygonClient.get_snapshots_for().
     """
     try:
         event_id = await record_system_event(
@@ -2335,73 +2338,64 @@ async def polygon_sync_prices():
             await update_system_event(database, event_id, "completed", {"message": msg, "tickers_count": 0})
             return {"success": True, "message": msg, "updated_count": 0}
 
-        tickers = [r["ticker"].upper() for r in rows]
+        tickers = [(r["ticker"] or "").strip().upper() for r in rows if r["ticker"]]
 
         client = PolygonClient()
-        snaps = await client.get_snapshots_for(tickers)
+        snaps = await client.get_snapshots_for(tickers)  # {ticker: {price: float, timestamp: datetime UTC}}
 
         found = set(snaps.keys())
         requested = set(tickers)
         missing = list(requested - found)
 
+        # ---- fast set-based update for 'found' ----
         if found:
-            rows = [{
-                "ticker": t,
-                "price": float(snaps[t]["price"]),
-                "ts": snaps[t]["timestamp"].astimezone(timezone.utc).isoformat() if isinstance(snaps[t]["timestamp"], datetime) else str(snaps[t]["timestamp"]),
-                "previous_close": snaps[t].get("previous_close"),
-                "day_open":       snaps[t].get("day_open"),
-                "day_high":       snaps[t].get("day_high"),
-                "day_low":        snaps[t].get("day_low"),
-            } for t in found]
+            # Build compact JSON payload for Postgres
+            rows_json = json.dumps([
+                {
+                    "ticker": t,
+                    "price": float(snaps[t]["price"]),
+                    # ISO8601 UTC; Postgres parses to timestamptz cleanly
+                    "ts": snaps[t]["timestamp"].astimezone(timezone.utc).isoformat()
+                    if isinstance(snaps[t]["timestamp"], datetime)
+                    else str(snaps[t]["timestamp"])
+                }
+                for t in found
+            ])
 
-            rows_json = json.dumps(rows)
-
+            # Single statement, set-based UPDATE (use CAST(:rows AS jsonb) to play nice with SQLAlchemy 1.4)
             await database.execute(
                 """
-            WITH v AS (
-            SELECT
-                (x->>'ticker')::text        AS ticker,
-                (x->>'price')::numeric      AS price,
-                (x->>'ts')::timestamptz     AS ts,
-                NULLIF(x->>'previous_close','')::numeric AS previous_close,
-                NULLIF(x->>'day_open','')::numeric       AS day_open,
-                NULLIF(x->>'day_high','')::numeric       AS day_high,
-                NULLIF(x->>'day_low','')::numeric        AS day_low
-            FROM jsonb_array_elements(:rows::jsonb) AS x
-            )
-            UPDATE securities s
-            SET
-            price_polygon            = v.price,
-            price_polygon_timestamp  = v.ts,
-            on_polygon               = TRUE,
-            current_price            = v.price,
-            price_timestamp          = (v.ts AT TIME ZONE 'UTC'),
-            previous_close           = COALESCE(v.previous_close, s.previous_close),
-            day_open                 = COALESCE(v.day_open,       s.day_open),
-            day_high                 = COALESCE(v.day_high,       s.day_high),
-            day_low                  = COALESCE(v.day_low,        s.day_low)
-            FROM v
-            WHERE s.ticker = v.ticker
+                WITH v AS (
+                  SELECT
+                    (x->>'ticker')::text        AS ticker,
+                    (x->>'price')::numeric      AS price,
+                    (x->>'ts')::timestamptz     AS ts
+                  FROM jsonb_array_elements(CAST(:rows AS jsonb)) AS x
+                )
+                UPDATE securities s
+                   SET price_polygon            = v.price,
+                       price_polygon_timestamp  = v.ts,
+                       on_polygon               = TRUE,
+                       current_price            = v.price,
+                       -- 'price_timestamp' is a 'timestamp' (naive). Store UTC-naive explicitly:
+                       price_timestamp          = (v.ts AT TIME ZONE 'UTC')
+                  FROM v
+                 WHERE s.ticker = v.ticker
                 """,
                 {"rows": rows_json}
             )
 
+        # ---- mark missing as on_polygon = FALSE (simple and readable) ----
         if missing:
-            miss_rows_json = json.dumps([{"ticker": t} for t in missing])
-            await database.execute(
-                """
-                WITH v AS (
-                SELECT (x->>'ticker')::text AS ticker
-                FROM jsonb_array_elements(:rows::jsonb) AS x
+            BATCH = 200
+            for i in range(0, len(missing), BATCH):
+                chunk = missing[i:i+BATCH]
+                placeholders = ", ".join([f":t{i}" for i in range(len(chunk))])
+                params = {f"t{i}": t for i, t in enumerate(chunk)}
+                await database.execute(
+                    f"UPDATE securities SET on_polygon = FALSE WHERE ticker IN ({placeholders})",
+                    params
                 )
-                UPDATE securities s
-                SET on_polygon = FALSE
-                FROM v
-                WHERE s.ticker = v.ticker
-                """,
-                {"rows": miss_rows_json}
-            )
 
         await update_system_event(
             database,
@@ -2414,6 +2408,7 @@ async def polygon_sync_prices():
                 "source": "polygon"
             }
         )
+
         return {
             "success": True,
             "message": f"Polygon synced {len(found)} / {len(tickers)}",
@@ -2424,9 +2419,9 @@ async def polygon_sync_prices():
         logger.error(f"Polygon sync error: {e}")
         if 'event_id' in locals():
             await update_system_event(database, event_id, "failed", {"error": str(e)})
+
         import traceback; logger.error(traceback.format_exc())
         raise HTTPException(status_code=500, detail=f"Polygon sync failed: {e}")
-
 
 @app.post("/securities/polygon-sync-list")
 async def polygon_sync_list(
