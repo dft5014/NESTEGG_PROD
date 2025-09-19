@@ -2379,7 +2379,7 @@ async def polygon_sync_prices():
                        current_price            = v.price,
                        -- 'price_timestamp' is a 'timestamp' (naive). Store UTC-naive explicitly:
                        price_timestamp          = (v.ts AT TIME ZONE 'UTC'),
-                       last_updated             = (v.ts AT TIME ZONE 'UTC')
+                       last_updated             = (NOW() AT TIME ZONE 'UTC')
                   FROM v
                  WHERE s.ticker = v.ticker
                 """,
