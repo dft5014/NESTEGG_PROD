@@ -2166,64 +2166,75 @@ async def update_all_securities_metrics():
         )
 
 # Define the background task function for metrics updates
+# Define the background task function for metrics updates
 async def process_metrics_updates(ticker_list: list, event_id):
     """Process company metrics updates for the given tickers in the background."""
     ticker_count = len(ticker_list)
     success_count = 0
     failed_count = 0
-    
+
+    # Helper: mark a ticker so we don't re-fetch from yfinance again
+    async def _disable_yf(ticker: str, reason: str):
+        try:
+            await database.execute(
+                """
+                UPDATE securities
+                   SET on_yfinance = FALSE,
+                       last_updated = (NOW() AT TIME ZONE 'UTC')
+                 WHERE ticker = :ticker
+                """,
+                {"ticker": ticker},
+            )
+            logger.warning(f"[yq] Disabled on_yfinance for {ticker}: {reason}")
+        except Exception as e:
+            logger.error(f"[yq] Failed to disable on_yfinance for {ticker}: {e}")
+
     try:
         # Initialize YahooQueryClient
         client = YahooQueryClient()
-        
+
         # Process each ticker
         for ticker in ticker_list:
             try:
-                # Get company metrics data
                 logger.info(f"Fetching company metrics for {ticker}")
                 metrics = await client.get_company_metrics(ticker)
-                
+
+                # Hard-shape guard: non-dict or explicit not_found → disable
                 if isinstance(metrics, str):
-                    error_msg = f"Invalid metrics format (received string): {metrics}"
-                    logger.error(error_msg)
                     failed_count += 1
+                    await _disable_yf(ticker, "metrics is string (invalid payload)")
                     continue
-                
-                if not metrics or metrics.get("not_found"):
-                    error_msg = f"No metrics data returned for {ticker}"
-                    logger.error(error_msg)
+
+                if not isinstance(metrics, dict):
                     failed_count += 1
+                    await _disable_yf(ticker, f"metrics type={type(metrics).__name__} not dict")
                     continue
-                
-                # Update securities table with company metrics
-                update_query = """
-                UPDATE securities
-                SET 
-                    company_name = :company_name,
-                    current_price = :current_price,
-                    sector = :sector,
-                    industry = :industry,
-                    market_cap = :market_cap,
-                    pe_ratio = :pe_ratio,
-                    forward_pe = :forward_pe,
-                    dividend_rate = :dividend_rate,
-                    dividend_yield = :dividend_yield,
-                    beta = :beta,
-                    fifty_two_week_low = :fifty_two_week_low,
-                    fifty_two_week_high = :fifty_two_week_high,
-                    fifty_two_week_range = :fifty_two_week_range,
-                    eps = :eps,
-                    forward_eps = :forward_eps,
-                    last_metrics_update = :updated_at,
-                    last_updated = :updated_at
-                WHERE ticker = :ticker
-                """
-                
-                # Prepare values for update
+
+                if metrics.get("not_found"):
+                    failed_count += 1
+                    await _disable_yf(ticker, "not_found flag from client")
+                    continue
+
+                # Soft guard: no usable fields -> disable (prevents infinite retries)
+                has_any_value = any(
+                    metrics.get(k) is not None
+                    for k in (
+                        "company_name", "current_price", "sector", "industry",
+                        "market_cap", "pe_ratio", "forward_pe", "dividend_rate",
+                        "dividend_yield", "beta", "fifty_two_week_low",
+                        "fifty_two_week_high", "eps", "forward_eps"
+                    )
+                )
+                if not has_any_value:
+                    failed_count += 1
+                    await _disable_yf(ticker, "no usable metrics fields present")
+                    continue
+
+                # --- Build update payload ---
                 fifty_two_week_range = None
                 if metrics.get("fifty_two_week_low") is not None and metrics.get("fifty_two_week_high") is not None:
                     fifty_two_week_range = f"{metrics['fifty_two_week_low']}-{metrics['fifty_two_week_high']}"
-                
+
                 update_values = {
                     "ticker": ticker,
                     "company_name": metrics.get("company_name"),
@@ -2241,17 +2252,42 @@ async def process_metrics_updates(ticker_list: list, event_id):
                     "fifty_two_week_range": fifty_two_week_range,
                     "eps": metrics.get("eps"),
                     "forward_eps": metrics.get("forward_eps"),
-                    "updated_at": datetime.now()
+                    "updated_at": datetime.now(),  # your column is 'timestamp' (naive); keep as-is
                 }
-                
+
+                # --- Apply update ---
+                update_query = """
+                UPDATE securities
+                   SET company_name         = :company_name,
+                       current_price        = :current_price,
+                       sector               = :sector,
+                       industry             = :industry,
+                       market_cap           = :market_cap,
+                       pe_ratio             = :pe_ratio,
+                       forward_pe           = :forward_pe,
+                       dividend_rate        = :dividend_rate,
+                       dividend_yield       = :dividend_yield,
+                       beta                 = :beta,
+                       fifty_two_week_low   = :fifty_two_week_low,
+                       fifty_two_week_high  = :fifty_two_week_high,
+                       fifty_two_week_range = :fifty_two_week_range,
+                       eps                  = :eps,
+                       forward_eps          = :forward_eps,
+                       last_metrics_update  = :updated_at,
+                       last_updated         = :updated_at,
+                       on_yfinance          = TRUE
+                 WHERE ticker = :ticker
+                """
                 await database.execute(update_query, update_values)
                 success_count += 1
-                
+
             except Exception as e:
-                error_message = f"Error updating metrics for {ticker}: {str(e)}"
-                logger.error(error_message)
+                logger.error(f"Error updating metrics for {ticker}: {e}")
                 failed_count += 1
-        
+                # Be conservative: only disable on clear parsing/no-data cases above.
+                # If you want ALL exceptions to disable, uncomment the next line:
+                # await _disable_yf(ticker, f"exception during update: {e}")
+
         # Update event as completed
         await update_system_event(
             database,
@@ -2263,24 +2299,13 @@ async def process_metrics_updates(ticker_list: list, event_id):
                 "failed_count": failed_count
             }
         )
-        
         logger.info(f"Background metrics update completed: {success_count}/{ticker_count} tickers updated")
-        
+
     except Exception as e:
         error_message = f"Error in batch metrics update: {str(e)}"
         logger.error(error_message)
-        
-        # Update event as failed
-        await update_system_event(
-            database,
-            event_id,
-            "failed",
-            {"error": error_message}
-        )
-        
-        # Log detailed error for debugging
-        import traceback
-        logger.error(traceback.format_exc())
+        await update_system_event(database, event_id, "failed", {"error": error_message})
+        import traceback; logger.error(traceback.format_exc())
 
 @app.get("/system/warmup")
 async def warmup_system():
