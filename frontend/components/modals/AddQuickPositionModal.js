@@ -641,11 +641,14 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
   const [focusedCell, setFocusedCell] = useState(null);
   const [message, setMessage] = useState({ type: '', text: '', details: [] });
   const [activeFilter, setActiveFilter] = useState('all');
+  const [progress, setProgress] = useState(0); // used during submitClean
 
   // Persisted toggles/state
   const [autoRemoveSuccess, setAutoRemoveSuccess] = useState(() => {
     try { return (sessionStorage.getItem('qp_autoRemove') ?? 'true') === 'true'; } catch { return true; }
   });
+
+  const [viewMode, setViewMode] = useState(false); // false = by asset type, true = by account
 
   // Rehydrate persisted section/view state on mount
   useEffect(() => {
@@ -677,7 +680,7 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
   const [showKeyboardShortcuts, setShowKeyboardShortcuts] = useState(false);
   const [validationMode, setValidationMode] = useState('realtime');
   const [recentlyUsedAccounts, setRecentlyUsedAccounts] = useState([]);
-  const [viewMode, setViewMode] = useState(false); // false = by asset type, true = by account
+  
   const [showQueue, setShowQueue] = useState(false);
   const [selectedAccountFilter, setSelectedAccountFilter] = useState(new Set());
   const [selectedInstitutionFilter, setSelectedInstitutionFilter] = useState(new Set());
@@ -2808,16 +2811,6 @@ return (
      default:
        return 0;
    }
- };
-
- // Format currency helper
- const formatCurrency = (value) => {
-   if (value >= 1000000) {
-     return `$${(value / 1000000).toFixed(1)}M`;
-   } else if (value >= 1000) {
-     return `$${(value / 1000).toFixed(1)}K`;
-   }
-   return `$${value.toFixed(2)}`;
  };
 
  return (
