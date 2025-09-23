@@ -2105,7 +2105,14 @@ async def update_all_securities_metrics():
         
         # Fetch all tickers from the securities table
         logger.info("Fetching active securities from the database")
-        query = "SELECT ticker FROM security_usage WHERE metrics_status = 'Requires Updating' AND metrics_source IS DISTINCT FROM 'alpha_vantage' AND on_yfinance IS DISTINCT FROM FALSE ORDER BY last_updated ASC LIMIT 50"
+        query = "SELECT ticker FROM security_usage
+                    WHERE metrics_status = 'Requires Updating'
+                    AND metrics_source IS DISTINCT FROM 'alpha_vantage'
+                    AND on_yfinance IS DISTINCT FROM FALSE
+                    ORDER BY
+                    metrics_age_minutes DESC NULLS FIRST
+                    ticker ASC
+                    LIMIT 100"
         results = await database.fetch_all(query)
         
         if not results:
@@ -2165,7 +2172,6 @@ async def update_all_securities_metrics():
             detail=f"Failed to update security metrics: {str(e)}"
         )
 
-# Define the background task function for metrics updates
 # Define the background task function for metrics updates
 async def process_metrics_updates(ticker_list: list, event_id):
     """Process company metrics updates for the given tickers in the background."""
@@ -2235,12 +2241,20 @@ async def process_metrics_updates(ticker_list: list, event_id):
                 if metrics.get("fifty_two_week_low") is not None and metrics.get("fifty_two_week_high") is not None:
                     fifty_two_week_range = f"{metrics['fifty_two_week_low']}-{metrics['fifty_two_week_high']}"
 
+                # Normalize blank strings to None to avoid clobbering good data
+                def _nn(v):
+                    if v is None:
+                        return None
+                    if isinstance(v, str) and v.strip() == "":
+                        return None
+                    return v
+
                 update_values = {
                     "ticker": ticker,
-                    "company_name": metrics.get("company_name"),
+                    "company_name": _nn(metrics.get("company_name")),
                     "current_price": metrics.get("current_price"),
-                    "sector": metrics.get("sector"),
-                    "industry": metrics.get("industry"),
+                    "sector": _nn(metrics.get("sector")),
+                    "industry": _nn(metrics.get("industry")),
                     "market_cap": metrics.get("market_cap"),
                     "pe_ratio": metrics.get("pe_ratio"),
                     "forward_pe": metrics.get("forward_pe"),
@@ -2252,29 +2266,33 @@ async def process_metrics_updates(ticker_list: list, event_id):
                     "fifty_two_week_range": fifty_two_week_range,
                     "eps": metrics.get("eps"),
                     "forward_eps": metrics.get("forward_eps"),
-                    "updated_at": datetime.now(),  # your column is 'timestamp' (naive); keep as-is
+
+                    # Explicitly persist the data lineage
+                    "metrics_source": "yahoo_query",
                 }
 
-                # --- Apply update ---
                 update_query = """
                 UPDATE securities
-                   SET company_name         = :company_name,
-                       current_price        = :current_price,
-                       sector               = :sector,
-                       industry             = :industry,
-                       market_cap           = :market_cap,
-                       pe_ratio             = :pe_ratio,
-                       forward_pe           = :forward_pe,
-                       dividend_rate        = :dividend_rate,
-                       dividend_yield       = :dividend_yield,
-                       beta                 = :beta,
-                       fifty_two_week_low   = :fifty_two_week_low,
-                       fifty_two_week_high  = :fifty_two_week_high,
-                       fifty_two_week_range = :fifty_two_week_range,
-                       eps                  = :eps,
-                       forward_eps          = :forward_eps,
-                       last_metrics_update  = :updated_at,
-                       last_updated         = :updated_at,
+                   SET company_name         = COALESCE(NULLIF(:company_name, ''), company_name),
+                       current_price        = COALESCE(:current_price, current_price),
+                       sector               = COALESCE(NULLIF(:sector, ''), sector),
+                       industry             = COALESCE(NULLIF(:industry, ''), industry),
+                       market_cap           = COALESCE(:market_cap, market_cap),
+                       pe_ratio             = COALESCE(:pe_ratio, pe_ratio),
+                       forward_pe           = COALESCE(:forward_pe, forward_pe),
+                       dividend_rate        = COALESCE(:dividend_rate, dividend_rate),
+                       dividend_yield       = COALESCE(:dividend_yield, dividend_yield),
+                       beta                 = COALESCE(:beta, beta),
+                       fifty_two_week_low   = COALESCE(:fifty_two_week_low, fifty_two_week_low),
+                       fifty_two_week_high  = COALESCE(:fifty_two_week_high, fifty_two_week_high),
+                       fifty_two_week_range = COALESCE(NULLIF(:fifty_two_week_range, ''), fifty_two_week_range),
+                       eps                  = COALESCE(:eps, eps),
+                       forward_eps          = COALESCE(:forward_eps, forward_eps),
+
+                       -- lineage and freshness
+                       metrics_source       = :metrics_source,
+                       last_metrics_update  = (NOW() AT TIME ZONE 'UTC'),
+                       last_updated         = (NOW() AT TIME ZONE 'UTC'),
                        on_yfinance          = TRUE
                  WHERE ticker = :ticker
                 """
