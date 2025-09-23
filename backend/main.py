@@ -2844,8 +2844,8 @@ async def _prefetch_overview_symbols(total_limit: int) -> List[str]:
     sql = """
         SELECT u.ticker
         FROM security_usage u
-        WHERE (u.on_alphavantage IS DISTINCT FROM FALSE)
-          AND (u.metrics_source = 'yahoo_finance' OR u.metrics_source = 'polygon')
+        WHERE u.metrics_status = 'Requires Updating'
+          AND (u.on_alphavantage IS DISTINCT FROM FALSE)
         ORDER BY u.metrics_age_minutes DESC NULLS FIRST, u.ticker ASC
         LIMIT :lim
     """
