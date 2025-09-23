@@ -2110,6 +2110,7 @@ async def update_all_securities_metrics():
         FROM security_usage
         WHERE metrics_status = 'Requires Updating'
         AND metrics_source IS DISTINCT FROM 'alpha_vantage'
+        AND on_alphavantage is FALSE
         AND on_yfinance IS DISTINCT FROM FALSE
         ORDER BY metrics_age_minutes DESC NULLS FIRST, ticker ASC
         LIMIT 100
