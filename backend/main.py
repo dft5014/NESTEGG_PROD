@@ -2242,13 +2242,13 @@ async def process_metrics_updates(ticker_list: list, event_id):
                 if metrics.get("fifty_two_week_low") is not None and metrics.get("fifty_two_week_high") is not None:
                     fifty_two_week_range = f"{metrics['fifty_two_week_low']}-{metrics['fifty_two_week_high']}"
 
-                # Normalize blank strings to None to avoid clobbering good data
                 def _nn(v):
-                    if v is None:
-                        return None
-                    if isinstance(v, str) and v.strip() == "":
-                        return None
+                    if v is None: return None
+                    if isinstance(v, str) and v.strip() == "": return None
                     return v
+
+                # Prefer vendor time if present (else leave None and SQL will handle)
+                price_ts = metrics.get("price_timestamp")  # set this in get_company_metrics from regularMarketTime if available
 
                 update_values = {
                     "ticker": ticker,
@@ -2268,34 +2268,42 @@ async def process_metrics_updates(ticker_list: list, event_id):
                     "eps": metrics.get("eps"),
                     "forward_eps": metrics.get("forward_eps"),
 
-                    # Explicitly persist the data lineage
                     "metrics_source": "yahoo_query",
+                    "price_timestamp": price_ts,  # may be None
                 }
 
                 update_query = """
                 UPDATE securities
-                   SET company_name         = COALESCE(NULLIF(:company_name, ''), company_name),
-                       current_price        = COALESCE(:current_price, current_price),
-                       sector               = COALESCE(NULLIF(:sector, ''), sector),
-                       industry             = COALESCE(NULLIF(:industry, ''), industry),
-                       market_cap           = COALESCE(:market_cap, market_cap),
-                       pe_ratio             = COALESCE(:pe_ratio, pe_ratio),
-                       forward_pe           = COALESCE(:forward_pe, forward_pe),
-                       dividend_rate        = COALESCE(:dividend_rate, dividend_rate),
-                       dividend_yield       = COALESCE(:dividend_yield, dividend_yield),
-                       beta                 = COALESCE(:beta, beta),
-                       fifty_two_week_low   = COALESCE(:fifty_two_week_low, fifty_two_week_low),
-                       fifty_two_week_high  = COALESCE(:fifty_two_week_high, fifty_two_week_high),
-                       fifty_two_week_range = COALESCE(NULLIF(:fifty_two_week_range, ''), fifty_two_week_range),
-                       eps                  = COALESCE(:eps, eps),
-                       forward_eps          = COALESCE(:forward_eps, forward_eps),
+                SET company_name         = COALESCE(NULLIF(:company_name, ''), company_name),
+                    current_price        = COALESCE(:current_price, current_price),
+                    sector               = COALESCE(NULLIF(:sector, ''), sector),
+                    industry             = COALESCE(NULLIF(:industry, ''), industry),
+                    market_cap           = COALESCE(:market_cap, market_cap),
+                    pe_ratio             = COALESCE(:pe_ratio, pe_ratio),
+                    forward_pe           = COALESCE(:forward_pe, forward_pe),
+                    dividend_rate        = COALESCE(:dividend_rate, dividend_rate),
+                    dividend_yield       = COALESCE(:dividend_yield, dividend_yield),
+                    beta                 = COALESCE(:beta, beta),
+                    fifty_two_week_low   = COALESCE(:fifty_two_week_low, fifty_two_week_low),
+                    fifty_two_week_high  = COALESCE(:fifty_two_week_high, fifty_two_week_high),
+                    fifty_two_week_range = COALESCE(NULLIF(:fifty_two_week_range, ''), fifty_two_week_range),
+                    eps                  = COALESCE(:eps, eps),
+                    forward_eps          = COALESCE(:forward_eps, forward_eps),
 
-                       -- lineage and freshness
-                       metrics_source       = :metrics_source,
-                       last_metrics_update  = (NOW() AT TIME ZONE 'UTC'),
-                       last_updated         = (NOW() AT TIME ZONE 'UTC'),
-                       on_yfinance          = TRUE
-                 WHERE ticker = :ticker
+                    -- lineage and freshness
+                    metrics_source       = :metrics_source,
+
+                    -- Only bump price_timestamp when we actually have a price in this payload.
+                    -- Prefer vendor timestamp; else use NOW(); otherwise keep existing.
+                    price_timestamp = COALESCE(
+                        :price_timestamp,
+                        CASE WHEN :current_price IS NOT NULL THEN (NOW() AT TIME ZONE 'UTC') ELSE price_timestamp END
+                    ),
+
+                    last_metrics_update  = (NOW() AT TIME ZONE 'UTC'),
+                    last_updated         = (NOW() AT TIME ZONE 'UTC'),
+                    on_yfinance          = TRUE
+                WHERE ticker = :ticker
                 """
                 await database.execute(update_query, update_values)
                 success_count += 1
