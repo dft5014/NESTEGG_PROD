@@ -616,6 +616,16 @@ class AlphaVantageClient:
         for sym in symbols:
             try:
                 ov = await self.get_company_overview(sym)
+
+                def _is_av_note_or_error(d: dict) -> bool:
+                    return isinstance(d, dict) and any(k in d for k in ("Note", "Information", "Error Message"))
+
+                # If AlphaVantage is rate-limiting / informational, SKIP (do not disable)
+                if _is_av_note_or_error(ov):
+                    skipped += 1
+                    logger.warning(f"[AV] OVERVIEW rate-limit/info for {sym}; skipping without disabling.")
+                    continue
+
                 if not ov or "Symbol" not in ov:
                     skipped += 1
                     rows_to_disable.append({"ticker": sym, "now": now})

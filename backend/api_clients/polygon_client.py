@@ -28,6 +28,7 @@ class PolygonClient:
     """
     Public:
       - get_snapshots_for(tickers) -> {ticker: {price: float, timestamp: datetime}}
+      - get_all_snapshots()        -> {ticker: {price: float, timestamp: datetime}}      
       - list_reference_tickers(...)
     """
 
@@ -106,6 +107,47 @@ class PolygonClient:
         if skipped:
             logger.info(f"[PolygonClient] skipped sample: {skipped[:20]}")
         return out
+
+
+    async def get_all_snapshots(self) -> Dict[str, Dict[str, Any]]:
+        """
+        Return a normalized full-market snapshot:
+        { "TICKER": {"price": float, "timestamp": datetime(UTC)} , ... }
+
+        Price rule matches get_snapshots_for():
+          1) day.c
+          2) fallback to min.c
+          3) if price None/0, fallback to prevDay.c
+        """
+        payload = await self._get_full_market_snapshot()
+        rows = payload.get("tickers") or []
+        if not isinstance(rows, list):
+            logger.warning("polygon.snapshot.unexpected_shape")
+            return {}
+
+        out: Dict[str, Dict[str, Any]] = {}
+        updated = 0
+        for item in rows:
+            sym = str(item.get("ticker") or "").strip().upper()
+            if not sym:
+                continue
+
+            price, ts_ms, _src = _pick_price_ts_day_then_min(item)
+            # prevDay fallback
+            prev_close = _safe_float((item.get("prevDay") or {}).get("c"))
+            if (price is None or price <= 0) and (prev_close is not None and prev_close > 0):
+                price = prev_close
+
+            if price is None or ts_ms is None:
+                continue
+
+            ts_dt = datetime.fromtimestamp(int(ts_ms) / 1000.0, tz=timezone.utc)
+            out[sym] = {"price": float(price), "timestamp": ts_dt}
+            updated += 1
+
+        logger.info(f"[PolygonClient] full_market normalized={updated}/{len(rows)}")
+        return out
+
 
     # -----------------------------
     # Reference universe

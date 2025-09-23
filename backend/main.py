@@ -2476,6 +2476,199 @@ async def polygon_sync_prices():
         import traceback; logger.error(traceback.format_exc())
         raise HTTPException(status_code=500, detail=f"Polygon sync failed: {e}")
 
+def _chunks(seq, size):
+    for i in range(0, len(seq), size):
+        yield seq[i:i+size]
+
+@app.post("/market/polygon-sync-prices-full")
+async def polygon_sync_prices_full(
+    mark_absent_false: bool = False  # optional: mark our existing-but-not-in-snapshot as on_polygon=FALSE
+):
+    """
+    Full-market Polygon price sync:
+
+      1) Pull full-market snapshot from Polygon.
+      2) Update prices for tickers we already have.
+      3) Insert any *new* tickers present in the snapshot payload into `securities`
+         with ticker_source='polygon' and ticker_add_date=NOW(), seeding price fields.
+
+    Updates:
+      - price_polygon, price_polygon_timestamp (timestamptz UTC), on_polygon
+      - current_price, price_timestamp (UTC-naive), last_updated (UTC-naive)
+    """
+    try:
+        event_id = await record_system_event(
+            database, "polygon_full_market_price_sync",
+            "started",
+            {"description": "Full-market Polygon snapshot sync (update + insert-new)"}
+        )
+
+        client = PolygonClient()
+        snaps: Dict[str, Dict[str, Any]] = await client.get_all_snapshots()
+        if not snaps:
+            msg = "Polygon returned no snapshots"
+            await update_system_event(database, event_id, "completed", {"message": msg, "tickers_count": 0})
+            return {"success": True, "message": msg, "updated_count": 0, "inserted_new": 0}
+
+        snapshot_tickers = {t for t in snaps.keys()}
+
+        # Load our current tickers
+        existing_rows = await database.fetch_all("SELECT ticker FROM securities")
+        existing = { (r["ticker"] or "").strip().upper() for r in existing_rows if r["ticker"] }
+
+        to_update = sorted(list(existing & snapshot_tickers))
+        to_insert = sorted(list(snapshot_tickers - existing))
+
+        updated_count = 0
+        inserted_count = 0
+
+        # ---- Update existing in batches ----
+        for batch in _chunks(to_update, 5000):
+            rows_json = json.dumps([
+                {
+                    "ticker": t,
+                    "price": float(snaps[t]["price"]),
+                    "ts": (
+                        snaps[t]["timestamp"].astimezone(timezone.utc).isoformat()
+                        if isinstance(snaps[t]["timestamp"], datetime)
+                        else str(snaps[t]["timestamp"])
+                    ),
+                }
+                for t in batch
+                if t in snaps and snaps[t].get("price") is not None
+            ])
+            if rows_json and rows_json != "[]":
+                await database.execute(
+                    """
+                    WITH v AS (
+                      SELECT
+                        (x->>'ticker')::text        AS ticker,
+                        (x->>'price')::numeric      AS price,
+                        (x->>'ts')::timestamptz     AS ts
+                      FROM jsonb_array_elements(CAST(:rows AS jsonb)) AS x
+                    )
+                    UPDATE securities s
+                       SET price_polygon            = v.price,
+                           price_polygon_timestamp  = v.ts,
+                           on_polygon               = TRUE,
+                           current_price            = v.price,
+                           price_timestamp          = (v.ts AT TIME ZONE 'UTC'),
+                           last_updated             = (NOW() AT TIME ZONE 'UTC')
+                      FROM v
+                     WHERE s.ticker = v.ticker
+                    """,
+                    {"rows": rows_json}
+                )
+            updated_count += len(batch)
+
+        # ---- Insert brand-new tickers with Polygon source + add date + initial price ----
+        if to_insert:
+            # Ensure columns exist (no-op if already present)
+            await database.execute("""
+                DO $$
+                BEGIN
+                    IF NOT EXISTS (
+                        SELECT 1 FROM information_schema.columns
+                        WHERE table_name='securities' AND column_name='ticker_source'
+                    ) THEN
+                        ALTER TABLE securities ADD COLUMN ticker_source text;
+                    END IF;
+
+                    IF NOT EXISTS (
+                        SELECT 1 FROM information_schema.columns
+                        WHERE table_name='securities' AND column_name='ticker_add_date'
+                    ) THEN
+                        ALTER TABLE securities ADD COLUMN ticker_add_date timestamptz;
+                    END IF;
+                END $$;
+            """)
+
+            for batch in _chunks(to_insert, 1000):
+                param_rows = []
+                for t in batch:
+                    snap = snaps.get(t) or {}
+                    price = snap.get("price")
+                    ts = snap.get("timestamp")
+                    ts_iso = ts.astimezone(timezone.utc).isoformat() if isinstance(ts, datetime) else (str(ts) if ts else None)
+                    param_rows.append({"ticker": t, "price": price, "ts": ts_iso})
+
+                await database.execute(
+                    """
+                    WITH v AS (
+                      SELECT
+                        (x->>'ticker')::text             AS ticker,
+                        NULLIF(x->>'price','')::numeric  AS price,
+                        NULLIF(x->>'ts','')::timestamptz AS ts
+                      FROM jsonb_array_elements(CAST(:rows AS jsonb)) AS x
+                    )
+                    INSERT INTO securities (
+                        ticker,
+                        ticker_source,
+                        ticker_add_date,
+                        on_polygon,
+                        price_polygon,
+                        price_polygon_timestamp,
+                        current_price,
+                        price_timestamp,
+                        last_updated
+                    )
+                    SELECT
+                        v.ticker,
+                        'polygon',
+                        NOW(),
+                        CASE WHEN v.price IS NOT NULL THEN TRUE ELSE NULL END,
+                        v.price,
+                        v.ts,
+                        v.price,
+                        (v.ts AT TIME ZONE 'UTC'),
+                        (NOW() AT TIME ZONE 'UTC')
+                    FROM v
+                    ON CONFLICT (ticker) DO NOTHING
+                    """,
+                    {"rows": json.dumps(param_rows)}
+                )
+                inserted_count += len(batch)
+
+        # ---- Optional: mark our existing-but-absent as on_polygon=FALSE ----
+        absent_count = 0
+        if mark_absent_false:
+            absent = sorted(list(existing - snapshot_tickers))
+            for batch in _chunks(absent, 2000):
+                placeholders = ", ".join([f":t{i}" for i in range(len(batch))])
+                params = {f"t{i}": t for i, t in enumerate(batch)}
+                await database.execute(
+                    f"UPDATE securities SET on_polygon = FALSE WHERE ticker IN ({placeholders})",
+                    params
+                )
+            absent_count = len(absent)
+
+        await update_system_event(
+            database, event_id, "completed",
+            {
+                "snapshot_universe": len(snapshot_tickers),
+                "updated_existing": updated_count,
+                "inserted_new": inserted_count,
+                "absent_marked_false": absent_count,
+                "source": "polygon"
+            }
+        )
+
+        return {
+            "success": True,
+            "message": f"Processed {len(snapshot_tickers)} snapshot tickers: updated {updated_count}, inserted {inserted_count}" + (f", marked {absent_count} absent" if mark_absent_false else ""),
+            "updated_count": updated_count,
+            "inserted_new": inserted_count,
+            "snapshot_universe": len(snapshot_tickers),
+            "absent_marked_false": absent_count if mark_absent_false else 0
+        }
+
+    except Exception as e:
+        logger.error(f"Polygon full-market sync error: {e}")
+        if 'event_id' in locals():
+            await update_system_event(database, event_id, "failed", {"error": str(e)})
+        import traceback; logger.error(traceback.format_exc())
+        raise HTTPException(status_code=500, detail=f"Polygon full-market sync failed: {e}")
+
 @app.post("/securities/polygon-sync-list")
 async def polygon_sync_list(
     active_only: bool = True,
@@ -2510,7 +2703,10 @@ async def polygon_sync_list(
 
         # Insert minimal rows (ticker only), safe since you already do this elsewhere
         await database.execute_many(
-            "INSERT INTO securities (ticker) VALUES (:ticker)",
+            """
+            INSERT INTO securities (ticker, ticker_source, ticker_add_date)
+            VALUES (:ticker, 'polygon', NOW())
+            """,
             [{"ticker": t} for t in missing]
         )
 
