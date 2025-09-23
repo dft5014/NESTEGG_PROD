@@ -549,6 +549,38 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
     };
   }, [isOpen, seedPositions]);
 
+
+  // Add this useEffect after the main initialization useEffect
+  const hydratedRef = useRef(false);
+
+  useEffect(() => {
+    if (!isOpen || hydratedRef.current) return;
+
+    const total =
+      (positions.security?.length || 0) +
+      (positions.crypto?.length || 0) +
+      (positions.metal?.length || 0);
+
+    if (total === 0) return;
+
+    // Defer one tick so row UIs mount
+    const timer = setTimeout(() => {
+      try { 
+        autoHydrateSeededPrices?.(); 
+      } catch (e) { 
+        console.error('Auto-hydration error:', e); 
+      }
+      hydratedRef.current = true;
+    }, 100);
+
+    return () => clearTimeout(timer);
+  }, [
+    isOpen,
+    positions.security.length,
+    positions.crypto.length,
+    positions.metal.length
+  ]);
+
   // Enhanced stats with comprehensive tracking
   const stats = useMemo(() => {
     let totalPositions = 0;
@@ -1094,10 +1126,10 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
         handleSelectSecurity(hit.type, hit.id, hit.chosen);
       }
     }
-  }, [positions]);
+  }, [positions, handleSelectSecurity]);;
 
   // Handle security selection (keeping existing logic)
-  const handleSelectSecurity = (assetType, positionId, security) => {
+  const handleSelectSecurity = useCallback((assetType, positionId, security) => {
     const searchKey = `${assetType}-${positionId}`;
     setSelectedSecurities((prev) => ({ ...prev, [searchKey]: security }));
 
@@ -1131,7 +1163,7 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
     }));
 
     setSearchResults((prev) => ({ ...prev, [searchKey]: [] }));
-  };
+  }, []); // Empty dependencies since it uses function updates
 
   // Add new row
   const addNewRow = (assetType) => {
@@ -1827,9 +1859,11 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
 
   // Helper function to calculate position value
   const calculatePositionValue = (type, position) => {
-    switch (type) {
-      case 'security':
-        return (position.data.shares || 0) * (position.data.price || 0);
+  let value = 0, cost = 0;
+  switch (type) {
+    case 'security':
+      value = (pos.data.shares || 0) * (pos.data.price || 0);
+      cost = (pos.data.shares || 0) * (pos.data.cost_basis || pos.data.price || 0);
       case 'crypto':
         return (position.data.quantity || 0) * (position.data.current_price || 0);
       case 'metal':
