@@ -70,9 +70,10 @@ const AnimatedNumber = ({ value, prefix = '', suffix = '', decimals = 0, duratio
     requestAnimationFrame(animate);
   }, [value, duration]);
   
-  const formattedValue = decimals > 0 
-    ? displayValue.toFixed(decimals).toLocaleString()
-    : Math.floor(displayValue).toLocaleString();
+  const formattedValue = new Intl.NumberFormat(undefined, {
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals,
+  }).format(decimals > 0 ? displayValue : Math.floor(displayValue));
     
   return (
     <span className={`transition-all duration-300 ${isAnimating ? 'text-blue-600' : ''}`}>
@@ -109,7 +110,7 @@ const AssetTypeBadge = ({ type, count, icon: Icon, color, active = false, onClic
       className={`
         relative px-3 py-1.5 rounded-lg transition-all duration-300 transform
         ${active 
-          ? `${color.bg} text-white shadow-lg scale-105 ring-2 ring-${color.main}-400 ring-opacity-50` 
+          ? `${color.bg} text-white shadow-lg scale-105 ring-2 ${color.ring} ring-opacity-50` 
           : 'bg-white text-gray-700 hover:shadow-md hover:scale-102 border border-gray-200'
         }
       `}
@@ -896,6 +897,8 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
         return;
       }
       
+
+
       const searchKey = `${assetType}-${positionId}`;
       setIsSearching(prev => ({ ...prev, [searchKey]: true }));
       
@@ -936,6 +939,13 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
     }, 300),
     []
   );
+
+
+    useEffect(() => {
+      return () => {
+        debouncedSearch.cancel?.();
+      };
+    }, [debouncedSearch]);
 
     useEffect(() => {
       if (!isOpen) return;
@@ -1625,7 +1635,7 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
               errors[field.key] = 'Required';
               isValid = false;
               validationErrors.push(`${typeConfig.name} row ${index + 1}: ${field.label} is required`);
-            } else if (field.type === 'number' && value) {
+            } else if (field.type === 'number' && value !== '' && value != null) {
               if (field.min !== undefined && value < field.min) {
                 errors[field.key] = `Min: ${field.min}`;
                 isValid = false;
@@ -1692,12 +1702,9 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
         const { type, position } = batches[i];
         
         try {
-          const cleanData = {};
-          Object.entries(position.data).forEach(([key, value]) => {
-            if (value !== '' && value !== null && value !== undefined) {
-              cleanData[key] = value;
-            }
-          });
+          const cleanData = Object.fromEntries(
+            Object.entries(position.data).map(([k, v]) => [k, v === '' ? null : v])
+          );
 
           switch (type) {
             case 'security':
@@ -2060,7 +2067,7 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
               </div>
             )}
           </div>
-          {inputRect && ReactDOM.createPortal(
+          {typeof document !== 'undefined' && inputRect && ReactDOM.createPortal(
             <div 
               style={{
                 position: 'fixed',
@@ -2094,9 +2101,14 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
                       <span className="font-semibold text-gray-900">{result.ticker}</span>
                       <span className="text-gray-500 text-xs truncate">{result.name}</span>
                     </div>
-                    <span className="font-medium text-gray-700 ml-2 text-sm">
-                      ${parseFloat(result.price).toFixed(2)}
-                    </span>
+                      <span className="font-medium text-gray-700 ml-2 text-sm">
+                        {(() => {
+                          const p = getQuotePrice(result);
+                          return p != null && Number.isFinite(Number(p))
+                            ? `$${Number(p).toFixed(2)}`
+                            : '—';
+                        })()}
+                      </span>
                   </button>
                 ))}
               </div>
@@ -2115,7 +2127,14 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
               <select
                 {...commonProps}
                 value={value}
-                onChange={(e) => updatePosition(assetType, position.id, field.key, parseInt(e.target.value))}
+                onChange={(e) =>
+                  updatePosition(
+                    assetType,
+                    position.id,
+                    field.key,
+                    Number(e.target.value) || ''
+                  )
+                }
                 className={`${baseClass} pr-8 cursor-pointer appearance-none`}
               >
                 <option value="">Select account...</option>
