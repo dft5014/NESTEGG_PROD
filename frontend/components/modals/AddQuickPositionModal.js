@@ -27,7 +27,7 @@ import {
   Calendar, ToggleLeft, ToggleRight, Users, Repeat,
   ClipboardList, CheckCheck, XCircle, AlertTriangle,
   PlayCircle, PauseCircle, FastForward, SkipForward,
-  Settings, Sliders, FilterX, CheckAll, SelectAll, Trash,
+  Settings, Sliders, FilterX, SelectAll, Trash,
   Bell, Warning, StopCircle, PackageX, PackageCheck, Package2
 } from 'lucide-react';
 import ReactDOM from 'react-dom';
@@ -229,7 +229,7 @@ const BulkOperationsToolbar = ({ selectedCount, onBulkDelete, onSelectAll, onDes
             onClick={selectedCount === totalPositions ? onDeselectAll : onSelectAll}
             className="flex items-center px-3 py-1.5 bg-blue-600 hover:bg-blue-700 rounded-lg text-xs font-medium transition-colors"
           >
-            {selectedCount === totalPositions ? <Square className="w-3 h-3 mr-1" /> : <CheckAll className="w-3 h-3 mr-1" />}
+            {selectedCount === totalPositions ? <Square className="w-3 h-3 mr-1" /> : <Check className="w-3 h-3 mr-1" />}
             {selectedCount === totalPositions ? 'Deselect All' : 'Select All'}
           </button>
           
@@ -2085,4 +2085,7 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
   );
 };
 
+AddQuickPositionModal.displayName = 'AddQuickPositionModal';
+
+export { AddQuickPositionModal };
 export default AddQuickPositionModal;
