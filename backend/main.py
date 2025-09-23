@@ -2105,14 +2105,15 @@ async def update_all_securities_metrics():
         
         # Fetch all tickers from the securities table
         logger.info("Fetching active securities from the database")
-        query = "SELECT ticker FROM security_usage
-                    WHERE metrics_status = 'Requires Updating'
-                    AND metrics_source IS DISTINCT FROM 'alpha_vantage'
-                    AND on_yfinance IS DISTINCT FROM FALSE
-                    ORDER BY
-                    metrics_age_minutes DESC NULLS FIRST
-                    ticker ASC
-                    LIMIT 100"
+        query = """
+        SELECT ticker
+        FROM security_usage
+        WHERE metrics_status = 'Requires Updating'
+        AND metrics_source IS DISTINCT FROM 'alpha_vantage'
+        AND on_yfinance IS DISTINCT FROM FALSE
+        ORDER BY metrics_age_minutes DESC NULLS FIRST, ticker ASC
+        LIMIT 100
+        """
         results = await database.fetch_all(query)
         
         if not results:
