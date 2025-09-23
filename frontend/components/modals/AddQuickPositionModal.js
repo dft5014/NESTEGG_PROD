@@ -636,10 +636,43 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
   const [accountExpandedSections, setAccountExpandedSections] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showValues, setShowValues] = useState(true);
+
   const [selectedPositions, setSelectedPositions] = useState(new Set());
   const [focusedCell, setFocusedCell] = useState(null);
   const [message, setMessage] = useState({ type: '', text: '', details: [] });
   const [activeFilter, setActiveFilter] = useState('all');
+
+  // Persisted toggles/state
+  const [autoRemoveSuccess, setAutoRemoveSuccess] = useState(() => {
+    try { return (sessionStorage.getItem('qp_autoRemove') ?? 'true') === 'true'; } catch { return true; }
+  });
+
+  // Rehydrate persisted section/view state on mount
+  useEffect(() => {
+    try {
+      const exp = sessionStorage.getItem('qp_expandedSections');
+      const acc = sessionStorage.getItem('qp_accountExpandedSections');
+      const vm  = sessionStorage.getItem('qp_viewMode');
+      if (exp) setExpandedSections(JSON.parse(exp));
+      if (acc) setAccountExpandedSections(JSON.parse(acc));
+      if (vm != null) setViewMode(vm === 'true');
+    } catch {}
+  }, []);
+
+  // Save on change
+  useEffect(() => {
+    try { sessionStorage.setItem('qp_expandedSections', JSON.stringify(expandedSections)); } catch {}
+  }, [expandedSections]);
+
+  useEffect(() => {
+    try { sessionStorage.setItem('qp_accountExpandedSections', JSON.stringify(accountExpandedSections)); } catch {}
+  }, [accountExpandedSections]);
+
+  useEffect(() => {
+    try { sessionStorage.setItem('qp_viewMode', String(viewMode)); } catch {}
+  }, [viewMode]);
+
+
   const [searchTerm, setSearchTerm] = useState('');
   const [showKeyboardShortcuts, setShowKeyboardShortcuts] = useState(false);
   const [validationMode, setValidationMode] = useState('realtime');
@@ -1617,7 +1650,7 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
     return isValid;
   };
 
-  // Submit all
+  // Strict submit: validates everything; if any row has errors, aborts.
   const submitAll = async () => {
     if (stats.totalPositions === 0) {
       showMessage('error', 'No positions to submit', ['Add at least one position before submitting']);
@@ -1778,6 +1811,163 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
       setIsSubmitting(false);
     }
   };
+
+// Import clean path (skip errors) OR retry failed only.
+// retryFailedOnly=true -> only rows with status === 'error' are retried.
+// otherwise -> include rows without validation errors; skip error rows.
+  const submitClean = async (retryFailedOnly = false) => {
+    if (stats.totalPositions === 0) {
+      showMessage('error', 'No positions to submit', ['Add at least one position before submitting']);
+      return;
+    }
+
+    setIsSubmitting(true);
+    let successCount = 0;
+    let errorCount = 0;
+    const errors = [];
+    const updatedPositions = { ...positions };
+    const successfulPositionData = [];
+
+    try {
+      const batches = [];
+      const seen = new Set(); // dedupe within the session
+
+      const makeKey = (type, pos) => {
+        const d = pos.data || {};
+        return [
+          type,
+          d.account_id || 'NA',
+          (d.ticker || d.symbol || d.asset_name || d.metal_type || 'NA').toUpperCase(),
+          d.shares ?? d.quantity ?? d.amount ?? 'NA',
+          d.purchase_date ?? d.acquired_date ?? 'NA',
+          d.price ?? d.purchase_price ?? d.cost_basis ?? d.current_value ?? 'NA'
+        ].join('|');
+      };
+
+      Object.entries(positions).forEach(([type, typePositions]) => {
+        typePositions.forEach(pos => {
+          const hasErrors = pos.errors && Object.values(pos.errors).some(Boolean);
+          const shouldInclude = retryFailedOnly
+            ? pos.status === 'error'
+            : !hasErrors;
+
+          // Validate "otherAssets" minimal requirement vs others
+          const isValidPosition = type === 'otherAssets'
+            ? (pos.data?.asset_name && (pos.data?.current_value ?? null) !== null)
+            : (pos.data?.account_id && Object.keys(pos.data || {}).length > 1);
+
+          if (shouldInclude && isValidPosition) {
+            const key = makeKey(type, pos);
+            if (!seen.has(key)) {
+              seen.add(key);
+              batches.push({ type, position: pos });
+            }
+          }
+        });
+      });
+
+      if (batches.length === 0) {
+        showMessage('info', retryFailedOnly ? 'No failed rows to retry' : 'No clean rows to import');
+        setIsSubmitting(false);
+        return;
+      }
+
+      showMessage('info', `Submitting ${batches.length} positions...`, [], 0);
+
+      for (let i = 0; i < batches.length; i++) {
+        const { type, position } = batches[i];
+
+        try {
+          // sanitize row data
+          const cleanData = Object.fromEntries(
+            Object.entries(position.data || {}).map(([k, v]) => [k, v === '' ? null : v])
+          );
+
+          switch (type) {
+            case 'security':
+              await addSecurityPosition(position.data.account_id, cleanData);
+              break;
+            case 'crypto': {
+              const cryptoData = {
+                coin_symbol: cleanData.symbol,
+                coin_type: cleanData.name || cleanData.symbol,
+                quantity: cleanData.quantity,
+                purchase_price: cleanData.purchase_price,
+                purchase_date: cleanData.purchase_date,
+                account_id: cleanData.account_id,
+                storage_type: cleanData.storage_type || 'Exchange',
+                notes: cleanData.notes || null,
+                tags: cleanData.tags || [],
+                is_favorite: cleanData.is_favorite || false,
+              };
+              await addCryptoPosition(position.data.account_id, cryptoData);
+              break;
+            }
+            case 'metal': {
+              const metalData = {
+                metal_type: cleanData.metal_type,
+                coin_symbol: cleanData.symbol,
+                quantity: cleanData.quantity,
+                unit: cleanData.unit || 'oz',
+                purchase_price: cleanData.purchase_price,
+                cost_basis: (cleanData.quantity || 0) * (cleanData.purchase_price || 0),
+                purchase_date: cleanData.purchase_date,
+                account_id: cleanData.account_id,
+                storage_type: cleanData.storage_type || 'Vault',
+                notes: cleanData.notes || null,
+                tags: cleanData.tags || [],
+                is_favorite: cleanData.is_favorite || false,
+              };
+              await addMetalPosition(position.data.account_id, metalData);
+              break;
+            }
+            case 'cash':
+              await addCashPosition(position.data.account_id, cleanData);
+              break;
+            case 'otherAssets':
+              await addOtherAsset(cleanData);
+              break;
+          }
+
+          successCount++;
+
+          // success status
+          updatedPositions[type] = updatedPositions[type].map(p =>
+            p.id === position.id ? { ...p, status: 'success' } : p
+          );
+
+        } catch (rowErr) {
+          errorCount++;
+          errors.push(`${position.data?.ticker || position.data?.symbol || position.data?.asset_name || 'Row'}: ${rowErr.message}`);
+          updatedPositions[type] = updatedPositions[type].map(p =>
+            p.id === position.id ? { ...p, status: 'error' } : p
+          );
+        }
+
+        const progress = Math.round(((i + 1) / batches.length) * 100);
+        setProgress(progress);
+      }
+
+      setPositions(updatedPositions);
+
+      if (successCount > 0) {
+        showMessage('success', `Imported ${successCount} row(s)`, errorCount ? [`${errorCount} failed`] : []);
+        // Auto-clear successes if enabled
+        if (autoRemoveSuccess) {
+          clearCompletedPositions();
+        }
+      } else {
+        showMessage('error', 'No rows imported', errors.slice(0, 5));
+      }
+
+    } catch (e) {
+      console.error('submitClean error', e);
+      showMessage('error', 'Import failed', [e.message]);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
 
   // Clear all
   const clearAll = () => {
@@ -2184,10 +2374,27 @@ return (
              <>
               <div className="overflow-x-auto overflow-y-visible" ref={el => tableRefs.current[assetType] = el}>
                  <table className="w-full">
-                   <thead>
-                     <tr className="bg-gray-50 border-b border-gray-200">
-                       <th className="w-12 px-3 py-3 text-left">
-                         <span className="text-xs font-semibold text-gray-600">#</span>
+                  <thead>
+                    <tr className="bg-gray-50 border-b border-gray-200">
+                      <th className="w-10 px-3 py-3">
+                        <input
+                          type="checkbox"
+                          className="h-4 w-4 rounded border-gray-300"
+                          onChange={(e) => {
+                            const next = new Set(selectedPositions);
+                            if (e.target.checked) {
+                              typePositions.forEach(p => next.add(p.id));
+                            } else {
+                              typePositions.forEach(p => next.delete(p.id));
+                            }
+                            setSelectedPositions(next);
+                          }}
+                          checked={typePositions.every(p => selectedPositions.has(p.id)) && typePositions.length > 0}
+                          aria-label="Select all rows"
+                        />
+                      </th>
+                      <th className="w-12 px-3 py-3 text-left">
+                        <span className="text-xs font-semibold text-gray-600">#</span>
                        </th>
                        {config.fields.map(field => (
                          <th key={field.key} className={`${field.width} px-2 py-3 text-left`}>
@@ -2205,23 +2412,39 @@ return (
                        </th>
                      </tr>
                    </thead>
-                   <tbody>
-                     {typePositions.map((position, index) => {
+                  <tbody>
+                    {typePositions
+                      .filter(p => (activeFilter !== 'errors') || (p.errors && Object.values(p.errors).some(Boolean)))
+                      .map((position, index) => {
                        const hasErrors = Object.values(position.errors || {}).some(e => e);
                        const value = calculatePositionValue(assetType, position);
                        
                        return (
-                        <tr 
-                          key={position.id}
-                          className={`
-                            border-b border-gray-100 transition-all duration-300 group relative
-                            ${position.isNew ? 'bg-blue-50/50' : 'hover:bg-gray-50/50'}
-                            ${position.animateIn ? 'animate-in slide-in-from-left duration-300' : ''}
-                            ${position.animateOut ? 'animate-out slide-out-to-right duration-300' : ''}
-                            ${hasErrors ? 'bg-red-50/30' : ''}
-                          `}
-                          style={{ zIndex: typePositions.length - index }}
-                        >
+                      <tr 
+                        key={position.id}
+                        className={`
+                          border-b border-gray-100 transition-all duration-300 group relative
+                          ${position.isNew ? 'bg-blue-50/50' : 'hover:bg-gray-50/50'}
+                          ${position.animateIn ? 'animate-in slide-in-from-left duration-300' : ''}
+                          ${position.animateOut ? 'animate-out slide-out-to-right duration-300' : ''}
+                          ${hasErrors ? 'bg-red-50/30' : ''}
+                        `}
+                        style={{ zIndex: typePositions.length - index }}
+                      >
+                        <td className="w-10 px-3 py-3 align-top">
+                          <input
+                            type="checkbox"
+                            className="h-4 w-4 rounded border-gray-300"
+                            checked={selectedPositions.has(position.id)}
+                            onChange={(e) => {
+                              const next = new Set(selectedPositions);
+                              if (e.target.checked) next.add(position.id);
+                              else next.delete(position.id);
+                              setSelectedPositions(next);
+                            }}
+                            aria-label={`Select row ${index + 1}`}
+                          />
+                        </td>
                            <td className="px-3 py-2">
                              <div className="flex items-center space-x-2">
                                <span className="text-sm font-medium text-gray-500">
@@ -2704,31 +2927,100 @@ return (
                )}
              </button>
              
-             {/* Submit button */}
-             <button
-               onClick={submitAll}
-               disabled={stats.totalPositions === 0 || isSubmitting}
-               className={`
-                 px-6 py-2 text-sm font-semibold rounded-lg transition-all duration-200 
-                 flex items-center space-x-2 shadow-sm hover:shadow-md transform hover:scale-105
-                 ${stats.totalPositions === 0 || isSubmitting
-                   ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                   : 'bg-gradient-to-r from-green-600 to-emerald-600 text-white hover:from-green-700 hover:to-emerald-700'
-                 }
-               `}
-             >
-               {isSubmitting ? (
-                 <>
-                   <Loader2 className="w-4 h-4 animate-spin" />
-                   <span>Saving...</span>
-                 </>
-               ) : (
-                 <>
-                   <CheckCircle className="w-4 h-4" />
-                   <span>Add {stats.totalPositions} Position{stats.totalPositions !== 1 ? 's' : ''}</span>
-                 </>
-               )}
-             </button>
+            {/* Bulk actions + submit cluster */}
+            <div className="flex items-center gap-3">
+
+              {/* Delete Selected */}
+              <button
+                onClick={() => {
+                  if (selectedPositions.size === 0) return;
+                  if (!window.confirm(`Delete ${selectedPositions.size} selected row(s)?`)) return;
+                  const next = { ...positions };
+                  Object.keys(next).forEach(type => {
+                    next[type] = next[type].filter(p => !selectedPositions.has(p.id));
+                  });
+                  setPositions(next);
+                  setSelectedPositions(new Set());
+                  showMessage('success', 'Removed selected rows');
+                }}
+                disabled={selectedPositions.size === 0 || isSubmitting}
+                className={`px-3 py-2 text-sm rounded-lg border transition
+                  ${selectedPositions.size === 0 || isSubmitting
+                    ? 'bg-white text-gray-400 border-gray-200 cursor-not-allowed'
+                    : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'}`}
+                title="Remove selected rows from the queue"
+              >
+                <Trash2 className="w-4 h-4 inline-block mr-1" />
+                Delete Selected
+              </button>
+
+              {/* Retry Failed Only */}
+              <button
+                onClick={() => submitClean(true /* retryFailedOnly */)}
+                disabled={isSubmitting || stats.totalPositions === 0}
+                className={`px-3 py-2 text-sm rounded-lg border transition
+                  ${isSubmitting || stats.totalPositions === 0
+                    ? 'bg-white text-gray-400 border-gray-200 cursor-not-allowed'
+                    : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'}`}
+                title="Retry rows that previously failed"
+              >
+                <RefreshCw className="w-4 h-4 inline-block mr-1" />
+                Retry Failed Only
+              </button>
+
+              {/* Import Clean (skip errors) */}
+              <button
+                onClick={() => submitClean(false /* retryFailedOnly */)}
+                disabled={isSubmitting || stats.totalPositions === 0}
+                className={`
+                  px-4 py-2 text-sm font-semibold rounded-lg transition 
+                  ${isSubmitting || stats.totalPositions === 0
+                    ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                    : 'bg-gradient-to-r from-sky-600 to-blue-600 text-white hover:from-sky-700 hover:to-blue-700'}`}
+                title="Import all rows without validation errors; skip error rows"
+              >
+                <CheckCircle className="w-4 h-4 inline-block mr-1" />
+                Import Clean
+              </button>
+
+              {/* Original strict submit (blocks on any validation error) */}
+              <button
+                onClick={submitAll}
+                disabled={stats.totalPositions === 0 || isSubmitting}
+                className={`
+                  px-4 py-2 text-sm font-semibold rounded-lg transition 
+                  ${stats.totalPositions === 0 || isSubmitting
+                    ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                    : 'bg-gradient-to-r from-green-600 to-emerald-600 text-white hover:from-green-700 hover:to-emerald-700'}`}
+                title="Validate everything; if any row has errors, nothing is imported"
+              >
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin mr-1" />
+                    Saving...
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle className="w-4 h-4 mr-1" />
+                    Add {stats.totalPositions} Position{stats.totalPositions !== 1 ? 's' : ''}
+                  </>
+                )}
+              </button>
+
+              {/* Auto-remove successes toggle */}
+              <label className="flex items-center gap-2 ml-2 text-sm text-gray-600 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  className="h-4 w-4 rounded border-gray-300"
+                  checked={autoRemoveSuccess}
+                  onChange={(e) => {
+                    setAutoRemoveSuccess(e.target.checked);
+                    try { sessionStorage.setItem('qp_autoRemove', String(e.target.checked)); } catch {}
+                  }}
+                />
+                Auto-remove successes
+              </label>
+            </div>
            </div>
          </div>
 
@@ -2830,6 +3122,33 @@ return (
              </div>
            )}
          </div>
+
+
+          {/* Error summary banner */}
+          {stats.errors?.length > 0 && (
+            <div className="mb-3 p-3 rounded-lg border border-red-200 bg-red-50 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <AlertCircle className="w-5 h-5 text-red-500" />
+                <div className="text-sm text-red-800">
+                  {stats.errors.length} row{stats.errors.length !== 1 ? 's' : ''} have validation errors.
+                  <span className="ml-2">
+                    Click “Show Errors Only” to isolate them.
+                  </span>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setActiveFilter(activeFilter === 'errors' ? 'all' : 'errors')}
+                  className={`px-3 py-1.5 text-xs rounded-md border transition
+                    ${activeFilter === 'errors'
+                      ? 'bg-red-600 text-white border-red-600'
+                      : 'bg-white text-red-700 border-red-300 hover:bg-red-100'}`}
+                >
+                  {activeFilter === 'errors' ? 'Show All' : 'Show Errors Only'}
+                </button>
+              </div>
+            </div>
+          )} 
 
          {/* Asset Type Filters (only show in asset type view) */}
          {!viewMode && (

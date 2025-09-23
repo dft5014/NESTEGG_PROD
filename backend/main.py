@@ -2514,13 +2514,23 @@ async def polygon_sync_prices_full(
 
         # Load our current tickers
         existing_rows = await database.fetch_all("SELECT ticker FROM securities")
-        existing = { (r["ticker"] or "").strip().upper() for r in existing_rows if r["ticker"] }
+        existing = {(r["ticker"] or "").strip().upper() for r in existing_rows if r["ticker"]}
 
-        to_update = sorted(list(existing & snapshot_tickers))
-        to_insert = sorted(list(snapshot_tickers - existing))
+        to_update = sorted(list(existing & snapshot_tickers))      # already in DB and present in snapshot
+        to_insert = sorted(list(snapshot_tickers - existing))      # present in snapshot but NOT in DB
 
         updated_count = 0
         inserted_count = 0
+
+        # --- Render-friendly logging (stdout) ---
+        logger.info(
+            "[PolygonSync] snapshot_universe=%d existing_in_db_total=%d "
+            "already_in_db_and_included=%d new_to_insert=%d",
+            len(snapshot_tickers),
+            len(existing),
+            len(to_update),
+            len(to_insert),
+        )
 
         # ---- Update existing in batches ----
         for batch in _chunks(to_update, 5000):
@@ -2560,6 +2570,9 @@ async def polygon_sync_prices_full(
                     {"rows": rows_json}
                 )
             updated_count += len(batch)
+
+        # log how many existing got updated
+        logger.info("[PolygonSync] updated_existing_applied=%d", updated_count)
 
         # ---- Insert brand-new tickers with Polygon source + add date + initial price ----
         if to_insert:
@@ -2629,6 +2642,9 @@ async def polygon_sync_prices_full(
                 )
                 inserted_count += len(batch)
 
+        # log how many brand-new were inserted
+        logger.info("[PolygonSync] inserted_new_rows=%d", inserted_count)
+
         # ---- Optional: mark our existing-but-absent as on_polygon=FALSE ----
         absent_count = 0
         if mark_absent_false:
@@ -2645,11 +2661,20 @@ async def polygon_sync_prices_full(
         await update_system_event(
             database, event_id, "completed",
             {
+                # High-level
+                "source": "polygon",
                 "snapshot_universe": len(snapshot_tickers),
+
+                # Your three requested counters
+                "included_in_update": len(snapshot_tickers),   # all snapshot symbols considered
+                "already_in_database": len(to_update),         # overlap: in DB AND in snapshot
+                "added_new": inserted_count,                   # inserted from snapshot
+
+                # Extra helpful detail
                 "updated_existing": updated_count,
-                "inserted_new": inserted_count,
+                "existing_in_db_total": len(existing),
+                "new_to_insert_detected": len(to_insert),
                 "absent_marked_false": absent_count,
-                "source": "polygon"
             }
         )
 

@@ -285,7 +285,7 @@ class ExcelTemplateService:
         # Explicitly set showDropDown to ensure in-cell dropdown appears
         dv.showDropDown = False  # This is counterintuitive but correct for openpyxl
         ws.add_data_validation(dv)
-        dv.add("B2:B5000")
+        dv.add("B2:B1048576")
 
     def _add_category_validation_named_range(self, ws: Worksheet) -> None:
         # Use direct range reference
@@ -307,7 +307,7 @@ class ExcelTemplateService:
         # Explicitly set showDropDown to ensure in-cell dropdown appears
         dv.showDropDown = False  # This is counterintuitive but correct for openpyxl
         ws.add_data_validation(dv)
-        dv.add("C2:C5000")
+        dv.add("C2:C1048576")
 
     def _add_account_type_validation(self, ws: Worksheet) -> None:
         # Use INDIRECT formula to dynamically reference the category's type list
@@ -328,7 +328,7 @@ class ExcelTemplateService:
         # Explicitly set showDropDown to ensure in-cell dropdown appears
         dv.showDropDown = False  # This is counterintuitive but correct for openpyxl
         ws.add_data_validation(dv)
-        dv.add("D2:D5000")
+        dv.add("D2:D1048576")
 
     def _create_category_type_reference(self, wb: Workbook) -> Worksheet:
         ws = wb.create_sheet("Category-Type Reference", 3)
@@ -384,7 +384,6 @@ class ExcelTemplateService:
             WHERE asset_type IN ('security', 'index')
             AND on_yfinance = true
             ORDER BY ticker
-            LIMIT 5000  -- Reasonable limit for Excel dropdown
         """
         securities = await database.fetch_all(query=securities_query)
         
@@ -529,10 +528,9 @@ class ExcelTemplateService:
             ws.cell(row=i, column=1, value=acc["account_name"]).border = self.border
         
         # Create named range for accounts
-        if accounts:
-            acc_range = f"Lookups!$A$2:$A${1+len(accounts)}"
-            defined_name = DefinedName(name="AccountsList", attr_text=acc_range)
-            wb.defined_names.add(defined_name)
+        # Create dynamic named range for accounts (auto-expands with data)
+        acc_range = 'OFFSET(Lookups!$A$2,0,0,COUNTA(Lookups!$A:$A)-1,1)'
+        wb.defined_names.add(DefinedName(name="AccountsList", attr_text=acc_range))
             
         # Securities column (ticker and company name)
         ws["C1"] = "Ticker"
@@ -543,9 +541,8 @@ class ExcelTemplateService:
             ws.cell(row=i, column=3, value=sec["ticker"]).border = self.border
             ws.cell(row=i, column=4, value=sec["company_name"]).border = self.border
         
-        # ALWAYS create named range for securities
-        sec_last = 1 + max(len(securities), 1)
-        sec_range = f"Lookups!$C$2:$C${sec_last}"
+        # Dynamic named range for securities (Ticker)
+        sec_range = 'OFFSET(Lookups!$C$2,0,0,COUNTA(Lookups!$C:$C)-1,1)'
         wb.defined_names.add(DefinedName(name="SecuritiesList", attr_text=sec_range))
         
         # Crypto column
@@ -557,9 +554,8 @@ class ExcelTemplateService:
             ws.cell(row=i, column=6, value=crypto["ticker"]).border = self.border
             ws.cell(row=i, column=7, value=crypto["company_name"]).border = self.border
         
-        # ALWAYS create named range for cryptos
-        crypto_last = 1 + max(len(cryptos), 1)
-        crypto_range = f"Lookups!$F$2:$F${crypto_last}"
+        # Dynamic named range for cryptos (Symbol)
+        crypto_range = 'OFFSET(Lookups!$F$2,0,0,COUNTA(Lookups!$F:$F)-1,1)'
         wb.defined_names.add(DefinedName(name="CryptoList", attr_text=crypto_range))
         
         # Metals column
@@ -572,9 +568,8 @@ class ExcelTemplateService:
                 ws.cell(row=i, column=9, value=metal["metal_type"]).border = self.border
                 ws.cell(row=i, column=10, value=metal["ticker"]).border = self.border
         
-        # ALWAYS create named range for metals
-        metal_last = 1 + max(len(metals), 1)
-        metal_range = f"Lookups!$I$2:$I${metal_last}"
+        # Dynamic named range for metals (Type)
+        metal_range = 'OFFSET(Lookups!$I$2,0,0,COUNTA(Lookups!$I:$I)-1,1)'
         wb.defined_names.add(DefinedName(name="MetalsList", attr_text=metal_range))
         
         # Cash types
@@ -585,9 +580,8 @@ class ExcelTemplateService:
             ws.cell(row=i, column=12, value=cash_type).border = self.border
         
         # Create named range for cash types
-        cash_range = f"Lookups!$L$2:$L${1+len(cash_types)}"
-        defined_name = DefinedName(name="CashTypesList", attr_text=cash_range)
-        wb.defined_names.add(defined_name)
+        cash_range = 'OFFSET(Lookups!$L$2,0,0,COUNTA(Lookups!$L:$L)-1,1)'
+        wb.defined_names.add(DefinedName(name="CashTypesList", attr_text=cash_range))
         
         return ws
 
@@ -596,7 +590,7 @@ class ExcelTemplateService:
         ws.sheet_properties.tabColor = "0066CC"
         
         # Add a header banner
-        ws.merge_cells("A1:G1")
+        ws.merge_cells("A1:F1")
         ws["A1"] = "SECURITIES POSITIONS - Stocks, ETFs, Mutual Funds"
         ws["A1"].font = Font(bold=True, size=12, color="FFFFFF")
         ws["A1"].fill = PatternFill(start_color="0066CC", end_color="0066CC", fill_type="solid")
@@ -636,7 +630,7 @@ class ExcelTemplateService:
             )
             dv_ticker.showDropDown = False  # Force dropdown arrow to appear
             ws.add_data_validation(dv_ticker)
-            dv_ticker.add("B3:B1000")
+            dv_ticker.add("B3:B1048576")
             # Auto-fill Company Name for ALL editable rows with a VLOOKUP on the ticker
             for r in range(3, 1001):
                 ws.cell(row=r, column=3, value=f'=IFERROR(VLOOKUP(B{r},Lookups!$C:$D,2,FALSE),"")').border = self.border
@@ -650,7 +644,7 @@ class ExcelTemplateService:
             allow_blank=False
         )
         ws.add_data_validation(dv_shares)
-        dv_shares.add("D3:D1000")
+        dv_shares.add("D3:D1048576")
         
         # Add numeric validation for cost basis
         dv_cost = DataValidation(
@@ -660,7 +654,7 @@ class ExcelTemplateService:
             allow_blank=False
         )
         ws.add_data_validation(dv_cost)
-        dv_cost.add("E3:E1000")
+        dv_cost.add("E3:E1048576")
         
         # Add date validation
         dv_date = DataValidation(
@@ -671,7 +665,9 @@ class ExcelTemplateService:
             allow_blank=False
         )
         ws.add_data_validation(dv_date)
-        dv_date.add("F3:F1000")
+        dv_date.add("F3:F1048576")
+        for r in range(3, 10003):  # pre-format first 10k rows for user convenience
+            ws.cell(row=r, column=6).number_format = "yyyy-mm-dd"
         
         # Add example rows
         examples = [
@@ -686,9 +682,12 @@ class ExcelTemplateService:
                 cell.fill = self.sample_fill
         
         # Required field highlighting for empty rows
+        # Required field highlighting for empty rows
         for row in range(5, 50):
             for col in [1, 2, 4, 5, 6]:  # Required columns
                 ws.cell(row=row, column=col).fill = self.required_fill
+
+
         
         # Add instruction row — put directly under examples on row 5, and remove '*' language
         ws.merge_cells("A5:F5")
@@ -733,7 +732,7 @@ class ExcelTemplateService:
             )
             dv_acc.showDropDown = False
             ws.add_data_validation(dv_acc)
-            dv_acc.add("A3:A1000")
+            dv_acc.add("A3:A1048576")
 
         # Cash type validation
         dv_type = DataValidation(
@@ -743,7 +742,7 @@ class ExcelTemplateService:
         )
         dv_type.showDropDown = False  # ensure in-cell dropdown shows
         ws.add_data_validation(dv_type)
-        dv_type.add("B3:B1000")
+        dv_type.add("B3:B1048576")
 
         # Amount validation
         dv_amount = DataValidation(
@@ -753,9 +752,21 @@ class ExcelTemplateService:
             allow_blank=False
         )
         ws.add_data_validation(dv_amount)
-        dv_amount.add("C3:C1000")
+        dv_amount.add("C3:C1048576")
 
-        
+        # Interest rate optional: keep as-is; add date DV on Maturity Date (E)
+        dv_maturity = DataValidation(
+            type="date",
+            operator="between",
+            formula1="DATE(1900,1,1)",
+            formula2="TODAY()",
+            allow_blank=True
+        )
+        ws.add_data_validation(dv_maturity)
+        dv_maturity.add("E3:E1048576")
+        for r in range(3, 10003):
+            ws.cell(row=r, column=5).number_format = "yyyy-mm-dd"
+
         # Example rows
         examples = [
             ["Select Account", "Savings", "10000", "4.5", "", "Emergency fund"],
@@ -786,7 +797,7 @@ class ExcelTemplateService:
         ws.sheet_properties.tabColor = "FF9900"
         
         # Header banner
-        ws.merge_cells("A1:G1")
+        ws.merge_cells("A1:F1")
         ws["A1"] = "CRYPTOCURRENCY POSITIONS"
         ws["A1"].font = Font(bold=True, size=12, color="FFFFFF")
         ws["A1"].fill = PatternFill(start_color="FF9900", end_color="FF9900", fill_type="solid")
@@ -811,7 +822,7 @@ class ExcelTemplateService:
             dv_acc = DataValidation(type="list", formula1="=AccountsList", allow_blank=False)
             dv_acc.showDropDown = False
             ws.add_data_validation(dv_acc)
-            dv_acc.add("A3:A1000")
+            dv_acc.add("A3:A1048576")
 
         # Crypto symbol validation (always add; named range exists even if empty)
         dv_crypto = DataValidation(
@@ -821,7 +832,7 @@ class ExcelTemplateService:
         )
         dv_crypto.showDropDown = False
         ws.add_data_validation(dv_crypto)
-        dv_crypto.add("B3:B1000")
+        dv_crypto.add("B3:B1048576")
         for r in range(3, 1001):
             ws.cell(row=r, column=3, value=f'=IFERROR(VLOOKUP(B{r},Lookups!$F:$G,2,FALSE),"")').border = self.border
 
@@ -836,7 +847,7 @@ class ExcelTemplateService:
             allow_blank=False
         )
         ws.add_data_validation(dv_qty)
-        dv_qty.add("D3:D1000")
+        dv_qty.add("D3:D1048576")
         
         # Price validation
         dv_price = DataValidation(
@@ -846,7 +857,7 @@ class ExcelTemplateService:
             allow_blank=False
         )
         ws.add_data_validation(dv_price)
-        dv_price.add("E3:E1000")
+        dv_price.add("E3:E1048576")
         
         dv_date = DataValidation(
             type="date",
@@ -856,7 +867,9 @@ class ExcelTemplateService:
             allow_blank=False
         )
         ws.add_data_validation(dv_date)
-        dv_date.add("F3:F1000")
+        dv_date.add("F3:F1048576")
+        for r in range(3, 10003):
+            ws.cell(row=r, column=6).number_format = "yyyy-mm-dd"
         
         # Example rows
         examples = [
@@ -888,7 +901,7 @@ class ExcelTemplateService:
         ws.sheet_properties.tabColor = "FFD700"
         
         # Header banner
-        ws.merge_cells("A1:G1")
+        ws.merge_cells("A1:F1")
         ws["A1"] = "PRECIOUS METALS POSITIONS"
         ws["A1"].font = Font(bold=True, size=12, color="FFFFFF")
         ws["A1"].fill = PatternFill(start_color="FFD700", end_color="FFD700", fill_type="solid")
@@ -917,7 +930,7 @@ class ExcelTemplateService:
             )
             dv_acc.showDropDown = False
             ws.add_data_validation(dv_acc)
-            dv_acc.add("A3:A1000")
+            dv_acc.add("A3:A1048576")
 
         # Metal type validation (always add; named range exists even if empty)
         dv_metal = DataValidation(
@@ -934,19 +947,21 @@ class ExcelTemplateService:
         # Quantity validation
         dv_qty = DataValidation(type="decimal", operator="greaterThan", formula1=0, allow_blank=False)
         ws.add_data_validation(dv_qty)
-        dv_qty.add("D3:D1000")
+        dv_qty.add("D3:D1048576")
 
         
         # Price validation       
         dv_price = DataValidation(type="decimal", operator="greaterThanOrEqual", formula1=0, allow_blank=False)
         ws.add_data_validation(dv_price)
-        dv_price.add("E3:E1000")
+        dv_price.add("E3:E1048576")
 
 
         # Date validation      
         dv_date = DataValidation(type="date", operator="between", formula1="DATE(1900,1,1)", formula2="TODAY()", allow_blank=False)
         ws.add_data_validation(dv_date)
-        dv_date.add("F3:F1000")
+        dv_date.add("F3:F1048576")
+        for r in range(3, 10003):
+            ws.cell(row=r, column=6).number_format = "yyyy-mm-dd"
 
         # Example rows
         examples = [
@@ -963,7 +978,7 @@ class ExcelTemplateService:
         
         # Required fields highlighting
         for row in range(5, 50):
-            for col in [1, 2, 3, 4, 5]:  # Required columns
+            for col in [1, 2, 3, 4, 5, 6]:  # Include Purchase Date as required (yellow)
                 ws.cell(row=row, column=col).fill = self.required_fill
 
         # Add instruction row — put directly under examples on row 5, and remove '*' language

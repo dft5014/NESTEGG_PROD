@@ -389,14 +389,32 @@ const SearchableDropdown = ({ options, value, onChange, placeholder, showLogos =
 };
 
 const QuickStartModal = ({ isOpen, onClose }) => {
-    const [activeTab, setActiveTab] = useState('overview');
+    const [activeTab, setActiveTab] = useState(() => {
+         try { return sessionStorage.getItem('qs_activeTab') || 'overview'; } catch { return 'overview'; }
+    });
+    const [importMethod, setImportMethod] = useState(() => {
+        try { return sessionStorage.getItem('qs_importMethod') || null; } catch { return null; }
+    });
+
+    useEffect(() => {
+        try { sessionStorage.setItem('qs_activeTab', activeTab); } catch {}
+    }, [activeTab]);
+
+    useEffect(() => {
+        if (importMethod != null) {
+            try { sessionStorage.setItem('qs_importMethod', importMethod); } catch {}
+        }
+    }, [importMethod]);
+
+
+
     const [selectedTemplate, setSelectedTemplate] = useState(null);
     const [uploadedFile, setUploadedFile] = useState(null);
     const [isDragging, setIsDragging] = useState(false);
     const [isDownloading, setIsDownloading] = useState(false);
     const [uploadProgress, setUploadProgress] = useState(0);
     const [validationStatus, setValidationStatus] = useState(null);
-    const [importMethod, setImportMethod] = useState(null);
+
     const [accounts, setAccounts] = useState([]);
     const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' });
     const [isSubmitting, setIsSubmitting] = useState(false);
