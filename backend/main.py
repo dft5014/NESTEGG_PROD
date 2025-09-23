@@ -2846,6 +2846,7 @@ async def _prefetch_overview_symbols(total_limit: int) -> List[str]:
         FROM security_usage u
         WHERE u.metrics_status = 'Requires Updating'
           AND (u.on_alphavantage IS DISTINCT FROM FALSE)
+          AND (u.metrics_source = 'yahoo_query')
         ORDER BY u.metrics_age_minutes DESC NULLS FIRST, u.ticker ASC
         LIMIT :lim
     """
