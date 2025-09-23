@@ -1061,109 +1061,110 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
   );
 
   // Auto-hydrate prices for seeded positions (keeping existing logic)
-  const metalSymbolByType = {
-    Gold: 'GC=F',
-    Silver: 'SI=F',
-    Platinum: 'PL=F',
-    Copper: 'HG=F',
-    Palladium: 'PA=F',
-  };
+  // Handle security selection - moved before autoHydrateSeededPrices to resolve dependency
+    const handleSelectSecurity = useCallback((assetType, positionId, security) => {
+      const searchKey = `${assetType}-${positionId}`;
+      setSelectedSecurities((prev) => ({ ...prev, [searchKey]: security }));
 
-  const getQuotePrice = (s) => {
-    const v = s?.price ?? s?.current_price ?? s?.regularMarketPrice ?? s?.regular_market_price ?? s?.last ?? s?.close ?? s?.value ?? s?.mark;
-    const n = Number(v);
-    return Number.isFinite(n) ? n : undefined;
-  };
+      const getQuotePrice = (s) => {
+        const v = s?.price ?? s?.current_price ?? s?.regularMarketPrice ?? s?.regular_market_price ?? s?.last ?? s?.close ?? s?.value ?? s?.mark;
+        const n = Number(v);
+        return Number.isFinite(n) ? n : undefined;
+      };
 
-  const autoHydrateSeededPrices = useCallback(async () => {
-    const work = [];
+      const px = getQuotePrice(security);
 
-    positions.security.forEach((p) => {
-      const q = p?.data?.ticker || p?.data?.symbol;
-      if (q && (p?.data?.price == null || p?.data?.price === '' || Number(p?.data?.price) === 0)) {
-        work.push({ type: 'security', id: p.id, q });
-      }
-    });
+      setPositions((prev) => ({
+        ...prev,
+        [assetType]: prev[assetType].map((pos) => {
+          if (pos.id !== positionId) return pos;
+          const d = { ...pos.data };
 
-    positions.crypto.forEach((p) => {
-      const q = p?.data?.symbol || p?.data?.ticker;
-      if (q && (p?.data?.current_price == null || p?.data?.current_price === '' || Number(p?.data?.current_price) === 0)) {
-        work.push({ type: 'crypto', id: p.id, q });
-      }
-    });
-
-    positions.metal.forEach((p) => {
-      const q = p?.data?.symbol || metalSymbolByType[p?.data?.metal_type];
-      if (q && (p?.data?.current_price_per_unit == null || p?.data?.current_price_per_unit === '' || Number(p?.data?.current_price_per_unit) === 0)) {
-        work.push({ type: 'metal', id: p.id, q });
-      }
-    });
-
-    if (!work.length) return;
-
-    const chunks = await Promise.all(
-      work.map(async (item) => {
-        try {
-          const results = await searchSecurities(item.q);
-          let filtered = Array.isArray(results) ? results : [];
-          if (item.type === 'security') {
-            filtered = filtered.filter((r) => r.asset_type === 'security' || r.asset_type === 'index');
-          } else if (item.type === 'crypto') {
-            filtered = filtered.filter((r) => r.asset_type === 'crypto');
+          if (assetType === 'security') {
+            d.ticker = security.ticker;
+            if (px != null) d.price = px;
+            d.name = security.name;
+            if (d.cost_basis == null && d.price != null) d.cost_basis = d.price;
+          } else if (assetType === 'crypto') {
+            d.symbol = security.ticker;
+            if (px != null) d.current_price = px;
+            d.name = security.name;
+            if (d.purchase_price == null && d.current_price != null) d.purchase_price = d.current_price;
+          } else if (assetType === 'metal') {
+            d.symbol = security.ticker;
+            if (px != null) d.current_price_per_unit = px;
+            d.name = security.name;
+            if (d.purchase_price == null && d.current_price_per_unit != null) d.purchase_price = d.current_price_per_unit;
           }
-          const exact = filtered.find((r) => String(r.ticker || '').toUpperCase() === String(item.q).toUpperCase());
-          const chosen = exact || filtered[0];
-          return chosen ? { ...item, chosen } : null;
-        } catch (e) {
-          console.warn('Hydrate lookup failed', item, e);
-          return null;
-        }
-      })
-    );
 
-    for (const hit of chunks) {
-      if (hit?.chosen) {
-        handleSelectSecurity(hit.type, hit.id, hit.chosen);
+          return { ...pos, data: d, errors: { ...pos.errors } };
+        }),
+      }));
+
+      setSearchResults((prev) => ({ ...prev, [searchKey]: [] }));
+    }, []); // Empty dependencies since it uses function updates
+
+    // Auto-hydrate prices for seeded positions
+    const autoHydrateSeededPrices = useCallback(async () => {
+      const metalSymbolByType = {
+        Gold: 'GC=F',
+        Silver: 'SI=F',
+        Platinum: 'PL=F',
+        Copper: 'HG=F',
+        Palladium: 'PA=F',
+      };
+
+      const work = [];
+
+      positions.security.forEach((p) => {
+        const q = p?.data?.ticker || p?.data?.symbol;
+        if (q && (p?.data?.price == null || p?.data?.price === '' || Number(p?.data?.price) === 0)) {
+          work.push({ type: 'security', id: p.id, q });
+        }
+      });
+
+      positions.crypto.forEach((p) => {
+        const q = p?.data?.symbol || p?.data?.ticker;
+        if (q && (p?.data?.current_price == null || p?.data?.current_price === '' || Number(p?.data?.current_price) === 0)) {
+          work.push({ type: 'crypto', id: p.id, q });
+        }
+      });
+
+      positions.metal.forEach((p) => {
+        const q = p?.data?.symbol || metalSymbolByType[p?.data?.metal_type];
+        if (q && (p?.data?.current_price_per_unit == null || p?.data?.current_price_per_unit === '' || Number(p?.data?.current_price_per_unit) === 0)) {
+          work.push({ type: 'metal', id: p.id, q });
+        }
+      });
+
+      if (!work.length) return;
+
+      const chunks = await Promise.all(
+        work.map(async (item) => {
+          try {
+            const results = await searchSecurities(item.q);
+            let filtered = Array.isArray(results) ? results : [];
+            if (item.type === 'security') {
+              filtered = filtered.filter((r) => r.asset_type === 'security' || r.asset_type === 'index');
+            } else if (item.type === 'crypto') {
+              filtered = filtered.filter((r) => r.asset_type === 'crypto');
+            }
+            const exact = filtered.find((r) => String(r.ticker || '').toUpperCase() === String(item.q).toUpperCase());
+            const chosen = exact || filtered[0];
+            return chosen ? { ...item, chosen } : null;
+          } catch (e) {
+            console.warn('Hydrate lookup failed', item, e);
+            return null;
+          }
+        })
+      );
+
+      for (const hit of chunks) {
+        if (hit?.chosen) {
+          handleSelectSecurity(hit.type, hit.id, hit.chosen);
+        }
       }
-    }
-  }, [positions, handleSelectSecurity]);;
-
-  // Handle security selection (keeping existing logic)
-  const handleSelectSecurity = useCallback((assetType, positionId, security) => {
-    const searchKey = `${assetType}-${positionId}`;
-    setSelectedSecurities((prev) => ({ ...prev, [searchKey]: security }));
-
-    const px = getQuotePrice(security);
-
-    setPositions((prev) => ({
-      ...prev,
-      [assetType]: prev[assetType].map((pos) => {
-        if (pos.id !== positionId) return pos;
-        const d = { ...pos.data };
-
-        if (assetType === 'security') {
-          d.ticker = security.ticker;
-          if (px != null) d.price = px;
-          d.name = security.name;
-          if (d.cost_basis == null && d.price != null) d.cost_basis = d.price;
-        } else if (assetType === 'crypto') {
-          d.symbol = security.ticker;
-          if (px != null) d.current_price = px;
-          d.name = security.name;
-          if (d.purchase_price == null && d.current_price != null) d.purchase_price = d.current_price;
-        } else if (assetType === 'metal') {
-          d.symbol = security.ticker;
-          if (px != null) d.current_price_per_unit = px;
-          d.name = security.name;
-          if (d.purchase_price == null && d.current_price_per_unit != null) d.purchase_price = d.current_price_per_unit;
-        }
-
-        return { ...pos, data: d, errors: { ...pos.errors } };
-      }),
-    }));
-
-    setSearchResults((prev) => ({ ...prev, [searchKey]: [] }));
-  }, []); // Empty dependencies since it uses function updates
+    }, [positions, handleSelectSecurity]);
 
   // Add new row
   const addNewRow = (assetType) => {
