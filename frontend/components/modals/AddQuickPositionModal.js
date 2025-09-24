@@ -447,12 +447,6 @@ const QueueModal = ({ isOpen, onClose, positions, assetTypes, accounts, onClearC
         );
     }
   };
-  // Clear all rows and runtime state
-  const clearAllPositions = () => {
-    setPositions({ security: [], cash: [], crypto: [], metal: [], otherAssets: [] });
-    setSelectedPositions(new Set());
-    setImportState(prev => ({ ...prev, queued: [], submitted: new Set(), success: [], failed: [], inFlight: 0, isRunning: false }));
-  };
 
   const allPositions = useMemo(() => {
     const result = [];
@@ -1771,6 +1765,32 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
     if (el) { el.focus(); el.scrollIntoView({ block: 'center', behavior: 'smooth' }); }
   }, []);
 
+  // Clear all rows and reset runtime state
+  function clearAllPositions() {
+    // wipe the queue
+    setPositions({ security: [], cash: [], crypto: [], metal: [], otherAssets: [] });
+
+    // selection & UI state
+    setSelectedPositions?.(new Set());
+    setMessage?.({ type: '', text: '', details: [] });
+
+    // importer controller (if present in this file)
+    setImportState?.(prev => ({
+      ...prev,
+      queued: [],
+      submitted: new Set(),
+      success: [],
+      failed: [],
+      inFlight: 0,
+      isRunning: false
+    }));
+
+    // other optional runtime trackers (present in some variants of this file)
+    setImportingPositions?.(new Set());
+    setProcessedPositions?.(new Set());
+    setImportResults?.(new Map());
+  }
+
   // Legacy simple validate (kept for submit button gating)
   const validatePositions = () => {
     // We now allow partial import: only rows without blocking errors go.
@@ -2379,7 +2399,7 @@ return (
                         <th className="w-10 px-3 py-3 text-left">
                           <input
                             type="checkbox"
-                            onChange={(e) => toggleSelectAllInSection(assetType, filtered, e.target.checked)}
+                            onChange={(e) => toggleSelectAllInSection(assetType, typePositions, e.target.checked)}
                             className="w-4 h-4 rounded border-gray-300 text-blue-600"
                             aria-label="Select all in section"
                           />
@@ -2799,15 +2819,6 @@ return (
    }
  };
 
- // Format currency helper
- const formatCurrency = (value) => {
-   if (value >= 1000000) {
-     return `$${(value / 1000000).toFixed(1)}M`;
-   } else if (value >= 1000) {
-     return `$${(value / 1000).toFixed(1)}K`;
-   }
-   return `$${value.toFixed(2)}`;
- };
 
  return (
    <FixedModal
