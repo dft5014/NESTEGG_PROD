@@ -923,8 +923,7 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
     []  
     );
     // Instant auto-hydration for seeded rows (first 50, 4-way pool)
-    // Place this inside the component, not outside.
-    async function autoHydrateSeededPrices() {
+    async function autoHydrateSeededPricesNow() {
       const work = [];
       const pushWork = (type, id, q) => {
         if (q) work.push({ type, id, q });
@@ -1034,7 +1033,7 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
 
 
       // 🔑 trigger price hydration after seeds land — run immediately
-      try { autoHydrateSeededPrices?.(); } catch (e) { console.error(e); }
+      try { autoHydrateSeededPricesNow(); } catch (e) { console.error(e); }
 
       return () => {
         if (messageTimeoutRef.current) clearTimeout(messageTimeoutRef.current);
