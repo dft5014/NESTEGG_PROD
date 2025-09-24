@@ -630,8 +630,23 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
     cash: [],
     crypto: [],
     metal: [],
-    otherAssets: []  
+    otherAssets: []
   });
+
+  // 💡 NEW: import controller state (decouples import from UI)
+  const [importState, setImportState] = useState({
+    isRunning: false,
+    concurrency: 4,
+    inFlight: 0,
+    queued: [],       // array of {type, position}
+    submitted: new Set(), // ids we've attempted (prevents double adds)
+    success: [],      // compact success log
+    failed: []        // {type, id, error}
+  });
+
+  // 💡 NEW: controls
+  const [autoRemoveOnSuccess, setAutoRemoveOnSuccess] = useState(true);
+  const [showValidators, setShowValidators] = useState(true);
   const [expandedSections, setExpandedSections] = useState({});
   const [accountExpandedSections, setAccountExpandedSections] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -1465,6 +1480,7 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
   };
 
   // Enhanced statistics
+  // Enhanced statistics (unchanged logic + totals used by validators/import)
   const stats = useMemo(() => {
     let totalPositions = 0;
     let totalValue = 0;
@@ -1476,18 +1492,16 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
 
     Object.entries(positions).forEach(([type, typePositions]) => {
       byType[type] = { count: 0, value: 0, cost: 0 };
-      
+
       typePositions.forEach(pos => {
-        // Special handling for otherAssets which don't need account_id
-        const hasValidData = type === 'otherAssets' 
-          ? (pos.data.asset_name && pos.data.current_value) 
+        const validForValue = type === 'otherAssets'
+          ? (pos.data.asset_name && pos.data.current_value)
           : pos.data.account_id;
-          
-        if (hasValidData) {
+
+        if (validForValue) {
           totalPositions++;
           byType[type].count++;
-          
-          // Only track by account for non-otherAssets
+
           if (type !== 'otherAssets' && pos.data.account_id) {
             const accountId = pos.data.account_id;
             if (!byAccount[accountId]) {
@@ -1496,10 +1510,9 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
             byAccount[accountId].count++;
             byAccount[accountId].positions.push({ ...pos, assetType: type });
           }
-          
+
           let value = 0;
           let cost = 0;
-          
           switch (type) {
             case 'security':
               value = (pos.data.shares || 0) * (pos.data.price || 0);
@@ -1522,23 +1535,22 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
               cost = pos.data.amount || 0;
               break;
           }
-          
+
           totalValue += value;
           totalCost += cost;
           byType[type].value += value;
           byType[type].cost += cost;
-          
-          // Only add to account value for non-otherAssets
+
           if (type !== 'otherAssets' && pos.data.account_id) {
             byAccount[pos.data.account_id].value += value;
           }
         }
-        
+
         if (pos.errors && Object.values(pos.errors).some(e => e)) {
           errors.push({ type, id: pos.id, errors: pos.errors });
         }
       });
-      
+
       if (byType[type].cost > 0) {
         performance[type] = ((byType[type].value - byType[type].cost) / byType[type].cost) * 100;
       }
@@ -1546,237 +1558,301 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
 
     const totalPerformance = totalCost > 0 ? ((totalValue - totalCost) / totalCost) * 100 : 0;
 
-    return { 
-      totalPositions, 
-      totalValue, 
+    return {
+      totalPositions,
+      totalValue,
       totalCost,
       totalPerformance,
-      byType, 
-      byAccount, 
+      byType,
+      byAccount,
       errors,
-      performance 
+      performance
     };
   }, [positions]);
-  // Validate positions
-  const validatePositions = () => {
-    let isValid = true;
-    const updatedPositions = { ...positions };
-    const validationErrors = [];
 
-    Object.entries(positions).forEach(([type, typePositions]) => {
-      const typeConfig = assetTypes[type];
-      updatedPositions[type] = typePositions.map((pos, index) => {
-        const errors = {};
-        let hasData = false;
-        
-        // Check if position has any data
-        typeConfig.fields.forEach(field => {
-          if (pos.data[field.key]) {
-            hasData = true;
+  
+  // Validate positions
+  // ✅ NEW: row-level validators (feeds UI dashboards + import readiness)
+  const validators = useMemo(() => {
+    const list = [];
+    const push = (kind, message, fix, ctx) => list.push({ kind, message, fix, ...ctx });
+
+    const requiredByType = {
+      security: ['ticker', 'shares', 'cost_basis', 'purchase_date', 'account_id'],
+      crypto:   ['symbol', 'quantity', 'purchase_price', 'purchase_date', 'account_id'],
+      metal:    ['metal_type', 'quantity', 'purchase_price', 'purchase_date', 'account_id'],
+      cash:     ['account_id', 'amount'],
+      otherAssets: ['asset_name', 'current_value'] // account not required
+    };
+
+    const now = new Date();
+    const futureDate = (d) => d && new Date(d) > now;
+
+    // duplicate detection key: (type,ticker/symbol,account_id)
+    const seen = new Set();
+
+    Object.entries(positions).forEach(([type, rows]) => {
+      rows.forEach((pos, idx) => {
+        const d = pos.data || {};
+        const baseCtx = { type, id: pos.id, index: idx+1 };
+
+        // required fields
+        (requiredByType[type] || []).forEach(k => {
+          if (d[k] === undefined || d[k] === '' || d[k] === null) {
+            push('Required', `[${type}] Row ${idx+1}: ${k} is required`, () => focusCell(type, pos.id, k), baseCtx);
           }
         });
-        
-        if (hasData) {
-          typeConfig.fields.forEach(field => {
-            const value = pos.data[field.key];
-            
-            // Skip account_id validation for otherAssets
-            if (field.key === 'account_id' && type === 'otherAssets') {
-              return;
-            }
-            
-            if (field.required && !value) {
-              errors[field.key] = 'Required';
-              isValid = false;
-              validationErrors.push(`${typeConfig.name} row ${index + 1}: ${field.label} is required`);
-            } else if (field.type === 'number' && value) {
-              if (field.min !== undefined && value < field.min) {
-                errors[field.key] = `Min: ${field.min}`;
-                isValid = false;
-                validationErrors.push(`${typeConfig.name} row ${index + 1}: ${field.label} must be at least ${field.min}`);
-              }
-              if (field.max !== undefined && value > field.max) {
-                errors[field.key] = `Max: ${field.max}`;
-                isValid = false;
-                validationErrors.push(`${typeConfig.name} row ${index + 1}: ${field.label} must be at most ${field.max}`);
-              }
-            }
-          });
+
+        // numeric sanity
+        if (type === 'security' && d.shares <= 0) {
+          push('Invalid', `[security] Row ${idx+1}: shares must be > 0`, () => focusCell(type, pos.id, 'shares'), baseCtx);
         }
-        
-        return { ...pos, errors };
+        if (type === 'crypto' && d.quantity <= 0) {
+          push('Invalid', `[crypto] Row ${idx+1}: quantity must be > 0`, () => focusCell(type, pos.id, 'quantity'), baseCtx);
+        }
+        if (type === 'cash' && d.amount <= 0) {
+          push('Invalid', `[cash] Row ${idx+1}: amount must be > 0`, () => focusCell(type, pos.id, 'amount'), baseCtx);
+        }
+
+        // future purchase date
+        if (['security','crypto','metal','otherAssets'].some(t => t === type) && futureDate(d.purchase_date)) {
+          push('Invalid', `[${type}] Row ${idx+1}: purchase date is in the future`, () => focusCell(type, pos.id, 'purchase_date'), baseCtx);
+        }
+
+        // price hydration check
+        if (type === 'security' && d.ticker && (d.price == null || Number(d.price) === 0)) {
+          push('Price', `[security] Row ${idx+1}: current price not hydrated`, () => focusCell(type, pos.id, 'ticker'), baseCtx);
+        }
+        if (type === 'crypto' && d.symbol && (d.current_price == null || Number(d.current_price) === 0)) {
+          push('Price', `[crypto] Row ${idx+1}: current price not hydrated`, () => focusCell(type, pos.id, 'symbol'), baseCtx);
+        }
+        if (type === 'metal' && d.symbol && (d.current_price_per_unit == null || Number(d.current_price_per_unit) === 0)) {
+          push('Price', `[metal] Row ${idx+1}: current price not hydrated`, () => focusCell(type, pos.id, 'metal_type'), baseCtx);
+        }
+
+        // duplicate prevention key
+        const key =
+          type === 'security' ? `${type}|${d.ticker?.toUpperCase()}|${d.account_id}` :
+          type === 'crypto'   ? `${type}|${d.symbol?.toUpperCase()}|${d.account_id}` :
+          type === 'metal'    ? `${type}|${d.symbol?.toUpperCase()}|${d.account_id}` :
+          type === 'cash'     ? `${type}|${d.account_id}|${d.cash_type||'cash'}` :
+          `${type}|${d.asset_name}`;
+
+        if (key && seen.has(key)) {
+          push('Duplicate', `[${type}] Row ${idx+1}: looks like a duplicate in the queue`, null, baseCtx);
+        } else {
+          seen.add(key);
+        }
       });
     });
 
-    setPositions(updatedPositions);
-    
-    if (!isValid) {
-      showMessage('error', `${validationErrors.length} validation errors found`, validationErrors.slice(0, 5));
+    const summary = {
+      total: list.length,
+      byKind: list.reduce((acc, v) => { acc[v.kind] = (acc[v.kind]||0)+1; return acc; }, {})
+    };
+
+    return { list, summary };
+  }, [positions]);
+
+  // internal focus helper used by validators
+  const focusCell = useCallback((assetType, id, fieldKey) => {
+    const key = `${assetType}-${id}-${fieldKey}`;
+    const el = cellRefs.current[key];
+    if (el) { el.focus(); el.scrollIntoView({ block: 'center', behavior: 'smooth' }); }
+  }, []);
+
+  // Legacy simple validate (kept for submit button gating)
+  const validatePositions = () => {
+    // We now allow partial import: only rows without blocking errors go.
+    // Blocking kinds: Required, Invalid
+    const blocking = validators.list.filter(v => v.kind === 'Required' || v.kind === 'Invalid');
+    if (blocking.length) {
+      showMessage('warning', `Some rows need attention (${blocking.length})`, blocking.slice(0,5).map(v=>v.message));
     }
-    
-    return isValid;
+    // Return boolean indicating if *all* are clean (not necessary for import)
+    return blocking.length === 0;
   };
 
-  // Submit all
-  const submitAll = async () => {
-    if (stats.totalPositions === 0) {
-      showMessage('error', 'No positions to submit', ['Add at least one position before submitting']);
-      return;
-    }
 
-    if (!validatePositions()) {
-      return;
-    }
+  // 🧠 NEW: build import queue from current positions (skip successes & duplicates)
+  const buildQueue = useCallback(() => {
+    const items = [];
+    Object.entries(positions).forEach(([type, rows]) => {
+      rows.forEach(pos => {
+        if (pos.status === 'success') return; // already imported
+        if (importState.submitted.has(pos.id)) return; // already attempted this session
 
-    setIsSubmitting(true);
-    let successCount = 0;
-    let errorCount = 0;
-    const errors = [];
-    const updatedPositions = { ...positions };
-    const successfulPositionData = [];
-
-    try {
-      const batches = [];
-      Object.entries(positions).forEach(([type, typePositions]) => {
-        typePositions.forEach(pos => {
-          // Special validation for otherAssets vs other types
-          const isValidPosition = type === 'otherAssets' 
+        // allow submitting *ready* rows only (no blocking issues)
+        const rowIssues = validators.list.filter(v => v.id === pos.id && (v.kind === 'Required' || v.kind === 'Invalid'));
+        const isReady =
+          (type === 'otherAssets'
             ? (pos.data.asset_name && pos.data.current_value)
-            : (pos.data.account_id && Object.keys(pos.data).length > 1);
-            
-          if (isValidPosition) {
-            batches.push({ type, position: pos });
-          }
-        });
+            : !!pos.data.account_id) && rowIssues.length === 0;
+
+        if (isReady) items.push({ type, position: pos });
+      });
+    });
+    return items;
+  }, [positions, importState.submitted, validators.list]);
+
+  // 🔁 NEW: decoupled import loop with concurrency + per-row finalize
+  const runImporter = useCallback(async () => {
+    setImportState(prev => ({ ...prev, isRunning: true }));
+
+    const queue = buildQueue();
+    if (queue.length === 0) {
+      showMessage('info', 'No ready rows to import', []);
+      setImportState(prev => ({ ...prev, isRunning: false }));
+      return;
+    }
+
+    // prime controller
+    setImportState(prev => ({
+      ...prev,
+      queued: queue,
+      inFlight: 0
+    }));
+
+    const submitOne = async (job) => {
+      const { type, position } = job;
+      const id = position.id;
+
+      // mark submitted (prevents double-click imports)
+      setImportState(prev => {
+        const s = new Set(prev.submitted);
+        s.add(id);
+        return { ...prev, submitted: s };
       });
 
-      showMessage('info', `Submitting ${batches.length} positions...`, [], 0);
+      // clean payload
+      const cleanData = {};
+      Object.entries(position.data).forEach(([k, v]) => {
+        if (v !== '' && v !== null && v !== undefined) cleanData[k] = v;
+      });
 
-      for (let i = 0; i < batches.length; i++) {
-        const { type, position } = batches[i];
-        
-        try {
-          const cleanData = {};
-          Object.entries(position.data).forEach(([key, value]) => {
-            if (value !== '' && value !== null && value !== undefined) {
-              cleanData[key] = value;
-            }
-          });
-
-          switch (type) {
-            case 'security':
-              await addSecurityPosition(position.data.account_id, cleanData);
-              break;
-            case 'crypto':
-
-              const cryptoData = {
-                coin_symbol: cleanData.symbol,
-                coin_type: cleanData.name || cleanData.symbol, 
-                quantity: cleanData.quantity,
-                purchase_price: cleanData.purchase_price,
-                purchase_date: cleanData.purchase_date,
-                account_id: cleanData.account_id,
-                storage_type: cleanData.storage_type || 'Exchange',  // Default to 'Exchange'
-                notes: cleanData.notes || null,
-                tags: cleanData.tags || [],
-                is_favorite: cleanData.is_favorite || false
+      try {
+        switch (type) {
+          case 'security':
+            await addSecurityPosition(position.data.account_id, cleanData);
+            break;
+          case 'crypto': {
+            const cryptoData = {
+              coin_symbol: cleanData.symbol,
+              coin_type: cleanData.name || cleanData.symbol,
+              quantity: cleanData.quantity,
+              purchase_price: cleanData.purchase_price,
+              purchase_date: cleanData.purchase_date,
+              account_id: cleanData.account_id,
+              storage_type: cleanData.storage_type || 'Exchange',
+              notes: cleanData.notes || null,
+              tags: cleanData.tags || [],
+              is_favorite: cleanData.is_favorite || false
             };
-              console.log('Sending crypto data:', cryptoData);
-              await addCryptoPosition(position.data.account_id, cryptoData);
-              break;
-            case 'metal':
-              const metalData = {
-                metal_type: cleanData.metal_type,  // Now this comes from dropdown (Gold, Silver, etc.)
-                coin_symbol: cleanData.symbol,
-                quantity: cleanData.quantity,
-                unit: cleanData.unit || 'oz',
-                purchase_price: cleanData.purchase_price,
-                cost_basis: (cleanData.quantity || 0) * (cleanData.purchase_price || 0),
-                purchase_date: cleanData.purchase_date,
-                storage_location: cleanData.storage_location,
-                description: `${cleanData.symbol} - ${cleanData.name}`  // Include symbol and market name
-              };
-              
-              console.log('Sending metal data:', metalData);
-              await addMetalPosition(position.data.account_id, metalData);
-              break;
-            case 'otherAssets':
-              await addOtherAsset(cleanData);
-              break;
-            case 'cash':
-                const cashData = {
-                ...cleanData,
-                name: cleanData.cash_type,
-                interest_rate: cleanData.interest_rate ? cleanData.interest_rate / 100 : null
-              };
-              await addCashPosition(position.data.account_id, cashData);
-              break;
+            await addCryptoPosition(position.data.account_id, cryptoData);
+            break;
           }
-          
-          successCount++;
-          
-          // Collect successful position data
-          const account = type !== 'otherAssets' 
-            ? accounts.find(a => a.id === position.data.account_id) 
-            : null;
-            
-          successfulPositionData.push({
-            type,
-            ticker: position.data.ticker,
-            symbol: position.data.symbol,
-            asset_name: position.data.asset_name, // Changed from property_name
-            metal_type: position.data.metal_type,
-            currency: position.data.currency,
-            shares: position.data.shares,
-            quantity: position.data.quantity,
-            amount: position.data.amount,
-            account_name: account?.account_name || (type === 'otherAssets' ? 'Other Assets' : 'Unknown Account'),
-            account_id: position.data.account_id
+          case 'metal': {
+            const metalData = {
+              metal_type: cleanData.metal_type,
+              coin_symbol: cleanData.symbol,
+              quantity: cleanData.quantity,
+              unit: cleanData.unit || 'oz',
+              purchase_price: cleanData.purchase_price,
+              cost_basis: (cleanData.quantity || 0) * (cleanData.purchase_price || 0),
+              purchase_date: cleanData.purchase_date,
+              storage_location: cleanData.storage_location,
+              description: `${cleanData.symbol} - ${cleanData.name}`
+            };
+            await addMetalPosition(position.data.account_id, metalData);
+            break;
+          }
+          case 'otherAssets':
+            await addOtherAsset(cleanData);
+            break;
+          case 'cash': {
+            const cashData = {
+              ...cleanData,
+              name: cleanData.cash_type,
+              interest_rate: cleanData.interest_rate ? cleanData.interest_rate / 100 : null
+            };
+            await addCashPosition(position.data.account_id, cashData);
+            break;
+          }
+        }
+
+        // success: mark + optionally remove from UI queue
+        setPositions(prev => {
+          const out = { ...prev };
+          out[type] = out[type].map(p => p.id === id ? { ...p, status: 'success', errorMessage: undefined } : p);
+          return out;
+        });
+
+        setImportState(prev => ({ ...prev, success: [...prev.success, { id, type }]}));
+
+        if (autoRemoveOnSuccess) {
+          setPositions(prev => {
+            const out = { ...prev };
+            out[type] = out[type].filter(p => p.id !== id);
+            return out;
           });
-          
-          // Update position status
-          updatedPositions[type] = updatedPositions[type].map(pos => 
-            pos.id === position.id ? { ...pos, status: 'success' } : pos
-          );
-          
-          const progress = Math.round(((i + 1) / batches.length) * 100);
-          showMessage('info', `Submitting positions... ${progress}%`, [`${successCount} of ${batches.length} completed`], 0);
-          
-        } catch (error) {
-          console.error(`Error adding ${type} position:`, error);
-          errorCount++;
-          errors.push(`${assetTypes[type].name}: ${error.message || 'Unknown error'}`);
-          
-          // Update position status with error
-          updatedPositions[type] = updatedPositions[type].map(pos => 
-            pos.id === position.id ? { ...pos, status: 'error', errorMessage: error.message } : pos
-          );
         }
+
+      } catch (err) {
+        const msg = err?.message || 'Unknown error';
+        setPositions(prev => {
+          const out = { ...prev };
+          out[type] = out[type].map(p => p.id === id ? ({ ...p, status: 'error', errorMessage: msg }) : p);
+          return out;
+        });
+        setImportState(prev => ({ ...prev, failed: [...prev.failed, { id, type, error: msg }]}));
+      } finally {
+        setImportState(prev => ({ ...prev, inFlight: Math.max(0, prev.inFlight - 1) }));
       }
+    };
 
-      // Rest of the function remains the same...
+    // run with concurrency
+    let idx = 0;
+    const launchNext = () => {
+      while (idx < queue.length && importState.inFlight < importState.concurrency) {
+        const job = queue[idx++];
+        setImportState(prev => ({ ...prev, inFlight: prev.inFlight + 1 }));
+        submitOne(job).then(() => {
+          // when any job finishes, try launch more until all done
+          if (idx < queue.length || (importState.inFlight - 1) > 0) {
+            launchNext();
+          } else {
+            // no more; when the last ones drain, we’ll finalize below through a small timeout
+          }
+        });
+      }
+    };
 
-      setPositions(updatedPositions);
+    launchNext();
 
-      if (successCount > 0) {
-        showMessage('success', `Successfully added ${successCount} positions!`, 
-          errorCount > 0 ? [`${errorCount} positions failed`] : []
-        );
-        
-        // Call the callback with successful positions
-        if (onPositionsSaved) {
-          onPositionsSaved(successCount, successfulPositionData);
+    // finalize watcher
+    const fin = setInterval(() => {
+      setImportState(prev => {
+        const remaining = (idx < queue.length) || prev.inFlight > 0;
+        if (!remaining) {
+          clearInterval(fin);
+          showMessage(
+            prev.failed.length ? 'warning' : 'success',
+            prev.failed.length
+              ? `Import finished: ${prev.success.length} added, ${prev.failed.length} failed`
+              : `Import finished: ${prev.success.length} positions added`,
+            prev.failed.slice(0, 5).map(f => `[${f.type}] ${f.error}`)
+          );
+          return { ...prev, isRunning: false, queued: [] };
         }
-      } else {
-        showMessage('error', 'Failed to add any positions', errors.slice(0, 5));
-      }
-
-    } catch (error) {
-      console.error('Error submitting positions:', error);
-      showMessage('error', 'Failed to submit positions', [error.message]);
-    } finally {
-      setIsSubmitting(false);
-    }
+        return prev;
+      });
+    }, 250);
+  }, [positions, importState.concurrency, importState.inFlight, autoRemoveOnSuccess, buildQueue]);
+  
+  // Backwards compatible single-click action (kept name)
+  const submitAll = async () => {
+    // still runs decoupled importer now
+    runImporter();
   };
 
   // Clear all
@@ -1798,14 +1874,14 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
   };
 
   // Clear completed positions
+  // Clear completed positions (also clears success log)
   const clearCompletedPositions = () => {
-    const updatedPositions = { ...positions };
-    
-    Object.keys(updatedPositions).forEach(type => {
-      updatedPositions[type] = updatedPositions[type].filter(pos => pos.status !== 'success');
+    const updated = { ...positions };
+    Object.keys(updated).forEach(type => {
+      updated[type] = updated[type].filter(p => p.status !== 'success');
     });
-    
-    setPositions(updatedPositions);
+    setPositions(updated);
+    setImportState(prev => ({ ...prev, success: [] }));
     showMessage('success', 'Cleared all successfully added positions');
   };
 
@@ -2703,31 +2779,70 @@ return (
                  </span>
                )}
              </button>
-             
-             {/* Submit button */}
+
+             {/* NEW: Validators toggle */}
              <button
-               onClick={submitAll}
-               disabled={stats.totalPositions === 0 || isSubmitting}
+               onClick={() => setShowValidators(v => !v)}
+               className={`px-3 py-2 text-sm font-medium rounded-lg transition-all border ${
+                 showValidators ? 'bg-blue-50 border-blue-300 text-blue-700' : 'bg-white border-gray-300 text-gray-700'
+               }`}
+               title="Toggle validator dashboards"
+             >
+               <Shield className="w-4 h-4 inline mr-2" />
+               Validators {validators.summary.total > 0 && <span className="ml-1 text-xs px-2 py-0.5 rounded-full bg-red-600 text-white font-bold">{validators.summary.total}</span>}
+             </button>
+
+             {/* NEW: Auto-remove toggle */}
+             <button
+               onClick={() => setAutoRemoveOnSuccess(v => !v)}
+               className={`px-3 py-2 text-sm font-medium rounded-lg transition-all border ${
+                 autoRemoveOnSuccess ? 'bg-emerald-50 border-emerald-300 text-emerald-700' : 'bg-white border-gray-300 text-gray-700'
+               }`}
+               title="When enabled, successful rows are removed from the queue instantly"
+             >
+               {autoRemoveOnSuccess ? <ToggleRight className="w-4 h-4 inline mr-2" /> : <ToggleLeft className="w-4 h-4 inline mr-2" />}
+               Auto-remove on success
+             </button>
+             
+             {/* Submit/Import buttons */}
+             <button
+               onClick={runImporter}
+               disabled={stats.totalPositions === 0 || importState.isRunning}
                className={`
                  px-6 py-2 text-sm font-semibold rounded-lg transition-all duration-200 
                  flex items-center space-x-2 shadow-sm hover:shadow-md transform hover:scale-105
-                 ${stats.totalPositions === 0 || isSubmitting
+                 ${stats.totalPositions === 0 || importState.isRunning
                    ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
                    : 'bg-gradient-to-r from-green-600 to-emerald-600 text-white hover:from-green-700 hover:to-emerald-700'
                  }
                `}
              >
-               {isSubmitting ? (
+               {importState.isRunning ? (
                  <>
                    <Loader2 className="w-4 h-4 animate-spin" />
-                   <span>Saving...</span>
+                   <span>Importing… {importState.success.length}/{importState.submitted.size}</span>
                  </>
                ) : (
                  <>
                    <CheckCircle className="w-4 h-4" />
-                   <span>Add {stats.totalPositions} Position{stats.totalPositions !== 1 ? 's' : ''}</span>
+                   <span>Start Import</span>
                  </>
                )}
+             </button>
+
+             <button
+               onClick={submitAll}
+               disabled={stats.totalPositions === 0 || importState.isRunning}
+               className={`
+                 px-4 py-2 text-sm font-medium rounded-lg transition-all border
+                 ${stats.totalPositions === 0 || importState.isRunning
+                   ? 'bg-gray-100 text-gray-400 cursor-not-allowed border-gray-200'
+                   : 'bg-white text-gray-700 hover:bg-gray-50 border-gray-300'
+                 }
+               `}
+               title="Legacy one-shot (calls the importer internally)"
+             >
+               Quick Add
              </button>
            </div>
          </div>
@@ -2890,6 +3005,64 @@ return (
            </div>
          )}
        </div>
+
+              {/* Validator Dashboards */}
+       {showValidators && (
+         <div className="mt-3 mb-2 grid grid-cols-1 lg:grid-cols-4 gap-3">
+           <div className="bg-white border border-gray-200 rounded-xl p-4">
+             <div className="text-xs text-gray-500 mb-1">Blocking</div>
+             <div className="text-2xl font-bold text-red-600">{validators.summary.byKind?.Required || 0} + {validators.summary.byKind?.Invalid || 0}</div>
+             <div className="text-xs text-gray-500">Rows that cannot import</div>
+             <div className="mt-3 max-h-28 overflow-auto space-y-1">
+               {validators.list.filter(v => v.kind === 'Required' || v.kind === 'Invalid').slice(0,6).map((v,i)=>(
+                 <button key={i} onClick={()=>v.fix?.()} className="w-full text-left text-xs px-2 py-1 rounded hover:bg-red-50 text-red-700 border border-red-100">
+                   {v.message}
+                 </button>
+               ))}
+             </div>
+           </div>
+           <div className="bg-white border border-gray-200 rounded-xl p-4">
+             <div className="text-xs text-gray-500 mb-1">Price Hydration</div>
+             <div className="text-2xl font-bold text-amber-600">{validators.summary.byKind?.Price || 0}</div>
+             <div className="text-xs text-gray-500">Rows missing live price</div>
+             <div className="mt-3 max-h-28 overflow-auto space-y-1">
+               {validators.list.filter(v => v.kind === 'Price').slice(0,6).map((v,i)=>(
+                 <button key={i} onClick={()=>v.fix?.()} className="w-full text-left text-xs px-2 py-1 rounded hover:bg-amber-50 text-amber-700 border border-amber-100">
+                   {v.message}
+                 </button>
+               ))}
+             </div>
+           </div>
+           <div className="bg-white border border-gray-200 rounded-xl p-4">
+             <div className="text-xs text-gray-500 mb-1">Potential Duplicates</div>
+             <div className="text-2xl font-bold text-fuchsia-600">{validators.summary.byKind?.Duplicate || 0}</div>
+             <div className="text-xs text-gray-500">Likely duplicate queue entries</div>
+             <div className="mt-3 max-h-28 overflow-auto space-y-1">
+               {validators.list.filter(v => v.kind === 'Duplicate').slice(0,6).map((v,i)=>(
+                 <div key={i} className="text-xs px-2 py-1 rounded bg-fuchsia-50 text-fuchsia-700 border border-fuchsia-100">
+                   {v.message}
+                 </div>
+               ))}
+             </div>
+           </div>
+           <div className="bg-white border border-gray-200 rounded-xl p-4">
+             <div className="text-xs text-gray-500 mb-1">Import Readiness</div>
+             <div className="text-2xl font-bold text-emerald-600">
+               {(() => {
+                 const ready = buildQueue().length;
+                 return ready;
+               })()}
+             </div>
+             <div className="text-xs text-gray-500">Rows ready to import now</div>
+             <div className="mt-3 text-xs text-gray-600">
+               Concurrency: {importState.concurrency} • In-flight: {importState.inFlight}
+             </div>
+           </div>
+         </div>
+       )}
+
+       {/* Scrollable Content Area */}
+
 
        {/* Scrollable Content Area */}
         <div className="flex-1 overflow-y-auto overflow-x-visible p-6 space-y-4 relative" style={{ zIndex: 1 }}>
