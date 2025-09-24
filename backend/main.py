@@ -2113,7 +2113,7 @@ async def update_all_securities_metrics():
         AND on_alphavantage is FALSE
         AND on_yfinance IS DISTINCT FROM FALSE
         ORDER BY metrics_age_minutes DESC NULLS FIRST, ticker ASC
-        LIMIT 100
+        LIMIT 500
         """
         results = await database.fetch_all(query)
         
@@ -2994,7 +2994,7 @@ async def _run_overview_batches_prefetched(
 async def update_alphavantage_overviews_batched(
     total_limit: int = 1500,       # how many tickers to prefetch total
     batch_size: int = 60,          # how many per batch
-    delay_seconds: int = 40,       # pause between batches
+    delay_seconds: int = 60,       # pause between batches
     run_in_background: bool = True,
 ):
     """
