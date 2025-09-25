@@ -1,9 +1,11 @@
-// AddQuickPositionModal — v3 (clean, build-safe)
-// - Single-source queue (no local/session storage)
+// components/modals/AddQuickPositionModal.js
+// Quick Add Positions — v3 (clean, build-safe)
+// - Accepts grouped seeds { security, crypto, metal, cash, other }
 // - One-pass hydration per open (guarded)
-// - Stable, id-keyed deletes (row & bulk)
-// - Parent handshake prevents "zombie" rows on remount
-// - Single "Clear All" and single "Keys" toggle
+// - Stable id-keyed deletes (row & bulk)
+// - Clear All that actually clears
+// - Import with concurrency
+// - Calls parent with: onPositionsSaved(importedCount, flatRemainingArray)
 
 import React, {
   useEffect,
@@ -13,7 +15,6 @@ import React, {
   useState,
   useCallback,
 } from "react";
-import FixedModal from "./FixedModal";
 import {
   addSecurityPosition,
   addCryptoPosition,
@@ -23,7 +24,7 @@ import {
   searchSecurities,
   searchFXAssets,
 } from "@/utils/apimethods/positionMethods";
-import { Trash2, Loader2, Keyboard, Upload, Check } from "lucide-react";
+import { Trash2, Loader2, Keyboard, Upload, Check, X } from "lucide-react";
 
 // ---- local helpers (no alias issues) ----
 const formatCurrency = (n, currency = "USD") =>
@@ -74,7 +75,7 @@ function groupedFromState(state) {
   };
 }
 
-// ---- reducer (uses "bucket" so it never conflicts with action.type) ----
+// ---- reducer (use "bucket" so it never conflicts with action.type) ----
 function reducer(state, action) {
   switch (action.type) {
     case "INIT_FROM_SEEDS": {
@@ -86,17 +87,12 @@ function reducer(state, action) {
         other:    (action.payload.other || []).map((r) => ({ ...r, id: makeId(r) })),
       };
     }
-    case "ADD_ROW": {
-      const { bucket, row } = action;
-      const idRow = { ...row, id: makeId(row) };
-      return { ...state, [bucket]: [...state[bucket], idRow] };
-    }
     case "DELETE_ROW": {
       const { bucket, id } = action;
       return { ...state, [bucket]: state[bucket].filter((r) => r.id !== id) };
     }
     case "DELETE_BULK": {
-      const { keys } = action; // string[] of row.id
+      const { keys } = action;
       const keySet = new Set(keys);
       return {
         security: state.security.filter((r) => !keySet.has(r.id)),
@@ -117,14 +113,16 @@ function reducer(state, action) {
   }
 }
 
-export default function AddQuickPositionModal({
+function AddQuickPositionModal({
   isOpen,
-  seedPositions, // grouped: {security, crypto, metal, cash, other}
+  seedPositions,        // grouped: {security, crypto, metal, cash, other}
   onClose,
-  onPositionsSaved, // ({ importedCount, remainingSeedsGrouped, flatPositionsForSummary, flush? })
+  onPositionsSaved,     // EXPECTED BY QuickStart: (importedCount, flatRemainingArray)
   autoRemoveOnSuccess = true,
   importConcurrency = 6,
 }) {
+  if (!isOpen) return null;
+
   const [queue, dispatch] = useReducer(reducer, initialQueue);
   const [selected, setSelected] = useState(new Set()); // holds row.id
   const [message, setMessage] = useState(null);
@@ -204,7 +202,6 @@ export default function AddQuickPositionModal({
   }, [isOpen, queue]);
 
   const flatQueue = useMemo(() => flatFromGrouped(queue), [queue]);
-  const importedCount = successCount;
 
   // Import pipeline
   const submitAll = useCallback(async () => {
@@ -246,17 +243,14 @@ export default function AddQuickPositionModal({
     );
 
     await Promise.all(workers);
-    setSuccessCount(success);
     setImporting(false);
+    setSuccessCount(success);
 
-    // Notify parent of accurate remaining (from latest queueRef)
+    // Notify parent with signature it expects:
+    // (importedCount, flatRemainingArray)
     const remaining = groupedFromState(queueRef.current);
-    const flat = flatFromGrouped(remaining);
-    onPositionsSaved?.({
-      importedCount: success,
-      remainingSeedsGrouped: remaining,
-      flatPositionsForSummary: flat,
-    });
+    const flatRemaining = flatFromGrouped(remaining);
+    onPositionsSaved?.(success, flatRemaining);
 
     setMessage({
       type: "success",
@@ -271,15 +265,12 @@ export default function AddQuickPositionModal({
       s.delete(id);
       return s;
     });
+    // keep parent in sync to avoid zombies on reopen
     const remaining = groupedFromState({
       ...queueRef.current,
       [bucket]: queueRef.current[bucket].filter((r) => r.id !== id),
     });
-    onPositionsSaved?.({
-      importedCount,
-      remainingSeedsGrouped: remaining,
-      flatPositionsForSummary: flatFromGrouped(remaining),
-    });
+    onPositionsSaved?.(successCount, flatFromGrouped(remaining));
   };
 
   const deleteSelected = () => {
@@ -295,21 +286,13 @@ export default function AddQuickPositionModal({
       cash:     queueRef.current.cash.filter((r) => !keySet.has(r.id)),
       other:    queueRef.current.other.filter((r) => !keySet.has(r.id)),
     });
-    onPositionsSaved?.({
-      importedCount,
-      remainingSeedsGrouped: remaining,
-      flatPositionsForSummary: flatFromGrouped(remaining),
-    });
+    onPositionsSaved?.(successCount, flatFromGrouped(remaining));
   };
 
   const clearAll = () => {
     dispatch({ type: "CLEAR_ALL" });
     setSelected(new Set());
-    onPositionsSaved?.({
-      importedCount,
-      remainingSeedsGrouped: groupedFromState(initialQueue),
-      flatPositionsForSummary: [],
-    });
+    onPositionsSaved?.(successCount, []); // nothing remaining
   };
 
   const toggleSelect = (id) => {
@@ -318,12 +301,6 @@ export default function AddQuickPositionModal({
       s.has(id) ? s.delete(id) : s.add(id);
       return s;
     });
-  };
-
-  const handleClose = () => {
-    onClose?.();
-    // If you want to flush parent seeds on close, uncomment:
-    // onPositionsSaved?.({ flush: true });
   };
 
   // ---- UI ----
@@ -336,8 +313,8 @@ export default function AddQuickPositionModal({
       data?.ticker ||
       data?.symbol ||
       "(unnamed)";
-    const qty = data?.quantity ?? data?.amount ?? 0;
-    const price = hydratedPrice ?? data?.price ?? null;
+    const qty = data?.quantity ?? data?.amount ?? data?.shares ?? 0;
+    const price = hydratedPrice ?? data?.price ?? data?.purchase_price ?? null;
     const mv = price != null && qty != null ? price * qty : null;
 
     return (
@@ -398,119 +375,118 @@ export default function AddQuickPositionModal({
   const totalRows = flatQueue.length;
 
   return (
-    <FixedModal
-      isOpen={isOpen}
-      onClose={handleClose}
-      title="Quick Add Positions"
-      size="max-w-[1400px]"
-    >
-      <div className="flex flex-col gap-4">
-        {/* Top actions */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={submitAll}
-              disabled={importing || totalRows === 0}
-              className="px-4 py-2 rounded-lg bg-emerald-600 text-white hover:bg-emerald-500 disabled:opacity-50 flex items-center gap-2"
-            >
-              {importing ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <Upload className="w-4 h-4" />
-              )}
-              Import {totalRows ? `(${totalRows})` : ""}
-            </button>
-            <button
-              type="button"
-              onClick={deleteSelected}
-              disabled={selected.size === 0}
-              className="px-3 py-2 rounded-lg border border-gray-700 text-gray-200 hover:bg-gray-800 disabled:opacity-50 flex items-center gap-2"
-              title="Delete selected"
-            >
-              <Trash2 className="w-4 h-4" />
-              Delete Selected {selected.size ? `(${selected.size})` : ""}
-            </button>
-            <button
-              type="button"
-              onClick={clearAll}
-              disabled={totalRows === 0}
-              className="px-3 py-2 rounded-lg border border-gray-700 text-gray-200 hover:bg-gray-800 disabled:opacity-50"
-              title="Clear all rows"
-            >
-              Clear All
-            </button>
-          </div>
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => setShortcutsOpen((v) => !v)}
-              className={`p-2 rounded-lg ${
-                shortcutsOpen
-                  ? "bg-purple-600/20 text-purple-300"
-                  : "bg-gray-800 text-gray-300"
-              } hover:bg-gray-700`}
-              title="Keyboard shortcuts"
-            >
-              <Keyboard className="w-4 h-4" />
-            </button>
-          </div>
-        </div>
+    <div className="rounded-2xl border border-gray-800 bg-gray-900 p-4">
+      {/* Header */}
+      <div className="flex items-center justify-between mb-2">
+        <h3 className="text-lg font-semibold text-gray-100">Quick Add Positions</h3>
+        <button
+          type="button"
+          onClick={onClose}
+          className="p-2 rounded-lg hover:bg-gray-800 text-gray-400 hover:text-gray-200"
+          title="Close"
+        >
+          <X className="w-4 h-4" />
+        </button>
+      </div>
 
-        {message && (
-          <div
-            className={`rounded-lg p-3 text-sm ${
-              message.type === "success"
-                ? "bg-emerald-900/30 text-emerald-200 border border-emerald-800/50"
-                : message.type === "error"
-                ? "bg-red-900/30 text-red-200 border border-red-800/50"
-                : "bg-slate-900/30 text-slate-200 border border-slate-800/50"
-            }`}
-          >
-            {message.text}
-          </div>
-        )}
-
-        {/* Queue sections */}
-        <div className="grid grid-cols-2 gap-6">
-          <div className="space-y-6">
-            <Section title="Securities" items={queue.security} />
-            <Section title="Crypto" items={queue.crypto} />
-            <Section title="Metals" items={queue.metal} />
-          </div>
-          <div className="space-y-6">
-            <Section title="Cash" items={queue.cash} />
-            <Section title="Other" items={queue.other} />
-            <div className="rounded-lg border border-gray-800/60 p-3 text-sm text-gray-300">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Check className="w-4 h-4 text-emerald-400" />
-                  <span>Ready</span>
-                </div>
-                <div className="text-xs text-gray-400">
-                  {importing ? `Importing… inFlight: ${inFlight}` : `Queued: ${totalRows}`}
-                </div>
-              </div>
-              {!!failed.length && (
-                <div className="mt-2 text-xs text-red-300">
-                  {failed.length} failed. Check console/logs for details.
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* Footer */}
-        <div className="flex items-center justify-end gap-2">
+      {/* Top actions */}
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-2">
           <button
             type="button"
-            onClick={handleClose}
-            className="px-3 py-2 rounded-lg border border-gray-700 text-gray-200 hover:bg-gray-800"
+            onClick={submitAll}
+            disabled={importing || totalRows === 0}
+            className="px-4 py-2 rounded-lg bg-emerald-600 text-white hover:bg-emerald-500 disabled:opacity-50 flex items-center gap-2"
           >
-            Close
+            {importing ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <Upload className="w-4 h-4" />
+            )}
+            Import {totalRows ? `(${totalRows})` : ""}
+          </button>
+          <button
+            type="button"
+            onClick={deleteSelected}
+            disabled={selected.size === 0}
+            className="px-3 py-2 rounded-lg border border-gray-700 text-gray-200 hover:bg-gray-800 disabled:opacity-50 flex items-center gap-2"
+            title="Delete selected"
+          >
+            <Trash2 className="w-4 h-4" />
+            Delete Selected {selected.size ? `(${selected.size})` : ""}
+          </button>
+          <button
+            type="button"
+            onClick={clearAll}
+            disabled={totalRows === 0}
+            className="px-3 py-2 rounded-lg border border-gray-700 text-gray-200 hover:bg-gray-800 disabled:opacity-50"
+            title="Clear all rows"
+          >
+            Clear All
+          </button>
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setShortcutsOpen((v) => !v)}
+            className={`p-2 rounded-lg ${
+              shortcutsOpen
+                ? "bg-purple-600/20 text-purple-300"
+                : "bg-gray-800 text-gray-300"
+            } hover:bg-gray-700`}
+            title="Keyboard shortcuts"
+          >
+            <Keyboard className="w-4 h-4" />
           </button>
         </div>
       </div>
-    </FixedModal>
+
+      {message && (
+        <div
+          className={`rounded-lg p-3 text-sm mb-3 ${
+            message.type === "success"
+              ? "bg-emerald-900/30 text-emerald-200 border border-emerald-800/50"
+              : message.type === "error"
+              ? "bg-red-900/30 text-red-200 border border-red-800/50"
+              : "bg-slate-900/30 text-slate-200 border border-slate-800/50"
+          }`}
+        >
+          {message.text}
+        </div>
+      )}
+
+      {/* Queue sections */}
+      <div className="grid grid-cols-2 gap-6">
+        <div className="space-y-6">
+          <Section title="Securities" items={queue.security} />
+          <Section title="Crypto" items={queue.crypto} />
+          <Section title="Metals" items={queue.metal} />
+        </div>
+        <div className="space-y-6">
+          <Section title="Cash" items={queue.cash} />
+          <Section title="Other" items={queue.other} />
+          <div className="rounded-lg border border-gray-800/60 p-3 text-sm text-gray-300">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Check className="w-4 h-4 text-emerald-400" />
+                <span>Ready</span>
+              </div>
+              <div className="text-xs text-gray-400">
+                {importing ? `Importing… inFlight: ${inFlight}` : `Queued: ${totalRows}`}
+              </div>
+            </div>
+            {!!failed.length && (
+              <div className="mt-2 text-xs text-red-300">
+                {failed.length} failed. Check console/logs for details.
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
+
+// Export both default and named so either import style works.
+export { AddQuickPositionModal };
+export default AddQuickPositionModal;
