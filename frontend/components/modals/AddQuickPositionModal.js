@@ -1,15 +1,19 @@
-// AddQuickPositionModal — v3: Single-Source Queue + One-Pass Hydration + Deterministic Parent Handshake
-// - Handles direct manual input and large Excel batches uniformly
-// - One-pass hydration per open (guarded); no repeat on tab/route change
+// AddQuickPositionModal — v3 (clean, build-safe)
+// - Single-source queue (no local/session storage)
+// - One-pass hydration per open (guarded)
 // - Stable, id-keyed deletes (row & bulk)
 // - Parent handshake prevents "zombie" rows on remount
 // - Single "Clear All" and single "Keys" toggle
 
-import React, { useEffect, useMemo, useReducer, useRef, useState, useCallback } from "react";
+import React, {
+  useEffect,
+  useMemo,
+  useReducer,
+  useRef,
+  useState,
+  useCallback,
+} from "react";
 import FixedModal from "./FixedModal";
-import {
-  fetchAllAccounts,
-} from "@/utils/apimethods/accountMethods";
 import {
   addSecurityPosition,
   addCryptoPosition,
@@ -19,13 +23,17 @@ import {
   searchSecurities,
   searchFXAssets,
 } from "@/utils/apimethods/positionMethods";
-import { formatCurrency } from "@/utils/format";
-import { Trash2, Loader2, Keyboard, Upload, Check, X } from "lucide-react";
+import { Trash2, Loader2, Keyboard, Upload, Check } from "lucide-react";
 
-// ===== Types & helpers =====
+// ---- local helpers (no alias issues) ----
+const formatCurrency = (n, currency = "USD") =>
+  typeof n === "number"
+    ? n.toLocaleString("en-US", { style: "currency", currency })
+    : n ?? "";
+
+// ---- data model ----
 const initialQueue = { security: [], crypto: [], metal: [], cash: [], other: [] };
 
-// Build a canonical id for each row (stable across renders)
 function makeId(row) {
   const t = row.type;
   const d = row.data || {};
@@ -36,7 +44,6 @@ function makeId(row) {
   return `${t}|${d.asset_name || ""}|${d.account_id || ""}`;
 }
 
-// Shallow group normalizer (accepts null/undefined)
 function normalizeGrouped(g) {
   return {
     security: Array.isArray(g?.security) ? g.security : [],
@@ -67,46 +74,43 @@ function groupedFromState(state) {
   };
 }
 
-// ===== Reducer =====
+// ---- reducer (uses "bucket" so it never conflicts with action.type) ----
 function reducer(state, action) {
   switch (action.type) {
     case "INIT_FROM_SEEDS": {
       return {
-        security: (action.payload.security || []).map(r => ({ ...r, id: makeId(r) })),
-        crypto:   (action.payload.crypto || []).map(r => ({ ...r, id: makeId(r) })),
-        metal:    (action.payload.metal || []).map(r => ({ ...r, id: makeId(r) })),
-        cash:     (action.payload.cash || []).map(r => ({ ...r, id: makeId(r) })),
-        other:    (action.payload.other || []).map(r => ({ ...r, id: makeId(r) })),
+        security: (action.payload.security || []).map((r) => ({ ...r, id: makeId(r) })),
+        crypto:   (action.payload.crypto || []).map((r) => ({ ...r, id: makeId(r) })),
+        metal:    (action.payload.metal || []).map((r) => ({ ...r, id: makeId(r) })),
+        cash:     (action.payload.cash || []).map((r) => ({ ...r, id: makeId(r) })),
+        other:    (action.payload.other || []).map((r) => ({ ...r, id: makeId(r) })),
       };
     }
     case "ADD_ROW": {
-      const { type, row } = action;
+      const { bucket, row } = action;
       const idRow = { ...row, id: makeId(row) };
-      return { ...state, [type]: [...state[type], idRow] };
+      return { ...state, [bucket]: [...state[bucket], idRow] };
     }
     case "DELETE_ROW": {
-      const { type, id } = action;
-      return { ...state, [type]: state[type].filter(r => r.id !== id) };
+      const { bucket, id } = action;
+      return { ...state, [bucket]: state[bucket].filter((r) => r.id !== id) };
     }
     case "DELETE_BULK": {
-      const { keys } = action; // array of string ids like "type|KEY"
+      const { keys } = action; // string[] of row.id
       const keySet = new Set(keys);
       return {
-        security: state.security.filter(r => !keySet.has(r.id)),
-        crypto:   state.crypto.filter(r => !keySet.has(r.id)),
-        metal:    state.metal.filter(r => !keySet.has(r.id)),
-        cash:     state.cash.filter(r => !keySet.has(r.id)),
-        other:    state.other.filter(r => !keySet.has(r.id)),
+        security: state.security.filter((r) => !keySet.has(r.id)),
+        crypto:   state.crypto.filter((r) => !keySet.has(r.id)),
+        metal:    state.metal.filter((r) => !keySet.has(r.id)),
+        cash:     state.cash.filter((r) => !keySet.has(r.id)),
+        other:    state.other.filter((r) => !keySet.has(r.id)),
       };
     }
     case "CLEAR_ALL":
       return initialQueue;
     case "PATCH_ROW": {
-      const { type, id, patch } = action;
-      return {
-        ...state,
-        [type]: state[type].map(r => (r.id === id ? { ...r, ...patch } : r)),
-      };
+      const { bucket, id, patch } = action;
+      return { ...state, [bucket]: state[bucket].map((r) => (r.id === id ? { ...r, ...patch } : r)) };
     }
     default:
       return state;
@@ -122,7 +126,6 @@ export default function AddQuickPositionModal({
   importConcurrency = 6,
 }) {
   const [queue, dispatch] = useReducer(reducer, initialQueue);
-  const [accounts, setAccounts] = useState([]);
   const [selected, setSelected] = useState(new Set()); // holds row.id
   const [message, setMessage] = useState(null);
   const [importing, setImporting] = useState(false);
@@ -133,22 +136,10 @@ export default function AddQuickPositionModal({
 
   const didInitRef = useRef(false);
   const hydratedRef = useRef(false);
+  const queueRef = useRef(queue);
+  useEffect(() => { queueRef.current = queue; }, [queue]);
 
-  // Load accounts once
-  useEffect(() => {
-    let active = true;
-    (async () => {
-      try {
-        const data = await fetchAllAccounts();
-        if (active) setAccounts(data || []);
-      } catch (e) {
-        console.error("fetchAllAccounts error", e);
-      }
-    })();
-    return () => { active = false; };
-  }, []);
-
-  // One-time per open: init queue from seeds
+  // Init from seeds once per open
   useEffect(() => {
     if (!isOpen) return;
     if (didInitRef.current) return;
@@ -162,7 +153,7 @@ export default function AddQuickPositionModal({
     setFailed([]);
   }, [isOpen, seedPositions]);
 
-  // Reset init guard when closing
+  // Reset guard when closing
   useEffect(() => {
     if (!isOpen) didInitRef.current = false;
   }, [isOpen]);
@@ -177,7 +168,6 @@ export default function AddQuickPositionModal({
     hydratedRef.current = true;
 
     (async () => {
-      // naive example: hydrate only securities & crypto for illustration
       const hydrateRow = async (r) => {
         try {
           if (r.type === "security") {
@@ -185,25 +175,27 @@ export default function AddQuickPositionModal({
             if (!t) return;
             const res = await searchSecurities({ query: t, limit: 1 });
             const best = Array.isArray(res) ? res[0] : null;
-            if (best?.price) dispatch({ type: "PATCH_ROW", id: r.id, patch: { hydratedPrice: best.price }, row: r, "type": r.type });
-            if (best?.name)  dispatch({ type: "PATCH_ROW", id: r.id, patch: { hydratedName: best.name }, row: r, "type": r.type });
+            if (best?.price)
+              dispatch({ type: "PATCH_ROW", bucket: r.type, id: r.id, patch: { hydratedPrice: best.price } });
+            if (best?.name)
+              dispatch({ type: "PATCH_ROW", bucket: r.type, id: r.id, patch: { hydratedName: best.name } });
           } else if (r.type === "crypto") {
             const s = r?.data?.symbol;
             if (!s) return;
             const res = await searchFXAssets({ query: s, limit: 1 });
             const best = Array.isArray(res) ? res[0] : null;
-            if (best?.price) dispatch({ type: "PATCH_ROW", id: r.id, patch: { hydratedPrice: best.price }, row: r, "type": r.type });
+            if (best?.price)
+              dispatch({ type: "PATCH_ROW", bucket: r.type, id: r.id, patch: { hydratedPrice: best.price } });
           }
-        } catch (e) {
+        } catch {
           // non-fatal hydration failure
         }
       };
 
-      // simple pool
       const pool = [];
       for (const r of rows) {
         pool.push(hydrateRow(r));
-        if (pool.length >= 8) { // 8-way hydration pool
+        if (pool.length >= 8) {
           await Promise.allSettled(pool.splice(0));
         }
       }
@@ -225,6 +217,7 @@ export default function AddQuickPositionModal({
     let success = 0;
     const jobs = [...flatQueue];
     let idx = 0;
+
     const runOne = async (r) => {
       try {
         if (r.type === "security")      await addSecurityPosition(r.data);
@@ -234,73 +227,78 @@ export default function AddQuickPositionModal({
         else                            await addOtherAsset(r.data);
 
         success += 1;
-        if (autoRemoveOnSuccess) dispatch({ type: "DELETE_ROW", id: r.id, row: r, "type": r.type });
+        if (autoRemoveOnSuccess) dispatch({ type: "DELETE_ROW", bucket: r.type, id: r.id });
       } catch (e) {
-        setFailed(prev => [...prev, { id: r.id, type: r.type, error: String(e) }]);
+        setFailed((prev) => [...prev, { id: r.id, type: r.type, error: String(e) }]);
       }
     };
 
-    // simple concurrency pool
-    const workers = Array.from({ length: Math.min(importConcurrency, Math.max(1, jobs.length)) }, async () => {
-      while (idx < jobs.length) {
-        const j = jobs[idx++];
-        setInFlight(f => f + 1);
-        await runOne(j);
-        setInFlight(f => Math.max(0, f - 1));
+    const workers = Array.from(
+      { length: Math.min(importConcurrency, Math.max(1, jobs.length)) },
+      async () => {
+        while (idx < jobs.length) {
+          const j = jobs[idx++];
+          setInFlight((f) => f + 1);
+          await runOne(j);
+          setInFlight((f) => Math.max(0, f - 1));
+        }
       }
-    });
+    );
 
     await Promise.all(workers);
     setSuccessCount(success);
     setImporting(false);
 
-    // Notify parent of remaining + flat summary
-    const remaining = groupedFromState(queue);
+    // Notify parent of accurate remaining (from latest queueRef)
+    const remaining = groupedFromState(queueRef.current);
     const flat = flatFromGrouped(remaining);
     onPositionsSaved?.({
       importedCount: success,
       remainingSeedsGrouped: remaining,
-      flatPositionsForSummary: flat
+      flatPositionsForSummary: flat,
     });
 
     setMessage({
       type: "success",
       text: `Imported ${success} / ${jobs.length} positions` + (failed.length ? `, ${failed.length} failed` : ""),
     });
-  }, [importing, flatQueue, queue, autoRemoveOnSuccess, importConcurrency, failed.length, onPositionsSaved]);
+  }, [importing, flatQueue, autoRemoveOnSuccess, importConcurrency, onPositionsSaved, failed.length]);
 
-  const deleteRow = (id, type) => {
-    dispatch({ type: "DELETE_ROW", id, "type": type });
-    setSelected(prev => {
+  const deleteRow = (id, bucket) => {
+    dispatch({ type: "DELETE_ROW", bucket, id });
+    setSelected((prev) => {
       const s = new Set(prev);
       s.delete(id);
       return s;
     });
-    // mirror to parent so ghosts never return
-    const remaining = groupedFromState({ ...queue, [type]: queue[type].filter(r => r.id !== id) });
+    const remaining = groupedFromState({
+      ...queueRef.current,
+      [bucket]: queueRef.current[bucket].filter((r) => r.id !== id),
+    });
     onPositionsSaved?.({
       importedCount,
       remainingSeedsGrouped: remaining,
-      flatPositionsForSummary: flatFromGrouped(remaining)
+      flatPositionsForSummary: flatFromGrouped(remaining),
     });
   };
 
   const deleteSelected = () => {
     if (selected.size === 0) return;
     const keys = Array.from(selected);
+    const keySet = new Set(keys);
     dispatch({ type: "DELETE_BULK", keys });
     setSelected(new Set());
     const remaining = groupedFromState({
-      security: queue.security.filter(r => !selected.has(r.id)),
-      crypto:   queue.crypto.filter(r => !selected.has(r.id)),
-      metal:    queue.metal.filter(r => !selected.has(r.id)),
-      cash:     queue.cash.filter(r => !selected.has(r.id)),
-      other:    queue.other.filter(r => !selected.has(r.id)),
+      security: queueRef.current.security.filter((r) => !keySet.has(r.id)),
+      crypto:   queueRef.current.crypto.filter((r) => !keySet.has(r.id)),
+      metal:    queueRef.current.metal.filter((r) => !keySet.has(r.id)),
+      cash:     queueRef.current.cash.filter((r) => !keySet.has(r.id)),
+      other:    queueRef.current.other.filter((r) => !keySet.has(r.id)),
     });
     onPositionsSaved?.({
       importedCount,
       remainingSeedsGrouped: remaining,
-      flatPositionsForSummary: flatFromGrouped(remaining)
+      flatPositionsForSummary: flatFromGrouped(remaining),
     });
   };
 
@@ -315,7 +313,7 @@ export default function AddQuickPositionModal({
   };
 
   const toggleSelect = (id) => {
-    setSelected(prev => {
+    setSelected((prev) => {
       const s = new Set(prev);
       s.has(id) ? s.delete(id) : s.add(id);
       return s;
@@ -324,34 +322,55 @@ export default function AddQuickPositionModal({
 
   const handleClose = () => {
     onClose?.();
-    // optional: tell parent to drop seeds entirely
+    // If you want to flush parent seeds on close, uncomment:
     // onPositionsSaved?.({ flush: true });
   };
 
-  // ===== UI =====
+  // ---- UI ----
   const Row = ({ r }) => {
     const { id, type, data, hydratedPrice, hydratedName } = r;
-    const name = hydratedName || data?.name || data?.asset_name || data?.ticker || data?.symbol || "(unnamed)";
-    const qty  = data?.quantity ?? data?.amount ?? 0;
+    const name =
+      hydratedName ||
+      data?.name ||
+      data?.asset_name ||
+      data?.ticker ||
+      data?.symbol ||
+      "(unnamed)";
+    const qty = data?.quantity ?? data?.amount ?? 0;
     const price = hydratedPrice ?? data?.price ?? null;
-    const mv = (price != null && qty != null) ? price * qty : null;
+    const mv = price != null && qty != null ? price * qty : null;
+
     return (
       <div className="grid grid-cols-12 items-center gap-2 p-2 rounded-lg hover:bg-gray-800/40">
         <div className="col-span-1">
-          <input type="checkbox" checked={selected.has(id)} onChange={() => toggleSelect(id)} />
+          <input
+            type="checkbox"
+            checked={selected.has(id)}
+            onChange={() => toggleSelect(id)}
+          />
         </div>
         <div className="col-span-3 truncate">
           <div className="text-gray-100 text-sm">{name}</div>
           <div className="text-gray-400 text-xs">{type}</div>
         </div>
-        <div className="col-span-2 text-sm text-gray-200">{data?.account_name || data?.account_id}</div>
+        <div className="col-span-2 text-sm text-gray-200">
+          {data?.account_name || data?.account_id || "-"}
+        </div>
         <div className="col-span-2 text-sm text-gray-200">{qty}</div>
-        <div className="col-span-2 text-sm text-gray-200">{price != null ? formatCurrency(price) : "-"}</div>
-        <div className="col-span-1 text-sm text-gray-200 text-right">{mv != null ? formatCurrency(mv) : "-"}</div>
+        <div className="col-span-2 text-sm text-gray-200">
+          {price != null ? formatCurrency(price) : "-"}
+        </div>
+        <div className="col-span-1 text-sm text-gray-200 text-right">
+          {mv != null ? formatCurrency(mv) : "-"}
+        </div>
         <div className="col-span-1 flex justify-end">
           <button
             type="button"
-            onClick={(e) => { e.preventDefault(); e.stopPropagation(); deleteRow(id, type); }}
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              deleteRow(id, type);
+            }}
             className="p-2 rounded-lg hover:bg-red-500/10 text-gray-300 hover:text-red-400"
             title="Delete row"
           >
@@ -368,7 +387,9 @@ export default function AddQuickPositionModal({
       <div className="space-y-2">
         <div className="text-xs uppercase tracking-wide text-gray-400">{title}</div>
         <div className="divide-y divide-gray-800/70 rounded-lg border border-gray-800/70">
-          {items.map(r => <Row key={r.id} r={r} />)}
+          {items.map((r) => (
+            <Row key={r.id} r={r} />
+          ))}
         </div>
       </div>
     );
@@ -393,7 +414,11 @@ export default function AddQuickPositionModal({
               disabled={importing || totalRows === 0}
               className="px-4 py-2 rounded-lg bg-emerald-600 text-white hover:bg-emerald-500 disabled:opacity-50 flex items-center gap-2"
             >
-              {importing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+              {importing ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Upload className="w-4 h-4" />
+              )}
               Import {totalRows ? `(${totalRows})` : ""}
             </button>
             <button
@@ -419,8 +444,12 @@ export default function AddQuickPositionModal({
           <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={() => setShortcutsOpen(v => !v)}
-              className={`p-2 rounded-lg ${shortcutsOpen ? "bg-purple-600/20 text-purple-300" : "bg-gray-800 text-gray-300"} hover:bg-gray-700`}
+              onClick={() => setShortcutsOpen((v) => !v)}
+              className={`p-2 rounded-lg ${
+                shortcutsOpen
+                  ? "bg-purple-600/20 text-purple-300"
+                  : "bg-gray-800 text-gray-300"
+              } hover:bg-gray-700`}
               title="Keyboard shortcuts"
             >
               <Keyboard className="w-4 h-4" />
@@ -429,11 +458,15 @@ export default function AddQuickPositionModal({
         </div>
 
         {message && (
-          <div className={`rounded-lg p-3 text-sm ${
-            message.type === "success" ? "bg-emerald-900/30 text-emerald-200 border border-emerald-800/50" :
-            message.type === "error" ? "bg-red-900/30 text-red-200 border border-red-800/50" :
-            "bg-slate-900/30 text-slate-200 border border-slate-800/50"
-          }`}>
+          <div
+            className={`rounded-lg p-3 text-sm ${
+              message.type === "success"
+                ? "bg-emerald-900/30 text-emerald-200 border border-emerald-800/50"
+                : message.type === "error"
+                ? "bg-red-900/30 text-red-200 border border-red-800/50"
+                : "bg-slate-900/30 text-slate-200 border border-slate-800/50"
+            }`}
+          >
             {message.text}
           </div>
         )}
