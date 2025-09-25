@@ -424,7 +424,8 @@ const QuickStartModal = ({ isOpen, onClose }) => {
     const [showAccountsDropdown, setShowAccountsDropdown] = useState(false);
     const [importedAccounts, setImportedAccounts] = useState([]);
     const [importedPositions, setImportedPositions] = useState(0);
-    const [importedPositionsData, setImportedPositionsData] = useState([]);
+    const [importedPositionsGrouped, setImportedPositionsGrouped] = useState(null); // grouped for modal
+    const [importedPositionsData, setImportedPositionsData] = useState([]); // flat for success UI
     const [importedLiabilities, setImportedLiabilities] = useState(0);
     const [importedLiabilitiesData, setImportedLiabilitiesData] = useState([]);
     const { actions } = useDataStore();
@@ -1155,8 +1156,16 @@ const QuickStartModal = ({ isOpen, onClose }) => {
                     return;
                 }
 
-                setImportedPositionsData(parsed);
-                setImportedPositions(total);
+                setImportedPositionsGrouped(parsed);
+                const flat = [
+                ...(parsed.security ?? []),
+                ...(parsed.cash ?? []),
+                ...(parsed.crypto ?? []),
+                ...(parsed.metal ?? []),
+                ...(parsed.other ?? []),
+                ];
+                setImportedPositionsData(flat);
+                setImportedPositions(flat.length);
                 setUploadProgress(100);
                 setValidationStatus('valid');
 
@@ -1647,23 +1656,24 @@ const QuickStartModal = ({ isOpen, onClose }) => {
         return (
             <div className="relative">
                 <AddQuickPositionModal
-                    isOpen={true}
-                    seedPositions={importedPositionsData}
-                    onClose={() => {
-                        setImportMethod(null);
-                        // Optionally refresh data or show success
-                    }}
-                    onPositionsSaved={(count, positions) => {
-
-                                  // DEBUG: Log what we're receiving
-                        console.log('Received count:', count);
-                        console.log('Received positions:', positions);
-
-                        setImportedPositions(count);
-                        setImportedPositionsData(positions);
-                        setActiveTab('success');
-                        setImportMethod(null);
-                    }}
+                isOpen={true}
+                seedPositions={importedPositionsGrouped}
+                onClose={() => { /* leave seeds as-is unless you want to flush on close */ }}
+                onPositionsSaved={({ importedCount = 0, remainingSeedsGrouped = null, flatPositionsForSummary = [], flush = false }) => {
+                    if (flush) {
+                    setImportedPositions(0);
+                    setImportedPositionsGrouped(null);
+                    setImportedPositionsData([]);
+                    setActiveTab('overview');
+                    setImportMethod(null);
+                    return;
+                    }
+                    setImportedPositions(importedCount || flatPositionsForSummary.length);
+                    setImportedPositionsData(flatPositionsForSummary);
+                    setImportedPositionsGrouped(remainingSeedsGrouped);
+                    setActiveTab('success');
+                    setImportMethod(null);
+                }}
                 />
             </div>
         );
@@ -2127,7 +2137,7 @@ const QuickStartModal = ({ isOpen, onClose }) => {
                 ) : null}
                 
                 {/* Keep existing positions section */}
-                {isPositions && importedPositionsData && importedPositionsData.length > 0 ? (
+                {isPositions && Array.isArray(importedPositionsData) && importedPositionsData.length > 0 ? (
                     <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-xl p-6 max-w-2xl mx-auto border border-purple-200">
                         <h4 className="font-semibold text-gray-900 mb-4 flex items-center justify-center">
                             <Activity className="w-5 h-5 mr-2 text-purple-600" />
