@@ -916,70 +916,7 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
     }, 120),
     []  
     );
-    // Instant auto-hydration for seeded rows (first 50, 4-way pool)
-    async function autoHydrateSeededPricesNow() {
-      const work = [];
-      const pushWork = (type, id, q) => {
-        if (q) work.push({ type, id, q });
-      };
 
-      // Build worklist from current positions
-      (positions.security || []).forEach(p => {
-        const d = (p && p.data) || {};
-        pushWork('security', p.id, d.ticker || d.symbol);
-      });
-      (positions.crypto || []).forEach(p => {
-        const d = (p && p.data) || {};
-        pushWork('crypto', p.id, d.symbol || d.ticker);
-      });
-      (positions.metal || []).forEach(p => {
-        const d = (p && p.data) || {};
-        pushWork('metal', p.id, d.symbol || (d.metal_type || ''));
-      });
-
-      const slice = work.slice(0, 50);
-      if (!slice.length) return;
-
-      // Small pool executor (no fancy syntax that confuses linters)
-      async function runPool(items, concurrency, worker) {
-        const queue = items.slice();
-        async function workerLoop() {
-          // eslint-disable-next-line no-constant-condition
-          while (true) {
-            const next = queue.shift();
-            if (!next) break;
-            await worker(next);
-          }
-        }
-        const workers = [];
-        for (let i = 0; i < concurrency; i++) workers.push(workerLoop());
-        await Promise.all(workers);
-      }
-
-      await runPool(slice, 4, async ({ type, id, q }) => {
-        try {
-          const results = await searchSecurities(q);
-          const arr = Array.isArray(results) ? results : [];
-          const filtered = arr.filter(r => {
-            const at = r && r.asset_type;
-            if (type === 'security') return at === 'security' || at === 'index';
-            if (type === 'crypto') return at === 'crypto';
-            if (type === 'metal') {
-              const tick = (r && (r.ticker || '')) || '';
-              return at === 'metal' || at === 'commodity' || /F$/.test(tick);
-            }
-            return true;
-          });
-
-          const eq = (x) => String(x || '').toUpperCase();
-          const exact = filtered.find(x => eq(x && (x.ticker || x.symbol)) === eq(q));
-          const chosen = exact || filtered[0];
-          if (chosen) handleSelectSecurity(type, id, chosen);
-        } catch (e) {
-          // ignore individual failures
-        }
-      });
-    }
   
     useEffect(() => {
       if (!isOpen) return;
@@ -1026,8 +963,8 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
       setSelectedSecurities({});
 
 
-      // 🔑 trigger price hydration after seeds land — run immediately
-      try { autoHydrateSeededPricesNow(); } catch (e) { console.error(e); }
+      // single-run hydrator will trigger below via hydratedRef once rows exist
+      hydratedRef.current = false;
 
       return () => {
         if (messageTimeoutRef.current) clearTimeout(messageTimeoutRef.current);
@@ -1384,6 +1321,9 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
     // Run once when seeded rows are in state
     useEffect(() => {
       if (!isOpen || hydratedRef.current) return;
+
+      // ensure the single-run hydrator is reset on each open
+      hydratedRef.current = false;
 
       const total =
         (positions.security?.length || 0) +
@@ -1771,11 +1711,11 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
     setPositions({ security: [], cash: [], crypto: [], metal: [], otherAssets: [] });
 
     // selection & UI state
-    setSelectedPositions?.(new Set());
-    setMessage?.({ type: '', text: '', details: [] });
+    setSelectedPositions(new Set());
+    setMessage({ type: '', text: '', details: [] });
 
-    // importer controller (if present in this file)
-    setImportState?.(prev => ({
+    // importer controller
+    setImportState(prev => ({
       ...prev,
       queued: [],
       submitted: new Set(),
@@ -1784,11 +1724,6 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
       inFlight: 0,
       isRunning: false
     }));
-
-    // other optional runtime trackers (present in some variants of this file)
-    setImportingPositions?.(new Set());
-    setProcessedPositions?.(new Set());
-    setImportResults?.(new Map());
   }
 
   // Legacy simple validate (kept for submit button gating)
@@ -1919,16 +1854,15 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
 
         setImportState(prev => ({ ...prev, success: [...prev.success, { id, type }]}));
 
+        // always mark success; optionally remove immediately from UI
         if (autoRemoveOnSuccess) {
           const k = `${type}-${id}`;
           setPositions(prev => {
             const out = { ...prev };
-            out[type] = out[type].filter(p => p.id !== id);
+            out[type] = (out[type] || []).filter(p => p.id !== id);
             return out;
           });
           setSelectedPositions(prev => { const s = new Set(prev); s.delete(k); return s; });
-          // If you track per-row processed/importing/results elsewhere, clear them too:
-          setImportState(prev => ({ ...prev, queued: prev.queued.filter(j => !(j.type === type && j.position?.id === id)) }));
         }
 
       } catch (err) {
@@ -1976,6 +1910,26 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
               : `Import finished: ${prev.success.length} positions added`,
             prev.failed.slice(0, 5).map(f => `[${f.type}] ${f.error}`)
           );
+          // signal to parent which rows imported so it can prune future seeds
+          try {
+            const successIds = prev.success.map(s => s.id);
+            const successKeys = prev.success.map(s => {
+              // composite for de-dupe parity with validators:
+              const row = positions[s.type].find(p => p.id === s.id);
+              const d = row?.data || {};
+              const key =
+                s.type === 'security' ? `${s.type}|${(d.ticker||'').toUpperCase()}|${d.account_id}` :
+                s.type === 'crypto'   ? `${s.type}|${(d.symbol||'').toUpperCase()}|${d.account_id}` :
+                s.type === 'metal'    ? `${s.type}|${(d.symbol||'').toUpperCase()}|${d.account_id}` :
+                s.type === 'cash'     ? `${s.type}|${d.account_id}|${d.cash_type||'cash'}` :
+                `${s.type}|${d.asset_name||''}`;
+              return key;
+            });
+
+            // let parent remove these from future seedPositions
+            onPositionsSaved?.({ importedIds: successIds, importedKeys: successKeys });
+          } catch (e) { /* non-fatal */ }
+
           return { ...prev, isRunning: false, queued: [] };
         }
         return prev;
@@ -2821,25 +2775,22 @@ return (
 
 
  return (
-   <FixedModal
-     isOpen={isOpen}
-     onClose={onClose}
-     title="Quick Position Entry"
-     size="max-w-[1600px]"
-   >
+    <FixedModal
+      isOpen={isOpen}
+      onClose={() => {
+        // advise parent to drop any cached seeds for this session
+        onPositionsSaved?.({ flush: true });
+        onClose?.();
+      }}
+      title="Quick Position Entry"
+      size="max-w-[1600px]"
+    >
      <div className="h-[90vh] flex flex-col bg-gray-50">
        {/* Enhanced Header with Action Bar */}
        <div className="flex-shrink-0 bg-white border-b border-gray-200 px-6 py-4">
          {/* Top Action Bar */}
          <div className="flex items-center justify-between mb-4">
            <div className="flex items-center space-x-4">
-             <button
-               onClick={clearAll}
-               className="px-4 py-2 text-sm bg-white border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 hover:border-gray-400 transition-all flex items-center space-x-2 group"
-             >
-               <Trash2 className="w-4 h-4 group-hover:text-red-600 transition-colors" />
-               <span>Clear All</span>
-             </button>
              
              <button
                onClick={onClose}
@@ -2958,15 +2909,6 @@ return (
               title="Toggle keyboard shortcuts (Ctrl/⌘+D duplicate, Ctrl/⌘+S import, Esc close, Del delete selected)"
             >
               {shortcutsEnabled ? '⌨ Shortcuts: On' : '⌨ Shortcuts: Off'}
-            </button>
-
-            {/* Help panel toggle (persists until user closes) */}
-            <button
-              onClick={() => setShowKeyboardShortcuts(v => !v)}
-              className="px-3 py-2 text-sm font-medium rounded-lg border bg-white text-gray-700 hover:bg-gray-50 border-gray-300"
-              title="Show keyboard cheat sheet"
-            >
-              {showKeyboardShortcuts ? 'Hide Keys' : 'Show Keys'}
             </button>
 
 
