@@ -622,16 +622,106 @@ const QueueModal = ({ isOpen, onClose, positions, assetTypes, accounts, onClearC
   }
 };
 
-const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPositions }) => {
-  // Core state
-  const [accounts, setAccounts] = useState([]);
-  const [positions, setPositions] = useState({
+// Separate the data management into a custom hook
+const usePositionManager = (seedPositions) => {
+  const [positions, setPositions] = useState(() => ({
     security: [],
     cash: [],
     crypto: [],
     metal: [],
-    otherAssets: []  
-  });
+    otherAssets: []
+  }));
+  
+  const [priceCache, setPriceCache] = useState(() => new Map());
+  const [importedIds, setImportedIds] = useState(() => new Set());
+  const [submittedIds, setSubmittedIds] = useState(() => new Set());
+  
+  // Price fetching with caching
+  const fetchPrice = useCallback(async (ticker, assetType) => {
+    const cacheKey = `${assetType}-${ticker}`;
+    if (priceCache.has(cacheKey)) {
+      return priceCache.get(cacheKey);
+    }
+    
+    try {
+      const results = await searchSecurities(ticker);
+      const filtered = assetType === 'security' 
+        ? results.filter(r => r.asset_type === 'security' || r.asset_type === 'index')
+        : assetType === 'crypto'
+        ? results.filter(r => r.asset_type === 'crypto')
+        : results;
+        
+      const match = filtered.find(r => 
+        String(r.ticker || '').toUpperCase() === String(ticker).toUpperCase()
+      ) || filtered[0];
+      
+      if (match) {
+        const price = getQuotePrice(match);
+        setPriceCache(prev => new Map(prev).set(cacheKey, { price, data: match }));
+        return { price, data: match };
+      }
+    } catch (error) {
+      console.error('Price fetch error:', error);
+    }
+    return null;
+  }, [priceCache]);
+  
+  // Clear submitted positions
+  const clearSubmitted = useCallback(() => {
+    setPositions(prev => {
+      const updated = {};
+      Object.keys(prev).forEach(type => {
+        updated[type] = prev[type].filter(p => !submittedIds.has(p.id));
+      });
+      return updated;
+    });
+    setSubmittedIds(new Set());
+  }, [submittedIds]);
+  
+  // Import positions with deduplication
+  const importPositions = useCallback((newPositions) => {
+    const processed = {};
+    Object.entries(newPositions).forEach(([type, items]) => {
+      processed[type] = items.map(item => ({
+        id: `import-${Date.now()}-${Math.random()}`,
+        type,
+        data: item.data || item,
+        status: 'pending',
+        isImported: true
+      }));
+    });
+    
+    setPositions(processed);
+    setImportedIds(new Set(Object.values(processed).flat().map(p => p.id)));
+  }, []);
+  
+  return {
+    positions,
+    setPositions,
+    priceCache,
+    fetchPrice,
+    clearSubmitted,
+    importPositions,
+    submittedIds,
+    setSubmittedIds
+  };
+};
+
+const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPositions }) => {
+  const {
+    positions,
+    setPositions,
+    priceCache,
+    fetchPrice,
+    clearSubmitted,
+    importPositions,
+    submittedIds,
+    setSubmittedIds
+  } = usePositionManager(seedPositions);
+  
+  const [accounts, setAccounts] = useState([]);
+  const [view, setView] = useState('grid'); // 'grid' | 'table' | 'account'
+  const [showQueue, setShowQueue] = useState(false);
   const [expandedSections, setExpandedSections] = useState({});
   const [accountExpandedSections, setAccountExpandedSections] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -901,13 +991,68 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
     []
   );
 
-    useEffect(() => {
-      if (!isOpen) return;
+        useEffect(() => {
+          if (!isOpen) {
+            // Clean up on close
+            return;
+          }
 
-      loadAccounts();
+          loadAccounts();
 
-      // ensure every row has the expected shape + an id
-      const castSeed = (rows, type) =>
+          // Only import seeds once
+          if (seedPositions && !positions.security.length && !positions.crypto.length) {
+            importPositions(seedPositions);
+            
+            // Hydrate prices after a short delay
+            setTimeout(() => hydratePrices(seedPositions), 100);
+          }
+        }, [isOpen]);
+        
+        // Separate price hydration logic
+        const hydratePrices = useCallback(async (positionsToHydrate) => {
+          const work = [];
+          
+          ['security', 'crypto', 'metal'].forEach(type => {
+            const items = positionsToHydrate[type] || [];
+            items.forEach(item => {
+              const ticker = item.ticker || item.symbol || (type === 'metal' ? metalSymbolByType[item.metal_type] : null);
+              if (ticker) {
+                work.push({ type, ticker, id: item.id });
+              }
+            });
+          });
+          
+          // Batch fetch with concurrency limit
+          const results = await Promise.allSettled(
+            work.map(({ type, ticker }) => fetchPrice(ticker, type))
+          );
+          
+          // Update positions with fetched prices
+          setPositions(prev => {
+            const updated = { ...prev };
+            work.forEach((item, index) => {
+              if (results[index].status === 'fulfilled' && results[index].value) {
+                const { price, data } = results[index].value;
+                updated[item.type] = updated[item.type].map(pos => {
+                  if (pos.id === item.id) {
+                    return {
+                      ...pos,
+                      data: {
+                        ...pos.data,
+                        ...(item.type === 'security' ? { price, name: data.name } : {}),
+                        ...(item.type === 'crypto' ? { current_price: price, name: data.name } : {}),
+                        ...(item.type === 'metal' ? { current_price_per_unit: price, name: data.name } : {})
+                      }
+                    };
+                  }
+                  return pos;
+                });
+              }
+            });
+            return updated;
+          });
+        }, [fetchPrice, setPositions]);
+        
         (rows ?? []).map((r) => ({
           id: r?.id ?? (Date.now() + Math.random()),
           type: type,
@@ -958,8 +1103,10 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
       }, [isOpen, seedPositions]); // ← remove autoHydrateSeededPrices to avoid TDZ
 
 
-  // Load accounts
-  const loadAccounts = async () => {
+  // Load accounts with better error handling
+  const loadAccounts = useCallback(async () => {
+    if (accounts.length > 0) return; // Don't reload if already loaded
+    
     try {
       const fetchedAccounts = await fetchAllAccounts();
       setAccounts(fetchedAccounts);
@@ -1617,8 +1764,70 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
     return isValid;
   };
 
-  // Submit all
+  // Submit all with better tracking
   const submitAll = async () => {
+    if (stats.totalPositions === 0) {
+      showMessage('error', 'No positions to submit');
+      return;
+    }
+
+    if (!validatePositions()) return;
+
+    setIsSubmitting(true);
+    const successIds = new Set();
+    let successCount = 0;
+    let errorCount = 0;
+    
+    try {
+      // Collect all valid positions
+      const batches = [];
+      Object.entries(positions).forEach(([type, items]) => {
+        items.forEach(pos => {
+          if (!submittedIds.has(pos.id) && isValidPosition(type, pos)) {
+            batches.push({ type, position: pos });
+          }
+        });
+      });
+      
+      // Process in chunks for better performance
+      const chunkSize = 5;
+      for (let i = 0; i < batches.length; i += chunkSize) {
+        const chunk = batches.slice(i, i + chunkSize);
+        const results = await Promise.allSettled(
+          chunk.map(({ type, position }) => submitPosition(type, position))
+        );
+        
+        results.forEach((result, index) => {
+          const { position } = chunk[index];
+          if (result.status === 'fulfilled') {
+            successCount++;
+            successIds.add(position.id);
+          } else {
+            errorCount++;
+            console.error('Submit error:', result.reason);
+          }
+        });
+        
+        // Update progress
+        const progress = Math.round(((i + chunkSize) / batches.length) * 100);
+        showMessage('info', `Processing... ${progress}%`);
+      }
+      
+      // Mark submitted positions
+      setSubmittedIds(prev => new Set([...prev, ...successIds]));
+      
+      // Auto-clear submitted after delay
+      if (successCount > 0) {
+        showMessage('success', `Added ${successCount} positions successfully!`);
+        setTimeout(() => clearSubmitted(), 2000);
+        
+        if (onPositionsSaved) {
+          onPositionsSaved(successCount);
+        }
+      }
+    } finally {
+      setIsSubmitting(false);
+    }
     if (stats.totalPositions === 0) {
       showMessage('error', 'No positions to submit', ['Add at least one position before submitting']);
       return;
@@ -1640,6 +1849,59 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
       Object.entries(positions).forEach(([type, typePositions]) => {
         typePositions.forEach(pos => {
           // Special validation for otherAssets vs other types
+
+
+
+            // Helper to validate position
+            const isValidPosition = (type, position) => {
+              if (type === 'otherAssets') {
+                return position.data.asset_name && position.data.current_value;
+              }
+              return position.data.account_id && Object.keys(position.data).length > 1;
+            };
+
+            // Helper to submit single position
+            const submitPosition = async (type, position) => {
+              const cleanData = Object.fromEntries(
+                Object.entries(position.data).filter(([_, v]) => v != null && v !== '')
+              );
+              
+              switch (type) {
+                case 'security':
+                  return addSecurityPosition(position.data.account_id, cleanData);
+                case 'crypto':
+                  return addCryptoPosition(position.data.account_id, {
+                    coin_symbol: cleanData.symbol,
+                    coin_type: cleanData.name || cleanData.symbol,
+                    quantity: cleanData.quantity,
+                    purchase_price: cleanData.purchase_price,
+                    purchase_date: cleanData.purchase_date,
+                    storage_type: 'Exchange'
+                  });
+                case 'metal':
+                  return addMetalPosition(position.data.account_id, {
+                    metal_type: cleanData.metal_type,
+                    coin_symbol: cleanData.symbol,
+                    quantity: cleanData.quantity,
+                    unit: cleanData.unit || 'oz',
+                    purchase_price: cleanData.purchase_price,
+                    cost_basis: cleanData.quantity * cleanData.purchase_price,
+                    purchase_date: cleanData.purchase_date
+                  });
+                case 'otherAssets':
+                  return addOtherAsset(cleanData);
+                case 'cash':
+                  return addCashPosition(position.data.account_id, {
+                    ...cleanData,
+                    name: cleanData.cash_type,
+                    interest_rate: cleanData.interest_rate ? cleanData.interest_rate / 100 : null
+                  });
+                default:
+                  throw new Error(`Unknown position type: ${type}`);
+              }
+            };
+
+
           const isValidPosition = type === 'otherAssets' 
             ? (pos.data.asset_name && pos.data.current_value)
             : (pos.data.account_id && Object.keys(pos.data).length > 1);
@@ -1779,12 +2041,13 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
     }
   };
 
-  // Clear all
+  // Clear all with proper cleanup
   const clearAll = () => {
     if (stats.totalPositions > 0 && !window.confirm('Clear all positions? This cannot be undone.')) {
       return;
     }
     
+    // Reset everything
     setPositions({
       security: [],
       cash: [],
@@ -1792,6 +2055,9 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
       metal: [],
       otherAssets: []
     });
+    setSubmittedIds(new Set());
+    setSelectedPositions(new Set());
+
     setExpandedSections({});
     setAccountExpandedSections({});
     showMessage('success', 'All positions cleared', ['Ready for new entries']);
@@ -2676,17 +2942,7 @@ return (
                {showValues ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
              </button>
              
-             <button
-               onClick={() => setShowKeyboardShortcuts(!showKeyboardShortcuts)}
-               className={`p-2 rounded-lg transition-all duration-200 ${
-                 showKeyboardShortcuts 
-                   ? 'bg-purple-100 text-purple-700 hover:bg-purple-200' 
-                   : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-               }`}
-               title="Keyboard shortcuts (Ctrl+K)"
-             >
-               <Keyboard className="w-4 h-4" />
-             </button>
+
              
              <div className="h-6 w-px bg-gray-300"></div>
              
@@ -2861,7 +3117,7 @@ return (
            </div>
          )}
 
-         {/* Keyboard shortcuts hint */}
+         {/* Keyboard shortcuts hint - triggered by icon only */}
          {showKeyboardShortcuts && (
            <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg animate-in slide-in-from-top duration-300">
              <div className="flex items-start space-x-2">
