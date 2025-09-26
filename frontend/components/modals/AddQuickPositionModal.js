@@ -39,6 +39,14 @@ const ACCOUNT_CATEGORIES = [
   { id: "real_estate", name: "Real Estate", icon: Home }
 ];
 
+// pure constant – safe to define above; doesn’t change per render
+export const REQUIRED_BY_TYPE = {
+  security: ["ticker","shares","price","cost_basis","purchase_date","account_id"],
+  crypto:   ["symbol","quantity","purchase_price","current_price","purchase_date","account_id"],
+  metal:    ["metal_type","symbol","quantity","purchase_price","current_price_per_unit","purchase_date","account_id"],
+  cash:     ["cash_type","amount","account_id"],
+  other:    ["asset_name","current_value"], // maps your “otherAssets”
+};
 
 // Enhanced AnimatedNumber with smooth transitions
 const AnimatedNumber = ({ value, prefix = '', suffix = '', decimals = 0, duration = 600 }) => {
@@ -636,7 +644,8 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
   const [accountExpandedSections, setAccountExpandedSections] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showValues, setShowValues] = useState(true);
-  const [selectedPositions, setSelectedPositions] = useState(new Set());
+  const [selectedIds, setSelectedIds] = useState(new Set());
+  const seedAppliedRef = useRef(false);
   const [focusedCell, setFocusedCell] = useState(null);
   const [message, setMessage] = useState({ type: '', text: '', details: [] });
   const [activeFilter, setActiveFilter] = useState('all');
@@ -658,6 +667,102 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
   const cellRefs = useRef({});
   const tableRefs = useRef({});
   const messageTimeoutRef = useRef(null);
+
+  // ── Validate a single row’s readiness
+  const validateRow = useCallback((row) => {
+    const t = row.type === "otherAssets" ? "other" : row.type;
+    const req = REQUIRED_BY_TYPE[t] || [];
+    const missing = [];
+    for (const k of req) {
+      const v = row.data?.[k];
+      if (v === undefined || v === null || v === "") missing.push(k);
+    }
+    return { ok: missing.length === 0, missing };
+  }, []);
+
+  // ── Compute status label for UI
+  const getRowStatus = (row) => {
+    if (row.status === "submitting") return "submitting";
+    if (row.status === "added") return "added";
+    if (row.status === "error") return "error";
+    const { ok } = validateRow(row);
+    return ok ? "ready" : "draft";
+  };
+
+  // ── Selection toggles
+  // rowId is the position.id
+  const toggleRowSelected = useCallback((rowId, checked) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (checked) next.add(rowId); else next.delete(rowId);
+      return next;
+    });
+  }, []);
+
+  // Toggle all for a given assetType block
+  const toggleAllSelectedForType = useCallback((assetType, checked) => {
+    setSelectedIds(prev => {
+      if (!checked) return new Set([...prev].filter(id => !positions[assetType].some(p => p.id === id)));
+      const next = new Set(prev);
+      positions[assetType].forEach(p => next.add(p.id));
+      return next;
+    });
+  }, [positions]);
+
+  // ── Delete single + bulk
+  const deleteRow = useCallback((id) => {
+    setRows(prev => prev.filter(r => r.id !== id));
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      next.delete(id);
+      return next;
+    });
+  }, []);
+
+  const deleteSelected = useCallback(() => {
+    setRows(prev => prev.filter(r => !selectedIds.has(r.id)));
+    setSelectedIds(new Set());
+  }, [selectedIds]);
+
+  // ── After any cell edit, keep status in sync (optional if you already do)
+  const applyRowEdit = useCallback((id, updater) => {
+    setRows(prev => prev.map(r => {
+      if (r.id !== id) return r;
+      const updated = { ...r, data: updater({ ...r.data }) };
+      // clear API error once user edits
+      if (updated.status === "error") updated.status = undefined;
+      return updated;
+    }));
+  }, []);
+
+  // ── One-time seed ingestion per modal open
+  useEffect(() => {
+    if (!isOpen) {
+      // reset guard so next open ingests again
+      seedAppliedRef.current = false;
+      return;
+    }
+    if (seedAppliedRef.current) return;
+
+    if (seedPositions && Object.keys(seedPositions).length > 0) {
+      const next = [];
+      for (const [type, arr] of Object.entries(seedPositions)) {
+        (arr || []).forEach(d => {
+          next.push({
+            id: cryptoRandom(),
+            type,
+            data: { ...d },
+            status: undefined, // will be derived by getRowStatus
+          });
+        });
+      }
+      if (next.length) {
+        setRows(next);
+        setSelectedIds(new Set());
+      }
+    }
+    seedAppliedRef.current = true;
+  }, [isOpen, seedPositions]);
 
   // Enhanced asset type configuration with required fields
   const assetTypes = {
@@ -900,42 +1005,49 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
   );
 
     useEffect(() => {
-      if (!isOpen) return;
+      if (!isOpen) {
+        seedAppliedRef.current = false; // allow ingestion next time it opens
+        return;
+      }
 
       loadAccounts();
 
-      // ensure every row has the expected shape + an id
-      const castSeed = (rows, type) =>
-        (rows ?? []).map((r) => ({
-          id: r?.id ?? (Date.now() + Math.random()),
-          type: type,
-          data: r?.data ?? r,          // accept plain objects or {data}
-          errors: r?.errors ?? {},
-          isNew: true,
-          animateIn: true
-        }));
+      if (!seedAppliedRef.current) {
+        // … your existing seed ingestion logic unchanged …
+        const castSeed = (rows, type) =>
+          (rows ?? []).map((r) => ({
+            id: r?.id ?? (Date.now() + Math.random()),
+            type,
+            data: r?.data ?? r,
+            errors: r?.errors ?? {},
+            isNew: true,
+            animateIn: true
+          }));
 
-      const hasSeeds = !!(
-        seedPositions &&
-        (seedPositions.security?.length ||
-        seedPositions.cash?.length ||
-        seedPositions.crypto?.length ||
-        seedPositions.metal?.length)
-      );
+        const hasSeeds = !!(
+          seedPositions &&
+          (seedPositions.security?.length ||
+            seedPositions.cash?.length ||
+            seedPositions.crypto?.length ||
+            seedPositions.metal?.length)
+        );
 
-      setPositions(
-        hasSeeds
-          ? {
-              security: castSeed(seedPositions.security, 'security'),
-              cash:     castSeed(seedPositions.cash, 'cash'),
-              crypto:   castSeed(seedPositions.crypto, 'crypto'),
-              metal:    castSeed(seedPositions.metal, 'metal'),
-              otherAssets: []
-            }
-          : { security: [], cash: [], crypto: [], metal: [], otherAssets: [] }
-      );
+        setPositions(
+          hasSeeds
+            ? {
+                security: castSeed(seedPositions.security, 'security'),
+                cash:     castSeed(seedPositions.cash, 'cash'),
+                crypto:   castSeed(seedPositions.crypto, 'crypto'),
+                metal:    castSeed(seedPositions.metal, 'metal'),
+                otherAssets: []
+              }
+            : { security: [], cash: [], crypto: [], metal: [], otherAssets: [] }
+        );
 
-      // reset UI chrome
+        seedAppliedRef.current = true;
+      }
+
+      // reset UI chrome each open (keep as you had it)
       setExpandedSections({});
       setAccountExpandedSections({});
       setMessage({ type: '', text: '', details: [] });
@@ -945,7 +1057,6 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
       setShowKeyboardShortcuts(true);
       setTimeout(() => setShowKeyboardShortcuts(false), 3000);
 
-      // 🔑 trigger price hydration after seeds land
       setTimeout(() => {
         try { autoHydrateSeededPrices?.(); } catch (e) { console.error(e); }
       }, 0);
@@ -953,7 +1064,8 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
       return () => {
         if (messageTimeoutRef.current) clearTimeout(messageTimeoutRef.current);
       };
-      }, [isOpen, seedPositions]); // ← remove autoHydrateSeededPrices to avoid TDZ
+    }, [isOpen, seedPositions]);
+
 
 
   // Load accounts
@@ -1393,30 +1505,51 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
     }));
   };
 
-  // Delete position
   const deletePosition = (assetType, positionId) => {
     const validPositions = assetType === 'otherAssets'
       ? positions[assetType].filter(p => p.data.asset_name && p.data.current_value)
       : positions[assetType].filter(p => p.data.account_id);
-    
+
     if (validPositions.length > 5 && !window.confirm('Delete this position?')) {
       return;
     }
-    
+
     setPositions(prev => ({
       ...prev,
-      [assetType]: prev[assetType].map(pos => 
+      [assetType]: prev[assetType].map(pos =>
         pos.id === positionId ? { ...pos, animateOut: true } : pos
       )
     }));
-    
+
     setTimeout(() => {
       setPositions(prev => ({
         ...prev,
         [assetType]: prev[assetType].filter(pos => pos.id !== positionId)
       }));
+      // clean selection
+      setSelectedIds(prev => {
+        const next = new Set(prev);
+        next.delete(positionId);
+        return next;
+      });
     }, 300);
   };
+
+  // Bulk delete across all types
+  const deleteSelected = useCallback(() => {
+    if (selectedIds.size === 0) return;
+    if (!window.confirm(`Delete ${selectedIds.size} selected row(s)?`)) return;
+
+    setPositions(prev => {
+      const updated = { ...prev };
+      Object.keys(updated).forEach(type => {
+        updated[type] = updated[type].filter(pos => !selectedIds.has(pos.id));
+      });
+      return updated;
+    });
+    setSelectedIds(new Set());
+  }, [selectedIds]);
+
 
   // Duplicate position
   const duplicatePosition = (assetType, position) => {
@@ -2225,14 +2358,17 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
                             >
                               <td className="px-3 py-2">
                                 <div className="flex items-center space-x-2">
-                                  <span className="text-sm font-medium text-gray-500">
-                                    {index + 1}
-                                  </span>
-                                  {position.isNew && (
-                                    <span className="w-2 h-2 bg-blue-500 rounded-full animate-pulse" />
-                                  )}
+                                  <input
+                                    type="checkbox"
+                                    checked={selectedIds.has(position.id)}
+                                    onChange={(e) => toggleRowSelected(position.id, e.target.checked)}
+                                    aria-label={`Select row ${index + 1}`}
+                                  />
+                                  <span className="text-sm font-medium text-gray-500">{index + 1}</span>
+                                  {position.isNew && <span className="w-2 h-2 bg-blue-500 rounded-full animate-pulse" />}
                                 </div>
                               </td>
+
                               {config.fields.map(field => (
                                 <td key={field.key} className={`${field.width} px-1 py-2`}>
                                   {renderCellInput(
@@ -2244,27 +2380,22 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
                                 </td>
                               ))}
                               <td className="px-2 py-2">
-                                <div className="flex items-center justify-center space-x-1">
-                                  <button
-                                    onClick={() => duplicatePosition(assetType, position)}
-                                    className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all duration-200"
-                                    title="Duplicate (Ctrl+D)"
-                                  >
-                                    <Copy className="w-4 h-4" />
-                                  </button>
-                                  <button
-                                    onClick={() => deletePosition(assetType, position.id)}
-                                    className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all duration-200"
-                                    title="Delete (Ctrl+Del)"
-                                  >
-                                    <Trash2 className="w-4 h-4" />
-                                  </button>
-                                  {value > 0 && showValues && (
-                                    <div className="ml-2 px-2 py-1 bg-gray-100 rounded text-xs font-medium text-gray-600">
-                                      {formatCurrency(value)}
-                                    </div>
-                                  )}
-                                </div>
+                                {(() => {
+                                  const s = getRowStatus(position); // ready | draft | submitting | added | error
+                                  const styles = {
+                                    ready:      "bg-emerald-50 text-emerald-700 border-emerald-200",
+                                    draft:      "bg-amber-50 text-amber-700 border-amber-200",
+                                    submitting: "bg-blue-50 text-blue-700 border-blue-200",
+                                    added:      "bg-indigo-50 text-indigo-700 border-indigo-200",
+                                    error:      "bg-red-50 text-red-700 border-red-200",
+                                  }[s] || "bg-gray-50 text-gray-600 border-gray-200";
+
+                                  return (
+                                    <span className={`inline-flex items-center px-2 py-0.5 text-[11px] rounded border ${styles}`}>
+                                      {s}
+                                    </span>
+                                  );
+                                })()}
                               </td>
                             </tr>
                           );
@@ -2406,13 +2537,25 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
                             <table className="w-full text-sm">
                               <thead>
                                 <tr className="bg-gray-50 border-b border-gray-200">
-                                  {config.fields.filter(f => f.key !== 'account_id').map(field => (
-                                    <th key={field.key} className="px-2 py-2 text-left text-xs font-medium text-gray-600">
-                                      {field.label}
-                                      {field.required && <span className="text-red-500 ml-0.5">*</span>}
-                                    </th>
-                                  ))}
-                                  <th className="px-2 py-2 text-center text-xs font-medium text-gray-600">Actions</th>
+                                  <th className="w-10 px-3 py-3 text-left">
+                                    <input
+                                      type="checkbox"
+                                      onChange={(e) => toggleAllSelectedForType(assetType, e.target.checked)}
+                                      checked={
+                                        (positions[assetType]?.length ?? 0) > 0 &&
+                                        positions[assetType].every(p => selectedIds.has(p.id))
+                                      }
+                                      aria-label={`Select all ${config.name}`}
+                                    />
+                                  </th>
+                                  {config.fields.map(field => (/* unchanged */))}
+                                  {/* NEW status column */}
+                                  <th className="w-24 px-2 py-3 text-left">
+                                    <span className="text-xs font-semibold text-gray-600">Status</span>
+                                  </th>
+                                  <th className="w-24 px-2 py-3 text-center">
+                                    <span className="text-xs font-semibold text-gray-600">Actions</span>
+                                  </th>
                                 </tr>
                               </thead>
                               <tbody>
@@ -2611,6 +2754,7 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
         <div className="flex-shrink-0 bg-white border-b border-gray-200 px-6 py-4">
           {/* Top Action Bar */}
           <div className="flex items-center justify-between mb-4">
+            <div className="flex-1 rounded-lg px-3 py-2 bg-[#0B213F] text-white shadow-sm">
             <div className="flex items-center space-x-4">
               <button
                 onClick={clearAll}
@@ -2625,6 +2769,20 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
                 className="px-4 py-2 text-sm bg-white border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 hover:border-gray-400 transition-all"
               >
                 Cancel
+              </button>
+           
+              {/* NEW: Bulk delete for selected rows */}
+              <button
+                onClick={deleteSelected}
+                disabled={selectedIds.size === 0}
+                className={`px-3 py-1.5 text-sm rounded-md border ${
+                  selectedIds.size === 0
+                    ? "bg-white/5 text-white/50 border-white/10 cursor-not-allowed"
+                    : "bg-red-500/10 text-red-100 border-red-200/30 hover:bg-red-500/15 hover:text-white"
+                }`}
+                title="Delete selected rows"
+              >
+                Delete Selected ({selectedIds.size})
               </button>
 
               {/* View mode toggle with label */}
@@ -2731,6 +2889,7 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
                   </>
                 )}
               </button>
+            </div>
             </div>
           </div>
 
