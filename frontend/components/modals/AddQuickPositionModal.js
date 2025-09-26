@@ -70,8 +70,8 @@ const AnimatedNumber = ({ value, prefix = '', suffix = '', decimals = 0, duratio
     requestAnimationFrame(animate);
   }, [value, duration]);
   
-  const formattedValue = decimals > 0 
-    ? displayValue.toFixed(decimals).toLocaleString()
+  const formattedValue = decimals > 0
+    ? Number(displayValue.toFixed(decimals)).toLocaleString()
     : Math.floor(displayValue).toLocaleString();
     
   return (
@@ -736,7 +736,36 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
   const [selectedAccountFilter, setSelectedAccountFilter] = useState(new Set());
   const [selectedInstitutionFilter, setSelectedInstitutionFilter] = useState(new Set());
 
+  // Load accounts with better error handling
+  const loadAccounts = useCallback(async () => {
+    if (accounts.length > 0) return; // Don't reload if already loaded
+    
+    try {
+      const fetchedAccounts = await fetchAllAccounts();
+      setAccounts(fetchedAccounts);
+      
+      const recentIds = fetchedAccounts.slice(0, 3).map(a => a.id);
+      setRecentlyUsedAccounts(recentIds);
+      
+      // Select all by default
+      setSelectedAccountFilter(new Set(fetchedAccounts.map(acc => acc.id)));
+      setSelectedInstitutionFilter(new Set(fetchedAccounts.map(acc => acc.institution).filter(Boolean)));
+    } catch (error) {
+      console.error('Error loading accounts:', error);
+      showMessage('error', 'Failed to load accounts', [`Error: ${error.message}`]);
+    }
+  }, [accounts.length]);
 
+  // Enhanced message display helper
+  const showMessage = useCallback((type, text, details = [], duration = 5000) => {
+    setMessage({ type, text, details });
+    if (messageTimeoutRef.current) clearTimeout(messageTimeoutRef.current);
+    if (duration > 0) {
+      messageTimeoutRef.current = setTimeout(() => {
+        setMessage({ type: '', text: '', details: [] });
+      }, duration);
+    }
+  }, []);
   
   // Search state
   const [searchResults, setSearchResults] = useState({});
@@ -1060,41 +1089,7 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
       };
   }, [isOpen, importPositions, seedPositions, loadAccounts, positions.security.length, positions.crypto.length]);
 
-  // Load accounts with better error handling
-  const loadAccounts = useCallback(async () => {
-    if (accounts.length > 0) return; // Don't reload if already loaded
-    
-    try {
-      const fetchedAccounts = await fetchAllAccounts();
-      setAccounts(fetchedAccounts);
-      
-      const recentIds = fetchedAccounts.slice(0, 3).map(a => a.id);
-      setRecentlyUsedAccounts(recentIds);
-      
-      // Select all by default
-      setSelectedAccountFilter(new Set(fetchedAccounts.map(acc => acc.id)));
-      setSelectedInstitutionFilter(new Set(fetchedAccounts.map(acc => acc.institution).filter(Boolean)));
-    } catch (error) {
-      console.error('Error loading accounts:', error);
-      showMessage('error', 'Failed to load accounts', [`Error: ${error.message}`]);
-    }
-  }, [accounts.length]);
-
-  // Enhanced message display
-  const showMessage = (type, text, details = [], duration = 5000) => {
-    setMessage({ type, text, details });
-    
-    if (messageTimeoutRef.current) {
-      clearTimeout(messageTimeoutRef.current);
-    }
-    
-    if (duration > 0) {
-      messageTimeoutRef.current = setTimeout(() => {
-        setMessage({ type: '', text: '', details: [] });
-      }, duration);
-    }
-  };
-
+  
   // Add new row for account
   const addNewRowForAccount = (accountId, assetType) => {
     const newPosition = {
@@ -1973,7 +1968,10 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
                       <span className="text-gray-500 text-xs truncate">{result.name}</span>
                     </div>
                     <span className="font-medium text-gray-700 ml-2 text-sm">
-                      ${parseFloat(result.price).toFixed(2)}
+                       {(() => {
+                           const p = getQuotePrice(result);
+                           return p != null ? `$${p.toFixed(2)}` : '—';
+                        })()}
                     </span>
                   </button>
                 ))}
@@ -1993,7 +1991,7 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
               <select
                 {...commonProps}
                 value={value}
-                onChange={(e) => updatePosition(assetType, position.id, field.key, parseInt(e.target.value))}
+                onChange={(e) => updatePosition(assetType, position.id, field.key, e.target.value)}
                 className={`${baseClass} pr-8 cursor-pointer appearance-none`}
               >
                 <option value="">Select account...</option>
