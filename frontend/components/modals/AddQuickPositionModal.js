@@ -1016,15 +1016,12 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
           if (seedPositions && !positions.security.length && !positions.crypto.length) {
             importPositions(seedPositions);
             
-            // Hydrate prices after a short delay
-            setTimeout(() => hydratePrices(seedPositions), 100);
-          }
-      }, [isOpen, importPositions, seedPositions]);
+
           
-      return () => {
-        if (messageTimeoutRef.current) clearTimeout(messageTimeoutRef.current);
-      };
-    }, [isOpen, seedPositions]);
+          return () => {
+            if (messageTimeoutRef.current) clearTimeout(messageTimeoutRef.current);
+          };
+        }, [isOpen, importPositions, seedPositions]);
 
   // Load accounts with better error handling
   const loadAccounts = useCallback(async () => {
@@ -2783,9 +2780,8 @@ return (
    } else if (value >= 1000) {
      return `$${(value / 1000).toFixed(1)}K`;
    }
-   return `$${value.toFixed(2)}`;
- };
-
+   return `$${value.toFixed(2)}`
+ 
  return (
    <FixedModal
      isOpen={isOpen}
