@@ -1004,24 +1004,23 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
     []
   );
 
-        useEffect(() => {
-          if (!isOpen) {
-            // Clean up on close
-            return;
-          }
+    useEffect(() => {
+      if (!isOpen) {
+        // Clean up on close
+        return;
+      }
 
-          loadAccounts();
+      loadAccounts();
 
-          // Only import seeds once
-          if (seedPositions && !positions.security.length && !positions.crypto.length) {
-            importPositions(seedPositions);
-            
-
-          
-          return () => {
-            if (messageTimeoutRef.current) clearTimeout(messageTimeoutRef.current);
-          };
-        }, [isOpen, importPositions, seedPositions]);
+      // Only import seeds once
+      if (seedPositions && !positions.security.length && !positions.crypto.length) {
+        importPositions(seedPositions);
+      }
+      
+      return () => {
+        if (messageTimeoutRef.current) clearTimeout(messageTimeoutRef.current);
+      };
+  }, [isOpen, importPositions, seedPositions, loadAccounts, positions.security.length, positions.crypto.length]);
 
   // Load accounts with better error handling
   const loadAccounts = useCallback(async () => {
