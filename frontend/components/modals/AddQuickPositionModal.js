@@ -1287,23 +1287,6 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
       Copper: 'HG=F',
       Palladium: 'PA=F',
     };
-
-    // Prefer numeric; tolerate multiple field names across providers
-    const getQuotePrice = (s) => {
-      const v =
-        s?.price ??
-        s?.current_price ??
-        s?.regularMarketPrice ??
-        s?.regular_market_price ??
-        s?.last ??
-        s?.close ??
-        s?.value ??
-        s?.mark;
-
-      const n = Number(v);
-      return Number.isFinite(n) ? n : undefined;
-    };
-
    
     const autoHydrateSeededPrices = useCallback(async () => {
       // Build work items off *current* positions
@@ -1825,7 +1808,7 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
             ? (pos.data.asset_name && pos.data.current_value)
             : (pos.data.account_id && Object.keys(pos.data).length > 1);
             
-          if (isValidPosition) {
+          if (isValidPosition(type, pos)) {
             batches.push({ type, position: pos });
           }
         });
