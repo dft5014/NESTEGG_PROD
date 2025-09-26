@@ -453,11 +453,9 @@ const QueueModal = ({ isOpen, onClose, positions, assetTypes, accounts, onClearC
     Object.entries(positions).forEach(([type, typePositions]) => {
       typePositions.forEach(pos => {
         // Include otherAssets even without account_id
-        const isValid = type === 'otherAssets' 
-          ? (pos.data.asset_name && pos.data.current_value)
-          : pos.data.account_id;
-          
-        if (isValid) {
+          const isValid = isValidPosition(type, pos);
+            
+          if (isValid) {
           result.push({ ...pos, assetType: type });
         }
       });
@@ -735,7 +733,6 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
   const [validationMode, setValidationMode] = useState('realtime');
   const [recentlyUsedAccounts, setRecentlyUsedAccounts] = useState([]);
   const [viewMode, setViewMode] = useState(false); // false = by asset type, true = by account
-  const [showQueue, setShowQueue] = useState(false);
   const [selectedAccountFilter, setSelectedAccountFilter] = useState(new Set());
   const [selectedInstitutionFilter, setSelectedInstitutionFilter] = useState(new Set());
 
@@ -936,6 +933,22 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
   };
 
   // Debounced search function
+  const getQuotePrice = (s) => {
+    const v =
+      s?.price ??
+      s?.current_price ??
+      s?.regularMarketPrice ??
+      s?.regular_market_price ??
+      s?.last ??
+      s?.close ??
+      s?.value ??
+      s?.mark;
+
+    const n = Number(v);
+    return Number.isFinite(n) ? n : undefined;
+  };
+
+  // Debounced search function
   const debouncedSearch = useCallback(
     debounce(async (query, assetType, positionId) => {
       if (!query || query.length < 2) {
@@ -1006,55 +1019,8 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
             // Hydrate prices after a short delay
             setTimeout(() => hydratePrices(seedPositions), 100);
           }
-        }, [isOpen, importPositions]);
-        
-        // Separate price hydration logic
-        const hydratePrices = useCallback(async (positionsToHydrate) => {
-          const work = [];
+      }, [isOpen, importPositions, seedPositions]);
           
-          ['security', 'crypto', 'metal'].forEach(type => {
-            const items = positionsToHydrate[type] || [];
-            items.forEach(item => {
-              const ticker = item.ticker || item.symbol || (type === 'metal' ? metalSymbolByType[item.metal_type] : null);
-              if (ticker) {
-                work.push({ type, ticker, id: item.id });
-              }
-            });
-          });
-          
-          // Batch fetch with concurrency limit
-          const results = await Promise.allSettled(
-            work.map(({ type, ticker }) => fetchPrice(ticker, type))
-          );
-          
-          // Update positions with fetched prices
-          setPositions(prev => {
-            const updated = { ...prev };
-            work.forEach((item, index) => {
-              if (results[index].status === 'fulfilled' && results[index].value) {
-                const { price, data } = results[index].value;
-                updated[item.type] = updated[item.type].map(pos => {
-                  if (pos.id === item.id) {
-                    return {
-                      ...pos,
-                      data: {
-                        ...pos.data,
-                        ...(item.type === 'security' ? { price, name: data.name } : {}),
-                        ...(item.type === 'crypto' ? { current_price: price, name: data.name } : {}),
-                        ...(item.type === 'metal' ? { current_price_per_unit: price, name: data.name } : {})
-                      }
-                    };
-                  }
-                  return pos;
-                });
-              }
-            });
-            return updated;
-          });
-        }, [fetchPrice, setPositions]);
-        
-
-
       return () => {
         if (messageTimeoutRef.current) clearTimeout(messageTimeoutRef.current);
       };
@@ -1071,14 +1037,14 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
       const recentIds = fetchedAccounts.slice(0, 3).map(a => a.id);
       setRecentlyUsedAccounts(recentIds);
       
-      // NEW: Select all by default
+      // Select all by default
       setSelectedAccountFilter(new Set(fetchedAccounts.map(acc => acc.id)));
       setSelectedInstitutionFilter(new Set(fetchedAccounts.map(acc => acc.institution).filter(Boolean)));
     } catch (error) {
       console.error('Error loading accounts:', error);
       showMessage('error', 'Failed to load accounts', [`Error: ${error.message}`]);
     }
-  }, []);
+  }, [accounts.length]);
 
   // Enhanced message display
   const showMessage = (type, text, details = [], duration = 5000) => {
@@ -1662,6 +1628,56 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
     };
   }, [positions]);
   // Validate positions
+  // Helper to validate position
+  const isValidPosition = (type, position) => {
+    if (type === 'otherAssets') {
+      return position.data.asset_name && position.data.current_value;
+    }
+    return position.data.account_id && Object.keys(position.data).length > 1;
+  };
+
+  // Helper to submit single position
+  const submitPosition = async (type, position) => {
+    const cleanData = Object.fromEntries(
+      Object.entries(position.data).filter(([_, v]) => v != null && v !== '')
+    );
+    
+    switch (type) {
+      case 'security':
+        return addSecurityPosition(position.data.account_id, cleanData);
+      case 'crypto':
+        return addCryptoPosition(position.data.account_id, {
+          coin_symbol: cleanData.symbol,
+          coin_type: cleanData.name || cleanData.symbol,
+          quantity: cleanData.quantity,
+          purchase_price: cleanData.purchase_price,
+          purchase_date: cleanData.purchase_date,
+          storage_type: 'Exchange'
+        });
+      case 'metal':
+        return addMetalPosition(position.data.account_id, {
+          metal_type: cleanData.metal_type,
+          coin_symbol: cleanData.symbol,
+          quantity: cleanData.quantity,
+          unit: cleanData.unit || 'oz',
+          purchase_price: cleanData.purchase_price,
+          cost_basis: cleanData.quantity * cleanData.purchase_price,
+          purchase_date: cleanData.purchase_date
+        });
+      case 'otherAssets':
+        return addOtherAsset(cleanData);
+      case 'cash':
+        return addCashPosition(position.data.account_id, {
+          ...cleanData,
+          name: cleanData.cash_type,
+          interest_rate: cleanData.interest_rate ? cleanData.interest_rate / 100 : null
+        });
+      default:
+        throw new Error(`Unknown position type: ${type}`);
+    }
+  };
+
+  // Validate positions
   const validatePositions = () => {
     let isValid = true;
     const updatedPositions = { ...positions };
@@ -1809,57 +1825,7 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
 
 
 
-            // Helper to validate position
-            const isValidPosition = (type, position) => {
-              if (type === 'otherAssets') {
-                return position.data.asset_name && position.data.current_value;
-              }
-              return position.data.account_id && Object.keys(position.data).length > 1;
-            };
-
-            // Helper to submit single position
-            const submitPosition = async (type, position) => {
-              const cleanData = Object.fromEntries(
-                Object.entries(position.data).filter(([_, v]) => v != null && v !== '')
-              );
-              
-              switch (type) {
-                case 'security':
-                  return addSecurityPosition(position.data.account_id, cleanData);
-                case 'crypto':
-                  return addCryptoPosition(position.data.account_id, {
-                    coin_symbol: cleanData.symbol,
-                    coin_type: cleanData.name || cleanData.symbol,
-                    quantity: cleanData.quantity,
-                    purchase_price: cleanData.purchase_price,
-                    purchase_date: cleanData.purchase_date,
-                    storage_type: 'Exchange'
-                  });
-                case 'metal':
-                  return addMetalPosition(position.data.account_id, {
-                    metal_type: cleanData.metal_type,
-                    coin_symbol: cleanData.symbol,
-                    quantity: cleanData.quantity,
-                    unit: cleanData.unit || 'oz',
-                    purchase_price: cleanData.purchase_price,
-                    cost_basis: cleanData.quantity * cleanData.purchase_price,
-                    purchase_date: cleanData.purchase_date
-                  });
-                case 'otherAssets':
-                  return addOtherAsset(cleanData);
-                case 'cash':
-                  return addCashPosition(position.data.account_id, {
-                    ...cleanData,
-                    name: cleanData.cash_type,
-                    interest_rate: cleanData.interest_rate ? cleanData.interest_rate / 100 : null
-                  });
-                default:
-                  throw new Error(`Unknown position type: ${type}`);
-              }
-            };
-
-
-          const isValidPosition = type === 'otherAssets' 
+          const isValid = type === 'otherAssets'
             ? (pos.data.asset_name && pos.data.current_value)
             : (pos.data.account_id && Object.keys(pos.data).length > 1);
             
