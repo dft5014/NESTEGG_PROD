@@ -389,32 +389,14 @@ const SearchableDropdown = ({ options, value, onChange, placeholder, showLogos =
 };
 
 const QuickStartModal = ({ isOpen, onClose }) => {
-    const [activeTab, setActiveTab] = useState(() => {
-         try { return sessionStorage.getItem('qs_activeTab') || 'overview'; } catch { return 'overview'; }
-    });
-    const [importMethod, setImportMethod] = useState(() => {
-        try { return sessionStorage.getItem('qs_importMethod') || null; } catch { return null; }
-    });
-
-    useEffect(() => {
-        try { sessionStorage.setItem('qs_activeTab', activeTab); } catch {}
-    }, [activeTab]);
-
-    useEffect(() => {
-        if (importMethod != null) {
-            try { sessionStorage.setItem('qs_importMethod', importMethod); } catch {}
-        }
-    }, [importMethod]);
-
-
-
+    const [activeTab, setActiveTab] = useState('overview');
     const [selectedTemplate, setSelectedTemplate] = useState(null);
     const [uploadedFile, setUploadedFile] = useState(null);
     const [isDragging, setIsDragging] = useState(false);
     const [isDownloading, setIsDownloading] = useState(false);
     const [uploadProgress, setUploadProgress] = useState(0);
     const [validationStatus, setValidationStatus] = useState(null);
-
+    const [importMethod, setImportMethod] = useState(null);
     const [accounts, setAccounts] = useState([]);
     const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' });
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -424,32 +406,24 @@ const QuickStartModal = ({ isOpen, onClose }) => {
     const [showAccountsDropdown, setShowAccountsDropdown] = useState(false);
     const [importedAccounts, setImportedAccounts] = useState([]);
     const [importedPositions, setImportedPositions] = useState(0);
-    const [importedPositionsGrouped, setImportedPositionsGrouped] = useState(null); // grouped for modal
-    const [importedPositionsData, setImportedPositionsData] = useState([]); // flat for success UI
+    const [importedPositionsData, setImportedPositionsData] = useState([]);
     const [importedLiabilities, setImportedLiabilities] = useState(0);
     const [importedLiabilitiesData, setImportedLiabilitiesData] = useState([]);
     const { actions } = useDataStore();
     const { refreshData } = actions;
     const { 
-    accounts: existingAccounts,
-    loading: isLoadingAccounts,
-    error: accountsError,
-    refresh: refreshAccounts,
-    lastFetched: accountsLastFetched
-        } = useAccounts();
+        accounts: existingAccounts, 
+        loading: isLoadingAccounts,
+        error: accountsError,
+        refresh: refreshAccounts 
+    } = useAccounts();
 
-    // Try a single fetch only if we've never fetched yet (prevents loops for brand-new users with 0 accounts)
-    const triedInitialAccountsFetchRef = useRef(false);
+    // Ensure accounts exist if user opens this quickly after login
     useEffect(() => {
-        if (triedInitialAccountsFetchRef.current) return;
-        if (!isLoadingAccounts && !accountsLastFetched) {
-            triedInitialAccountsFetchRef.current = true;
-            refreshAccounts();
-        } else if (!isLoadingAccounts) {
-            // We've either fetched already (even if empty) or are idle; don't loop.
-            triedInitialAccountsFetchRef.current = true;
-        }
-        }, [isLoadingAccounts, accountsLastFetched, refreshAccounts]);
+    if (!isLoadingAccounts && (!Array.isArray(existingAccounts) || existingAccounts.length === 0)) {
+        refreshAccounts();
+    }
+    }, [isLoadingAccounts, existingAccounts, refreshAccounts]);
 
 
 
@@ -1156,16 +1130,8 @@ const QuickStartModal = ({ isOpen, onClose }) => {
                     return;
                 }
 
-                setImportedPositionsGrouped(parsed);
-                const flat = [
-                ...(parsed.security ?? []),
-                ...(parsed.cash ?? []),
-                ...(parsed.crypto ?? []),
-                ...(parsed.metal ?? []),
-                ...(parsed.other ?? []),
-                ];
-                setImportedPositionsData(flat);
-                setImportedPositions(flat.length);
+                setImportedPositionsData(parsed);
+                setImportedPositions(total);
                 setUploadProgress(100);
                 setValidationStatus('valid');
 
@@ -1266,7 +1232,7 @@ const QuickStartModal = ({ isOpen, onClose }) => {
                                     ? 'bg-gray-50 border-gray-200 opacity-60 cursor-not-allowed' 
                                     : 'bg-gradient-to-br from-purple-50 to-purple-100 border-purple-100 hover:shadow-lg hover:-translate-y-0.5'
                             }`}
-                                onClick={() => (existingAccounts?.length > 0) && setActiveTab('positions')}
+                            onClick={() => existingAccounts.length > 0 && setActiveTab('positions')}
                         >
                             <div className="flex items-center justify-between">
                                 <div className="flex items-center">
@@ -1331,11 +1297,11 @@ const QuickStartModal = ({ isOpen, onClose }) => {
                             <h4 className="text-sm font-semibold text-gray-700 uppercase tracking-wider">
                                 Current NestEgg Portfolio
                             </h4>
-                                <button
-                                onClick={refreshAccounts}
+                            <button
+                                onClick={() => fetchExistingAccounts()}
                                 className="p-1.5 hover:bg-white rounded-lg transition-colors group"
                                 disabled={isLoadingAccounts}
-                                >
+                            >
                                 <RefreshCw className={`w-4 h-4 text-gray-500 group-hover:text-gray-700 ${
                                     isLoadingAccounts ? 'animate-spin' : ''
                                 }`} />
@@ -1656,24 +1622,23 @@ const QuickStartModal = ({ isOpen, onClose }) => {
         return (
             <div className="relative">
                 <AddQuickPositionModal
-                isOpen={true}
-                seedPositions={importedPositionsGrouped}
-                onClose={() => { /* leave seeds as-is unless you want to flush on close */ }}
-                onPositionsSaved={({ importedCount = 0, remainingSeedsGrouped = null, flatPositionsForSummary = [], flush = false }) => {
-                    if (flush) {
-                    setImportedPositions(0);
-                    setImportedPositionsGrouped(null);
-                    setImportedPositionsData([]);
-                    setActiveTab('overview');
-                    setImportMethod(null);
-                    return;
-                    }
-                    setImportedPositions(importedCount || flatPositionsForSummary.length);
-                    setImportedPositionsData(flatPositionsForSummary);
-                    setImportedPositionsGrouped(remainingSeedsGrouped);
-                    setActiveTab('success');
-                    setImportMethod(null);
-                }}
+                    isOpen={true}
+                    seedPositions={importedPositionsData}
+                    onClose={() => {
+                        setImportMethod(null);
+                        // Optionally refresh data or show success
+                    }}
+                    onPositionsSaved={(count, positions) => {
+
+                                  // DEBUG: Log what we're receiving
+                        console.log('Received count:', count);
+                        console.log('Received positions:', positions);
+
+                        setImportedPositions(count);
+                        setImportedPositionsData(positions);
+                        setActiveTab('success');
+                        setImportMethod(null);
+                    }}
                 />
             </div>
         );
@@ -2137,7 +2102,7 @@ const QuickStartModal = ({ isOpen, onClose }) => {
                 ) : null}
                 
                 {/* Keep existing positions section */}
-                {isPositions && Array.isArray(importedPositionsData) && importedPositionsData.length > 0 ? (
+                {isPositions && importedPositionsData && importedPositionsData.length > 0 ? (
                     <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-xl p-6 max-w-2xl mx-auto border border-purple-200">
                         <h4 className="font-semibold text-gray-900 mb-4 flex items-center justify-center">
                             <Activity className="w-5 h-5 mr-2 text-purple-600" />
