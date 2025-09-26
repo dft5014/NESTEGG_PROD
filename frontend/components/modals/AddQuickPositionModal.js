@@ -10,7 +10,7 @@
 import React, { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import {
   X, Plus, Search, Trash2, CheckCircle2, AlertTriangle, Loader2, ChevronDown,
-  Building2, BarChart3, Coins, DollarSign, Gem, Home, Filter, CheckSquare, Square
+  Building2, BarChart3, Coins, DollarSign, Gem, Home, Filter, CheckSquare, Square, Sparkles
 } from 'lucide-react';
 import debounce from 'lodash.debounce';
 
@@ -868,8 +868,6 @@ const Err = ({ text = 'Required' }) => (
   </div>
 );
 
-export default AddQuickPositionModal;
-
 // --- Convenience launcher button -------------------------------------------
 // Drop-in button to open the AddQuickPositionModal with a single line.
 // Usage:
@@ -880,9 +878,6 @@ export default AddQuickPositionModal;
 //     buttonLabel="Quick Add"
 //   />
 //
-import React, { useState } from 'react';
-import { Sparkles } from 'lucide-react';
-
 export const QuickAddPositionsButton = ({
   className = '',
   seedPositions = null,            // optional: pre-seeded rows (from QuickStart)
@@ -927,3 +922,5 @@ export const QuickAddPositionsButton = ({
     </>
   );
 };
+
+export default AddQuickPositionModal;
