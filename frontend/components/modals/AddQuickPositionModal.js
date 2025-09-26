@@ -709,60 +709,6 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
     });
   }, [positions]);
 
-  // ── Delete single + bulk
-  const deleteRow = useCallback((id) => {
-    setRows(prev => prev.filter(r => r.id !== id));
-    setSelectedIds(prev => {
-      const next = new Set(prev);
-      next.delete(id);
-      return next;
-    });
-  }, []);
-
-  const deleteSelected = useCallback(() => {
-    setRows(prev => prev.filter(r => !selectedIds.has(r.id)));
-    setSelectedIds(new Set());
-  }, [selectedIds]);
-
-  // ── After any cell edit, keep status in sync (optional if you already do)
-  const applyRowEdit = useCallback((id, updater) => {
-    setRows(prev => prev.map(r => {
-      if (r.id !== id) return r;
-      const updated = { ...r, data: updater({ ...r.data }) };
-      // clear API error once user edits
-      if (updated.status === "error") updated.status = undefined;
-      return updated;
-    }));
-  }, []);
-
-  // ── One-time seed ingestion per modal open
-  useEffect(() => {
-    if (!isOpen) {
-      // reset guard so next open ingests again
-      seedAppliedRef.current = false;
-      return;
-    }
-    if (seedAppliedRef.current) return;
-
-    if (seedPositions && Object.keys(seedPositions).length > 0) {
-      const next = [];
-      for (const [type, arr] of Object.entries(seedPositions)) {
-        (arr || []).forEach(d => {
-          next.push({
-            id: cryptoRandom(),
-            type,
-            data: { ...d },
-            status: undefined, // will be derived by getRowStatus
-          });
-        });
-      }
-      if (next.length) {
-        setRows(next);
-        setSelectedIds(new Set());
-      }
-    }
-    seedAppliedRef.current = true;
-  }, [isOpen, seedPositions]);
 
   // Enhanced asset type configuration with required fields
   const assetTypes = {
@@ -2379,24 +2325,43 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
                                   )}
                                 </td>
                               ))}
-                              <td className="px-2 py-2">
-                                {(() => {
-                                  const s = getRowStatus(position); // ready | draft | submitting | added | error
-                                  const styles = {
-                                    ready:      "bg-emerald-50 text-emerald-700 border-emerald-200",
-                                    draft:      "bg-amber-50 text-amber-700 border-amber-200",
-                                    submitting: "bg-blue-50 text-blue-700 border-blue-200",
-                                    added:      "bg-indigo-50 text-indigo-700 border-indigo-200",
-                                    error:      "bg-red-50 text-red-700 border-red-200",
-                                  }[s] || "bg-gray-50 text-gray-600 border-gray-200";
+                                <td className="px-2 py-2">
+                                  {(() => {
+                                    const s = getRowStatus(position);
+                                    const styles = {
+                                      ready:      "bg-emerald-50 text-emerald-700 border-emerald-200",
+                                      draft:      "bg-amber-50 text-amber-700 border-amber-200",
+                                      submitting: "bg-blue-50 text-blue-700 border-blue-200",
+                                      added:      "bg-indigo-50 text-indigo-700 border-indigo-200",
+                                      error:      "bg-red-50 text-red-700 border-red-200",
+                                    }[s] || "bg-gray-50 text-gray-600 border-gray-200";
+                                    return (
+                                      <span className={`inline-flex items-center px-2 py-0.5 text-[11px] rounded border ${styles}`}>
+                                        {s}
+                                      </span>
+                                    );
+                                  })()}
+                                </td>
 
-                                  return (
-                                    <span className={`inline-flex items-center px-2 py-0.5 text-[11px] rounded border ${styles}`}>
-                                      {s}
-                                    </span>
-                                  );
-                                })()}
-                              </td>
+                                <td className="px-2 py-2">
+                                  <div className="flex items-center justify-center space-x-1">
+                                    <button
+                                      onClick={() => duplicatePosition(assetType, position)}
+                                      className="p-1 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-all"
+                                      title="Duplicate"
+                                    >
+                                      <Copy className="w-3 h-3" />
+                                    </button>
+                                    <button
+                                      onClick={() => deletePosition(assetType, position.id)}
+                                      className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-all"
+                                      title="Delete"
+                                    >
+                                      <Trash2 className="w-3 h-3" />
+                                    </button>
+                                  </div>
+                                </td>
+
                             </tr>
                           );
                         })}
@@ -2535,21 +2500,35 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
                         {isExpanded && (
                           <div className="overflow-x-auto">
                             <table className="w-full text-sm">
+
                               <thead>
                                 <tr className="bg-gray-50 border-b border-gray-200">
                                   <th className="w-10 px-3 py-3 text-left">
                                     <input
                                       type="checkbox"
-                                      onChange={(e) => toggleAllSelectedForType(assetType, e.target.checked)}
+                                      onChange={(e) => toggleAllSelectedForType(type, e.target.checked)}
                                       checked={
-                                        (positions[assetType]?.length ?? 0) > 0 &&
-                                        positions[assetType].every(p => selectedIds.has(p.id))
+                                        (positions[type]?.length ?? 0) > 0 &&
+                                        positions[type].every(p => selectedIds.has(p.id))
                                       }
                                       aria-label={`Select all ${config.name}`}
                                     />
                                   </th>
-                                  {config.fields.map(field => (/* unchanged */))}
-                                  {/* NEW status column */}
+
+                                  {config.fields
+                                    .filter(f => f.key !== 'account_id')
+                                    .map(field => (
+                                      <th key={field.key} className={`${field.width} px-2 py-3 text-left`}>
+                                        <span className="text-xs font-semibold text-gray-600 flex items-center">
+                                          {field.label}
+                                          {field.required && <span className="text-red-500 ml-1">*</span>}
+                                          {field.readOnly && (
+                                            <Info className="w-3 h-3 ml-1 text-gray-400" title="Auto-filled from search" />
+                                          )}
+                                        </span>
+                                      </th>
+                                    ))}
+
                                   <th className="w-24 px-2 py-3 text-left">
                                     <span className="text-xs font-semibold text-gray-600">Status</span>
                                   </th>
@@ -2558,40 +2537,80 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
                                   </th>
                                 </tr>
                               </thead>
-                              <tbody>
-                                {typePositions.map((position, index) => (
-                                  <tr key={position.id} className="border-b border-gray-100 hover:bg-gray-50">
-                                    {config.fields.filter(f => f.key !== 'account_id').map(field => (
-                                      <td key={field.key} className="px-1 py-1">
-                                        {renderCellInput(
-                                          type,
-                                          position,
-                                          field,
-                                          `${type}-${position.id}-${field.key}`
-                                        )}
+
+
+
+
+                                <tbody>
+                                  {typePositions.map((position) => (
+                                    <tr key={position.id} className="border-b border-gray-100 hover:bg-gray-50">
+                                      {/* Row checkbox */}
+                                      <td className="px-3 py-2">
+                                        <div className="flex items-center space-x-2">
+                                          <input
+                                            type="checkbox"
+                                            checked={selectedIds.has(position.id)}
+                                            onChange={(e) => toggleRowSelected(position.id, e.target.checked)}
+                                            aria-label="Select row"
+                                          />
+                                        </div>
                                       </td>
-                                    ))}
-                                    <td className="px-1 py-1">
-                                      <div className="flex items-center justify-center space-x-1">
-                                        <button
-                                          onClick={() => duplicatePosition(type, position)}
-                                          className="p-1 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-all"
-                                          title="Duplicate"
-                                        >
-                                          <Copy className="w-3 h-3" />
-                                        </button>
-                                        <button
-                                          onClick={() => deletePosition(type, position.id)}
-                                          className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-all"
-                                          title="Delete"
-                                        >
-                                          <Trash2 className="w-3 h-3" />
-                                        </button>
-                                      </div>
-                                    </td>
-                                  </tr>
-                                ))}
-                              </tbody>
+
+                                      {/* All fields except account_id */}
+                                      {config.fields.filter(f => f.key !== 'account_id').map(field => (
+                                        <td key={field.key} className="px-1 py-1">
+                                          {renderCellInput(
+                                            type,
+                                            position,
+                                            field,
+                                            `${type}-${position.id}-${field.key}`
+                                          )}
+                                        </td>
+                                      ))}
+
+                                      {/* Status */}
+                                      <td className="px-2 py-2">
+                                        {(() => {
+                                          const s = getRowStatus(position);
+                                          const styles = {
+                                            ready:      "bg-emerald-50 text-emerald-700 border-emerald-200",
+                                            draft:      "bg-amber-50 text-amber-700 border-amber-200",
+                                            submitting: "bg-blue-50 text-blue-700 border-blue-200",
+                                            added:      "bg-indigo-50 text-indigo-700 border-indigo-200",
+                                            error:      "bg-red-50 text-red-700 border-red-200",
+                                          }[s] || "bg-gray-50 text-gray-600 border-gray-200";
+
+                                          return (
+                                            <span className={`inline-flex items-center px-2 py-0.5 text-[11px] rounded border ${styles}`}>
+                                              {s}
+                                            </span>
+                                          );
+                                        })()}
+                                      </td>
+
+                                      {/* Actions */}
+                                      <td className="px-1 py-1">
+                                        <div className="flex items-center justify-center space-x-1">
+                                          <button
+                                            onClick={() => duplicatePosition(type, position)}
+                                            className="p-1 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-all"
+                                            title="Duplicate"
+                                          >
+                                            <Copy className="w-3 h-3" />
+                                          </button>
+                                          <button
+                                            onClick={() => deletePosition(type, position.id)}
+                                            className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-all"
+                                            title="Delete"
+                                          >
+                                            <Trash2 className="w-3 h-3" />
+                                          </button>
+                                        </div>
+                                      </td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+
                             </table>
                             <div className="p-2 bg-gray-50 border-t border-gray-100">
                               <button
