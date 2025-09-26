@@ -238,7 +238,10 @@ export const AddQuickPositionModal = ({
   // Validation
   // ───────────────────────────────────────────────────────────────────────────
 
-  const isValidRow = (type, form) => {
+  // ───────────────────────────────────────────────────────────────────────────
+  // Validation (use a hoisted function to avoid TDZ)
+  // ───────────────────────────────────────────────────────────────────────────
+  function isValidRow(type, form) {
     const errs = {};
     (REQUIRED[type] || []).forEach(k => {
       if (!form[k] && form[k] !== 0) errs[k] = 'Required';
@@ -255,7 +258,8 @@ export const AddQuickPositionModal = ({
     });
     if (type !== 'other' && !form.account_id) errs['account_id'] = 'Required';
     return Object.keys(errs).length === 0;
-  };
+  }
+
 
   const setRow = (id, updater) => setRows(prev => prev.map(r => (r.id === id ? updater(r) : r)));
 
