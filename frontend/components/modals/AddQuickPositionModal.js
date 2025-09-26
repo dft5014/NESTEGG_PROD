@@ -427,6 +427,9 @@ const AccountFilter = ({ accounts, selectedAccounts, onChange, filterType = 'acc
   );
 };
 
+
+
+
 // Queue modal component
 const QueueModal = ({ isOpen, onClose, positions, assetTypes, accounts, onClearCompleted }) => {
   const getStatusBadge = (status) => {
@@ -689,6 +692,84 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
     return ok ? "ready" : "draft";
   };
 
+  // ---- Account indexing + seed mapping ----
+  const accountIndex = useRef({ byName: new Map(), byNameInst: new Map() });
+
+  const buildAccountIndex = (accts=[]) => {
+    const byName = new Map();
+    const byNameInst = new Map();
+    accts.forEach(a => {
+      const name = String(a.account_name || '').trim().toLowerCase();
+      const inst = String(a.institution || '').trim().toLowerCase();
+      if (name) byName.set(name, a);
+      if (name || inst) byNameInst.set(`${name}::${inst}`, a);
+    });
+    accountIndex.current = { byName, byNameInst };
+  };
+
+  const mapSeedAccountId = (data = {}) => {
+    // Already an id?
+    if (data.account_id) {
+      const n = Number(data.account_id);
+      return { ...data, account_id: Number.isFinite(n) ? n : data.account_id };
+    }
+
+    // Pull common Excel columns
+    const rawName = (data.account_name ?? data.account ?? '').toString().trim();
+    const rawInst = (data.institution ?? data.bank ?? data.brokerage ?? '').toString().trim();
+
+    if (!rawName && !rawInst) return data;
+
+    const name = rawName.toLowerCase();
+    const inst = rawInst.toLowerCase();
+    const { byName, byNameInst } = accountIndex.current;
+
+    // (1) Exact: name + institution
+    const hitBoth = byNameInst.get(`${name}::${inst}`);
+    if (hitBoth?.id) return { ...data, account_id: hitBoth.id };
+
+    // (2) Exact: name only
+    const hitName = byName.get(name);
+    if (hitName?.id) return { ...data, account_id: hitName.id };
+
+    // (3) Loose: if name is unique prefix
+    const loose = [...byName.keys()].filter(k => k.startsWith(name));
+    if (name && loose.length === 1) {
+      const a = byName.get(loose[0]);
+      if (a?.id) return { ...data, account_id: a.id };
+    }
+
+    // Give up (leave unmapped)
+    return data;
+  };
+
+  // Normalize one seed row (applies account mapping)
+  const normalizeSeedRow = (row, type) => ({
+    id: row?.id ?? (Date.now() + Math.random()),
+    type,
+    data: mapSeedAccountId(row?.data ?? row),
+    errors: row?.errors ?? {},
+    isNew: true,
+    animateIn: true
+  });
+
+  // Backfill any rows missing account_id after accounts load
+  const backfillSeedAccountIds = () => {
+    setPositions(prev => {
+      const next = { ...prev };
+      Object.keys(next).forEach(t => {
+        next[t] = next[t].map(p => {
+          if (t === 'otherAssets') return p; // those don't use account_id
+          if (p?.data?.account_id) return p;
+          const mapped = mapSeedAccountId(p?.data);
+          return mapped === p?.data ? p : { ...p, data: mapped };
+        });
+      });
+      return next;
+    });
+  };
+
+
   // ── Selection toggles
   // rowId is the position.id
   const toggleRowSelected = useCallback((rowId, checked) => {
@@ -894,6 +975,32 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
     }
   };
 
+
+  // Load accounts
+  const loadAccounts = async () => {
+    try {
+      const fetchedAccounts = await fetchAllAccounts();
+      setAccounts(fetchedAccounts);
+
+      // Build fast lookup maps for name / institution
+      buildAccountIndex(fetchedAccounts);
+
+      const recentIds = fetchedAccounts.slice(0, 3).map(a => a.id);
+      setRecentlyUsedAccounts(recentIds);
+
+      // Select all by default
+      setSelectedAccountFilter(new Set(fetchedAccounts.map(acc => acc.id)));
+      setSelectedInstitutionFilter(new Set(fetchedAccounts.map(acc => acc.institution).filter(Boolean)));
+
+      // Backfill any seeded rows that were waiting on accounts
+      backfillSeedAccountIds();
+
+    } catch (error) {
+      console.error('Error loading accounts:', error);
+      showMessage('error', 'Failed to load accounts', [`Error: ${error.message}`]);
+    }
+  };
+
   // Debounced search function
   const debouncedSearch = useCallback(
     debounce(async (query, assetType, positionId) => {
@@ -961,14 +1068,7 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
       if (!seedAppliedRef.current) {
         // … your existing seed ingestion logic unchanged …
         const castSeed = (rows, type) =>
-          (rows ?? []).map((r) => ({
-            id: r?.id ?? (Date.now() + Math.random()),
-            type,
-            data: r?.data ?? r,
-            errors: r?.errors ?? {},
-            isNew: true,
-            animateIn: true
-          }));
+          (rows ?? []).map((r) => normalizeSeedRow(r, type));
 
         const hasSeeds = !!(
           seedPositions &&
@@ -1014,24 +1114,13 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
 
 
 
-  // Load accounts
-  const loadAccounts = async () => {
-    try {
-      const fetchedAccounts = await fetchAllAccounts();
-      setAccounts(fetchedAccounts);
-      
-      const recentIds = fetchedAccounts.slice(0, 3).map(a => a.id);
-      setRecentlyUsedAccounts(recentIds);
-      
-      // NEW: Select all by default
-      setSelectedAccountFilter(new Set(fetchedAccounts.map(acc => acc.id)));
-      setSelectedInstitutionFilter(new Set(fetchedAccounts.map(acc => acc.institution).filter(Boolean)));
-    } catch (error) {
-      console.error('Error loading accounts:', error);
-      showMessage('error', 'Failed to load accounts', [`Error: ${error.message}`]);
-    }
-  };
-
+  // If seeds arrived before accounts, fill in account_id once both are ready
+  useEffect(() => {
+    if (!isOpen) return;
+    if (!accounts || accounts.length === 0) return;
+    backfillSeedAccountIds();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, accounts.length]);
   // Enhanced message display
   const showMessage = (type, text, details = [], duration = 5000) => {
     setMessage({ type, text, details });
@@ -1815,7 +1904,7 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
           
           // Update position status
           updatedPositions[type] = updatedPositions[type].map(pos => 
-            pos.id === position.id ? { ...pos, status: 'success' } : pos
+            pos.id === position.id ? { ...pos, status: 'added' } : pos
           );
           
           const progress = Math.round(((i + 1) / batches.length) * 100);
@@ -1881,7 +1970,7 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
     const updatedPositions = { ...positions };
     
     Object.keys(updatedPositions).forEach(type => {
-      updatedPositions[type] = updatedPositions[type].filter(pos => pos.status !== 'success');
+      updatedPositions[type] = updatedPositions[type].filter(pos => pos.status !== 'added');
     });
     
     setPositions(updatedPositions);
@@ -2280,11 +2369,15 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
                               </span>
                             </th>
                           ))}
+                          <th className="w-24 px-2 py-3 text-left">
+                            <span className="text-xs font-semibold text-gray-600">Status</span>
+                          </th>
                           <th className="w-24 px-2 py-3 text-center">
                             <span className="text-xs font-semibold text-gray-600">Actions</span>
                           </th>
                         </tr>
                       </thead>
+
                       <tbody>
                         {typePositions.map((position, index) => {
                           const hasErrors = Object.values(position.errors || {}).some(e => e);
@@ -2506,13 +2599,28 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
                                   <th className="w-10 px-3 py-3 text-left">
                                     <input
                                       type="checkbox"
-                                      onChange={(e) => toggleAllSelectedForType(type, e.target.checked)}
+                                      onChange={(e) => {
+                                        const checked = e.target.checked;
+                                        setSelectedIds(prev => {
+                                          const next = new Set(prev);
+                                          const scoped = positions[type].filter(p => p.data.account_id === account.id);
+                                          if (checked) {
+                                            scoped.forEach(p => next.add(p.id));
+                                          } else {
+                                            scoped.forEach(p => next.delete(p.id));
+                                          }
+                                          return next;
+                                        });
+                                      }}
                                       checked={
-                                        (positions[type]?.length ?? 0) > 0 &&
-                                        positions[type].every(p => selectedIds.has(p.id))
+                                        (() => {
+                                          const scoped = positions[type].filter(p => p.data.account_id === account.id);
+                                          return scoped.length > 0 && scoped.every(p => selectedIds.has(p.id));
+                                        })()
                                       }
                                       aria-label={`Select all ${config.name}`}
                                     />
+
                                   </th>
 
                                   {config.fields
