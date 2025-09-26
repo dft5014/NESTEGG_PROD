@@ -70,8 +70,8 @@ const AnimatedNumber = ({ value, prefix = '', suffix = '', decimals = 0, duratio
     requestAnimationFrame(animate);
   }, [value, duration]);
   
-  const formattedValue = decimals > 0
-    ? Number(displayValue.toFixed(decimals)).toLocaleString()
+  const formattedValue = decimals > 0 
+    ? displayValue.toFixed(decimals).toLocaleString()
     : Math.floor(displayValue).toLocaleString();
     
   return (
@@ -420,7 +420,7 @@ const AccountFilter = ({ accounts, selectedAccounts, onChange, filterType = 'acc
 };
 
 // Queue modal component
-const QueueModal = ({ isOpen, onClose, positions, assetTypes, accounts, onClearCompleted, isValidPositionFn }) => {
+const QueueModal = ({ isOpen, onClose, positions, assetTypes, accounts, onClearCompleted }) => {
   const getStatusBadge = (status) => {
     switch (status) {
       case 'success':
@@ -453,9 +453,11 @@ const QueueModal = ({ isOpen, onClose, positions, assetTypes, accounts, onClearC
     Object.entries(positions).forEach(([type, typePositions]) => {
       typePositions.forEach(pos => {
         // Include otherAssets even without account_id
-          const isValid = isValidPositionFn ? isValidPositionFn(type, pos) : true;
-            
-          if (isValid) {
+        const isValid = type === 'otherAssets' 
+          ? (pos.data.asset_name && pos.data.current_value)
+          : pos.data.account_id;
+          
+        if (isValid) {
           result.push({ ...pos, assetType: type });
         }
       });
@@ -620,106 +622,16 @@ const QueueModal = ({ isOpen, onClose, positions, assetTypes, accounts, onClearC
   }
 };
 
-// Separate the data management into a custom hook
-const usePositionManager = (seedPositions) => {
-  const [positions, setPositions] = useState(() => ({
+const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPositions }) => {
+  // Core state
+  const [accounts, setAccounts] = useState([]);
+  const [positions, setPositions] = useState({
     security: [],
     cash: [],
     crypto: [],
     metal: [],
-    otherAssets: []
-  }));
-  
-  const [priceCache, setPriceCache] = useState(() => new Map());
-  const [importedIds, setImportedIds] = useState(() => new Set());
-  const [submittedIds, setSubmittedIds] = useState(() => new Set());
-  
-  // Price fetching with caching
-  const fetchPrice = useCallback(async (ticker, assetType) => {
-    const cacheKey = `${assetType}-${ticker}`;
-    if (priceCache.has(cacheKey)) {
-      return priceCache.get(cacheKey);
-    }
-    
-    try {
-      const results = await searchSecurities(ticker);
-      const filtered = assetType === 'security' 
-        ? results.filter(r => r.asset_type === 'security' || r.asset_type === 'index')
-        : assetType === 'crypto'
-        ? results.filter(r => r.asset_type === 'crypto')
-        : results;
-        
-      const match = filtered.find(r => 
-        String(r.ticker || '').toUpperCase() === String(ticker).toUpperCase()
-      ) || filtered[0];
-      
-      if (match) {
-        const price = getQuotePrice(match);
-        setPriceCache(prev => new Map(prev).set(cacheKey, { price, data: match }));
-        return { price, data: match };
-      }
-    } catch (error) {
-      console.error('Price fetch error:', error);
-    }
-    return null;
-  }, [priceCache]);
-  
-  // Clear submitted positions
-  const clearSubmitted = useCallback(() => {
-    setPositions(prev => {
-      const updated = {};
-      Object.keys(prev).forEach(type => {
-        updated[type] = prev[type].filter(p => !submittedIds.has(p.id));
-      });
-      return updated;
-    });
-    setSubmittedIds(new Set());
-  }, [submittedIds]);
-  
-  // Import positions with deduplication
-  const importPositions = useCallback((newPositions) => {
-    const processed = {};
-    Object.entries(newPositions).forEach(([type, items]) => {
-      processed[type] = items.map(item => ({
-        id: `import-${Date.now()}-${Math.random()}`,
-        type,
-        data: item.data || item,
-        status: 'pending',
-        isImported: true
-      }));
-    });
-    
-    setPositions(processed);
-    setImportedIds(new Set(Object.values(processed).flat().map(p => p.id)));
-  }, []);
-  
-  return {
-    positions,
-    setPositions,
-    priceCache,
-    fetchPrice,
-    clearSubmitted,
-    importPositions,
-    submittedIds,
-    setSubmittedIds
-  };
-};
-
-const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPositions }) => {
-  const {
-    positions,
-    setPositions,
-    priceCache,
-    fetchPrice,
-    clearSubmitted,
-    importPositions,
-    submittedIds,
-    setSubmittedIds
-  } = usePositionManager(seedPositions);
-  
-  const [accounts, setAccounts] = useState([]);
-  const [view, setView] = useState('grid'); // 'grid' | 'table' | 'account'
-  const [showQueue, setShowQueue] = useState(false);
+    otherAssets: []  
+  });
   const [expandedSections, setExpandedSections] = useState({});
   const [accountExpandedSections, setAccountExpandedSections] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -733,39 +645,11 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
   const [validationMode, setValidationMode] = useState('realtime');
   const [recentlyUsedAccounts, setRecentlyUsedAccounts] = useState([]);
   const [viewMode, setViewMode] = useState(false); // false = by asset type, true = by account
+  const [showQueue, setShowQueue] = useState(false);
   const [selectedAccountFilter, setSelectedAccountFilter] = useState(new Set());
   const [selectedInstitutionFilter, setSelectedInstitutionFilter] = useState(new Set());
 
-  // Load accounts with better error handling
-  const loadAccounts = useCallback(async () => {
-    if (accounts.length > 0) return; // Don't reload if already loaded
-    
-    try {
-      const fetchedAccounts = await fetchAllAccounts();
-      setAccounts(fetchedAccounts);
-      
-      const recentIds = fetchedAccounts.slice(0, 3).map(a => a.id);
-      setRecentlyUsedAccounts(recentIds);
-      
-      // Select all by default
-      setSelectedAccountFilter(new Set(fetchedAccounts.map(acc => acc.id)));
-      setSelectedInstitutionFilter(new Set(fetchedAccounts.map(acc => acc.institution).filter(Boolean)));
-    } catch (error) {
-      console.error('Error loading accounts:', error);
-      showMessage('error', 'Failed to load accounts', [`Error: ${error.message}`]);
-    }
-  }, [accounts.length]);
 
-  // Enhanced message display helper
-  const showMessage = useCallback((type, text, details = [], duration = 5000) => {
-    setMessage({ type, text, details });
-    if (messageTimeoutRef.current) clearTimeout(messageTimeoutRef.current);
-    if (duration > 0) {
-      messageTimeoutRef.current = setTimeout(() => {
-        setMessage({ type: '', text: '', details: [] });
-      }, duration);
-    }
-  }, []);
   
   // Search state
   const [searchResults, setSearchResults] = useState({});
@@ -961,60 +845,6 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
     }
   };
 
-  // Handle security selection from search
-  const handleSelectSecurity = (assetType, positionId, security) => {
-    const searchKey = `${assetType}-${positionId}`;
-    setSelectedSecurities((prev) => ({ ...prev, [searchKey]: security }));
-
-    const px = getQuotePrice(security); // numeric or undefined
-
-    setPositions((prev) => ({
-      ...prev,
-      [assetType]: prev[assetType].map((pos) => {
-        if (pos.id !== positionId) return pos;
-        const d = { ...pos.data };
-
-        if (assetType === 'security') {
-          d.ticker = security.ticker;
-          if (px != null) d.price = px;               // number
-          d.name = security.name;
-          if (d.cost_basis == null && d.price != null) d.cost_basis = d.price;
-        } else if (assetType === 'crypto') {
-          d.symbol = security.ticker;
-          if (px != null) d.current_price = px;       // number
-          d.name = security.name;
-          if (d.purchase_price == null && d.current_price != null) d.purchase_price = d.current_price;
-        } else if (assetType === 'metal') {
-          d.symbol = security.ticker;
-          if (px != null) d.current_price_per_unit = px; // number
-          d.name = security.name;
-          if (d.purchase_price == null && d.current_price_per_unit != null) d.purchase_price = d.current_price_per_unit;
-        }
-
-        return { ...pos, data: d, errors: { ...pos.errors } };
-      }),
-    }));
-
-    // Clear search results for this row
-    setSearchResults((prev) => ({ ...prev, [searchKey]: [] }));
-  };
-  
-  // Debounced search function
-  const getQuotePrice = (s) => {
-    const v =
-      s?.price ??
-      s?.current_price ??
-      s?.regularMarketPrice ??
-      s?.regular_market_price ??
-      s?.last ??
-      s?.close ??
-      s?.value ??
-      s?.mark;
-
-    const n = Number(v);
-    return Number.isFinite(n) ? n : undefined;
-  };
-
   // Debounced search function
   const debouncedSearch = useCallback(
     debounce(async (query, assetType, positionId) => {
@@ -1072,24 +902,95 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
   );
 
     useEffect(() => {
-      if (!isOpen) {
-        // Clean up on close
-        return;
-      }
+      if (!isOpen) return;
 
       loadAccounts();
 
-      // Only import seeds once
-      if (seedPositions && !positions.security.length && !positions.crypto.length) {
-        importPositions(seedPositions);
-      }
-      
+      // ensure every row has the expected shape + an id
+      const castSeed = (rows, type) =>
+        (rows ?? []).map((r) => ({
+          id: r?.id ?? (Date.now() + Math.random()),
+          type: type,
+          data: r?.data ?? r,          // accept plain objects or {data}
+          errors: r?.errors ?? {},
+          isNew: true,
+          animateIn: true
+        }));
+
+      const hasSeeds = !!(
+        seedPositions &&
+        (seedPositions.security?.length ||
+        seedPositions.cash?.length ||
+        seedPositions.crypto?.length ||
+        seedPositions.metal?.length)
+      );
+
+      setPositions(
+        hasSeeds
+          ? {
+              security: castSeed(seedPositions.security, 'security'),
+              cash:     castSeed(seedPositions.cash, 'cash'),
+              crypto:   castSeed(seedPositions.crypto, 'crypto'),
+              metal:    castSeed(seedPositions.metal, 'metal'),
+              otherAssets: []
+            }
+          : { security: [], cash: [], crypto: [], metal: [], otherAssets: [] }
+      );
+
+      // reset UI chrome
+      setExpandedSections({});
+      setAccountExpandedSections({});
+      setMessage({ type: '', text: '', details: [] });
+      setActiveFilter('all');
+      setSearchResults({});
+      setSelectedSecurities({});
+      setShowKeyboardShortcuts(true);
+      setTimeout(() => setShowKeyboardShortcuts(false), 3000);
+
+      // 🔑 trigger price hydration after seeds land
+      setTimeout(() => {
+        try { autoHydrateSeededPrices?.(); } catch (e) { console.error(e); }
+      }, 0);
+
       return () => {
         if (messageTimeoutRef.current) clearTimeout(messageTimeoutRef.current);
       };
-  }, [isOpen, importPositions, seedPositions, loadAccounts, positions.security.length, positions.crypto.length]);
+      }, [isOpen, seedPositions]); // ← remove autoHydrateSeededPrices to avoid TDZ
 
-  
+
+  // Load accounts
+  const loadAccounts = async () => {
+    try {
+      const fetchedAccounts = await fetchAllAccounts();
+      setAccounts(fetchedAccounts);
+      
+      const recentIds = fetchedAccounts.slice(0, 3).map(a => a.id);
+      setRecentlyUsedAccounts(recentIds);
+      
+      // NEW: Select all by default
+      setSelectedAccountFilter(new Set(fetchedAccounts.map(acc => acc.id)));
+      setSelectedInstitutionFilter(new Set(fetchedAccounts.map(acc => acc.institution).filter(Boolean)));
+    } catch (error) {
+      console.error('Error loading accounts:', error);
+      showMessage('error', 'Failed to load accounts', [`Error: ${error.message}`]);
+    }
+  };
+
+  // Enhanced message display
+  const showMessage = (type, text, details = [], duration = 5000) => {
+    setMessage({ type, text, details });
+    
+    if (messageTimeoutRef.current) {
+      clearTimeout(messageTimeoutRef.current);
+    }
+    
+    if (duration > 0) {
+      messageTimeoutRef.current = setTimeout(() => {
+        setMessage({ type: '', text: '', details: [] });
+      }, duration);
+    }
+  };
+
   // Add new row for account
   const addNewRowForAccount = (accountId, assetType) => {
     const newPosition = {
@@ -1273,7 +1174,43 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
     }
   };
 
+  // Handle security selection from search
+  const handleSelectSecurity = (assetType, positionId, security) => {
+    const searchKey = `${assetType}-${positionId}`;
+    setSelectedSecurities((prev) => ({ ...prev, [searchKey]: security }));
 
+    const px = getQuotePrice(security); // numeric or undefined
+
+    setPositions((prev) => ({
+      ...prev,
+      [assetType]: prev[assetType].map((pos) => {
+        if (pos.id !== positionId) return pos;
+        const d = { ...pos.data };
+
+        if (assetType === 'security') {
+          d.ticker = security.ticker;
+          if (px != null) d.price = px;               // number
+          d.name = security.name;
+          if (d.cost_basis == null && d.price != null) d.cost_basis = d.price;
+        } else if (assetType === 'crypto') {
+          d.symbol = security.ticker;
+          if (px != null) d.current_price = px;       // number
+          d.name = security.name;
+          if (d.purchase_price == null && d.current_price != null) d.purchase_price = d.current_price;
+        } else if (assetType === 'metal') {
+          d.symbol = security.ticker;
+          if (px != null) d.current_price_per_unit = px; // number
+          d.name = security.name;
+          if (d.purchase_price == null && d.current_price_per_unit != null) d.purchase_price = d.current_price_per_unit;
+        }
+
+        return { ...pos, data: d, errors: { ...pos.errors } };
+      }),
+    }));
+
+    // Clear search results for this row
+    setSearchResults((prev) => ({ ...prev, [searchKey]: [] }));
+  };
 
 
     // --- NEW: auto-hydrate current prices for seeded rows after Excel import ---
@@ -1284,6 +1221,23 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
       Copper: 'HG=F',
       Palladium: 'PA=F',
     };
+
+    // Prefer numeric; tolerate multiple field names across providers
+    const getQuotePrice = (s) => {
+      const v =
+        s?.price ??
+        s?.current_price ??
+        s?.regularMarketPrice ??
+        s?.regular_market_price ??
+        s?.last ??
+        s?.close ??
+        s?.value ??
+        s?.mark;
+
+      const n = Number(v);
+      return Number.isFinite(n) ? n : undefined;
+    };
+
    
     const autoHydrateSeededPrices = useCallback(async () => {
       // Build work items off *current* positions
@@ -1604,57 +1558,6 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
     };
   }, [positions]);
   // Validate positions
-  // Helper to validate position
-  const isValidPosition = (type, position) => {
-    if (type === 'otherAssets') {
-      return position.data.asset_name && position.data.current_value;
-    }
-    return position.data.account_id && Object.keys(position.data).length > 1;
-  };
-
-  // Helper to submit single position
-  const submitPosition = async (type, position) => {
-    const cleanData = Object.fromEntries(
-      Object.entries(position.data).filter(([_, v]) => v != null && v !== '')
-    );
-    
-    switch (type) {
-      case 'security':
-        return addSecurityPosition(position.data.account_id, cleanData);
-      case 'crypto':
-        return addCryptoPosition(position.data.account_id, {
-          coin_symbol: cleanData.symbol,
-          coin_type: cleanData.name || cleanData.symbol,
-          quantity: cleanData.quantity,
-          purchase_price: cleanData.purchase_price,
-          purchase_date: cleanData.purchase_date,
-          storage_type: 'Exchange'
-        });
-      case 'metal':
-        return addMetalPosition(position.data.account_id, {
-          metal_type: cleanData.metal_type,
-          coin_symbol: cleanData.symbol,
-          quantity: cleanData.quantity,
-          unit: cleanData.unit || 'oz',
-          purchase_price: cleanData.purchase_price,
-          cost_basis: cleanData.quantity * cleanData.purchase_price,
-          purchase_date: cleanData.purchase_date
-        });
-      case 'otherAssets':
-        return addOtherAsset(cleanData);
-      case 'cash':
-        return addCashPosition(position.data.account_id, {
-          ...cleanData,
-          name: cleanData.cash_type,
-          interest_rate: cleanData.interest_rate ? cleanData.interest_rate / 100 : null
-        });
-      default:
-        throw new Error(`Unknown position type: ${type}`);
-    }
-  };
-
-  // Validate positions
-  // Enhanced validation with consistent error handling
   const validatePositions = () => {
     let isValid = true;
     const updatedPositions = { ...positions };
@@ -1668,7 +1571,7 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
         
         // Check if position has any data
         typeConfig.fields.forEach(field => {
-          if (pos.data[field.key] !== undefined && pos.data[field.key] !== '') {
+          if (pos.data[field.key]) {
             hasData = true;
           }
         });
@@ -1676,25 +1579,23 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
         if (hasData) {
           typeConfig.fields.forEach(field => {
             const value = pos.data[field.key];
-            const displayValue = typeof value === 'number' ? value : value || '';
             
             // Skip account_id validation for otherAssets
             if (field.key === 'account_id' && type === 'otherAssets') {
               return;
             }
             
-            if (field.required && (value === undefined || value === null || displayValue === '')) {
+            if (field.required && !value) {
               errors[field.key] = 'Required';
               isValid = false;
               validationErrors.push(`${typeConfig.name} row ${index + 1}: ${field.label} is required`);
-            } else if (field.type === 'number' && (value !== undefined && value !== null && value !== '')) {
-              const numValue = parseFloat(value);
-              if (field.min !== undefined && numValue < field.min) {
+            } else if (field.type === 'number' && value) {
+              if (field.min !== undefined && value < field.min) {
                 errors[field.key] = `Min: ${field.min}`;
                 isValid = false;
                 validationErrors.push(`${typeConfig.name} row ${index + 1}: ${field.label} must be at least ${field.min}`);
               }
-              if (field.max !== undefined && numValue > field.max) {
+              if (field.max !== undefined && value > field.max) {
                 errors[field.key] = `Max: ${field.max}`;
                 isValid = false;
                 validationErrors.push(`${typeConfig.name} row ${index + 1}: ${field.label} must be at most ${field.max}`);
@@ -1716,7 +1617,7 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
     return isValid;
   };
 
-// Streamlined submit function with consistent validation and error handling
+  // Submit all
   const submitAll = async () => {
     if (stats.totalPositions === 0) {
       showMessage('error', 'No positions to submit', ['Add at least one position before submitting']);
@@ -1733,23 +1634,17 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
     const errors = [];
     const updatedPositions = { ...positions };
     const successfulPositionData = [];
-    const successIds = new Set();
 
     try {
       const batches = [];
       Object.entries(positions).forEach(([type, typePositions]) => {
         typePositions.forEach(pos => {
-          // Skip already submitted positions
-          if (submittedIds.has(pos.id)) {
-            return;
-          }
-          
-          // Check if position is valid based on type
-          const isValid = type === 'otherAssets'
+          // Special validation for otherAssets vs other types
+          const isValidPosition = type === 'otherAssets' 
             ? (pos.data.asset_name && pos.data.current_value)
             : (pos.data.account_id && Object.keys(pos.data).length > 1);
             
-          if (isValid) {
+          if (isValidPosition) {
             batches.push({ type, position: pos });
           }
         });
@@ -1757,73 +1652,116 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
 
       showMessage('info', `Submitting ${batches.length} positions...`, [], 0);
 
-      // Process in chunks for better performance
-      const chunkSize = 5;
-      for (let i = 0; i < batches.length; i += chunkSize) {
-        const chunk = batches.slice(i, i + chunkSize);
-        const results = await Promise.allSettled(
-          chunk.map(({ type, position }) => submitPosition(type, position))
-        );
+      for (let i = 0; i < batches.length; i++) {
+        const { type, position } = batches[i];
         
-        results.forEach((result, index) => {
-          const { type, position } = chunk[index];
-          
-          if (result.status === 'fulfilled') {
-            successCount++;
-            successIds.add(position.id);
-            
-            // Collect successful position data
-            const account = type !== 'otherAssets' 
-              ? accounts.find(a => a.id === position.data.account_id) 
-              : null;
+        try {
+          const cleanData = {};
+          Object.entries(position.data).forEach(([key, value]) => {
+            if (value !== '' && value !== null && value !== undefined) {
+              cleanData[key] = value;
+            }
+          });
+
+          switch (type) {
+            case 'security':
+              await addSecurityPosition(position.data.account_id, cleanData);
+              break;
+            case 'crypto':
+
+              const cryptoData = {
+                coin_symbol: cleanData.symbol,
+                coin_type: cleanData.name || cleanData.symbol, 
+                quantity: cleanData.quantity,
+                purchase_price: cleanData.purchase_price,
+                purchase_date: cleanData.purchase_date,
+                account_id: cleanData.account_id,
+                storage_type: cleanData.storage_type || 'Exchange',  // Default to 'Exchange'
+                notes: cleanData.notes || null,
+                tags: cleanData.tags || [],
+                is_favorite: cleanData.is_favorite || false
+            };
+              console.log('Sending crypto data:', cryptoData);
+              await addCryptoPosition(position.data.account_id, cryptoData);
+              break;
+            case 'metal':
+              const metalData = {
+                metal_type: cleanData.metal_type,  // Now this comes from dropdown (Gold, Silver, etc.)
+                coin_symbol: cleanData.symbol,
+                quantity: cleanData.quantity,
+                unit: cleanData.unit || 'oz',
+                purchase_price: cleanData.purchase_price,
+                cost_basis: (cleanData.quantity || 0) * (cleanData.purchase_price || 0),
+                purchase_date: cleanData.purchase_date,
+                storage_location: cleanData.storage_location,
+                description: `${cleanData.symbol} - ${cleanData.name}`  // Include symbol and market name
+              };
               
-            successfulPositionData.push({
-              type,
-              ticker: position.data.ticker,
-              symbol: position.data.symbol,
-              asset_name: position.data.asset_name,
-              metal_type: position.data.metal_type,
-              currency: position.data.currency,
-              shares: position.data.shares,
-              quantity: position.data.quantity,
-              amount: position.data.amount,
-              account_name: account?.account_name || (type === 'otherAssets' ? 'Other Assets' : 'Unknown Account'),
-              account_id: position.data.account_id
-            });
-            
-            // Update position status
-            updatedPositions[type] = updatedPositions[type].map(pos => 
-              pos.id === position.id ? { ...pos, status: 'success' } : pos
-            );
-          } else {
-            errorCount++;
-            const errorMessage = result.reason?.message || 'Unknown error';
-            errors.push(`${assetTypes[type].name}: ${errorMessage}`);
-            console.error(`Error adding ${type} position:`, result.reason);
-            
-            // Update position status with error
-            updatedPositions[type] = updatedPositions[type].map(pos => 
-              pos.id === position.id ? { ...pos, status: 'error', errorMessage: errorMessage } : pos
-            );
+              console.log('Sending metal data:', metalData);
+              await addMetalPosition(position.data.account_id, metalData);
+              break;
+            case 'otherAssets':
+              await addOtherAsset(cleanData);
+              break;
+            case 'cash':
+                const cashData = {
+                ...cleanData,
+                name: cleanData.cash_type,
+                interest_rate: cleanData.interest_rate ? cleanData.interest_rate / 100 : null
+              };
+              await addCashPosition(position.data.account_id, cashData);
+              break;
           }
-        });
-        
-        // Update progress
-        const progress = Math.round(((i + chunkSize) / batches.length) * 100);
-        showMessage('info', `Submitting positions... ${progress}%`, [`${successCount} of ${batches.length} completed`], 0);
+          
+          successCount++;
+          
+          // Collect successful position data
+          const account = type !== 'otherAssets' 
+            ? accounts.find(a => a.id === position.data.account_id) 
+            : null;
+            
+          successfulPositionData.push({
+            type,
+            ticker: position.data.ticker,
+            symbol: position.data.symbol,
+            asset_name: position.data.asset_name, // Changed from property_name
+            metal_type: position.data.metal_type,
+            currency: position.data.currency,
+            shares: position.data.shares,
+            quantity: position.data.quantity,
+            amount: position.data.amount,
+            account_name: account?.account_name || (type === 'otherAssets' ? 'Other Assets' : 'Unknown Account'),
+            account_id: position.data.account_id
+          });
+          
+          // Update position status
+          updatedPositions[type] = updatedPositions[type].map(pos => 
+            pos.id === position.id ? { ...pos, status: 'success' } : pos
+          );
+          
+          const progress = Math.round(((i + 1) / batches.length) * 100);
+          showMessage('info', `Submitting positions... ${progress}%`, [`${successCount} of ${batches.length} completed`], 0);
+          
+        } catch (error) {
+          console.error(`Error adding ${type} position:`, error);
+          errorCount++;
+          errors.push(`${assetTypes[type].name}: ${error.message || 'Unknown error'}`);
+          
+          // Update position status with error
+          updatedPositions[type] = updatedPositions[type].map(pos => 
+            pos.id === position.id ? { ...pos, status: 'error', errorMessage: error.message } : pos
+          );
+        }
       }
 
-      // Set updated positions and submitted IDs
+      // Rest of the function remains the same...
+
       setPositions(updatedPositions);
-      setSubmittedIds(prev => new Set([...prev, ...successIds]));
 
       if (successCount > 0) {
         showMessage('success', `Successfully added ${successCount} positions!`, 
           errorCount > 0 ? [`${errorCount} positions failed`] : []
         );
-        
-        // Auto-clear submitted after delay
-        setTimeout(() => clearSubmitted(), 2000);
         
         // Call the callback with successful positions
         if (onPositionsSaved) {
@@ -1841,13 +1779,12 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
     }
   };
 
-  // Clear all with proper cleanup
+  // Clear all
   const clearAll = () => {
     if (stats.totalPositions > 0 && !window.confirm('Clear all positions? This cannot be undone.')) {
       return;
     }
     
-    // Reset everything
     setPositions({
       security: [],
       cash: [],
@@ -1855,9 +1792,6 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
       metal: [],
       otherAssets: []
     });
-    setSubmittedIds(new Set());
-    setSelectedPositions(new Set());
-
     setExpandedSections({});
     setAccountExpandedSections({});
     showMessage('success', 'All positions cleared', ['Ready for new entries']);
@@ -1968,10 +1902,7 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
                       <span className="text-gray-500 text-xs truncate">{result.name}</span>
                     </div>
                     <span className="font-medium text-gray-700 ml-2 text-sm">
-                       {(() => {
-                           const p = getQuotePrice(result);
-                           return p != null ? `$${p.toFixed(2)}` : '—';
-                        })()}
+                      ${parseFloat(result.price).toFixed(2)}
                     </span>
                   </button>
                 ))}
@@ -1991,7 +1922,7 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
               <select
                 {...commonProps}
                 value={value}
-                onChange={(e) => updatePosition(assetType, position.id, field.key, e.target.value)}
+                onChange={(e) => updatePosition(assetType, position.id, field.key, parseInt(e.target.value))}
                 className={`${baseClass} pr-8 cursor-pointer appearance-none`}
               >
                 <option value="">Select account...</option>
@@ -2102,566 +2033,570 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
               type="text"
               value={value}
               onChange={(e) => updatePosition(assetType, position.id, field.key, e.target.value)}
-              placeholder={field.placeholder}
-              autoComplete={field.autocomplete ? 'on' : 'off'}
-              spellCheck="false"
-              className={baseClass}
-              />
-              {field.autocomplete && value.length > 0 && (
-              <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 animate-pulse" />
-              )}
-              </div>
-              );
-              }
-              };
-
-
-
-
-
-
-  // Render asset section
-  const renderAssetSection = (assetType) => {
-    const config = assetTypes[assetType];
-    const typePositions = positions[assetType] || [];
+placeholder={field.placeholder}
+autoComplete={field.autocomplete ? 'on' : 'off'}
+spellCheck="false"
+className={baseClass}
+/>
+{field.autocomplete && value.length > 0 && (
+<Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 animate-pulse" />
+)}
+</div>
+);
+}
+};
+// Render asset section
+const renderAssetSection = (assetType) => {
+  const config = assetTypes[assetType];
+  const typePositions = positions[assetType] || [];
   
-    // Special validation for otherAssets
-    const validPositions = assetType === 'otherAssets'
-        ? typePositions.filter(p => p.data.asset_name && p.data.current_value)
-        : typePositions.filter(p => p.data.account_id);
-        
-      const isExpanded = expandedSections[assetType];
-      const Icon = config.icon;
-      const typeStats = stats.byType[assetType];
-      const performance = stats.performance[assetType];
+  // Special validation for otherAssets
+  const validPositions = assetType === 'otherAssets'
+    ? typePositions.filter(p => p.data.asset_name && p.data.current_value)
+    : typePositions.filter(p => p.data.account_id);
+    
+  const isExpanded = expandedSections[assetType];
+  const Icon = config.icon;
+  const typeStats = stats.byType[assetType];
+  const performance = stats.performance[assetType];
 
-    return (
-        <div 
-          key={assetType} 
-          className={`
-            bg-white rounded-xl shadow-sm border overflow-hidden transition-all duration-300
-            ${isExpanded ? 'border-gray-200 shadow-md' : 'border-gray-100'}
-            ${typePositions.length > 0 ? 'ring-1 ring-gray-100' : ''}
-          `}
-        >
-          {/* Section Header - Entire row is clickable */}
-          <div 
-            onClick={() => toggleSection(assetType)}
-            className={`
-              px-4 py-3 cursor-pointer transition-all duration-200
-              ${isExpanded 
-                ? `bg-gradient-to-r ${config.color.gradient} text-white shadow-sm` 
-                : 'bg-gray-50 hover:bg-gray-100'
-                }
-              `}
-            >
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-3 flex-1">
-                  <div className={`
-                    p-2 rounded-lg transition-all duration-200 
-                    ${isExpanded ? 'bg-white/20' : `${config.color.lightBg}`}
-                  `}>
-                    <Icon className={`w-5 h-5 ${isExpanded ? 'text-white' : config.color.text}`} />
-                  </div>
-                  
-                  <div className="flex-1">
-                    <h3 className={`font-semibold text-base flex items-center ${
-                      isExpanded ? 'text-white' : 'text-gray-800'
-                    }`}>
-                      {config.name}
-                      {validPositions.length > 0 && (
-                        <span className={`
-                          ml-2 px-2 py-0.5 text-xs font-bold rounded-full
-                          ${isExpanded ? 'bg-white/20 text-white' : `${config.color.bg} text-white`}
-                        `}>
-                          {validPositions.length}
-                        </span>
-                      )}
-                    </h3>
-                    <p className={`text-xs mt-0.5 ${isExpanded ? 'text-white/80' : 'text-gray-500'}`}>
-                      {config.description}
-                    </p>
-                  </div>
-                  
-                  {typeStats && typeStats.count > 0 && (
-                    <div className={`flex items-center space-x-4 text-xs ${
-                      isExpanded ? 'text-white/90' : 'text-gray-600'
-                    }`}>
-                      <div className="text-right">
-                        <div className="font-medium">
-                          {showValues ? formatCurrency(typeStats.value) : '••••'}
-                        </div>
-                        {performance !== undefined && (
-                          <div className={`flex items-center justify-end ${
-                            performance >= 0 ? 'text-green-400' : 'text-red-400'
-                          }`}>
-                            {performance >= 0 ? <TrendingUp className="w-3 h-3 mr-1" /> : <TrendingDown className="w-3 h-3 mr-1" />}
-                            {Math.abs(performance).toFixed(1)}%
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  )}
-                </div>
-                
-                <div className="flex items-center space-x-2 ml-3">
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      addNewRow(assetType);
-                      if (!isExpanded) {
-                        setExpandedSections(prev => ({ ...prev, [assetType]: true }));
-                      }
-                    }}
-                    className={`
-                      p-1.5 rounded-lg transition-all duration-200 
-                      ${isExpanded 
-                        ? 'bg-white/20 hover:bg-white/30 text-white' 
-                        : `${config.color.lightBg} hover:${config.color.hover} ${config.color.text}`
-                      }
-                    `}
-                    title={`Add ${config.name}`}
-                  >
-                    <Plus className="w-4 h-4" />
-                  </button>
-                  
-                  <ChevronDown className={`
-                    w-5 h-5 transition-transform duration-300
-                    ${isExpanded ? 'rotate-180 text-white' : 'text-gray-400'}
-                  `} />
-                </div>
-              </div>
-            </div>
 
-            {/* Table Content */}
-            {isExpanded && (
-              <div className="bg-white animate-in slide-in-from-top-2 duration-300">
-                {typePositions.length === 0 ? (
-                  <div className="p-8 text-center">
-                    <div className={`inline-flex p-4 rounded-full ${config.color.lightBg} mb-4`}>
-                      <Icon className={`w-8 h-8 ${config.color.text}`} />
-                    </div>
-                    <p className="text-gray-600 mb-4">No {config.name.toLowerCase()} positions yet</p>
-                    <button
-                      onClick={() => addNewRow(assetType)}
-                      className={`
-                        inline-flex items-center px-4 py-2 rounded-lg font-medium transition-all duration-200
-                        ${config.color.bg} text-white hover:shadow-md hover:scale-105
-                      `}
-                    >
-                      <Plus className="w-4 h-4 mr-2" />
-                      Add First {config.name}
-                    </button>
-                  </div>
-                ) : (
-                  <>
-                    <div className="overflow-x-auto overflow-y-visible" ref={el => tableRefs.current[assetType] = el}>
-                      <table className="w-full">
-                        <thead>
-                          <tr className="bg-gray-50 border-b border-gray-200">
-                            <th className="w-12 px-3 py-3 text-left">
-                              <span className="text-xs font-semibold text-gray-600">#</span>
-                            </th>
-                            {config.fields.map(field => (
-                              <th key={field.key} className={`${field.width} px-2 py-3 text-left`}>
-                                <span className="text-xs font-semibold text-gray-600 flex items-center">
-                                  {field.label}
-                                  {field.required && <span className="text-red-500 ml-1">*</span>}
-                                  {field.readOnly && (
-                                    <Info className="w-3 h-3 ml-1 text-gray-400" title="Auto-filled from search" />
-                                  )}
-                                </span>
-                              </th>
-                            ))}
-                            <th className="w-24 px-2 py-3 text-center">
-                              <span className="text-xs font-semibold text-gray-600">Actions</span>
-                            </th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {typePositions.map((position, index) => {
-                            const hasErrors = Object.values(position.errors || {}).some(e => e);
-                            const value = calculatePositionValue(assetType, position);
-                            
-                            return (
-                              <tr 
-                                key={position.id}
-                                className={`
-                                  border-b border-gray-100 transition-all duration-300 group relative
-                                  ${position.isNew ? 'bg-blue-50/50' : 'hover:bg-gray-50/50'}
-                                  ${position.animateIn ? 'animate-in slide-in-from-left duration-300' : ''}
-                                  ${position.animateOut ? 'animate-out slide-out-to-right duration-300' : ''}
-                                  ${hasErrors ? 'bg-red-50/30' : ''}
-                                `}
-                                style={{ zIndex: typePositions.length - index }}
-                              >
-                                <td className="px-3 py-2">
-                                  <div className="flex items-center space-x-2">
-                                    <span className="text-sm font-medium text-gray-500">
-                                      {index + 1}
-                                    </span>
-                                    {position.isNew && (
-                                      <span className="w-2 h-2 bg-blue-500 rounded-full animate-pulse" />
-                                    )}
-                                  </div>
-                                </td>
-                                {config.fields.map(field => (
-                                  <td key={field.key} className={`${field.width} px-1 py-2`}>
-                                    {renderCellInput(
-                                      assetType, 
-                                      position, 
-                                      field, 
-                                      `${assetType}-${position.id}-${field.key}`
-                                    )}
-                                  </td>
-                                ))}
-                                <td className="px-2 py-2">
-                                  <div className="flex items-center justify-center space-x-1">
-                                    <button
-                                      onClick={() => duplicatePosition(assetType, position)}
-                                      className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all duration-200"
-                                      title="Duplicate (Ctrl+D)"
-                                    >
-                                      <Copy className="w-4 h-4" />
-                                    </button>
-                                    <button
-                                      onClick={() => deletePosition(assetType, position.id)}
-                                      className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all duration-200"
-                                      title="Delete (Ctrl+Del)"
-                                    >
-                                      <Trash2 className="w-4 h-4" />
-                                    </button>
-                                    {value > 0 && showValues && (
-                                      <div className="ml-2 px-2 py-1 bg-gray-100 rounded text-xs font-medium text-gray-600">
-                                        {formatCurrency(value)}
-                                      </div>
-                                    )}
-                                  </div>
-                                </td>
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
-                    </div>
-                    
-                    {/* Add row footer */}
-                    <div className="p-3 bg-gray-50 border-t border-gray-100">
-                      <button
-                        onClick={() => addNewRow(assetType)}
-                        className={`
-                          w-full py-2 px-4 border-2 border-dashed rounded-lg
-                          transition-all duration-200 flex items-center justify-center space-x-2
-                          ${config.color.border} ${config.color.hover} hover:border-solid
-                          group
-                        `}
-                      >
-                        <Plus className={`w-4 h-4 ${config.color.text} group-hover:scale-110 transition-transform`} />
-                        <span className={`text-sm font-medium ${config.color.text}`}>
-                          Add {config.name} (Enter)
-                        </span>
-                      </button>
-                    </div>
-                  </>
-                )}
-              </div>
-            )}
-          </div>
-        );
-      };
 
- 
-  // Render positions by account
-  const renderByAccount = () => {
+return (
+  <div 
+    key={assetType} 
+    className={`
+      bg-white rounded-xl shadow-sm border overflow-hidden transition-all duration-300
+      ${isExpanded ? 'border-gray-200 shadow-md' : 'border-gray-100'}
+      ${typePositions.length > 0 ? 'ring-1 ring-gray-100' : ''}
+    `}
+  >
+    {/* Section Header - Entire row is clickable */}
+    <div 
+      onClick={() => toggleSection(assetType)}
+      className={`
+        px-4 py-3 cursor-pointer transition-all duration-200
+        ${isExpanded 
+          ? `bg-gradient-to-r ${config.color.gradient} text-white shadow-sm` 
+          : 'bg-gray-50 hover:bg-gray-100'
+           }
+         `}
+       >
+         <div className="flex items-center justify-between">
+           <div className="flex items-center space-x-3 flex-1">
+             <div className={`
+               p-2 rounded-lg transition-all duration-200 
+               ${isExpanded ? 'bg-white/20' : `${config.color.lightBg}`}
+             `}>
+               <Icon className={`w-5 h-5 ${isExpanded ? 'text-white' : config.color.text}`} />
+             </div>
+             
+             <div className="flex-1">
+               <h3 className={`font-semibold text-base flex items-center ${
+                 isExpanded ? 'text-white' : 'text-gray-800'
+               }`}>
+                 {config.name}
+                 {validPositions.length > 0 && (
+                   <span className={`
+                     ml-2 px-2 py-0.5 text-xs font-bold rounded-full
+                     ${isExpanded ? 'bg-white/20 text-white' : `${config.color.bg} text-white`}
+                   `}>
+                     {validPositions.length}
+                   </span>
+                 )}
+               </h3>
+               <p className={`text-xs mt-0.5 ${isExpanded ? 'text-white/80' : 'text-gray-500'}`}>
+                 {config.description}
+               </p>
+             </div>
+             
+             {typeStats && typeStats.count > 0 && (
+               <div className={`flex items-center space-x-4 text-xs ${
+                 isExpanded ? 'text-white/90' : 'text-gray-600'
+               }`}>
+                 <div className="text-right">
+                   <div className="font-medium">
+                     {showValues ? formatCurrency(typeStats.value) : '••••'}
+                   </div>
+                   {performance !== undefined && (
+                     <div className={`flex items-center justify-end ${
+                       performance >= 0 ? 'text-green-400' : 'text-red-400'
+                     }`}>
+                       {performance >= 0 ? <TrendingUp className="w-3 h-3 mr-1" /> : <TrendingDown className="w-3 h-3 mr-1" />}
+                       {Math.abs(performance).toFixed(1)}%
+                     </div>
+                   )}
+                 </div>
+               </div>
+             )}
+           </div>
+           
+           <div className="flex items-center space-x-2 ml-3">
+             <button
+               onClick={(e) => {
+                 e.stopPropagation();
+                 addNewRow(assetType);
+                 if (!isExpanded) {
+                   setExpandedSections(prev => ({ ...prev, [assetType]: true }));
+                 }
+               }}
+               className={`
+                 p-1.5 rounded-lg transition-all duration-200 
+                 ${isExpanded 
+                   ? 'bg-white/20 hover:bg-white/30 text-white' 
+                   : `${config.color.lightBg} hover:${config.color.hover} ${config.color.text}`
+                 }
+               `}
+               title={`Add ${config.name}`}
+             >
+               <Plus className="w-4 h-4" />
+             </button>
+             
+             <ChevronDown className={`
+               w-5 h-5 transition-transform duration-300
+               ${isExpanded ? 'rotate-180 text-white' : 'text-gray-400'}
+             `} />
+           </div>
+         </div>
+       </div>
+
+       {/* Table Content */}
+       {isExpanded && (
+         <div className="bg-white animate-in slide-in-from-top-2 duration-300">
+           {typePositions.length === 0 ? (
+             <div className="p-8 text-center">
+               <div className={`inline-flex p-4 rounded-full ${config.color.lightBg} mb-4`}>
+                 <Icon className={`w-8 h-8 ${config.color.text}`} />
+               </div>
+               <p className="text-gray-600 mb-4">No {config.name.toLowerCase()} positions yet</p>
+               <button
+                 onClick={() => addNewRow(assetType)}
+                 className={`
+                   inline-flex items-center px-4 py-2 rounded-lg font-medium transition-all duration-200
+                   ${config.color.bg} text-white hover:shadow-md hover:scale-105
+                 `}
+               >
+                 <Plus className="w-4 h-4 mr-2" />
+                 Add First {config.name}
+               </button>
+             </div>
+           ) : (
+             <>
+              <div className="overflow-x-auto overflow-y-visible" ref={el => tableRefs.current[assetType] = el}>
+                 <table className="w-full">
+                   <thead>
+                     <tr className="bg-gray-50 border-b border-gray-200">
+                       <th className="w-12 px-3 py-3 text-left">
+                         <span className="text-xs font-semibold text-gray-600">#</span>
+                       </th>
+                       {config.fields.map(field => (
+                         <th key={field.key} className={`${field.width} px-2 py-3 text-left`}>
+                           <span className="text-xs font-semibold text-gray-600 flex items-center">
+                             {field.label}
+                             {field.required && <span className="text-red-500 ml-1">*</span>}
+                             {field.readOnly && (
+                               <Info className="w-3 h-3 ml-1 text-gray-400" title="Auto-filled from search" />
+                             )}
+                           </span>
+                         </th>
+                       ))}
+                       <th className="w-24 px-2 py-3 text-center">
+                         <span className="text-xs font-semibold text-gray-600">Actions</span>
+                       </th>
+                     </tr>
+                   </thead>
+                   <tbody>
+                     {typePositions.map((position, index) => {
+                       const hasErrors = Object.values(position.errors || {}).some(e => e);
+                       const value = calculatePositionValue(assetType, position);
+                       
+                       return (
+                        <tr 
+                          key={position.id}
+                          className={`
+                            border-b border-gray-100 transition-all duration-300 group relative
+                            ${position.isNew ? 'bg-blue-50/50' : 'hover:bg-gray-50/50'}
+                            ${position.animateIn ? 'animate-in slide-in-from-left duration-300' : ''}
+                            ${position.animateOut ? 'animate-out slide-out-to-right duration-300' : ''}
+                            ${hasErrors ? 'bg-red-50/30' : ''}
+                          `}
+                          style={{ zIndex: typePositions.length - index }}
+                        >
+                           <td className="px-3 py-2">
+                             <div className="flex items-center space-x-2">
+                               <span className="text-sm font-medium text-gray-500">
+                                 {index + 1}
+                               </span>
+                               {position.isNew && (
+                                 <span className="w-2 h-2 bg-blue-500 rounded-full animate-pulse" />
+                               )}
+                             </div>
+                           </td>
+                           {config.fields.map(field => (
+                             <td key={field.key} className={`${field.width} px-1 py-2`}>
+                               {renderCellInput(
+                                 assetType, 
+                                 position, 
+                                 field, 
+                                 `${assetType}-${position.id}-${field.key}`
+                               )}
+                             </td>
+                           ))}
+                           <td className="px-2 py-2">
+                             <div className="flex items-center justify-center space-x-1">
+                               <button
+                                 onClick={() => duplicatePosition(assetType, position)}
+                                 className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all duration-200"
+                                 title="Duplicate (Ctrl+D)"
+                               >
+                                 <Copy className="w-4 h-4" />
+                               </button>
+                               <button
+                                 onClick={() => deletePosition(assetType, position.id)}
+                                 className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all duration-200"
+                                 title="Delete (Ctrl+Del)"
+                               >
+                                 <Trash2 className="w-4 h-4" />
+                               </button>
+                               {value > 0 && showValues && (
+                                 <div className="ml-2 px-2 py-1 bg-gray-100 rounded text-xs font-medium text-gray-600">
+                                   {formatCurrency(value)}
+                                 </div>
+                               )}
+                             </div>
+                           </td>
+                         </tr>
+                       );
+                     })}
+                   </tbody>
+                 </table>
+               </div>
+               
+               {/* Add row footer */}
+               <div className="p-3 bg-gray-50 border-t border-gray-100">
+                 <button
+                   onClick={() => addNewRow(assetType)}
+                   className={`
+                     w-full py-2 px-4 border-2 border-dashed rounded-lg
+                     transition-all duration-200 flex items-center justify-center space-x-2
+                     ${config.color.border} ${config.color.hover} hover:border-solid
+                     group
+                   `}
+                 >
+                   <Plus className={`w-4 h-4 ${config.color.text} group-hover:scale-110 transition-transform`} />
+                   <span className={`text-sm font-medium ${config.color.text}`}>
+                     Add {config.name} (Enter)
+                   </span>
+                 </button>
+               </div>
+             </>
+           )}
+         </div>
+       )}
+     </div>
+   );
+ };
+
+ // Render positions by account
+ const renderByAccount = () => {
     const otherAssetsPositions = positions.otherAssets.filter(p => 
     p.data.asset_name && p.data.current_value
   );
   
-    return (
-      <div className="space-y-4">
-        {accounts.filter(account => {
-          // Apply account filter
-          const passesAccountFilter = selectedAccountFilter.has(account.id);
-          // Apply institution filter
-          const passesInstitutionFilter = selectedInstitutionFilter.has(account.institution);
-          // Both filters must pass
-          return passesAccountFilter && passesInstitutionFilter;
-        }).map(account => {
-          const accountStats = stats.byAccount[account.id];
-          const hasPositions = accountStats && accountStats.count > 0;
-          
-          return (
-            <div key={account.id} className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-              {/* Account Header with asset type buttons */}
-              <div className="px-4 py-3 bg-gradient-to-r from-gray-50 to-gray-100 border-b border-gray-200">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-4">
-                    <div>
-                      <h3 className="font-semibold text-gray-800">{account.account_name}</h3>
-                      <p className="text-sm text-gray-600 mt-1">
-                        {accountStats ? `${accountStats.count} position${accountStats.count !== 1 ? 's' : ''}` : 'No positions'} • 
-                        {showValues && accountStats ? ` ${formatCurrency(accountStats.value)}` : ' ••••'}
-                      </p>
-                    </div>
-                    
-                    {/* Asset type buttons always visible */}
-                    <div className="flex items-center space-x-2 ml-8">
-                      {Object.entries(assetTypes).map(([type, config]) => {
-                        const Icon = config.icon;
-                        const typeCount = accountStats?.positions.filter(p => p.assetType === type).length || 0;
-                        const hasTypePositions = typeCount > 0;
-                        
-                        return (
-                          <button
-                            key={type}
-                            onClick={() => addNewRowForAccount(account.id, type)}
-                            className={`
-                              inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-medium
-                              transition-all duration-200 group
-                              ${hasTypePositions 
-                                ? `${config.color.bg} text-white hover:shadow-md` 
-                                : `${config.color.lightBg} ${config.color.text} hover:${config.color.bg} hover:text-white`
-                              }
-                            `}
-                            title={`Add ${config.name}`}
-                          >
-                            <Icon className="w-3.5 h-3.5 mr-1.5" />
-                            <span>{config.name}</span>
-                            {typeCount > 0 && (
-                              <span className="ml-1.5 px-1.5 py-0.5 bg-white/20 rounded-full text-[10px] font-bold">
-                                {typeCount}
-                              </span>
-                            )}
-                            <Plus className="w-3 h-3 ml-1 opacity-0 group-hover:opacity-100 transition-opacity" />
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                </div>
-              </div>
+  return (
+     <div className="space-y-4">
+      {accounts.filter(account => {
+        // Apply account filter
+        const passesAccountFilter = selectedAccountFilter.has(account.id);
+        // Apply institution filter
+        const passesInstitutionFilter = selectedInstitutionFilter.has(account.institution);
+        // Both filters must pass
+        return passesAccountFilter && passesInstitutionFilter;
+      }).map(account => {
+         const accountStats = stats.byAccount[account.id];
+         const hasPositions = accountStats && accountStats.count > 0;
+         
+         return (
+           <div key={account.id} className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+             {/* Account Header with asset type buttons */}
+             <div className="px-4 py-3 bg-gradient-to-r from-gray-50 to-gray-100 border-b border-gray-200">
+               <div className="flex items-center justify-between">
+                 <div className="flex items-center space-x-4">
+                   <div>
+                     <h3 className="font-semibold text-gray-800">{account.account_name}</h3>
+                     <p className="text-sm text-gray-600 mt-1">
+                       {accountStats ? `${accountStats.count} position${accountStats.count !== 1 ? 's' : ''}` : 'No positions'} • 
+                       {showValues && accountStats ? ` ${formatCurrency(accountStats.value)}` : ' ••••'}
+                     </p>
+                   </div>
+                   
+                   {/* Asset type buttons always visible */}
+                   <div className="flex items-center space-x-2 ml-8">
+                     {Object.entries(assetTypes).map(([type, config]) => {
+                       const Icon = config.icon;
+                       const typeCount = accountStats?.positions.filter(p => p.assetType === type).length || 0;
+                       const hasTypePositions = typeCount > 0;
+                       
+                       return (
+                         <button
+                           key={type}
+                           onClick={() => addNewRowForAccount(account.id, type)}
+                           className={`
+                             inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-medium
+                             transition-all duration-200 group
+                             ${hasTypePositions 
+                               ? `${config.color.bg} text-white hover:shadow-md` 
+                               : `${config.color.lightBg} ${config.color.text} hover:${config.color.bg} hover:text-white`
+                             }
+                           `}
+                           title={`Add ${config.name}`}
+                         >
+                           <Icon className="w-3.5 h-3.5 mr-1.5" />
+                           <span>{config.name}</span>
+                           {typeCount > 0 && (
+                             <span className="ml-1.5 px-1.5 py-0.5 bg-white/20 rounded-full text-[10px] font-bold">
+                               {typeCount}
+                             </span>
+                           )}
+                           <Plus className="w-3 h-3 ml-1 opacity-0 group-hover:opacity-100 transition-opacity" />
+                         </button>
+                       );
+                     })}
+                   </div>
+                 </div>
+               </div>
+             </div>
 
-              {/* Positions by Type */}
-              <div className="p-4 space-y-4">
-                {hasPositions ? (
-                  Object.entries(assetTypes).map(([type, config]) => {
-                    const typePositions = positions[type].filter(p => p.data.account_id === account.id);
-                    if (typePositions.length === 0) return null;
+             {/* Positions by Type */}
+             <div className="p-4 space-y-4">
+               {hasPositions ? (
+                 Object.entries(assetTypes).map(([type, config]) => {
+                   const typePositions = positions[type].filter(p => p.data.account_id === account.id);
+                   if (typePositions.length === 0) return null;
 
-                    const Icon = config.icon;
-                    const sectionKey = `${account.id}-${type}`;
-                    const isExpanded = accountExpandedSections[sectionKey] !== false; // Default expanded
-                    
-                    return (
-                      <div key={type} className="border border-gray-200 rounded-lg overflow-hidden">
-                        <div 
-                          onClick={() => setAccountExpandedSections(prev => ({
-                            ...prev,
-                            [sectionKey]: !isExpanded
-                          }))}
-                          className={`px-3 py-2 ${config.color.lightBg} border-b ${config.color.border} cursor-pointer hover:brightness-95 transition-all`}
-                        >
-                          <h4 className={`font-medium text-sm ${config.color.text} flex items-center justify-between`}>
-                            <div className="flex items-center">
-                              <Icon className="w-4 h-4 mr-2" />
-                              {config.name}
-                              <span className={`ml-2 px-1.5 py-0.5 text-xs ${config.color.bg} text-white rounded-full`}>
-                                {typePositions.length}
-                              </span>
-                            </div>
-                            <ChevronDown className={`w-4 h-4 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
-                          </h4>
-                        </div>
-                        
-                        {isExpanded && (
-                          <div className="overflow-x-auto">
-                            <table className="w-full text-sm">
-                              <thead>
-                                <tr className="bg-gray-50 border-b border-gray-200">
-                                  {config.fields.filter(f => f.key !== 'account_id').map(field => (
-                                    <th key={field.key} className="px-2 py-2 text-left text-xs font-medium text-gray-600">
-                                      {field.label}
-                                      {field.required && <span className="text-red-500 ml-0.5">*</span>}
-                                    </th>
-                                  ))}
-                                  <th className="px-2 py-2 text-center text-xs font-medium text-gray-600">Actions</th>
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {typePositions.map((position, index) => (
-                                  <tr key={position.id} className="border-b border-gray-100 hover:bg-gray-50">
-                                    {config.fields.filter(f => f.key !== 'account_id').map(field => (
-                                      <td key={field.key} className="px-1 py-1">
-                                        {renderCellInput(
-                                          type,
-                                          position,
-                                          field,
-                                          `${type}-${position.id}-${field.key}`
-                                        )}
-                                      </td>
-                                    ))}
-                                    <td className="px-1 py-1">
-                                      <div className="flex items-center justify-center space-x-1">
-                                        <button
-                                          onClick={() => duplicatePosition(type, position)}
-                                          className="p-1 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-all"
-                                          title="Duplicate"
-                                        >
-                                          <Copy className="w-3 h-3" />
-                                        </button>
-                                        <button
-                                          onClick={() => deletePosition(type, position.id)}
-                                          className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-all"
-                                          title="Delete"
-                                        >
-                                          <Trash2 className="w-3 h-3" />
-                                        </button>
-                                      </div>
-                                    </td>
-                                  </tr>
-                                ))}
-                              </tbody>
-                            </table>
-                            <div className="p-2 bg-gray-50 border-t border-gray-100">
-                              <button
-                                onClick={() => addNewRowForAccount(account.id, type)}
-                                className={`
-                                  w-full py-1.5 px-3 text-xs font-medium rounded
-                                  ${config.color.lightBg} ${config.color.text} 
-                                  hover:${config.color.bg} hover:text-white transition-all
-                                  flex items-center justify-center space-x-1
-                                `}
-                              >
-                                <Plus className="w-3 h-3" />
-                                <span>Add {config.name}</span>
-                              </button>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })
-                ) : (
-                  <p className="text-gray-500 text-sm text-center py-4">
-                    Click any asset type button above to start adding positions
+                   const Icon = config.icon;
+                   const sectionKey = `${account.id}-${type}`;
+                   const isExpanded = accountExpandedSections[sectionKey] !== false; // Default expanded
+                   
+                   return (
+                     <div key={type} className="border border-gray-200 rounded-lg overflow-hidden">
+                       <div 
+                         onClick={() => setAccountExpandedSections(prev => ({
+                           ...prev,
+                           [sectionKey]: !isExpanded
+                         }))}
+                         className={`px-3 py-2 ${config.color.lightBg} border-b ${config.color.border} cursor-pointer hover:brightness-95 transition-all`}
+                       >
+                         <h4 className={`font-medium text-sm ${config.color.text} flex items-center justify-between`}>
+                           <div className="flex items-center">
+                             <Icon className="w-4 h-4 mr-2" />
+                             {config.name}
+                             <span className={`ml-2 px-1.5 py-0.5 text-xs ${config.color.bg} text-white rounded-full`}>
+                               {typePositions.length}
+                             </span>
+                           </div>
+                           <ChevronDown className={`w-4 h-4 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
+                         </h4>
+                       </div>
+                       
+                       {isExpanded && (
+                         <div className="overflow-x-auto">
+                           <table className="w-full text-sm">
+                             <thead>
+                               <tr className="bg-gray-50 border-b border-gray-200">
+                                 {config.fields.filter(f => f.key !== 'account_id').map(field => (
+                                   <th key={field.key} className="px-2 py-2 text-left text-xs font-medium text-gray-600">
+                                     {field.label}
+                                     {field.required && <span className="text-red-500 ml-0.5">*</span>}
+                                   </th>
+                                 ))}
+                                 <th className="px-2 py-2 text-center text-xs font-medium text-gray-600">Actions</th>
+                               </tr>
+                             </thead>
+                             <tbody>
+                               {typePositions.map((position, index) => (
+                                 <tr key={position.id} className="border-b border-gray-100 hover:bg-gray-50">
+                                   {config.fields.filter(f => f.key !== 'account_id').map(field => (
+                                     <td key={field.key} className="px-1 py-1">
+                                       {renderCellInput(
+                                         type,
+                                         position,
+                                         field,
+                                         `${type}-${position.id}-${field.key}`
+                                       )}
+                                     </td>
+                                   ))}
+                                   <td className="px-1 py-1">
+                                     <div className="flex items-center justify-center space-x-1">
+                                       <button
+                                         onClick={() => duplicatePosition(type, position)}
+                                         className="p-1 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-all"
+                                         title="Duplicate"
+                                       >
+                                         <Copy className="w-3 h-3" />
+                                       </button>
+                                       <button
+                                         onClick={() => deletePosition(type, position.id)}
+                                         className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-all"
+                                         title="Delete"
+                                       >
+                                         <Trash2 className="w-3 h-3" />
+                                       </button>
+                                     </div>
+                                   </td>
+                                 </tr>
+                               ))}
+                             </tbody>
+                           </table>
+                           <div className="p-2 bg-gray-50 border-t border-gray-100">
+                             <button
+                               onClick={() => addNewRowForAccount(account.id, type)}
+                               className={`
+                                 w-full py-1.5 px-3 text-xs font-medium rounded
+                                 ${config.color.lightBg} ${config.color.text} 
+                                 hover:${config.color.bg} hover:text-white transition-all
+                                 flex items-center justify-center space-x-1
+                               `}
+                             >
+                               <Plus className="w-3 h-3" />
+                               <span>Add {config.name}</span>
+                             </button>
+                           </div>
+                         </div>
+                       )}
+                     </div>
+                   );
+                 })
+               ) : (
+                 <p className="text-gray-500 text-sm text-center py-4">
+                   Click any asset type button above to start adding positions
+                 </p>
+               )}
+             </div>
+           </div>
+         );
+       })}
+
+        {/* Add Other Assets section at the end if there are any */}
+        {otherAssetsPositions.length > 0 && (
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden mt-4">
+            <div className="px-4 py-3 bg-gradient-to-r from-gray-50 to-gray-100 border-b border-gray-200">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="font-semibold text-gray-800">Other Assets (Not in Accounts)</h3>
+                  <p className="text-sm text-gray-600 mt-1">
+                    {otherAssetsPositions.length} asset{otherAssetsPositions.length !== 1 ? 's' : ''} • 
+                    {showValues ? ` ${formatCurrency(stats.byType.otherAssets?.value || 0)}` : ' ••••'}
                   </p>
-                )}
+                </div>
+                
+                <button
+                  onClick={() => {
+                    addNewRow('otherAssets');
+                    if (!expandedSections.otherAssets) {
+                      setExpandedSections(prev => ({ ...prev, otherAssets: true }));
+                    }
+                  }}
+                  className={`
+                    inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-medium
+                    transition-all duration-200 group
+                    ${assetTypes.otherAssets.color.lightBg} ${assetTypes.otherAssets.color.text} 
+                    hover:${assetTypes.otherAssets.color.bg} hover:text-white
+                  `}
+                >
+                  <Home className="w-3.5 h-3.5 mr-1.5" />
+                  <span>Add Other Asset</span>
+                  <Plus className="w-3 h-3 ml-1 opacity-0 group-hover:opacity-100 transition-opacity" />
+                </button>
               </div>
             </div>
-          );
-        })}
 
-          {/* Add Other Assets section at the end if there are any */}
-          {otherAssetsPositions.length > 0 && (
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden mt-4">
-              <div className="px-4 py-3 bg-gradient-to-r from-gray-50 to-gray-100 border-b border-gray-200">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h3 className="font-semibold text-gray-800">Other Assets (Not in Accounts)</h3>
-                    <p className="text-sm text-gray-600 mt-1">
-                      {otherAssetsPositions.length} asset{otherAssetsPositions.length !== 1 ? 's' : ''} • 
-                      {showValues ? ` ${formatCurrency(stats.byType.otherAssets?.value || 0)}` : ' ••••'}
-                    </p>
-                  </div>
-                  
-                  <button
-                    onClick={() => {
-                      addNewRow('otherAssets');
-                      if (!expandedSections.otherAssets) {
-                        setExpandedSections(prev => ({ ...prev, otherAssets: true }));
-                      }
-                    }}
-                    className={`
-                      inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-medium
-                      transition-all duration-200 group
-                      ${assetTypes.otherAssets.color.lightBg} ${assetTypes.otherAssets.color.text} 
-                      hover:${assetTypes.otherAssets.color.bg} hover:text-white
-                    `}
-                  >
-                    <Home className="w-3.5 h-3.5 mr-1.5" />
-                    <span>Add Other Asset</span>
-                    <Plus className="w-3 h-3 ml-1 opacity-0 group-hover:opacity-100 transition-opacity" />
-                  </button>
-                </div>
-              </div>
-
-              <div className="p-4">
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="bg-gray-50 border-b border-gray-200">
-                        {assetTypes.otherAssets.fields.map(field => (
-                          <th key={field.key} className="px-2 py-2 text-left text-xs font-medium text-gray-600">
-                            {field.label}
-                            {field.required && <span className="text-red-500 ml-0.5">*</span>}
-                          </th>
-                        ))}
-                        <th className="px-2 py-2 text-center text-xs font-medium text-gray-600">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {otherAssetsPositions.map((position, index) => (
-                        <tr key={position.id} className="border-b border-gray-100 hover:bg-gray-50">
-                          {assetTypes.otherAssets.fields.map(field => (
-                            <td key={field.key} className="px-1 py-1">
-                              {renderCellInput(
-                                'otherAssets',
-                                position,
-                                field,
-                                `otherAssets-${position.id}-${field.key}`
-                              )}
-                            </td>
-                          ))}
-                          <td className="px-1 py-1">
-                            <div className="flex items-center justify-center space-x-1">
-                              <button
-                                onClick={() => duplicatePosition('otherAssets', position)}
-                                className="p-1 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-all"
-                                title="Duplicate"
-                              >
-                                <Copy className="w-3 h-3" />
-                              </button>
-                              <button
-                                onClick={() => deletePosition('otherAssets', position.id)}
-                                className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-all"
-                                title="Delete"
-                              >
-                                <Trash2 className="w-3 h-3" />
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
+            <div className="p-4">
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="bg-gray-50 border-b border-gray-200">
+                      {assetTypes.otherAssets.fields.map(field => (
+                        <th key={field.key} className="px-2 py-2 text-left text-xs font-medium text-gray-600">
+                          {field.label}
+                          {field.required && <span className="text-red-500 ml-0.5">*</span>}
+                        </th>
                       ))}
-                    </tbody>
-                  </table>
-                </div>
+                      <th className="px-2 py-2 text-center text-xs font-medium text-gray-600">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {otherAssetsPositions.map((position, index) => (
+                      <tr key={position.id} className="border-b border-gray-100 hover:bg-gray-50">
+                        {assetTypes.otherAssets.fields.map(field => (
+                          <td key={field.key} className="px-1 py-1">
+                            {renderCellInput(
+                              'otherAssets',
+                              position,
+                              field,
+                              `otherAssets-${position.id}-${field.key}`
+                            )}
+                          </td>
+                        ))}
+                        <td className="px-1 py-1">
+                          <div className="flex items-center justify-center space-x-1">
+                            <button
+                              onClick={() => duplicatePosition('otherAssets', position)}
+                              className="p-1 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-all"
+                              title="Duplicate"
+                            >
+                              <Copy className="w-3 h-3" />
+                            </button>
+                            <button
+                              onClick={() => deletePosition('otherAssets', position.id)}
+                              className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-all"
+                              title="Delete"
+                            >
+                              <Trash2 className="w-3 h-3" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             </div>
-          )}
+          </div>
+        )}
 
-      </div>
-    );
-  };
+     </div>
+   );
+ };
 
-  // Calculate position value helper
-  const calculatePositionValue = (type, position) => {
-    switch (type) {
-      case 'security':
-        return (position.data.shares || 0) * (position.data.price || 0);
-      case 'crypto':
-        return (position.data.quantity || 0) * (position.data.current_price || 0);
-      case 'metal':
-        return (position.data.quantity || 0) * (position.data.current_price_per_unit || position.data.purchase_price || 0);
-      case 'otherAssets':
-        return position.data.current_value || 0;
-      case 'cash':
-        return position.data.amount || 0;
-      default:
-        return 0;
-    }
-  };
+ // Calculate position value helper
+ const calculatePositionValue = (type, position) => {
+   switch (type) {
+     case 'security':
+       return (position.data.shares || 0) * (position.data.price || 0);
+     case 'crypto':
+       return (position.data.quantity || 0) * (position.data.current_price || 0);
+     case 'metal':
+       return (position.data.quantity || 0) * (position.data.current_price_per_unit || position.data.purchase_price || 0);
+     case 'otherAssets':
+       return position.data.current_value || 0;
+     case 'cash':
+       return position.data.amount || 0;
+     default:
+       return 0;
+   }
+ };
 
- 
+ // Format currency helper
+ const formatCurrency = (value) => {
+   if (value >= 1000000) {
+     return `$${(value / 1000000).toFixed(1)}M`;
+   } else if (value >= 1000) {
+     return `$${(value / 1000).toFixed(1)}K`;
+   }
+   return `$${value.toFixed(2)}`;
+ };
+
  return (
    <FixedModal
      isOpen={isOpen}
@@ -2741,7 +2676,17 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
                {showValues ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
              </button>
              
-
+             <button
+               onClick={() => setShowKeyboardShortcuts(!showKeyboardShortcuts)}
+               className={`p-2 rounded-lg transition-all duration-200 ${
+                 showKeyboardShortcuts 
+                   ? 'bg-purple-100 text-purple-700 hover:bg-purple-200' 
+                   : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+               }`}
+               title="Keyboard shortcuts (Ctrl+K)"
+             >
+               <Keyboard className="w-4 h-4" />
+             </button>
              
              <div className="h-6 w-px bg-gray-300"></div>
              
@@ -2916,7 +2861,7 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
            </div>
          )}
 
-         {/* Keyboard shortcuts hint - triggered by icon only */}
+         {/* Keyboard shortcuts hint */}
          {showKeyboardShortcuts && (
            <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg animate-in slide-in-from-top duration-300">
              <div className="flex items-start space-x-2">
@@ -3088,15 +3033,14 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
        )}
 
        {/* Queue Modal */}
-        <QueueModal
-          isOpen={showQueue}
-          onClose={() => setShowQueue(false)}
-          positions={positions}
-          assetTypes={assetTypes}
-          accounts={accounts}
-          onClearCompleted={clearCompletedPositions}
-          isValidPositionFn={isValidPosition}
-        />
+       <QueueModal
+         isOpen={showQueue}
+         onClose={() => setShowQueue(false)}
+         positions={positions}
+         assetTypes={assetTypes}
+         accounts={accounts}
+         onClearCompleted={clearCompletedPositions}
+       />
      </div>
 
      <style jsx>{`
