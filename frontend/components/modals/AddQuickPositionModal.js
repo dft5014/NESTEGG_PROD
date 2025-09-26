@@ -420,7 +420,7 @@ const AccountFilter = ({ accounts, selectedAccounts, onChange, filterType = 'acc
 };
 
 // Queue modal component
-const QueueModal = ({ isOpen, onClose, positions, assetTypes, accounts, onClearCompleted }) => {
+const QueueModal = ({ isOpen, onClose, positions, assetTypes, accounts, onClearCompleted, isValidPositionFn }) => {
   const getStatusBadge = (status) => {
     switch (status) {
       case 'success':
@@ -453,7 +453,7 @@ const QueueModal = ({ isOpen, onClose, positions, assetTypes, accounts, onClearC
     Object.entries(positions).forEach(([type, typePositions]) => {
       typePositions.forEach(pos => {
         // Include otherAssets even without account_id
-          const isValid = isValidPosition(type, pos);
+          const isValid = isValidPositionFn ? isValidPositionFn(type, pos) : true;
             
           if (isValid) {
           result.push({ ...pos, assetType: type });
@@ -932,6 +932,44 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
     }
   };
 
+  // Handle security selection from search
+  const handleSelectSecurity = (assetType, positionId, security) => {
+    const searchKey = `${assetType}-${positionId}`;
+    setSelectedSecurities((prev) => ({ ...prev, [searchKey]: security }));
+
+    const px = getQuotePrice(security); // numeric or undefined
+
+    setPositions((prev) => ({
+      ...prev,
+      [assetType]: prev[assetType].map((pos) => {
+        if (pos.id !== positionId) return pos;
+        const d = { ...pos.data };
+
+        if (assetType === 'security') {
+          d.ticker = security.ticker;
+          if (px != null) d.price = px;               // number
+          d.name = security.name;
+          if (d.cost_basis == null && d.price != null) d.cost_basis = d.price;
+        } else if (assetType === 'crypto') {
+          d.symbol = security.ticker;
+          if (px != null) d.current_price = px;       // number
+          d.name = security.name;
+          if (d.purchase_price == null && d.current_price != null) d.purchase_price = d.current_price;
+        } else if (assetType === 'metal') {
+          d.symbol = security.ticker;
+          if (px != null) d.current_price_per_unit = px; // number
+          d.name = security.name;
+          if (d.purchase_price == null && d.current_price_per_unit != null) d.purchase_price = d.current_price_per_unit;
+        }
+
+        return { ...pos, data: d, errors: { ...pos.errors } };
+      }),
+    }));
+
+    // Clear search results for this row
+    setSearchResults((prev) => ({ ...prev, [searchKey]: [] }));
+  };
+  
   // Debounced search function
   const getQuotePrice = (s) => {
     const v =
@@ -1240,43 +1278,7 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
     }
   };
 
-  // Handle security selection from search
-  const handleSelectSecurity = (assetType, positionId, security) => {
-    const searchKey = `${assetType}-${positionId}`;
-    setSelectedSecurities((prev) => ({ ...prev, [searchKey]: security }));
 
-    const px = getQuotePrice(security); // numeric or undefined
-
-    setPositions((prev) => ({
-      ...prev,
-      [assetType]: prev[assetType].map((pos) => {
-        if (pos.id !== positionId) return pos;
-        const d = { ...pos.data };
-
-        if (assetType === 'security') {
-          d.ticker = security.ticker;
-          if (px != null) d.price = px;               // number
-          d.name = security.name;
-          if (d.cost_basis == null && d.price != null) d.cost_basis = d.price;
-        } else if (assetType === 'crypto') {
-          d.symbol = security.ticker;
-          if (px != null) d.current_price = px;       // number
-          d.name = security.name;
-          if (d.purchase_price == null && d.current_price != null) d.purchase_price = d.current_price;
-        } else if (assetType === 'metal') {
-          d.symbol = security.ticker;
-          if (px != null) d.current_price_per_unit = px; // number
-          d.name = security.name;
-          if (d.purchase_price == null && d.current_price_per_unit != null) d.purchase_price = d.current_price_per_unit;
-        }
-
-        return { ...pos, data: d, errors: { ...pos.errors } };
-      }),
-    }));
-
-    // Clear search results for this row
-    setSearchResults((prev) => ({ ...prev, [searchKey]: [] }));
-  };
 
 
     // --- NEW: auto-hydrate current prices for seeded rows after Excel import ---
@@ -3088,14 +3090,15 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
        )}
 
        {/* Queue Modal */}
-       <QueueModal
-         isOpen={showQueue}
-         onClose={() => setShowQueue(false)}
-         positions={positions}
-         assetTypes={assetTypes}
-         accounts={accounts}
-         onClearCompleted={clearCompletedPositions}
-       />
+        <QueueModal
+          isOpen={showQueue}
+          onClose={() => setShowQueue(false)}
+          positions={positions}
+          assetTypes={assetTypes}
+          accounts={accounts}
+          onClearCompleted={clearCompletedPositions}
+          isValidPositionFn={isValidPosition}
+        />
      </div>
 
      <style jsx>{`
