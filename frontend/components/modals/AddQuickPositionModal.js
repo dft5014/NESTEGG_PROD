@@ -1006,7 +1006,7 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
             // Hydrate prices after a short delay
             setTimeout(() => hydratePrices(seedPositions), 100);
           }
-        }, [isOpen]);
+        }, [isOpen, importPositions]);
         
         // Separate price hydration logic
         const hydratePrices = useCallback(async (positionsToHydrate) => {
@@ -1053,55 +1053,12 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
           });
         }, [fetchPrice, setPositions]);
         
-        (rows ?? []).map((r) => ({
-          id: r?.id ?? (Date.now() + Math.random()),
-          type: type,
-          data: r?.data ?? r,          // accept plain objects or {data}
-          errors: r?.errors ?? {},
-          isNew: true,
-          animateIn: true
-        }));
 
-      const hasSeeds = !!(
-        seedPositions &&
-        (seedPositions.security?.length ||
-        seedPositions.cash?.length ||
-        seedPositions.crypto?.length ||
-        seedPositions.metal?.length)
-      );
-
-      setPositions(
-        hasSeeds
-          ? {
-              security: castSeed(seedPositions.security, 'security'),
-              cash:     castSeed(seedPositions.cash, 'cash'),
-              crypto:   castSeed(seedPositions.crypto, 'crypto'),
-              metal:    castSeed(seedPositions.metal, 'metal'),
-              otherAssets: []
-            }
-          : { security: [], cash: [], crypto: [], metal: [], otherAssets: [] }
-      );
-
-      // reset UI chrome
-      setExpandedSections({});
-      setAccountExpandedSections({});
-      setMessage({ type: '', text: '', details: [] });
-      setActiveFilter('all');
-      setSearchResults({});
-      setSelectedSecurities({});
-      setShowKeyboardShortcuts(true);
-      setTimeout(() => setShowKeyboardShortcuts(false), 3000);
-
-      // 🔑 trigger price hydration after seeds land
-      setTimeout(() => {
-        try { autoHydrateSeededPrices?.(); } catch (e) { console.error(e); }
-      }, 0);
 
       return () => {
         if (messageTimeoutRef.current) clearTimeout(messageTimeoutRef.current);
       };
-      }, [isOpen, seedPositions]); // ← remove autoHydrateSeededPrices to avoid TDZ
-
+    }, [isOpen, seedPositions]);
 
   // Load accounts with better error handling
   const loadAccounts = useCallback(async () => {
@@ -1121,7 +1078,7 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
       console.error('Error loading accounts:', error);
       showMessage('error', 'Failed to load accounts', [`Error: ${error.message}`]);
     }
-  };
+  }, []);
 
   // Enhanced message display
   const showMessage = (type, text, details = [], duration = 5000) => {
