@@ -720,14 +720,25 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
     return { ok: missing.length === 0, missing };
   }, []);
 
-  // ── Compute status label for UI
+  // ── Compute status label for UI (authoritative)
   const getRowStatus = (row) => {
-    if (row.status === "submitting") return "submitting";
-    if (row.status === "added") return "added";
-    if (row.status === "error") return "error";
-    const { ok } = validateRow(row);
-    return ok ? "ready" : "draft";
+    // If a server-side status is present, use it; otherwise fall back to validation
+    if (row?.status === "submitting") return "submitting";
+    if (row?.status === "added") return "added";
+    if (row?.status === "error") return "error";
+    return validateRow(row).ok ? "ready" : "draft";
   };
+
+  // 'any' | 'ready' | 'draft' | 'submitting' | 'added' | 'error' | 'issues'
+  const [statusFilter, setStatusFilter] = useState('any');
+
+  const matchesStatusFilter = (row) => {
+    if (statusFilter === 'any') return true;
+    const s = getRowStatus(row);
+    if (statusFilter === 'issues') return s === 'draft' || s === 'error';
+    return s === statusFilter;
+  };
+
 
   // ---- Account indexing + seed mapping ----
   const accountIndex = useRef({ byName: new Map(), byNameInst: new Map() });
@@ -1936,6 +1947,12 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
       for (let i = 0; i < batches.length; i++) {
         const { type, position } = batches[i];
         
+        // mark this row as submitting
+        updatedPositions[type] = (updatedPositions[type] || []).map(pos =>
+          pos.id === position.id ? { ...pos, status: 'submitting' } : pos
+        );
+        setPositions({ ...updatedPositions });  
+
         try {
           const cleanData = {};
           Object.entries(position.data).forEach(([key, value]) => {
@@ -2087,6 +2104,12 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
 
       for (let i = 0; i < readyEntries.length; i++) {
         const { type, position } = readyEntries[i];
+        // mark this row as submitting
+        updatedPositions[type] = (updatedPositions[type] || []).map(pos =>
+          pos.id === position.id ? { ...pos, status: 'submitting' } : pos
+        );
+        setPositions({ ...updatedPositions });
+        
         try {
           const cleanData = {};
           Object.entries(position.data).forEach(([key, value]) => {
@@ -2478,10 +2501,9 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
   const renderAssetSection = (assetType) => {
     const config = assetTypes[assetType];
     let typePositions = positions[assetType] || [];
-    // If global filter is 'issues', only show rows with issues
-    if (activeFilter === 'issues') {
-      typePositions = typePositions.filter(isIssueRow);
-    }
+    // Type filter still handled by activeFilter outside this function.
+    // Apply the independent status filter here:
+    typePositions = typePositions.filter(matchesStatusFilter);
     
     // Special validation for otherAssets
     const validPositions = assetType === 'otherAssets'
@@ -3176,22 +3198,32 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
                 Delete Selected ({selectedIds.size})
               </button>
 
-              {/* NEW: Select all issue rows */}
-              <button
-                onClick={() => {
-                  const allIssues = getAllIssueRowIds();
-                  setSelectedIds(new Set(allIssues));
-                  if (allIssues.length === 0) {
-                    showMessage('info', 'No issue rows found', []);
-                  } else {
-                    showMessage('info', `Selected ${allIssues.length} rows with issues`, []);
-                  }
-                }}
-                className="px-3 py-1.5 text-sm rounded-md border bg-amber-50 text-amber-800 border-amber-200 hover:bg-amber-100"
-                title="Select all rows that are draft or error"
-              >
-                Select Issues
-              </button>
+              {/* NEW: Filter to show only issue rows */}
+              {/* Status Filter */}
+              <div className="flex items-center space-x-1 ml-2">
+                {[
+                  {k:'any',label:'All'},
+                  {k:'ready',label:'Ready'},
+                  {k:'draft',label:'Draft'},
+                  {k:'submitting',label:'Submitting'},
+                  {k:'added',label:'Added'},
+                  {k:'error',label:'Error'},
+                  {k:'issues',label:'Issues'},
+                ].map(opt => (
+                  <button
+                    key={opt.k}
+                    onClick={() => setStatusFilter(statusFilter === opt.k ? 'any' : opt.k)}
+                    className={`px-2.5 py-1.5 text-xs rounded-md border transition
+                      ${statusFilter === opt.k
+                        ? 'bg-gray-900 text-white border-gray-900'
+                        : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'}`}
+                    title={opt.k === 'issues' ? 'Draft or Error' : `Show ${opt.label}`}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+
 
               {/* NEW: Submit only ready rows */}
               <button
