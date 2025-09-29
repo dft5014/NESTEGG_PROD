@@ -636,6 +636,25 @@ const QueueModal = ({ isOpen, onClose, positions, assetTypes, accounts, onClearC
 const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPositions }) => {
   // Core state
   const [accounts, setAccounts] = useState([]);
+
+  // fast lookup for mapping Excel seeds → account_id
+  const accountIndexRef = useRef({ byName: new Map(), byNameInst: new Map() });
+
+  // simple normalizer for matching
+  const norm = (s) => String(s || '').trim().toLowerCase().replace(/\s+/g, ' ');
+
+  // build two indices: by account_name, and by account_name + institution
+  const buildAccountIndex = (list = []) => {
+    const byName = new Map();
+    const byNameInst = new Map();
+    list.forEach(a => {
+      const n = norm(a.account_name);
+      const i = norm(a.institution);
+      if (n) byName.set(n, a);
+      byNameInst.set(`${n}::${i}`, a);
+    });
+    accountIndexRef.current = { byName, byNameInst };
+  };
   const [positions, setPositions] = useState({
     security: [],
     cash: [],
@@ -982,24 +1001,21 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
       const fetchedAccounts = await fetchAllAccounts();
       setAccounts(fetchedAccounts);
 
-      // Build fast lookup maps for name / institution
+      // build mapping indices for name/institution → account_id
       buildAccountIndex(fetchedAccounts);
-
+      
       const recentIds = fetchedAccounts.slice(0, 3).map(a => a.id);
       setRecentlyUsedAccounts(recentIds);
-
+      
       // Select all by default
       setSelectedAccountFilter(new Set(fetchedAccounts.map(acc => acc.id)));
       setSelectedInstitutionFilter(new Set(fetchedAccounts.map(acc => acc.institution).filter(Boolean)));
-
-      // Backfill any seeded rows that were waiting on accounts
-      backfillSeedAccountIds();
-
     } catch (error) {
       console.error('Error loading accounts:', error);
       showMessage('error', 'Failed to load accounts', [`Error: ${error.message}`]);
     }
   };
+
 
   // Debounced search function
   const debouncedSearch = useCallback(
@@ -1067,8 +1083,49 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
 
       if (!seedAppliedRef.current) {
         // … your existing seed ingestion logic unchanged …
-        const castSeed = (rows, type) =>
-          (rows ?? []).map((r) => normalizeSeedRow(r, type));
+        const castSeed = (rows, type) => {
+          const { byName, byNameInst } = accountIndexRef.current;
+
+          const normalizeKeys = (obj = {}) => {
+            const out = {};
+            for (const [k, v] of Object.entries(obj)) {
+              const nk = k.toString().trim().toLowerCase().replace(/[^\p{L}\p{N}]+/gu, '_');
+              out[nk] = v;
+            }
+            return out;
+          };
+
+          const mapSeedAccountId = (raw = {}) => {
+            const data = normalizeKeys(raw);
+            // if account_id already present, keep it
+            if (data.account_id != null && data.account_id !== '') return { ...raw, account_id: data.account_id };
+
+            const name =
+              (data.account_name ?? data.account ?? data.acct_name ?? data.name ?? '').toString().trim();
+            const inst =
+              (data.institution ?? data.institution_name ?? data.bank ?? data.brokerage ?? data.custodian ?? '').toString().trim();
+
+            if (!name) return raw;
+
+            const n = norm(name);
+            const i = norm(inst);
+
+            const hit = (byNameInst && byNameInst.get(`${n}::${i}`)) || (byName && byName.get(n));
+            return hit ? { ...raw, account_id: hit.id } : raw;
+          };
+
+          return (rows ?? []).map((r) => {
+            const base = mapSeedAccountId(r?.data ?? r);
+            return {
+              id: r?.id ?? (Date.now() + Math.random()),
+              type,
+              data: base,                 // now with account_id if we could map it
+              errors: r?.errors ?? {},
+              isNew: true,
+              animateIn: true
+            };
+          });
+        };
 
         const hasSeeds = !!(
           seedPositions &&
