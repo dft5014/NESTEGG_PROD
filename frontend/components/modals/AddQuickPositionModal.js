@@ -427,9 +427,6 @@ const AccountFilter = ({ accounts, selectedAccounts, onChange, filterType = 'acc
   );
 };
 
-
-
-
 // Queue modal component
 const QueueModal = ({ isOpen, onClose, positions, assetTypes, accounts, onClearCompleted }) => {
   const getStatusBadge = (status) => {
@@ -634,8 +631,29 @@ const QueueModal = ({ isOpen, onClose, positions, assetTypes, accounts, onClearC
 };
 
 const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPositions }) => {
+  // --- Seed identity ---
+  const seedString = JSON.stringify(seedPositions ?? {});
+  const seedId = React.useMemo(() => {
+    let h = 0;
+    for (let i = 0; i < seedString.length; i++) h = (h * 31 + seedString.charCodeAt(i)) | 0;
+    return String(h);
+  }, [seedString]);
+
+  // immutable initial seed per seedId
+  const initialSeedRef = React.useRef({ seedId: null, value: null });
   // Core state
   const [accounts, setAccounts] = useState([]);
+
+  // lock the initial seed once per seedId
+  useEffect(() => {
+    if (initialSeedRef.current.seedId !== seedId) {
+      initialSeedRef.current = {
+        seedId,
+        value: seedPositions || { security: [], cash: [], crypto: [], metal: [], otherAssets: [] }
+      };
+    }
+  }, [seedId, seedPositions]);
+
 
   // fast lookup for mapping Excel seeds → account_id
   const accountIndexRef = useRef({ byName: new Map(), byNameInst: new Map() });
@@ -777,7 +795,35 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
   };
 
 
+  // ── Issue/ready helpers
+  const isIssueRow = (row) => {
+    const s = getRowStatus(row); // uses validateRow internally
+    return s === 'draft' || s === 'error';
+  };
+  const isReadyRow = (row) => getRowStatus(row) === 'ready';
+
+  const getAllIssueRowIds = () => {
+    const ids = [];
+    for (const t of Object.keys(positions)) {
+      (positions[t] || []).forEach((p) => {
+        if (isIssueRow(p)) ids.push(p.id);
+      });
+    }
+    return ids;
+  };
+
+  const getAllReadyRows = () => {
+    const entries = [];
+    for (const [t, arr] of Object.entries(positions)) {
+      (arr || []).forEach((p) => {
+        if (isReadyRow(p)) entries.push({ type: t, position: p });
+      });
+    }
+    return entries;
+  };
+
   // ── Selection toggles
+
   // rowId is the position.id
   const toggleRowSelected = useCallback((rowId, checked) => {
     setSelectedIds(prev => {
@@ -1062,78 +1108,84 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
   );
 
     useEffect(() => {
-      if (!isOpen) {
-        seedAppliedRef.current = false; // allow ingestion next time it opens
-        return;
-      }
+      if (!isOpen) return;
 
       loadAccounts();
 
-      if (!seedAppliedRef.current) {
-        // … your existing seed ingestion logic unchanged …
-        const castSeed = (rows, type) => {
-          const { byName, byNameInst } = accountIndexRef.current;
+      const key = `quickpositions:work:${seedId}`;
 
-          const normalizeKeys = (obj = {}) => {
-            const out = {};
-            for (const [k, v] of Object.entries(obj)) {
-              const nk = k.toString().trim().toLowerCase().replace(/[^\p{L}\p{N}]+/gu, '_');
-              out[nk] = v;
-            }
-            return out;
-          };
+      // one-time init per seedId
+      if (initialSeedRef.current.seedId === seedId && !seedAppliedRef.current) {
+        // Try restoring an existing draft for this seedId
+        const saved = localStorage.getItem(key);
 
-          const mapSeedAccountId = (raw = {}) => {
-            const data = normalizeKeys(raw);
-            // if account_id already present, keep it
-            if (data.account_id != null && data.account_id !== '') return { ...raw, account_id: data.account_id };
+        if (saved) {
+          setPositions(JSON.parse(saved));
+        } else {
+          // Build a *working copy* from the immutable initial seed (no future re-seeding)
+          const base = initialSeedRef.current.value || {};
+          const castSeed = (rows, type) => {
+            const { byName, byNameInst } = accountIndexRef.current;
 
-            const name =
-              (data.account_name ?? data.account ?? data.acct_name ?? data.name ?? '').toString().trim();
-            const inst =
-              (data.institution ?? data.institution_name ?? data.bank ?? data.brokerage ?? data.custodian ?? '').toString().trim();
-
-            if (!name) return raw;
-
-            const n = norm(name);
-            const i = norm(inst);
-
-            const hit = (byNameInst && byNameInst.get(`${n}::${i}`)) || (byName && byName.get(n));
-            return hit ? { ...raw, account_id: hit.id } : raw;
-          };
-
-          return (rows ?? []).map((r) => {
-            const base = mapSeedAccountId(r?.data ?? r);
-            return {
-              id: r?.id ?? (Date.now() + Math.random()),
-              type,
-              data: base,                 // now with account_id if we could map it
-              errors: r?.errors ?? {},
-              isNew: true,
-              animateIn: true
-            };
-          });
-        };
-
-        const hasSeeds = !!(
-          seedPositions &&
-          (seedPositions.security?.length ||
-            seedPositions.cash?.length ||
-            seedPositions.crypto?.length ||
-            seedPositions.metal?.length)
-        );
-
-        setPositions(
-          hasSeeds
-            ? {
-                security: castSeed(seedPositions.security, 'security'),
-                cash:     castSeed(seedPositions.cash, 'cash'),
-                crypto:   castSeed(seedPositions.crypto, 'crypto'),
-                metal:    castSeed(seedPositions.metal, 'metal'),
-                otherAssets: []
+            const normalizeKeys = (obj = {}) => {
+              const out = {};
+              for (const [k, v] of Object.entries(obj)) {
+                const nk = k.toString().trim().toLowerCase().replace(/[^\p{L}\p{N}]+/gu, '_');
+                out[nk] = v;
               }
-            : { security: [], cash: [], crypto: [], metal: [], otherAssets: [] }
-        );
+              return out;
+            };
+
+            const mapSeedAccountId = (raw = {}) => {
+              const data = normalizeKeys(raw);
+              if (data.account_id != null && data.account_id !== '') return { ...raw, account_id: data.account_id };
+
+              const name = (data.account_name ?? data.account ?? data.acct_name ?? data.name ?? '').toString().trim();
+              const inst = (data.institution ?? data.institution_name ?? data.bank ?? data.brokerage ?? data.custodian ?? '').toString().trim();
+              if (!name) return raw;
+
+              const n = norm(name);
+              const i = norm(inst);
+
+              const hit = (byNameInst && byNameInst.get(`${n}::${i}`)) || (byName && byName.get(n));
+              return hit ? { ...raw, account_id: hit.id } : raw;
+            };
+
+            return (rows ?? []).map((r) => {
+              const baseRow = mapSeedAccountId(r?.data ?? r);
+              return {
+                id: r?.id ?? (Date.now() + Math.random()),
+                type,
+                data: baseRow,
+                errors: r?.errors ?? {},
+                isNew: true,
+                animateIn: true
+              };
+            });
+          };
+
+          const hasSeeds = !!(
+            base &&
+            (base.security?.length ||
+              base.cash?.length ||
+              base.crypto?.length ||
+              base.metal?.length ||
+              base.otherAssets?.length)
+          );
+
+          const working = hasSeeds
+            ? {
+                security: castSeed(base.security, 'security'),
+                cash:     castSeed(base.cash, 'cash'),
+                crypto:   castSeed(base.crypto, 'crypto'),
+                metal:    castSeed(base.metal, 'metal'),
+                otherAssets: castSeed(base.otherAssets, 'otherAssets')
+              }
+            : { security: [], cash: [], crypto: [], metal: [], otherAssets: [] };
+
+          setPositions(working);
+          localStorage.setItem(key, JSON.stringify(working));
+        }
 
         seedAppliedRef.current = true;
       }
@@ -1155,8 +1207,16 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
       return () => {
         if (messageTimeoutRef.current) clearTimeout(messageTimeoutRef.current);
       };
-    }, [isOpen, seedPositions]);
+      // IMPORTANT: init is keyed by seedId; do NOT depend on seedPositions here or you'll re-seed
+    }, [isOpen, seedId]);
 
+
+      // persist working copy keyed by seedId
+      useEffect(() => {
+        if (!isOpen) return;
+        const key = `quickpositions:work:${seedId}`;
+        localStorage.setItem(key, JSON.stringify(positions));
+      }, [isOpen, seedId, positions]);
 
 
   // If seeds arrived before accounts, fill in account_id once both are ready
@@ -1164,8 +1224,16 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
     if (!isOpen) return;
     if (!accounts || accounts.length === 0) return;
     backfillSeedAccountIds();
+    // persist after backfill so it sticks
+    const key = `quickpositions:work:${seedId}`;
+    setTimeout(() => {
+      try { localStorage.setItem(key, JSON.stringify(positions)); } catch {}
+    }, 0);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, accounts.length]);
+
+  
+  
   // Enhanced message display
   const showMessage = (type, text, details = [], duration = 5000) => {
     setMessage({ type, text, details });
@@ -1992,23 +2060,165 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
     }
   };
 
+  // Submit only 'ready' rows using the same pipeline as submitAll
+  const submitReadyOnly = async () => {
+    if (stats.totalPositions === 0) {
+      showMessage('error', 'No positions to submit', ['Add at least one position before submitting']);
+      return;
+    }
+
+    // Build a mini-batch from current positions but only include ready rows
+    const readyEntries = getAllReadyRows();
+    if (readyEntries.length === 0) {
+      showMessage('info', 'No ready rows to submit', ['Fix issues first or use Submit All']);
+      return;
+    }
+
+    // We re-use the core of submitAll with a filtered "batches" list
+    setIsSubmitting(true);
+    let successCount = 0;
+    let errorCount = 0;
+    const errors = [];
+    const updatedPositions = { ...positions };
+    const successfulPositionData = [];
+
+    try {
+      showMessage('info', `Submitting ${readyEntries.length} ready positions...`, [], 0);
+
+      for (let i = 0; i < readyEntries.length; i++) {
+        const { type, position } = readyEntries[i];
+        try {
+          const cleanData = {};
+          Object.entries(position.data).forEach(([key, value]) => {
+            if (value !== '' && value !== null && value !== undefined) {
+              cleanData[key] = value;
+            }
+          });
+
+          switch (type) {
+            case 'security':
+              await addSecurityPosition(position.data.account_id, cleanData);
+              break;
+            case 'crypto': {
+              const cryptoData = {
+                coin_symbol: cleanData.symbol,
+                coin_type: cleanData.name || cleanData.symbol,
+                quantity: cleanData.quantity,
+                purchase_price: cleanData.purchase_price,
+                purchase_date: cleanData.purchase_date,
+                account_id: cleanData.account_id,
+                storage_type: cleanData.storage_type || 'Exchange',
+                notes: cleanData.notes || null,
+                tags: cleanData.tags || [],
+                is_favorite: cleanData.is_favorite || false
+              };
+              await addCryptoPosition(position.data.account_id, cryptoData);
+              break;
+            }
+            case 'metal': {
+              const metalData = {
+                metal_type: cleanData.metal_type,
+                coin_symbol: cleanData.symbol,
+                quantity: cleanData.quantity,
+                unit: cleanData.unit || 'oz',
+                purchase_price: cleanData.purchase_price,
+                cost_basis: (cleanData.quantity || 0) * (cleanData.purchase_price || 0),
+                purchase_date: cleanData.purchase_date,
+                storage_location: cleanData.storage_location,
+                description: `${cleanData.symbol} - ${cleanData.name}`
+              };
+              await addMetalPosition(position.data.account_id, metalData);
+              break;
+            }
+            case 'otherAssets':
+              await addOtherAsset(cleanData);
+              break;
+            case 'cash': {
+              const cashData = {
+                ...cleanData,
+                name: cleanData.cash_type,
+                interest_rate: cleanData.interest_rate ? cleanData.interest_rate / 100 : null
+              };
+              await addCashPosition(position.data.account_id, cashData);
+              break;
+            }
+          }
+
+          successCount++;
+
+          const account = type !== 'otherAssets'
+            ? accounts.find(a => a.id === position.data.account_id)
+            : null;
+
+          successfulPositionData.push({
+            type,
+            ticker: position.data.ticker,
+            symbol: position.data.symbol,
+            asset_name: position.data.asset_name,
+            metal_type: position.data.metal_type,
+            currency: position.data.currency,
+            shares: position.data.shares,
+            quantity: position.data.quantity,
+            amount: position.data.amount,
+            account_name: account?.account_name || (type === 'otherAssets' ? 'Other Assets' : 'Unknown Account'),
+            account_id: position.data.account_id
+          });
+
+          updatedPositions[type] = (updatedPositions[type] || []).map(pos =>
+            pos.id === position.id ? { ...pos, status: 'added' } : pos
+          );
+
+          const progress = Math.round(((i + 1) / readyEntries.length) * 100);
+          showMessage('info', `Submitting ready positions... ${progress}%`, [`${successCount} of ${readyEntries.length} completed`], 0);
+        } catch (error) {
+          console.error(`Error adding ${type} position:`, error);
+          errorCount++;
+          errors.push(`${assetTypes[type].name}: ${error.message || 'Unknown error'}`);
+
+          updatedPositions[type] = (updatedPositions[type] || []).map(pos =>
+            pos.id === position.id ? { ...pos, status: 'error', errorMessage: error.message } : pos
+          );
+        }
+      }
+
+      // prune out added rows so the queue shrinks
+      const pruned = Object.fromEntries(
+        Object.entries(updatedPositions).map(([t, arr]) => [t, (arr || []).filter(p => p.status !== 'added')])
+      );
+      setPositions(pruned);
+      localStorage.setItem(`quickpositions:work:${seedId}`, JSON.stringify(pruned));
+
+      if (successCount > 0) {
+        showMessage('success', `Successfully added ${successCount} ready position${successCount !== 1 ? 's' : ''}!`,
+          errorCount > 0 ? [`${errorCount} positions failed`] : []
+        );
+        if (onPositionsSaved) onPositionsSaved(successCount, successfulPositionData);
+      } else {
+        showMessage('error', 'No ready positions were added', errors.slice(0, 5));
+      }
+    } catch (e) {
+      console.error('Error submitting ready positions:', e);
+      showMessage('error', 'Failed to submit ready positions', [e.message]);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+
   // Clear all
   const clearAll = () => {
     if (stats.totalPositions > 0 && !window.confirm('Clear all positions? This cannot be undone.')) {
       return;
     }
-    
-    setPositions({
-      security: [],
-      cash: [],
-      crypto: [],
-      metal: [],
-      otherAssets: []
-    });
+
+    const empty = { security: [], cash: [], crypto: [], metal: [], otherAssets: [] };
+    setPositions(empty);
+    localStorage.removeItem(`quickpositions:work:${seedId}`); // <- nuke the draft
     setExpandedSections({});
     setAccountExpandedSections({});
     showMessage('success', 'All positions cleared', ['Ready for new entries']);
   };
+
 
   // Clear completed positions
   const clearCompletedPositions = () => {
@@ -2018,7 +2228,12 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
       updatedPositions[type] = updatedPositions[type].filter(pos => pos.status !== 'added');
     });
     
-    setPositions(updatedPositions);
+    // keep only rows not marked 'added' to shrink the queue after success
+    const pruned = Object.fromEntries(
+      Object.entries(updatedPositions).map(([t, arr]) => [t, (arr || []).filter(p => p.status !== 'added')])
+    );
+    setPositions(pruned);
+    localStorage.setItem(`quickpositions:work:${seedId}`, JSON.stringify(pruned));
     showMessage('success', 'Cleared all successfully added positions');
   };
 
@@ -2262,7 +2477,11 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
   // Render asset section
   const renderAssetSection = (assetType) => {
     const config = assetTypes[assetType];
-    const typePositions = positions[assetType] || [];
+    let typePositions = positions[assetType] || [];
+    // If global filter is 'issues', only show rows with issues
+    if (activeFilter === 'issues') {
+      typePositions = typePositions.filter(isIssueRow);
+    }
     
     // Special validation for otherAssets
     const validPositions = assetType === 'otherAssets'
@@ -2957,6 +3176,38 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
                 Delete Selected ({selectedIds.size})
               </button>
 
+              {/* NEW: Select all issue rows */}
+              <button
+                onClick={() => {
+                  const allIssues = getAllIssueRowIds();
+                  setSelectedIds(new Set(allIssues));
+                  if (allIssues.length === 0) {
+                    showMessage('info', 'No issue rows found', []);
+                  } else {
+                    showMessage('info', `Selected ${allIssues.length} rows with issues`, []);
+                  }
+                }}
+                className="px-3 py-1.5 text-sm rounded-md border bg-amber-50 text-amber-800 border-amber-200 hover:bg-amber-100"
+                title="Select all rows that are draft or error"
+              >
+                Select Issues
+              </button>
+
+              {/* NEW: Submit only ready rows */}
+              <button
+                onClick={submitReadyOnly}
+                disabled={isSubmitting}
+                className={`px-3 py-1.5 text-sm rounded-md border ${
+                  isSubmitting
+                    ? "bg-gray-300 text-gray-500 cursor-not-allowed"
+                    : "bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100"
+                }`}
+                title="Submit only rows that are ready"
+              >
+                Submit Ready Only
+              </button>
+
+
               {/* View mode toggle with label */}
               <div className="ml-4 flex items-center space-x-3">
                 <span className="text-sm text-gray-600">Add positions by:</span>
@@ -3180,6 +3431,22 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
               >
                 All Types
               </button>
+
+              {/* NEW: Issues filter */}
+              <button
+                onClick={() => setActiveFilter(activeFilter === 'issues' ? 'all' : 'issues')}
+                className={`
+                  px-3 py-1.5 text-xs font-medium rounded-lg transition-all duration-200
+                  ${activeFilter === 'issues' 
+                    ? 'bg-amber-600 text-white shadow-sm' 
+                    : 'bg-white text-amber-700 hover:bg-amber-50 border border-amber-200'
+                  }
+                `}
+                title="Show only rows with issues (draft or error)"
+              >
+                Issues
+              </button>
+
               {Object.entries(assetTypes).map(([key, config]) => (
                 <AssetTypeBadge
                   key={key}
