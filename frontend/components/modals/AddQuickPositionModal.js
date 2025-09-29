@@ -714,18 +714,6 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
   // ---- Account indexing + seed mapping ----
   const accountIndex = useRef({ byName: new Map(), byNameInst: new Map() });
 
-  const buildAccountIndex = (accts=[]) => {
-    const byName = new Map();
-    const byNameInst = new Map();
-    accts.forEach(a => {
-      const name = String(a.account_name || '').trim().toLowerCase();
-      const inst = String(a.institution || '').trim().toLowerCase();
-      if (name) byName.set(name, a);
-      if (name || inst) byNameInst.set(`${name}::${inst}`, a);
-    });
-    accountIndex.current = { byName, byNameInst };
-  };
-
   const mapSeedAccountId = (data = {}) => {
     // Already an id?
     if (data.account_id) {
