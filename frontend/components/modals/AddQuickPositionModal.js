@@ -427,7 +427,8 @@ const AccountFilter = ({ accounts, selectedAccounts, onChange, filterType = 'acc
   );
 };
 
-
+const getAccountId = (a) => String(a?.id ?? a?.account_id ?? "");
+const toAccountIdStr = (v) => (v == null || v === "" ? "" : String(v));
 
 
 // Queue modal component
@@ -650,8 +651,10 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
     list.forEach(a => {
       const n = norm(a.account_name);
       const i = norm(a.institution);
-      if (n) byName.set(n, a);
-      byNameInst.set(`${n}::${i}`, a);
+      if (!n && !i) return;
+      const rec = { ...a, _id_str: getAccountId(a) };
+      if (n) byName.set(n, rec);
+      byNameInst.set(`${n}::${i}`, rec);
     });
     accountIndexRef.current = { byName, byNameInst };
   };
@@ -714,40 +717,22 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
   // ---- Account indexing + seed mapping ----
   const accountIndex = useRef({ byName: new Map(), byNameInst: new Map() });
 
-  const mapSeedAccountId = (data = {}) => {
-    // Already an id?
-    if (data.account_id) {
-      const n = Number(data.account_id);
-      return { ...data, account_id: Number.isFinite(n) ? n : data.account_id };
+  const mapSeedAccountId = (raw = {}) => {
+    const lower = Object.create(null);
+    for (const [k, v] of Object.entries(raw ?? {})) {
+      const nk = k.toString().trim().toLowerCase().replace(/[^\p{L}\p{N}]+/gu, '_');
+      lower[nk] = v;
     }
-
-    // Pull common Excel columns
-    const rawName = (data.account_name ?? data.account ?? '').toString().trim();
-    const rawInst = (data.institution ?? data.bank ?? data.brokerage ?? '').toString().trim();
-
-    if (!rawName && !rawInst) return data;
-
-    const name = rawName.toLowerCase();
-    const inst = rawInst.toLowerCase();
-    const { byName, byNameInst } = accountIndex.current;
-
-    // (1) Exact: name + institution
-    const hitBoth = byNameInst.get(`${name}::${inst}`);
-    if (hitBoth?.id) return { ...data, account_id: hitBoth.id };
-
-    // (2) Exact: name only
-    const hitName = byName.get(name);
-    if (hitName?.id) return { ...data, account_id: hitName.id };
-
-    // (3) Loose: if name is unique prefix
-    const loose = [...byName.keys()].filter(k => k.startsWith(name));
-    if (name && loose.length === 1) {
-      const a = byName.get(loose[0]);
-      if (a?.id) return { ...data, account_id: a.id };
+    if (lower.account_id != null && lower.account_id !== "") {
+      return { ...raw, account_id: toAccountIdStr(lower.account_id) };
     }
-
-    // Give up (leave unmapped)
-    return data;
+    const name = (lower.account_name ?? lower.account ?? lower.acct_name ?? lower.name ?? "").toString().trim();
+    const inst = (lower.institution ?? lower.institution_name ?? lower.bank ?? lower.brokerage ?? lower.custodian ?? "").toString().trim();
+    if (!name && !inst) return raw;
+    const n = norm(name), i = norm(inst);
+    const { byName, byNameInst } = accountIndexRef.current;
+    const hit = (byNameInst && byNameInst.get(`${n}::${i}`)) || (byName && byName.get(n));
+    return hit?._id_str ? { ...raw, account_id: hit._id_str } : raw;
   };
 
   // Normalize one seed row (applies account mapping)
@@ -767,7 +752,7 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
       Object.keys(next).forEach(t => {
         next[t] = next[t].map(p => {
           if (t === 'otherAssets') return p; // those don't use account_id
-          if (p?.data?.account_id) return p;
+          if (toAccountIdStr(p?.data?.account_id)) return p;
           const mapped = mapSeedAccountId(p?.data);
           return mapped === p?.data ? p : { ...p, data: mapped };
         });
@@ -996,7 +981,7 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
       setRecentlyUsedAccounts(recentIds);
       
       // Select all by default
-      setSelectedAccountFilter(new Set(fetchedAccounts.map(acc => acc.id)));
+      setSelectedAccountFilter(new Set(fetchedAccounts.map(acc => getAccountId(acc))));
       setSelectedInstitutionFilter(new Set(fetchedAccounts.map(acc => acc.institution).filter(Boolean)));
     } catch (error) {
       console.error('Error loading accounts:', error);
@@ -1103,7 +1088,8 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
           };
 
           return (rows ?? []).map((r) => {
-            const base = mapSeedAccountId(r?.data ?? r);
+            let base = mapSeedAccountId(r?.data ?? r);
+            if (base && base.account_id != null) base.account_id = toAccountIdStr(base.account_id);
             return {
               id: r?.id ?? (Date.now() + Math.random()),
               type,
@@ -1186,7 +1172,7 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
     const newPosition = {
       id: Date.now() + Math.random(),
       type: assetType,
-      data: { account_id: accountId },
+      data: { account_id: toAccountIdStr(accountId) },
       errors: {},
       isNew: true,
       animateIn: true
@@ -1223,7 +1209,7 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
     });
     
     if (lastPosition && lastPosition.data.account_id) {
-      defaultData.account_id = lastPosition.data.account_id;
+      defaultData.account_id = toAccountIdStr(lastPosition.data.account_id);
     }
     if (assetType === 'cash' && lastPosition?.data.currency) {
       defaultData.currency = lastPosition.data.currency;
@@ -1701,7 +1687,7 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
           
           // Only track by account for non-otherAssets
           if (type !== 'otherAssets' && pos.data.account_id) {
-            const accountId = pos.data.account_id;
+            const accountId = toAccountIdStr(pos.data.account_id);
             if (!byAccount[accountId]) {
               byAccount[accountId] = { count: 0, value: 0, positions: [] };
             }
@@ -1878,7 +1864,9 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
 
           switch (type) {
             case 'security':
-              await addSecurityPosition(position.data.account_id, cleanData);
+              const acctNum = Number(position.data.account_id);
+              const accountIdForApi = Number.isFinite(acctNum) ? acctNum : undefined;
+              await addSecurityPosition(accountIdForApi, cleanData);
               break;
             case 'crypto':
 
@@ -2134,8 +2122,8 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
             <div className="relative w-full">
               <select
                 {...commonProps}
-                value={value}
-                onChange={(e) => updatePosition(assetType, position.id, field.key, parseInt(e.target.value))}
+                value={toAccountIdStr(value)}
+                onChange={(e) => updatePosition(assetType, position.id, field.key, toAccountIdStr(e.target.value))}
                 className={`${baseClass} pr-8 cursor-pointer appearance-none`}
               >
                 <option value="">Select account...</option>
@@ -2144,7 +2132,7 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
                     {accounts
                       .filter(a => recentlyUsedAccounts.includes(a.id))
                       .map(account => (
-                        <option key={account.id} value={account.id}>
+                        <option key={getAccountId(account)} value={getAccountId(account)}>
                           ⭐ {account.account_name}
                         </option>
                       ))}
@@ -2152,7 +2140,7 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
                 )}
                 <optgroup label="All Accounts">
                   {accounts.map(account => (
-                    <option key={account.id} value={account.id}>
+                    <option key={getAccountId(account)} value={getAccountId(account)}>
                       {account.account_name}
                     </option>
                   ))}
@@ -2543,13 +2531,13 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
       <div className="space-y-4">
         {accounts.filter(account => {
           // Apply account filter
-          const passesAccountFilter = selectedAccountFilter.has(account.id);
+          const passesAccountFilter = selectedAccountFilter.has(getAccountId(account));
           // Apply institution filter
           const passesInstitutionFilter = selectedInstitutionFilter.has(account.institution);
           // Both filters must pass
           return passesAccountFilter && passesInstitutionFilter;
         }).map(account => {
-          const accountStats = stats.byAccount[account.id];
+          const accountStats = stats.byAccount[getAccountId(account)];
           const hasPositions = accountStats && accountStats.count > 0;
           
           return (
@@ -2607,7 +2595,7 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
               <div className="p-4 space-y-4">
                 {hasPositions ? (
                   Object.entries(assetTypes).map(([type, config]) => {
-                    const typePositions = positions[type].filter(p => p.data.account_id === account.id);
+                    const typePositions = positions[type].filter(p => toAccountIdStr(p.data.account_id) === getAccountId(account));
                     if (typePositions.length === 0) return null;
 
                     const Icon = config.icon;
@@ -2902,16 +2890,6 @@ const AddQuickPositionModal = ({ isOpen, onClose, onPositionsSaved, seedPosition
       default:
         return 0;
     }
-  };
-
-  // Format currency helper
-  const formatCurrency = (value) => {
-    if (value >= 1000000) {
-      return `$${(value / 1000000).toFixed(1)}M`;
-    } else if (value >= 1000) {
-      return `$${(value / 1000).toFixed(1)}K`;
-    }
-    return `$${value.toFixed(2)}`;
   };
 
   return (
